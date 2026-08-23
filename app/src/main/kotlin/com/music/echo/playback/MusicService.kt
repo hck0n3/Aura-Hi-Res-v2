@@ -11320,9 +11320,10 @@ class MusicService :
         private const val MIN_GAIN_MB = -1500
 
         // 2026-08-23 owner directive: the ONLY allowed streaming providers are the SimpMusic ones
-        // (YouTube InnerTube ANDROID_VR 1.65.10 + IOS 19.45.4). Video mode fetched muxed streams via
-        // TVHTML5 — not a SimpMusic provider — so it is disabled while this flag is false.
-        private const val VIDEO_PROVIDERS_ENABLED = false
+        // (YouTube). Video mode was disabled here while the purge was being sorted out, but the owner
+        // explicitly asked to KEEP the music↔video toggle ("no pierda ninguna función"): video streams
+        // come from the same YouTube provider SimpMusic uses for audio, so video mode is re-enabled.
+        private const val VIDEO_PROVIDERS_ENABLED = true
 
         private const val TAG = "MusicService"
 
