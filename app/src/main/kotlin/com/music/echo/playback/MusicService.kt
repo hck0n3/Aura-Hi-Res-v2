@@ -1440,11 +1440,6 @@ class MusicService :
 
     private val preloadedVideoOriginalUris = mutableMapOf<String, String>()
 
-    // Ids whose cached/resolved video URL is a NewPipe MUXED stream (audio embedded in the video file):
-    // createMediaSource must NOT merge a separate audio source for them (double audio). Mirrors the
-    // entries in [videoUrlCache] that came from YTPlayerUtils.muxedVideoStreamUrlNewPipe.
-    private val newPipeMuxedVideoIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
-
     // Multi-item video tracking (generalizes the single videoModeMediaId). Every mediaId here has its player
     // MediaItem URI currently set to a VIDEO stream — the playing video track AND any UPCOMING item that was
     // pre-built for a seamless auto-advance (see prebuildNextVideoItem). createMediaSource is authoritative
@@ -7137,7 +7132,6 @@ class MusicService :
         if (isVideoFailure) {
             if (mediaId != null) {
                 videoUrlCache.remove(mediaId)
-                newPipeMuxedVideoIds.remove(mediaId)
                 resetRetryCount(mediaId)
             }
             exitVideoMode()
@@ -8019,7 +8013,7 @@ class MusicService :
             if (armModeWhenReady) {
                 _videoMode.value = true
             } else if (!_videoMode.value) return
-            swapToVideo(id, cached, isMuxed = id in newPipeMuxedVideoIds)
+            swapToVideo(id, cached)
             return
         }
         videoSwapMark("applyVideoToCurrent: URL cache MISS → live resolve")
@@ -8037,29 +8031,11 @@ class MusicService :
                 result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, connectivityManager, null) }
                     .getOrElse { Result.failure(it) }
             }
-            var url = result.getOrNull()
-            var muxed = false
-            if (url.isNullOrEmpty()) {
-                // SimpMusic-provider fallback: the InnerTube video resolve is unavailable on this device
-                // class (burned client class — same root cause as the audio 403). NewPipe serves MUXED
-                // streams that do fetch; they carry audio, so register as muxed (no separate audio merge).
-                val newPipe = runCatching { YTPlayerUtils.muxedVideoStreamUrlNewPipe(id) }
-                    .getOrElse { Result.failure(it) }
-                url = newPipe.getOrNull()
-                if (!url.isNullOrEmpty()) {
-                    muxed = true
-                    newPipeMuxedVideoIds.add(id)
-                    Timber.tag(TAG).i("Video mode: resolved via NewPipe muxed fallback (InnerTube video resolve unavailable)")
-                }
-            } else {
-                // InnerTube worked again — a stale muxed flag must not poison the video-only merge path.
-                newPipeMuxedVideoIds.remove(id)
-            }
-            val resolvedUrl = url
+            val url = result.getOrNull()
             withContext(Dispatchers.Main) {
                 if (videoSwapGeneration.get() != swapGeneration) return@withContext
                 if (player.currentMediaItem?.mediaId != id) return@withContext
-                if (resolvedUrl.isNullOrEmpty()) {
+                if (url.isNullOrEmpty()) {
                     if (!armModeWhenReady) {
                         disarmVideoModeKeepAudio()
                         val ex = result.exceptionOrNull()
@@ -8068,13 +8044,13 @@ class MusicService :
                     }
                     return@withContext
                 }
-                videoUrlCache[id] = resolvedUrl to (System.currentTimeMillis() + 5 * 60 * 1000L)
+                videoUrlCache[id] = url to (System.currentTimeMillis() + 5 * 60 * 1000L)
                 if (armModeWhenReady) {
                     _videoMode.value = true
                 } else if (!_videoMode.value) {
                     return@withContext
                 }
-                swapToVideo(id, resolvedUrl, isMuxed = muxed)
+                swapToVideo(id, url)
             }
         }
     }
@@ -8254,23 +8230,12 @@ class MusicService :
         scope.launch(Dispatchers.IO) {
             try {
                 val maxH = videoModeMaxHeight
-                var muxed = nextId in newPipeMuxedVideoIds
                 var url = videoUrlCache[nextId]?.takeIf { it.second > System.currentTimeMillis() }?.first
                 if (url.isNullOrEmpty()) {
                     url = runCatching { YTPlayerUtils.videoStreamUrl(nextId, connectivityManager, maxH) }.getOrNull()
                     // TV robustness: if 1080p came back empty, fall back to the default resolution.
                     if (url.isNullOrEmpty() && maxH != null) {
                         url = runCatching { YTPlayerUtils.videoStreamUrl(nextId, connectivityManager, null) }.getOrNull()
-                    }
-                    if (url.isNullOrEmpty()) {
-                        // SimpMusic-provider fallback (mirrors applyVideoToCurrent): NewPipe muxed stream.
-                        url = YTPlayerUtils.muxedVideoStreamUrlNewPipe(nextId).getOrNull()
-                        if (!url.isNullOrEmpty()) {
-                            muxed = true
-                            newPipeMuxedVideoIds.add(nextId)
-                        }
-                    } else {
-                        newPipeMuxedVideoIds.remove(nextId)
                     }
                 }
                 val resolved = url
@@ -8288,7 +8253,7 @@ class MusicService :
                     val origUri = item.localConfiguration?.uri?.toString()
                     // Register FIRST so the createMediaSource triggered by replaceMediaItem sees the video
                     // state and builds video+audio (not audio-only — the earlier pre-swap failure).
-                    videoModeItems[nextId] = VideoTrackState(resolved, origUri, muxed)
+                    videoModeItems[nextId] = VideoTrackState(resolved, origUri, false)
                     if (origUri != resolved) {
                         // Replace ONLY the upcoming (non-current) item → no STATE_BUFFERING on the running track.
                         player.replaceMediaItem(idx, item.buildUpon().setUri(resolved).build())
@@ -8352,13 +8317,6 @@ class MusicService :
                 // applyVideoToCurrent / prebuildNextVideoItem) so the pre-resolved URL is never black-screened.
                 if (url.isNullOrEmpty() && maxH != null) {
                     url = runCatching { YTPlayerUtils.videoStreamUrl(id, connectivityManager, null) }.getOrNull()
-                }
-                if (url.isNullOrEmpty()) {
-                    // SimpMusic-provider fallback (mirrors applyVideoToCurrent): NewPipe muxed stream.
-                    url = YTPlayerUtils.muxedVideoStreamUrlNewPipe(id).getOrNull()
-                    if (!url.isNullOrEmpty()) newPipeMuxedVideoIds.add(id)
-                } else {
-                    newPipeMuxedVideoIds.remove(id)
                 }
                 val resolved = url
                 // Same TTL as the on-demand resolve → applyVideoToCurrent's cache read accepts it as fresh.
@@ -9010,8 +8968,7 @@ class MusicService :
 
         // Register FIRST (separate map + URI-match guard in createMediaSource) so the pre-player's
         // setMediaItem builds the MergingMediaSource (video-only + normal audio), never audio-only.
-        // NewPipe muxed fallback URLs carry audio themselves → register as muxed (no audio merge).
-        instantSwapItems[id] = VideoTrackState(url, origUri, id in newPipeMuxedVideoIds)
+        instantSwapItems[id] = VideoTrackState(url, origUri, false)
         var pre: ExoPlayer? = null
         try {
             pre = createExoPlayer(isSecondary = true)
@@ -9121,12 +9078,11 @@ class MusicService :
             pre.shuffleModeEnabled = old.shuffleModeEnabled
             // Hand the registration over to the normal video bookkeeping, exactly as swapToVideo does —
             // from here on, transitions / exitVideoMode / error recovery see the standard video state.
-            val state = instantSwapItems.remove(id)
-                ?: VideoTrackState(url, item.localConfiguration?.uri?.toString(), id in newPipeMuxedVideoIds)
+            val state = instantSwapItems.remove(id) ?: VideoTrackState(url, item.localConfiguration?.uri?.toString(), false)
             videoModeItems[id] = state
             videoModeMediaId = id
             videoModeOriginalUri = state.originalAudioUri
-            videoModeIsMuxedPodcast = state.isMuxedPodcast
+            videoModeIsMuxedPodcast = false
 
             // HIGH fix: unconditionally re-assert the CURRENT Safe Volume state onto the pre-player right
             // before publish (mirrors the per-track re-assert at ~line 2801). This guarantees the published
