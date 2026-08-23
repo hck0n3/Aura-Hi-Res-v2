@@ -5,6 +5,16 @@
 
 ## 📍 Estado Actual
 
+- **2026-08-23 (noche, tarde): ✅ EQ ARREGLADO (se conserva) / ⛔ FALLBACK DE VIDEO REVERTIDO.**
+  EQ: la causa era la ausencia de `SUPERPOWERED_LICENSE_KEY` en el build debug; clave copiada
+  desde `AURA FENIX\aura-simpmusic\local.properties`; verificado `engine=HEALTHY
+  dsp_probe=passed` en vivo. NO hizo falta otra licencia. Commits `3aa45cd` (toggle video),
+  `ff3eaa7` (log build con licencia).
+  ⛔ **Orden del dueño:** el fallback NewPipe muxed para video (commit `ab46318`) producía
+  video 360p de calidad inaceptable ("se ve y se escucha horrible"); REVERTIDO en `a288326`.
+  El modo video queda como estaba (resuelve por InnerTube, hoy quemado → "Video falló").
+  **NO modificar más código existente sin orden explícita del dueño.** La vía correcta para
+  video/calidad alta será PipePipeExtractor (fork de SimpMusic) y/o login — solo si él lo pide.
 - **2026-08-23 (noche): ✅ LA APP YA REPRODUCE (primera reproducción confirmada).**
   `state=PLAYING`, posición avanza, fetches `206` por chunks de 5 MB. El dueño lo confirmó
   en vivo ("SI YA REPRODUCE"). Commits: `807b2d8` (port WIP), `4df5936` (fallback itag 18).
