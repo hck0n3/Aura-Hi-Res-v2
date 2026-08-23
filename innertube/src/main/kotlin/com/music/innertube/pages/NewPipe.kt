@@ -8,14 +8,16 @@ import com.music.innertube.models.IpVersion
 import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.schabi.newpipe.extractor.NewPipe
-import org.schabi.newpipe.extractor.downloader.Downloader
-import org.schabi.newpipe.extractor.downloader.Request
-import org.schabi.newpipe.extractor.downloader.Response
-import org.schabi.newpipe.extractor.exceptions.ParsingException
-import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
-import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
-import org.schabi.newpipe.extractor.stream.StreamInfo
+import dev.maxrave.pipepipe.extractor.NewPipe
+import dev.maxrave.pipepipe.extractor.ServiceList
+import dev.maxrave.pipepipe.extractor.downloader.CancellableCall
+import dev.maxrave.pipepipe.extractor.downloader.Downloader
+import dev.maxrave.pipepipe.extractor.downloader.Request
+import dev.maxrave.pipepipe.extractor.downloader.Response
+import dev.maxrave.pipepipe.extractor.exceptions.ParsingException
+import dev.maxrave.pipepipe.extractor.exceptions.ReCaptchaException
+import dev.maxrave.pipepipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
+import dev.maxrave.pipepipe.extractor.stream.StreamInfo
 import java.io.IOException
 import java.net.Inet4Address
 import java.net.Inet6Address
@@ -25,6 +27,12 @@ import java.net.ProxySelector
 import java.net.SocketAddress
 import java.net.URI
 
+// PipePipeExtractor is SimpMusic's own NewPipeExtractor fork (maxrave-dev). Same stream pipeline as
+// SimpMusic: extraction runs through the ANDROID_VR InnerTube client, which YouTube's bot-check has
+// NOT burned, so it returns the FULL adaptive format set (video-only 137/136/134…, audio 250/251/774)
+// instead of the bot-limited muxed itag 18 that stock TeamNewPipe v0.25.2 gets. Setting the service
+// tokens to the user's YouTube cookie additionally enables the fork's supplementary WEB_REMIX call
+// (Premium itags 141/774); anonymous (empty tokens) still works and is the default.
 class NewPipeDownloaderImpl(
     proxy: Proxy?,
     proxyAuth: String? = null,
@@ -63,39 +71,90 @@ class NewPipeDownloaderImpl(
 
     @Throws(IOException::class, ReCaptchaException::class)
     override fun execute(request: Request): Response {
-        val httpMethod = request.httpMethod()
-        val url = request.url()
-        val headers = request.headers()
-        val dataToSend = request.dataToSend()
-
-        val requestBuilder =
-            okhttp3.Request
-                .Builder()
-                .method(httpMethod, dataToSend?.toRequestBody())
-                .url(url)
-                .addHeader("User-Agent", YouTubeClient.USER_AGENT_WEB)
-
-        headers.forEach { (headerName, headerValueList) ->
-            if (headerValueList.size > 1) {
-                requestBuilder.removeHeader(headerName)
-                headerValueList.forEach { headerValue ->
-                    requestBuilder.addHeader(headerName, headerValue)
-                }
-            } else if (headerValueList.size == 1) {
-                requestBuilder.header(headerName, headerValueList[0])
-            }
-        }
-
-        val response = client.newCall(requestBuilder.build()).execute()
+        val response = client.newCall(buildOkHttpRequest(request)).execute()
 
         if (response.code == 429) {
             response.close()
-            throw ReCaptchaException("reCaptcha Challenge requested", url)
+            throw ReCaptchaException("reCaptcha Challenge requested", request.url())
         }
 
-        val responseBodyToReturn = response.body.string()
-        val latestUrl = response.request.url.toString()
-        return Response(response.code, response.message, response.headers.toMultimap(), responseBodyToReturn, latestUrl)
+        return response.toNewPipeResponse()
+    }
+
+    @Throws(IOException::class, ReCaptchaException::class)
+    override fun executeAsync(
+        request: Request,
+        callback: AsyncCallback?,
+    ): CancellableCall {
+        val call = client.newCall(buildOkHttpRequest(request))
+        val cancellable = CancellableCall(call)
+        call.enqueue(
+            object : okhttp3.Callback {
+                override fun onFailure(
+                    call: okhttp3.Call,
+                    e: IOException,
+                ) {
+                    cancellable.setFinished()
+                    callback?.onError(e)
+                }
+
+                override fun onResponse(
+                    call: okhttp3.Call,
+                    response: okhttp3.Response,
+                ) {
+                    try {
+                        if (response.code == 429) {
+                            response.close()
+                            callback?.onError(
+                                ReCaptchaException("reCaptcha Challenge requested", request.url()),
+                            )
+                            return
+                        }
+                        callback?.onSuccess(response.toNewPipeResponse())
+                    } catch (e: Exception) {
+                        callback?.onError(e)
+                    } finally {
+                        cancellable.setFinished()
+                    }
+                }
+            },
+        )
+        return cancellable
+    }
+
+    // The fork's Response carries the raw body bytes too (6-arg constructor) — stock TeamNewPipe's
+    // 5-arg one does not exist here.
+    private fun okhttp3.Response.toNewPipeResponse(): Response {
+        val rawBytes = body?.bytes() ?: ByteArray(0)
+        return Response(
+            code,
+            message,
+            headers.toMultimap(),
+            rawBytes.toString(Charsets.UTF_8),
+            rawBytes,
+            request.url.toString(),
+        )
+    }
+
+    private fun buildOkHttpRequest(request: Request): okhttp3.Request {
+        val builder =
+            okhttp3.Request
+                .Builder()
+                .method(request.httpMethod(), request.dataToSend()?.toRequestBody())
+                .url(request.url())
+                .addHeader("User-Agent", YouTubeClient.USER_AGENT_WEB)
+
+        request.headers().forEach { (headerName, headerValueList) ->
+            if (headerValueList.size > 1) {
+                builder.removeHeader(headerName)
+                headerValueList.forEach { headerValue ->
+                    builder.addHeader(headerName, headerValue)
+                }
+            } else if (headerValueList.size == 1) {
+                builder.header(headerName, headerValueList[0])
+            }
+        }
+        return builder.build()
     }
 }
 
@@ -186,12 +245,25 @@ object NewPipeExtractor {
         return newPipeUtils?.getStreamUrl(format, videoId)
     }
 
+    /**
+     * Feeds the user's YouTube cookie to the fork (SimpMusic does exactly this in its logIn). With a
+     * cookie the fork adds a supplementary WEB_REMIX extraction call (Premium itags 141/774); null or
+     * empty keeps fully-working anonymous extraction. Called from YouTube.cookie's setter, so login and
+     * app-startup restore both reach it with zero extra wiring.
+     */
+    @Synchronized
+    fun setTokens(cookie: String?) {
+        init()
+        ServiceList.YouTube.tokens = cookie ?: ""
+    }
+
     fun newPipePlayer(videoId: String): List<Pair<Int, String>> {
         init()
         return try {
+            // music.youtube.com, same entry URL SimpMusic uses with the fork.
             val streamInfo = StreamInfo.getInfo(
-                NewPipe.getService(0),
-                "https://www.youtube.com/watch?v=$videoId"
+                ServiceList.YouTube,
+                "https://music.youtube.com/watch?v=$videoId"
             )
             val streamsList = streamInfo.audioStreams + streamInfo.videoStreams + streamInfo.videoOnlyStreams
             streamsList.mapNotNull {

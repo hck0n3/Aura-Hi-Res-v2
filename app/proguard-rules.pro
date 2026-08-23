@@ -82,9 +82,9 @@
 -dontwarn org.openjsse.net.ssl.OpenJSSE
 -dontwarn org.slf4j.impl.StaticLoggerBinder
 
-## Rules for NewPipeExtractor
--keep class org.schabi.newpipe.extractor.services.youtube.protos.** { *; }
--keep class org.schabi.newpipe.extractor.timeago.patterns.** { *; }
+## Rules for PipePipeExtractor (SimpMusic's NewPipeExtractor fork — package renamed to dev.maxrave.pipepipe)
+-keep class dev.maxrave.pipepipe.extractor.services.youtube.protos.** { *; }
+-keep class dev.maxrave.pipepipe.extractor.timeago.patterns.** { *; }
 -keep class org.mozilla.javascript.** { *; }
 -keep class org.mozilla.javascript.engine.** { *; }
 -dontwarn org.mozilla.javascript.JavaToJSONConverters

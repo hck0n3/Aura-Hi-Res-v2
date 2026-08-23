@@ -29,7 +29,13 @@ dependencies {
     implementation(libs.ktor.serialization.json)
     implementation(libs.ktor.client.encoding)
     implementation(libs.brotli)
-    implementation(libs.newpipeextractor)
+    // SimpMusic's own extractor fork (maxrave-dev/PipePipeExtractor). Its extraction client is
+    // ANDROID_VR, which is NOT burned by YouTube's bot-check, so it returns full adaptive
+    // video/audio formats where stock TeamNewPipe only yields muxed itag 18 (360p). protobuf-java
+    // is excluded because the app module already ships protobuf-javalite (duplicate classes).
+    implementation(libs.pipepipeextractor) {
+        exclude(group = "com.google.protobuf", module = "protobuf-java")
+    }
     // Diagnostics only. Timber's planted trees are process-global, so a failure logged here reaches the
     // app's AppLogger file tree and therefore the log the USER can send — which is the whole point: the
     // cipher/signature deobfuscation that breaks when YouTube rotates player.js lives in THIS module,

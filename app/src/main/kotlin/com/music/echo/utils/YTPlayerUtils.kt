@@ -1530,17 +1530,43 @@ object YTPlayerUtils {
     ).mapCatching { it.streamUrl }
 
     /**
-     * SimpMusic-provider fallback for video mode: resolves a MUXED (video+audio) progressive stream via
-     * NewPipe (the same provider SimpMusic uses for its streams) when the InnerTube video resolve is
-     * unavailable (burned client class / bot-check). Prefers 720p itag 22, then 360p itag 18. The result
-     * already carries audio, so callers MUST register it as muxed (no separate audio merge).
+     * SimpMusic-provider fallback for video mode, now ADAPTIVE like YouTube itself. With the
+     * PipePipeExtractor fork (extraction client ANDROID_VR, not burned by the bot-check) the full
+     * video-only set arrives (itag 137/136/135/134...) instead of ONLY muxed itag 18 (fixed 360p).
+     * Picks the best H.264 video-only stream at/below the connection-dependent cap — the SAME rule
+     * InnerTube's findFormat uses (WiFi up to 720p, mobile data up to 360p, TV passes its own cap) —
+     * and the caller MERGES it with the track's normal audio (real HD video + full audio). Only when
+     * a video has no video-only format at all (extremely rare) it falls back to muxed itag 22 ?: 18,
+     * which carries audio. Returns (streamUrl, isMuxed); callers register muxed results so the
+     * MediaSource factory skips the audio merge.
      */
-    fun muxedVideoStreamUrlNewPipe(videoId: String): Result<String> = runCatching {
+    fun adaptiveVideoStreamNewPipe(
+        videoId: String,
+        connectivityManager: ConnectivityManager,
+        maxHeight: Int? = null,
+    ): Result<Pair<String, Boolean>> = runCatching {
         val streams = NewPipeExtractor.newPipePlayer(videoId)
-        Timber.tag(logTag).d("NewPipe video fallback lookup returned itags=${streams.map { it.first }}")
-        val url = streams.firstOrNull { it.first == 22 }?.second
-            ?: streams.firstOrNull { it.first == 18 }?.second
-        requireNotNull(url) { "NewPipe returned no muxed video stream (itags=${streams.map { it.first }})" }
+        val itags = streams.map { it.first }
+        Timber.tag(logTag).d("PipePipe video fallback lookup returned itags=$itags")
+        // Video-only H.264 (avc1) itags → real pixel height, per YouTube's format table.
+        val avcHeights = mapOf(138 to 2160, 137 to 1080, 136 to 720, 135 to 480, 134 to 360, 133 to 240, 160 to 144)
+        val candidates = streams
+            .mapNotNull { s -> avcHeights[s.first]?.let { h -> Triple(s.first, h, s.second) } }
+            .sortedByDescending { it.second }
+        val cap = maxHeight ?: if (connectivityManager.isActiveNetworkMetered) 360 else 720
+        // Best stream that fits the cap; if the network cap is below every available format, take the
+        // smallest one instead of failing (video always plays, never above the bandwidth budget).
+        val pick = candidates.firstOrNull { it.second <= cap } ?: candidates.lastOrNull()
+        if (pick != null) {
+            Timber.tag(logTag).i("PipePipe adaptive video picked itag=${pick.first} (${pick.second}p, cap=${cap}p)")
+            pick.third to false
+        } else {
+            val url = streams.firstOrNull { it.first == 22 }?.second
+                ?: streams.firstOrNull { it.first == 18 }?.second
+                ?: throw IllegalStateException("PipePipe returned no usable video stream (itags=$itags)")
+            Timber.tag(logTag).i("PipePipe adaptive video fell back to muxed itag (no video-only formats)")
+            url to true
+        }
     }
 
     private fun findFormat(

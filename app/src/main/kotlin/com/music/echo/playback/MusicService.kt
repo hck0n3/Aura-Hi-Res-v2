@@ -1440,9 +1440,10 @@ class MusicService :
 
     private val preloadedVideoOriginalUris = mutableMapOf<String, String>()
 
-    // Ids whose cached/resolved video URL is a NewPipe MUXED stream (audio embedded in the video file):
+    // Ids whose cached/resolved video URL is a MUXED stream (audio embedded in the video file):
     // createMediaSource must NOT merge a separate audio source for them (double audio). Mirrors the
-    // entries in [videoUrlCache] that came from YTPlayerUtils.muxedVideoStreamUrlNewPipe.
+    // entries in [videoUrlCache] that came from YTPlayerUtils.adaptiveVideoStreamNewPipe reporting
+    // isMuxed=true (the adaptive video-only picks are NOT in this set — they get the audio merge).
     private val newPipeMuxedVideoIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     // Multi-item video tracking (generalizes the single videoModeMediaId). Every mediaId here has its player
@@ -8041,15 +8042,16 @@ class MusicService :
             var muxed = false
             if (url.isNullOrEmpty()) {
                 // SimpMusic-provider fallback: the InnerTube video resolve is unavailable on this device
-                // class (burned client class — same root cause as the audio 403). NewPipe serves MUXED
-                // streams that do fetch; they carry audio, so register as muxed (no separate audio merge).
-                val newPipe = runCatching { YTPlayerUtils.muxedVideoStreamUrlNewPipe(id) }
-                    .getOrElse { Result.failure(it) }
-                url = newPipe.getOrNull()
-                if (!url.isNullOrEmpty()) {
-                    muxed = true
-                    newPipeMuxedVideoIds.add(id)
-                    Timber.tag(TAG).i("Video mode: resolved via NewPipe muxed fallback (InnerTube video resolve unavailable)")
+                // class (burned client class — same root cause as the audio 403). The PipePipe fork serves
+                // ADAPTIVE video-only formats (720p/1080p per the network cap) that get MERGED with the
+                // track audio; only when a video truly lacks video-only does it hand a muxed stream,
+                // which carries audio and must be registered so no audio merge happens.
+                val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(id, connectivityManager, maxH).getOrNull()
+                if (picked != null && !picked.first.isNullOrEmpty()) {
+                    url = picked.first
+                    muxed = picked.second
+                    if (muxed) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
+                    Timber.tag(TAG).i("Video mode: resolved via PipePipe adaptive fallback muxed=$muxed (InnerTube video resolve unavailable)")
                 }
             } else {
                 // InnerTube worked again — a stale muxed flag must not poison the video-only merge path.
@@ -8263,11 +8265,13 @@ class MusicService :
                         url = runCatching { YTPlayerUtils.videoStreamUrl(nextId, connectivityManager, null) }.getOrNull()
                     }
                     if (url.isNullOrEmpty()) {
-                        // SimpMusic-provider fallback (mirrors applyVideoToCurrent): NewPipe muxed stream.
-                        url = YTPlayerUtils.muxedVideoStreamUrlNewPipe(nextId).getOrNull()
-                        if (!url.isNullOrEmpty()) {
-                            muxed = true
-                            newPipeMuxedVideoIds.add(nextId)
+                        // SimpMusic-provider fallback (mirrors applyVideoToCurrent): adaptive video-only
+                        // merged with the track audio, muxed stream only as last resort.
+                        val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(nextId, connectivityManager, maxH).getOrNull()
+                        if (picked != null && !picked.first.isNullOrEmpty()) {
+                            url = picked.first
+                            muxed = picked.second
+                            if (muxed) newPipeMuxedVideoIds.add(nextId) else newPipeMuxedVideoIds.remove(nextId)
                         }
                     } else {
                         newPipeMuxedVideoIds.remove(nextId)
@@ -8354,9 +8358,13 @@ class MusicService :
                     url = runCatching { YTPlayerUtils.videoStreamUrl(id, connectivityManager, null) }.getOrNull()
                 }
                 if (url.isNullOrEmpty()) {
-                    // SimpMusic-provider fallback (mirrors applyVideoToCurrent): NewPipe muxed stream.
-                    url = YTPlayerUtils.muxedVideoStreamUrlNewPipe(id).getOrNull()
-                    if (!url.isNullOrEmpty()) newPipeMuxedVideoIds.add(id)
+                    // SimpMusic-provider fallback (mirrors applyVideoToCurrent): adaptive video-only
+                    // merged with the track audio, muxed stream only as last resort.
+                    val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(id, connectivityManager, maxH).getOrNull()
+                    if (picked != null && !picked.first.isNullOrEmpty()) {
+                        url = picked.first
+                        if (picked.second) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
+                    }
                 } else {
                     newPipeMuxedVideoIds.remove(id)
                 }

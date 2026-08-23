@@ -101,6 +101,10 @@ object YouTube {
         get() = innerTube.cookie
         set(value) {
             innerTube.cookie = value
+            // Feed the fork's extractor the same cookie (SimpMusic's logIn does exactly this). Login
+            // and the app-startup restore both go through this setter, so the token stays in sync
+            // with zero extra wiring. null/"" = anonymous extraction, which still works.
+            runCatching { NewPipeExtractor.setTokens(value) }
         }
     var proxy: Proxy?
         get() = innerTube.proxy
