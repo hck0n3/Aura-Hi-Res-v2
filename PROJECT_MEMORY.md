@@ -5,6 +5,21 @@
 
 ## 📍 Estado Actual
 
+- **2026-08-23 (noche, tarde): ✅ ECUALIZADOR ARREGLADO.** Causa raíz: el build debug NO
+  llevaba `SUPERPOWERED_LICENSE_KEY` (log `licence=absent` → motor en bypass total; el
+  cableado estaba bien). Fix: clave Base64 copiada desde
+  `AURA FENIX\aura-simpmusic\local.properties` al `local.properties` de este proyecto
+  (gitignored). Verificado en vivo: `licence=ok binding=none`, `engine=HEALTHY
+  dsp_probe=passed`, `superpowered=IN_PATH eqOn=true`, reproduciendo. NO hizo falta otra
+  licencia (el dueño se había ofrecido a conseguirla). Commits `3aa45cd` (video toggle
+  restaurado), `ff3eaa7` (log de build con licencia).
+- **EN CURSO: modo video.** El dueño reporta que el toggle música↔video solo da audio.
+  Causa: el modo video resolvía por TVHTML5/InnerTube (clase quemada, igual que el 403 del
+  audio). Fix implementado (pendiente de verificar): fallback NewPipe MUXED (itag 22 → 18)
+  en `YTPlayerUtils.muxedVideoStreamUrlNewPipe` + cableado en MusicService
+  (`applyVideoToCurrent`, `prebuildNextVideoItem`, `prefetchCurrentVideoUrl`, instant-swap)
+  con bandera `newPipeMuxedVideoIds` para NO mergear audio doble sobre el stream muxed.
+  Build `build-video-newpipe.txt`.
 - **2026-08-23 (noche): ✅ LA APP YA REPRODUCE (primera reproducción confirmada).**
   `state=PLAYING`, posición avanza, fetches `206` por chunks de 5 MB. El dueño lo confirmó
   en vivo ("SI YA REPRODUCE"). Commits: `807b2d8` (port WIP), `4df5936` (fallback itag 18).
@@ -25,8 +40,9 @@
   SimpMusic, `com.github.maxrave-dev:PipePipeExtractor`, pide music.youtube.com y verifica
   itags), y/o login con cuenta (SAPISIDHASH, el anti-bot real de SimpMusic según su fuente).
 - **Purga cumplida (mandato del dueño):** proveedores no-SimpMusic desactivados
-  (`NON_SIMPMUSIC_PROVIDERS_ENABLED=false`: Qobuz/Saavn; `VIDEO_PROVIDERS_ENABLED=false`);
-  persistencia de URLs desactivada (fresh resolve por canción, modelo SimpMusic).
+  (`NON_SIMPMUSIC_PROVIDERS_ENABLED=false`: Qobuz/Saavn); `VIDEO_PROVIDERS_ENABLED=true`
+  RESTAURADO (el dueño exige el toggle música↔video; el video usa el mismo proveedor
+  YouTube vía NewPipe); persistencia de URLs desactivada (fresh resolve por canción).
 - Mandato del dueño vigente: reproducir IGUAL que SimpMusic, SOLO con sus proveedores.
   Él confirmó que SimpMusic v1.7.0 reproduce bien HOY en el mismo celular y red.
 - **Ground truth extraída del APK de SimpMusic instalado (dex strings, no suposiciones):**
@@ -227,6 +243,12 @@ cambios de hoy (el archivo creció ~115 líneas).
 - **2026-08-23 (10): ✅ PRIMERA REPRODUCCIÓN.** Con fallback muxed itag 18: fetches 206 por
   chunks de 5 MB, state=PLAYING, posición avanza; confirmado por el dueño en vivo.
   Pendiente: recuperar formatos adaptativos de calidad alta (PipePipeExtractor y/o login).
+- **2026-08-23 (11): ✅ EQ ARREGLADO + video en curso.** Causa del EQ muerto = licencia
+  Superpowered ausente en el build debug (no un fallo de cableado). Clave copiada desde la
+  copia Fénix; verificado `engine=HEALTHY dsp_probe=passed` en vivo. El dueño reporta que el
+  toggle música↔video solo da audio → causa: resolución de video por InnerTube quemado;
+  implementado fallback NewPipe muxed (itag 22→18) en los 4 puntos de resolución de video
+  con bandera anti-doble-audio. Commits: `3aa45cd`, `ff3eaa7`.
 
 ## 🏛️ Decisiones Arquitectónicas Clave
 
