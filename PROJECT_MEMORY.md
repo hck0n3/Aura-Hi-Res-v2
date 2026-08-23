@@ -5,16 +5,30 @@
 
 ## 📍 Estado Actual
 
-- **2026-08-23 (tarde): LA APP NUNCA REPRODUCE NADA — ESA ES LA FALLA RAÍZ.**
-  El dueño reveló: el código viene de "Echo Music", app quemada/bloqueada y eliminada
-  por YouTube. Evidencia de logcat (cascada completa de 12 clientes falla):
-  ANDROID_VR → LOGIN_REQUIRED "confirm you're not a bot"; ANDROID → formatos sin URL;
-  IOS → HTTP 403 CON poToken presente; WEB → UNPLAYABLE. El poToken BotGuard SÍ se
-  genera (len=120) pero es rechazado: **los fingerprints de clientes heredados están
-  quemados server-side**. Diagnóstico completo en la memoria qwen
-  (`project/causa-raiz-bloqueo-streaming.md`).
-- **Mandato del dueño:** reconstruir la capa de streaming basándose en SimpMusic,
-  que ÉL CONFIRMÓ que reproduce bien HOY en el mismo celular y red (v1.7.0 instalada).
+- **2026-08-23 (noche): ✅ LA APP YA REPRODUCE (primera reproducción confirmada).**
+  `state=PLAYING`, posición avanza, fetches `206` por chunks de 5 MB. El dueño lo confirmó
+  en vivo ("SI YA REPRODUCE"). Commits: `807b2d8` (port WIP), `4df5936` (fallback itag 18).
+- **Causa raíz FINAL del 403 (confirmada con evidencia A/B en el mismo dispositivo):**
+  el bloqueo NO era de la URL en la validación (proba de 1 byte → 206) sino del FETCH REAL:
+  las URLs directas de InnerTube (ANDROID_VR/IOS) son clase quemada — Google las rechaza
+  en la petición de bytes real (403 con Range grande, 206 con Range de 1 byte). Las URLs de
+  la extracción NewPipe son clase distinta y SÍ pasan el fetch (206 en chunks de 5 MB).
+- **Arreglo vigente:** NewPipe (`StreamInfo.getInfo`) es la fuente PRIMARIA de URLs en
+  `findUrlOrNull` (modelo SimpMusic verificado en fuente: maxrave-dev/core dae3ce98 — sus
+  URLs de stream vienen de NewPipe, InnerTube solo da metadatos). Selección: itag exacto →
+  cualquier itag de audio útil (`AUDIO_ITAG_PREFERENCE`, incluye muxed 22/18 de emergencia).
+  Las URLs NewPipe traen `n=` ya desofuscado → se salta el n-transform propio.
+- **Limitación actual (SIGUIENTE PASO):** la extracción en el dispositivo devuelve SOLO
+  `itags=[18]` (MP4 360p con audio embebido, ~calidad baja) — YouTube limita los formatos
+  al contexto de extracción (bot-limit). Se reproduce a calidad baja. Para recuperar la
+  calidad alta/Hi-Res hay que mejorar la extracción: portar PipePipeExtractor (fork de
+  SimpMusic, `com.github.maxrave-dev:PipePipeExtractor`, pide music.youtube.com y verifica
+  itags), y/o login con cuenta (SAPISIDHASH, el anti-bot real de SimpMusic según su fuente).
+- **Purga cumplida (mandato del dueño):** proveedores no-SimpMusic desactivados
+  (`NON_SIMPMUSIC_PROVIDERS_ENABLED=false`: Qobuz/Saavn; `VIDEO_PROVIDERS_ENABLED=false`);
+  persistencia de URLs desactivada (fresh resolve por canción, modelo SimpMusic).
+- Mandato del dueño vigente: reproducir IGUAL que SimpMusic, SOLO con sus proveedores.
+  Él confirmó que SimpMusic v1.7.0 reproduce bien HOY en el mismo celular y red.
 - **Ground truth extraída del APK de SimpMusic instalado (dex strings, no suposiciones):**
   - ANDROID_VR **1.65.10** UA `com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip`
     (SIN Cronet; Aura usa 1.43.32/1.61.48 "Quest 3" + Cronet)
@@ -173,9 +187,14 @@ cambios de hoy (el archivo creció ~115 líneas).
 - [x] Instalar en dispositivo vía adb → **la app NO reproduce: cascada InnerTube entera falla**.
 - [x] Diagnóstico con logcat: clientes InnerTube quemados (herencia Echo Music).
 - [x] Ground truth de constantes extraída del APK de SimpMusic 1.7.0 instalado.
-- [ ] **Reconstruir clientes InnerTube con constantes de SimpMusic** (YouTubeClient.kt + cascada YTPlayerUtils.kt; esperando informe del investigador para el orden exacto).
-- [ ] Rebuild + instalar + **verificar que reproduce DE VERDAD** (criterio del dueño: "SI O SI").
-- [ ] Commit de los cambios (no pedido aún; NUNCA publicar tag/release sin permiso).
+- [x] Reconstruir clientes InnerTube con constantes de SimpMusic + purga de proveedores.
+- [x] Descubrir el modelo REAL de SimpMusic (fuente: URLs de NewPipe, fetch OkHttp plain).
+- [x] NewPipe como fuente primaria de URLs + fallback de itags de audio.
+- [x] **Rebuild + instalar + verificar que reproduce DE VERDAD → ✅ CONFIRMADO (itag 18, 206, PLAYING).**
+- [x] Commits de los cambios (`807b2d8`, `4df5936`). NUNCA publicar tag/release sin permiso.
+- [ ] **Recuperar calidad alta**: la extracción solo devuelve itag 18 (bot-limit). Opciones:
+      portar PipePipeExtractor (fork de SimpMusic) y/o login con cuenta (SAPISIDHASH).
+- [ ] Verificar estabilidad (canciones completas, saltos, crossfade) con la vía itag 18.
 - [ ] Entregar beta + actualizar esta memoria.
 
 ## 📜 Historial de Cambios (Log)
@@ -196,6 +215,18 @@ cambios de hoy (el archivo creció ~115 líneas).
   mismo celular (dex strings): clientes ANDROID_VR 1.65.10 eureka-user, IOS 19.45.4,
   ANDROID 21.03.36/Android15, VISIONOS 1.02, ANDROID_MUSIC 7.27.52, MWEB iPad-UA,
   WEB_REMIX 1.20260304.03.00. Subagente leyendo el repo GitHub para el orden de cascada.
+- **2026-08-23 (8):** Informe del investigador + verificación en fuente (maxrave-dev/core
+  dae3ce98): SimpMusic obtiene las URLs de stream de NEWPIPE (StreamInfo), InnerTube solo
+  metadatos; fetch con OkHttp plain. Corrección de rumbo: NewPipe restaurado como fuente
+  primaria en findUrlOrNull; purga de proveedores no-SimpMusic (Qobuz/Saavn/video);
+  persistencia de URLs → fresh resolve. Commit `807b2d8`.
+- **2026-08-23 (9):** Diagnóstico decisivo: NewPipe devuelve solo `itags=[18]` en el
+  dispositivo (bot-limit) y el 18 no estaba en la preferencia → se caía a las URLs quemadas.
+  Evidencia A/B del 403: sonda de 1 byte → 206, fetch real de 5 MB → 403 (clase de URL
+  InnerTube bloqueada en la petición de bytes). Commit `4df5936`.
+- **2026-08-23 (10): ✅ PRIMERA REPRODUCCIÓN.** Con fallback muxed itag 18: fetches 206 por
+  chunks de 5 MB, state=PLAYING, posición avanza; confirmado por el dueño en vivo.
+  Pendiente: recuperar formatos adaptativos de calidad alta (PipePipeExtractor y/o login).
 
 ## 🏛️ Decisiones Arquitectónicas Clave
 
