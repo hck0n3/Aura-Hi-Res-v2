@@ -8030,32 +8030,36 @@ class MusicService :
         }
         scope.launch(Dispatchers.IO) {
             val maxH = videoModeMaxHeight
-            var result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, connectivityManager, maxH) }
-                .getOrElse { Result.failure(it) }
-            // TV robustness: if 1080p video-only selection failed at runtime, fall back to the default (720p)
-            // resolution so video mode never black-screens (no regression vs. phone/tablet behaviour).
-            if (maxH != null && result.getOrNull().isNullOrEmpty()) {
-                result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, connectivityManager, null) }
-                    .getOrElse { Result.failure(it) }
-            }
-            var url = result.getOrNull()
+            var url: String? = null
             var muxed = false
-            if (url.isNullOrEmpty()) {
-                // SimpMusic-provider fallback: the InnerTube video resolve is unavailable on this device
-                // class (burned client class — same root cause as the audio 403). The PipePipe fork serves
-                // ADAPTIVE video-only formats (720p/1080p per the network cap) that get MERGED with the
-                // track audio; only when a video truly lacks video-only does it hand a muxed stream,
-                // which carries audio and must be registered so no audio merge happens.
-                val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(id, connectivityManager, maxH).getOrNull()
-                if (picked != null && !picked.first.isNullOrEmpty()) {
-                    url = picked.first
-                    muxed = picked.second
-                    if (muxed) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
-                    Timber.tag(TAG).i("Video mode: resolved via PipePipe adaptive fallback muxed=$muxed (InnerTube video resolve unavailable)")
-                }
+            var innerTubeResult: Result<String>? = null
+            // FAST PATH FIRST — the music↔video toggle used to sit here while the burned InnerTube
+            // client class chewed through its multi-client resolve budget and only THEN fell back to
+            // the extractor. PipePipe (SimpMusic's own provider, ANDROID_VR extraction) is NOT burned,
+            // returns adaptive video-only formats and answers in one extraction call — mirroring the
+            // audio path, where the extractor is already the primary URL source. InnerTube remains as
+            // fallback for devices where it still works.
+            val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(id, connectivityManager, maxH).getOrNull()
+            if (picked != null && !picked.first.isNullOrEmpty()) {
+                url = picked.first
+                muxed = picked.second
+                if (muxed) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
+                Timber.tag(TAG).i("Video mode: resolved via PipePipe adaptive muxed=$muxed (fast path)")
             } else {
-                // InnerTube worked again — a stale muxed flag must not poison the video-only merge path.
-                newPipeMuxedVideoIds.remove(id)
+                var result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, connectivityManager, maxH) }
+                    .getOrElse { Result.failure(it) }
+                // TV robustness: if 1080p video-only selection failed at runtime, fall back to the default
+                // (720p) resolution so video mode never black-screens (no regression vs. phone/tablet).
+                if (maxH != null && result.getOrNull().isNullOrEmpty()) {
+                    result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, connectivityManager, null) }
+                        .getOrElse { Result.failure(it) }
+                }
+                innerTubeResult = result
+                url = result.getOrNull()
+                if (!url.isNullOrEmpty()) {
+                    // InnerTube worked — a stale muxed flag must not poison the video-only merge path.
+                    newPipeMuxedVideoIds.remove(id)
+                }
             }
             val resolvedUrl = url
             withContext(Dispatchers.Main) {
@@ -8064,7 +8068,7 @@ class MusicService :
                 if (resolvedUrl.isNullOrEmpty()) {
                     if (!armModeWhenReady) {
                         disarmVideoModeKeepAudio()
-                        val ex = result.exceptionOrNull()
+                        val ex = innerTubeResult?.exceptionOrNull()
                         val reason = ex?.let { "${it.javaClass.simpleName}: ${it.message}" } ?: "sin formato de video"
                         Toast.makeText(this@MusicService, "Video falló — $reason", Toast.LENGTH_LONG).show()
                     }
@@ -8259,22 +8263,23 @@ class MusicService :
                 var muxed = nextId in newPipeMuxedVideoIds
                 var url = videoUrlCache[nextId]?.takeIf { it.second > System.currentTimeMillis() }?.first
                 if (url.isNullOrEmpty()) {
-                    url = runCatching { YTPlayerUtils.videoStreamUrl(nextId, connectivityManager, maxH) }.getOrNull()
-                    // TV robustness: if 1080p came back empty, fall back to the default resolution.
-                    if (url.isNullOrEmpty() && maxH != null) {
-                        url = runCatching { YTPlayerUtils.videoStreamUrl(nextId, connectivityManager, null) }.getOrNull()
-                    }
-                    if (url.isNullOrEmpty()) {
-                        // SimpMusic-provider fallback (mirrors applyVideoToCurrent): adaptive video-only
-                        // merged with the track audio, muxed stream only as last resort.
-                        val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(nextId, connectivityManager, maxH).getOrNull()
-                        if (picked != null && !picked.first.isNullOrEmpty()) {
-                            url = picked.first
-                            muxed = picked.second
-                            if (muxed) newPipeMuxedVideoIds.add(nextId) else newPipeMuxedVideoIds.remove(nextId)
-                        }
+                    // PipePipe FIRST (mirrors applyVideoToCurrent): the fast, unburned SimpMusic
+                    // provider — InnerTube only as fallback for devices where it still resolves.
+                    val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(nextId, connectivityManager, maxH).getOrNull()
+                    if (picked != null && !picked.first.isNullOrEmpty()) {
+                        url = picked.first
+                        muxed = picked.second
+                        if (muxed) newPipeMuxedVideoIds.add(nextId) else newPipeMuxedVideoIds.remove(nextId)
                     } else {
-                        newPipeMuxedVideoIds.remove(nextId)
+                        url = runCatching { YTPlayerUtils.videoStreamUrl(nextId, connectivityManager, maxH) }.getOrNull()
+                        // TV robustness: if 1080p came back empty, fall back to the default resolution.
+                        if (url.isNullOrEmpty() && maxH != null) {
+                            url = runCatching { YTPlayerUtils.videoStreamUrl(nextId, connectivityManager, null) }.getOrNull()
+                        }
+                        if (!url.isNullOrEmpty()) {
+                            muxed = false
+                            newPipeMuxedVideoIds.remove(nextId)
+                        }
                     }
                 }
                 val resolved = url
@@ -8351,22 +8356,23 @@ class MusicService :
                 if (audioStreamResolveInFlight.get() > 0 || YTPlayerUtils.isStreamResolveBusy) return@launch
                 if (iad1tya.echo.music.utils.ThermalManager.isHot.value) return@launch
                 val maxH = videoModeMaxHeight
-                var url = runCatching { YTPlayerUtils.videoStreamUrl(id, connectivityManager, maxH) }.getOrNull()
-                // TV robustness: if 1080p came back empty, fall back to the default resolution (matches
-                // applyVideoToCurrent / prebuildNextVideoItem) so the pre-resolved URL is never black-screened.
-                if (url.isNullOrEmpty() && maxH != null) {
-                    url = runCatching { YTPlayerUtils.videoStreamUrl(id, connectivityManager, null) }.getOrNull()
-                }
-                if (url.isNullOrEmpty()) {
-                    // SimpMusic-provider fallback (mirrors applyVideoToCurrent): adaptive video-only
-                    // merged with the track audio, muxed stream only as last resort.
-                    val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(id, connectivityManager, maxH).getOrNull()
-                    if (picked != null && !picked.first.isNullOrEmpty()) {
-                        url = picked.first
-                        if (picked.second) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
-                    }
+                var url: String? = null
+                // PipePipe FIRST (mirrors applyVideoToCurrent): the fast, unburned SimpMusic
+                // provider — InnerTube only as fallback for devices where it still resolves.
+                val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(id, connectivityManager, maxH).getOrNull()
+                if (picked != null && !picked.first.isNullOrEmpty()) {
+                    url = picked.first
+                    if (picked.second) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
                 } else {
-                    newPipeMuxedVideoIds.remove(id)
+                    url = runCatching { YTPlayerUtils.videoStreamUrl(id, connectivityManager, maxH) }.getOrNull()
+                    // TV robustness: if 1080p came back empty, fall back to the default resolution (matches
+                    // applyVideoToCurrent / prebuildNextVideoItem) so the pre-resolved URL is never black-screened.
+                    if (url.isNullOrEmpty() && maxH != null) {
+                        url = runCatching { YTPlayerUtils.videoStreamUrl(id, connectivityManager, null) }.getOrNull()
+                    }
+                    if (!url.isNullOrEmpty()) {
+                        newPipeMuxedVideoIds.remove(id)
+                    }
                 }
                 val resolved = url
                 // Same TTL as the on-demand resolve → applyVideoToCurrent's cache read accepts it as fresh.
