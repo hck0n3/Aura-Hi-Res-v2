@@ -1,0 +1,217 @@
+name: Android Build & Sign
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-gms-universal-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-gms-universal-
+            ${{ runner.os }}-gradle-
+
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Create google-services.json
+        # 2026-08-19: TEMPORARILY disabled. applicationId just changed (iad1tya.echo.music ->
+        # iad1tya.aura.music) as part of the package-identity change to recover from what looks like
+        # a YouTube-side block on the old package. The GOOGLE_SERVICES_JSON secret still only has a
+        # Firebase app entry for the OLD package name — injecting it now would make the
+        # com.google.gms.google-services plugin fail the build with "No matching client found for
+        # package name 'iad1tya.aura.music'". Firebase (Analytics/Crashlytics) is a nice-to-have, not
+        # required for playback, so the build proceeds without it rather than blocking on it.
+        # RE-ENABLE (delete this `if: false` line) once the owner adds an Android app for
+        # iad1tya.aura.music in the Firebase console and updates the GOOGLE_SERVICES_JSON secret.
+        if: false
+        env:
+          HAS_GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+          GOOGLE_SERVICES_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf "%s" "$GOOGLE_SERVICES_CONTENT" > app/google-services.json
+
+      - name: Set up Signing Keystore
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          HAS_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p app/keystore
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > app/keystore/release.keystore
+
+      - name: Generate CI Keystore (fallback when no secrets configured)
+        run: |
+          if [ ! -f app/keystore/release.keystore ]; then
+            mkdir -p app/keystore
+            keytool -genkeypair -v -keystore app/keystore/release.keystore \
+              -storepass jrmusicpro -keypass jrmusicpro -alias jrmusic \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=JR-MUSIC-PRO, OU=JR, O=JR, L=NA, ST=NA, C=US"
+            echo "Generated fallback CI keystore"
+          fi
+
+      - name: Generate debug keystore for diagnostic build
+        # 2026-08-19: the release buildType is TEMPORARILY signed with signingConfigs.getByName("debug")
+        # (see app/build.gradle.kts) to test whether the release certificate itself is what YouTube is
+        # blocking. That built-in "debug" signing config points at ~/.android/debug.keystore, which
+        # Android Studio creates on first use but which AGP only auto-generates here when it processes an
+        # actual `debug` build-type task — this workflow only ever runs assembleUniversalGmsRelease, so
+        # that never happens and validateSigningUniversalGmsRelease fails with "Keystore file ... not
+        # found". Generate it by hand with the same fixed credentials Android tooling always uses.
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v -keystore ~/.android/debug.keystore \
+              -storepass android -keypass android -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Build and Sign Release APK (Push to main / Dispatch / Tag)
+        env:
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || 'jrmusicpro' }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'jrmusic' }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'jrmusicpro' }}
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
+          # Paid Superpowered licence. Never in source. Release builds embed it XORed with the SHA-256
+          # of the certificate that signs THIS build, so only an APK signed with our keystore can undo
+          # it. When the secret is missing the build still succeeds — the shipped app simply has no DSP
+          # engine and says so on the EQ screen (Gradle logs a warning).
+          SUPERPOWERED_LICENSE_KEY: ${{ secrets.SUPERPOWERED_LICENSE_KEY }}
+        run: ./gradlew assembleUniversalGmsRelease
+
+      - name: Rename and Organize APKs
+        run: |
+          VERSION_NAME=$(grep "versionName =" app/build.gradle.kts | head -n 1 | awk -F '"' '{print $2}')
+          echo "App Version: $VERSION_NAME"
+          mkdir -p app/build/outputs/apk/release-artifacts
+          # ONE universal APK for EVERY device (arm64/armeabi-v7a/x86/x86_64) — phones, Android TV, car head
+          # units, 32-bit boxes — to avoid ABI-compatibility problems. It's the single default download.
+          UNIVERSAL_APK=$(find app/build/outputs/apk/universalGms/release -name "*.apk" | head -n 1)
+          cp "$UNIVERSAL_APK" "app/build/outputs/apk/release-artifacts/Aura-Hi-Res-Player-${VERSION_NAME}.apk"
+          echo "universal -> Aura-Hi-Res-Player-${VERSION_NAME}.apk"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aura-Hi-Res-Player
+          path: app/build/outputs/apk/release-artifacts/*.apk
+
+      # R8 mapping for deobfuscating user crash reports (obfuscated frames like `utils.s2.n` are
+      # unreadable without the EXACT mapping of the shipped build — a local rebuild renames differently).
+      - name: Upload R8 mapping (crash deobfuscation)
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping
+          path: app/build/outputs/mapping/**/mapping.*
+          if-no-files-found: warn
+
+      - name: Parse Release Info
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          # 1. Read first line and strip the "# " to get the Title
+          TITLE=$(head -n 1 RELEASE_INFO.md | sed 's/^# //')
+          echo "RELEASE_TITLE=$TITLE" >> $GITHUB_ENV
+          
+          # 2. Read from line 3 onwards to get the Description body
+          tail -n +3 RELEASE_INFO.md > release-body.md
+
+      - name: Generate changelog.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          mkdir -p app/build/outputs/apk/release-artifacts
+          python3 - <<'PY'
+          import json
+          sections=[]; cur=None
+          for line in open('RELEASE_INFO.md', encoding='utf-8').read().splitlines():
+              s=line.strip()
+              if s.startswith('## '):
+                  cur={'title': s[3:].strip(), 'items': []}; sections.append(cur)
+              elif s.startswith('# '):
+                  continue
+              elif s.startswith('- ') or s.startswith('* '):
+                  if cur is None:
+                      cur={'title': '', 'items': []}; sections.append(cur)
+                  cur['items'].append(s[2:].strip())
+          out={'description': '', 'image': '', 'warning': '', 'changelog': sections}
+          open('app/build/outputs/apk/release-artifacts/changelog.json','w',encoding='utf-8').write(json.dumps(out, ensure_ascii=False, indent=2))
+          print('changelog.json sections:', len(sections))
+          PY
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.RELEASE_TITLE }}
+          body_path: release-body.md
+          # PRIVATE BETA mechanism (owner order: test builds go only to him, never to everyone).
+          # A tag containing "-beta" or "-test" is published as a PRERELEASE: GitHub excludes
+          # prereleases from the `releases/latest` endpoint, which is exactly what the in-app
+          # updater queries — so no user's app ever offers the beta. The owner installs it from
+          # the release page directly. A normal `vX.Y.Z` tag behaves exactly as before.
+          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-test') }}
+          files: |
+            app/build/outputs/apk/release-artifacts/*.apk
+            app/build/outputs/apk/release-artifacts/changelog.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # No-subscription test build. FOSS + a distinct applicationId (.dev), signed with the release
+      # key. Built WITHOUT google-services.json (the .dev id isn't in it, which would fail the Google
+      # plugin). Uploaded ONLY as a private build artifact (repo owner) — NEVER attached to the public
+      # release, so it can't be used to bypass the paid subscription, and the updater never sees it.
+      - name: Build No-Subscription Test APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true
+        env:
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || 'jrmusicpro' }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'jrmusic' }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'jrmusicpro' }}
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
+          SUPERPOWERED_LICENSE_KEY: ${{ secrets.SUPERPOWERED_LICENSE_KEY }}
+        run: |
+          rm -f app/google-services.json
+          ./gradlew assembleArm64FossRelease -Pnosub=true
+          VERSION_NAME=$(grep "versionName =" app/build.gradle.kts | head -n 1 | awk -F '"' '{print $2}')
+          mkdir -p app/build/outputs/apk/nosub-artifacts
+          find app/build/outputs/apk/arm64Foss/release -name "*.apk" | while read -r apk_path; do
+            cp "$apk_path" "app/build/outputs/apk/nosub-artifacts/Aura-Hi-Res-Player-${VERSION_NAME}-NOSUB.apk"
+            echo "No-sub APK: $apk_path"
+          done
+
+      - name: Upload No-Subscription Artifact (private, owner-only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aura-Hi-Res-Player-NOSUB
+          path: app/build/outputs/apk/nosub-artifacts/*.apk

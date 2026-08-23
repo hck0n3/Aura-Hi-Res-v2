@@ -1,0 +1,340 @@
+
+
+package iad1tya.echo.music.ui.component
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.LinearGradientShader
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import iad1tya.echo.music.constants.AppleMusicLyricsBlurKey
+import iad1tya.echo.music.lyrics.LyricsEntry
+import iad1tya.echo.music.ui.screens.settings.LyricsPosition
+import iad1tya.echo.music.utils.rememberPreference
+
+
+/**
+ * The 350 ms whole-line ease-in used when a lyric entry has NO real per-word timings — LrcLib and KuGou hand
+ * out per-LINE timings only, i.e. most songs. The line lights up together instead of snapping on, and NO
+ * per-word timing is ever fabricated, so nothing here can drift against the audio.
+ *
+ * Single implementation, shared by every lyrics style that needs it (see EchoMusic below and Apple-Music-v2 in
+ * Lyrics.kt) so the two can never disagree on the feel.
+ */
+@Composable
+fun rememberWholeLineFillProgress(isActive: Boolean): Float {
+    val progress by animateFloatAsState(
+        targetValue = if (isActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 350),
+        label = "wholeLineFill"
+    )
+    return progress
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun echomusicLyricsLine(
+    entry: LyricsEntry,
+    nextEntryTime: Long?,
+    effectivePlaybackPosition: Long,
+    isSynced: Boolean,
+    isActive: Boolean,
+    distanceFromCurrent: Int,
+    lyricsTextPosition: LyricsPosition,
+    textColor: Color,
+    showRomanized: Boolean,
+    showTranslated: Boolean,
+    textSize: Float,
+    lineSpacing: Float,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    isSelected: Boolean,
+    isSelectionModeActive: Boolean,
+    isAutoScrollActive: Boolean,
+    expressiveAccent: Color,
+    modifier: Modifier = Modifier
+) {
+    val appleMusicLyricsBlur by iad1tya.echo.music.utils.rememberPerfGatedBoolean(AppleMusicLyricsBlurKey, true)
+
+    val targetBlur = if (!appleMusicLyricsBlur || !isAutoScrollActive || isActive || !isSynced || isSelectionModeActive) {
+        0f
+    } else {
+        
+        when (distanceFromCurrent) {
+            1 -> 0f
+            2 -> 0f
+            3 -> 2f
+            4 -> 4f
+            else -> 6f
+        }
+    }
+
+    val animatedBlur by animateFloatAsState(
+        targetValue = targetBlur,
+        animationSpec = tween(durationMillis = 1000), label = "blur"
+    )
+
+    val duration = remember(entry.time, nextEntryTime) {
+        if (nextEntryTime != null) nextEntryTime - entry.time else 4000L
+    }
+
+    
+    val activeDuration = remember(duration) {
+        (duration * 0.95).toLong().coerceAtLeast(300L)
+    }
+
+    
+    // Whether this entry has REAL per-word timings. When false we must NOT fabricate a left-to-right
+    // karaoke sweep — there is no ground truth for word positions, so a synthetic char-weighted sweep
+    // just guesses and drifts against the audio. Instead the whole line highlights together on
+    // activation (see the hasRealWordTimings gate in the render loop below).
+    val hasRealWordTimings = remember(entry.text, entry.words) {
+        !iad1tya.echo.music.lyrics.LyricsUtils.isHindi(entry.text) && !entry.words.isNullOrEmpty()
+    }
+
+    val wordData = remember(entry.text, entry.words, activeDuration, hasRealWordTimings) {
+        if (hasRealWordTimings) {
+            
+            entry.words.orEmpty().mapIndexed { index, word ->
+                val wordStart = ((word.startTime * 1000).toLong() - entry.time).coerceAtLeast(0L)
+                val wordEnd = ((word.endTime * 1000).toLong() - entry.time).coerceAtLeast(wordStart + 50L)
+                Triple(word.text, wordStart, wordEnd)
+            }
+        } else {
+            
+            val words = entry.text.split(" ").filter { it.isNotEmpty() }
+            if (words.isEmpty()) {
+                listOf(Triple(entry.text, 0L, 0L))
+            } else {
+                // Split for LAYOUT only; the (0,0) timings are unused — the whole line is highlighted
+                // together via wholeLineProgress in the render loop, never a fabricated sweep.
+                words.map { word -> Triple(word, 0L, 0L) }
+            }
+        }
+    }
+
+    val targetAlpha = when {
+        !isSynced || (isSelectionModeActive && isSelected) -> 1f
+        isActive -> 1f
+        distanceFromCurrent == 1 -> 0.65f 
+        distanceFromCurrent == 2 -> 0.45f 
+        else -> 0.35f 
+    }
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = targetAlpha,
+        animationSpec = tween(durationMillis = 300),
+        label = "lineAlpha"
+    )
+
+    val scale by animateFloatAsState(
+        targetValue = if (isActive) 1.05f else 1f,
+        animationSpec = tween(durationMillis = 400),
+        label = "lineScale"
+    )
+
+    // Used when the entry has NO real per-word timings: the whole line fills together on activation
+    // (no fabricated left-to-right sweep). A short tween gives a soft "the line lights up" feel and
+    // drives every word's gradient progress uniformly in that case. Shared helper — see above.
+    val wholeLineProgress = rememberWholeLineFillProgress(isActive)
+
+    val itemModifier = modifier
+        .fillMaxWidth()
+        .graphicsLayer {
+            this.alpha = animatedAlpha
+            this.scaleX = scale
+            this.scaleY = scale
+        }
+        .clip(RoundedCornerShape(16.dp))
+        .combinedClickable(
+            enabled = true,
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
+        .background(
+            if (isSelected && isSelectionModeActive)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+            else Color.Transparent
+        )
+        .padding(horizontal = 24.dp, vertical = (8 * lineSpacing).dp)
+        .blur(animatedBlur.dp)
+
+    
+    val agentAlignment = when {
+        entry.isBackground -> Alignment.CenterHorizontally
+        entry.agent == "v1" -> Alignment.Start
+        entry.agent == "v2" -> Alignment.End
+        entry.agent == "v1000" -> Alignment.CenterHorizontally
+        else -> when (lyricsTextPosition) {
+            LyricsPosition.LEFT -> Alignment.Start
+            LyricsPosition.CENTER -> Alignment.CenterHorizontally
+            LyricsPosition.RIGHT -> Alignment.End
+        }
+    }
+
+    val agentTextAlign = when {
+        entry.isBackground -> TextAlign.Center
+        entry.agent == "v1" -> TextAlign.Left
+        entry.agent == "v2" -> TextAlign.Right
+        entry.agent == "v1000" -> TextAlign.Center
+        else -> when (lyricsTextPosition) {
+            LyricsPosition.LEFT -> TextAlign.Left
+            LyricsPosition.CENTER -> TextAlign.Center
+            LyricsPosition.RIGHT -> TextAlign.Right
+        }
+    }
+
+    Column(
+        modifier = itemModifier,
+        horizontalAlignment = agentAlignment
+    ) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = when (agentTextAlign) {
+                TextAlign.Center -> Arrangement.Center
+                TextAlign.Right -> Arrangement.End
+                else -> Arrangement.Start
+            },
+            verticalArrangement = Arrangement.spacedBy(
+                
+                with(LocalDensity.current) { (textSize * (lineSpacing.coerceAtMost(1.3f) - 1f)).sp.toDp() }
+            )
+        ) {
+            wordData.forEachIndexed { index, (wordText, startRelative, endRelative) ->
+                val lineRelTime = (effectivePlaybackPosition - entry.time).coerceAtLeast(0L)
+                val wordDuration = (endRelative - startRelative).coerceAtLeast(1L)
+                
+                // Direct (NOT animated): effectivePlaybackPosition already advances every ~8 ms via the live
+                // lyrics ticker, so the karaoke fill is smooth on its own. Wrapping it in a 150 ms tween layered
+                // a low-pass on top → the gradient edge chased a moving target and trailed ~150 ms behind the
+                // music. Reading the value directly makes the highlight track the audio with no lag.
+                val rawProgress = when {
+                    lineRelTime >= endRelative -> 1f
+                    lineRelTime < startRelative -> 0f
+                    else -> ((lineRelTime - startRelative).toFloat() / wordDuration).coerceIn(0f, 1f)
+                }
+                // smoothstep for a softer intra-word edge (still on the live value — no temporal lag).
+                // FIX #3: with no real per-word timings, ignore the fabricated sweep and light the WHOLE
+                // line together (animated on activation) via wholeLineProgress instead of a fake wipe.
+                val progress = if (hasRealWordTimings) {
+                    rawProgress * rawProgress * (3f - 2f * rawProgress)
+                } else {
+                    wholeLineProgress
+                }
+                // Whether THIS word (and its trailing space) is fully lit — coherent for both modes.
+                val wordFilled = if (hasRealWordTimings) lineRelTime >= endRelative else wholeLineProgress >= 0.99f
+
+                val finalFontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Bold
+
+                
+                
+                Text(
+                    text = wordText,
+                    fontSize = textSize.sp,
+                    style = TextStyle(
+                        brush = Brush.horizontalGradient(
+                            0.0f to textColor,
+                            (progress - 0.05f).coerceAtLeast(0f) to textColor,
+                            (progress + 0.05f).coerceAtMost(1f) to textColor.copy(alpha = 0.45f),
+                            1.0f to textColor.copy(alpha = 0.45f)
+                        ),
+                        fontWeight = finalFontWeight,
+
+                        
+                        lineHeight = (textSize * lineSpacing.coerceAtMost(1.3f)).sp,
+                        textAlign = agentTextAlign,
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = textColor.copy(alpha = 0.6f * progress),
+                            offset = Offset.Zero,
+                            blurRadius = (12f * progress).coerceAtLeast(0.1f)
+                        )
+                    )
+                )
+                if (index != wordData.lastIndex) {
+                    Text(
+                        text = " ",
+                        fontSize = textSize.sp,
+                        color = textColor.copy(alpha = if (wordFilled) 1f else 0.45f),
+                        lineHeight = (textSize * lineSpacing.coerceAtMost(1.3f)).sp,
+                        style = TextStyle(
+                            shadow = if (wordFilled) {
+                                androidx.compose.ui.graphics.Shadow(
+                                    color = textColor.copy(alpha = 0.3f),
+                                    offset = Offset.Zero,
+                                    blurRadius = 6f
+                                )
+                            } else null
+                        )
+                    )
+                }
+            }
+        }
+
+        
+        if (showRomanized) {
+            val romanizedText by entry.romanizedTextFlow.collectAsState()
+            romanizedText?.let { romanized ->
+                Text(
+                    text = romanized,
+                    fontSize = (textSize * 0.65f).sp,
+                    color = textColor.copy(alpha = 0.6f),
+                    textAlign = agentTextAlign,
+                    fontWeight = FontWeight.SemiBold,
+
+                    modifier = Modifier.padding(top = 2.dp).fillMaxWidth(),
+                    lineHeight = (textSize * 0.65f * lineSpacing.coerceAtMost(1.3f)).sp
+                )
+            }
+        }
+
+        
+        if (showTranslated) {
+            val translatedText by entry.translatedTextFlow.collectAsState()
+            translatedText?.let { translated ->
+                Text(
+                    text = translated,
+                    fontSize = (textSize * 0.7f).sp,
+                    color = textColor.copy(alpha = 0.8f),
+                    textAlign = agentTextAlign,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 4.dp).fillMaxWidth(),
+                    lineHeight = (textSize * 0.7f * lineSpacing.coerceAtMost(1.3f)).sp
+                )
+            }
+        }
+    }
+}

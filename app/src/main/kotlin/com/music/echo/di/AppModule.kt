@@ -1,0 +1,166 @@
+
+
+package iad1tya.echo.music.di
+
+import android.content.Context
+import androidx.media3.database.DatabaseProvider
+import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.NoOpCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.room.Room
+import iad1tya.echo.music.db.InternalDatabase
+import iad1tya.echo.music.db.MusicDatabase
+import iad1tya.echo.music.listentogether.ListenTogetherClient
+import iad1tya.echo.music.listentogether.ListenTogetherManager
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import timber.log.Timber
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object AppModule {
+
+    @Provides
+    @Singleton
+    @ApplicationScope
+    fun provideApplicationScope(): CoroutineScope {
+        val handler = CoroutineExceptionHandler { _, exception ->
+            // Global exception handler for uncaught exceptions in the application scope
+            // Logs without crashing the app; prevents "IllegalStateException" on main thread from async callbacks
+            when (exception) {
+                is CancellationException -> {
+                    // Expected during shutdown — silent
+                }
+                is IllegalStateException -> {
+                    // Common from media3 callbacks on invalid lifecycle state — log but don't crash
+                    Timber.e(exception, "IllegalState in app scope (likely lifecycle race): ${exception.message}")
+                }
+                else -> {
+                    Timber.e(exception, "Uncaught exception in application scope: ${exception.javaClass.simpleName}")
+                }
+            }
+        }
+        return CoroutineScope(SupervisorJob() + Dispatchers.Default + handler)
+    }
+
+    @Singleton
+    @Provides
+    fun provideDao(
+        database: InternalDatabase,
+    ) = database.dao
+
+    @Singleton
+    @Provides
+    fun provideDatabase(
+        internalDatabase: InternalDatabase,
+    ): MusicDatabase = MusicDatabase(internalDatabase)
+
+    @Singleton
+    @Provides
+    fun provideInternalDatabase(
+        @ApplicationContext context: Context,
+    ): InternalDatabase = Room
+        .databaseBuilder(context, InternalDatabase::class.java, InternalDatabase.DB_NAME)
+        .addMigrations(
+            iad1tya.echo.music.db.MIGRATION_1_2,
+            iad1tya.echo.music.db.MIGRATION_21_24,
+            iad1tya.echo.music.db.MIGRATION_22_24,
+            iad1tya.echo.music.db.MIGRATION_24_25,
+            iad1tya.echo.music.db.MIGRATION_27_28,
+            // v37->v38: add index on event.timestamp. MUST be here (this is the builder Hilt injects);
+            // registering it only on the unused MusicDatabase.newInstance would crash every v37 user on update.
+            iad1tya.echo.music.db.MIGRATION_37_38,
+            // v38->v39: Enhanced Shuffle tables. MUST be here too — 0.6.117 registered it ONLY on the dead
+            // MusicDatabase.newInstance builder, so every 38->39 update crashed with "migration not found".
+            iad1tya.echo.music.db.MIGRATION_38_39,
+            // v39->v40: artist.followedByUserAt + artist.ytmSyncedAt (deliberate follow vs incidental
+            // bookmark, and the subscription upload state). Same rule as above — THIS is the builder
+            // Hilt injects, so a migration missing here is a universal "migration not found" crash.
+            iad1tya.echo.music.db.MIGRATION_39_40,
+        )
+
+        .setJournalMode(androidx.room.RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+        .setTransactionExecutor(java.util.concurrent.Executors.newFixedThreadPool(4))
+        .setQueryExecutor(java.util.concurrent.Executors.newFixedThreadPool(4))
+        .addCallback(object : androidx.room.RoomDatabase.Callback() {
+            override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                super.onOpen(db)
+                try {
+                    db.query("PRAGMA busy_timeout = 60000").close()
+                    db.query("PRAGMA cache_size = -16000").close()
+                    db.query("PRAGMA wal_autocheckpoint = 1000").close()
+                    db.query("PRAGMA synchronous = NORMAL").close()
+                } catch (e: Exception) {
+                    timber.log.Timber.tag("MusicDatabase").e(e, "Failed to set PRAGMA settings")
+                }
+            }
+        })
+        .build()
+
+    @Singleton
+    @Provides
+    fun provideDatabaseProvider(
+        @ApplicationContext context: Context,
+    ): DatabaseProvider = StandaloneDatabaseProvider(context)
+
+    @Singleton
+    @Provides
+    @PlayerCache
+    fun providePlayerCache(
+        @ApplicationContext context: Context,
+        databaseProvider: DatabaseProvider,
+    ): SimpleCache {
+        // Default to unlimited (-1 -> NoOpCacheEvictor): never evict cached songs unless the user
+        // picks a size limit in settings.
+        // Read the cheap process-wide SharedPreferences mirror of MaxSongCacheSizeKey instead of a blocking
+        // main-thread DataStore read. This @Provides runs when the SimpleCache is first constructed (which the
+        // app warms off-main at startup); App seeds + reactively refreshes the mirror. Default -1 (unlimited)
+        // and the evictor selection below are unchanged.
+        val cacheSize = iad1tya.echo.music.App.songCacheSizeMb(context)
+        return SimpleCache(
+            context.filesDir.resolve("exoplayer"),
+            when (cacheSize) {
+                -1 -> NoOpCacheEvictor()
+                else -> LeastRecentlyUsedCacheEvictor(cacheSize * 1024 * 1024L)
+            },
+            databaseProvider,
+        )
+    }
+
+    @Singleton
+    @Provides
+    @DownloadCache
+    fun provideDownloadCache(
+        @ApplicationContext context: Context,
+        databaseProvider: DatabaseProvider,
+    ): SimpleCache {
+        return SimpleCache(
+            context.filesDir.resolve("download"),
+            NoOpCacheEvictor(),
+            databaseProvider
+        )
+    }
+
+    @Singleton
+    @Provides
+    fun provideListenTogetherClient(
+        @ApplicationContext context: Context,
+    ): ListenTogetherClient = ListenTogetherClient(context)
+
+    @Singleton
+    @Provides
+    fun provideListenTogetherManager(
+        @ApplicationContext context: Context,
+        client: ListenTogetherClient,
+    ): ListenTogetherManager = ListenTogetherManager(client, context)
+}

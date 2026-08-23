@@ -1,0 +1,169 @@
+/*
+ * ArchiveTune (2026)
+ * © Chartreux Westia — github.com/koiverse
+ * GPL-3.0 License | Contributors: see git history
+ * Do not remove or alter this notice. - Per GPL-3.0 Section 4 & Section 5
+ */
+
+package iad1tya.echo.music.utils
+
+import android.content.ClipData
+import android.content.Context
+import android.content.Intent
+import androidx.core.net.toUri
+import androidx.datastore.preferences.core.edit
+import androidx.documentfile.provider.DocumentFile
+import iad1tya.echo.music.constants.ExportedFileUrisKey
+import iad1tya.echo.music.constants.ExportedSongIdsKey
+import iad1tya.echo.music.constants.ExportedVideoIdsKey
+import java.util.Locale
+import kotlinx.coroutines.flow.first
+
+fun String.isLocalMediaId(): Boolean {
+    return runCatching {
+        when (toUri().scheme?.lowercase(Locale.US)) {
+            "content", "file", "android.resource" -> true
+            else -> false
+        }
+    }.getOrDefault(false)
+}
+
+fun shareLocalAudio(
+    context: Context,
+    mediaId: String,
+    mimeType: String? = null,
+): Boolean {
+    val uri = mediaId.toUri()
+    val scheme = uri.scheme?.lowercase(Locale.US)
+    if (scheme != "content" && scheme != "android.resource") return false
+
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = mimeType?.takeIf(String::isNotBlank) ?: "audio/*"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        clipData = ClipData.newUri(context.contentResolver, null, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(shareIntent, null))
+    return true
+}
+
+/** Share an already-resolved content/file URI (e.g. from [lookupExportedFileUri]). */
+fun shareContentUri(
+    context: Context,
+    uriString: String,
+    mimeType: String? = null,
+): Boolean {
+    if (uriString.isBlank()) return false
+    val uri = uriString.toUri()
+    val scheme = uri.scheme?.lowercase(Locale.US)
+    if (scheme != "content" && scheme != "file" && scheme != "android.resource") return false
+
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = mimeType?.takeIf(String::isNotBlank) ?: "*/*"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        clipData = ClipData.newUri(context.contentResolver, null, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(shareIntent, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    return true
+}
+
+/**
+ * Parses the persisted export map (`id\u001Furi\u001E…`, see [ExportedFileUrisKey]).
+ */
+fun parseExportedFileUriMap(raw: String): Map<String, String> {
+    if (raw.isBlank()) return emptyMap()
+    return raw.split('\u001E')
+        .mapNotNull { entry ->
+            val sep = entry.indexOf('\u001F')
+            if (sep <= 0) null
+            else entry.substring(0, sep) to entry.substring(sep + 1)
+        }
+        .filter { it.first.isNotBlank() && it.second.isNotBlank() }
+        .toMap()
+}
+
+/** True when [uriString] is a readable content/file export the player can open offline. */
+fun exportedFileUriExists(context: Context, uriString: String): Boolean {
+    if (uriString.isBlank()) return false
+    val uri = uriString.toUri()
+    return when (uri.scheme?.lowercase(Locale.US)) {
+        "content" -> {
+            runCatching {
+                val fd = context.contentResolver.openAssetFileDescriptor(uri, "r")
+                val len = fd?.use { it.length } ?: 0L
+                if (len > 0L) true
+                else if (len == android.content.res.AssetFileDescriptor.UNKNOWN_LENGTH) {
+                    DocumentFile.fromSingleUri(context, uri)?.let { it.exists() && it.length() > 0L } == true
+                } else false
+            }.getOrDefault(false)
+        }
+        "file" -> {
+            runCatching {
+                val f = java.io.File(uri.path ?: return false)
+                f.exists() && f.length() > 0L
+            }.getOrDefault(false)
+        }
+        else -> false
+    }
+}
+
+/**
+ * Looks up the SAF URI persisted after a successful export for [songId].
+ * Encoding: `id\u001Furi\u001Eid\u001Furi` (see [ExportedFileUrisKey]).
+ */
+suspend fun lookupExportedFileUri(context: Context, songId: String): String? {
+    if (songId.isBlank()) return null
+    val raw = context.dataStore.data.first()[ExportedFileUrisKey].orEmpty()
+    return parseExportedFileUriMap(raw)[songId]
+}
+
+/**
+ * Removes an exported video from Aura lists AND deletes the SAF/file on storage when possible.
+ * @return true if the library entry was removed (file delete is best-effort).
+ */
+suspend fun deleteExportedVideo(context: Context, songId: String): Boolean {
+    if (songId.isBlank()) return false
+    val uriString = lookupExportedFileUri(context, songId)
+    var fileDeleted = false
+    if (!uriString.isNullOrBlank()) {
+        val uri = uriString.toUri()
+        fileDeleted = runCatching {
+            when (uri.scheme?.lowercase(Locale.US)) {
+                "content" -> DocumentFile.fromSingleUri(context, uri)?.delete() == true
+                "file" -> {
+                    val path = uri.path ?: return@runCatching false
+                    java.io.File(path).takeIf { it.exists() }?.delete() == true
+                }
+                else -> false
+            }
+        }.getOrDefault(false)
+        if (!fileDeleted) {
+            // Last resort: open + truncate isn't reliable; try contentResolver.delete
+            fileDeleted = runCatching {
+                context.contentResolver.delete(uri, null, null) > 0
+            }.getOrDefault(false)
+        }
+    }
+    context.dataStore.edit { prefs ->
+        fun stripCsv(key: androidx.datastore.preferences.core.Preferences.Key<String>) {
+            val cur = prefs[key].orEmpty()
+                .split(',')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && it != songId }
+            if (cur.isEmpty()) prefs.remove(key) else prefs[key] = cur.joinToString(",")
+        }
+        stripCsv(ExportedVideoIdsKey)
+        stripCsv(ExportedSongIdsKey)
+        val map = parseExportedFileUriMap(prefs[ExportedFileUrisKey].orEmpty()).toMutableMap()
+        map.remove(songId)
+        if (map.isEmpty()) {
+            prefs.remove(ExportedFileUrisKey)
+        } else {
+            prefs[ExportedFileUrisKey] = map.entries.joinToString("\u001E") { (id, u) ->
+                "$id\u001F$u"
+            }
+        }
+    }
+    return true
+}

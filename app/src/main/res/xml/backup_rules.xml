@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Never back up the login session (the InnerTube cookie lives in the "settings" datastore): keeps
+         it from being extracted via adb/cloud backup. Settings have their own in-app backup/restore. -->
+    <exclude
+        domain="file"
+        path="datastore/settings.preferences_pb" />
+    <!-- Never back up the license state (subscription key, device id, demo timestamps):
+         keeps the plaintext secret out of adb/cloud backup. -->
+    <exclude
+        domain="sharedpref"
+        path="jr_license.xml" />
+    <!-- NOTE on song.db: it is deliberately NOT excluded. Excluding it would close the
+         restored-markers hole outright, but at the cost of every customer losing their whole library
+         on a phone transfer — a bigger and far likelier harm. The library travels; the RESTORED data
+         is treated as untrusted instead (App.classifyInstallOrigin clears the account-scoped artist
+         markers on a restored first launch, exactly as a logout does).
+         The sharedpref "aura_install_marker" MUST stay INCLUDED — it is the flag that lets that
+         launch recognise itself as restored. Do not add an exclude for it. -->
+
+    <exclude
+        domain="file"
+        path="./exoplayer" />
+    <exclude
+        domain="file"
+        path="./download" />
+    <exclude
+        domain="database"
+        path="exoplayer_internal.db" />
+</full-backup-content>
