@@ -1140,6 +1140,12 @@ class MusicService :
 
     private val songUrlCache = java.util.concurrent.ConcurrentHashMap<String, CachedStream>()
 
+    // REFRESH-AHEAD guard: at most ONE background URL renewal per mediaId at a time (see
+    // refreshUrlIfNearExpiry). ConcurrentHashMap-backed so the loader thread and the IO coroutine
+    // can race on it safely.
+    private val urlRefreshInFlight =
+        java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+
     /** Reads an [iad1tya.echo.music.constants.AudioQuality] name out of a blob entry; absent/unparsable -> null (UNKNOWN). */
     private fun org.json.JSONObject.parseQuality(field: String): iad1tya.echo.music.constants.AudioQuality? =
         optString(field, "").takeIf { it.isNotEmpty() }?.let { name ->
@@ -1192,6 +1198,18 @@ class MusicService :
      * URL instead of re-running the slow resolver. Best-effort, off the main thread; never throws.
      */
     private fun persistSongUrlCache() {
+        // 2026-08-23 owner directive (SimpMusic model): stream URLs are NOT persisted. SimpMusic
+        // resolves fresh on every play; persisted URLs from a burnt session were the source of the
+        // first-play 403s on cold start. The cache stays in-memory only.
+        Timber.tag(TAG).d("persistSongUrlCache skipped (SimpMusic-model: URLs live in memory only)")
+    }
+
+    /**
+     * FIX B1 (disabled 2026-08-23): persist the (non-expired, LRU-bounded) songUrlCache to DataStore so
+     * a resolved stream URL survives a process restart / app update. See persistSongUrlCache().
+     */
+    @Suppress("unused")
+    private fun persistSongUrlCacheDisabled() {
         scope.launch(Dispatchers.IO) {
             runCatching {
                 val now = System.currentTimeMillis()
@@ -1222,6 +1240,18 @@ class MusicService :
      * Best-effort, off the main thread; never throws.
      */
     private fun loadPersistedSongUrlCache() {
+        // 2026-08-23 owner directive (SimpMusic model): restoration is disabled. URLs persisted by
+        // previous (burnt) sessions were served on cold start and produced the first-play 403s before
+        // the fresh resolver even ran. SimpMusic always resolves fresh; we do the same.
+        Timber.tag(TAG).i("Persisted stream URL restoration disabled (SimpMusic-model: fresh resolve)")
+    }
+
+    /**
+     * FIX B1 (disabled 2026-08-23): on cold start, load the persisted songUrlCache. See
+     * loadPersistedSongUrlCache().
+     */
+    @Suppress("unused")
+    private fun loadPersistedSongUrlCacheDisabled() {
         scope.launch(Dispatchers.IO) {
             runCatching {
                 val prefs = dataStore.data.first()
@@ -7311,9 +7341,69 @@ class MusicService :
         
         failedSongsClearJob?.cancel()
         failedSongsClearJob = scope.launch {
-            delay(5 * 60 * 1000L) 
+            delay(5 * 60 * 1000L)
             recentlyFailedSongs.clear()
             Timber.tag(TAG).d("Cleared recently failed songs list")
+        }
+    }
+
+    /**
+     * REFRESH-AHEAD (SimpMusic-model port, "Intelligent Cache" pillar): when a cached stream URL has
+     * less than [URL_REFRESH_AHEAD_MS] of life left, serve it as-is (zero latency for the play about
+     * to start) while renewing the URL in the background, so any SUBSEQUENT open — a mid-track 403
+     * recovery (handleExpiredUrlError), a seek re-open, a re-prepare — picks up a URL with its full
+     * validity again. Best effort: a failed renewal leaves the original URL valid until its own
+     * expiry, and the existing expired-URL recovery still covers the worst case.
+     */
+    private fun refreshUrlIfNearExpiry(mediaId: String, cached: CachedStream) {
+        if (cached.expiresAt - System.currentTimeMillis() > URL_REFRESH_AHEAD_MS) return
+        if (!urlRefreshInFlight.add(mediaId)) return
+        scope.launch(Dispatchers.IO) {
+            try {
+                val playback = YTPlayerUtils.playerResponseForPlayback(
+                    videoId = mediaId,
+                    audioQuality = cached.delivered ?: audioQuality,
+                    connectivityManager = connectivityManager,
+                    context = this@MusicService,
+                ).getOrNull()
+                val freshUrl = playback?.streamUrl
+                if (!freshUrl.isNullOrBlank()) {
+                    // The entry may have been cleared or replaced while this renewal was in flight
+                    // (a quality change clears + re-resolves; a fresh resolve stamps its own entry).
+                    // Resurrecting the stale URL over that would break the container guard — abort.
+                    val entryNow = songUrlCache[mediaId]
+                    if (entryNow == null || entryNow.requested != cached.requested) return@launch
+                    // Derive the delivered quality from the NEW response with the SAME predicate the
+                    // container guard uses (isFinalLossless/isFinalSaavn — registry lesson #40). The
+                    // LOSSLESS cascade is nondeterministic (#78): if this renewal landed on a different
+                    // quality than what is playing, stamping it would make delivered disagree with the
+                    // actual bytes. Discard the renewal instead; the current URL stays valid until its
+                    // own expiry and handleExpiredUrlError still covers the worst case.
+                    val freshMime = playback.format.mimeType
+                    val freshDelivered = when {
+                        freshMime.contains("flac", ignoreCase = true) -> iad1tya.echo.music.constants.AudioQuality.LOSSLESS
+                        freshMime.contains("mp4", ignoreCase = true) || freshMime.contains("m4a", ignoreCase = true) -> iad1tya.echo.music.constants.AudioQuality.SAAVN
+                        else -> iad1tya.echo.music.constants.AudioQuality.OPUS
+                    }
+                    if (cached.delivered != null && freshDelivered != cached.delivered) {
+                        Timber.tag(TAG).d("Refresh-ahead discarded: delivered quality drifted on renewal")
+                        return@launch
+                    }
+                    songUrlCache[mediaId] = CachedStream(
+                        url = freshUrl,
+                        expiresAt = System.currentTimeMillis() + (playback.streamExpiresInSeconds * 1000L),
+                        delivered = freshDelivered,
+                        requested = cached.requested,
+                    )
+                    persistSongUrlCache()
+                    StreamHealth.refreshAheadCompleted()
+                    Timber.tag(TAG).d("Refresh-ahead renewed stream URL")
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).d(e, "Refresh-ahead renewal failed; keeping current URL")
+            } finally {
+                urlRefreshInFlight.remove(mediaId)
+            }
         }
     }
 
@@ -7436,8 +7526,12 @@ class MusicService :
         }
 
         incrementRetryCount(mediaId)
+        StreamHealth.expiredUrlRecovery()
+        // Aggregate pipeline health at the exact moment a mid-stream URL expiry is recovered — the
+        // line carries counters only (no titles/ids/URLs), so it is safe for the shared app.log.
+        Timber.tag(TAG).i(StreamHealth.snapshot())
 
-        
+
         songUrlCache.remove(mediaId)
         Timber.tag(TAG).d("Cleared cached URL for $mediaId")
 
@@ -7547,30 +7641,79 @@ class MusicService :
                 CacheDataSource
                     .Factory()
                     .setCache(playerCache)
+                    // STREAMING CHUNKING (SimpMusic-model port): the hardened ChunkingDataSource —
+                    // until now wired only into downloads (DownloadUtil) and the video source — now also
+                    // wraps the audio network fetch. It re-opens the RESOLVED googlevideo URL every 5 MB
+                    // via Range headers, which defeats googlevideo's long-connection throttling during
+                    // buffering/preload (fewer underruns, faster Hi-Res/FLAC ramps). The host gate inside
+                    // the class passes every non-googlevideo stream (Qobuz FLAC, Saavn, direct-URL
+                    // podcasts) through byte-identical. Order matches DownloadUtil's proven chain:
+                    // resolver OUTSIDE, caches, chunker INSIDE — resolution still runs once per open.
                     .setUpstreamDataSourceFactory(
-                        OkHttpDataSource.Factory(
-                            OkHttpClient
-                                    .Builder()
-                                    .dns(object : Dns {
-                                        override fun lookup(hostname: String): List<InetAddress> {
-                                            val addresses = Dns.SYSTEM.lookup(hostname)
-                                            return when (this@MusicService.ipVersion) {
-                                                IpVersion.IPV4 -> addresses.filter { it is Inet4Address }.ifEmpty { addresses }
-                                                IpVersion.IPV6 -> addresses.filter { it is Inet6Address }.ifEmpty { addresses }
-                                                IpVersion.AUTO -> addresses
+                        ChunkingDataSourceFactory(
+                            OkHttpDataSource.Factory(
+                                OkHttpClient
+                                        .Builder()
+                                        // 2026-08-23: same per-client UA replay as videoOkHttpClient below.
+                                        // googlevideo URLs resolved by an android persona (MAIN_CLIENT is
+                                        // ANDROID_VR 1.65.10) 403 when fetched with OkHttp's default UA;
+                                        // the byte fetch must impersonate the same client that resolved.
+                                        .addInterceptor { chain ->
+                                            val req = chain.request()
+                                            val host = req.url.host
+                                            val isYt = host.endsWith("googlevideo.com") || host.endsWith("youtube.com") ||
+                                                host.endsWith("googleusercontent.com") || host.endsWith("youtube-nocookie.com") ||
+                                                host.endsWith("ytimg.com")
+                                            if (!isYt) return@addInterceptor chain.proceed(req)
+                                            val c = req.url.queryParameter("c")?.trim().orEmpty()
+                                            val agent = when {
+                                                c.startsWith("WEB", true) -> com.music.innertube.models.YouTubeClient.USER_AGENT_WEB
+                                                c.startsWith("TV", true) -> com.music.innertube.models.YouTubeClient.TVHTML5.userAgent
+                                                c.startsWith("IOS", true) -> com.music.innertube.models.YouTubeClient.IOS.userAgent
+                                                c.startsWith("ANDROID_VR", true) -> com.music.innertube.models.YouTubeClient.ANDROID_VR_NO_AUTH.userAgent
+                                                c.startsWith("ANDROID", true) -> com.music.innertube.models.YouTubeClient.MOBILE.userAgent
+                                                else -> com.music.innertube.models.YouTubeClient.ANDROID_VR_NO_AUTH.userAgent
                                             }
+                                            // DIAGNOSTIC (2026-08-23): fresh-resolved+validated URLs still
+                                            // 403 here in the byte fetch. Log host/client-param/Range/UA/status —
+                                            // NEVER the query string or body contents (owner data rule).
+                                            val newReq = req.newBuilder().header("User-Agent", agent).build()
+                                            val response = chain.proceed(newReq)
+                                            if (!response.isSuccessful) {
+                                                val peek = runCatching {
+                                                    response.peekBody(300).string().replace(Regex("\\s+"), " ").take(160)
+                                                }.getOrDefault("-")
+                                                Timber.tag("AudioFetch").w(
+                                                    "FETCH ${response.code} host=$host c=$c range=${newReq.header("Range")} ua=${agent.takeLast(28)} body=$peek"
+                                                )
+                                            } else {
+                                                Timber.tag("AudioFetch").d(
+                                                    "FETCH ${response.code} host=$host c=$c range=${newReq.header("Range")}"
+                                                )
+                                            }
+                                            response
                                         }
-                                    })
-                                    .proxy(YouTube.proxy)
-                                    .proxyAuthenticator { _, response ->
-                                        YouTube.proxyAuth?.let { auth ->
-                                            response.request.newBuilder()
-                                                .header("Proxy-Authorization", auth)
-                                                .build()
-                                        } ?: response.request
-                                    }
-                                    .build()
-                            )
+                                        .dns(object : Dns {
+                                            override fun lookup(hostname: String): List<InetAddress> {
+                                                val addresses = Dns.SYSTEM.lookup(hostname)
+                                                return when (this@MusicService.ipVersion) {
+                                                    IpVersion.IPV4 -> addresses.filter { it is Inet4Address }.ifEmpty { addresses }
+                                                    IpVersion.IPV6 -> addresses.filter { it is Inet6Address }.ifEmpty { addresses }
+                                                    IpVersion.AUTO -> addresses
+                                                }
+                                            }
+                                        })
+                                        .proxy(YouTube.proxy)
+                                        .proxyAuthenticator { _, response ->
+                                            YouTube.proxyAuth?.let { auth ->
+                                                response.request.newBuilder()
+                                                    .header("Proxy-Authorization", auth)
+                                                    .build()
+                                            } ?: response.request
+                                        }
+                                        .build()
+                                )
+                        )
                     )
             ).setCacheWriteDataSinkFactory(null)
             .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
@@ -7659,6 +7802,12 @@ class MusicService :
     }
 
     private fun enterVideoModeInternal(forceExplicit: Boolean = false) {
+        // 2026-08-23 owner directive: only SimpMusic providers are allowed. Video mode resolves
+        // muxed streams via TVHTML5 (not a SimpMusic provider), so every entry point is gated here.
+        if (!VIDEO_PROVIDERS_ENABLED) {
+            Timber.tag(TAG).i("Video mode disabled: only SimpMusic providers are allowed")
+            return
+        }
         userExplicitlyExitedVideo = false
         userHasUsedVideo = true
         player.currentMediaItem?.mediaId?.let { resetRetryCount(it) }
@@ -8369,6 +8518,8 @@ class MusicService :
                 if (playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
                     songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
                         scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                        StreamHealth.cacheHit()
+                        refreshUrlIfNearExpiry(mediaId, it)
                         return@Factory dataSpec.withUri(it.url.toUri())
                     }
                     // FIX C (#28.2): cached BYTES are present but we have no fresh stream URL (e.g. after an
@@ -8383,6 +8534,8 @@ class MusicService :
 
                 songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                    StreamHealth.cacheHit()
+                    refreshUrlIfNearExpiry(mediaId, it)
                     return@Factory dataSpec.withUri(it.url.toUri())
                 }
             }
@@ -8392,6 +8545,8 @@ class MusicService :
             }
 
             Timber.tag("MusicService").i("FETCHING STREAM: $mediaId | quality=$lockedQuality")
+            val resolveStartMs = android.os.SystemClock.elapsedRealtime()
+            StreamHealth.freshResolveStarted()
             val playbackData = try {
                 audioStreamResolveInFlight.incrementAndGet()
                 runBlocking(Dispatchers.IO) {
@@ -8417,6 +8572,7 @@ class MusicService :
             } finally {
                 audioStreamResolveInFlight.decrementAndGet()
             }.getOrElse { throwable ->
+                StreamHealth.freshResolveFailed()
                 when (throwable) {
                     // UNRESOLVABLE SONG dead-end (fix #1): region-locked, premium/members-only,
                     // deleted-but-listed, age-restricted-for-guests, no playable format/URL, or the
@@ -8456,6 +8612,10 @@ class MusicService :
                     )
                 }
             }
+
+            // Reaching here means the resolve succeeded (every getOrElse branch throws), so close the
+            // StreamHealth timing window started above.
+            StreamHealth.freshResolveCompleted(android.os.SystemClock.elapsedRealtime() - resolveStartMs)
 
             val nonNullPlayback = requireNotNull(playbackData) {
                 getString(R.string.error_unknown)
@@ -9390,6 +9550,10 @@ class MusicService :
         eventTime: AnalyticsListener.EventTime,
         playbackStats: PlaybackStats,
     ) {
+        // STREAMING DIAGNOSTICS (SimpMusic-model port): fold this session's rebuffer events into the
+        // aggregate StreamHealth counters. playbackStats is per-playback-session aggregate data — no
+        // user content — so this honors the no-personal-data logging rule.
+        StreamHealth.rebuffers(playbackStats.totalRebufferCount)
         val mediaItem = eventTime.timeline.getWindow(eventTime.windowIndex, Timeline.Window()).mediaItem
         val historyDurationMs = historyDurationMsHint
 
@@ -11103,6 +11267,11 @@ class MusicService :
         const val NOTIFICATION_ID = 888
         const val ERROR_CODE_NO_STREAM = 1000001
         const val CHUNK_LENGTH = 512 * 1024L
+
+        // REFRESH-AHEAD window (SimpMusic-model port): a cached stream URL with less than this much
+        // life left triggers a background renewal on its next cache hit (refreshUrlIfNearExpiry), so
+        // a long-queued track never starts on a URL about to die mid-song.
+        const val URL_REFRESH_AHEAD_MS = 5 * 60 * 1000L
         const val PERSISTENT_QUEUE_FILE = "persistent_queue.data"
         const val PERSISTENT_AUTOMIX_FILE = "persistent_automix.data"
         const val PERSISTENT_PLAYER_STATE_FILE = "persistent_player_state.data"
@@ -11147,8 +11316,13 @@ class MusicService :
         /** Bounded init-segment warm before audio→video toggle (unmetered + capable only). */
         private const val VIDEO_WARM_BYTES = 768L * 1024L
 
-        private const val MAX_GAIN_MB = 300 
-        private const val MIN_GAIN_MB = -1500 
+        private const val MAX_GAIN_MB = 300
+        private const val MIN_GAIN_MB = -1500
+
+        // 2026-08-23 owner directive: the ONLY allowed streaming providers are the SimpMusic ones
+        // (YouTube InnerTube ANDROID_VR 1.65.10 + IOS 19.45.4). Video mode fetched muxed streams via
+        // TVHTML5 — not a SimpMusic provider — so it is disabled while this flag is false.
+        private const val VIDEO_PROVIDERS_ENABLED = false
 
         private const val TAG = "MusicService"
 

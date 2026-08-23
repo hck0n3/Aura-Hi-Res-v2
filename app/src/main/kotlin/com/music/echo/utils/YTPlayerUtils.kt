@@ -9,8 +9,7 @@ import com.music.innertube.YouTube
 import com.music.innertube.models.YouTubeClient
 import com.music.innertube.models.YouTubeClient.Companion.ANDROID_CREATOR
 import iad1tya.echo.music.utils.BotDetectionMitigator
-import com.music.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_43_32
-import com.music.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_61_48
+import com.music.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_65_10
 import com.music.innertube.models.YouTubeClient.Companion.ANDROID_VR_NO_AUTH
 import com.music.innertube.models.YouTubeClient.Companion.IOS
 import com.music.innertube.models.YouTubeClient.Companion.IPADOS
@@ -77,6 +76,18 @@ object YTPlayerUtils {
 
     private var hasShownLosslessToast = false
     private var hasShownSaavnToast = false
+
+    // 2026-08-23 owner directive: the ONLY allowed streaming providers are the SimpMusic ones.
+    // Verified against SimpMusic v1.7.0 source (maxrave-dev/core @ dae3ce98): its stream URLs come
+    // from NEWPIPE (StreamInfo.getInfo, merged by itag) — InnerTube WEB_REMIX supplies metadata only —
+    // and Qobuz/Saavn play no part in its playback path. So NewPipe is a SimpMusic provider and stays
+    // enabled as the PRIMARY URL source; Qobuz (LOSSLESS) and Saavn (SAAVN) are not, and are disabled.
+    private const val NON_SIMPMUSIC_PROVIDERS_ENABLED = false
+
+    // SIMPMUSIC selection order: StreamRepositoryImpl.getStream picks the exact itag when its NewPipe
+    // URL exists, else ANY usable audio format. This is the fixed preference for that "any audio"
+    // fallback — opus first (the quality this app targets), then aac, then vorbis.
+    private val AUDIO_ITAG_PREFERENCE = listOf(251, 250, 249, 141, 140, 171, 139)
 
     // The signature timestamp (sts) is a per-PLAYER-VERSION constant — identical for every video until
     // YouTube rotates player.js (rare, ~weekly). Recomputing it for every song runs NewPipe's JS engine
@@ -215,7 +226,10 @@ object YTPlayerUtils {
     }
 
     
-    private val MAIN_CLIENT: YouTubeClient = ANDROID_VR_1_43_32
+    // 2026-08-23: rebuilt on the working SimpMusic fingerprint (see YouTubeClient.kt). The old
+    // ANDROID_VR_1_43_32 persona was part of the burned Echo Music inheritance — every resolve
+    // with it ended in LOGIN_REQUIRED "confirm you're not a bot" in the owner's device logs.
+    private val MAIN_CLIENT: YouTubeClient = ANDROID_VR_1_65_10
 
     // For VIDEO mode we need a client that returns muxed (video+audio) progressive formats — the music/VR
     // clients only return adaptive (separate) streams, so the video URL came back null and only audio
@@ -225,42 +239,19 @@ object YTPlayerUtils {
 
     private val METADATA_CLIENT: YouTubeClient = WEB
 
+    // 2026-08-23, owner directive: ONLY the providers SimpMusic uses — nothing else may ask YouTube
+    // for audio. SimpMusic plays fine on the owner's device/network; every other persona here was
+    // either inherited from Echo Music (YouTube-banned) or dependent on broken machinery:
+    //   TVHTML5  — UNPLAYABLE "Se debe volver a cargar la página" in every owner log (bot-check)
+    //   WEB_REMIX — signatureCipher deobfuscation fails (ParsingException) → its URLs 403 on fetch
+    //   MOBILE   — Echo Music-era ANDROID persona, never observed winning
+    //   WEB      — same web lineage, useSignatureTimestamp + no direct URLs
+    //   ANDROID_VR_NO_AUTH — exact duplicate of MAIN_CLIENT
+    // ANDROID_VR_1_65_10 (MAIN_CLIENT) and IOS 19.45.4 are SimpMusic's own fingerprints, copied
+    // verbatim from its APK dex; both return direct stream URLs (no cipher, no web poToken), which
+    // removes the whole cipher/poToken attack surface from the audio path.
     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
-        TVHTML5,
-        // WEB_REMIX moved up (was 4th): it is the ONLY client here that both skips for a guest
-        // (loginRequired=false) AND carries a poToken (useWebPoTokens=true) — every other client in
-        // this list sends neither a cookie nor a poToken, so on a device YouTube is bot-flagging, they
-        // fail identically to MAIN_CLIENT and just burn the resolve's time/attempt budget before
-        // reaching the one client actually equipped to pass the check. TVHTML5 stays first: it's
-        // loginRequired, so for a guest it `continue`s with no network call at all — free to keep ahead.
-        WEB_REMIX,
-        // 2026-08-19, fourteenth postmortem: trimmed from 10 fallbacks to 6 after the two-day 403
-        // investigation. Every device log collected this session (dozens of resolves, multiple builds)
-        // showed these three NEVER once producing a playable stream — only wasted round-trips extending
-        // every failing resolve by seconds:
-        //   ANDROID_CREATOR              — always HTTP 400 "Request contains an invalid argument"
-        //   TVHTML5_SIMPLY_EMBEDDED_PLAYER — always hard-blocked, "YouTube ya no es compatible..."
-        //   WEB_CREATOR                  — the one client exempt from this loop's own HEAD-validation
-        //                                   trust check (see validateStatus below); every 403 that
-        //                                   started this whole investigation came from trusting exactly
-        //                                   this client's URL without ever verifying it first. It is
-        //                                   also the single most bot-like entry here: impersonating a
-        //                                   YouTube Studio session neither TVHTML5 nor WEB_REMIX above
-        //                                   are even capable of holding.
-        // Also dropped as redundant near-duplicates of a persona already kept: ANDROID_VR_1_61_48
-        // (a second VR-client variant alongside ANDROID_VR_NO_AUTH — same LOGIN_REQUIRED failure mode
-        // whenever tried as a fallback in every log seen) and IPADOS (an Apple-family persona
-        // alongside IOS, never observed to behave differently from it).
-        // Beyond correctness, trying all 10 (impersonating ten different official YouTube client
-        // personas for a single video, every single failed resolve) is itself a conspicuous automation
-        // signature server-side abuse heuristics are built to catch. Fewer, cheaper, evidence-backed
-        // fallbacks reduce that footprint without losing real coverage — ANDROID_VR_NO_AUTH/MOBILE/IOS/
-        // WEB stay for genuinely different playability paths (age-restriction, region locks) this
-        // session's logs never definitively ruled out.
-        ANDROID_VR_NO_AUTH,
-        MOBILE,
-        IOS,
-        WEB
+        IOS
     )
     data class PlaybackData(
         val audioConfig: PlayerResponse.PlayerConfig.AudioConfig?,
@@ -409,11 +400,19 @@ object YTPlayerUtils {
         timing: ResolveTiming,
     ): Result<PlaybackData> {
         val showFallbackToast = context?.let {
-            it.dataStore.data.first()[iad1tya.echo.music.constants.ShowAudioFallbackToastKey] 
+            it.dataStore.data.first()[iad1tya.echo.music.constants.ShowAudioFallbackToastKey]
         } ?: true
 
+        // 2026-08-23 owner directive: LOSSLESS (Qobuz) and SAAVN (JioSaavn) are non-SimpMusic providers
+        // and are removed — resolve them through the YouTube cascade instead of failing.
+        @Suppress("NAME_SHADOWING")
+        val audioQuality = when (audioQuality) {
+            AudioQuality.LOSSLESS, AudioQuality.SAAVN -> AudioQuality.OPUS
+            else -> audioQuality
+        }
+
         var losslessFailed = false
-        if (audioQuality == AudioQuality.LOSSLESS) {
+        if (NON_SIMPMUSIC_PROVIDERS_ENABLED && audioQuality == AudioQuality.LOSSLESS) {
             val qobuzStartMs = SystemClock.elapsedRealtime()
 
             // ONE /player round trip for the whole lossless branch. The own-subscription probe and the two
@@ -619,7 +618,7 @@ object YTPlayerUtils {
         }
         
         var saavnFailed = false
-        if (audioQuality == AudioQuality.SAAVN || losslessFailed) {
+        if (NON_SIMPMUSIC_PROVIDERS_ENABLED && (audioQuality == AudioQuality.SAAVN || losslessFailed)) {
             val saavnStartMs = SystemClock.elapsedRealtime()
             var saavnAttempt: Result<PlaybackData>? = null
             var lastException: Exception? = null
@@ -887,59 +886,11 @@ object YTPlayerUtils {
      * ~10s later.
      */
     private suspend fun finishWithEmbeddedFallback(videoId: String, result: Result<PlaybackData>): Result<PlaybackData> {
-        if (result.isSuccess) return result
-        val resolved = EmbeddedPlayerUrlResolver.tryResolve(videoId) ?: return result
-        PlaybackLogManager.log(
-            PlaybackLogLevel.INFO,
-            "Embedded-player fallback succeeded",
-            "Resolved a stream via YouTube's own embedded player after the normal cascade failed",
-        )
-        BotDetectionMitigator.notifyPlaybackSuccess()
-        return Result.success(playbackDataFromEmbeddedFallback(resolved))
-    }
-
-    private fun playbackDataFromEmbeddedFallback(resolved: EmbeddedPlayerUrlResolver.ResolvedStream): PlaybackData {
-        val itag = runCatching {
-            android.net.Uri.parse(resolved.streamUrl).getQueryParameter("itag")?.toIntOrNull()
-        }.getOrNull() ?: 251
-        val mimeType = when (itag) {
-            140, 141 -> "audio/mp4; codecs=\"mp4a.40.2\""
-            else -> "audio/webm; codecs=\"opus\""
-        }
-        val format = PlayerResponse.StreamingData.Format(
-            itag = itag,
-            url = resolved.streamUrl,
-            mimeType = mimeType,
-            bitrate = 0,
-            width = null,
-            height = null,
-            contentLength = null,
-            quality = "medium",
-            fps = null,
-            qualityLabel = null,
-            averageBitrate = null,
-            audioQuality = null,
-            approxDurationMs = null,
-            audioSampleRate = null,
-            audioChannels = null,
-            loudnessDb = null,
-            lastModified = null,
-            signatureCipher = null,
-            cipher = null,
-            audioTrack = null,
-        )
-        return PlaybackData(
-            audioConfig = null,
-            videoDetails = null,
-            playbackTracking = null,
-            format = format,
-            streamUrl = resolved.streamUrl,
-            // googlevideo URLs are typically valid for hours; conservative estimate since the
-            // embedded player doesn't expose the real expiry the way a /player response does.
-            streamExpiresInSeconds = 6 * 60 * 60,
-            isSaavnStream = false,
-            fallbackRequestHeaders = resolved.requestHeaders,
-        )
+        // 2026-08-23, owner directive: audio may ONLY be requested through the SimpMusic providers
+        // (MAIN_CLIENT ANDROID_VR 1.65.10 + IOS fallback). The embedded-player scrape was a non-Simp
+        // request shape that every owner log showed hard-blocked anyway, and it cost ~10s of WebView
+        // per failing song. Disabled outright — the cascade result stands as-is.
+        return result
     }
 
     private suspend fun resolvePlaybackData(
@@ -1060,22 +1011,12 @@ object YTPlayerUtils {
             // region-locked / members-only / deleted-but-listed songs still get EVERY fallback client
             // instead of dead-ending on the very first client.
             val main = run {
-                // SKIP MAIN_CLIENT for a logged-in session (owner, 2026-08-18: "cada vez que cambio de
-                // canción... le cuesta empezar" — confirmed in their own playback log, EVERY song paid a
-                // ~700ms-1s dead round trip here). ANDROID_VR has loginSupported=false (YouTubeClient.kt)
-                // and — per the recovery-path comment above — "carries no cookie/poToken" even when the
-                // account is signed in, so being logged in buys it NOTHING: it behaves exactly as a guest
-                // request, and YouTube has been answering that shape with a hard LOGIN_REQUIRED bot-check
-                // 100% of the time in every log captured this session. A null `main` here is NOT a new
-                // failure mode — line ~1128 already falls through to STREAM_FALLBACK_CLIENTS from index 0
-                // for a null/failed main response, which is exactly what a real MAIN_CLIENT attempt would
-                // have produced anyway, just without the network round trip. Guests are unaffected (the
-                // client still gets its normal shot as MAIN_CLIENT); video mode is unaffected (VIDEO_CLIENT
-                // is untouched).
-                if (!preferVideo && isLoggedIn) {
-                    PlaybackLogManager.log(PlaybackLogLevel.DEBUG, "Skipping ${MAIN_CLIENT.clientName} (Main) — logged in, always LOGIN_REQUIRED")
-                    return@run null
-                }
+                // 2026-08-23: the logged-in skip that used to live here was a workaround for the OLD
+                // burned ANDROID_VR_1_43_32 persona (hard LOGIN_REQUIRED 100% of the time). With the
+                // SimpMusic 1.65.10 fingerprint the evidence flipped — owner's device log 14:15 shows
+                // MAIN_CLIENT winning for logged-in resolves — while the skip kept routing logged-in
+                // songs into the burned TVHTML5/WEB_REMIX fallbacks. MAIN_CLIENT now always gets its
+                // shot; ANDROID_VR is loginSupported=false so it carries no cookie even when signed in.
                 // Await the async sts only when this client sends it (VIDEO_CLIENT/TVHTML5 does;
                 // MAIN_CLIENT/ANDROID_VR never) — the wait (if any) lands in sts=, the call in player=.
                 val mainClient = if (preferVideo) VIDEO_CLIENT else MAIN_CLIENT
@@ -1322,7 +1263,8 @@ object YTPlayerUtils {
                 Timber.tag(logTag).d("Format found: ${format.mimeType}, bitrate: ${format.bitrate}")
 
                 val urlStartMs = SystemClock.elapsedRealtime()
-                streamUrl = findUrlOrNull(format, videoId, responseToUse, skipNewPipe = wasOriginallyAgeRestricted)
+                val urlResult = findUrlOrNull(format, videoId, responseToUse, skipNewPipe = wasOriginallyAgeRestricted)
+                streamUrl = urlResult?.url
                 timing?.let { it.urlMs += SystemClock.elapsedRealtime() - urlStartMs }
                 if (streamUrl == null) {
                     // Distinguishes, without logging the URL/cipher itself: "format had nothing to
@@ -1354,7 +1296,10 @@ object YTPlayerUtils {
                 val isPrivatelyOwnedTrack = streamPlayerResponse.videoDetails?.musicVideoType == "MUSIC_VIDEO_TYPE_PRIVATELY_OWNED_TRACK"
 
                 
-                val needsNTransform = currentClient.useWebPoTokens || streamUrl?.let { Regex("[?&]n=").containsMatchIn(it) } == true
+                // NewPipe-sourced URLs carry an ALREADY-deobfuscated "n" — re-running the transform
+                // on them scrambles a good value and the fetch 403s. Only transform InnerTube-sourced URLs.
+                val nAlreadyDecoded = urlResult?.nAlreadyDeobfuscated == true
+                val needsNTransform = !nAlreadyDecoded && (currentClient.useWebPoTokens || streamUrl?.let { Regex("[?&]n=").containsMatchIn(it) } == true)
                 if (needsNTransform) {
                     try {
                         Timber.tag(logTag).d("Applying n-transform to stream URL for ${currentClient.clientName}")
@@ -1412,7 +1357,7 @@ object YTPlayerUtils {
                 }
 
                 val headStartMs = SystemClock.elapsedRealtime()
-                val headOk = validateStatus(streamUrl!!)
+                val headOk = validateStatus(streamUrl!!, currentClient.userAgent)
                 timing?.let {
                     it.headMs += SystemClock.elapsedRealtime() - headStartMs
                     it.headCount++
@@ -1431,7 +1376,8 @@ object YTPlayerUtils {
                 } else {
                     Timber.tag(logTag).d("Stream validation failed for client: ${currentClient.clientName}")
 
-                    val needsNTransformFallback = currentClient.useWebPoTokens || streamUrl?.let { Regex("[?&]n=").containsMatchIn(it) } == true
+                    // Same guard as the first pass: never re-transform an already-deobfuscated NewPipe URL.
+                    val needsNTransformFallback = !nAlreadyDecoded && (currentClient.useWebPoTokens || streamUrl?.let { Regex("[?&]n=").containsMatchIn(it) } == true)
                     if (needsNTransformFallback) {
                         var nTransformWorked = false
 
@@ -1443,7 +1389,7 @@ object YTPlayerUtils {
                             if (nTransformed != streamUrl) {
                                 Timber.tag(logTag).d("CipherDeobfuscator n-transform applied, re-validating...")
                                 val retryHeadStartMs = SystemClock.elapsedRealtime()
-                                val retryHeadOk = validateStatus(nTransformed)
+                                val retryHeadOk = validateStatus(nTransformed, currentClient.userAgent)
                                 timing?.let {
                                     it.headMs += SystemClock.elapsedRealtime() - retryHeadStartMs
                                     it.headCount++
@@ -1677,13 +1623,19 @@ object YTPlayerUtils {
         return format
     }
     
-    private fun validateStatus(url: String): Boolean {
+    // 2026-08-23: the HEAD probe MUST replay the User-Agent of the client that resolved the URL.
+    // googlevideo rejects requests whose UA does not match the persona that asked for the stream:
+    // with the SimpMusic fingerprint (ANDROID_VR 1.65.10) /player finally returned direct URLs again,
+    // but this probe went out with a Firefox web UA and every candidate died as 403 before ExoPlayer
+    // (which DOES replay the resolving client's UA) ever fetched a byte. The old web-UA default was
+    // one of the reasons the burned Echo Music cascade looked identical to a hard block.
+    private fun validateStatus(url: String, userAgent: String): Boolean {
         Timber.tag(logTag).d("Validating stream URL status")
         try {
             val requestBuilder = okhttp3.Request.Builder()
                 .head()
                 .url(url)
-                .header("User-Agent", YouTubeClient.USER_AGENT_WEB)
+                .header("User-Agent", userAgent)
 
             // Do NOT attach YouTube.cookie here. The main resolver client (ANDROID_VR) is loginSupported=false
             // and the real ExoPlayer byte fetch (OkHttpDataSource) sends NO cookie, so this validation HEAD
@@ -1698,7 +1650,22 @@ object YTPlayerUtils {
             validateHttpClient.newCall(requestBuilder.build()).execute().use { response ->
                 val isSuccessful = response.isSuccessful
                 Timber.tag(logTag).d("Stream URL validation result: ${if (isSuccessful) "Success" else "Failed"} (${response.code})")
-                return isSuccessful
+                if (isSuccessful) return true
+                // Some googlevideo edge nodes answer 403/405 to a bare HEAD even for URLs a real
+                // ranged GET serves fine. One GET with a 1-byte Range decides it: 200/206 = playable.
+                if (response.code == 403 || response.code == 405) {
+                    val ranged = okhttp3.Request.Builder()
+                        .url(url)
+                        .header("User-Agent", userAgent)
+                        .header("Range", "bytes=0-0")
+                        .build()
+                    validateHttpClient.newCall(ranged).execute().use { getResponse ->
+                        val ok = getResponse.isSuccessful
+                        Timber.tag(logTag).d("Stream URL ranged-GET validation: ${if (ok) "Success" else "Failed"} (${getResponse.code})")
+                        return ok
+                    }
+                }
+                return false
             }
         } catch (e: Exception) {
             Timber.tag(logTag).e(e, "Stream URL validation failed with exception")
@@ -1749,69 +1716,77 @@ object YTPlayerUtils {
         )
     }
 
+    /**
+     * Result of the stream-URL lookup. [nAlreadyDeobfuscated] is true when the URL came from the
+     * NewPipe/StreamInfo extractor: its throttling ("n") parameter is ALREADY deobfuscated by the
+     * extractor, so the caller must NOT run the n-transform on it again (re-running it scrambles a
+     * good value — that turns a perfectly fetchable URL into a 403).
+     */
+    data class StreamUrlResult(
+        val url: String,
+        val nAlreadyDeobfuscated: Boolean,
+    )
+
     suspend fun findUrlOrNull(
         format: PlayerResponse.StreamingData.Format,
         videoId: String,
         playerResponse: PlayerResponse,
         skipNewPipe: Boolean = false
-    ): String? {
+    ): StreamUrlResult? {
         Timber.tag(logTag).d("Finding stream URL for format: ${format.mimeType}, videoId: $videoId, skipNewPipe: $skipNewPipe")
 
-        
-        if (!format.url.isNullOrEmpty()) {
-            Timber.tag(logTag).d("Using URL from format directly")
-            return format.url
+        // SIMPMUSIC MODEL (verified 2026-08-23 against SimpMusic v1.7.0 source, core@dae3ce98 —
+        // Extractor.android.kt + YouTube.kt player()): SimpMusic does NOT play the URLs that the
+        // InnerTube player response carries. It takes the stream URLs from the NewPipe extractor
+        // (StreamInfo.getInfo → audioStreams/videoStreams/videoOnlyStreams), matches them to the
+        // chosen format BY ITAG, and plays those. Those URLs fetch cleanly with a plain HTTP client
+        // (SimpMusic's OkHttpDataSource has NO User-Agent override at all), which is exactly the
+        // class of URL our fetch needs. So NewPipe is the PRIMARY provider here — the InnerTube
+        // direct URL and the cipher paths remain only as fallbacks if the extractor has no match.
+        if (!skipNewPipe) {
+            val npStartMs = SystemClock.elapsedRealtime()
+            val newPipeStreams = runCatching { NewPipeExtractor.newPipePlayer(videoId) }.getOrDefault(emptyList())
+            // Log the RETURNED itags only (never the URLs — their query strings carry credentials).
+            // "no match" alone could not say whether the extractor came back empty (blocked) or with
+            // streams that simply lack the requested itag (fixable by picking another audio itag,
+            // exactly what SimpMusic does).
+            Timber.tag(logTag).d(
+                "NewPipe stream lookup requested itag=${format.itag}, returned itags=${newPipeStreams.map { it.first }} in ${SystemClock.elapsedRealtime() - npStartMs}ms"
+            )
+            // SIMPMUSIC SELECTION (StreamRepositoryImpl.getStream): exact itag first, then ANY usable
+            // audio itag. Their formatList.find { it.isAudio && url != null } becomes a fixed
+            // preference order over the audio itags the extractor may carry.
+            val newPipeUrl = newPipeStreams.firstOrNull { it.first == format.itag }?.second
+                ?: AUDIO_ITAG_PREFERENCE.firstNotNullOfOrNull { wanted ->
+                    newPipeStreams.firstOrNull { it.first == wanted }?.second
+                }
+            if (newPipeUrl != null) {
+                return StreamUrlResult(newPipeUrl, nAlreadyDeobfuscated = true)
+            }
+        } else {
+            Timber.tag(logTag).d("Skipping NewPipe methods for age-restricted content")
         }
 
-        
+
+        if (!format.url.isNullOrEmpty()) {
+            Timber.tag(logTag).d("Using URL from format directly")
+            return StreamUrlResult(format.url!!, nAlreadyDeobfuscated = false)
+        }
+
+
         val signatureCipher = format.signatureCipher ?: format.cipher
         if (!signatureCipher.isNullOrEmpty()) {
             Timber.tag(logTag).d("Format has signatureCipher, using custom deobfuscation")
             val customDeobfuscatedUrl = CipherDeobfuscator.deobfuscateStreamUrl(signatureCipher, videoId)
             if (customDeobfuscatedUrl != null) {
                 Timber.tag(logTag).d("Stream URL obtained via custom cipher deobfuscation")
-                return customDeobfuscatedUrl
+                return StreamUrlResult(customDeobfuscatedUrl, nAlreadyDeobfuscated = false)
             }
             Timber.tag(logTag).d("Custom cipher deobfuscation failed")
         }
 
-        
-        if (skipNewPipe) {
-            Timber.tag(logTag).d("Skipping NewPipe methods for age-restricted content")
-            return null
-        }
 
-        
-        val deobfuscatedUrl = NewPipeExtractor.getStreamUrl(format, videoId)
-        if (deobfuscatedUrl != null) {
-            Timber.tag(logTag).d("Stream URL obtained via NewPipe deobfuscation")
-            return deobfuscatedUrl
-        }
-
-        
-        Timber.tag(logTag).d("Trying StreamInfo fallback for URL")
-        val streamUrls = YouTube.getNewPipeStreamUrls(videoId)
-        if (streamUrls.isNotEmpty()) {
-            val streamUrl = streamUrls.find { it.first == format.itag }?.second
-            if (streamUrl != null) {
-                Timber.tag(logTag).d("Stream URL obtained from StreamInfo")
-                return streamUrl
-            }
-
-            
-            val audioStream = streamUrls.find { urlPair ->
-                playerResponse.streamingData?.adaptiveFormats?.any {
-                    it.itag == urlPair.first && it.isAudio
-                } == true
-            }?.second
-
-            if (audioStream != null) {
-                Timber.tag(logTag).d("Audio stream URL obtained from StreamInfo (different itag)")
-                return audioStream
-            }
-        }
-
-        Timber.tag(logTag).e("Failed to get stream URL")
+        Timber.tag(logTag).e("No stream URL available from any provider for itag=${format.itag}")
         return null
     }
 

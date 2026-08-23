@@ -101,12 +101,18 @@ data class YouTubeClient(
             isEmbedded = true,
         )
 
+        /**
+         * Rebuilt 2026-08-23 from the WORKING SimpMusic v1.7.0 APK dex strings: the old 21.03.1
+         * persona 403'd on every HEAD validation even with a poToken present — burned alongside
+         * the rest of the Echo Music inheritance. SimpMusic plays fine with IOS 19.45.4 on
+         * iPhone16,2 / iOS 18.1; copied verbatim.
+         */
         val IOS = YouTubeClient(
             clientName = "IOS",
-            clientVersion = "21.03.1",
+            clientVersion = "19.45.4",
             clientId = "5",
-            userAgent = "com.google.ios.youtube/21.03.1 (iPhone16,2; U; CPU iOS 18_2 like Mac OS X;)",
-            osVersion = "18.2.22C152",
+            userAgent = "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X;)",
+            osVersion = "18.1.0",
         )
 
         val MOBILE = YouTubeClient(
@@ -133,58 +139,41 @@ data class YouTubeClient(
             useSignatureTimestamp = false
         )
 
-        val ANDROID_VR_NO_AUTH = YouTubeClient(
+        /**
+         * Rebuilt 2026-08-23 from the WORKING SimpMusic v1.7.0 APK on the owner's device (same
+         * network/account): the old 1.43.32 / 1.61.48 "Quest 3" + Cronet personas were inherited
+         * from Echo Music — an app YouTube banned — and are burned server-side (owner's logcat:
+         * LOGIN_REQUIRED "confirm you're not a bot" on every resolve). SimpMusic plays fine today
+         * impersonating ANDROID_VR 1.65.10 as `eureka-user` on Android 12L with a plain gzip UA —
+         * NO Cronet — so that exact fingerprint replaces ours. UA and context fields below are
+         * copied VERBATIM from its dex strings, not guessed.
+         * Like its predecessors: uses non-adaptive bitrate (fixes audio stuttering with YT Music)
+         * and does not use AV1. Video not playable: Kids / Paid / Movie / Private / Age-restricted;
+         * only usable logged out.
+         */
+        val ANDROID_VR_1_65_10 = YouTubeClient(
             clientName = "ANDROID_VR",
-            clientVersion = "1.61.48",
+            clientVersion = "1.65.10",
             clientId = "28",
-            userAgent = "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Oculus Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)",
+            userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+            osName = "Android",
+            osVersion = "12L",
+            deviceMake = "Oculus",
+            deviceModel = "eureka-user",
+            androidSdkVersion = "32",
+            buildId = "SQ3A.220605.009.A1",
+            packageName = "com.google.android.apps.youtube.vr.oculus",
+            friendlyName = "Android VR 1.65",
             loginSupported = false,
             useSignatureTimestamp = false
         )
 
         /**
-         * Video not playable: Kids / Paid / Movie / Private / Age-restricted.
-         * This client can only be used when logged out.
+         * Alias kept so the existing call sites (fallback list, plus the googlevideo UA replay in
+         * MusicService / RingtoneHelper / SongPreviewController / CanvasArtworkPlayer) keep
+         * compiling while now downloading with the same unburned 1.65.10 UA that resolved the URL.
          */
-        val ANDROID_VR_1_61_48 = YouTubeClient(
-            clientName = "ANDROID_VR",
-            clientVersion = "1.61.48",
-            clientId = "28",
-            userAgent = "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)",
-            osName = "Android",
-            osVersion = "12",
-            deviceMake = "Oculus",
-            deviceModel = "Quest 3",
-            androidSdkVersion = "32",
-            buildId = "SQ3A.220605.009.A1",
-            cronetVersion = "132.0.6808.3",
-            packageName = "com.google.android.apps.youtube.vr.oculus",
-            friendlyName = "Android VR 1.61",
-            loginSupported = false,
-            useSignatureTimestamp = false
-        )
-
-        /**
-         * Uses non adaptive bitrate, which fixes audio stuttering with YT Music.
-         * Does not use AV1.
-         */
-        val ANDROID_VR_1_43_32 = YouTubeClient(
-            clientName = "ANDROID_VR",
-            clientVersion = "1.43.32",
-            clientId = "28",
-            userAgent = "com.google.android.apps.youtube.vr.oculus/1.43.32 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/107.0.5284.2)",
-            osName = "Android",
-            osVersion = "12",
-            deviceMake = "Oculus",
-            deviceModel = "Quest 3",
-            androidSdkVersion = "32",
-            buildId = "SQ3A.220605.009.A1",
-            cronetVersion = "107.0.5284.2",
-            packageName = "com.google.android.apps.youtube.vr.oculus",
-            friendlyName = "Android VR 1.43",
-            loginSupported = false,
-            useSignatureTimestamp = false
-        )
+        val ANDROID_VR_NO_AUTH = ANDROID_VR_1_65_10
 
         /**
          * Cannot play livestreams and lacks HDR, but can play videos with music and labeled "for children".

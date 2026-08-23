@@ -10,12 +10,14 @@ import androidx.media3.datasource.TransferListener
 import java.io.IOException
 
 /**
- * DOWNLOAD-ONLY throttling bypass (port of Echo-Music 5.2.81's ChunkingDataSource, hardened).
+ * DOWNLOAD + AUDIO-STREAMING throttling bypass (port of Echo-Music 5.2.81's ChunkingDataSource, hardened).
  *
  * googlevideo shapes long single-connection transfers down to ~streaming speed; re-opening the
  * upstream source every [chunkSize] bytes via DataSpec position/length (→ HTTP Range headers) keeps
- * each connection short and fast. Wired ONLY into DownloadUtil's factory chain — the streaming path
- * (MusicService) is untouched, exactly like upstream.
+ * each connection short and fast. Wired into DownloadUtil's factory chain (downloads), the video
+ * data source, and — since the SimpMusic-model port — the AUDIO streaming chain in
+ * MusicService.createCacheDataSource (innermost layer, below both cache layers), so buffered audio
+ * fetches get the same throttle immunity as downloads.
  *
  * Two deliberate deviations from upstream:
  *  1. read() does NOT swallow exceptions. Upstream caught every Exception and mapped it to
@@ -23,9 +25,9 @@ import java.io.IOException
  *     DownloadManager marked it STATE_COMPLETED. Here only the two genuine end-of-stream signals —
  *     416 (Range Not Satisfiable) and DataSourceException(POSITION_OUT_OF_RANGE) from the
  *     next-chunk open — become end-of-input; every other error propagates so DownloadManager's
- *     retry machinery handles it.
+ *     retry machinery (or, on the streaming path, the player's error recovery) handles it.
  *  2. Host gate in open(): only googlevideo hosts throttle this way. Qobuz FLAC / Saavn CDN
- *     downloads go through a pure 1:1 passthrough (no chunking, no Range games) so their behavior
+ *     streams go through a pure 1:1 passthrough (no chunking, no Range games) so their behavior
  *     stays byte-identical.
  */
 class ChunkingDataSource(
