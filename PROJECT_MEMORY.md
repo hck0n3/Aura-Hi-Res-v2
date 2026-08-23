@@ -13,26 +13,34 @@
   Video: el fallback NewPipe muxed (`ab46318`) se revirtió por queja de calidad (`a288326`),
   pero el dueño probó el build instalado, confirmó que "YA REPRODUCE VIDEO" y dio LUZ VERDE
   para restaurarlo (revert-del-revert) y además trabajar calidad adaptativa.
-- **EN CURSO (luz verde del dueño 2026-08-23 noche): CALIDAD DE VIDEO.** Objetivos:
-  (a) formatos adaptativos con cambio automático según red, como YouTube — vía
-  PipePipeExtractor (fork de SimpMusic) y/o login SAPISIDHASH (proveedores SOLO de
-  SimpMusic); (b) reducir la tardanza del toggle música↔video (InnerTube quemado se intenta
-  primero y pierde segundos; el stream se re-bufferiza desde cero). El video hoy funciona
-  con muxed itag 18 (360p fijo) vía `muxedVideoStreamUrlNewPipe` en MusicService
-  (`applyVideoToCurrent`, `prebuildNextVideoItem`, `prefetchCurrentVideoUrl`, instant-swap)
-  con bandera `newPipeMuxedVideoIds` (sin doble audio).
-  **DESCUBRIMIENTO CLAVE (2026-08-23 madrugada): la infra de login YA EXISTE y está
-  completa en Aura** (herencia de Echo Music): `ui/screens/LoginScreen.kt` (WebView Google →
-  cookie con SAPISID → `YouTube.cookie` + validación `accountInfo()` + DataStore),
-  `App.kt:1610` restaura la cookie en arranque, `InnerTube.kt:167-182` ya genera
-  `Authorization: SAPISIDHASH` (fórmula idéntica a SimpMusic), `VIDEO_CLIENT = TVHTML5`
-  tiene `loginSupported=true`. El dueño NUNCA ha iniciado sesión → todo resuelve anónimo →
-  bot-limit (solo itag 18). **PASO 1 (cero código):** el dueño inicia sesión desde la hoja
-  de cuenta («Iniciar sesión») y prueba video en WiFi; si TVHTML5 logueado devuelve formatos
-  adaptativos y las URLs pasan el fetch, la calidad queda arreglada sin tocar nada.
-  **PASO 2 (en paralelo):** integrar PipePipeExtractor como fuente de URLs por itag (modelo
-  real de SimpMusic: metadatos del player logueado + URLs del extractor, merge por itag,
-  validación is403) según reporte de investigación del clon local.
+- **EN CURSO (luz verde del dueño 2026-08-23 noche): CALIDAD DE VIDEO.**
+  **✅ PASO 2 COMPLETADO (commit `c61b4cf`, BUILD SUCCESSFUL 05:08):** PipePipeExtractor
+  integrado como reemplazo total de TeamNewPipe v0.25.2 — `com.github.maxrave-dev:PipePipeExtractor`
+  pin `208e43b184` (el extractor que usa SimpMusic; su cliente de extracción ANDROID_VR no está
+  quemado y devuelve los formatos adaptativos COMPLETOS sin login). Cambios: `innertube/pages/NewPipe.kt`
+  reescrito (paquetes `dev.maxrave.pipepipe.*`, `executeAsync`, `Response` 6 args, URL
+  `music.youtube.com`, `setTokens(cookie)` para la llamada suplementaria WEB_REMIX de itags
+  Premium); setter `YouTube.cookie` alimenta los tokens (login y arranque quedan sincronizados);
+  `YTPlayerUtils.adaptiveVideoStreamNewPipe` reemplaza `muxedVideoStreamUrlNewPipe`: elige el
+  mejor video-only H.264 dentro del tope de red (WiFi 720p / datos 360p / TV su tope) y lo
+  MERGEA con el audio del tema; muxed 22/18 solo como último recurso; MusicService actualiza
+  la bandera `newPipeMuxedVideoIds` según `isMuxed`; protobuf-java excluido del fork
+  (la app usa protobuf-javalite); ProGuard actualizado al paquete del fork.
+  **PENDIENTE: instalar el APK en el celular (desconectado del USB ahora) y verificar en logcat**
+  que el fallback reporte itags adaptativos (136/137 + 250/251) en vez de solo `[18]`, y que el
+  video en WiFi suba a 720p. Si la extracción sigue limitada → BravePipeExtractor (diferido).
+  **PASO 1 (cero código, sigue abierto):** el dueño inicia sesión desde la hoja de cuenta
+  («Iniciar sesión») — con cookie el fork añade WEB_REMIX (itags 141/774) y TVHTML5 logueado
+  podría resolver por InnerTube directamente.
+  **(b) ✅ TARDANZA DEL TOGGLE MÚSICA↔VIDEO ARREGLADA (commit `7ebdf7e`, BUILD SUCCESSFUL 05:22):**
+  los 3 sitios de resolución de video (`applyVideoToCurrent`, `prebuildNextVideoItem`,
+  `prefetchCurrentVideoUrl`) ahora prueban PipePipe PRIMERO (no quemado, responde en una sola
+  llamada de extracción) y solo caen a InnerTube si el extractor no devuelve nada — antes el
+  toggle esperaba a que InnerTube quemado agotara su presupuesto multi-cliente. Espejo del
+  path de audio, donde el extractor ya es la fuente primaria. Bandera muxed intacta.
+  **Verificar en celular junto con (a).**
+  **NUEVA PETICIÓN DEL DUEÑO (2026-08-23 ~04:40):** actualizar TODO lo actualizable del
+  proyecto (dependencias, plugins, SDK) a lo último, de forma segura y verificada.
   Investigación login completada (reporte agente): SimpMusic loguea con WebView a
   `accounts.google.com/ServiceLogin?ltmpl=music...`, señal de éxito = onPageFinished en
   `music.youtube.com/`, persiste cookie/page_id en DataStore, player request SIEMPRE
