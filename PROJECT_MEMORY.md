@@ -21,6 +21,24 @@
   con muxed itag 18 (360p fijo) vía `muxedVideoStreamUrlNewPipe` en MusicService
   (`applyVideoToCurrent`, `prebuildNextVideoItem`, `prefetchCurrentVideoUrl`, instant-swap)
   con bandera `newPipeMuxedVideoIds` (sin doble audio).
+  **DESCUBRIMIENTO CLAVE (2026-08-23 madrugada): la infra de login YA EXISTE y está
+  completa en Aura** (herencia de Echo Music): `ui/screens/LoginScreen.kt` (WebView Google →
+  cookie con SAPISID → `YouTube.cookie` + validación `accountInfo()` + DataStore),
+  `App.kt:1610` restaura la cookie en arranque, `InnerTube.kt:167-182` ya genera
+  `Authorization: SAPISIDHASH` (fórmula idéntica a SimpMusic), `VIDEO_CLIENT = TVHTML5`
+  tiene `loginSupported=true`. El dueño NUNCA ha iniciado sesión → todo resuelve anónimo →
+  bot-limit (solo itag 18). **PASO 1 (cero código):** el dueño inicia sesión desde la hoja
+  de cuenta («Iniciar sesión») y prueba video en WiFi; si TVHTML5 logueado devuelve formatos
+  adaptativos y las URLs pasan el fetch, la calidad queda arreglada sin tocar nada.
+  **PASO 2 (en paralelo):** integrar PipePipeExtractor como fuente de URLs por itag (modelo
+  real de SimpMusic: metadatos del player logueado + URLs del extractor, merge por itag,
+  validación is403) según reporte de investigación del clon local.
+  Investigación login completada (reporte agente): SimpMusic loguea con WebView a
+  `accounts.google.com/ServiceLogin?ltmpl=music...`, señal de éxito = onPageFinished en
+  `music.youtube.com/`, persiste cookie/page_id en DataStore, player request SIEMPRE
+  setLogin=true con WEB_REMIX `1.20260304.03.00`, y su quirk de timestamp
+  (`epochSeconds / 1000`) — Aura ya replica la fórmula estándar; si algo falla con login se
+  prueba el quirk. No hay re-login automático en SimpMusic (logout manual).
 - **2026-08-23 (noche): ✅ LA APP YA REPRODUCE (primera reproducción confirmada).**
   `state=PLAYING`, posición avanza, fetches `206` por chunks de 5 MB. El dueño lo confirmó
   en vivo ("SI YA REPRODUCE"). Commits: `807b2d8` (port WIP), `4df5936` (fallback itag 18).
