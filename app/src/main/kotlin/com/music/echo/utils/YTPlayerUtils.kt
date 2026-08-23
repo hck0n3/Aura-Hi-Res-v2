@@ -86,8 +86,11 @@ object YTPlayerUtils {
 
     // SIMPMUSIC selection order: StreamRepositoryImpl.getStream picks the exact itag when its NewPipe
     // URL exists, else ANY usable audio format. This is the fixed preference for that "any audio"
-    // fallback — opus first (the quality this app targets), then aac, then vorbis.
-    private val AUDIO_ITAG_PREFERENCE = listOf(251, 250, 249, 141, 140, 171, 139)
+    // fallback — opus first (the quality this app targets), then aac, then vorbis. The muxed MP4
+    // progressives (22, 18) are the EMERGENCY tail: when YouTube bot-limits the extraction it hands
+    // over only itag 18, and a playing low-quality stream beats a perfect silent one — the pipe is
+    // proven end-to-end and format quality is recovered separately.
+    private val AUDIO_ITAG_PREFERENCE = listOf(251, 250, 249, 141, 140, 171, 139, 22, 18)
 
     // The signature timestamp (sts) is a per-PLAYER-VERSION constant — identical for every video until
     // YouTube rotates player.js (rare, ~weekly). Recomputing it for every song runs NewPipe's JS engine
