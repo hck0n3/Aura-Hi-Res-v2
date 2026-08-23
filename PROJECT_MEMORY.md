@@ -5,16 +5,22 @@
 
 ## 📍 Estado Actual
 
-- **2026-08-23 (noche, tarde): ✅ EQ ARREGLADO (se conserva) / ⛔ FALLBACK DE VIDEO REVERTIDO.**
+- **2026-08-23 (noche, tarde): ✅ EQ ARREGLADO + VIDEO RESTAURADO POR ORDEN DEL DUEÑO.**
   EQ: la causa era la ausencia de `SUPERPOWERED_LICENSE_KEY` en el build debug; clave copiada
   desde `AURA FENIX\aura-simpmusic\local.properties`; verificado `engine=HEALTHY
   dsp_probe=passed` en vivo. NO hizo falta otra licencia. Commits `3aa45cd` (toggle video),
   `ff3eaa7` (log build con licencia).
-  ⛔ **Orden del dueño:** el fallback NewPipe muxed para video (commit `ab46318`) producía
-  video 360p de calidad inaceptable ("se ve y se escucha horrible"); REVERTIDO en `a288326`.
-  El modo video queda como estaba (resuelve por InnerTube, hoy quemado → "Video falló").
-  **NO modificar más código existente sin orden explícita del dueño.** La vía correcta para
-  video/calidad alta será PipePipeExtractor (fork de SimpMusic) y/o login — solo si él lo pide.
+  Video: el fallback NewPipe muxed (`ab46318`) se revirtió por queja de calidad (`a288326`),
+  pero el dueño probó el build instalado, confirmó que "YA REPRODUCE VIDEO" y dio LUZ VERDE
+  para restaurarlo (revert-del-revert) y además trabajar calidad adaptativa.
+- **EN CURSO (luz verde del dueño 2026-08-23 noche): CALIDAD DE VIDEO.** Objetivos:
+  (a) formatos adaptativos con cambio automático según red, como YouTube — vía
+  PipePipeExtractor (fork de SimpMusic) y/o login SAPISIDHASH (proveedores SOLO de
+  SimpMusic); (b) reducir la tardanza del toggle música↔video (InnerTube quemado se intenta
+  primero y pierde segundos; el stream se re-bufferiza desde cero). El video hoy funciona
+  con muxed itag 18 (360p fijo) vía `muxedVideoStreamUrlNewPipe` en MusicService
+  (`applyVideoToCurrent`, `prebuildNextVideoItem`, `prefetchCurrentVideoUrl`, instant-swap)
+  con bandera `newPipeMuxedVideoIds` (sin doble audio).
 - **2026-08-23 (noche): ✅ LA APP YA REPRODUCE (primera reproducción confirmada).**
   `state=PLAYING`, posición avanza, fetches `206` por chunks de 5 MB. El dueño lo confirmó
   en vivo ("SI YA REPRODUCE"). Commits: `807b2d8` (port WIP), `4df5936` (fallback itag 18).
@@ -35,8 +41,9 @@
   SimpMusic, `com.github.maxrave-dev:PipePipeExtractor`, pide music.youtube.com y verifica
   itags), y/o login con cuenta (SAPISIDHASH, el anti-bot real de SimpMusic según su fuente).
 - **Purga cumplida (mandato del dueño):** proveedores no-SimpMusic desactivados
-  (`NON_SIMPMUSIC_PROVIDERS_ENABLED=false`: Qobuz/Saavn; `VIDEO_PROVIDERS_ENABLED=false`);
-  persistencia de URLs desactivada (fresh resolve por canción, modelo SimpMusic).
+  (`NON_SIMPMUSIC_PROVIDERS_ENABLED=false`: Qobuz/Saavn); `VIDEO_PROVIDERS_ENABLED=true`
+  RESTAURADO (el dueño exige el toggle música↔video; el video usa el mismo proveedor
+  YouTube vía NewPipe); persistencia de URLs desactivada (fresh resolve por canción).
 - Mandato del dueño vigente: reproducir IGUAL que SimpMusic, SOLO con sus proveedores.
   Él confirmó que SimpMusic v1.7.0 reproduce bien HOY en el mismo celular y red.
 - **Ground truth extraída del APK de SimpMusic instalado (dex strings, no suposiciones):**
@@ -237,6 +244,12 @@ cambios de hoy (el archivo creció ~115 líneas).
 - **2026-08-23 (10): ✅ PRIMERA REPRODUCCIÓN.** Con fallback muxed itag 18: fetches 206 por
   chunks de 5 MB, state=PLAYING, posición avanza; confirmado por el dueño en vivo.
   Pendiente: recuperar formatos adaptativos de calidad alta (PipePipeExtractor y/o login).
+- **2026-08-23 (11): ✅ EQ ARREGLADO + video en curso.** Causa del EQ muerto = licencia
+  Superpowered ausente en el build debug (no un fallo de cableado). Clave copiada desde la
+  copia Fénix; verificado `engine=HEALTHY dsp_probe=passed` en vivo. El dueño reporta que el
+  toggle música↔video solo da audio → causa: resolución de video por InnerTube quemado;
+  implementado fallback NewPipe muxed (itag 22→18) en los 4 puntos de resolución de video
+  con bandera anti-doble-audio. Commits: `3aa45cd`, `ff3eaa7`.
 
 ## 🏛️ Decisiones Arquitectónicas Clave
 

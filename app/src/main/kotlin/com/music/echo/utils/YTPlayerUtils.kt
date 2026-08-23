@@ -1529,6 +1529,20 @@ object YTPlayerUtils {
         videoMaxHeight = videoMaxHeight,
     ).mapCatching { it.streamUrl }
 
+    /**
+     * SimpMusic-provider fallback for video mode: resolves a MUXED (video+audio) progressive stream via
+     * NewPipe (the same provider SimpMusic uses for its streams) when the InnerTube video resolve is
+     * unavailable (burned client class / bot-check). Prefers 720p itag 22, then 360p itag 18. The result
+     * already carries audio, so callers MUST register it as muxed (no separate audio merge).
+     */
+    fun muxedVideoStreamUrlNewPipe(videoId: String): Result<String> = runCatching {
+        val streams = NewPipeExtractor.newPipePlayer(videoId)
+        Timber.tag(logTag).d("NewPipe video fallback lookup returned itags=${streams.map { it.first }}")
+        val url = streams.firstOrNull { it.first == 22 }?.second
+            ?: streams.firstOrNull { it.first == 18 }?.second
+        requireNotNull(url) { "NewPipe returned no muxed video stream (itags=${streams.map { it.first }})" }
+    }
+
     private fun findFormat(
         playerResponse: PlayerResponse,
         audioQuality: AudioQuality,
