@@ -10,8 +10,9 @@ import kotlinx.coroutines.flow.first
 
 /**
  * Keys that identify artists the user has subscribed to / followed in the app
- * (`bookmarkedAt != null`). Used to keep "Álbumes recién lanzados" personal — global YTM
- * explore shelves are filtered down to these artists only.
+ * (`followedByUserAt != null` — `artistsBookmarkedByNameAsc()` filters on it since registry #154).
+ * Used to keep "Álbumes recién lanzados" personal — global YTM explore shelves are filtered down to
+ * these artists only.
  */
 data class SubscribedArtistKeys(
     val ids: Set<String>,

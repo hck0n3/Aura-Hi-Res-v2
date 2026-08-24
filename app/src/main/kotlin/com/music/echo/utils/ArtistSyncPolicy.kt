@@ -159,9 +159,10 @@ object ArtistSyncPolicy {
     /**
      * True when this artist is a deliberate follow the account does not have a subscription for yet.
      * Subscribing is the non-destructive direction, but it still writes to someone's account, so it is
-     * gated on the same deliberate-follow marker — never on `bookmarkedAt`, which
-     * `DatabaseDao.followArtistsWithContent()` sets on every artist that merely has a song in the
-     * library ("me aparecen muchas suscripciones de cantantes que no sigo").
+     * gated on the same deliberate-follow marker — never on `bookmarkedAt`, which the REMOVED
+     * `DatabaseDao.followArtistsWithContent()` bulk statement used to stamp on every artist that
+     * merely had a song in the library ("me aparecen muchas suscripciones de cantantes que no sigo";
+     * legacy rows like those still exist, registry #154).
      */
     fun maySubscribe(artist: ArtistEntity): Boolean =
         !artist.isLocal &&

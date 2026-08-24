@@ -94,9 +94,10 @@ data class LibraryUploadProgress(
  *
  * ### The one rule that must never be broken
  * An artist is uploaded as a subscription ONLY if `ArtistEntity.followedByUserAt != null` — a follow
- * the user actually made. `bookmarkedAt` is NOT that: `DatabaseDao.followArtistsWithContent()` sets it
- * on every artist that has so much as one song in the library, and pushing that set up is exactly what
- * produced the owner's report *"me aparecen muchas suscripciones de cantantes que no sigo"*.
+ * the user actually made. `bookmarkedAt` is NOT that: the REMOVED `DatabaseDao.followArtistsWithContent()`
+ * bulk statement used to stamp it on every artist that had so much as one song in the library, and
+ * pushing that set up is exactly what produced the owner's report
+ * *"me aparecen muchas suscripciones de cantantes que no sigo"* (registry #154).
  *
  * ### Cost control (the owner has a standing thermal/battery gate)
  * - Never runs on app start. It runs on an explicit request, at the end of a full sync, or as a

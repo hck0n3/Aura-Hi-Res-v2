@@ -147,7 +147,8 @@ class ReleaseRadarWorker(
         today: LocalDate,
         windowStart: LocalDate,
     ): SpotifyGather {
-        // 1. Source artists. FOLLOWED (priority) = Spotify follows ∪ app-bookmarked artists.
+        // 1. Source artists. FOLLOWED (priority) = Spotify follows ∪ app-followed artists
+        //    (artistsBookmarkedByNameAsc() now filters on followedByUserAt — registry #154).
         //    LISTENED = Spotify top artists ∪ local most-played artists.
         val followedSpotify = fetchFollowedSpotifyArtists()
         val listenedSpotify = runCatching {

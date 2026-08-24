@@ -696,9 +696,10 @@ class MigrationViewModel @Inject constructor(
             }
         }
 
-        // Imported song artists also become followed, so "tus artistas" reflects the import (same tail as
-        // the Spotify import). Additive and best-effort — it must never fail the import itself.
-        runCatching { database.followArtistsWithContent(LocalDateTime.now()) }
+        // NOTE: the removed bulk follow (`followArtistsWithContent`) used to run here and subscribe
+        // every artist of every imported song — not user intent. Artists the source account really
+        // follows are stamped with `followedByUserAt` below (~line 848); that path is unchanged
+        // (registry #154).
         // Mirror upwards on the existing, retried, queued sync path instead of firing one raw
         // YouTube.likeVideo per song from here (that would be an unbounded burst on a 2000-song library).
         runCatching {

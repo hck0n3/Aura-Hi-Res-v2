@@ -668,8 +668,10 @@ class SyncUtils @Inject constructor(
                             "${(remoteSongs.size - newCount - updatedCount).coerceAtLeast(0)} unchanged (skipped)",
                     )
 
-                    // Imported song artists also become followed, so "your artists" fills up like Spotify.
-                    runCatching { database.followArtistsWithContent(LocalDateTime.now()) }
+                    // NOTE: the removed bulk follow (`followArtistsWithContent`) used to run here and
+                    // stamp every artist with content as followed — importing a liked song silently
+                    // subscribed its artist everywhere. Artists only become followed through
+                    // deliberate sources now; see the tombstone in DatabaseDao.kt (registry #154).
                     context.dataStore.edit { it[LastLikedSyncTimeKey] = nowEpochMs }
                     updateState { copy(likedSongs = SyncStatus.Completed) }
                     Timber.d("Synced ${remoteSongs.size} liked songs")
@@ -995,8 +997,9 @@ class SyncUtils @Inject constructor(
                         }
                     }
 
-                    // Album artists become followed too, so "your artists" reflects all imports.
-                    runCatching { database.followArtistsWithContent(LocalDateTime.now()) }
+                    // NOTE: the removed bulk follow (`followArtistsWithContent`) used to run here and
+                    // subscribe every album artist just because an album was liked/imported. That is
+                    // not user intent; follows only come from deliberate sources now (registry #154).
                     updateState { copy(likedAlbums = SyncStatus.Completed) }
                     Timber.d("Synced ${remoteAlbums.size} liked albums")
                 } catch (e: Exception) {
@@ -1180,7 +1183,12 @@ class SyncUtils @Inject constructor(
                                         name = artist.title,
                                         thumbnailUrl = artist.thumbnail,
                                         channelId = channelId,
-                                        bookmarkedAt = now
+                                        // This id came from the account's REAL subscription list, so the
+                                        // row is a deliberate follow by definition — stamp the follow
+                                        // column directly instead of relying on the backfill below
+                                        // (which is best-effort; registry #154).
+                                        bookmarkedAt = now,
+                                        followedByUserAt = now,
                                     )
                                 )
                             } else {
@@ -1230,9 +1238,10 @@ class SyncUtils @Inject constructor(
                     // REAL channel subscriptions — so each one is, by definition, a follow the user
                     // made: stamp it followedByUserAt (if it had none) AND ytmSyncedAt. Consequences:
                     // LibraryUploadSync never re-subscribes them, and unfollowing one in Aura now
-                    // correctly unsubscribes it upstream. Artists that are merely bookmarked by
-                    // followArtistsWithContent() are NOT in this list and stay untouched — that is the
-                    // whole point of the split ("suscripciones de cantantes que no sigo").
+                    // correctly unsubscribes it upstream. Artists that only carry an incidental
+                    // `bookmarkedAt` (legacy bulk-follow leftovers, registry #154) are NOT in this
+                    // list and stay untouched — that is the whole point of the split
+                    // ("suscripciones de cantantes que no sigo").
                     //
                     // This page can be PARTIAL (a paginated read that timed out returns fewer ids).
                     // That is now harmless: the statement only ever stamps rows towards "in sync", and
@@ -1246,13 +1255,11 @@ class SyncUtils @Inject constructor(
                         }.onFailure { Timber.w(it, "Could not stamp subscribed artists") }
                     }
 
-                    // Follow EVERY imported artist (also those from liked/library content, not just
-                    // channel subscriptions) so they all appear under "your artists", like Spotify.
-                    // Artists carrying a pending unfollow are excluded by the query itself: this runs
-                    // in the same pass that just cleared their bookmark on purpose (see the
-                    // `pendingUnfollow` branch above), and re-bookmarking them here made the artist pop
-                    // back into "tus artistas" while the queued unsubscribe was still going to fire.
-                    runCatching { database.followArtistsWithContent(LocalDateTime.now()) }
+                    // NOTE: the removed bulk follow (`followArtistsWithContent`) used to run here and
+                    // subscribe every artist with ANY content in the library — playing or liking a song
+                    // was enough to make its artist appear under "tus artistas". Real channel
+                    // subscriptions still show: `markArtistsSubscribedOnYtm` above stamps
+                    // `followedByUserAt` for the ids read back from the account (registry #154).
                     updateState { copy(artists = SyncStatus.Completed) }
                     Timber.d("Synced ${remoteArtists.size} artist subscriptions")
                     // Fill in missing artist cover photos (e.g. artists that came in only via songs) —

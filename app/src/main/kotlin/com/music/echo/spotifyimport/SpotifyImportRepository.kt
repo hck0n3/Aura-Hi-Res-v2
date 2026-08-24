@@ -340,10 +340,10 @@ class SpotifyImportRepository @Inject constructor(
               }
             }
 
-            // Follow EVERY artist brought in by the import (also the song artists from imported
-            // playlists/albums, not only the explicitly-followed Spotify artists), so the home and
-            // recommendations reflect them. Additive — never removes follows.
-            runCatching { database.followArtistsWithContent(java.time.LocalDateTime.now()) }
+            // NOTE: the removed bulk follow (`followArtistsWithContent`) used to run here and also
+            // subscribe every SONG artist from imported playlists/albums — not user intent. The real
+            // Spotify "followed artists" list is stamped with `followedByUserAt` below (~line 999);
+            // that path is unchanged (registry #154).
 
             // Mirror the freshly-imported likes + library to YouTube Music (when signed in), so the
             // Spotify import also lands in the user's YT Music library. Fire-and-forget (sync queue).

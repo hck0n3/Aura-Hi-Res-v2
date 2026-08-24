@@ -697,7 +697,7 @@ interface DatabaseDao {
                       GROUP BY artistId
                       ORDER BY totalPlayTime DESC) AS artistTotalPlayTime
                      ON artist.id = artistId
-                     OR artist.bookmarkedAt IS NOT NULL
+                     OR artist.followedByUserAt IS NOT NULL
                      ORDER BY
                       CASE
                         WHEN artistTotalPlayTime.artistId IS NULL THEN 1
@@ -808,17 +808,17 @@ interface DatabaseDao {
 
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
-    @Query("SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1)) AS songCount FROM artist WHERE bookmarkedAt IS NOT NULL ORDER BY bookmarkedAt")
+    @Query("SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1)) AS songCount FROM artist WHERE followedByUserAt IS NOT NULL ORDER BY followedByUserAt")
     fun artistsBookmarkedByCreateDateAsc(): Flow<List<Artist>>
 
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
-    @Query("SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1)) AS songCount FROM artist WHERE bookmarkedAt IS NOT NULL ORDER BY name")
+    @Query("SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1)) AS songCount FROM artist WHERE followedByUserAt IS NOT NULL ORDER BY name")
     fun artistsBookmarkedByNameAsc(): Flow<List<Artist>>
 
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
-    @Query("SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1)) AS songCount FROM artist WHERE bookmarkedAt IS NOT NULL ORDER BY songCount")
+    @Query("SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1)) AS songCount FROM artist WHERE followedByUserAt IS NOT NULL ORDER BY songCount")
     fun artistsBookmarkedBySongCountAsc(): Flow<List<Artist>>
 
     // LEFT JOIN + COALESCE on purpose: an INNER JOIN dropped every followed artist with no rows in
@@ -841,7 +841,7 @@ interface DatabaseDao {
                                          ON song_artist_map.songId = song.id
                            GROUP BY artistId) AS artistPlayTime
                      ON artist.id = artistPlayTime.artistId
-        WHERE bookmarkedAt IS NOT NULL
+        WHERE followedByUserAt IS NOT NULL
         ORDER BY COALESCE(artistPlayTime.totalPlayTime, 0)
     """
     )
@@ -860,11 +860,16 @@ interface DatabaseDao {
         }
 
     /**
-     * Followed ("liked") artists. Deliberately NOT filtered by id format: every query below already
-     * restricts to `bookmarkedAt IS NOT NULL`, which IS the definition of "followed". The old
-     * `isYouTubeArtist || isLocal` filter silently dropped artists created with
-     * [ArtistEntity.generateArtistId] (ids like "LA########") — e.g. the ones
-     * [followArtistsWithContent] auto-follows — so they were followed yet could never be listed.
+     * Followed ("suscrito") artists. Deliberately NOT filtered by id format: every query below
+     * already restricts to `followedByUserAt IS NOT NULL`, which IS the definition of "followed" —
+     * a DELIBERATE follow (a tap on the follow button, the onboarding picker, a Spotify/Tidal/Deezer
+     * import, or a subscription read back from the account).
+     *
+     * These queries used to key off `bookmarkedAt`, which a bulk statement
+     * (`followArtistsWithContent`, removed in 0.6.232) stamped on EVERY artist with so much as one
+     * song in the library — playing or liking a song was enough. Every surface reading them then
+     * showed "Suscrito" for artists the user had never followed ("a todo lo que escucho y le doy
+     * play automáticamente se suscribe"). `bookmarkedAt` must never be read as a subscription again.
      */
     fun artistsBookmarked(sortType: ArtistSortType, descending: Boolean) =
         when (sortType) {
@@ -1558,36 +1563,26 @@ interface DatabaseDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insert(artist: ArtistEntity)
 
-    /** Follow (bookmark) every artist that has songs or albums in the library but isn't followed yet —
-     *  so artists imported/synced from YouTube Music show up under "your artists", like Spotify follows.
-     *
-     *  Skips rows carrying a pending unfollow. The artist sync clears `bookmarkedAt` on those on
-     *  purpose (the user unfollowed them and the unsubscribe has not reached YouTube yet); this
-     *  statement runs later in the SAME pass and used to put them straight back into "tus artistas"
-     *  while the queued unsubscribe was still going to fire. The user saw the artist reappear and then
-     *  vanish from YouTube. Their own unfollow is the newer instruction, so it wins until it has been
-     *  honoured — at which point `clearArtistsSyncedToYtm` drops the marker and a later song of theirs
-     *  can bookmark them again exactly as before. */
-    @Query(
-        """
-        UPDATE artist SET bookmarkedAt = :now
-        WHERE bookmarkedAt IS NULL AND unfollowedByUserAt IS NULL AND id IN (
-            SELECT artistId FROM song_artist_map
-            UNION
-            SELECT artistId FROM album_artist_map
-        )
-        """
-    )
-    fun followArtistsWithContent(now: java.time.LocalDateTime)
+    // TOMBSTONE — do not resurrect. `followArtistsWithContent(now)` used to live here:
+    //     UPDATE artist SET bookmarkedAt = :now WHERE bookmarkedAt IS NULL AND unfollowedByUserAt IS NULL
+    //     AND id IN (SELECT artistId FROM song_artist_map UNION SELECT artistId FROM album_artist_map)
+    // It bulk-bookmarked EVERY artist with any content in the library, and playing or liking a song
+    // inserts into song_artist_map — so merely LISTENING made every whole UI surface (follow buttons,
+    // badges, "tus artistas", release radar, home shelves) show the artist as "Suscrito". Owner report
+    // 0.6.231: "a todo lo que escucho y le doy play automáticamente se suscribe... eso me puede meter
+    // en problemas". A subscription is a DELIBERATE act: only `followedByUserAt` may express it (tap,
+    // onboarding picker, Spotify/Tidal/Deezer import, or the account's own subscription read-back via
+    // [markArtistsSubscribedOnYtm]). If "tus artistas" ever needs filling again, fill it from those
+    // sources — never from the mere existence of songs.
 
     // ---- Library UPLOAD sync (Aura -> YouTube Music) -------------------------------------------
     // These queries are the ONLY source the uploader reads, and every one of them is a mirror of
     // `iad1tya.echo.music.utils.ArtistSyncPolicy` — change one, change both.
     //
     // Two rules, both learnt the hard way:
-    //  1. NEVER key off `bookmarkedAt`. followArtistsWithContent() sets it on every artist that merely
-    //     has a song in the library; uploading that set is what caused "me aparecen muchas
-    //     suscripciones de cantantes que no sigo".
+    //  1. NEVER key off `bookmarkedAt`. The removed followArtistsWithContent() statement set it on
+    //     every artist that merely has a song in the library; uploading that set is what caused "me
+    //     aparecen muchas suscripciones de cantantes que no sigo".
     //  2. NEVER infer the destructive direction from an ABSENCE. An unsubscribe requires the positive
     //     `unfollowedByUserAt` marker. A missing follow marker is what a logout, a "borrar contenido
     //     sincronizado", a restore from an old backup, an account switch and a half-written down-sync
@@ -1652,8 +1647,8 @@ interface DatabaseDao {
 
     /**
      * Clear upstream subscription state once the LIVE call in [ArtistEntity.toggleLike] has carried out
-     * the unsubscribe on YouTube. Keeps `unfollowedByUserAt` intact so `followArtistsWithContent()` does
-     * not immediately re-bookmark the artist locally when songs exist.
+     * the unsubscribe on YouTube. Keeps `unfollowedByUserAt` intact: it is the RETRY for an unsubscribe
+     * that may not have landed, and registry #150(d) is the standing warning against clearing it here.
      */
     @Query(
         """
@@ -1973,9 +1968,10 @@ interface DatabaseDao {
     @Update
     fun update(artist: ArtistEntity)
 
-    /** Followed artists with no cover image yet (e.g. artists that came in only via synced songs) —
-     *  used to fetch and fill their picture in the background. */
-    @Query("SELECT * FROM artist WHERE bookmarkedAt IS NOT NULL AND (thumbnailUrl IS NULL OR thumbnailUrl = '') LIMIT :limit")
+    /** Followed artists with no cover image yet (e.g. artists that came in only via synced songs or
+     *  via the account subscription read-back, which never stamps `bookmarkedAt`) — used to fetch and
+     *  fill their picture in the background. */
+    @Query("SELECT * FROM artist WHERE (followedByUserAt IS NOT NULL OR bookmarkedAt IS NOT NULL) AND (thumbnailUrl IS NULL OR thumbnailUrl = '') LIMIT :limit")
     suspend fun bookmarkedArtistsMissingImage(limit: Int): List<ArtistEntity>
 
     @Update

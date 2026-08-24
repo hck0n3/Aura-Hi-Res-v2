@@ -138,12 +138,12 @@ fun YouTubeArtistMenu(
                 items = listOf(
                     Material3MenuItemData(
                         title = {
-                            Text(text = if (libraryArtist?.artist?.bookmarkedAt != null) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
+                            Text(text = if (libraryArtist?.artist?.followedByUserAt != null) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
                         },
                         icon = {
                             Icon(
                                 painter = painterResource(
-                                    if (libraryArtist?.artist?.bookmarkedAt != null) {
+                                    if (libraryArtist?.artist?.followedByUserAt != null) {
                                         R.drawable.subscribed
                                     } else {
                                         R.drawable.subscribe

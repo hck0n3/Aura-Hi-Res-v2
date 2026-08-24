@@ -223,11 +223,11 @@ fun ArtistMenu(
                 items = listOf(
                     Material3MenuItemData(
                         title = {
-                            Text(text = if (artist.artist.bookmarkedAt != null) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
+                            Text(text = if (artist.artist.followedByUserAt != null) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
                         },
                         icon = {
                             Icon(
-                                painter = painterResource(if (artist.artist.bookmarkedAt != null) R.drawable.subscribed else R.drawable.subscribe),
+                                painter = painterResource(if (artist.artist.followedByUserAt != null) R.drawable.subscribed else R.drawable.subscribe),
                                 contentDescription = null,
                             )
                         },

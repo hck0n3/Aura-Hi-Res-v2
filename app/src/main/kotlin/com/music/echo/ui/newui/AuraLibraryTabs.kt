@@ -347,7 +347,7 @@ fun AuraLibraryHub(
             MixSortType.CREATE_DATE -> merged.sortedBy { item ->
                 when (item) {
                     is Album -> item.album.bookmarkedAt
-                    is Artist -> item.artist.bookmarkedAt
+                    is Artist -> item.artist.followedByUserAt
                     is Playlist -> item.playlist.createdAt
                     else -> LocalDateTime.now()
                 }

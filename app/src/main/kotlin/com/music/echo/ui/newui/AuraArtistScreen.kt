@@ -447,7 +447,7 @@ fun AuraArtistScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val subscribed = libraryArtist?.artist?.bookmarkedAt != null
+                            val subscribed = libraryArtist?.artist?.followedByUserAt != null
                             AuraDetailActionButton(
                                 icon = if (subscribed) AuraIcons.Check else AuraIcons.Plus,
                                 label = stringResource(

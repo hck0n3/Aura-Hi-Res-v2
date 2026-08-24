@@ -783,7 +783,7 @@ fun ArtistListItem(
     artist: Artist,
     modifier: Modifier = Modifier,
     badges: @Composable RowScope.() -> Unit = {
-        if (artist.artist.bookmarkedAt != null) {
+        if (artist.artist.followedByUserAt != null) {
             val skin = LocalAuraItemSkin.current
             Icon(
                 painter = painterResource(R.drawable.favorite),
@@ -823,7 +823,7 @@ fun ArtistGridItem(
     artist: Artist,
     modifier: Modifier = Modifier,
     badges: @Composable RowScope.() -> Unit = {
-        if (artist.artist.bookmarkedAt != null) {
+        if (artist.artist.followedByUserAt != null) {
             Icon.Favorite()
         }
     },

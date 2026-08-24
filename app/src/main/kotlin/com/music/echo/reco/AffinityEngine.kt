@@ -73,7 +73,7 @@ object AffinityEngine {
         // as taste even for songs never played yet, so Home/autoplay/shuffle reflect the WHOLE library the
         // user brought in — not only what they've happened to play inside the app.
         librarySongs: List<Song> = emptyList(),
-        // The user's followed/subscribed artists (bookmarkedAt != null). Seeded as a real taste signal even
+        // The user's followed/subscribed artists (followedByUserAt != null). Seeded as a real taste signal even
         // for artists with no plays and no saved songs, so following an artist actually drives recommendations.
         followedArtists: List<ArtistEntity> = emptyList(),
         // The user's Last.fm listening history (top artists + loved tracks), keyed by LOWERCASED artist NAME and

@@ -564,7 +564,7 @@ fun ArtistScreen(
                                 ) {
                                     
                                     ToggleButton(
-                                        checked = libraryArtist?.artist?.bookmarkedAt != null,
+                                        checked = libraryArtist?.artist?.followedByUserAt != null,
                                         onCheckedChange = {
                                             database.transaction {
                                                 val artist = libraryArtist?.artist
@@ -593,7 +593,7 @@ fun ArtistScreen(
                                     ) {
                                         Icon(
                                             painter = painterResource(
-                                                if (libraryArtist?.artist?.bookmarkedAt != null) {
+                                                if (libraryArtist?.artist?.followedByUserAt != null) {
                                                     R.drawable.subscribed
                                                 } else {
                                                     R.drawable.subscribe
@@ -601,7 +601,7 @@ fun ArtistScreen(
                                             ),
                                             contentDescription = null,
                                             modifier = Modifier.size(20.dp),
-                                            tint = if (libraryArtist?.artist?.bookmarkedAt != null) {
+                                            tint = if (libraryArtist?.artist?.followedByUserAt != null) {
                                                 MaterialTheme.colorScheme.onPrimary
                                             } else {
                                                 LocalContentColor.current
@@ -610,7 +610,7 @@ fun ArtistScreen(
                                         Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
                                         Text(
                                             text = stringResource(
-                                                if (libraryArtist?.artist?.bookmarkedAt != null) {
+                                                if (libraryArtist?.artist?.followedByUserAt != null) {
                                                     R.string.subscribed
                                                 } else {
                                                     R.string.subscribe

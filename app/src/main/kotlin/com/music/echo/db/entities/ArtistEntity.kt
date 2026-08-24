@@ -25,16 +25,18 @@ data class ArtistEntity(
     @ColumnInfo(name = "isLocal", defaultValue = false.toString())
     val isLocal: Boolean = false,
     /**
-     * Set ONLY when the user deliberately followed this artist — they tapped "Seguir", or the artist
-     * came from a source that represents their real follows (the onboarding picker, the followed-artists
-     * list of a migrated Spotify/Tidal/Deezer account, or an actual YouTube channel subscription read
-     * back from their account).
+     * The ONLY column that means "the user follows / is subscribed to this artist". Set ONLY when the
+     * user deliberately followed this artist — they tapped "Seguir", or the artist came from a source
+     * that represents their real follows (the onboarding picker, the followed-artists list of a
+     * migrated Spotify/Tidal/Deezer account, or an actual YouTube channel subscription read back from
+     * their account via `DatabaseDao.markArtistsSubscribedOnYtm`).
      *
-     * This is NOT the same thing as [bookmarkedAt]. `bookmarkedAt` is also set wholesale by
-     * `DatabaseDao.followArtistsWithContent()` on EVERY artist that has so much as one song in the
-     * library, so that "tus artistas" fills up like Spotify. Pushing *that* set up as real YouTube
-     * subscriptions is what produced the owner's report "me aparecen muchas suscripciones de cantantes
-     * que no sigo". Only artists with `followedByUserAt != null` are ever subscribed on the account.
+     * Every follow/subscription display (follow buttons, badges, "tus artistas", release radar, home
+     * shelves) and every account write MUST key off this column — never off [bookmarkedAt]. A removed
+     * bulk statement (`DatabaseDao.followArtistsWithContent`) used to stamp [bookmarkedAt] on every
+     * artist with any content in the library, and the UI read that as "Suscrito": playing or liking a
+     * song auto-subscribed the artist everywhere (owner report, 0.6.231). [bookmarkedAt] is now a
+     * legacy/library flag only.
      */
     val followedByUserAt: LocalDateTime? = null,
     /**
@@ -96,7 +98,7 @@ data class ArtistEntity(
      * user tapping the follow button: no importer, no migration, no wipe and no down-sync can produce
      * it, which is the property the whole unsubscribe path is built on.
      */
-    fun localToggleLike() = if (bookmarkedAt != null) {
+    fun localToggleLike() = if (followedByUserAt != null) {
         copy(
             bookmarkedAt = null,
             followedByUserAt = null,
@@ -160,9 +162,12 @@ data class ArtistEntity(
             if (!iad1tya.echo.music.utils.ArtistSyncPolicy.mustCallAccountLive(this@ArtistEntity)) {
                 return@launch
             }
-            // `bookmarkedAt` here is still the value BEFORE the toggle: null means the user just
+            // `followedByUserAt` here is still the value BEFORE the toggle: null means the user just
             // followed (subscribe = true), non-null means they just unfollowed (subscribe = false).
-            val subscribing = bookmarkedAt == null
+            // It is the ONLY valid discriminator — `bookmarkedAt` used to be stamped wholesale by a
+            // removed bulk statement, which made this call fire in the wrong direction for artists the
+            // user had never deliberately followed.
+            val subscribing = followedByUserAt == null
             val targetChannelId = channelId ?: YouTube.getChannelId(id)
             if (targetChannelId.isEmpty()) return@launch
             val confirmedByAccount = YouTube.subscribeChannel(targetChannelId, subscribing).isSuccess

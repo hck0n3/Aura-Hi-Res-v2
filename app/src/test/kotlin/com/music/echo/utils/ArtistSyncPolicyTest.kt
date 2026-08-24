@@ -44,8 +44,9 @@ class ArtistSyncPolicyTest {
     )
 
     /**
-     * An artist that is in the library only because a song of theirs is — the shape
-     * `followArtistsWithContent()` produces (bookmark, no deliberate follow).
+     * An artist that is in the library only because a song of theirs is — the shape the REMOVED
+     * `followArtistsWithContent()` bulk statement used to produce (bookmark, no deliberate follow).
+     * Legacy rows like these still exist in user databases, so the policy must keep handling them.
      */
     private fun incidentalBookmark(id: String) = ArtistEntity(
         id = id,
