@@ -95,12 +95,12 @@ memoria_maestra:
     fase_0_preparacion: EN_CURSO   # build verde y checkpoints; falta rama formal y base de tests
     fase_1_inventario: COMPLETADA        # 2026-08-24, resultados R1–R9; HALLAZGO-008
     fase_2_dependencias: COMPLETADA      # 2026-08-24: inventario + OSV; HALLAZGO-009..012; jsoup nunca expuesto (BravePipe ya forzaba 1.23.1)
-    fase_3_seguridad_estatica: EN_CURSO   # pase rápido: secretos y logs (HALLAZGO-003/007); falta SQL/entradas
+    fase_3_seguridad_estatica: COMPLETADA # quick pass 003..007 + SQL/entradas/cripto 2026-08-24 (3 agentes); HALLAZGO-013..015; SQL y zip-slip VERDES
     fase_4_manifest_config: COMPLETADA    # HALLAZGO-005 (manifiesto completo leído, todo legítimo)
     fase_5_almacenamiento: NO_INICIADA
     fase_6_red: NO_INICIADA
     fase_7_auth_cripto: NO_INICIADA
-    fase_8_ipc_componentes: EN_CURSO      # PendingIntents verificados (HALLAZGO-004); faltan deep links/intents
+    fase_8_ipc_componentes: EN_CURSO      # PendingIntents (HALLAZGO-004); deep links/intents auditados en FASE 3 (HALLAZGO-014); falta cierre formal
     fase_9_webview: COMPLETADA            # inventario completo; HALLAZGO-006 riesgo aceptado
     fase_10_arquitectura: EN_CURSO        # HALLAZGO-001 corregido (commit 88cf0e1)
     fase_11_calidad_codigo: NO_INICIADA
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_3_RESTO_SQL_ENTRADAS (FASE_2 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012)
+  proxima_accion: FASE_5_ALMACENAMIENTO (FASE_3 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015)
 ```
 
 ---
@@ -586,10 +586,10 @@ OSV-Scanner v2 instalado global vía winget. `osv-scanner scan` sobre el repo no
 
 ```yaml
 dependencias:
-  criticas_vulnerables: []
-  actualizadas: []
+  criticas_vulnerables: []        # jsoup CVE-2026-71497: nunca expuesta (grafo ya resolvía 1.23.1 vía BravePipeExtractor)
+  actualizadas: [jsoup pin catálogo 1.22.2 -> 1.23.1 (defensa en profundidad; el classpath resuelto no cambió)]
   revertidas: []
-  pendientes: []
+  pendientes: [ffmpeg-kit EOL reemplazo diferido, limpieza HALLAZGO-012, mirror aliyun HALLAZGO-010, lockfile HALLAZGO-011]
 ```
 
 ## Criterio de salida
@@ -664,6 +664,85 @@ grep -R "javaScriptEnabled" .
 grep -R "X509TrustManager" .
 grep -R "HostnameVerifier" .
 ```
+
+## RESULTADOS DE LA FASE 3 (2026-08-24)
+
+Ejecutada con 3 agentes en paralelo (SQL, validación de entradas/archivos, cripto/TLS/aleatoriedad),
+cada afirmación clave re-verificada leyendo el código. El pase rápido previo ya había cubierto
+secretos, logs, WebView y componentes exportados (HALLAZGO-003…007).
+
+### R1 — SQL injection: VERDE, ninguna inyección explotable
+
+- Toda la superficie SQL de `app/` pasa por Room con parámetros enlazados o por strings estáticos.
+  Los 15 módulos de librería no tocan SQLite en absoluto (grep global `.kt`/`.java`).
+- Las búsquedas de usuario (`searchSongs/searchArtists/searchAlbums/searchPlaylists`, historial de
+  reconocimiento) usan `LIKE '%' || :query || '%'`: la concatenación ocurre DENTRO de SQLite sobre
+  un parámetro enlazado (`DatabaseDao.kt:1297/1306/1316/1325/1442`). Ningún llamador construye
+  `"%$q%"` en Kotlin antes del bind.
+- `@RawQuery` (`DatabaseDao.kt:2231`) tiene un único llamador: `checkpoint()` con PRAGMA estático.
+  `String.toSQLiteQuery()` solo recibe literales estáticos en sus 5 usos.
+- El `VACUUM INTO` del backup escapa correctamente las comillas (`BackupRestoreViewModel.kt:155-157`)
+  y usa ruta interna generada por la app.
+- **Nota de higiene (sin número de hallazgo):** `Migration5To6`/`Migration6To7`
+  (`MusicDatabase.kt:518/530`) interpolan IDs leídos de la propia BD sin escapar — inyección de
+  segundo orden teórica. NO se recomienda tocarlas: corren una sola vez al migrar desde versiones
+  muy viejas, el dato lo escribió la propia app (charset restringido de YouTube) y reescribir
+  migraciones ya ejecutadas en dispositivos reales arriesga más de lo que protege.
+
+### R2 — Validación de entradas / deep links: 1 hallazgo accionable
+
+- **HALLAZGO-014 (BAJA):** parámetros de deep link sin validar antes de navegar
+  (`MainActivity.kt:2474`): `?list=a%2Fb` produce `online_playlist/a/b?autoSave=true`, que no
+  matchea el nav graph y `navigate()` lanza `IllegalArgumentException` sin `runCatching` → crash
+  local provocable por cualquier app (MainActivity es `exported=true`). Impacto: DoS local, no
+  secuestro de navegación (verificado: el primer segmento de ruta es fijo).
+  Relacionados en la misma superficie: `file://` deja a la app leer sus propios archivos privados
+  a petición de terceros (confused deputy; el contenido solo se reproduce como media y nunca vuelve
+  al atacante — sin exfiltración) y el callback OAuth de Tidal no valida `state` (documentado en el
+  código; el PKCE persistido hace fallar el intercambio de códigos ajenos).
+- Los intents de `MusicService` (exportado, obligatorio para MediaSession) permiten a terceros
+  evictar caché de canciones o lanzar búsquedas — comportamiento by-design de Android Auto,
+  registrado como informativo.
+
+### R3 — Manejo de archivos: SIN zip-slip ni path traversal
+
+- ZIP de restore (`BackupRestoreViewModel.kt:193-230`): entradas por nombre exacto o whitelist
+  estricta (`EQ_APPEARANCE_PREFS`); los temporales son nombres fijos en `cacheDir`; nunca se
+  construye un path con `entry.name`.
+- ZIP del updater (`UpdateDownloadWorker.kt:279-303`): extracción SIEMPRE al `targetApk` fijo;
+  la versión de red pasa por `UpdateApkFiles.sanitize` (whitelist `[A-Za-z0-9._-]`, colapso de
+  puntos, sin puntos iniciales) y además hay verificación de versión declarada y de firma antes
+  de instalar.
+- **HALLAZGO-015 (BAJA, defensa en profundidad):** `provider_paths.xml` expone TODO el
+  almacenamiento externo y ambos caches (`path="."`). No explotable hoy (provider `exported=false`,
+  todos los `getUriForFile` usan archivos fijos), pero latente para futuras URIs compartidas.
+- Exportación MP3/vídeo: `sanitizeTitle` bloquea `/`; destino final vía SAF. Teórico únicamente.
+
+### R4 — Cripto, TLS y aleatoriedad: 1 hallazgo accionable
+
+- **HALLAZGO-013 (MEDIA):** inconsistencia real de almacenamiento de credenciales — la cookie de
+  sesión de Google (`innerTubeCookie`, `PreferenceKeys.kt:837`) y el `sp_dc` de Spotify
+  (`PreferenceKeys.kt:240`) viven en TEXTO PLANO en el DataStore, mientras los tokens de Tidal y
+  Qobuz del MISMO código usan `EncryptedSharedPreferences` (AES256_SIV + AES256_GCM con MasterKey
+  del Keystore: `QobuzTokenStore.kt:71-76`, `TidalTokenStore.kt:52-57`). Menores en la misma
+  línea: token ListenBrainz (`:495`) y claves OpenRouter/DeepL (`:784/790`). La zona `license/`
+  (`jr_license.xml` en plano) se reporta pero NO se toca — zona protegida por AGENTS.md.
+- MD5/SHA-1 todos legítimos: SAPISIDHASH de innertube, `api_sig` de Last.fm, firma Qobuz (protocolo
+  de cada API), o claves de caché no criptográficas. Cero `javax.crypto.Cipher` en código de app;
+  el HmacSHA1 de `SpotifyAuth.kt` es TOTP legítimo.
+- Aleatoriedad: `SecureRandom` para PKCE de Tidal (correcto); `kotlin.random.Random` solo en el
+  nonce de telemetría `cpn` (no sensible).
+- TLS limpio: `network_security_config.xml` con cleartext OFF (excepciones loopback únicamente),
+  cero overrides de `TrustManager`/`HostnameVerifier`, ~23 `OkHttpClient.Builder` con confianza del
+  sistema. Sin certificate pinning (informativo).
+
+### R5 — Veredicto global de la fase
+
+Ningún hallazgo CRÍTICO o ALTO. La superficie SQL es segura por construcción (Room + binding);
+los lectores de ZIP escriben siempre a destinos fijos; TLS íntegro. Quedan ABIERTOS:
+HALLAZGO-013 (credenciales en plano — fix con camino de migración, decide el dueño),
+HALLAZGO-014 (crash por deep link — fix barato candidato a beta) y HALLAZGO-015 (FileProvider
+ancho — defensa en profundidad).
 
 ## Reparación segura
 
@@ -1587,6 +1666,9 @@ Esta tabla debe mantenerse actualizada durante todo el proceso.
 | HALLAZGO-010 | FASE 2 | MEDIA (cadena de suministro) | El repositorio `https://maven.aliyun.com/repository/public` (mirror chino de Maven Central) está en la cadena de resolución (settings.gradle.kts): terceros pueden servir artefactos alterados; además es lo que mantiene resoluble ffmpeg-kit EOL. | settings.gradle.kts | ABIERTO | Ninguna aún: quitar el mirror puede romper la resolución de ffmpeg-kit; decisión del dueño (FASE de reemplazo de ffmpeg-kit lo desbloquea) | Lectura de settings.gradle.kts |
 | HALLAZGO-011 | FASE 2/17 | BAJA/MEDIA | No hay verificación de integridad de dependencias: sin `gradle.lockfile` ni `gradle/verification-metadata.xml`. Un artefacto sustituido en un mirror pasaría inadvertido. | repo raíz | ABIERTO | Candidato FASE 17: generar verification-metadata o lockfile + CI que lo valide | Escaneo OSV-Scanner (sin lockfile no pudo resolver el catálogo) |
 | HALLAZGO-012 | FASE 2 | BAJA (higiene) | Entradas muertas del catálogo de versiones: youtubedl-android (library/ffmpeg/aria2c/bundle 0.18.1), org.json:json, ktor-client-retry-jvm, material-icons core/extended @1.11.0 (extended inexistente >1.7.8). Además: doble pin kotlinx-serialization (1.6.3 vs 1.9.0) y okhttp 4.12.0 hardcode solo en migration = drift de classpath. | gradle/libs.versions.toml, app y migration build.gradle.kts | ABIERTO | Limpieza pendiente (borrar entradas sin referencia, unificar serialization, alinear okhttp); requiere build verde | Inventario FASE 2 (agente) |
+| HALLAZGO-013 | FASE 3/7 | MEDIA | Credenciales en texto plano en el DataStore: la cookie de sesión de Google (`innerTubeCookie`, `PreferenceKeys.kt:837`, escrita en LoginScreen.kt:211/247) y el `sp_dc` de Spotify (`:240`), mientras los tokens de Tidal/Qobuz del mismo código SÍ usan `EncryptedSharedPreferences` (AES256_SIV+AES256_GCM, Keystore). Menores: token ListenBrainz (`:495`), claves OpenRouter/DeepL (`:784/790`). La licencia (`jr_license.xml` en plano) se reporta pero es zona protegida — sin cambios. | PreferenceKeys.kt, LoginScreen.kt, QobuzTokenStore.kt, TidalTokenStore.kt | ABIERTO | Propuesta: migrar esas claves a EncryptedSharedPreferences con migración one-time del valor existente. Riesgoso: el login y la reproducción dependen de la cookie; requiere camino de migración probado — decisión del dueño en fase de reparación | Verificado por grep/lectura: claves planas vs stores cifrados (agente cripto + re-verificación) |
+| HALLAZGO-014 | FASE 3/8 | BAJA | Crash local vía deep link: `?list=a%2Fb` (o browseIds con `/`) llega a `navController.navigate("online_playlist/$playlistId?autoSave=true")` sin validar ni `runCatching`; la ruta no matchea el nav graph y `navigate()` lanza `IllegalArgumentException`. Provocable por cualquier app (MainActivity `exported=true`). Impacto DoS local, sin secuestro de navegación. Relacionados (informativos): `file://` sobre archivos propios (confused deputy sin exfiltración) y callback Tidal sin `state` (mitigado por PKCE). | MainActivity.kt:2474/2483/2427 | ABIERTO | Propuesta: validar charset/formato de `playlistId`/`browseId` (rechazar `/`) o envolver el navigate en `runCatching` — fix barato, candidato a próxima beta | Lectura de MainActivity.kt; trazado del path de crash por el agente de entradas |
+| HALLAZGO-015 | FASE 3 | BAJA (defensa en profundidad) | `provider_paths.xml` más ancho de lo necesario: `external-path`, `cache-path` y `external-cache-path` con `path="."` exponen TODO el almacenamiento externo y ambos caches. No explotable hoy: provider `exported=false` y todos los `getUriForFile` usan archivos fijos generados por la app; riesgo latente si una futura URI compartida usa path influenciable. | app/src/main/res/xml/provider_paths.xml | ABIERTO | Propuesta: restringir cada entrada a las subcarpetas reales que comparten los call sites (logs, playlist_covers, update, export) | Lectura del XML + grep de todos los usos de getUriForFile |
 
 ---
 
@@ -1731,6 +1813,7 @@ cambio:
 | 2026-08-24 | FASE 1 | Inventario completo ejecutado con 3 agentes en paralelo: 16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación (+ divergencias vs docs/UI_INVENTORY.md por la UI nueva `ui/newui/`), diálogos, widgets/notificaciones, workers/FGS/loops, almacenamiento y flujos críticos | COMPLETADA — resultados R1–R9 en la sección FASE 1 | SUPER AUDITORIA (sección RESULTADOS) | FASE_2_DEPENDENCIAS |
 | 2026-08-24 | FASE 1/15 | HALLAZGO-008: el build type release firma con keystore DEBUG (diagnóstico temporal 2026-08-19; el certificado release "JR MUSIC PRO" parece marcado: release firmados reales fallan en streams, debug funciona) | ABIERTO — bloqueante para publicar; requiere decisión del dueño | app/build.gradle.kts:391-401 | Decisión del dueño + verificar firma del CI |
 | 2026-08-24 | FASE 2 | Inventario completo de dependencias (catálogo + 17 build.gradle.kts), repositorios/plugins/fuerzas, escaneo OSV (API por 25 paquetes fijados, osv-query.ps1) y verificación profunda del caso jsoup | COMPLETADA — R1–R4; HALLAZGO-009 cerrado SIN exposición real: BravePipeExtractor ya forzaba jsoup 1.23.1 en el grafo resuelto y el APK BETA-001 contiene el marker `HtmlTagOptions` (clase exclusiva de ≥1.23.1) en classes38.dex; pin del catálogo alineado 1.22.2→1.23.1 como guarda; nuevos abiertos HALLAZGO-010 (mirror aliyun), 011 (sin lockfile/verification), 012 (entradas muertas) | build-osv-api.txt, build-jsoup-deps.txt, build-fase2-jsoup.txt, jar-diff.ps1 | FASE_3_RESTO_SQL_ENTRADAS |
+| 2026-08-24 | FASE 3 | Auditoría estática completa con 3 agentes en paralelo: SQL (barrido total de rawQuery/execSQL/Room en app + 15 módulos), validación de entradas y archivos (deep links, zip-slip, FileProvider, intents, exports), cripto/TLS/aleatoriedad; afirmaciones clave re-verificadas contra el código | COMPLETADA — SQL VERDE (todo Room+binding; 2 interpolaciones teóricas en migraciones one-shot que NO se tocan), SIN zip-slip (restore y updater con destinos fijos + sanitize), TLS limpio; nuevos abiertos HALLAZGO-013 (cookie Google + sp_dc Spotify en texto plano vs EncryptedSharedPreferences de Tidal/Qobuz), 014 (crash por deep link sin validar), 015 (provider_paths.xml ancho) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 3) | FASE_5_ALMACENAMIENTO |
 
 ---
 
@@ -1836,11 +1919,11 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_3
-  proxima_accion: FASE_3_RESTO_SQL_ENTRADAS
+  fase_actual: FASE_3_COMPLETADA
+  proxima_accion: FASE_5_ALMACENAMIENTO
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
   beta: BETA-001_VERDE (2026-08-24, prueba remota del dueño)
-  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo)
+  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo) · HALLAZGO-013 (cookie Google + sp_dc Spotify en texto plano en DataStore; fix con migración, decide el dueño) · HALLAZGO-014 (crash por deep link sin validar; fix barato candidato a beta) · HALLAZGO-015 (provider_paths.xml ancho; defensa en profundidad)
 ```

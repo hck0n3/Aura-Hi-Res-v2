@@ -26,9 +26,9 @@
   nube): BETA-001 VERDE — TODO FUNCIONA: (a) reproducir/like YA NO auto-suscribe artistas,
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
-  auditoría — FASE 1 (inventario) y FASE 2 (dependencias) ya COMPLETADAS el 2026-08-24;
-  sigue FASE 3 resto (SQL/validación de entradas). La publicación estable de estos fixes queda a
-  decisión del dueño (publicar exige su permiso explícito).
+  auditoría — FASE 1 (inventario), FASE 2 (dependencias) y FASE 3 (seguridad estática) ya
+  COMPLETADAS el 2026-08-24; sigue FASE 5 (almacenamiento). La publicación estable de estos
+  fixes queda a decisión del dueño (publicar exige su permiso explícito).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,
@@ -56,7 +56,29 @@
   además mantiene resoluble ffmpeg-kit EOL — decisión del dueño), HALLAZGO-011 (sin lockfile ni
   verification-metadata.xml — candidato FASE 17), HALLAZGO-012 (entradas muertas del catálogo:
   youtubedl-android, org.json, ktor-client-retry, material-icons @1.11.0; doble pin
-  kotlinx-serialization; okhttp hardcode en migration). Siguiente: FASE 3 resto (SQL/entradas).
+  kotlinx-serialization; okhttp hardcode en migration). Siguiente: FASE 5 (almacenamiento).
+- **2026-08-24 (tarde, 3): ✅ SÚPER AUDITORÍA — FASE 3 (SEGURIDAD ESTÁTICA) TERMINADA.**
+  Ejecutada con 3 agentes en paralelo (SQL, validación de entradas/archivos, cripto/TLS), cada
+  afirmación clave re-verificada leyendo el código. Resultados completos en la sección
+  "RESULTADOS DE LA FASE 3" de `SUPER AUDITORIA DE MI CODIGO ANDROID.md`.
+  ✅ **SQL VERDE:** ninguna inyección explotable — toda la superficie pasa por Room con
+  parámetros enlazados o strings estáticos; las búsquedas de usuario usan `LIKE '%' || :query || '%'`
+  sobre bind param; el `VACUUM INTO` del backup escapa comillas correctamente. Dos interpolaciones
+  teóricas de segundo orden en migraciones one-shot antiguas (`MusicDatabase.kt:518/530`) — NO se
+  tocan: reescribir migraciones ya ejecutadas arriesga más de lo que protege.
+  ✅ **SIN zip-slip ni path traversal:** los dos lectores de ZIP (restore y updater) escriben
+  siempre a destinos fijos; el updater además sanitiza la versión de red y verifica firma antes de
+  instalar. TLS limpio (cleartext OFF, cero TrustManager/HostnameVerifier inseguros).
+  ⚠️ Nuevos hallazgos abiertos:
+  - **HALLAZGO-013 (MEDIA):** la cookie de sesión de Google (`innerTubeCookie`) y el `sp_dc` de
+    Spotify viven en TEXTO PLANO en el DataStore, mientras los tokens de Tidal/Qobuz del mismo
+    código SÍ usan EncryptedSharedPreferences (Keystore). Fix propuesto: migración a store cifrado
+    con camino one-time — RIESGOSO (login y reproducción dependen de la cookie), decide el dueño.
+  - **HALLAZGO-014 (BAJA):** deep links sin validar (`?list=a%2Fb`) crashean la app vía
+    `navigate()` sin `runCatching` — provocable por cualquier app. Fix barato candidato a beta.
+  - **HALLAZGO-015 (BAJA):** `provider_paths.xml` expone almacenamiento externo y caches completos
+    (defensa en profundidad; no explotable hoy).
+  Siguiente: FASE 5 (almacenamiento).
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0
