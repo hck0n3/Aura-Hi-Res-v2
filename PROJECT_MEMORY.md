@@ -26,7 +26,8 @@
   nube): BETA-001 VERDE — TODO FUNCIONA: (a) reproducir/like YA NO auto-suscribe artistas,
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
-  auditoría (FASE 1 inventario en adelante). La publicación estable de estos fixes queda a
+  auditoría — FASE 1 (inventario) y FASE 2 (dependencias) ya COMPLETADAS el 2026-08-24;
+  sigue FASE 3 resto (SQL/validación de entradas). La publicación estable de estos fixes queda a
   decisión del dueño (publicar exige su permiso explícito).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
@@ -39,6 +40,23 @@
   de streams y el build con keystore debug funcionaba; se aisló el certificado como variable.
   Revertir a la keystore release es OBLIGATORIO antes de publicar (decisión del dueño; puede
   reabrir el fallo de streams). Siguiente fase: FASE 2 dependencias.
+- **2026-08-24 (tarde, 2): ✅ SÚPER AUDITORÍA — FASE 2 (DEPENDENCIAS) TERMINADA.**
+  Inventario completo (catálogo + 17 build.gradle.kts), repositorios/plugins/fuerzas y escaneo
+  OSV por los 25 paquetes fijados (`osv-query.ps1` → `build-osv-api.txt`): solo jsoup aparecía
+  como vulnerable (GHSA-pmhh-3w7g-xqp8 / CVE-2026-71497, rango 1.14.3–1.22.2).
+  🔍 **VERIFICACIÓN PROFUNDA — HALLAZGO-009 cerrado SIN exposición real:** el pin del catálogo
+  decía jsoup 1.22.2, PERO el grafo resuelto ya entregaba 1.23.1 porque `BravePipeExtractor`
+  (pin fa5d4a8b4c) depende directamente de jsoup 1.23.1 y Gradle resuelve al mayor
+  (`1.22.2 -> 1.23.1`). Prueba en el binario: el APK de BETA-001 contiene `HtmlTagOptions`
+  (clase que solo existe en jsoup ≥1.23.1) en classes38.dex → la CVE NUNCA estuvo expuesta en
+  el artefacto entregado. Esto también explica por qué los rebuilds quedaban UP-TO-DATE: el
+  classpath resuelto no cambió. Aun así se alineó el pin del catálogo 1.22.2 → 1.23.1
+  (defensa en profundidad: evita regresión silenciosa si BravePipe se elimina).
+  Nuevos hallazgos abiertos: HALLAZGO-010 (mirror `maven.aliyun.com` en la cadena de resolución;
+  además mantiene resoluble ffmpeg-kit EOL — decisión del dueño), HALLAZGO-011 (sin lockfile ni
+  verification-metadata.xml — candidato FASE 17), HALLAZGO-012 (entradas muertas del catálogo:
+  youtubedl-android, org.json, ktor-client-retry, material-icons @1.11.0; doble pin
+  kotlinx-serialization; okhttp hardcode en migration). Siguiente: FASE 3 resto (SQL/entradas).
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0

@@ -94,7 +94,7 @@ memoria_maestra:
   fases:
     fase_0_preparacion: EN_CURSO   # build verde y checkpoints; falta rama formal y base de tests
     fase_1_inventario: COMPLETADA        # 2026-08-24, resultados R1–R9; HALLAZGO-008
-    fase_2_dependencias: NO_INICIADA
+    fase_2_dependencias: COMPLETADA      # 2026-08-24: inventario + OSV; HALLAZGO-009..012; jsoup nunca expuesto (BravePipe ya forzaba 1.23.1)
     fase_3_seguridad_estatica: EN_CURSO   # pase rápido: secretos y logs (HALLAZGO-003/007); falta SQL/entradas
     fase_4_manifest_config: COMPLETADA    # HALLAZGO-005 (manifiesto completo leído, todo legítimo)
     fase_5_almacenamiento: NO_INICIADA
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_2_DEPENDENCIAS (FASE_1 completada 2026-08-24; HALLAZGO-008 abierto)
+  proxima_accion: FASE_3_RESTO_SQL_ENTRADAS (FASE_2 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012)
 ```
 
 ---
@@ -523,6 +523,53 @@ O alternativas:
 osv-scanner scan .
 trivy fs .
 ```
+
+## RESULTADOS DE LA FASE 2 (2026-08-24)
+
+### R1. Inventario de dependencias (verificado contra gradle/libs.versions.toml y los 17 build.gradle.kts)
+
+**Compose / UI:** compose runtime/foundation/ui 1.11.0 · material3 1.5.0-alpha18 (deliberado: 197 usos APIs Expressive) · material3-adaptive 1.3.0-alpha09 · material-icons-extended 1.7.8 (hardcode; congelado por Google; entrada del catálogo @1.11.0 muerta) · materialKolor 4.1.1 · haze 1.0.2 (vieja, rework diferido) · lottie-compose 6.7.1 · reorderable 3.0.0 · compose-shimmer 1.3.3 (mantenimiento bajo) · smooth-corner-rect v1.0.0 jitpack (abandonada) · activity-compose 1.12.3 · lifecycle 2.10.0 · core-splashscreen 1.2.0 · appcompat 1.7.1 · palette-ktx 1.0.0 (estable final).
+
+**Media3 / Cast:** media3 exoplayer/session/hls/ui/datasource-okhttp 1.10.1 · media3-cast 1.10.1 + mediarouter 1.8.1 + play-services-cast-framework 22.2.0 (solo gms).
+
+**Red:** ktor 3.5.0 (app + 13 módulos cliente; ktor-client-retry-jvm = entrada muerta) · okhttp 4.12.0 hardcode en migration (vieja, solo migración) · org.brotli:dec 0.1.2 (2017, abandono upstream, única versión publicada) · org.json:json (entrada muerta).
+
+**Imágenes:** coil3 3.5.0 · ucrop 2.2.11 jitpack (semi-mantenida).
+
+**Inyección:** hilt 2.60.1 · hilt-navigation-compose 1.3.0.
+
+**DB / persistencia:** room 2.8.4 · datastore-preferences 1.2.1 · androidx.security:security-crypto 1.1.0-alpha06 (hardcode ×2, app y migration, deben coincidir por Tink) · work-runtime-ktx 2.10.2.
+
+**Firebase / GMS (solo gms):** firebase-bom 34.15.0 · play-services-auth 21.3.0 · google-api-client-android 2.9.0 · google-api-services-drive v3-rev20260428-2.0.0 (excluye httpcomponents).
+
+**Letras / extracción:** PipePipeExtractor jitpack pin 208e43b184 · BravePipeExtractor jitpack pin fa5d4a8b4c · nanojson jitpack c7a6c1c08d (FORZADO global) · jsoup 1.23.1 (pin del catálogo alineado 2026-08-24; el grafo resuelto YA entregaba 1.23.1 vía BravePipeExtractor — ver HALLAZGO-009) · kuromoji-ipadic 0.9.0 (abandonada 2016) · tinypinyin 2.0.3 jitpack (abandonada ~2017).
+
+**Otros:** guava 33.6.0-jre + coroutines-guava 1.10.2 + concurrent-futures-ktx 1.3.0 · commons-lang3 3.20.0 · timber 5.0.1 · process-phoenix 3.0.0 · androidx.browser 1.9.0 · desugar_jdk_libs_nio 2.1.5 · junit 4.13.2 (tests) · ffmpeg-kit-full 6.0-2 (**EOL 2025**) · youtubedl-android 0.18.1 (entradas MUERTAS, ningún módulo las usa) · kotlinx-serialization-json 1.9.0/1.6.3 (doble pin inconsistente).
+
+### R2. Repositorios y plugins
+
+Repositorios (en dependencyResolutionManagement FAIL_ON_PROJECT_REPOS y buildscript): google(), mavenCentral(), https://jitpack.io (necesario: ucrop, extractores, tinypinyin, smoothCorner, nanojson) y **https://maven.aliyun.com/repository/public** (mirror chino de Central; ver HALLAZGO-010). Sin pluginManagement, sin verification-metadata.xml ni lockfiles.
+
+Plugins: AGP 9.2.0 · Kotlin 2.4.0 (+plugin.compose, +plugin.serialization) · KSP 2.3.9 · Hilt 2.60.1 · protobuf 0.9.6 · google-services 4.4.3 (condicional; no hay google-services.json) · firebase-crashlytics-gradle 3.0.2 (condicional).
+
+Fuerzas/exclusiones: force nanojson @ c7a6c1c08d en todas las subprojects (sin él, NoSuchMethodError en fallback BravePipe) · exclude protobuf-java de PipePipeExtractor (choca con protobuf-javalite) · exclude httpcomponents de api-services-drive · packaging excludes META-INF estándar · substitution NewPipeExtractor local comentada/inactiva.
+
+Gradle 9.6.1 + AGP 9.2.0 + Kotlin 2.4.0 coherentes (jvmToolchain 21 en todos los módulos). KSP 2.3.9 con prefijo 2.3 vs Kotlin 2.4: emparejamiento inusual (KSP2 laxo; builds verdes) — vigilar.
+
+### R3. Escaneo de vulnerabilidades (OSV)
+
+OSV-Scanner v2 instalado global vía winget. `osv-scanner scan` sobre el repo no extrae paquetes: el catálogo de versiones de Gradle (libs.versions.toml) no es resoluble por el escáner sin lockfile. Fallback ejecutado: consulta directa a la API OSV por 25 paquetes fijados (script osv-query.ps1, resultados en build-osv-api.txt):
+
+- **jsoup 1.22.2 → GHSA-pmhh-3w7g-xqp8 / CVE-2026-71497 (MODERADA en el pin declarado, SIN exposición real):** el Cleaner de jsoup puede exponer marcado activo (XSS) al sanitizar HTML malformado con etiquetas de texto crudo personalizadas terminadas en caracteres de control. Afecta 1.14.3–1.22.2; corregida en 1.23.1. Vector: red, requiere interacción. jsoup parsea HTML de red no confiable en providers de letras/scrapers → aplicable en teoría. **VERIFICACIÓN PROFUNDA (2026-08-24):** el pin del catálogo decía 1.22.2, pero el grafo RESUELTO ya entregaba 1.23.1 porque `BravePipeExtractor:fa5d4a8b4c` depende directamente de `org.jsoup:jsoup:1.23.1` y Gradle resuelve al mayor (el 1.22.2 de PipePipeExtractor queda upgradado: `1.22.2 -> 1.23.1` en `:app:dependencies`). Prueba en el binario entregado: el APK de BETA-001 contiene `HtmlTagOptions` (clase que SOLO existe en jsoup ≥1.23.1) en `classes38.dex` → la CVE NUNCA estuvo expuesta en el artefacto que probó el dueño. **FIX igualmente aplicado (defensa en profundidad):** pin del catálogo alineado 1.22.2 → 1.23.1 en gradle/libs.versions.toml para que la declaración coincida con la realidad y no haya regresión silenciosa si BravePipeExtractor se elimina; builds de verificación build-fase2-jsoup.txt / build-fase2-jsoup2.txt (todo UP-TO-DATE = el classpath resuelto no cambió, ya era 1.23.1). Ver HALLAZGO-009.
+- ffmpeg-kit-full 6.0-2: sin CVE registrado en OSV, pero EOL oficial (retirado 2025); reemplazo diferido (DIFERIDOS.md).
+- Resto (okhttp 4.12.0, guava 33.6.0-jre, security-crypto 1.1.0-alpha06, ucrop, brotli, ktor 3.5.0, room 2.8.4, coil 3.5.0, lottie, kotlinx-serialization 1.9.0, junit 4.13.2, commons-lang3, timber, work 2.10.2, datastore 1.2.1, haze, reorderable, media3 1.10.1, hilt 2.60.1, protobuf-javalite 4.34.2, kuromoji, tinypinyin): **0 vulnerabilidades conocidas** a la fecha del escaneo.
+
+### R4. Hallazgos de cadena de suministro (estado)
+
+1. HALLAZGO-010: `maven.aliyun.com` en la cadena de resolución — abierto, decisión del dueño.
+2. HALLAZGO-011: sin verificación de dependencias (no lockfile ni verification-metadata.xml) — abierto, candidato FASE 17.
+3. HALLAZGO-012: entradas muertas del catálogo (youtubedl-android bundle, org.json, ktor-client-retry, material-icons @1.11.0) + doble pin kotlinx-serialization + okhttp hardcode en migration — limpieza pendiente.
+4. Nota: `gradle.properties` trae `sdk.dir=/Users/aditya/...` (path macOS commiteado; debería vivir en local.properties) y `android.newDsl=false` (DSL legado bajo AGP 9). No se cambian: riesgo de romper otras máquinas; documentado.
 
 ## Reparación segura
 
@@ -1536,6 +1583,10 @@ Esta tabla debe mantenerse actualizada durante todo el proceso.
 | HALLAZGO-006 | FASE 9 | MEDIA (riesgo aceptado) | WebViews con JS + `allowFileAccess`/`allowFileAccessFromFileURLs` + JS interface en `CipherWebView`, `EjsNTransformSolver`, `PoTokenWebView`. Son infraestructura de descifrado de streaming que ejecuta el propio JS de YouTube/bundled; tocarlas pone en riesgo la reproducción. `LoginScreen`/`SpotifyImportScreen`: JS activo pero `allowFileAccess=false`. | utils/cipher, utils/sabr, utils/potoken | RIESGO ACEPTADO | Sin código cambiado: documentado aquí. Solo cargan contenido local/bundled; no navegan a URLs arbitrarias del usuario | Inventario completo de WebViews |
 | HALLAZGO-007 | FASE 3 | BAJA (riesgo aceptado) | `GOOGLE_API_KEY` embebida en PoTokenWebView.kt: es la clave pública del cliente web de YouTube (InnerTube), la misma que usan todos los clientes open-source; pública por diseño, igual que las claves Last.fm/Tidal/Qobuz documentadas en AGENTS.md. | utils/potoken/PoTokenWebView.kt | RIESGO ACEPTADO | Ninguna — no es un secreto | Verificación contra el patrón de clientes InnerTube públicos |
 | HALLAZGO-008 | FASE 1/15 | CRITICA (para publicar) + investigación abierta | El build type `release` firma HOY con el keystore DEBUG (app/build.gradle.kts:401, diagnóstico temporal del 2026-08-19 con comentario explícito de revertir). Motivo del diagnóstico: todos los builds release firmados con el certificado real "JR MUSIC PRO" fallaban en la resolución de streams, mientras el build con keystore debug funcionaba — se aisló el certificado como única variable. Consecuencias: (1) si se publica así, TODOS los usuarios pierden la capacidad de actualizar (cambio de firma); (2) sigue abierta la pregunta de por qué el certificado release parece marcado por YouTube. | app/build.gradle.kts:391-401 | ABIERTO | Ninguna aún: revertir a `signingConfigs.getByName("release")` es obligatorio antes de cualquier publicación, y requiere decisión del dueño (puede reabrir el fallo de streams) | Lectura del build.gradle.kts + comentario in situ; pendiente confirmar si el CI sobreescribe la firma en el workflow de release |
+| HALLAZGO-009 | FASE 2 | MODERADA en el pin declarado · SIN exposición real | jsoup: el catálogo declaraba 1.22.2 (rango afectado por GHSA-pmhh-3w7g-xqp8 / CVE-2026-71497: el Cleaner puede exponer marcado activo/XSS al sanitizar HTML malformado con etiquetas de texto crudo terminadas en caracteres de control). PERO el grafo resuelto ya entregaba 1.23.1 (corregida): `BravePipeExtractor:fa5d4a8b4c` depende directamente de `org.jsoup:jsoup:1.23.1` y Gradle resuelve al mayor (`1.22.2 -> 1.23.1`). Verificado en el binario: el APK BETA-001 contiene `HtmlTagOptions` (clase exclusiva de jsoup ≥1.23.1) en classes38.dex → la CVE NUNCA estuvo expuesta. | gradle/libs.versions.toml | CERRADO (defensa en profundidad) | Pin del catálogo alineado 1.22.2 → 1.23.1 para que la declaración coincida con la resolución real y no regrese en silencio si se elimina BravePipeExtractor. El rebuild quedó UP-TO-DATE porque el classpath resuelto no cambió (ya era 1.23.1), no por fallo del build. | OSV API por paquete (build-osv-api.txt), `:app:dependencies` (build-jsoup-deps.txt), diff de jars jar-diff.ps1 (HtmlTagOptions añadida en 1.23.1), marker presente en classes38.dex del APK (BETA-001) |
+| HALLAZGO-010 | FASE 2 | MEDIA (cadena de suministro) | El repositorio `https://maven.aliyun.com/repository/public` (mirror chino de Maven Central) está en la cadena de resolución (settings.gradle.kts): terceros pueden servir artefactos alterados; además es lo que mantiene resoluble ffmpeg-kit EOL. | settings.gradle.kts | ABIERTO | Ninguna aún: quitar el mirror puede romper la resolución de ffmpeg-kit; decisión del dueño (FASE de reemplazo de ffmpeg-kit lo desbloquea) | Lectura de settings.gradle.kts |
+| HALLAZGO-011 | FASE 2/17 | BAJA/MEDIA | No hay verificación de integridad de dependencias: sin `gradle.lockfile` ni `gradle/verification-metadata.xml`. Un artefacto sustituido en un mirror pasaría inadvertido. | repo raíz | ABIERTO | Candidato FASE 17: generar verification-metadata o lockfile + CI que lo valide | Escaneo OSV-Scanner (sin lockfile no pudo resolver el catálogo) |
+| HALLAZGO-012 | FASE 2 | BAJA (higiene) | Entradas muertas del catálogo de versiones: youtubedl-android (library/ffmpeg/aria2c/bundle 0.18.1), org.json:json, ktor-client-retry-jvm, material-icons core/extended @1.11.0 (extended inexistente >1.7.8). Además: doble pin kotlinx-serialization (1.6.3 vs 1.9.0) y okhttp 4.12.0 hardcode solo en migration = drift de classpath. | gradle/libs.versions.toml, app y migration build.gradle.kts | ABIERTO | Limpieza pendiente (borrar entradas sin referencia, unificar serialization, alinear okhttp); requiere build verde | Inventario FASE 2 (agente) |
 
 ---
 
@@ -1679,6 +1730,7 @@ cambio:
 | 2026-08-24 | FASE 16 | Prueba de BETA-001 por el dueño (remota, vía carpeta de nube): VERDE — fix A (reproducir/like ya NO auto-suscribe artistas) y fix B (la letra cambia con el crossfade) CONFIRMADOS; reproducción, toggle música↔video y ecualizador bien | APROBADA — fixes #154/#155 validados en dispositivo | reporte del dueño en el chat | Continuar FASE_1_INVENTARIO |
 | 2026-08-24 | FASE 1 | Inventario completo ejecutado con 3 agentes en paralelo: 16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación (+ divergencias vs docs/UI_INVENTORY.md por la UI nueva `ui/newui/`), diálogos, widgets/notificaciones, workers/FGS/loops, almacenamiento y flujos críticos | COMPLETADA — resultados R1–R9 en la sección FASE 1 | SUPER AUDITORIA (sección RESULTADOS) | FASE_2_DEPENDENCIAS |
 | 2026-08-24 | FASE 1/15 | HALLAZGO-008: el build type release firma con keystore DEBUG (diagnóstico temporal 2026-08-19; el certificado release "JR MUSIC PRO" parece marcado: release firmados reales fallan en streams, debug funciona) | ABIERTO — bloqueante para publicar; requiere decisión del dueño | app/build.gradle.kts:391-401 | Decisión del dueño + verificar firma del CI |
+| 2026-08-24 | FASE 2 | Inventario completo de dependencias (catálogo + 17 build.gradle.kts), repositorios/plugins/fuerzas, escaneo OSV (API por 25 paquetes fijados, osv-query.ps1) y verificación profunda del caso jsoup | COMPLETADA — R1–R4; HALLAZGO-009 cerrado SIN exposición real: BravePipeExtractor ya forzaba jsoup 1.23.1 en el grafo resuelto y el APK BETA-001 contiene el marker `HtmlTagOptions` (clase exclusiva de ≥1.23.1) en classes38.dex; pin del catálogo alineado 1.22.2→1.23.1 como guarda; nuevos abiertos HALLAZGO-010 (mirror aliyun), 011 (sin lockfile/verification), 012 (entradas muertas) | build-osv-api.txt, build-jsoup-deps.txt, build-fase2-jsoup.txt, jar-diff.ps1 | FASE_3_RESTO_SQL_ENTRADAS |
 
 ---
 
@@ -1784,11 +1836,11 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_2
-  proxima_accion: FASE_2_DEPENDENCIAS_EN_CURSO
+  fase_actual: FASE_3
+  proxima_accion: FASE_3_RESTO_SQL_ENTRADAS
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
   beta: BETA-001_VERDE (2026-08-24, prueba remota del dueño)
-  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar)
+  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo)
 ```

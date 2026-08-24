@@ -1,0 +1,4 @@
+Scanning dir C:\Users\AURA\Desktop\PROYECTOS DE PROGRAMACION\AURA BETADO\Aura-Hi-Res-Player-0.6.231\Aura-Hi-Res-Player-0.6.231
+Starting filesystem walk for root: C:\
+End status: 31 dirs visited, 151 inodes visited, 0 Extract calls, 8.0844ms elapsed, 8.0844ms wall time
+No package sources found, --help for usage information.
