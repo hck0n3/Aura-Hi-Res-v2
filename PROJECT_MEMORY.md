@@ -28,8 +28,8 @@
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
   6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura), 11 (calidad de código),
-  12 (concurrencia) y 13 (rendimiento) ya COMPLETADAS el 2026-08-24; sigue FASE 14 (UI/UX
-  técnica).
+  12 (concurrencia), 13 (rendimiento) y 14 (UI/UX técnica) ya COMPLETADAS el 2026-08-24;
+  sigue FASE 15 (recursos/build — ya EN_CURSO: debug 0.6.232 verde; faltan release, lint y tests).
   La publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
   explícito).
 - **2026-08-24 (tarde, 9): ✅ SÚPER AUDITORÍA — FASE 12 (CONCURRENCIA Y CICLO DE VIDA)
@@ -67,6 +67,17 @@
   anotada para FASE 22: Baseline Profiles (no existe baseline-prof.txt). Ver sección
   RESULTADOS DE LA FASE 13 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 14
   (UI/UX técnica).
+- **2026-08-24 (tarde, 12): ✅ SÚPER AUDITORÍA — FASE 14 (UI/UX TÉCNICA) COMPLETADA.**
+  Auditoría ESTÁTICA (app 100% Compose; validación visual runtime → FASE 19). Veredicto:
+  SÓLIDA, SIN hallazgos nuevos. Evidencia: 174 contenedores lazy; keys estables
+  `key = { it.id }` verificadas línea por línea en HomeScreen (recentSongs con distinctBy,
+  quickPicks, playlists, discover, keepListening) — el único `items(5)` sin key es el shimmer
+  estático; 375 rememberSaveable/isSystemInDarkTheme (estado sobrevive a configuración);
+  accesibilidad con práctica correcta: 1 147 contentDescription, 866 `= null` en miniaturas
+  decorativas junto a texto legible y ~280 controles etiquetados con stringResource; RTL con
+  iconos AutoMirrored + LocalLayoutDirection; dark mode con override deliberado documentado
+  (Utils.kt:176). Composables gigantes ya cubiertos por HALLAZGO-021. Ver sección RESULTADOS
+  DE LA FASE 14 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 15 (recursos/build).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,

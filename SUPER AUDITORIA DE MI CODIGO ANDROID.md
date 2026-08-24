@@ -106,7 +106,7 @@ memoria_maestra:
     fase_11_calidad_codigo: COMPLETADA      # 2026-08-24: calidad sólida; !! moderado e idiomático, catches legítimos, cero TODO/FIXME; sin hallazgos nuevos (deuda ya en 021)
     fase_12_concurrencia: COMPLETADA      # 2026-08-24: cierre formal; HALLAZGO-002 ya corregido (f7022e2); cero GlobalScope/hilos crudos; sin hallazgos nuevos
     fase_13_rendimiento: COMPLETADA         # 2026-08-24: estático sólido; ThermalManager+haptics throttled, WakeLocks con tope, Room fuera de Main; Baseline Profiles → FASE 22; sin hallazgos nuevos
-    fase_14_ui_ux_tecnica: NO_INICIADA
+    fase_14_ui_ux_tecnica: COMPLETADA       # 2026-08-24: estático sólido; keys estables en listas, rememberSaveable, a11y correcta (decorativos null, controles con stringResource), RTL+dark mode; sin hallazgos nuevos
     fase_15_recursos_build: EN_CURSO      # debug 0.6.232 (952) verde; faltan release, lint, tests
     fase_16_testing: NO_INICIADA
     fase_17_cicd: NO_INICIADA
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_14_UI_UX_TECNICA (FASE_13 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021)
+  proxima_accion: FASE_15_RECURSOS_BUILD (FASE_14 completada 2026-08-24; FASE 15 ya EN_CURSO — faltan release/lint/tests; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021)
 ```
 
 ---
@@ -1576,6 +1576,22 @@ Revisar:
 - Dark mode.
 - Texto escalable.
 
+## RESULTADOS DE LA FASE 14 (ejecutada 2026-08-24)
+
+**Metodología:** auditoría estática en primera persona (grep + lectura dirigida), mismo patrón que FASE 11/13. La app es 100% Compose (la rama XML del checklist no aplica). La validación visual runtime (contraste real, targets táctiles, screenshots) se difiere a FASE 19/pruebas de dispositivo. Sin cambios de código.
+
+**R1 — Listas lazy y keys:** 174 contenedores lazy (`LazyColumn`/`LazyVerticalGrid`/`LazyRow`). Las listas dinámicas de la pantalla principal usan keys estables de identidad — verificado en `HomeScreen.kt`: `items(pinnedPodcasts, key = { it.id })`, `items(recentSongs.distinctBy { it.id }, key = { it.id })` (:1222), quickPicks (:1520), playlists (:1691), discover (:1749), keepListening (:1846) y varios `items(...)` multilínea con `key = { it.id }` (:1963-2018). El único `items(5)` sin key (:1280) es el placeholder de shimmer, estático por diseño. 83 `items(..., key =)` en una sola línea en todo `app/src/main` (los multilínea no cuentan en ese grep).
+
+**R2 — Recomposition y estado:** se remite a FASE 13 (46 `derivedStateOf`, `stateIn` con `SharingStarted`, lecturas no bloqueantes de prefs). 375 usos combinados de `rememberSaveable`/`isSystemInDarkTheme` → el estado de UI sobrevive cambios de configuración donde corresponde (p. ej. `AudioDeviceBottomSheet.kt:645`, `SelectionSongsMenu.kt`).
+
+**R3 — Accesibilidad:** 1 147 usos de `contentDescription`; 866 son `= null` correspondientes a miniaturas/arte decorativas acompañadas de texto legible (práctica correcta: no duplicar lectura para TalkBack); los ~280 controles restantes llevan etiqueta vía `stringResource` (p. ej. `MainActivity.kt:1678-1703`). Iconos con variante `AutoMirrored` para RTL (`echomusicupdater.kt:25`) y `LocalLayoutDirection.current` donde se necesita dirección explícita (`LibraryScreen.kt:117`). El texto Compose usa `sp` por defecto (escalable). Contraste y tamaño táctil reales → requieren dispositivo (FASE 19).
+
+**R4 — Dark mode:** `isSystemInDarkTheme()` + override deliberado de `Configuration` documentado en `Utils.kt:176` (solo se sobreescriben los campos necesarios; uiMode intacto).
+
+**R5 — Composables gigantes:** se remite a HALLAZGO-021 (FASE 10): `Lyrics.kt` 2 514, `HomeScreen.kt` 2 490 líneas — deuda ya registrada, potenciación FASE 22 con tests primero. No se duplica.
+
+**Veredicto:** UI/UX TÉCNICA SÓLIDA en estático — keys estables en listas dinámicas, estado sobreviviente a configuración, a11y con práctica correcta de decorativos vs controles, RTL y dark mode atendidos. Sin hallazgos nuevos. FASE 14 COMPLETADA.
+
 ## Reparación segura
 
 - Cambios visuales pequeños.
@@ -2143,6 +2159,7 @@ cambio:
 | 2026-08-24 | FASE 12 | Cierre formal de concurrencia y ciclo de vida: spot-checks en primera persona (GlobalScope, hilos crudos, 117 usos de `runBlocking` auditados por contexto, WorkManager); HALLAZGO-002 ya estaba corregido (commit f7022e2) y validado en dispositivo (BETA-001 VERDE) | COMPLETADA — concurrencia sana: cero `GlobalScope`, cero hilos crudos en `app/src/main`, todo `runBlocking` de producción fuera de Main o deliberado y documentado (loader de media3, checkpoints IO, mirror one-shot, commit síncrono `onGetSong`, mutex en `createPlaylist`), workers todos `CoroutineWorker`; SIN hallazgos nuevos; nota: código muerto `incrementPlayCount(songId)` (limpieza FASE 22) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 12) | FASE_11_CALIDAD_CODIGO |
 | 2026-08-24 | FASE 11 | Calidad de código (trabajo nuevo): medición directa de `!!` (141 en Kotlin de app/src/main, muestreados por patrón), 39 catches ignorados clasificados por categoría, 19 `printStackTrace`, TODO/FIXME/HACK, casts inseguros y código muerto; sin cambios de código | COMPLETADA — calidad sólida: `!!` idiomáticos (nav-args de savedStateHandle, getSystemService) sin concentración en hotspots, catches todos patrones legítimos (ActivityNotFound/SecurityException, teardown best-effort, parsing defensivo, degradación documentada), CERO deuda marcada, 1 solo UNCHECKED_CAST; SIN hallazgos nuevos (la deuda estructural ya es HALLAZGO-021) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 11) | FASE_13_RENDIMIENTO |
 | 2026-08-24 | FASE 13 | Rendimiento (auditoría estática, sin dispositivo): trabajo en Main, WakeLocks, loops/polling, imágenes (Coil), recomposition y postura batería/calentamiento (criterio permanente del proyecto); medición runtime diferida a FASE 19 | COMPLETADA — postura sólida: Room sin allowMainThreadQueries, cero busy-loops, WakeLocks con tope y release correcto (ListenTogether 10 min, PlaybackKeepAlive), ThermalManager ref-counted 10 s + gating de efectos pesados, haptics throttled 100 ms, Coil con políticas explícitas y caché configurable sin leer DataStore en frío, 46 derivedStateOf; potenciación anotada: Baseline Profiles (sin baseline-prof.txt) para FASE 22; SIN hallazgos nuevos | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 13) | FASE_14_UI_UX_TECNICA |
+| 2026-08-24 | FASE 14 | UI/UX técnica (estático, app 100% Compose): keys de listas lazy (174 contenedores; HomeScreen verificado línea por línea), recomposition/estado sobreviviente, accesibilidad (1 147 contentDescription), RTL y dark mode; validación visual diferida a FASE 19 | COMPLETADA — sólida: keys estables `key = { it.id }` en todas las listas dinámicas principales (el único sin key es shimmer estático), 375 rememberSaveable/isSystemInDarkTheme, práctica a11y correcta (866 decorativos null junto a texto legible, ~280 controles con stringResource), iconos AutoMirrored + LocalLayoutDirection, dark mode con override deliberado documentado (Utils.kt:176); composables gigantes ya cubiertos por HALLAZGO-021; SIN hallazgos nuevos | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 14) | FASE_15_RECURSOS_BUILD |
 
 ---
 
@@ -2248,8 +2265,8 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_13_COMPLETADA
-  proxima_accion: FASE_14_UI_UX_TECNICA
+  fase_actual: FASE_14_COMPLETADA
+  proxima_accion: FASE_15_RECURSOS_BUILD
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
