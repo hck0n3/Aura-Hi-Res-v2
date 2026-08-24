@@ -5,7 +5,7 @@
 
 ## 📍 Estado Actual
 
-- **2026-08-23 (madrugada): 🔴 MURO ANTI-BOT ROMPIÓ LA REPRODUCCIÓN → 🟡 FALLBACK BRAVEPIPE INTEGRADO (pendiente probar en celular).**
+- **2026-08-23 (madrugada): 🔴 MURO ANTI-BOT ROMPIÓ LA REPRODUCCIÓN → ✅ FALLBACK BRAVEPIPE INTEGRADO Y VERIFICADO EN CELULAR.**
   Tras el login del dueño, la extracción PipePipe cayó: con cookie → `ExtractionException: android_vr
   player response is not valid`; anónima → `AntiBotException: Sign in to confirm you're not a bot`; y el
   TeamNewPipe v0.25.2 que mantenía la app sonando empezó a devolver CERO streams en ese dispositivo/IP
@@ -22,8 +22,8 @@
   **✅ VERIFICADO EN CELULAR (dueño reconectó ~19:12 local):** install + play. PipePipe sigue muriendo
   con `AntiBotException`, pero **BraveNewPipe devolvió 15 streams** (itags 139/140/18/137/248/136/247/135/
   244/134/243/133/242/160/278 — set adaptativo COMPLETO vía cliente ANDROID, ya no solo itag 18),
-  AudioTrack activo y chunks de 5 MB con 206 sostenidos, cero 403. Falta confirmación audible del dueño
-  y prueba de varias canciones + toggle video. Si BravePipe también cae en su IP algún día,
+  AudioTrack activo y chunks de 5 MB con 206 sostenidos, cero 403. **El dueño confirmó: suena,
+  varias canciones funcionan y el toggle música↔video también.** Si BravePipe también cae en su IP algún día,
   siguiente paso: login correcto para PipePipe (cliente `mweb` o PoTokenProvider del fork).
 - **2026-08-23 (noche, tarde): ✅ EQ ARREGLADO + VIDEO RESTAURADO POR ORDEN DEL DUEÑO.**
   EQ: la causa era la ausencia de `SUPERPOWERED_LICENSE_KEY` en el build debug; clave copiada
