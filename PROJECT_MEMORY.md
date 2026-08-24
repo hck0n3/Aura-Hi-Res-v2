@@ -26,9 +26,9 @@
   nube): BETA-001 VERDE — TODO FUNCIONA: (a) reproducir/like YA NO auto-suscribe artistas,
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
-  auditoría — FASE 1 (inventario), FASE 2 (dependencias), FASE 3 (seguridad estática), FASE 5
-  (almacenamiento) y FASE 6 (red) ya COMPLETADAS el 2026-08-24; sigue FASE 7 (auth/cripto,
-  mayormente cubierta ya por el agente cripto de FASE 3 → cierre formal). La publicación estable
+  auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
+  6 (red) y 7 (auth/cripto) ya COMPLETADAS el 2026-08-24; sigue FASE 8 (componentes/IPC — cierre
+  formal: PendingIntents ya vistos en HALLAZGO-004, deep links en FASE 3). La publicación estable
   de estos fixes queda a decisión del dueño (publicar exige su permiso explícito).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
@@ -113,6 +113,19 @@
   - **HALLAZGO-019 (MEDIA, disponibilidad):** ~22 clientes HTTP sin timeouts, varios en el path
     crítico de reproducción. Fix barato con patrón ya existente (`QobuzHiRes.kt`); candidato a beta.
   Siguiente: FASE 7 (auth/cripto — mayormente cubierta ya por FASE 3, cierre formal).
+- **2026-08-24 (tarde, 6): ✅ SÚPER AUDITORÍA — FASE 7 (AUTH/CRIPTO) TERMINADA.**
+  Ejecutada en primera persona (el agente delegado falló por filtro de contenido del proveedor).
+  Resultados en "RESULTADOS DE LA FASE 7" de `SUPER AUDITORIA DE MI CODIGO ANDROID.md`.
+  ✅ **Ciclo de vida auth SÓLIDO:** los 4 logouts borran la credencial de verdad
+  (`App.forgetAccount` es choke point de Google/InnerTube: BD + DataStore + memoria + WebView),
+  Tidal refresh bajo mutex (caso modelo), Spotify 401→refresh→1 reintento (sin loops), cero
+  biometría/PIN (superficie que no existe), Keystore bien usado en las bóvedas Qobuz/Tidal,
+  licencia con gracia offline acotada a 3 días (zona protegida, solo lectura).
+  ⚠️ Nuevo hallazgo abierto:
+  - **HALLAZGO-020 (BAJA):** el logout solo borra en local; nadie revoca en el servidor. Caso
+    concreto: Last.fm no llama `auth.logout`, la session key huérfana sigue válida en su web.
+    Fix barato candidato FASE 22; el resto se acepta (tokens expiran solos).
+  Siguiente: FASE 8 (componentes/IPC — cierre formal).
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0

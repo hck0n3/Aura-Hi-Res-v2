@@ -99,7 +99,7 @@ memoria_maestra:
     fase_4_manifest_config: COMPLETADA    # HALLAZGO-005 (manifiesto completo leído, todo legítimo)
     fase_5_almacenamiento: COMPLETADA     # 2026-08-24: inventario completo DataStore/XML/archivos/Room/backup; HALLAZGO-016; exclusiones gruesas correctas
     fase_6_red: COMPLETADA                # 2026-08-24: inventario ~40 clientes + secretos en tránsito + auth/401 + pinning; HALLAZGO-017..019
-    fase_7_auth_cripto: NO_INICIADA
+    fase_7_auth_cripto: COMPLETADA        # 2026-08-24: ciclo de vida auth completo en primera persona; logouts borran de verdad, refresh acotado, Keystore bien; HALLAZGO-020
     fase_8_ipc_componentes: EN_CURSO      # PendingIntents (HALLAZGO-004); deep links/intents auditados en FASE 3 (HALLAZGO-014); falta cierre formal
     fase_9_webview: COMPLETADA            # inventario completo; HALLAZGO-006 riesgo aceptado
     fase_10_arquitectura: EN_CURSO        # HALLAZGO-001 corregido (commit 88cf0e1)
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_7_AUTH_CRIPTO (FASE_6 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019)
+  proxima_accion: FASE_8_COMPONENTES_IPC (FASE_7 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020)
 ```
 
 ---
@@ -1067,6 +1067,59 @@ Revisar login, sesión, tokens, biometría, PIN, recuperación y criptografía.
 9. Auditar Keystore.
 10. Auditar revocación.
 
+## RESULTADOS DE LA FASE 7 (ejecutada 2026-08-24)
+
+> Cobertura: ciclo de vida de autenticación de TODOS los proveedores + biometría/PIN + Keystore +
+> revocación. La criptografía base (primitivas, TLS, aleatoriedad) ya quedó cubierta por el agente
+> cripto de FASE 3; esta fase la revalida y se concentra en lo que faltaba. Se ejecutó en primera
+> persona (el agente delegado falló por un filtro de contenido del proveedor y se reemplazó por
+> lectura directa del código).
+
+- **R1 — Superficie de login.** No hay cuentas propias: la app no registra usuarios ni gestiona
+  contraseñas de primera parte (registro/recuperación = N/A, viven en el proveedor). Logins de
+  terceros: Google/InnerTube (cookie de cuenta), Spotify (cookie sp_dc/sp_key o token anónimo),
+  Qobuz (email+password → user_auth_token), Tidal (OAuth PKCE sin client secret), Last.fm
+  (session key), ListenBrainz (token pegado a mano). La licencia/suscripción es sistema propio
+  (zona protegida, solo lectura): máquina de estados con gracia offline ACOTADA de 3 días
+  (`LicenseLogic.kt:16`), verificación en cada apertura y estados explícitos de expirado/bloqueado;
+  sin vía offline indefinida.
+- **R2 — Logout (lo más auditado).** ✅ Los cuatro cierres de sesión BORRAN la credencial de verdad:
+  - Google/InnerTube: `App.forgetAccount` (`App.kt:1842`) es el choke point ÚNICO de ambos botones
+    de logout y de todo cambio de cuenta. Limpia los marcadores de sync de la BD ANTES de borrar la
+    credencial, quita las claves del DataStore (cookie, visitorData, dataSyncId, nombre/email/canal),
+    revoca el consentimiento de subida con un `false` explícito (no `remove`), anula
+    `YouTube.cookie/visitorData/dataSyncId` en memoria y vacía el `CookieManager` del WebView.
+    Logs redactados (solo presencia, nunca valores).
+  - Qobuz: `QobuzTokenStore.logout()` = `clear()` del archivo cifrado (`QobuzTokenStore.kt:128`).
+  - Tidal: `TidalTokenStore.logout()` = `clear()` (`TidalTokenStore.kt:114`).
+  - Spotify: `SpotifyImportRepository.logout()` quita las 6 claves del DataStore (sp_dc, sp_key,
+    access token, expiración, nombre, avatar), anula `Spotify.accessToken` en memoria y limpia la
+    sesión web-auth.
+  - Last.fm/ListenBrainz: borrado de la clave del DataStore (Last.fm en `AccountsScreen.kt:513-516`).
+- **R3 — Refresh y expiración.** ✅ Tidal es el caso modelo del repo: refresh automático bajo
+  `Mutex` con doble chequeo y margen de 60 s (`TidalTokenStore.kt:100-110`). Spotify: ante un 401
+  hace UN refresh y reintenta UNA vez (`spotifyCallWithTokenRetry`, `SpotifyImportRepository.kt:558`);
+  sin loops infinitos; el token anónimo se auto-cura igual. Qobuz: el user_auth_token es de larga
+  vida y la API oficial NO tiene endpoint de refresh (limitación del proveedor, ligada al
+  HALLAZGO-017). Last.fm/ListenBrainz: claves de larga vida sin expiración local (normal en
+  scrobbling).
+- **R4 — Biometría/PIN/app-lock.** CERO usos de `BiometricPrompt`, `KeyguardManager` o
+  `isDeviceSecure` en todo el repo. La app no ofrece bloqueo de aplicación: es una superficie que
+  no existe (decisión de producto, no hallazgo).
+- **R5 — Keystore.** Las dos únicas bóvedas de credenciales serias usan el camino correcto:
+  `MasterKey AES256_GCM` en AndroidKeyStore + `EncryptedSharedPreferences` (claves AES256_SIV,
+  valores AES256_GCM) en Qobuz (`QobuzTokenStore.kt:68-77`) y Tidal (`TidalTokenStore.kt:49-58`).
+  Ambas tienen recuperación sana ante keyset corrupto (p. ej. restore a otro dispositivo): borrar
+  y recrear, con re-login barato. No hay claves autogestionadas fuera del Keystore. Lo que queda
+  en DataStore plano ya está registrado en HALLAZGO-013.
+- **R6 — Revocación.** Solo borrado local en TODOS los proveedores: ninguno llama a revocar la
+  sesión en el servidor. El caso más concreto es Last.fm (`auth.logout` existe en su API y no se
+  usa): la session key huérfana sigue válida del lado de Last.fm hasta revocarla en su web →
+  HALLAZGO-020 (BAJA). Tidal/Spotify tampoco revocan el OAuth, pero sus tokens expiran solos.
+- **Veredicto:** el ciclo de vida de auth es SÓLIDO: logouts que borran de verdad (incl. memoria y
+  WebView), refresh acotado sin loops, PKCE sin secreto embebido, Keystore bien usado donde importa.
+  Un hallazgo nuevo (020, BAJA). Cripto de FASE 3 revalidada. `fase_7_auth_cripto: COMPLETADA`.
+
 ## Reparación segura
 
 - Nunca guardar contraseñas en texto plano.
@@ -1795,6 +1848,7 @@ Esta tabla debe mantenerse actualizada durante todo el proceso.
 | HALLAZGO-017 | FASE 6 | MEDIA | El login de Qobuz envía email y PASSWORD como query parameters de un GET (`addQueryParameter("email"/"password")`): única credencial real que viaja en URL en todo el repo. TLS la protege en tránsito, pero queda expuesta a logs del servidor/proxy. Mitigante de diseño: la API oficial de Qobuz es GET-only; el resto de credenciales del repo viaja en headers/body. | app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:62-66 | ABIERTO | Sin fix posible dentro de la app mientras la API Qobuz sea GET-only: documentar y aceptar el riesgo, o pedir al proveedor POST (fuera de nuestro control). Decisión del dueño: aceptar formalmente | Lectura de QobuzApi.kt (agente FASE 6B + re-verificación) |
 | HALLAZGO-018 | FASE 6 | MEDIA | Cero certificate pinning y cero certs embebidos en todo el repo: los canales remotos que alimentan autenticación/reproducción (`qobuz_config.json`, `player_configs.json`, gist TOTP de Spotify, releases del actualizador, Worker de licencia) dependen solo de la CA del sistema. Un MITM con CA válida o el control del repo/gist inyectaría configuración. Mitiga parcialmente: el actualizador verifica versión declarada + firma del APK antes de instalar; `player_configs.json` es mecanismo de auto-reparación documentado en AGENTS.md. La parte de licencia es zona protegida (solo reporte). | QobuzConfigProvider.kt:130, RemotePlayerConfig.kt:81, SpotifyAuth.kt:35, echomusicupdater.kt:792, LicenseBackendClient.kt:75-76 | ABIERTO | Candidato FASE 17/22: pinning o verificación de integridad (firma del contenido) en los canales de config remota; priorizar el gist TOTP y qobuz_config. Tocar el Worker de licencia requiere permiso explícito | Grep global CertificatePinner (cero matches) + inventario de endpoints del agente FASE 6B |
 | HALLAZGO-019 | FASE 6/13 | MEDIA (disponibilidad) | ~22 clientes HTTP sin timeouts explícitos, varios en el path crítico de reproducción/resolve (MusicService.kt:7662/8828, DownloadUtil.kt:171, NewPipe/BraveNewPipe, PlayerJsFetcher.kt:25, PoTokenWebView.kt:462, SongPreviewController.kt:234, CanvasArtworkPlayer.kt:84). Con red hostil o lenta un resolve puede colgar indefinidamente ("la app se queda pensando"); solo cuentan con los defaults por fase de OkHttp, sin tope de request completa. | varios (ver descripción) | ABIERTO | Propuesta: añadir connect/read/write + `callTimeout` siguiendo el patrón ya existente en `QobuzHiRes.kt:47-54`; candidato a beta por ser mejora de robustez con riesgo bajo | Inventario de clientes del agente FASE 6A + spot-checks |
+| HALLAZGO-020 | FASE 7/22 | BAJA | El logout es solo borrado local en TODOS los proveedores: ninguna llamada de revocación server-side. Caso más concreto: Last.fm — el cierre de sesión limpia las claves locales y `LastFM.sessionKey` pero no llama a `auth.logout`, así que la session key huérfana sigue válida del lado de Last.fm hasta revocarla en su web (agravado por el almacenamiento plano, ver HALLAZGO-013). Tidal/Spotify tampoco revocan su OAuth al cerrar sesión, pero esos tokens expiran solos. | AccountsScreen.kt:513-516; SpotifyImportRepository.kt:132-146; TidalTokenStore.kt:114; QobuzTokenStore.kt:128 | ABIERTO | Propuesta: llamar `auth.logout` de Last.fm al cerrar sesión (barato, candidato FASE 22); el resto se acepta (expiración natural) | Lectura directa FASE 7 |
 
 ---
 
@@ -1942,6 +1996,7 @@ cambio:
 | 2026-08-24 | FASE 3 | Auditoría estática completa con 3 agentes en paralelo: SQL (barrido total de rawQuery/execSQL/Room en app + 15 módulos), validación de entradas y archivos (deep links, zip-slip, FileProvider, intents, exports), cripto/TLS/aleatoriedad; afirmaciones clave re-verificadas contra el código | COMPLETADA — SQL VERDE (todo Room+binding; 2 interpolaciones teóricas en migraciones one-shot que NO se tocan), SIN zip-slip (restore y updater con destinos fijos + sanitize), TLS limpio; nuevos abiertos HALLAZGO-013 (cookie Google + sp_dc Spotify en texto plano vs EncryptedSharedPreferences de Tidal/Qobuz), 014 (crash por deep link sin validar), 015 (provider_paths.xml ancho) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 3) | FASE_5_ALMACENAMIENTO |
 | 2026-08-24 | FASE 5 | Inventario completo de almacenamiento (agente dedicado): DataStore único (~343 claves), 14 SharedPreferences XML, archivos filesDir/cacheDir/externo, Room, higiene de temporales y reglas de backup; XML de backup re-verificados directamente | COMPLETADA — exclusiones gruesas correctas (DataStore con la cookie, jr_license.xml, caches de exoplayer/descargas fuera del backup; song.db viaja por decisión documentada); higiene de temporales bien (restore/updater limpian en todas las rutas); nuevo abierto HALLAZGO-016 (song_graph/artist_genres/app.log/persistent_*.data viajan al cloud backup por default); LastFMSessionKey (:474) anexada a HALLAZGO-013 | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 5) | FASE_6_RED |
 | 2026-08-24 | FASE 6 | Auditoría de red con 2 agentes en paralelo (infraestructura de ~40 clientes HTTP + secretos en tránsito/flujos auth/401/pinning); afirmaciones clave re-verificadas | COMPLETADA — postura sólida: secretos en headers/body, cero logging de secretos en release, cero tráfico cleartext, 401/403 sin loops; nuevos abiertos HALLAZGO-017 (password Qobuz en query string, impuesto por su API GET-only), 018 (cero pinning en canales de config remota), 019 (~22 clientes sin timeouts, disponibilidad) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 6) | FASE_7_AUTH_CRIPTO |
+| 2026-08-24 | FASE 7 | Ciclo de vida de auth auditado en primera persona (el agente delegado falló por filtro de contenido del proveedor; se reemplazó por lectura directa): login/logout/refresh/expiración de Google-InnerTube, Spotify, Qobuz, Tidal, Last.fm y ListenBrainz + licencia (zona protegida, solo lectura) + biometría/PIN + Keystore + revocación | COMPLETADA — logouts borran de verdad (BD+DataStore+memoria+WebView, choke point `App.forgetAccount`), refresh acotado sin loops (Tidal con mutex, Spotify 401→refresh→1 reintento), cero biometría/PIN (superficie inexistente), Keystore correcto en las 2 bóvedas, gracia de licencia acotada a 3 días; revocación solo local en todos los proveedores; nuevo abierto HALLAZGO-020 (BAJA: sin revocación server-side; Last.fm `auth.logout` sin usar); cripto de FASE 3 revalidada | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 7) | FASE_8_COMPONENTES_IPC |
 
 ---
 
@@ -2047,11 +2102,11 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_6_COMPLETADA
-  proxima_accion: FASE_7_AUTH_CRIPTO
+  fase_actual: FASE_7_COMPLETADA
+  proxima_accion: FASE_8_COMPONENTES_IPC
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
   beta: BETA-001_VERDE (2026-08-24, prueba remota del dueño)
-  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo) · HALLAZGO-013 (cookie Google + sp_dc Spotify + sesión Last.fm en texto plano en DataStore; fix con migración, decide el dueño) · HALLAZGO-014 (crash por deep link sin validar; fix barato candidato a beta) · HALLAZGO-015 (provider_paths.xml ancho; defensa en profundidad) · HALLAZGO-016 (metadatos de escucha y logs viajan al cloud backup por default; fix barato de exclusiones) · HALLAZGO-017 (password Qobuz en query string; aceptar riesgo — API GET-only) · HALLAZGO-018 (cero pinning en canales de config remota; candidato FASE 17/22) · HALLAZGO-019 (~22 clientes sin timeouts; candidato a beta)
+  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo) · HALLAZGO-013 (cookie Google + sp_dc Spotify + sesión Last.fm en texto plano en DataStore; fix con migración, decide el dueño) · HALLAZGO-014 (crash por deep link sin validar; fix barato candidato a beta) · HALLAZGO-015 (provider_paths.xml ancho; defensa en profundidad) · HALLAZGO-016 (metadatos de escucha y logs viajan al cloud backup por default; fix barato de exclusiones) · HALLAZGO-017 (password Qobuz en query string; aceptar riesgo — API GET-only) · HALLAZGO-018 (cero pinning en canales de config remota; candidato FASE 17/22) · HALLAZGO-019 (~22 clientes sin timeouts; candidato a beta) · HALLAZGO-020 (logout sin revocación server-side; Last.fm auth.logout sin usar, candidato FASE 22)
 ```
