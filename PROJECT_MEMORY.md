@@ -28,8 +28,9 @@
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
   6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura), 11 (calidad de código),
-  12 (concurrencia), 13 (rendimiento) y 14 (UI/UX técnica) ya COMPLETADAS el 2026-08-24;
-  sigue FASE 15 (recursos/build — ya EN_CURSO: debug 0.6.232 verde; faltan release, lint y tests).
+  12 (concurrencia), 13 (rendimiento), 14 (UI/UX técnica) y 15 (recursos/build) ya COMPLETADAS
+  el 2026-08-24; sigue FASE 16 (testing — incluye reescribir los 8 tests obsoletos del
+  HALLAZGO-022 al contrato nuevo de `followedByUserAt`).
   La publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
   explícito).
 - **2026-08-24 (tarde, 9): ✅ SÚPER AUDITORÍA — FASE 12 (CONCURRENCIA Y CICLO DE VIDA)
@@ -78,6 +79,27 @@
   iconos AutoMirrored + LocalLayoutDirection; dark mode con override deliberado documentado
   (Utils.kt:176). Composables gigantes ya cubiertos por HALLAZGO-021. Ver sección RESULTADOS
   DE LA FASE 14 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 15 (recursos/build).
+- **2026-08-24 (tarde, 13): ✅ SÚPER AUDITORÍA — FASE 15 (RECURSOS Y BUILD) COMPLETADA.**
+  Veredicto: configuración SÓLIDA; 2 hallazgos nuevos + confirmación con prueba directa del
+  HALLAZGO-008. Evidencia: (a) `assembleUniversalFossRelease` VERDE — R8 + shrinkResources
+  funcionando de verdad, APK 80.9 MB, ProGuard completo (WebView JS, kotlinx.serialization,
+  PipePipe/Rhino, cola Serializable, UCrop, Cast, VibraSignature, ktor, Shazam, Listen Together);
+  (b) `lintUniversalFossDebug` corrió completo: 500 UnusedResources en origen (drawables del
+  fork; shrinkResources ya los saca del APK release) y ~136 errores no bloqueantes heredados
+  (abortOnError=false); (c) `testUniversalFossDebugUnitTest` ROJO: 8 fallos de 629 — causa raíz
+  verificada en primera persona: codifican el contrato VIEJO del follow (discriminador
+  `bookmarkedAt`) que el commit 88cf0e1 cambió A PROPÓSITO a `followedByUserAt` (registry #154);
+  tests intactos desde el baseline; NO es regresión funcional (display+toggle consistentes,
+  `toggleLike` incondicional en cada tap, ArtistSyncPolicy intacto y verde, BETA-001 VERDE en
+  el teléfono) → HALLAZGO-022 (MEDIA): reescribir en FASE 16; el CI no corre tests ni lint,
+  así que la suite roja es invisible (gap para FASE 17); (d) `apksigner verify --print-certs`
+  sobre el APK release recién generado: `CN=Android Debug` → HALLAZGO-008 CONFIRMADO con
+  evidencia directa (bloquea toda publicación; la keystore real CN=JR MUSIC PRO vive en el
+  CI/PC de respaldo); (e) `android:supportsRtl="false"` vs código RTL-aware (AutoMirrored,
+  LocalLayoutDirection) → HALLAZGO-023 (BAJA, decisión del dueño: documentar LTR-only o
+  habilitar+testear). i18n: 45 idiomas, 2 898 stringResource, cero strings hardcoded en XML.
+  Ver RESULTADOS DE LA FASE 15 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 16
+  (testing).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,
