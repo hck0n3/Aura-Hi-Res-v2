@@ -35,6 +35,7 @@ timber = "5.0.1"
 materialKolor = "4.1.1"
 kuromojiIpadic = "0.9.0"
 pipepipeextractor = "208e43b184"
+newpipeextractor = "v0.25.2"
 tinypinyin = "2.0.3"
 protobuf = "4.33.5"
 protobufPlugin = "0.9.6"
@@ -131,6 +132,7 @@ junit = { module = "junit:junit", version.ref = "junit" }
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 
 pipepipeextractor = { module = "com.github.maxrave-dev:PipePipeExtractor", version.ref = "pipepipeextractor" }
+newpipeextractor = { module = "com.github.TeamNewPipe:NewPipeExtractor", version.ref = "newpipeextractor" }
 
 kuromoji-ipadic = { module = "com.atilika.kuromoji:kuromoji-ipadic", version.ref = "kuromojiIpadic" }
 tinypinyin = { module = "com.github.promeG:tinypinyin", version.ref = "tinypinyin" }

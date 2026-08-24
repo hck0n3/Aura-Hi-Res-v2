@@ -36,6 +36,11 @@ dependencies {
     implementation(libs.pipepipeextractor) {
         exclude(group = "com.google.protobuf", module = "protobuf-java")
     }
+    // Last-resort fallback extractor (stock TeamNewPipe v0.25.2, www.youtube.com anonymous). Bot-limited
+    // to muxed itag 18, but that itag 18 is exactly what still played on 2026-08-23 when PipePipe's
+    // extraction was blocked (anti-bot "sign in" wall on anonymous, "not valid" with cookie). Different
+    // package tree (org.schabi.*) so it coexists with the fork.
+    implementation(libs.newpipeextractor)
     // Diagnostics only. Timber's planted trees are process-global, so a failure logged here reaches the
     // app's AppLogger file tree and therefore the log the USER can send — which is the whole point: the
     // cipher/signature deobfuscation that breaks when YouTube rotates player.js lives in THIS module,

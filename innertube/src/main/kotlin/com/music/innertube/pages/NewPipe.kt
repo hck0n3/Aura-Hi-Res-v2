@@ -250,16 +250,22 @@ object NewPipeExtractor {
      * cookie the fork adds a supplementary WEB_REMIX extraction call (Premium itags 141/774); null or
      * empty keeps fully-working anonymous extraction. Called from YouTube.cookie's setter, so login and
      * app-startup restore both reach it with zero extra wiring.
+     *
+     * TEMPORARY EMERGENCY (2026-08-23): extraction is forced ANONYMOUS. On-device evidence: once the
+     * owner logged in, every fork call failed with "android_vr player response is not valid" and
+     * returned itags=[], which dropped resolution onto the burned InnerTube direct URLs (206 probe,
+     * 403 real fetch) and nothing played. Anonymous extraction still returns the full adaptive set;
+     * restore the cookie here once the fork's authenticated-call requirements are confirmed.
      */
     @Synchronized
     fun setTokens(cookie: String?) {
         init()
-        ServiceList.YouTube.tokens = cookie ?: ""
+        ServiceList.YouTube.tokens = ""
     }
 
     fun newPipePlayer(videoId: String): List<Pair<Int, String>> {
         init()
-        return try {
+        val pipePipeStreams = try {
             // music.youtube.com, same entry URL SimpMusic uses with the fork.
             val streamInfo = StreamInfo.getInfo(
                 ServiceList.YouTube,
@@ -278,5 +284,19 @@ object NewPipeExtractor {
             )
             emptyList()
         }
+        if (pipePipeStreams.isNotEmpty()) return pipePipeStreams
+
+        // 2026-08-23: PipePipe's extraction can be fully blocked on a device (anti-bot "sign in" wall
+        // when anonymous, "android_vr player response is not valid" with cookie) while stock TeamNewPipe
+        // still yields the bot-limited muxed itag 18. Returning empty here used to drop resolution onto
+        // the burned InnerTube direct URLs (206 probe, 403 real fetch) and nothing played — so fall back
+        // to TeamNewPipe before giving up. Remove once PipePipe's authenticated extraction is fixed.
+        val fallback = TeamNewPipeExtractor.newPipePlayer(videoId)
+        if (fallback.isNotEmpty()) {
+            timber.log.Timber.tag("RESOLVE_CIPHER").w(
+                "PipePipe extraction empty videoId=$videoId; TeamNewPipe fallback returned ${fallback.size} streams"
+            )
+        }
+        return fallback
     }
 }
