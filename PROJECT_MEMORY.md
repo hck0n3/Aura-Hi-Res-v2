@@ -27,10 +27,22 @@
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
-  6 (red), 7 (auth/cripto), 8 (componentes/IPC) y 10 (arquitectura) ya COMPLETADAS el 2026-08-24;
-  sigue FASE 12 (concurrencia — cierre formal: HALLAZGO-002 ya corregido en commit f7022e2). La
-  publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
+  6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura) y 12 (concurrencia) ya
+  COMPLETADAS el 2026-08-24; sigue FASE 11 (calidad de código — primera fase de trabajo NUEVO).
+  La publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
   explícito).
+- **2026-08-24 (tarde, 9): ✅ SÚPER AUDITORÍA — FASE 12 (CONCURRENCIA Y CICLO DE VIDA)
+  COMPLETADA.** Cierre formal en primera persona: HALLAZGO-002 (único hallazgo de concurrencia
+  de toda la auditoría) ya estaba CORREGIDO (commit f7022e2, registro #155) y validado en
+  dispositivo con BETA-001 VERDE. Spot-checks: cero `GlobalScope` en todo el repo; cero hilos
+  crudos en `app/src/main`; 117 usos de `runBlocking` auditados por contexto — los de producción
+  están fuera de Main o son deliberados y documentados (loader de media3, checkpoints IO,
+  mirror one-shot de App.kt:1816, commit síncrono `onGetSong`, mutex en `createPlaylist`);
+  workers todos `CoroutineWorker`. SIN hallazgos nuevos. Nota de higiene:
+  `DatabaseDao.incrementPlayCount(songId)` (DatabaseDao.kt:1477) es código muerto sin llamador
+  (candidato a limpieza en FASE 22). Ver sección RESULTADOS DE LA FASE 12 en `SUPER AUDITORIA
+  DE MI CODIGO ANDROID.md`. Siguen abiertos 13 hallazgos
+  (008/010/011/012/013/014/015/016/017/018/019/020/021).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,

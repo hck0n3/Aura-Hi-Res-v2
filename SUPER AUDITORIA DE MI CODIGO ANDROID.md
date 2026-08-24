@@ -104,7 +104,7 @@ memoria_maestra:
     fase_9_webview: COMPLETADA            # inventario completo; HALLAZGO-006 riesgo aceptado
     fase_10_arquitectura: COMPLETADA      # 2026-08-24: cierre formal; HALLAZGO-001 corregido+probado en dispositivo; HALLAZGO-021 (deuda MusicService 11k líneas)
     fase_11_calidad_codigo: NO_INICIADA
-    fase_12_concurrencia: EN_CURSO        # HALLAZGO-002 corregido (commit f7022e2)
+    fase_12_concurrencia: COMPLETADA      # 2026-08-24: cierre formal; HALLAZGO-002 ya corregido (f7022e2); cero GlobalScope/hilos crudos; sin hallazgos nuevos
     fase_13_rendimiento: NO_INICIADA
     fase_14_ui_ux_tecnica: NO_INICIADA
     fase_15_recursos_build: EN_CURSO      # debug 0.6.232 (952) verde; faltan release, lint, tests
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_12_CONCURRENCIA (FASE_10 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021)
+  proxima_accion: FASE_11_CALIDAD_CODIGO (FASE_12 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021)
 ```
 
 ---
@@ -1398,6 +1398,27 @@ Detectar condiciones de carrera, bloqueos, memory leaks y crashes.
 - Fugas por contexto.
 - WorkManager.
 
+## RESULTADOS DE LA FASE 12 (ejecutada 2026-08-24)
+
+**Metodología:** cierre formal en primera persona (grep + lectura directa). HALLAZGO-002 —el único hallazgo de concurrencia de toda la auditoría— ya estaba CORREGIDO antes de esta fase: commit f7022e2, registro #155 — el pin de letras del crossfade se libera por el predicado de audibilidad `shouldRelease` cableado dentro del loop de fade. Evidencia: `CrossfadeLyricsPinTest` + prueba en dispositivo BETA-001 VERDE.
+
+**R1 — Scopes e hilos:** CERO usos de `GlobalScope` en todo el repo (app + 15 módulos). CERO hilos crudos (`Thread(`) en `app/src/main`. El trabajo asíncrono usa scopes con dueño (`viewModelScope`, `lifecycleScope`, scopes de servicio) o los dispatchers de media3/Room.
+
+**R2 — `runBlocking` (117 apariciones, auditadas por contexto):** la mayoría está en tests (uso correcto). En producción todas son deliberadas y documentadas:
+- Resolución de streams de `MusicService`: `runBlocking` en el hilo loader de media3, nunca en Main. Los comentarios P46/H4 (`MusicService.kt:747-781`, `App.kt:1681/1771`, `YTPlayerUtils.kt:321-452`, `DataStore.kt:60`) documentan la migración activa de lecturas que antes bloqueaban Main.
+- `BackupRestoreViewModel.kt:152/269`: checkpoint de Room con `runBlocking(Dispatchers.IO)` — fuera de Main.
+- `App.kt:1816`: lectura bloqueante UNA sola vez por instalación (mirror de tamaño de caché sin sembrar); siembra el mirror y toda lectura posterior es no bloqueante.
+- Familia `onGetSong` (`SelectionSongsMenu.kt:563` y demás menús): patrón deliberado de commit síncrono — la firma es `suspend` y los comentarios documentan que las filas deben estar confirmadas antes del `addSongToPlaylist` inmediato (`YouTubePlaylistMenu.kt:192-203/527-535`).
+- `YouTube.createPlaylist` (innertube): firma no-suspend heredada; todos sus llamadores la invocan fuera de Main y protegidos por mutex (`MigrationViewModel.kt:899-902`).
+
+**R3 — WorkManager:** todos los workers son `CoroutineWorker` (YtmSync, YtmAutoSync, UpdateCheck, UpdateDownload y el de licencia) — ejecución automática fuera de Main, con gates de frescura y `KEEP` documentados (`ReleaseRadarViewModel.kt:39`). Zona de licencia: solo lectura, intacta.
+
+**R4 — Notas de higiene (sin hallazgo nuevo):**
+- `DatabaseDao.incrementPlayCount(songId)` (`DatabaseDao.kt:1477-1489`) envuelve un `runBlocking` y NO tiene ningún llamador en el código: código muerto, sin ruta de ejecución (sin riesgo); candidato a limpieza en FASE 22.
+- Los `runBlocking` de DataStore llevan la advertencia de ANR (`DataStore.kt:60`) y sus llamadores están fuera de Main.
+
+**Veredicto:** CONCURRENCIA SANA. Sin hallazgos nuevos. HALLAZGO-002 ya cerrado. FASE 12 COMPLETADA.
+
 ## Reparación segura
 
 | Problema | Reparación |
@@ -2069,6 +2090,7 @@ cambio:
 | 2026-08-24 | FASE 7 | Ciclo de vida de auth auditado en primera persona (el agente delegado falló por filtro de contenido del proveedor; se reemplazó por lectura directa): login/logout/refresh/expiración de Google-InnerTube, Spotify, Qobuz, Tidal, Last.fm y ListenBrainz + licencia (zona protegida, solo lectura) + biometría/PIN + Keystore + revocación | COMPLETADA — logouts borran de verdad (BD+DataStore+memoria+WebView, choke point `App.forgetAccount`), refresh acotado sin loops (Tidal con mutex, Spotify 401→refresh→1 reintento), cero biometría/PIN (superficie inexistente), Keystore correcto en las 2 bóvedas, gracia de licencia acotada a 3 días; revocación solo local en todos los proveedores; nuevo abierto HALLAZGO-020 (BAJA: sin revocación server-side; Last.fm `auth.logout` sin usar); cripto de FASE 3 revalidada | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 7) | FASE_8_COMPONENTES_IPC |
 | 2026-08-24 | FASE 8 | Cierre formal de componentes/IPC: re-verificación directa de los 10 componentes exportados del manifiesto, PendingIntents, broadcasts, URI grants y visibilidad de notificaciones (trabajo previo de FASE 3/4 consolidado) | COMPLETADA — superficie IPC sana: lo exportado es el mínimo exigido por Android (launcher, MediaSession, widgets, tile protegido por permiso de sistema), PendingIntents inmutables (HALLAZGO-004 LIMPIO), sendBroadcast solo protocolo AudioEffect de sistema + explícito de widget, URI grants solo en flujos de compartir del usuario, notificaciones públicas sin datos sensibles; SIN hallazgos nuevos; siguen abiertos 014 (deep-link crash) y 015 (provider_paths) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 8) | FASE_10_ARQUITECTURA |
 | 2026-08-24 | FASE 10 | Cierre formal de arquitectura: evaluación de modularización (16 módulos), DI (Hilt), estado/navegación, manejo de errores y medición directa del tamaño de archivos; HALLAZGO-001 ya corregido y probado en dispositivo | COMPLETADA — módulos acíclicos, DI sana, errores con degradación elegante; única deuda: archivos gigantes (`MusicService.kt` 10 953 líneas = god object y hotspot #1 de regresiones) → nuevo abierto HALLAZGO-021 (BAJA mantenibilidad, candidato potenciación FASE 22, nada de refactor en caliente) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 10) | FASE_12_CONCURRENCIA |
+| 2026-08-24 | FASE 12 | Cierre formal de concurrencia y ciclo de vida: spot-checks en primera persona (GlobalScope, hilos crudos, 117 usos de `runBlocking` auditados por contexto, WorkManager); HALLAZGO-002 ya estaba corregido (commit f7022e2) y validado en dispositivo (BETA-001 VERDE) | COMPLETADA — concurrencia sana: cero `GlobalScope`, cero hilos crudos en `app/src/main`, todo `runBlocking` de producción fuera de Main o deliberado y documentado (loader de media3, checkpoints IO, mirror one-shot, commit síncrono `onGetSong`, mutex en `createPlaylist`), workers todos `CoroutineWorker`; SIN hallazgos nuevos; nota: código muerto `incrementPlayCount(songId)` (limpieza FASE 22) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 12) | FASE_11_CALIDAD_CODIGO |
 
 ---
 
@@ -2174,8 +2196,8 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_10_COMPLETADA
-  proxima_accion: FASE_12_CONCURRENCIA
+  fase_actual: FASE_12_COMPLETADA
+  proxima_accion: FASE_11_CALIDAD_CODIGO
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
