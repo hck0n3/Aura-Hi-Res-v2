@@ -105,7 +105,7 @@ memoria_maestra:
     fase_10_arquitectura: COMPLETADA      # 2026-08-24: cierre formal; HALLAZGO-001 corregido+probado en dispositivo; HALLAZGO-021 (deuda MusicService 11k líneas)
     fase_11_calidad_codigo: COMPLETADA      # 2026-08-24: calidad sólida; !! moderado e idiomático, catches legítimos, cero TODO/FIXME; sin hallazgos nuevos (deuda ya en 021)
     fase_12_concurrencia: COMPLETADA      # 2026-08-24: cierre formal; HALLAZGO-002 ya corregido (f7022e2); cero GlobalScope/hilos crudos; sin hallazgos nuevos
-    fase_13_rendimiento: NO_INICIADA
+    fase_13_rendimiento: COMPLETADA         # 2026-08-24: estático sólido; ThermalManager+haptics throttled, WakeLocks con tope, Room fuera de Main; Baseline Profiles → FASE 22; sin hallazgos nuevos
     fase_14_ui_ux_tecnica: NO_INICIADA
     fase_15_recursos_build: EN_CURSO      # debug 0.6.232 (952) verde; faltan release, lint, tests
     fase_16_testing: NO_INICIADA
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_13_RENDIMIENTO (FASE_11 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021)
+  proxima_accion: FASE_14_UI_UX_TECNICA (FASE_13 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021)
 ```
 
 ---
@@ -1497,6 +1497,30 @@ Mejorar startup, UI, memoria, batería, red y base de datos.
 - Menos recomposition.
 - Menos inicialización fría.
 
+## RESULTADOS DE LA FASE 13 (ejecutada 2026-08-24)
+
+**Metodología:** auditoría estática en primera persona (grep + lectura dirigida). Sin dispositivo conectado: la medición runtime (startup real, jank, consumo) se difiere a FASE 19 (dinámica) y a las pruebas de dispositivo. Sin cambios de código.
+
+**R1 — Trabajo en main thread:** Room sin `allowMainThreadQueries` (fuerza queries fuera de Main). Los frentes de bloqueo ya cubiertos por FASE 12 (cero GlobalScope/hilos crudos; `runBlocking` de producción fuera de Main o deliberado). `App.newImageLoader` nunca bloquea Main (comentarios P46/H4 en `App.kt:1678-1691`).
+
+**R2 — Batería y calentamiento (criterio permanente del proyecto):**
+- `ThermalManager.kt`: polling térmico COMPARTIDO y ref-counted cada 10 s (API 29+), y `rememberDeviceThrottle()` que gatea efectos pesados cuando el sistema reporta MODERATE+ — mitigación térmica activa y documentada.
+- Haptics de scroll throttled a 100 ms + touch-slop (`MainActivity.kt:827-847`, comentario explícito "battery/heat").
+- ReleaseRadar con gate de 6 h + WorkManager KEEP (ver FASE 12).
+- `withFrameNanos` solo en animaciones de UI visible (`AuraRhythm.kt:109`, `AxionEqScreen.kt:521`); el comentario de AuraRhythm documenta "never a busy loop". Nada muestrea pantalla o red por fotograma con la música sonando y la UI oculta.
+
+**R3 — WakeLocks:** dos usuarios, ambos gestionados: `ListenTogetherClient.kt:675-694` adquiere con tope de 10 minutos (`acquire(10 * 60 * 1000L)`) y libera en desconexión; `PlaybackKeepAlive.kt:101-140` administra PARTIAL_WAKE_LOCK + WifiLock con verificación de estado held y release protegido. Sin adquisiciones sin tope.
+
+**R4 — Loops y polling:** anuncios cada hora en `Dispatchers.IO` con job cancelable (`MainActivity.kt:428-440`); paginación de import Spotify acotada (FASE 7); flush de scrobble; cero busy-loops encontrados (`while(true)` restantes son paginación/eventos con suspensión).
+
+**R5 — Imágenes:** Coil con políticas explícitas (`memoryCachePolicy`/`diskCachePolicy` en `MainActivity.kt:781-782`, `DownloadUtil.kt:291`), tamaño de caché configurable con mirror SharedPreferences para no leer DataStore en frío (`App.kt:1737-1771`), y los widgets reusan el loader singleton de la app (`EchoMusicWidgetManager.kt:41` — comentario: evitar cachés duplicadas).
+
+**R6 — Recomposition:** higiene practicada: 46 usos de `derivedStateOf`, `stateIn` con `SharingStarted` (p. ej. `ThermalManager.kt:56`), lecturas no bloqueantes de preferencias en caliente (P46/H4).
+
+**R7 — Potenciación pendiente:** no existe `baseline-prof.txt` → **Baseline Profiles** queda como candidato de FASE 22 (mejora de startup, riesgo bajo). La validación runtime (startup/jank/batería reales) corresponde a FASE 19.
+
+**Veredicto:** POSTURA DE RENDIMIENTO SÓLIDA en estático — mitigaciones térmicas/batería activas y documentadas, sin trabajo en Main, sin leaks de WakeLock, sin busy-loops. Sin hallazgos nuevos. FASE 13 COMPLETADA.
+
 ## Reparación segura
 
 1. Medir antes.
@@ -2118,6 +2142,7 @@ cambio:
 | 2026-08-24 | FASE 10 | Cierre formal de arquitectura: evaluación de modularización (16 módulos), DI (Hilt), estado/navegación, manejo de errores y medición directa del tamaño de archivos; HALLAZGO-001 ya corregido y probado en dispositivo | COMPLETADA — módulos acíclicos, DI sana, errores con degradación elegante; única deuda: archivos gigantes (`MusicService.kt` 10 953 líneas = god object y hotspot #1 de regresiones) → nuevo abierto HALLAZGO-021 (BAJA mantenibilidad, candidato potenciación FASE 22, nada de refactor en caliente) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 10) | FASE_12_CONCURRENCIA |
 | 2026-08-24 | FASE 12 | Cierre formal de concurrencia y ciclo de vida: spot-checks en primera persona (GlobalScope, hilos crudos, 117 usos de `runBlocking` auditados por contexto, WorkManager); HALLAZGO-002 ya estaba corregido (commit f7022e2) y validado en dispositivo (BETA-001 VERDE) | COMPLETADA — concurrencia sana: cero `GlobalScope`, cero hilos crudos en `app/src/main`, todo `runBlocking` de producción fuera de Main o deliberado y documentado (loader de media3, checkpoints IO, mirror one-shot, commit síncrono `onGetSong`, mutex en `createPlaylist`), workers todos `CoroutineWorker`; SIN hallazgos nuevos; nota: código muerto `incrementPlayCount(songId)` (limpieza FASE 22) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 12) | FASE_11_CALIDAD_CODIGO |
 | 2026-08-24 | FASE 11 | Calidad de código (trabajo nuevo): medición directa de `!!` (141 en Kotlin de app/src/main, muestreados por patrón), 39 catches ignorados clasificados por categoría, 19 `printStackTrace`, TODO/FIXME/HACK, casts inseguros y código muerto; sin cambios de código | COMPLETADA — calidad sólida: `!!` idiomáticos (nav-args de savedStateHandle, getSystemService) sin concentración en hotspots, catches todos patrones legítimos (ActivityNotFound/SecurityException, teardown best-effort, parsing defensivo, degradación documentada), CERO deuda marcada, 1 solo UNCHECKED_CAST; SIN hallazgos nuevos (la deuda estructural ya es HALLAZGO-021) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 11) | FASE_13_RENDIMIENTO |
+| 2026-08-24 | FASE 13 | Rendimiento (auditoría estática, sin dispositivo): trabajo en Main, WakeLocks, loops/polling, imágenes (Coil), recomposition y postura batería/calentamiento (criterio permanente del proyecto); medición runtime diferida a FASE 19 | COMPLETADA — postura sólida: Room sin allowMainThreadQueries, cero busy-loops, WakeLocks con tope y release correcto (ListenTogether 10 min, PlaybackKeepAlive), ThermalManager ref-counted 10 s + gating de efectos pesados, haptics throttled 100 ms, Coil con políticas explícitas y caché configurable sin leer DataStore en frío, 46 derivedStateOf; potenciación anotada: Baseline Profiles (sin baseline-prof.txt) para FASE 22; SIN hallazgos nuevos | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 13) | FASE_14_UI_UX_TECNICA |
 
 ---
 
@@ -2223,8 +2248,8 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_11_COMPLETADA
-  proxima_accion: FASE_13_RENDIMIENTO
+  fase_actual: FASE_13_COMPLETADA
+  proxima_accion: FASE_14_UI_UX_TECNICA
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false

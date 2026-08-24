@@ -27,8 +27,9 @@
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
-  6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura), 11 (calidad de código) y
-  12 (concurrencia) ya COMPLETADAS el 2026-08-24; sigue FASE 13 (rendimiento).
+  6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura), 11 (calidad de código),
+  12 (concurrencia) y 13 (rendimiento) ya COMPLETADAS el 2026-08-24; sigue FASE 14 (UI/UX
+  técnica).
   La publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
   explícito).
 - **2026-08-24 (tarde, 9): ✅ SÚPER AUDITORÍA — FASE 12 (CONCURRENCIA Y CICLO DE VIDA)
@@ -54,6 +55,18 @@
   deuda estructural ya está registrada como HALLAZGO-021 (no se duplica). Ver sección
   RESULTADOS DE LA FASE 11 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 13
   (rendimiento).
+- **2026-08-24 (tarde, 11): ✅ SÚPER AUDITORÍA — FASE 13 (RENDIMIENTO) COMPLETADA.**
+  Auditoría ESTÁTICA (sin dispositivo conectado; la medición runtime va a FASE 19). Veredicto:
+  POSTURA SÓLIDA, SIN hallazgos nuevos. Evidencia: Room sin allowMainThreadQueries (fuerza
+  fuera de Main); cero busy-loops; WakeLocks gestionados (ListenTogetherClient tope 10 min +
+  release en desconexión; PlaybackKeepAlive PARTIAL_WAKE_LOCK+WifiLock con release verificado);
+  ThermalManager.kt con polling térmico compartido ref-counted cada 10 s y
+  rememberDeviceThrottle() gateando efectos pesados; haptics de scroll throttled a 100 ms
+  (comentario explícito battery/heat); Coil con políticas de caché explícitas y tamaño
+  configurable vía mirror (sin leer DataStore en frío); 46 derivedStateOf. Potenciación
+  anotada para FASE 22: Baseline Profiles (no existe baseline-prof.txt). Ver sección
+  RESULTADOS DE LA FASE 13 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 14
+  (UI/UX técnica).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,
