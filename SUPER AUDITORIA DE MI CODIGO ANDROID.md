@@ -100,7 +100,7 @@ memoria_maestra:
     fase_5_almacenamiento: COMPLETADA     # 2026-08-24: inventario completo DataStore/XML/archivos/Room/backup; HALLAZGO-016; exclusiones gruesas correctas
     fase_6_red: COMPLETADA                # 2026-08-24: inventario ~40 clientes + secretos en tránsito + auth/401 + pinning; HALLAZGO-017..019
     fase_7_auth_cripto: COMPLETADA        # 2026-08-24: ciclo de vida auth completo en primera persona; logouts borran de verdad, refresh acotado, Keystore bien; HALLAZGO-020
-    fase_8_ipc_componentes: EN_CURSO      # PendingIntents (HALLAZGO-004); deep links/intents auditados en FASE 3 (HALLAZGO-014); falta cierre formal
+    fase_8_ipc_componentes: COMPLETADA    # 2026-08-24: cierre formal; 10 exportados legítimos, PendingIntents inmutables (004 LIMPIO), broadcasts explícitos/sistema; siguen 014/015
     fase_9_webview: COMPLETADA            # inventario completo; HALLAZGO-006 riesgo aceptado
     fase_10_arquitectura: EN_CURSO        # HALLAZGO-001 corregido (commit 88cf0e1)
     fase_11_calidad_codigo: NO_INICIADA
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_8_COMPONENTES_IPC (FASE_7 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020)
+  proxima_accion: FASE_10_ARQUITECTURA (FASE_8 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020)
 ```
 
 ---
@@ -1171,6 +1171,43 @@ Detectar componentes Android inseguros o mal protegidos.
 6. Revisar permisos URI.
 7. Revisar notificaciones con datos sensibles.
 
+## RESULTADOS DE LA FASE 8 (ejecutada 2026-08-24)
+
+> Cierre formal: PendingIntents ya auditados (HALLAZGO-004 LIMPIO), deep links/intents/exports ya
+> cubiertos en FASE 3 (HALLAZGO-014/015) y el manifiesto completo en FASE 4 (HALLAZGO-005). Esta
+> pasada re-verifica directamente y cierra la fase.
+
+- **R1 — Componentes exportados.** Exactamente 10 `exported="true"` en `app/src/main/AndroidManifest.xml`,
+  todos legítimos y necesarios: `MainActivity` + 2 alias de launcher (:85/:238/:254), `MusicService`
+  (:288, obligatorio para MediaSession/MediaBrowser — Android Auto/Bluetooth), `RecognitionTileService`
+  (:340, protegido con el permiso de sistema `BIND_QUICK_SETTINGS_TILE`), `MediaButtonReceiver` (:364,
+  requisito de media3) y 4 widget receivers (:376/:393/:415/:428, obligatoriamente exportados para
+  `APPWIDGET_UPDATE`). FileProvider queda `exported="false"` con `grantUriPermissions` (:266);
+  `ListenTogetherActionReceiver` queda `exported="false"`.
+- **R2 — Intent filters / deep links.** Ya auditados en FASE 3: el único fallo real es el crash por
+  deep link sin validar → HALLAZGO-014 sigue ABIERTO (fix barato candidato a beta).
+- **R3 — PendingIntents.** HALLAZGO-004 LIMPIO: cero `FLAG_MUTABLE`; los widgets usan
+  `FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE`. Re-verificado el patrón en los spot-checks de esta fase.
+- **R4 — ContentProviders / permisos URI.** Solo el FileProvider del sistema (rutas anchas ya
+  registradas en HALLAZGO-015). Los 21 usos de `FLAG_GRANT_READ/WRITE_URI_PERMISSION` son flujos de
+  compartir iniciados por el usuario (logs, exportaciones, carátulas, backups de migración); ningún
+  grant automático o implícito.
+- **R5 — Broadcasts.** Los únicos `sendBroadcast` son el protocolo de sistema
+  `ACTION_OPEN/CLOSE_AUDIO_EFFECT_CONTROL_SESSION` (`MusicService.kt:5251/5264`, extras = sessionId +
+  packageName, nada sensible) y un broadcast EXPLÍCITO de refresco de widget
+  (`MusicRecognizerWidgetService.kt:310`, componente explícito = no interceptable). Los
+  `registerReceiver` solo escuchan eventos de sistema (pantalla, becoming-noisy, volumen, audio,
+  PiP). Riesgo aceptado menor: las acciones custom de los widget receivers (`...widget.PLAY_PAUSE`
+  etc.) son falseables por cualquier app del dispositivo — control de reproducción, impacto
+  molestia; estándar en widgets Android, sin hallazgo nuevo.
+- **R6 — Notificaciones.** Solo las de descarga del updater usan `VISIBILITY_PUBLIC` (progreso, sin
+  datos del usuario); la notificación de música usa la visibilidad por defecto. Nada sensible en
+  pantalla de bloqueo.
+- **Veredicto:** superficie IPC SANA — lo exportado es lo mínimo que Android exige (launcher,
+  media, widgets, tile), todo lo interno queda sin exportar, PendingIntents inmutables, broadcasts
+  explícitos o de sistema. Sin hallazgos nuevos; siguen abiertos 014 (deep-link crash) y 015
+  (provider_paths). `fase_8_ipc_componentes: COMPLETADA`.
+
 ## Reparación segura
 
 | Problema | Reparación |
@@ -1997,6 +2034,7 @@ cambio:
 | 2026-08-24 | FASE 5 | Inventario completo de almacenamiento (agente dedicado): DataStore único (~343 claves), 14 SharedPreferences XML, archivos filesDir/cacheDir/externo, Room, higiene de temporales y reglas de backup; XML de backup re-verificados directamente | COMPLETADA — exclusiones gruesas correctas (DataStore con la cookie, jr_license.xml, caches de exoplayer/descargas fuera del backup; song.db viaja por decisión documentada); higiene de temporales bien (restore/updater limpian en todas las rutas); nuevo abierto HALLAZGO-016 (song_graph/artist_genres/app.log/persistent_*.data viajan al cloud backup por default); LastFMSessionKey (:474) anexada a HALLAZGO-013 | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 5) | FASE_6_RED |
 | 2026-08-24 | FASE 6 | Auditoría de red con 2 agentes en paralelo (infraestructura de ~40 clientes HTTP + secretos en tránsito/flujos auth/401/pinning); afirmaciones clave re-verificadas | COMPLETADA — postura sólida: secretos en headers/body, cero logging de secretos en release, cero tráfico cleartext, 401/403 sin loops; nuevos abiertos HALLAZGO-017 (password Qobuz en query string, impuesto por su API GET-only), 018 (cero pinning en canales de config remota), 019 (~22 clientes sin timeouts, disponibilidad) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 6) | FASE_7_AUTH_CRIPTO |
 | 2026-08-24 | FASE 7 | Ciclo de vida de auth auditado en primera persona (el agente delegado falló por filtro de contenido del proveedor; se reemplazó por lectura directa): login/logout/refresh/expiración de Google-InnerTube, Spotify, Qobuz, Tidal, Last.fm y ListenBrainz + licencia (zona protegida, solo lectura) + biometría/PIN + Keystore + revocación | COMPLETADA — logouts borran de verdad (BD+DataStore+memoria+WebView, choke point `App.forgetAccount`), refresh acotado sin loops (Tidal con mutex, Spotify 401→refresh→1 reintento), cero biometría/PIN (superficie inexistente), Keystore correcto en las 2 bóvedas, gracia de licencia acotada a 3 días; revocación solo local en todos los proveedores; nuevo abierto HALLAZGO-020 (BAJA: sin revocación server-side; Last.fm `auth.logout` sin usar); cripto de FASE 3 revalidada | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 7) | FASE_8_COMPONENTES_IPC |
+| 2026-08-24 | FASE 8 | Cierre formal de componentes/IPC: re-verificación directa de los 10 componentes exportados del manifiesto, PendingIntents, broadcasts, URI grants y visibilidad de notificaciones (trabajo previo de FASE 3/4 consolidado) | COMPLETADA — superficie IPC sana: lo exportado es el mínimo exigido por Android (launcher, MediaSession, widgets, tile protegido por permiso de sistema), PendingIntents inmutables (HALLAZGO-004 LIMPIO), sendBroadcast solo protocolo AudioEffect de sistema + explícito de widget, URI grants solo en flujos de compartir del usuario, notificaciones públicas sin datos sensibles; SIN hallazgos nuevos; siguen abiertos 014 (deep-link crash) y 015 (provider_paths) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 8) | FASE_10_ARQUITECTURA |
 
 ---
 
@@ -2102,8 +2140,8 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_7_COMPLETADA
-  proxima_accion: FASE_8_COMPONENTES_IPC
+  fase_actual: FASE_8_COMPLETADA
+  proxima_accion: FASE_10_ARQUITECTURA
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false

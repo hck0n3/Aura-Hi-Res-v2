@@ -27,9 +27,9 @@
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
-  6 (red) y 7 (auth/cripto) ya COMPLETADAS el 2026-08-24; sigue FASE 8 (componentes/IPC — cierre
-  formal: PendingIntents ya vistos en HALLAZGO-004, deep links en FASE 3). La publicación estable
-  de estos fixes queda a decisión del dueño (publicar exige su permiso explícito).
+  6 (red), 7 (auth/cripto) y 8 (componentes/IPC) ya COMPLETADAS el 2026-08-24; sigue FASE 10
+  (arquitectura — cierre formal: HALLAZGO-001 ya corregido en commit 88cf0e1). La publicación
+  estable de estos fixes queda a decisión del dueño (publicar exige su permiso explícito).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,
@@ -126,6 +126,16 @@
     concreto: Last.fm no llama `auth.logout`, la session key huérfana sigue válida en su web.
     Fix barato candidato FASE 22; el resto se acepta (tokens expiran solos).
   Siguiente: FASE 8 (componentes/IPC — cierre formal).
+- **2026-08-24 (tarde, 7): ✅ SÚPER AUDITORÍA — FASE 8 (COMPONENTES/IPC) TERMINADA.**
+  Cierre formal con re-verificación directa (trabajo de FASE 3/4 consolidado). Resultados en
+  "RESULTADOS DE LA FASE 8" de `SUPER AUDITORIA DE MI CODIGO ANDROID.md`.
+  ✅ **Superficie IPC SANA, sin hallazgos nuevos:** los 10 componentes exportados del manifiesto
+  son el mínimo que Android exige (launcher + alias, MusicService/MediaSession, MediaButtonReceiver,
+  4 widget receivers, tile protegido con permiso de sistema); PendingIntents inmutables
+  (HALLAZGO-004 LIMPIO); sendBroadcast solo protocolo AudioEffect de sistema + explícito de widget;
+  URI grants solo en compartir iniciado por el usuario; notificaciones públicas sin datos sensibles.
+  Siguen abiertos 014 (deep-link crash) y 015 (provider_paths).
+  Siguiente: FASE 10 (arquitectura — cierre formal).
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0
