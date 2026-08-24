@@ -102,7 +102,7 @@ memoria_maestra:
     fase_7_auth_cripto: COMPLETADA        # 2026-08-24: ciclo de vida auth completo en primera persona; logouts borran de verdad, refresh acotado, Keystore bien; HALLAZGO-020
     fase_8_ipc_componentes: COMPLETADA    # 2026-08-24: cierre formal; 10 exportados legítimos, PendingIntents inmutables (004 LIMPIO), broadcasts explícitos/sistema; siguen 014/015
     fase_9_webview: COMPLETADA            # inventario completo; HALLAZGO-006 riesgo aceptado
-    fase_10_arquitectura: EN_CURSO        # HALLAZGO-001 corregido (commit 88cf0e1)
+    fase_10_arquitectura: COMPLETADA      # 2026-08-24: cierre formal; HALLAZGO-001 corregido+probado en dispositivo; HALLAZGO-021 (deuda MusicService 11k líneas)
     fase_11_calidad_codigo: NO_INICIADA
     fase_12_concurrencia: EN_CURSO        # HALLAZGO-002 corregido (commit f7022e2)
     fase_13_rendimiento: NO_INICIADA
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_10_ARQUITECTURA (FASE_8 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020)
+  proxima_accion: FASE_12_CONCURRENCIA (FASE_10 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021)
 ```
 
 ---
@@ -1279,6 +1279,38 @@ Detectar problemas estructurales y proponer mejoras sin romper comportamiento.
 - Dependencias circulares.
 - Testeabilidad.
 
+## RESULTADOS DE LA FASE 10 (ejecutada 2026-08-24)
+
+> Cierre formal. El bug estructural grave de esta fase (HALLAZGO-001, suscripción automática de
+> artistas) ya está CORREGIDO (commit `88cf0e1`) y VERIFICADO en dispositivo (BETA-001 VERDE).
+> Esta pasada evalúa el resto de la estructura y registra la deuda pendiente.
+
+- **R1 — Modularización.** 16 módulos Gradle: `app` + librerías hoja (`innertube`, `kugou`,
+  `lrclib`, `betterlyrics`, `simpmusic`, `youlyplus`, `shazamkit`, `artistvideo`, `canvas`,
+  `applecanvas`, `echomusiccanvas`, `paxsenixlyrics`, `unison`, `jiosaavn`, `migration`).
+  Dependencias acíclicas por construcción (Gradle no compilaría un ciclo): las librerías no
+  conocen a `app`. Sano.
+- **R2 — Inyección de dependencias.** Hilt en todo `app` (`@HiltViewModel`, módulos,
+  `@AndroidEntryPoint`); los proveedores de datos de red son stateless por diseño documentado
+  (p. ej. `QobuzApi`). Sano.
+- **R3 — Manejo de estado/navegación.** MVVM + StateFlow/Compose; navegación centralizada en
+  `MainActivity` (~60 rutas, inventario FASE 1). Mezcla conocida: parte de la UI lee DataStore
+  directamente desde composables (`rememberPreference`) en vez de pasar por ViewModel — aceptado,
+  es el patrón heredado del fork y funciona.
+- **R4 — Deuda estructural (lo único pendiente).** Archivos gigantes medidos:
+  `MusicService.kt` 10 953 líneas (god object: reproductor + resolve + scrobble + sync +
+  reconocimiento + widgets), `Player.kt` 3 543, `AuraPlayer.kt` 2 585, `Lyrics.kt` 2 514,
+  `HomeScreen.kt` 2 490, `MainActivity.kt` 2 475, `DatabaseDao.kt` 1 987, `App.kt` 1 807.
+  `MusicService.kt` es además el archivo compartido #1 del registro de regresiones
+  (docs/REGRESSION_REGISTRY.md). → HALLAZGO-021 (BAJA, mantenibilidad).
+- **R5 — Manejo de errores.** `runCatching` + degradación elegante como norma (bóvedas que leen
+  "no vinculado" si fallan, resolver que cae al path normal);CancellationException siempre
+  re-lanzada en los sitios muestreados. Sano.
+- **Veredicto:** arquitectura FUNCIONAL y el único fallo estructural crítico ya corregido y
+  probado. La deuda pendiente es el tamaño de `MusicService.kt` y compañía (021) — candidata a la
+  potenciación de FASE 22 con characterization tests primero (regla 1 de esta fase: nada de
+  refactor en caliente). `fase_10_arquitectura: COMPLETADA`.
+
 ## Reparación segura
 
 1. No refactorizar en caliente sin tests.
@@ -1886,6 +1918,7 @@ Esta tabla debe mantenerse actualizada durante todo el proceso.
 | HALLAZGO-018 | FASE 6 | MEDIA | Cero certificate pinning y cero certs embebidos en todo el repo: los canales remotos que alimentan autenticación/reproducción (`qobuz_config.json`, `player_configs.json`, gist TOTP de Spotify, releases del actualizador, Worker de licencia) dependen solo de la CA del sistema. Un MITM con CA válida o el control del repo/gist inyectaría configuración. Mitiga parcialmente: el actualizador verifica versión declarada + firma del APK antes de instalar; `player_configs.json` es mecanismo de auto-reparación documentado en AGENTS.md. La parte de licencia es zona protegida (solo reporte). | QobuzConfigProvider.kt:130, RemotePlayerConfig.kt:81, SpotifyAuth.kt:35, echomusicupdater.kt:792, LicenseBackendClient.kt:75-76 | ABIERTO | Candidato FASE 17/22: pinning o verificación de integridad (firma del contenido) en los canales de config remota; priorizar el gist TOTP y qobuz_config. Tocar el Worker de licencia requiere permiso explícito | Grep global CertificatePinner (cero matches) + inventario de endpoints del agente FASE 6B |
 | HALLAZGO-019 | FASE 6/13 | MEDIA (disponibilidad) | ~22 clientes HTTP sin timeouts explícitos, varios en el path crítico de reproducción/resolve (MusicService.kt:7662/8828, DownloadUtil.kt:171, NewPipe/BraveNewPipe, PlayerJsFetcher.kt:25, PoTokenWebView.kt:462, SongPreviewController.kt:234, CanvasArtworkPlayer.kt:84). Con red hostil o lenta un resolve puede colgar indefinidamente ("la app se queda pensando"); solo cuentan con los defaults por fase de OkHttp, sin tope de request completa. | varios (ver descripción) | ABIERTO | Propuesta: añadir connect/read/write + `callTimeout` siguiendo el patrón ya existente en `QobuzHiRes.kt:47-54`; candidato a beta por ser mejora de robustez con riesgo bajo | Inventario de clientes del agente FASE 6A + spot-checks |
 | HALLAZGO-020 | FASE 7/22 | BAJA | El logout es solo borrado local en TODOS los proveedores: ninguna llamada de revocación server-side. Caso más concreto: Last.fm — el cierre de sesión limpia las claves locales y `LastFM.sessionKey` pero no llama a `auth.logout`, así que la session key huérfana sigue válida del lado de Last.fm hasta revocarla en su web (agravado por el almacenamiento plano, ver HALLAZGO-013). Tidal/Spotify tampoco revocan su OAuth al cerrar sesión, pero esos tokens expiran solos. | AccountsScreen.kt:513-516; SpotifyImportRepository.kt:132-146; TidalTokenStore.kt:114; QobuzTokenStore.kt:128 | ABIERTO | Propuesta: llamar `auth.logout` de Last.fm al cerrar sesión (barato, candidato FASE 22); el resto se acepta (expiración natural) | Lectura directa FASE 7 |
+| HALLAZGO-021 | FASE 10/22 | BAJA (mantenibilidad) | Deuda estructural: archivos gigantes — `MusicService.kt` 10 953 líneas (god object: reproductor, resolve, scrobble, sync, reconocimiento y widgets en una clase), `Player.kt` 3 543, `AuraPlayer.kt` 2 585, `Lyrics.kt` 2 514, `HomeScreen.kt` 2 490, `MainActivity.kt` 2 475. `MusicService.kt` es el archivo compartido #1 del registro de regresiones: cada cambio ahí arriesga regressions cruzadas. No es un bug funcional hoy. | playback/MusicService.kt, ui/player/Player.kt, ui/newui/AuraPlayer.kt, ui/component/Lyrics.kt, ui/screens/HomeScreen.kt, MainActivity.kt | ABIERTO | Candidato a potenciación de FASE 22: dividir `MusicService.kt` incrementalmente (extractors de responsabilidades) con characterization tests primero; NUNCA refactor en caliente durante la auditoría | Medición directa (wc) + REGRESSION_REGISTRY.md |
 
 ---
 
@@ -2035,6 +2068,7 @@ cambio:
 | 2026-08-24 | FASE 6 | Auditoría de red con 2 agentes en paralelo (infraestructura de ~40 clientes HTTP + secretos en tránsito/flujos auth/401/pinning); afirmaciones clave re-verificadas | COMPLETADA — postura sólida: secretos en headers/body, cero logging de secretos en release, cero tráfico cleartext, 401/403 sin loops; nuevos abiertos HALLAZGO-017 (password Qobuz en query string, impuesto por su API GET-only), 018 (cero pinning en canales de config remota), 019 (~22 clientes sin timeouts, disponibilidad) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 6) | FASE_7_AUTH_CRIPTO |
 | 2026-08-24 | FASE 7 | Ciclo de vida de auth auditado en primera persona (el agente delegado falló por filtro de contenido del proveedor; se reemplazó por lectura directa): login/logout/refresh/expiración de Google-InnerTube, Spotify, Qobuz, Tidal, Last.fm y ListenBrainz + licencia (zona protegida, solo lectura) + biometría/PIN + Keystore + revocación | COMPLETADA — logouts borran de verdad (BD+DataStore+memoria+WebView, choke point `App.forgetAccount`), refresh acotado sin loops (Tidal con mutex, Spotify 401→refresh→1 reintento), cero biometría/PIN (superficie inexistente), Keystore correcto en las 2 bóvedas, gracia de licencia acotada a 3 días; revocación solo local en todos los proveedores; nuevo abierto HALLAZGO-020 (BAJA: sin revocación server-side; Last.fm `auth.logout` sin usar); cripto de FASE 3 revalidada | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 7) | FASE_8_COMPONENTES_IPC |
 | 2026-08-24 | FASE 8 | Cierre formal de componentes/IPC: re-verificación directa de los 10 componentes exportados del manifiesto, PendingIntents, broadcasts, URI grants y visibilidad de notificaciones (trabajo previo de FASE 3/4 consolidado) | COMPLETADA — superficie IPC sana: lo exportado es el mínimo exigido por Android (launcher, MediaSession, widgets, tile protegido por permiso de sistema), PendingIntents inmutables (HALLAZGO-004 LIMPIO), sendBroadcast solo protocolo AudioEffect de sistema + explícito de widget, URI grants solo en flujos de compartir del usuario, notificaciones públicas sin datos sensibles; SIN hallazgos nuevos; siguen abiertos 014 (deep-link crash) y 015 (provider_paths) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 8) | FASE_10_ARQUITECTURA |
+| 2026-08-24 | FASE 10 | Cierre formal de arquitectura: evaluación de modularización (16 módulos), DI (Hilt), estado/navegación, manejo de errores y medición directa del tamaño de archivos; HALLAZGO-001 ya corregido y probado en dispositivo | COMPLETADA — módulos acíclicos, DI sana, errores con degradación elegante; única deuda: archivos gigantes (`MusicService.kt` 10 953 líneas = god object y hotspot #1 de regresiones) → nuevo abierto HALLAZGO-021 (BAJA mantenibilidad, candidato potenciación FASE 22, nada de refactor en caliente) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 10) | FASE_12_CONCURRENCIA |
 
 ---
 
@@ -2140,11 +2174,11 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_8_COMPLETADA
-  proxima_accion: FASE_10_ARQUITECTURA
+  fase_actual: FASE_10_COMPLETADA
+  proxima_accion: FASE_12_CONCURRENCIA
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
   beta: BETA-001_VERDE (2026-08-24, prueba remota del dueño)
-  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo) · HALLAZGO-013 (cookie Google + sp_dc Spotify + sesión Last.fm en texto plano en DataStore; fix con migración, decide el dueño) · HALLAZGO-014 (crash por deep link sin validar; fix barato candidato a beta) · HALLAZGO-015 (provider_paths.xml ancho; defensa en profundidad) · HALLAZGO-016 (metadatos de escucha y logs viajan al cloud backup por default; fix barato de exclusiones) · HALLAZGO-017 (password Qobuz en query string; aceptar riesgo — API GET-only) · HALLAZGO-018 (cero pinning en canales de config remota; candidato FASE 17/22) · HALLAZGO-019 (~22 clientes sin timeouts; candidato a beta) · HALLAZGO-020 (logout sin revocación server-side; Last.fm auth.logout sin usar, candidato FASE 22)
+  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo) · HALLAZGO-013 (cookie Google + sp_dc Spotify + sesión Last.fm en texto plano en DataStore; fix con migración, decide el dueño) · HALLAZGO-014 (crash por deep link sin validar; fix barato candidato a beta) · HALLAZGO-015 (provider_paths.xml ancho; defensa en profundidad) · HALLAZGO-016 (metadatos de escucha y logs viajan al cloud backup por default; fix barato de exclusiones) · HALLAZGO-017 (password Qobuz en query string; aceptar riesgo — API GET-only) · HALLAZGO-018 (cero pinning en canales de config remota; candidato FASE 17/22) · HALLAZGO-019 (~22 clientes sin timeouts; candidato a beta) · HALLAZGO-020 (logout sin revocación server-side; Last.fm auth.logout sin usar, candidato FASE 22) · HALLAZGO-021 (deuda estructural: MusicService.kt 10 953 líneas; potenciación FASE 22 con tests primero)
 ```

@@ -27,9 +27,10 @@
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
-  6 (red), 7 (auth/cripto) y 8 (componentes/IPC) ya COMPLETADAS el 2026-08-24; sigue FASE 10
-  (arquitectura — cierre formal: HALLAZGO-001 ya corregido en commit 88cf0e1). La publicación
-  estable de estos fixes queda a decisión del dueño (publicar exige su permiso explícito).
+  6 (red), 7 (auth/cripto), 8 (componentes/IPC) y 10 (arquitectura) ya COMPLETADAS el 2026-08-24;
+  sigue FASE 12 (concurrencia — cierre formal: HALLAZGO-002 ya corregido en commit f7022e2). La
+  publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
+  explícito).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,
@@ -136,6 +137,16 @@
   URI grants solo en compartir iniciado por el usuario; notificaciones públicas sin datos sensibles.
   Siguen abiertos 014 (deep-link crash) y 015 (provider_paths).
   Siguiente: FASE 10 (arquitectura — cierre formal).
+- **2026-08-24 (tarde, 8): ✅ SÚPER AUDITORÍA — FASE 10 (ARQUITECTURA) TERMINADA.**
+  Cierre formal; HALLAZGO-001 (auto-subscribe) ya corregido en `88cf0e1` y PROBADO en dispositivo
+  (BETA-001 VERDE). Resultados en "RESULTADOS DE LA FASE 10".
+  ✅ Modularización sana (16 módulos acíclicos), Hilt en todo, errores con degradación elegante.
+  ⚠️ Nuevo hallazgo abierto:
+  - **HALLAZGO-021 (BAJA, mantenibilidad):** archivos gigantes medidos — `MusicService.kt`
+    10 953 líneas (god object y hotspot #1 del registro de regresiones), Player.kt 3 543,
+    AuraPlayer.kt 2 585, Lyrics.kt 2 514, HomeScreen.kt 2 490. Candidato a potenciación FASE 22:
+    dividir incrementalmente CON tests primero; NUNCA refactor en caliente.
+  Siguiente: FASE 12 (concurrencia — cierre formal).
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0
