@@ -97,7 +97,7 @@ memoria_maestra:
     fase_2_dependencias: COMPLETADA      # 2026-08-24: inventario + OSV; HALLAZGO-009..012; jsoup nunca expuesto (BravePipe ya forzaba 1.23.1)
     fase_3_seguridad_estatica: COMPLETADA # quick pass 003..007 + SQL/entradas/cripto 2026-08-24 (3 agentes); HALLAZGO-013..015; SQL y zip-slip VERDES
     fase_4_manifest_config: COMPLETADA    # HALLAZGO-005 (manifiesto completo leído, todo legítimo)
-    fase_5_almacenamiento: NO_INICIADA
+    fase_5_almacenamiento: COMPLETADA     # 2026-08-24: inventario completo DataStore/XML/archivos/Room/backup; HALLAZGO-016; exclusiones gruesas correctas
     fase_6_red: NO_INICIADA
     fase_7_auth_cripto: NO_INICIADA
     fase_8_ipc_componentes: EN_CURSO      # PendingIntents (HALLAZGO-004); deep links/intents auditados en FASE 3 (HALLAZGO-014); falta cierre formal
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_5_ALMACENAMIENTO (FASE_3 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015)
+  proxima_accion: FASE_6_RED (FASE_5 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016)
 ```
 
 ---
@@ -857,6 +857,64 @@ grep -R "Environment.getExternalStorageDirectory" .
    - Sesiones.
    - Caché sensible.
    - Archivos temporales.
+
+## RESULTADOS DE LA FASE 5 (2026-08-24)
+
+Inventario completo de almacenamiento con agente dedicado (DataStore, SharedPreferences XML,
+archivos, Room, higiene de temporales, reglas de backup); afirmaciones clave re-verificadas
+leyendo los XML y el código.
+
+### R1 — Superficie de almacenamiento
+
+- **Un solo DataStore** (`utils/DataStore.kt:25`, archivo `filesDir/datastore/settings.preferences_pb`,
+  ~343 claves). Categorías: UI/tema, reproducción, estado home/sync, flags one-time, podcasts y
+  credenciales/cuenta (ya cubiertas por HALLAZGO-013).
+- **14 SharedPreferences XML**: solo 2 con datos sensibles — `jr_license.xml` (subscription key +
+  ANDROID_ID, zona protegida: se reporta, no se toca) y los cachés de gusto `song_graph.xml` /
+  `artist_genres.xml` (metadatos de escucha). El resto: flags de updater, EQ, apariencia, widget —
+  nada sensible.
+- **filesDir**: `logs/app.log` (rotación 256 KB + 1 backup, redactado en el chokepoint),
+  `persistent_*.data` (cola/estado del player), `exoplayer/` + `download/` (contenido de escucha;
+  caché de audio ilimitada por defecto — riesgo de espacio, no de seguridad), caches de cipher /
+  player_configs / changelog / anuncios (no sensibles).
+- **cacheDir**: snapshots y temporales de backup/restore, imágenes Coil (2 GB), canvas (256 MB LRU),
+  artist pages (TTL 30 días), solvers de WebView, temporales de export/ringtone.
+- **Externo**: solo `getExternalFilesDir` del updater (privado de la app en Android moderno), el APK
+  vía MediaStore.Downloads y exports/ringtones/imágenes iniciados por el usuario. Todo legítimo.
+- **Room**: `song.db` con WAL + busy_timeout; cero `allowMainThreadQueries` en el repo. Contiene el
+  artifact más personal (biblioteca, historial `event`, letras) — viaja en backup por decisión de
+  producto documentada en los XML.
+
+### R2 — Backup automático de Android: exclusiones gruesas correctas, fuga menor
+
+- `backup_rules.xml` y `data_extraction_rules.xml` (cloud-backup Y device-transfer) excluyen:
+  el DataStore completo (la cookie InnerTube), `jr_license.xml`, `./exoplayer`, `./download` y
+  `exoplayer_internal.db`. `song.db` y `aura_install_marker` viajan INTENCIONALMENTE (la biblioteca
+  debe sobrevivir el cambio de teléfono; los datos restaurados se tratan como no confiables en
+  `App.classifyInstallOrigin`).
+- **HALLAZGO-016 (MEDIA):** por el default de inclusión viajan también, en silencio,
+  `song_graph.xml`, `artist_genres.xml` (metadatos de gusto), `filesDir/logs/app.log*` y
+  `persistent_*.data` — datos del usuario que salen del dispositivo hacia la nube de Google sin
+  que la UI lo mencione.
+
+### R3 — Higiene de temporales: bien
+
+- Restore: `.tmp` borrados en éxito y en TODAS las rutas de fallo (`cleanupRestoreTemps`),
+  `.restore_bak` borrado en éxito y rollback; el restore ya no aplica `settings.preferences_pb`
+  de backups viejos.
+- Updater: `.part` borrados en fallo/verificación, rename atómico, purge de versiones viejas.
+- Logs: rotación real. Login-WebViews limpian cookies/WebStorage tras logout
+  (`WebAuthSessionCleaner`). Pendiente menor (higiene, sin número): `aura_crash_*.txt`, CSVs de
+  fallos de import (con títulos/artistas) y `cacheDir/images` no tienen prune — todos en cacheDir
+  privado, riesgo bajo.
+
+### R4 — Veredicto de la fase
+
+Nada CRÍTICO ni ALTO. Controles que funcionan y quedan documentados: DataStore y licencia fuera
+del backup, temporales con limpieza en todas las rutas, WebView sin sesión residual. Abierto nuevo:
+HALLAZGO-016. `LastFMSessionKey` (:474) descubierta aquí se anexa a HALLAZGO-013. `jr_license.xml`
+en plano se reporta pero es zona protegida por AGENTS.md (mitigado además por la exclusión de
+backup y la verificación online).
 
 ## Reparación segura
 
@@ -1666,9 +1724,10 @@ Esta tabla debe mantenerse actualizada durante todo el proceso.
 | HALLAZGO-010 | FASE 2 | MEDIA (cadena de suministro) | El repositorio `https://maven.aliyun.com/repository/public` (mirror chino de Maven Central) está en la cadena de resolución (settings.gradle.kts): terceros pueden servir artefactos alterados; además es lo que mantiene resoluble ffmpeg-kit EOL. | settings.gradle.kts | ABIERTO | Ninguna aún: quitar el mirror puede romper la resolución de ffmpeg-kit; decisión del dueño (FASE de reemplazo de ffmpeg-kit lo desbloquea) | Lectura de settings.gradle.kts |
 | HALLAZGO-011 | FASE 2/17 | BAJA/MEDIA | No hay verificación de integridad de dependencias: sin `gradle.lockfile` ni `gradle/verification-metadata.xml`. Un artefacto sustituido en un mirror pasaría inadvertido. | repo raíz | ABIERTO | Candidato FASE 17: generar verification-metadata o lockfile + CI que lo valide | Escaneo OSV-Scanner (sin lockfile no pudo resolver el catálogo) |
 | HALLAZGO-012 | FASE 2 | BAJA (higiene) | Entradas muertas del catálogo de versiones: youtubedl-android (library/ffmpeg/aria2c/bundle 0.18.1), org.json:json, ktor-client-retry-jvm, material-icons core/extended @1.11.0 (extended inexistente >1.7.8). Además: doble pin kotlinx-serialization (1.6.3 vs 1.9.0) y okhttp 4.12.0 hardcode solo en migration = drift de classpath. | gradle/libs.versions.toml, app y migration build.gradle.kts | ABIERTO | Limpieza pendiente (borrar entradas sin referencia, unificar serialization, alinear okhttp); requiere build verde | Inventario FASE 2 (agente) |
-| HALLAZGO-013 | FASE 3/7 | MEDIA | Credenciales en texto plano en el DataStore: la cookie de sesión de Google (`innerTubeCookie`, `PreferenceKeys.kt:837`, escrita en LoginScreen.kt:211/247) y el `sp_dc` de Spotify (`:240`), mientras los tokens de Tidal/Qobuz del mismo código SÍ usan `EncryptedSharedPreferences` (AES256_SIV+AES256_GCM, Keystore). Menores: token ListenBrainz (`:495`), claves OpenRouter/DeepL (`:784/790`). La licencia (`jr_license.xml` en plano) se reporta pero es zona protegida — sin cambios. | PreferenceKeys.kt, LoginScreen.kt, QobuzTokenStore.kt, TidalTokenStore.kt | ABIERTO | Propuesta: migrar esas claves a EncryptedSharedPreferences con migración one-time del valor existente. Riesgoso: el login y la reproducción dependen de la cookie; requiere camino de migración probado — decisión del dueño en fase de reparación | Verificado por grep/lectura: claves planas vs stores cifrados (agente cripto + re-verificación) |
+| HALLAZGO-013 | FASE 3/7 | MEDIA | Credenciales en texto plano en el DataStore: la cookie de sesión de Google (`innerTubeCookie`, `PreferenceKeys.kt:837`, escrita en LoginScreen.kt:211/247) y el `sp_dc` de Spotify (`:240`), mientras los tokens de Tidal/Qobuz del mismo código SÍ usan `EncryptedSharedPreferences` (AES256_SIV+AES256_GCM, Keystore). Menores: clave de sesión Last.fm (`:474`, descubierta en FASE 5), token ListenBrainz (`:495`), claves OpenRouter/DeepL (`:784/790`). La licencia (`jr_license.xml` en plano) se reporta pero es zona protegida — sin cambios. | PreferenceKeys.kt, LoginScreen.kt, QobuzTokenStore.kt, TidalTokenStore.kt | ABIERTO | Propuesta: migrar esas claves a EncryptedSharedPreferences con migración one-time del valor existente. Riesgoso: el login y la reproducción dependen de la cookie; requiere camino de migración probado — decisión del dueño en fase de reparación | Verificado por grep/lectura: claves planas vs stores cifrados (agente cripto + re-verificación) |
 | HALLAZGO-014 | FASE 3/8 | BAJA | Crash local vía deep link: `?list=a%2Fb` (o browseIds con `/`) llega a `navController.navigate("online_playlist/$playlistId?autoSave=true")` sin validar ni `runCatching`; la ruta no matchea el nav graph y `navigate()` lanza `IllegalArgumentException`. Provocable por cualquier app (MainActivity `exported=true`). Impacto DoS local, sin secuestro de navegación. Relacionados (informativos): `file://` sobre archivos propios (confused deputy sin exfiltración) y callback Tidal sin `state` (mitigado por PKCE). | MainActivity.kt:2474/2483/2427 | ABIERTO | Propuesta: validar charset/formato de `playlistId`/`browseId` (rechazar `/`) o envolver el navigate en `runCatching` — fix barato, candidato a próxima beta | Lectura de MainActivity.kt; trazado del path de crash por el agente de entradas |
 | HALLAZGO-015 | FASE 3 | BAJA (defensa en profundidad) | `provider_paths.xml` más ancho de lo necesario: `external-path`, `cache-path` y `external-cache-path` con `path="."` exponen TODO el almacenamiento externo y ambos caches. No explotable hoy: provider `exported=false` y todos los `getUriForFile` usan archivos fijos generados por la app; riesgo latente si una futura URI compartida usa path influenciable. | app/src/main/res/xml/provider_paths.xml | ABIERTO | Propuesta: restringir cada entrada a las subcarpetas reales que comparten los call sites (logs, playlist_covers, update, export) | Lectura del XML + grep de todos los usos de getUriForFile |
+| HALLAZGO-016 | FASE 5/18 | MEDIA | El auto-backup a la nube de Google incluye por default (sin exclusión explícita) metadatos del usuario: `song_graph.xml` y `artist_genres.xml` (gusto/escucha), `filesDir/logs/app.log*` (diagnóstico) y `persistent_*.data` (cola de reproducción). Las exclusiones gruesas sí existen (DataStore completo, `jr_license.xml`, caches de exoplayer/descargas) y `song.db` viaja por decisión de producto documentada; estos cuatro se suman en silencio sin que la UI lo mencione. | app/src/main/res/xml/backup_rules.xml, data_extraction_rules.xml | ABIERTO | Propuesta: excluir `song_graph.xml`/`artist_genres.xml` (cachés reconstruibles, pérdida cero) y `./logs`; `persistent_*.data` a decisión del dueño (restaura la cola al cambiar de teléfono). Fix barato y seguro | Lectura de ambos XML de backup + inventario de archivos del agente FASE 5 |
 
 ---
 
@@ -1814,6 +1873,7 @@ cambio:
 | 2026-08-24 | FASE 1/15 | HALLAZGO-008: el build type release firma con keystore DEBUG (diagnóstico temporal 2026-08-19; el certificado release "JR MUSIC PRO" parece marcado: release firmados reales fallan en streams, debug funciona) | ABIERTO — bloqueante para publicar; requiere decisión del dueño | app/build.gradle.kts:391-401 | Decisión del dueño + verificar firma del CI |
 | 2026-08-24 | FASE 2 | Inventario completo de dependencias (catálogo + 17 build.gradle.kts), repositorios/plugins/fuerzas, escaneo OSV (API por 25 paquetes fijados, osv-query.ps1) y verificación profunda del caso jsoup | COMPLETADA — R1–R4; HALLAZGO-009 cerrado SIN exposición real: BravePipeExtractor ya forzaba jsoup 1.23.1 en el grafo resuelto y el APK BETA-001 contiene el marker `HtmlTagOptions` (clase exclusiva de ≥1.23.1) en classes38.dex; pin del catálogo alineado 1.22.2→1.23.1 como guarda; nuevos abiertos HALLAZGO-010 (mirror aliyun), 011 (sin lockfile/verification), 012 (entradas muertas) | build-osv-api.txt, build-jsoup-deps.txt, build-fase2-jsoup.txt, jar-diff.ps1 | FASE_3_RESTO_SQL_ENTRADAS |
 | 2026-08-24 | FASE 3 | Auditoría estática completa con 3 agentes en paralelo: SQL (barrido total de rawQuery/execSQL/Room en app + 15 módulos), validación de entradas y archivos (deep links, zip-slip, FileProvider, intents, exports), cripto/TLS/aleatoriedad; afirmaciones clave re-verificadas contra el código | COMPLETADA — SQL VERDE (todo Room+binding; 2 interpolaciones teóricas en migraciones one-shot que NO se tocan), SIN zip-slip (restore y updater con destinos fijos + sanitize), TLS limpio; nuevos abiertos HALLAZGO-013 (cookie Google + sp_dc Spotify en texto plano vs EncryptedSharedPreferences de Tidal/Qobuz), 014 (crash por deep link sin validar), 015 (provider_paths.xml ancho) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 3) | FASE_5_ALMACENAMIENTO |
+| 2026-08-24 | FASE 5 | Inventario completo de almacenamiento (agente dedicado): DataStore único (~343 claves), 14 SharedPreferences XML, archivos filesDir/cacheDir/externo, Room, higiene de temporales y reglas de backup; XML de backup re-verificados directamente | COMPLETADA — exclusiones gruesas correctas (DataStore con la cookie, jr_license.xml, caches de exoplayer/descargas fuera del backup; song.db viaja por decisión documentada); higiene de temporales bien (restore/updater limpian en todas las rutas); nuevo abierto HALLAZGO-016 (song_graph/artist_genres/app.log/persistent_*.data viajan al cloud backup por default); LastFMSessionKey (:474) anexada a HALLAZGO-013 | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 5) | FASE_6_RED |
 
 ---
 
@@ -1919,11 +1979,11 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_3_COMPLETADA
-  proxima_accion: FASE_5_ALMACENAMIENTO
+  fase_actual: FASE_5_COMPLETADA
+  proxima_accion: FASE_6_RED
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
   beta: BETA-001_VERDE (2026-08-24, prueba remota del dueño)
-  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo) · HALLAZGO-013 (cookie Google + sp_dc Spotify en texto plano en DataStore; fix con migración, decide el dueño) · HALLAZGO-014 (crash por deep link sin validar; fix barato candidato a beta) · HALLAZGO-015 (provider_paths.xml ancho; defensa en profundidad)
+  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo) · HALLAZGO-013 (cookie Google + sp_dc Spotify + sesión Last.fm en texto plano en DataStore; fix con migración, decide el dueño) · HALLAZGO-014 (crash por deep link sin validar; fix barato candidato a beta) · HALLAZGO-015 (provider_paths.xml ancho; defensa en profundidad) · HALLAZGO-016 (metadatos de escucha y logs viajan al cloud backup por default; fix barato de exclusiones)
 ```

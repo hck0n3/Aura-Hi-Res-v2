@@ -26,9 +26,9 @@
   nube): BETA-001 VERDE — TODO FUNCIONA: (a) reproducir/like YA NO auto-suscribe artistas,
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
-  auditoría — FASE 1 (inventario), FASE 2 (dependencias) y FASE 3 (seguridad estática) ya
-  COMPLETADAS el 2026-08-24; sigue FASE 5 (almacenamiento). La publicación estable de estos
-  fixes queda a decisión del dueño (publicar exige su permiso explícito).
+  auditoría — FASE 1 (inventario), FASE 2 (dependencias), FASE 3 (seguridad estática) y FASE 5
+  (almacenamiento) ya COMPLETADAS el 2026-08-24; sigue FASE 6 (red). La publicación estable de
+  estos fixes queda a decisión del dueño (publicar exige su permiso explícito).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,
@@ -79,6 +79,23 @@
   - **HALLAZGO-015 (BAJA):** `provider_paths.xml` expone almacenamiento externo y caches completos
     (defensa en profundidad; no explotable hoy).
   Siguiente: FASE 5 (almacenamiento).
+- **2026-08-24 (tarde, 4): ✅ SÚPER AUDITORÍA — FASE 5 (ALMACENAMIENTO) TERMINADA.**
+  Inventario completo (DataStore único ~343 claves, 14 SharedPreferences XML, filesDir/cacheDir/
+  externo, Room, higiene de temporales, reglas de backup). Resultados en la sección
+  "RESULTADOS DE LA FASE 5" de `SUPER AUDITORIA DE MI CODIGO ANDROID.md`.
+  ✅ **Lo grueso está bien:** las reglas de backup excluyen el DataStore completo (la cookie de
+  sesión), `jr_license.xml` y los caches de exoplayer/descargas — en cloud-backup Y device-transfer.
+  `song.db` viaja por decisión de producto documentada (la biblioteca sobrevive el cambio de
+  teléfono; lo restaurado se trata como no confiable). Temporales de restore/updater limpiados en
+  todas las rutas; los login-WebViews limpian cookies tras logout; cero `allowMainThreadQueries`.
+  ⚠️ Nuevo hallazgo abierto:
+  - **HALLAZGO-016 (MEDIA):** por el default de inclusión viajan al backup de la nube de Google,
+    en silencio: `song_graph.xml` y `artist_genres.xml` (metadatos de gusto), `app.log*` y
+    `persistent_*.data` (cola). Fix propuesto barato: excluir cachés reconstruibles y logs;
+    `persistent_*.data` a su decisión (restaura la cola en teléfono nuevo).
+  Además: clave de sesión Last.fm (`PreferenceKeys.kt:474`) descubierta en texto plano → anexada
+  a HALLAZGO-013. `jr_license.xml` en plano reportado pero es zona protegida (sin cambios).
+  Siguiente: FASE 6 (red).
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0
