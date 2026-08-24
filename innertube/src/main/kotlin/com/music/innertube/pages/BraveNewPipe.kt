@@ -25,13 +25,15 @@ import java.net.ProxySelector
 import java.net.SocketAddress
 import java.net.URI
 
-// Stock TeamNewPipe v0.25.2 extraction, restored 2026-08-23 as the LAST-RESORT fallback of
-// NewPipeExtractor.newPipePlayer. YouTube bot-limits this anonymous www.youtube.com path to muxed
-// itag 18 (360p, audio embedded) — low quality, but on 2026-08-23 it was the ONLY source that still
-// produced a fetchable URL while PipePipe's extraction was blocked both anonymous (anti-bot "sign
-// in" wall) and with cookie ("android_vr player response is not valid"). It kept the app playing.
-// Lives in its own file with renamed classes so it coexists with the dev.maxrave.pipepipe fork.
-class TeamNewPipeDownloaderImpl(
+// BravePipeExtractor (maxrave-dev/BravePipeExtractor) — the LAST-RESORT fallback layer of
+// NewPipeExtractor.newPipePlayer, and the SAME fallback SimpMusic uses in its Extractor.android.kt
+// when its PipePipe fork fails. Fork of TeamNewPipe keeping the org.schabi.* package tree, but its
+// extraction client is ANDROID (ReelPlayer/player endpoints) instead of WEB, so it is not limited to
+// the muxed itag 18 that stock TeamNewPipe v0.25.2 got behind the bot wall. It replaced stock
+// TeamNewPipe v0.25.2 on 2026-08-23, after that dependency's anonymous path started returning zero
+// streams on the owner's device/IP (same package tree, duplicate classes, cannot coexist). Lives in
+// its own file so it stays isolated from the dev.maxrave.pipepipe fork.
+class BraveNewPipeDownloaderImpl(
     proxy: Proxy?,
     proxyAuth: String? = null,
 ) : Downloader() {
@@ -103,7 +105,7 @@ class TeamNewPipeDownloaderImpl(
     }
 }
 
-class TeamNewPipeUtils(
+class BraveNewPipeUtils(
     downloader: Downloader,
 ) {
     init {
@@ -141,25 +143,25 @@ class TeamNewPipeUtils(
             )
         } catch (e: Exception) {
             timber.log.Timber.tag("RESOLVE_CIPHER").e(
-                "teamNewPipe deobfuscation failed videoId=$videoId itag=${format.itag}: ${e.javaClass.simpleName}: ${e.message}"
+                "braveNewPipe deobfuscation failed videoId=$videoId itag=${format.itag}: ${e.javaClass.simpleName}: ${e.message}"
             )
             null
         }
 }
 
-object TeamNewPipeExtractor {
-    private var teamNewPipeDownloader: TeamNewPipeDownloaderImpl? = null
-    private var teamNewPipeUtils: TeamNewPipeUtils? = null
+object BraveNewPipeExtractor {
+    private var braveNewPipeDownloader: BraveNewPipeDownloaderImpl? = null
+    private var braveNewPipeUtils: BraveNewPipeUtils? = null
     private var isInitialized = false
 
     @Synchronized
     fun init() {
         if (!isInitialized) {
-            teamNewPipeDownloader = TeamNewPipeDownloaderImpl(
+            braveNewPipeDownloader = BraveNewPipeDownloaderImpl(
                 proxy = YouTube.proxy,
                 proxyAuth = YouTube.proxyAuth
             )
-            teamNewPipeUtils = TeamNewPipeUtils(teamNewPipeDownloader!!)
+            braveNewPipeUtils = BraveNewPipeUtils(braveNewPipeDownloader!!)
             isInitialized = true
         }
     }
@@ -169,7 +171,7 @@ object TeamNewPipeExtractor {
         videoId: String
     ): String? {
         init()
-        return teamNewPipeUtils?.getStreamUrl(format, videoId)
+        return braveNewPipeUtils?.getStreamUrl(format, videoId)
     }
 
     fun newPipePlayer(videoId: String): List<Pair<Int, String>> {
@@ -187,7 +189,7 @@ object TeamNewPipeExtractor {
             // The fallback of the fallback: when even bot-limited itag 18 cannot be extracted, name the
             // failure so the shared app.log carries evidence instead of a generic "song unavailable".
             timber.log.Timber.tag("RESOLVE_CIPHER").e(
-                "teamNewPipePlayer failed videoId=$videoId: ${e.javaClass.simpleName}: ${e.message}"
+                "braveNewPipePlayer failed videoId=$videoId: ${e.javaClass.simpleName}: ${e.message}"
             )
             emptyList()
         }

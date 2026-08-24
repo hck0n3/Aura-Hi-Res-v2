@@ -287,14 +287,16 @@ object NewPipeExtractor {
         if (pipePipeStreams.isNotEmpty()) return pipePipeStreams
 
         // 2026-08-23: PipePipe's extraction can be fully blocked on a device (anti-bot "sign in" wall
-        // when anonymous, "android_vr player response is not valid" with cookie) while stock TeamNewPipe
-        // still yields the bot-limited muxed itag 18. Returning empty here used to drop resolution onto
-        // the burned InnerTube direct URLs (206 probe, 403 real fetch) and nothing played — so fall back
-        // to TeamNewPipe before giving up. Remove once PipePipe's authenticated extraction is fixed.
-        val fallback = TeamNewPipeExtractor.newPipePlayer(videoId)
+        // when anonymous, "android_vr player response is not valid" with cookie), and the stock
+        // TeamNewPipe v0.25.2 fallback that kept the app playing started returning zero streams on the
+        // same device/IP. Returning empty here drops resolution onto the burned InnerTube direct URLs
+        // (206 probe, 403 real fetch) and nothing plays — so fall back to BraveNewPipe (SimpMusic's own
+        // fallback, ANDROID extraction client) before giving up. Remove once PipePipe's authenticated
+        // extraction is fixed.
+        val fallback = BraveNewPipeExtractor.newPipePlayer(videoId)
         if (fallback.isNotEmpty()) {
             timber.log.Timber.tag("RESOLVE_CIPHER").w(
-                "PipePipe extraction empty videoId=$videoId; TeamNewPipe fallback returned ${fallback.size} streams"
+                "PipePipe extraction empty videoId=$videoId; BraveNewPipe fallback returned ${fallback.size} streams"
             )
         }
         return fallback

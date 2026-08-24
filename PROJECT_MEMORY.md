@@ -5,6 +5,22 @@
 
 ## 📍 Estado Actual
 
+- **2026-08-23 (madrugada): 🔴 MURO ANTI-BOT ROMPIÓ LA REPRODUCCIÓN → 🟡 FALLBACK BRAVEPIPE INTEGRADO (pendiente probar en celular).**
+  Tras el login del dueño, la extracción PipePipe cayó: con cookie → `ExtractionException: android_vr
+  player response is not valid`; anónima → `AntiBotException: Sign in to confirm you're not a bot`; y el
+  TeamNewPipe v0.25.2 que mantenía la app sonando empezó a devolver CERO streams en ese dispositivo/IP
+  (el muro se endureció). Todo caía a las URLs InnerTube quemadas (sonda 206 / fetch real 403) → loop
+  infinito. Fix 1 (commit `023e65f`): forzar extracción anónima + capa de emergencia TeamNewPipe.
+  Fix 2 (este estado): **BravePipeExtractor** `com.github.maxrave-dev:BravePipeExtractor` pin `fa5d4a8b4c`
+  — el MISMO fallback que usa SimpMusic cuando su PipePipe falla (`Extractor.android.kt` de maxrave-dev/core).
+  Fork de TeamNewPipe con cliente de extracción ANDROID (no WEB, no limitado al itag 18); usa el mismo
+  paquete `org.schabi.*`, así que REEMPLAZA al TeamNewPipe stock (clases duplicadas, no conviven).
+  Renombrado `pages/TeamNewPipe.kt` → `pages/BraveNewPipe.kt` (clases `BraveNewPipe*`). Force de nanojson
+  `c7a6c1c08d…` en todas las configuraciones desde el root (igual que SimpMusic; sin él el fallback crashea
+  con `NoSuchMethodError` porque PipePipe trae un nanojson viejo). Orden de `newPipePlayer`: PipePipe →
+  BravePipe. BUILD SUCCESSFUL (`build-bravepipe2.txt`). El dueño salió con el celular desconectado:
+  **instalar y verificar reproducción cuando vuelva a conectar.** Si BravePipe también cae en su IP,
+  siguiente paso: login correcto para PipePipe (cliente `mweb` o PoTokenProvider del fork).
 - **2026-08-23 (noche, tarde): ✅ EQ ARREGLADO + VIDEO RESTAURADO POR ORDEN DEL DUEÑO.**
   EQ: la causa era la ausencia de `SUPERPOWERED_LICENSE_KEY` en el build debug; clave copiada
   desde `AURA FENIX\aura-simpmusic\local.properties`; verificado `engine=HEALTHY
@@ -218,7 +234,8 @@ cambios de hoy (el archivo creció ~115 líneas).
 - settings.gradle.kts: `:app :migration :canvas :innertube :kugou :lrclib :betterlyrics
   :simpmusic :youlyplus :shazamkit :artistvideo :applecanvas :echomusiccanvas :paxsenixlyrics
   :unison :jiosaavn`. `:simpmusic` es SOLO letras. Streaming real: `:app`, `:innertube`, `:jiosaavn`.
-- media3 1.10.1 · ktor 3.4.0 (sin retrofit) · NewPipeExtractor v0.25.2 (jitpack) · jsoup 1.22.1 ·
+- media3 1.10.1 · ktor 3.4.0 (sin retrofit) · PipePipeExtractor 208e43b184 + BravePipeExtractor
+  fa5d4a8b4c (jitpack; nanojson forzado a c7a6c1c08d en el root) · jsoup 1.22.1 ·
   brotli · Kotlin 2.3.10 · AGP 9.0.0 · JDK 21. Superpowered nativo sin artefacto maven.
 
 ## 📋 Roadmap Inmediato
@@ -276,6 +293,14 @@ cambios de hoy (el archivo creció ~115 líneas).
   toggle música↔video solo da audio → causa: resolución de video por InnerTube quemado;
   implementado fallback NewPipe muxed (itag 22→18) en los 4 puntos de resolución de video
   con bandera anti-doble-audio. Commits: `3aa45cd`, `ff3eaa7`.
+- **2026-08-23 (12): 🔴→🟡 Muro anti-bot + fallback BravePipe.** Con el dueño logueado,
+  PipePipe murió: con cookie → 'android_vr player response is not valid', anónima →
+  AntiBotException; y el TeamNewPipe stock que sonaba empezó a dar cero streams en su IP.
+  Fix 1 (`023e65f`): extracción anónima forzada + capa TeamNewPipe. Fix 2 (este commit):
+  BravePipeExtractor `fa5d4a8b4c` REEMPLAZA al TeamNewPipe stock (el fallback real de
+  SimpMusic, cliente de extracción ANDROID) + force de nanojson `c7a6c1c08d` en el root.
+  BUILD SUCCESSFUL (`build-bravepipe2.txt`); pendiente verificar en el celular — el dueño
+  salió y lo desconectó.
 
 ## 🏛️ Decisiones Arquitectónicas Clave
 

@@ -1,0 +1,405 @@
+Starting a Gradle Daemon, 1 busy and 1 incompatible and 4 stopped Daemons could not be reused, use --status for details
+
+> Configure project :app
+WARNING: The option setting 'android.newDsl=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+SUPERPOWERED: licence key configured but the release signing certificate could not be read (app/keystore/release.keystore + STORE_PASSWORD, or SUPERPOWERED_CERT_SHA256). The key will be embedded UNBOUND — it still works, but a repackaged clone could reuse it.
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+
+> Task :betterlyrics:preBuild UP-TO-DATE
+> Task :artistvideo:preBuild UP-TO-DATE
+> Task :paxsenixlyrics:preBuild UP-TO-DATE
+> Task :kugou:preBuild UP-TO-DATE
+> Task :jiosaavn:preBuild UP-TO-DATE
+> Task :echomusiccanvas:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :canvas:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :youlyplus:preBuild UP-TO-DATE
+> Task :migration:preBuild UP-TO-DATE
+> Task :unison:preBuild UP-TO-DATE
+> Task :applecanvas:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :shazamkit:preBuild UP-TO-DATE
+> Task :innertube:preBuild UP-TO-DATE
+> Task :simpmusic:preBuild UP-TO-DATE
+> Task :lrclib:preBuild UP-TO-DATE
+> Task :paxsenixlyrics:preDebugBuild UP-TO-DATE
+> Task :youlyplus:preDebugBuild UP-TO-DATE
+> Task :migration:preDebugBuild UP-TO-DATE
+> Task :betterlyrics:preDebugBuild UP-TO-DATE
+> Task :artistvideo:preDebugBuild UP-TO-DATE
+> Task :jiosaavn:preDebugBuild UP-TO-DATE
+> Task :kugou:preDebugBuild UP-TO-DATE
+> Task :simpmusic:preDebugBuild UP-TO-DATE
+> Task :innertube:preDebugBuild UP-TO-DATE
+> Task :lrclib:preDebugBuild UP-TO-DATE
+> Task :shazamkit:preDebugBuild UP-TO-DATE
+> Task :unison:preDebugBuild UP-TO-DATE
+> Task :applecanvas:processResources NO-SOURCE
+> Task :echomusiccanvas:processResources NO-SOURCE
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preUniversalFossDebugBuild UP-TO-DATE
+> Task :app:mergeUniversalFossDebugNativeDebugMetadata NO-SOURCE
+> Task :kugou:generateDebugResources
+> Task :jiosaavn:generateDebugResources
+> Task :artistvideo:generateDebugResources
+> Task :betterlyrics:generateDebugResources
+> Task :migration:generateDebugResources
+> Task :shazamkit:generateDebugResources
+> Task :unison:generateDebugResources
+> Task :youlyplus:generateDebugResources
+> Task :simpmusic:generateDebugResources
+> Task :innertube:generateDebugResources
+> Task :lrclib:generateDebugResources
+> Task :paxsenixlyrics:generateDebugResources
+> Task :artistvideo:processDebugNavigationResources
+> Task :unison:processDebugNavigationResources
+> Task :betterlyrics:processDebugNavigationResources
+> Task :youlyplus:processDebugNavigationResources
+> Task :app:generateUniversalFossDebugBuildConfig
+> Task :app:protobufDummy UP-TO-DATE
+> Task :app:extractDebugProto
+> Task :app:extractFossProto
+> Task :app:extractProto
+> Task :artistvideo:javaPreCompileDebug
+> Task :app:extractUniversalFossDebugProto
+> Task :artistvideo:extractDebugSupportedLocales
+> Task :app:extractUniversalFossProto
+> Task :app:extractUniversalProto
+> Task :betterlyrics:extractDebugSupportedLocales FROM-CACHE
+> Task :unison:extractDebugSupportedLocales FROM-CACHE
+> Task :youlyplus:extractDebugSupportedLocales FROM-CACHE
+> Task :artistvideo:generateDebugAssets UP-TO-DATE
+> Task :simpmusic:packageDebugResources
+> Task :innertube:packageDebugResources
+> Task :shazamkit:packageDebugResources
+> Task :migration:packageDebugResources
+> Task :kugou:packageDebugResources
+> Task :jiosaavn:packageDebugResources
+> Task :lrclib:packageDebugResources
+> Task :paxsenixlyrics:packageDebugResources
+> Task :lrclib:processDebugNavigationResources FROM-CACHE
+> Task :migration:processDebugNavigationResources FROM-CACHE
+> Task :innertube:processDebugNavigationResources FROM-CACHE
+> Task :shazamkit:processDebugNavigationResources FROM-CACHE
+> Task :paxsenixlyrics:processDebugNavigationResources FROM-CACHE
+> Task :kugou:processDebugNavigationResources FROM-CACHE
+> Task :jiosaavn:processDebugNavigationResources FROM-CACHE
+> Task :betterlyrics:packageDebugResources
+> Task :app:extractUniversalFossDebugSupportedLocales
+> Task :simpmusic:processDebugNavigationResources FROM-CACHE
+> Task :unison:javaPreCompileDebug
+> Task :lrclib:javaPreCompileDebug FROM-CACHE
+> Task :innertube:javaPreCompileDebug FROM-CACHE
+> Task :kugou:javaPreCompileDebug FROM-CACHE
+> Task :jiosaavn:javaPreCompileDebug FROM-CACHE
+> Task :paxsenixlyrics:javaPreCompileDebug FROM-CACHE
+> Task :shazamkit:javaPreCompileDebug FROM-CACHE
+> Task :simpmusic:javaPreCompileDebug FROM-CACHE
+> Task :unison:packageDebugResources
+> Task :youlyplus:packageDebugResources
+> Task :migration:parseDebugLocalResources
+> Task :paxsenixlyrics:parseDebugLocalResources
+> Task :betterlyrics:javaPreCompileDebug
+> Task :innertube:extractDebugSupportedLocales FROM-CACHE
+> Task :jiosaavn:extractDebugSupportedLocales FROM-CACHE
+> Task :kugou:extractDebugSupportedLocales FROM-CACHE
+> Task :lrclib:extractDebugSupportedLocales FROM-CACHE
+> Task :shazamkit:extractDebugSupportedLocales FROM-CACHE
+> Task :simpmusic:extractDebugSupportedLocales FROM-CACHE
+> Task :betterlyrics:generateDebugAssets UP-TO-DATE
+> Task :artistvideo:mergeDebugAssets
+> Task :betterlyrics:mergeDebugAssets
+> Task :paxsenixlyrics:extractDebugSupportedLocales FROM-CACHE
+> Task :innertube:generateDebugAssets UP-TO-DATE
+> Task :shazamkit:parseDebugLocalResources
+> Task :artistvideo:packageDebugResources
+> Task :innertube:mergeDebugAssets
+> Task :jiosaavn:generateDebugAssets UP-TO-DATE
+> Task :artistvideo:parseDebugLocalResources FROM-CACHE
+> Task :app:generateUniversalFossDebugResources
+> Task :jiosaavn:mergeDebugAssets
+> Task :kugou:generateDebugAssets UP-TO-DATE
+> Task :paxsenixlyrics:generateDebugRFile
+> Task :lrclib:generateDebugAssets UP-TO-DATE
+> Task :kugou:parseDebugLocalResources
+> Task :paxsenixlyrics:generateDebugAssets UP-TO-DATE
+> Task :unison:parseDebugLocalResources
+> Task :paxsenixlyrics:mergeDebugAssets
+> Task :shazamkit:generateDebugAssets UP-TO-DATE
+> Task :youlyplus:javaPreCompileDebug
+> Task :simpmusic:generateDebugAssets UP-TO-DATE
+> Task :lrclib:parseDebugLocalResources
+> Task :simpmusic:mergeDebugAssets
+> Task :simpmusic:parseDebugLocalResources
+> Task :youlyplus:generateDebugAssets UP-TO-DATE
+> Task :unison:generateDebugAssets UP-TO-DATE
+> Task :shazamkit:mergeDebugAssets
+> Task :lrclib:mergeDebugAssets
+> Task :kugou:mergeDebugAssets
+> Task :betterlyrics:parseDebugLocalResources
+> Task :artistvideo:generateDebugRFile
+> Task :innertube:parseDebugLocalResources
+> Task :unison:mergeDebugAssets
+> Task :youlyplus:parseDebugLocalResources
+> Task :shazamkit:generateDebugRFile
+> Task :youlyplus:mergeDebugAssets
+> Task :unison:generateDebugRFile
+> Task :jiosaavn:parseDebugLocalResources
+> Task :simpmusic:generateDebugRFile
+> Task :simpmusic:writeDebugAarMetadata
+> Task :jiosaavn:writeDebugAarMetadata
+> Task :paxsenixlyrics:writeDebugAarMetadata
+> Task :lrclib:generateDebugRFile
+> Task :shazamkit:writeDebugAarMetadata
+> Task :artistvideo:writeDebugAarMetadata
+> Task :betterlyrics:generateDebugRFile
+> Task :kugou:generateDebugRFile
+> Task :youlyplus:generateDebugRFile
+> Task :innertube:writeDebugAarMetadata
+> Task :kugou:writeDebugAarMetadata
+> Task :jiosaavn:extractDeepLinksDebug
+> Task :innertube:extractDeepLinksDebug FROM-CACHE
+> Task :paxsenixlyrics:extractDeepLinksDebug
+> Task :jiosaavn:generateDebugRFile
+> Task :innertube:generateDebugRFile
+> Task :youlyplus:writeDebugAarMetadata
+> Task :betterlyrics:writeDebugAarMetadata
+> Task :paxsenixlyrics:processDebugManifest
+> Task :innertube:processDebugManifest
+> Task :paxsenixlyrics:mergeDebugJniLibFolders
+> Task :paxsenixlyrics:mergeDebugNativeLibs NO-SOURCE
+> Task :paxsenixlyrics:copyDebugJniLibsProjectOnly
+> Task :paxsenixlyrics:compileDebugLibraryResources
+> Task :migration:generateDebugRFile
+> Task :migration:extractDebugSupportedLocales FROM-CACHE
+> Task :migration:generateDebugAssets UP-TO-DATE
+> Task :betterlyrics:extractDeepLinksDebug FROM-CACHE
+> Task :migration:javaPreCompileDebug
+> Task :migration:mergeDebugAssets
+> Task :jiosaavn:processDebugManifest
+> Task :migration:extractDeepLinksDebug FROM-CACHE
+> Task :migration:writeDebugAarMetadata
+> Task :simpmusic:extractDeepLinksDebug FROM-CACHE
+> Task :simpmusic:processDebugManifest
+> Task :canvas:processResources NO-SOURCE
+> Task :unison:writeDebugAarMetadata
+> Task :kugou:extractDeepLinksDebug FROM-CACHE
+> Task :migration:processDebugManifest
+> Task :unison:extractDeepLinksDebug FROM-CACHE
+> Task :kugou:processDebugManifest
+> Task :youlyplus:extractDeepLinksDebug FROM-CACHE
+
+> Task :youlyplus:processDebugManifest
+package="com.music.youlyplus" found in source AndroidManifest.xml: C:\Users\AURA\Desktop\PROYECTOS DE PROGRAMACION\AURA BETADO\Aura-Hi-Res-Player-0.6.231\Aura-Hi-Res-Player-0.6.231\youlyplus\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.music.youlyplus" from the source AndroidManifest.xml: C:\Users\AURA\Desktop\PROYECTOS DE PROGRAMACION\AURA BETADO\Aura-Hi-Res-Player-0.6.231\Aura-Hi-Res-Player-0.6.231\youlyplus\src\main\AndroidManifest.xml.
+
+> Task :betterlyrics:processDebugManifest
+> Task :jiosaavn:compileDebugLibraryResources FROM-CACHE
+> Task :kugou:compileDebugLibraryResources FROM-CACHE
+> Task :migration:compileDebugLibraryResources FROM-CACHE
+> Task :betterlyrics:compileDebugLibraryResources FROM-CACHE
+> Task :simpmusic:compileDebugLibraryResources FROM-CACHE
+> Task :youlyplus:compileDebugLibraryResources FROM-CACHE
+> Task :betterlyrics:mergeDebugJniLibFolders
+> Task :betterlyrics:mergeDebugNativeLibs NO-SOURCE
+> Task :unison:compileDebugLibraryResources FROM-CACHE
+> Task :innertube:compileDebugLibraryResources FROM-CACHE
+> Task :innertube:mergeDebugJniLibFolders
+> Task :innertube:mergeDebugNativeLibs NO-SOURCE
+> Task :innertube:copyDebugJniLibsProjectOnly
+> Task :betterlyrics:copyDebugJniLibsProjectOnly
+
+> Task :unison:processDebugManifest
+package="com.music.unison" found in source AndroidManifest.xml: C:\Users\AURA\Desktop\PROYECTOS DE PROGRAMACION\AURA BETADO\Aura-Hi-Res-Player-0.6.231\Aura-Hi-Res-Player-0.6.231\unison\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.music.unison" from the source AndroidManifest.xml: C:\Users\AURA\Desktop\PROYECTOS DE PROGRAMACION\AURA BETADO\Aura-Hi-Res-Player-0.6.231\Aura-Hi-Res-Player-0.6.231\unison\src\main\AndroidManifest.xml.
+
+> Task :jiosaavn:mergeDebugJniLibFolders
+> Task :jiosaavn:mergeDebugNativeLibs NO-SOURCE
+> Task :migration:mergeDebugJniLibFolders
+> Task :kugou:mergeDebugJniLibFolders
+> Task :migration:mergeDebugNativeLibs NO-SOURCE
+> Task :kugou:mergeDebugNativeLibs NO-SOURCE
+> Task :jiosaavn:copyDebugJniLibsProjectOnly
+> Task :migration:copyDebugJniLibsProjectOnly
+> Task :kugou:copyDebugJniLibsProjectOnly
+> Task :simpmusic:mergeDebugJniLibFolders
+> Task :simpmusic:mergeDebugNativeLibs NO-SOURCE
+> Task :youlyplus:mergeDebugJniLibFolders
+> Task :unison:mergeDebugJniLibFolders
+> Task :simpmusic:copyDebugJniLibsProjectOnly
+> Task :youlyplus:mergeDebugNativeLibs NO-SOURCE
+> Task :unison:mergeDebugNativeLibs NO-SOURCE
+> Task :youlyplus:copyDebugJniLibsProjectOnly
+> Task :unison:copyDebugJniLibsProjectOnly
+> Task :lrclib:writeDebugAarMetadata
+> Task :shazamkit:extractDeepLinksDebug FROM-CACHE
+> Task :lrclib:extractDeepLinksDebug FROM-CACHE
+> Task :lrclib:compileDebugLibraryResources FROM-CACHE
+> Task :shazamkit:compileDebugLibraryResources FROM-CACHE
+> Task :lrclib:mergeDebugJniLibFolders
+> Task :lrclib:mergeDebugNativeLibs NO-SOURCE
+> Task :lrclib:processDebugManifest
+> Task :lrclib:copyDebugJniLibsProjectOnly
+> Task :shazamkit:mergeDebugJniLibFolders
+> Task :shazamkit:processDebugManifest
+> Task :shazamkit:mergeDebugNativeLibs NO-SOURCE
+> Task :shazamkit:copyDebugJniLibsProjectOnly
+> Task :artistvideo:extractDeepLinksDebug FROM-CACHE
+> Task :artistvideo:compileDebugLibraryResources FROM-CACHE
+> Task :artistvideo:processDebugManifest
+> Task :artistvideo:mergeDebugJniLibFolders
+> Task :artistvideo:mergeDebugNativeLibs NO-SOURCE
+> Task :artistvideo:copyDebugJniLibsProjectOnly
+> Task :app:processUniversalFossDebugNavigationResources
+> Task :app:generateUniversalFossDebugLocaleConfig
+> Task :app:javaPreCompileUniversalFossDebug
+> Task :canvas:compileKotlin
+> Task :migration:kspDebugKotlin
+> Task :simpmusic:compileDebugKotlin
+> Task :simpmusic:compileDebugJavaWithJavac NO-SOURCE
+> Task :youlyplus:compileDebugKotlin
+> Task :youlyplus:compileDebugJavaWithJavac NO-SOURCE
+> Task :kugou:compileDebugKotlin
+> Task :kugou:compileDebugJavaWithJavac NO-SOURCE
+
+> Task :betterlyrics:compileDebugKotlin
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/betterlyrics/src/main/kotlin/com/music/echo/betterlyrics/BetterLyrics.kt:122:86 Unnecessary safe call on a non-null receiver of type 'HttpResponse'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/betterlyrics/src/main/kotlin/com/music/echo/betterlyrics/BetterLyrics.kt:122:116 Unnecessary safe call on a non-null receiver of type 'String'.
+
+> Task :simpmusic:processDebugJavaRes
+> Task :unison:compileDebugKotlin
+> Task :artistvideo:compileDebugKotlin
+> Task :shazamkit:compileDebugKotlin
+> Task :lrclib:compileDebugKotlin
+> Task :youlyplus:processDebugJavaRes
+> Task :kugou:bundleLibRuntimeToJarDebug
+> Task :simpmusic:bundleLibCompileToJarDebug
+> Task :youlyplus:bundleLibCompileToJarDebug
+> Task :simpmusic:bundleLibRuntimeToJarDebug
+> Task :youlyplus:bundleLibRuntimeToJarDebug
+> Task :betterlyrics:compileDebugJavaWithJavac NO-SOURCE
+> Task :simpmusic:createFullJarDebug
+> Task :betterlyrics:bundleLibRuntimeToJarDebug
+> Task :youlyplus:createFullJarDebug
+> Task :simpmusic:bundleLibRuntimeToDirDebug
+> Task :jiosaavn:compileDebugKotlin
+> Task :betterlyrics:processDebugJavaRes
+> Task :betterlyrics:createFullJarDebug
+> Task :kugou:processDebugJavaRes
+> Task :betterlyrics:bundleLibCompileToJarDebug
+> Task :kugou:createFullJarDebug
+> Task :kugou:bundleLibCompileToJarDebug
+> Task :innertube:compileDebugKotlin
+> Task :betterlyrics:bundleLibRuntimeToDirDebug
+> Task :youlyplus:bundleLibRuntimeToDirDebug
+> Task :kugou:bundleLibRuntimeToDirDebug
+> Task :artistvideo:compileDebugJavaWithJavac NO-SOURCE
+> Task :artistvideo:bundleLibRuntimeToJarDebug
+> Task :unison:compileDebugJavaWithJavac NO-SOURCE
+> Task :unison:bundleLibRuntimeToJarDebug
+> Task :artistvideo:processDebugJavaRes
+> Task :shazamkit:compileDebugJavaWithJavac NO-SOURCE
+> Task :unison:processDebugJavaRes
+> Task :artistvideo:createFullJarDebug
+> Task :unison:createFullJarDebug
+> Task :shazamkit:bundleLibRuntimeToJarDebug
+> Task :shazamkit:processDebugJavaRes
+> Task :artistvideo:bundleLibCompileToJarDebug
+> Task :unison:bundleLibCompileToJarDebug
+> Task :shazamkit:createFullJarDebug
+> Task :artistvideo:bundleLibRuntimeToDirDebug
+> Task :shazamkit:bundleLibCompileToJarDebug
+
+> Task :canvas:compileKotlin
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/canvas/src/main/kotlin/com/music/echo/canvas/TidalCanvasProvider.kt:173:72 Unnecessary safe call on a non-null receiver of type 'JsonObject'.
+
+> Task :jiosaavn:compileDebugJavaWithJavac NO-SOURCE
+> Task :jiosaavn:bundleLibRuntimeToJarDebug
+> Task :jiosaavn:processDebugJavaRes
+> Task :jiosaavn:createFullJarDebug
+> Task :jiosaavn:bundleLibCompileToJarDebug
+> Task :app:packageUniversalFossDebugResources
+> Task :lrclib:compileDebugJavaWithJavac NO-SOURCE
+> Task :canvas:compileJava NO-SOURCE
+> Task :canvas:classes UP-TO-DATE
+> Task :lrclib:bundleLibRuntimeToJarDebug
+> Task :unison:bundleLibRuntimeToDirDebug
+> Task :lrclib:processDebugJavaRes
+> Task :app:generateUniversalFossDebugAssets UP-TO-DATE
+> Task :lrclib:createFullJarDebug
+> Task :lrclib:bundleLibCompileToJarDebug
+> Task :shazamkit:bundleLibRuntimeToDirDebug
+> Task :lrclib:bundleLibRuntimeToDirDebug
+> Task :canvas:jar
+> Task :app:mergeUniversalFossDebugAssets
+> Task :app:compressUniversalFossDebugAssets
+> Task :app:parseUniversalFossDebugLocalResources
+> Task :app:generateUniversalFossDebugRFile
+> Task :applecanvas:compileKotlin
+> Task :applecanvas:compileJava NO-SOURCE
+> Task :applecanvas:classes UP-TO-DATE
+> Task :applecanvas:jar
+
+> Task :migration:compileDebugKotlin
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:199:68 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:270:73 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:288:74 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:308:37 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:318:74 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:338:71 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:364:75 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+
+> Task :paxsenixlyrics:compileDebugKotlin
+> Task :paxsenixlyrics:compileDebugJavaWithJavac NO-SOURCE
+> Task :paxsenixlyrics:processDebugJavaRes
+> Task :paxsenixlyrics:bundleLibCompileToJarDebug
+> Task :migration:compileDebugJavaWithJavac NO-SOURCE
+> Task :migration:processDebugJavaRes
+> Task :paxsenixlyrics:bundleLibRuntimeToJarDebug
+> Task :app:l8DexDesugarLibUniversalFossDebug
+> Task :migration:bundleLibCompileToJarDebug FAILED
+> Task :paxsenixlyrics:createFullJarDebug
+> Task :jiosaavn:bundleLibRuntimeToDirDebug
+> Task :migration:bundleLibRuntimeToJarDebug
+> Task :paxsenixlyrics:bundleLibRuntimeToDirDebug
+> Task :echomusiccanvas:compileKotlin
+> Task :app:checkUniversalFossDebugDuplicateClasses
+
+> Task :innertube:compileDebugKotlin
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/YouTube.kt:143:91 Unnecessary safe call on a non-null receiver of type 'SearchSuggestionsSectionRenderer'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/YouTube.kt:273:32 Unnecessary safe call on a non-null receiver of type 'Tabs.Tab.TabRenderer'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/YouTube.kt:290:32 Unnecessary safe call on a non-null receiver of type 'Tabs.Tab.TabRenderer'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/pages/NewPipe.kt:128:28 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/pages/RelatedPage.kt:127:58 Unnecessary safe call on a non-null receiver of type 'Runs'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':migration:bundleLibCompileToJarDebug'.
+> Unable to delete file 'C:\Users\AURA\Desktop\PROYECTOS DE PROGRAMACION\AURA BETADO\Aura-Hi-Res-Player-0.6.231\Aura-Hi-Res-Player-0.6.231\migration\build\intermediates\compile_library_classes_jar\debug\bundleLibCompileToJarDebug\classes.jar'
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1m 49s
+258 actionable tasks: 210 executed, 48 from cache

@@ -25,6 +25,14 @@ tasks.register<Delete>("clean") {
 }
 
 subprojects {
+    configurations.all {
+        resolutionStrategy {
+            // SimpMusic forces this exact nanojson commit in its root build for the same reason:
+            // PipePipeExtractor ships an older nanojson without JsonArray.streamAsJsonObjects(), and
+            // without the force the BravePipe fallback crashes at runtime with NoSuchMethodError.
+            force("com.github.TeamNewPipe:nanojson:c7a6c1c08d16b6d5ecded34758e6415e07be2166")
+        }
+    }
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions {
             if (project.findProperty("enableComposeCompilerReports") == "true") {
