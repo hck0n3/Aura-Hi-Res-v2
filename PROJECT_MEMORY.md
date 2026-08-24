@@ -5,6 +5,16 @@
 
 ## 📍 Estado Actual
 
+- **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
+  Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
+  (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0
+  (`63beeb2`, verde en foss Y gms) → youtubedl-android 0.18.1 solo-catálogo (`6cbd321`).
+  Hallazgos clave: (1) Hilt 2.59.2 NO sirve con Kotlin 2.4 — su `kotlin-metadata-jvm` topea en
+  metadata 2.3.0; Dagger 2.60.1 lo desempaqueta/actualiza y arregla el fallo. (2) Las entradas
+  `youtubedl-android-*` del catálogo no las usa ningún módulo (remanente del fork), bump sin efecto
+  runtime. Intocados según auditoría: material-icons-extended 1.7.8, materialKolor, media3, room,
+  Material3 alpha, Superpowered, `license/`. Diferidos (rojo): ffmpeg-kit EOL, rework de Haze.
+  Pendiente: prueba beta del dueño con el APK debug universalFoss (estabilidad extendida + descargas no aplican).
 - **2026-08-23 (madrugada): 🔴 MURO ANTI-BOT ROMPIÓ LA REPRODUCCIÓN → ✅ FALLBACK BRAVEPIPE INTEGRADO Y VERIFICADO EN CELULAR.**
   Tras el login del dueño, la extracción PipePipe cayó: con cookie → `ExtractionException: android_vr
   player response is not valid`; anónima → `AntiBotException: Sign in to confirm you're not a bot`; y el
