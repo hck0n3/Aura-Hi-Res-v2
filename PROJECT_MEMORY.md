@@ -27,8 +27,8 @@
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
-  6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura) y 12 (concurrencia) ya
-  COMPLETADAS el 2026-08-24; sigue FASE 11 (calidad de código — primera fase de trabajo NUEVO).
+  6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura), 11 (calidad de código) y
+  12 (concurrencia) ya COMPLETADAS el 2026-08-24; sigue FASE 13 (rendimiento).
   La publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
   explícito).
 - **2026-08-24 (tarde, 9): ✅ SÚPER AUDITORÍA — FASE 12 (CONCURRENCIA Y CICLO DE VIDA)
@@ -43,6 +43,17 @@
   (candidato a limpieza en FASE 22). Ver sección RESULTADOS DE LA FASE 12 en `SUPER AUDITORIA
   DE MI CODIGO ANDROID.md`. Siguen abiertos 13 hallazgos
   (008/010/011/012/013/014/015/016/017/018/019/020/021).
+- **2026-08-24 (tarde, 10): ✅ SÚPER AUDITORÍA — FASE 11 (CALIDAD DE CÓDIGO) COMPLETADA.**
+  Primera fase de trabajo NUEVO; solo medición, sin cambios de código. Veredicto: CALIDAD
+  SÓLIDA, SIN hallazgos nuevos. Números: 141 `!!` en Kotlin de app/src/main (moderado;
+  patrones idiomáticos: 12 nav-args de savedStateHandle, getSystemService; playback/ solo 3);
+  39 catches ignorados/vacíos TODOS legítimos (ActivityNotFound/SecurityException, teardown
+  best-effort, parsing JSON defensivo de Spotify, degradación documentada en MainActivity);
+  19 printStackTrace (Utils.kt es el helper de reporte del proyecto; varios en eq/ zona
+  protegida); CERO TODO/FIXME/HACK reales; 1 solo UNCHECKED_CAST (MessageCodec.kt:440). La
+  deuda estructural ya está registrada como HALLAZGO-021 (no se duplica). Ver sección
+  RESULTADOS DE LA FASE 11 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 13
+  (rendimiento).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,

@@ -103,7 +103,7 @@ memoria_maestra:
     fase_8_ipc_componentes: COMPLETADA    # 2026-08-24: cierre formal; 10 exportados legítimos, PendingIntents inmutables (004 LIMPIO), broadcasts explícitos/sistema; siguen 014/015
     fase_9_webview: COMPLETADA            # inventario completo; HALLAZGO-006 riesgo aceptado
     fase_10_arquitectura: COMPLETADA      # 2026-08-24: cierre formal; HALLAZGO-001 corregido+probado en dispositivo; HALLAZGO-021 (deuda MusicService 11k líneas)
-    fase_11_calidad_codigo: NO_INICIADA
+    fase_11_calidad_codigo: COMPLETADA      # 2026-08-24: calidad sólida; !! moderado e idiomático, catches legítimos, cero TODO/FIXME; sin hallazgos nuevos (deuda ya en 021)
     fase_12_concurrencia: COMPLETADA      # 2026-08-24: cierre formal; HALLAZGO-002 ya corregido (f7022e2); cero GlobalScope/hilos crudos; sin hallazgos nuevos
     fase_13_rendimiento: NO_INICIADA
     fase_14_ui_ux_tecnica: NO_INICIADA
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_11_CALIDAD_CODIGO (FASE_12 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021)
+  proxima_accion: FASE_13_RENDIMIENTO (FASE_11 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021)
 ```
 
 ---
@@ -1358,6 +1358,32 @@ Detectar code smells, malas prácticas y deuda técnica.
 - Nombres ambiguos.
 - Complejidad excesiva.
 
+## RESULTADOS DE LA FASE 11 (ejecutada 2026-08-24)
+
+**Metodología:** medición directa con grep + muestreo de casos en primera persona (patrón de los cierres de FASE 8/10/12). Fase de trabajo nuevo; sin cambios de código — solo medición y veredicto.
+
+**R1 — Uso de `!!`:** 141 apariciones en Kotlin de `app/src/main` para un codebase de este tamaño = nivel moderado. Patrones dominantes, todos idiomáticos:
+- 12 en `savedStateHandle.get<String>("…")!!` (ViewModels de navegación): argumentos garantizados por el grafo de navegación; ausencia = error de programación, crash correcto.
+- Getters de servicios del sistema (`getSystemService<ConnectivityManager>()!!` en `DownloadUtil.kt:94`, `MusicService.kt:2087`): el sistema siempre los provee.
+- Sin concentración peligrosa en hotspots: `playback/` completo tiene solo 3 (dos de sistema y un `queue.preloadItem!!` con item garantizado por el flujo de preload).
+
+**R2 — Excepciones silenciadas:** 39 `catch` con excepción ignorada (`_`) o vacíos, clasificados por categoría. Todos corresponden a patrones legítimos:
+- `ActivityNotFoundException` (intents sin handler disponible) y `SecurityException` (permiso ausente): idioms de Android.
+- Teardown best-effort (`dataSource.close()`, `muxer.stop()`, `extractor.release()`, cancelación de notificación).
+- Parsing defensivo de APIs externas: los helpers JSON de `Spotify.kt:145-174` devuelven `null` a propósito ante respuesta malformada.
+- Degradación documentada: `MainActivity.kt:2536-2560` intenta dos estrategias de `setDataSource` y cae a metadatos parciales/nombre de archivo — el flujo está escrito para fallar suave.
+- 19 `printStackTrace()`: `utils/Utils.kt:67-70` es el helper de reporte de errores del proyecto (el comentario documenta que además escribe al log que el usuario puede enviar); varios más están en `eq/` (zona protegida, solo lectura).
+
+**R3 — Deuda marcada:** CERO `TODO(`/`FIXME`/`HACK` reales en `app/src/main` (las 5 coincidencias son placeholders de clave de licencia `XXXXXXXX` y la palabra "hack" en un comentario).
+
+**R4 — Casts inseguros:** una sola supresión `UNCHECKED_CAST` en todo `app/src/main` (`MessageCodec.kt:440`, codec de protocolo propio, acotado).
+
+**R5 — Clases/métodos gigantes:** se remite a la FASE 10 — ya medido y registrado como HALLAZGO-021 (`MusicService.kt` 10 953 líneas y demás); potenciación en FASE 22 con tests primero. No se duplica el hallazgo.
+
+**R6 — Código muerto:** el único caso conocido sigue siendo `DatabaseDao.incrementPlayCount(songId)` (registrado en RESULTADOS de FASE 12; limpieza FASE 22). Nada nuevo encontrado en esta fase.
+
+**Veredicto:** CALIDAD DE CÓDIGO SÓLIDA. Sin hallazgos nuevos — la única deuda estructural ya está registrada (HALLAZGO-021). FASE 11 COMPLETADA.
+
 ## Reparación segura
 
 | Problema | Reparación |
@@ -2091,6 +2117,7 @@ cambio:
 | 2026-08-24 | FASE 8 | Cierre formal de componentes/IPC: re-verificación directa de los 10 componentes exportados del manifiesto, PendingIntents, broadcasts, URI grants y visibilidad de notificaciones (trabajo previo de FASE 3/4 consolidado) | COMPLETADA — superficie IPC sana: lo exportado es el mínimo exigido por Android (launcher, MediaSession, widgets, tile protegido por permiso de sistema), PendingIntents inmutables (HALLAZGO-004 LIMPIO), sendBroadcast solo protocolo AudioEffect de sistema + explícito de widget, URI grants solo en flujos de compartir del usuario, notificaciones públicas sin datos sensibles; SIN hallazgos nuevos; siguen abiertos 014 (deep-link crash) y 015 (provider_paths) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 8) | FASE_10_ARQUITECTURA |
 | 2026-08-24 | FASE 10 | Cierre formal de arquitectura: evaluación de modularización (16 módulos), DI (Hilt), estado/navegación, manejo de errores y medición directa del tamaño de archivos; HALLAZGO-001 ya corregido y probado en dispositivo | COMPLETADA — módulos acíclicos, DI sana, errores con degradación elegante; única deuda: archivos gigantes (`MusicService.kt` 10 953 líneas = god object y hotspot #1 de regresiones) → nuevo abierto HALLAZGO-021 (BAJA mantenibilidad, candidato potenciación FASE 22, nada de refactor en caliente) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 10) | FASE_12_CONCURRENCIA |
 | 2026-08-24 | FASE 12 | Cierre formal de concurrencia y ciclo de vida: spot-checks en primera persona (GlobalScope, hilos crudos, 117 usos de `runBlocking` auditados por contexto, WorkManager); HALLAZGO-002 ya estaba corregido (commit f7022e2) y validado en dispositivo (BETA-001 VERDE) | COMPLETADA — concurrencia sana: cero `GlobalScope`, cero hilos crudos en `app/src/main`, todo `runBlocking` de producción fuera de Main o deliberado y documentado (loader de media3, checkpoints IO, mirror one-shot, commit síncrono `onGetSong`, mutex en `createPlaylist`), workers todos `CoroutineWorker`; SIN hallazgos nuevos; nota: código muerto `incrementPlayCount(songId)` (limpieza FASE 22) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 12) | FASE_11_CALIDAD_CODIGO |
+| 2026-08-24 | FASE 11 | Calidad de código (trabajo nuevo): medición directa de `!!` (141 en Kotlin de app/src/main, muestreados por patrón), 39 catches ignorados clasificados por categoría, 19 `printStackTrace`, TODO/FIXME/HACK, casts inseguros y código muerto; sin cambios de código | COMPLETADA — calidad sólida: `!!` idiomáticos (nav-args de savedStateHandle, getSystemService) sin concentración en hotspots, catches todos patrones legítimos (ActivityNotFound/SecurityException, teardown best-effort, parsing defensivo, degradación documentada), CERO deuda marcada, 1 solo UNCHECKED_CAST; SIN hallazgos nuevos (la deuda estructural ya es HALLAZGO-021) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 11) | FASE_13_RENDIMIENTO |
 
 ---
 
@@ -2196,8 +2223,8 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_12_COMPLETADA
-  proxima_accion: FASE_11_CALIDAD_CODIGO
+  fase_actual: FASE_11_COMPLETADA
+  proxima_accion: FASE_13_RENDIMIENTO
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
