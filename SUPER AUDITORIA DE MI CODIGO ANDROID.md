@@ -125,15 +125,15 @@ memoria_maestra:
 
   calidad:
     compila: true    # assembleUniversalFossDebug verde: 0.6.232 (versionCode 952)
+    prueba_beta: BETA-001_VERDE   # 2026-08-24, dueño, remoto; fixes #154/#155 confirmados
     lint_ok: false
     unit_tests_ok: false
     android_tests_ok: false
     coverage_registrado: false
 
   decisiones_criticas: []
-  bloqueos_activos:
-    - CELULAR_DESCONECTADO (dueño en el trabajo; pruebas remotas vía carpeta de nube)
-  proxima_accion: ESPERAR_PRUEBA_REMOTA_DE_BETA_001; al retomar, continuar con FASE_1_INVENTARIO
+  bloqueos_activos: []
+  proxima_accion: CONTINUAR_FASE_1_INVENTARIO
 ```
 
 ---
@@ -1526,6 +1526,7 @@ cambio:
 | 2026-08-23 | FASE 3/4/8/9 | Auditoría de seguridad rápida: logs de cookies, PendingIntents, manifiesto, WebViews, secretos | 0 hallazgos accionables nuevos; 2 riesgos aceptados documentados | HALLAZGO-003…007 | Build beta |
 | 2026-08-23 | FASE 15 | Build beta `assembleUniversalFossDebug` (v0.6.232, versionCode 952) | BUILD SUCCESSFUL; APK contiene ambos fixes (verificado UP-TO-DATE) | build-beta-fenix.txt, build-follow-lyrics.txt | Entregar APK al dueño |
 | 2026-08-24 | FASE 15 | Entrega de la beta para prueba REMOTA (celular desconectado, dueño en el trabajo): APK copiado como `BETA-001_Aura_v0.6.232_vc952.apk` + `BETA-001_LEEME.txt` a `C:\Users\AURA\Desktop\BETA OFICIAL  DE AURA FENIX` (carpeta sincronizada en la nube) | Entregada; convención permanente BETA-NNN | output-metadata.json (952 / 0.6.232) | Esperar reporte de prueba del dueño; al retomar, FASE_1_INVENTARIO |
+| 2026-08-24 | FASE 16 | Prueba de BETA-001 por el dueño (remota, vía carpeta de nube): VERDE — fix A (reproducir/like ya NO auto-suscribe artistas) y fix B (la letra cambia con el crossfade) CONFIRMADOS; reproducción, toggle música↔video y ecualizador bien | APROBADA — fixes #154/#155 validados en dispositivo | reporte del dueño en el chat | Continuar FASE_1_INVENTARIO |
 
 ---
 
@@ -1631,10 +1632,10 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_15
-  proxima_accion: ESPERAR_PRUEBA_REMOTA_DE_BETA_001; al retomar, continuar con FASE_1_INVENTARIO
-  bloqueos:
-    - CELULAR_DESCONECTADO (dueño en el trabajo; pruebas remotas vía carpeta de nube BETA OFICIAL DE AURA FENIX)
+  fase_actual: FASE_1
+  proxima_accion: FASE_1_INVENTARIO_EN_CURSO
+  bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
+  beta: BETA-001_VERDE (2026-08-24, prueba remota del dueño)
 ```

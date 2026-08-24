@@ -7,7 +7,7 @@
 
 - **2026-08-24 (continuación): ✅ ARREGLADO EL BUG DE SUSCRIPCIONES AUTOMÁTICAS DE ARTISTAS
   (commit `88cf0e1`, registro #154) + PIN DE LETRAS EN CROSSFADE (commit `f7022e2`, registro #155).
-  APK 0.6.232 (952) LISTO; PENDIENTE instalar y probar en el celular.**
+  BETA-001 ENTREGADA Y ✅ PROBADA CON ÉXITO POR EL DUEÑO EN REMOTO (2026-08-24): todo funciona.**
   Causa raíz CONFIRMADA del reporte beta (al reproducir o dar me gusta, el artista quedaba
   suscrito solo): `DatabaseDao.followArtistsWithContent()` — sentencia bulk que cada pase de
   sync estampa `bookmarkedAt` en TODO artista con contenido en la librería — y TODAS las vistas
@@ -22,13 +22,12 @@
   cae bajo el umbral audible o su SilenceDetector reporta silencio.
   Nota de build: las fuentes ya estaban en disco antes del build de las 11:01 (mtimes 10:31–10:49);
   el APK de las 11:01 YA contenía ambos fixes — verificado con gradle UP-TO-DATE (BUILD SUCCESSFUL
-  en `build-follow-lyrics.txt`). **SIGUIENTE PASO (actualizado 2026-08-24): el dueño está en el
-  trabajo, sin celular por USB; la prueba es REMOTA: APK entregado como
-  `BETA-001_Aura_v0.6.232_vc952.apk` + `BETA-001_LEEME.txt` en
-  `C:\Users\AURA\Desktop\BETA OFICIAL  DE AURA FENIX` (carpeta sincronizada en la nube).
-  Probar: (a) reproducir/like NO auto-suscribe artistas, (b) la letra cambia a la canción nueva en
-  el crossfade. CONVENCIÓN PERMANENTE: cada beta nueva se numera BETA-NNN, se copia a esa carpeta
-  y se avisa en el chat cuando esté lista para probar.**
+  en `build-follow-lyrics.txt`). **VEREDICTO DE PRUEBA (2026-08-24, dueño, remoto vía carpeta de
+  nube): BETA-001 VERDE — TODO FUNCIONA: (a) reproducir/like YA NO auto-suscribe artistas,
+  (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
+  bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
+  auditoría (FASE 1 inventario en adelante). La publicación estable de estos fixes queda a
+  decisión del dueño (publicar exige su permiso explícito).
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0
@@ -290,10 +289,13 @@ cambios de hoy (el archivo creció ~115 líneas).
 - [x] NewPipe como fuente primaria de URLs + fallback de itags de audio.
 - [x] **Rebuild + instalar + verificar que reproduce DE VERDAD → ✅ CONFIRMADO (itag 18, 206, PLAYING).**
 - [x] Commits de los cambios (`807b2d8`, `4df5936`). NUNCA publicar tag/release sin permiso.
-- [ ] **Recuperar calidad alta**: la extracción solo devuelve itag 18 (bot-limit). Opciones:
-      portar PipePipeExtractor (fork de SimpMusic) y/o login con cuenta (SAPISIDHASH).
-- [ ] Verificar estabilidad (canciones completas, saltos, crossfade) con la vía itag 18.
-- [ ] Entregar beta + actualizar esta memoria.
+- [x] **Recuperar calidad alta (PARCIAL RESUELTO)**: PipePipeExtractor + BravePipeExtractor ya
+      integrados y funcionando (set adaptativo completo vía cliente ANDROID: itags 139/140/18/
+      137/248/136/247/...; audio 139/140 + video hasta 720p). Falta para Hi-Res/Premium: login
+      con cuenta (SAPISIDHASH / WEB_REMIX), diferido.
+- [x] Verificar estabilidad (canciones completas, saltos, crossfade): CONFIRMADO por el dueño en
+      la prueba remota de BETA-001 (2026-08-24).
+- [x] Entregar beta + actualizar esta memoria: BETA-001 entregada en la carpeta de nube y probada.
 
 ## 📜 Historial de Cambios (Log)
 
