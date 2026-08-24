@@ -28,6 +28,17 @@
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría (FASE 1 inventario en adelante). La publicación estable de estos fixes queda a
   decisión del dueño (publicar exige su permiso explícito).
+- **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
+  Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
+  16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,
+  workers/FGS/loops, almacenamiento y flujos críticos. Divergencia clave: la UI NUEVA
+  (`ui/newui/`, 43 archivos) no está cubierta por `docs/UI_INVENTORY.md`.
+  ⚠️ **HALLAZGO-008 (CRÍTICO para publicar, ABIERTO):** el build type `release` firma con el
+  keystore DEBUG (app/build.gradle.kts:391-401). Es un diagnóstico temporal del 2026-08-19:
+  todos los release firmados con el certificado real "JR MUSIC PRO" fallaban en la resolución
+  de streams y el build con keystore debug funcionaba; se aisló el certificado como variable.
+  Revertir a la keystore release es OBLIGATORIO antes de publicar (decisión del dueño; puede
+  reabrir el fallo de streams). Siguiente fase: FASE 2 dependencias.
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0

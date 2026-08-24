@@ -93,7 +93,7 @@ memoria_maestra:
 
   fases:
     fase_0_preparacion: EN_CURSO   # build verde y checkpoints; falta rama formal y base de tests
-    fase_1_inventario: NO_INICIADA
+    fase_1_inventario: COMPLETADA        # 2026-08-24, resultados R1–R9; HALLAZGO-008
     fase_2_dependencias: NO_INICIADA
     fase_3_seguridad_estatica: EN_CURSO   # pase rápido: secretos y logs (HALLAZGO-003/007); falta SQL/entradas
     fase_4_manifest_config: COMPLETADA    # HALLAZGO-005 (manifiesto completo leído, todo legítimo)
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: CONTINUAR_FASE_1_INVENTARIO
+  proxima_accion: FASE_2_DEPENDENCIAS (FASE_1 completada 2026-08-24; HALLAZGO-008 abierto)
 ```
 
 ---
@@ -320,6 +320,155 @@ inventario:
   webviews: []
   sdks_externos: []
 ```
+
+## RESULTADOS DE LA FASE 1 (2026-08-24)
+
+### R1. Módulos Gradle (16, según settings.gradle.kts)
+
+| Módulo | Rol |
+|---|---|
+| `:app` | App principal (Compose UI, reproducción, EQ Superpowered, licencia, widgets) |
+| `:innertube` | Cliente InnerTube/YouTube Music (metadatos y streaming) |
+| `:simpmusic` | Cliente SimpMusic (letras; capa de streaming port) |
+| `:migration` | Importación de playlists (Tidal/Deezer/Apple/archivo → YTM) |
+| `:canvas` | Providers de canvas (Monochrome API, fondo artista Apple Music, Tidal) |
+| `:applecanvas` | Provider de canvas Apple Music |
+| `:echomusiccanvas` | Provider de canvas propio (Echo Music) |
+| `:artistvideo` | Videos de artista como canvas |
+| `:kugou` / `:lrclib` / `:betterlyrics` / `:youlyplus` / `:paxsenixlyrics` / `:unison` | Proveedores de letras |
+| `:shazamkit` | Reconocimiento de música |
+| `:jiosaavn` | Cliente API JioSaavn |
+
+### R2. Componentes de manifiesto (todos en `app/src/main/AndroidManifest.xml`)
+
+| Tipo | Clase | Exportado | Filtros / permisos | Riesgo |
+|---|---|---|---|---|
+| activity | `.ui.screens.CrashActivity` | no | proceso `:crash` | bajo |
+| activity | `.MainActivity` | ⚠️ sí, sin permiso | MAIN; VIEW audio; app links (youtube.com, youtu.be, vnd.youtube, echomusic://, listen-together) | media — superficie IPC principal, auditar entradas en FASE 8 |
+| activity-alias | `.MainActivityAlias` | ⚠️ sí | MAIN + LAUNCHER + LEANBACK | bajo |
+| activity-alias | `.MainActivityStatic` | sí (enabled=false) | MAIN + LAUNCHER | bajo |
+| activity | `com.yalantis.ucrop.UCropActivity` | no | recorte de imagen | bajo |
+| activity | `.recognition.RecognitionLaunchActivity` | no | trampolín tile | bajo |
+| service | `.playback.MusicService` | ⚠️ sí, sin permiso | MediaLibraryService/MediaBrowser (FGS mediaPlayback) | media — patrón estándar media3 (Android Auto), auditar comandos en FASE 8 |
+| service | `.playback.ExoDownloadService` | no | FGS dataSync | bajo |
+| service | `.playback.AudioExportService` | no | FGS dataSync | bajo |
+| service | `.widget.MusicRecognizerWidgetService` | no | FGS microphone | bajo |
+| service | `.recognition.RecognitionForegroundService` | no | FGS microphone | bajo |
+| service | `.widget.RecognitionTileService` | sí, con permiso | BIND_QUICK_SETTINGS_TILE | bajo |
+| service | WorkManager `SystemForegroundService` | merge | FGS dataSync | infraestructura |
+| receiver | MediaButtonReceiver | ⚠️ sí, sin permiso | MEDIA_BUTTON | bajo — patrón obligatorio media3 |
+| receiver | 4× widget receivers (Music/Turntable/Playlist/Recognizer) | ⚠️ sí, sin permiso | APPWIDGET_UPDATE + acciones propias | bajo — patrón obligatorio de widgets; las acciones custom se validan en FASE 8 |
+| receiver | `.listentogether.ListenTogetherActionReceiver` | no | acciones de notificación | bajo |
+| provider | FileProvider | no, con grants URI | authority `${applicationId}.FileProvider` | auditar paths en FASE 5 |
+| provider | `com.dpi.DensityScaler` | no | density | bajo |
+
+Permisos solicitados: INTERNET, POST_NOTIFICATIONS, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE, RECEIVE_BOOT_COMPLETED, WAKE_LOCK, FOREGROUND_SERVICE (+MEDIA_PLAYBACK/DATA_SYNC/MICROPHONE), REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, RECORD_AUDIO, READ_MEDIA_AUDIO, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE (maxSdk 28), WRITE_SETTINGS, BLUETOOTH_CONNECT, BLUETOOTH/BLUETOOTH_ADMIN (maxSdk 30), REQUEST_INSTALL_PACKAGES (solo gms; el flavor foss lo quita). Permisos declarados (`<permission>`): ninguno. A justificar en FASE 4/18: RECEIVE_BOOT_COMPLETED, WRITE_SETTINGS, BLUETOOTH_*.
+
+### R3. Flavors / build types
+
+| Elemento | Detalle | applicationId |
+|---|---|---|
+| flavor `foss` (default) | sin GMS/Cast | `iad1tya.aura.music` |
+| flavor `gms` | con Cast/Crashlytics | `iad1tya.aura.music` |
+| abi: universal/arm64/armeabi/x86/x86_64 | abiFilters por arquitectura | idem |
+| build type `release` | minify+shrink | ⚠️ firma con keystore DEBUG (ver HALLAZGO-008) |
+| build type `debug` | debuggable | `iad1tya.aura.music.debug` |
+| `-Pnosub=true` | sin puerta de suscripción | `iad1tya.aura.music.dev` |
+
+Nota: `namespace` sigue siendo `iad1tya.echo.music` (deliberado, herencia del fork). AGENTS.md sigue citando `iad1tya.echo.music.dev` para nosub: desactualizado (hoy es `iad1tya.aura.music.dev`).
+
+### R4. Pantallas / navegación (NavHost en `ui/screens/NavigationBuilder.kt`)
+
+| Ruta | Composable | Flujo crítico |
+|---|---|---|
+| `home` | HomeScreenHost (clásica/Aura según flag) | no |
+| `novedades` (NUEVA, solo UI nueva) | NovedadesScreenHost | no |
+| `search_input`, `search/{query}` | SearchScreenHost / SearchResultHost | no |
+| `library` | LibraryScreenHost | no |
+| `listen_together` (+`/chat`) | ListenTogetherScreen / CommentTogetherScreen | no |
+| `history` | HistoryScreen | no |
+| `local_songs` | LocalSongScreen | descargas |
+| `favorite_albums`, `release_radar`, `stats`, `mood_and_genres` | hosts varios | no |
+| `account` | AccountScreen | CUENTA |
+| `new_release` | NewReleaseScreen | MUERTA (sin navigate) |
+| `browse/{browseId}`, `album/{albumId}`, `artist/{artistId}` (+`/songs`, `/albums`, `/items`, `artist_section_buffer`) | hosts varios | no |
+| `online_playlist/{id}`, `local_playlist/{id}`, `auto_playlist/{p}`, `cache_playlist/{p}`, `top_playlist/{top}` | hosts de listas | descargas |
+| `youtube_browse/{id}` | YouTubeBrowseScreen | reproducción |
+| `settings` + ~25 sub-rutas (update, accounts, lastfm, qobuz, appearance(+theme/liquidglass), content(+romanization), uptime, ai, player, youtube_decryption, sound(+autoeq), performance, storage, equalizer, privacy, backup_restore, spotify_import, ytm_sync, integrations/listen_together, about, feedback, terms, logs, changelog, notices) | SettingsScreenHost y subpantallas | cuenta/backup/licencia según ruta |
+| `migration` (+`/tidal`, `/apple`) | MigrationScreenHost | CUENTA |
+| `update` | UpdateScreen | actualización |
+| `login` | LoginScreen | CUENTA |
+| `onboarding_artists/_genres/_spotify/_youtube` | onboarding | cuenta (spotify/youtube) |
+| `podcasts?feedUrl` | PodcastScreen | descargas |
+| `recognition`, `recognition_history` | RecognitionScreen | no |
+| `ambient_mode` | AmbientModeScreen | reproducción |
+
+Fuera del NavHost: `TermsGate` (legal/), `LicenseGate`+`LicenseScreens` (license/) = flujo LICENCIA; `BottomSheetPlayer`/`NowPlayingSidePanel`/cola/letras = flujo REPRODUCCIÓN.
+
+Divergencias contra `docs/UI_INVENTORY.md` (4 133 líneas, cubre la UI clásica): (1) la UI NUEVA completa (`ui/newui/`, 43 archivos: AuraShell con 4 pestañas, AuraPlayer, AuraQueue, AuraLyricsScreen, NewUiGate, OwnerNoticePopup...) NO está en el doc y hoy es capa de routing real vía hosts, gateada por `rememberNewUiEnabled()`; (2) rutas nuevas `novedades`, `settings/notices`; (3) renombrada `artist/section_buffer` → `artist_section_buffer`; (4) eliminadas por higiene `charts_screen`, `settings/account`, `settings/integrations`; (5) siguen muertas `new_release`, `listen_together_from_topbar`; (6) `LIQUID_GLASS_ROUTE` rebota solo con flag de UI nueva ON.
+
+### R5. Diálogos / hojas
+
+| Elemento | Archivo | Nota |
+|---|---|---|
+| `SettingDialoge` (cuenta/login/sync YTM) | ui/screens/SettingDialoge.kt | hoja principal de cuenta |
+| `WelcomeDialog`, `BackgroundReliabilityDialog` | ui/screens/ | arranque |
+| `BottomSheetMenu` / `BottomSheetPage` globales | ui/component/ | |
+| Reproductor: hoja + menús player/cola/canción/letras | ui/player/, ui/menu/ | coincide con doc §2–§8 |
+| Biblioteca/Álbum/Listas: CreatePlaylistDialog, AiPlaylistDialog, AddMusicSheet, AiModifyPlaylistDialog, ShuffleMemoryPrompt, LocalSongScanSheet | ui/screens/library/, ui/menu/ | doc §22.1 |
+| Ajustes: ~50 diálogos (Apariencia, Reproductor, Contenido, IA, Almacenamiento, Backup SAF ×8, Cuentas, Scrobbling, ListenTogether) | ui/screens/settings/ | doc §22.2 |
+| Puertas `TermsGate` / `LicenseGate` | legal/, license/ | fullscreen, fuera de NavHost |
+| `NewUiGate`, `OwnerNoticePopup` | ui/newui/ | NUEVOS, no están en el doc |
+
+### R6. Widgets / notificaciones
+
+Sin Glance: todos AppWidgetProvider + RemoteViews. Widgets: reproductor (3 layouts), tocadiscos (⚠️ botón «me gusta» descrito en doc pero no cableado), listas de reproducción, reconocer música (3 tamaños, FGS micrófono), tile QS de reconocimiento, atajos launcher (Buscar + Biblioteca).
+
+| Canal de notificación | Builder | Nota |
+|---|---|---|
+| `music_channel_01` | MusicService (MediaStyle + like/repeat/shuffle/radio) | |
+| `download` | ExoDownloadService | |
+| `download_progress_channel`, `app_updates` | updater (descarga APK + aviso id 2003) | flujo actualización |
+| `updates` | creado en App.kt:609 | ⚠️ HUÉRFANO: ningún builder lo usa |
+| `listen_together_channel` | ListenTogetherClient | |
+| `release_radar` | ReleaseRadarWorker | |
+| `recognition_channel`, `music_recognizer_widget` | FGS de reconocimiento | micrófono |
+| `spotify_import` | SpotifyImportManager | |
+| `export` | AudioExportService | |
+| `local_downloads` | LocalFileDownloader | |
+
+### R7. Workers / servicios / loops de larga vida
+
+Workers WorkManager: YtmSyncWorker (one-time, sync YTM), YtmAutoSyncWorker (periódico 3 días), UpdateCheckWorker (periódico 6 h, `releases/latest` GitHub), UpdateDownloadWorker (foreground dataSync, descarga APK reanudable), LastFmTasteWorker, AutoRecoPlaylistWorker, ReleaseRadarWorker (7 días), SpotifyAutoSyncWorker. Sin AlarmManager; periodicidad reafirmada en `App.onCreate`.
+
+FGS: MusicService (mediaPlayback), ExoDownloadService + AudioExportService (dataSync), MusicRecognizerWidgetService + RecognitionForegroundService (microphone), SystemForegroundService (WorkManager).
+
+Loops relevantes (MusicService salvo indicación): persistencia cola 30 s / posición 10 s (:2815/:2826); startPeriodicPersist 5 s (:6121, loudness + podcast); SponsorBlock watcher 1 s (:6020, solo si activo); refresco widgets adaptativo 1/30/60 s (:10183, gateado); crossfade fade (:11165); ScrobbleManager 1 s (solo playing); ThermalManager poll 10 s ref-counted; DownloadUtil progreso 500 ms; ping ListenTogether; inventario caché (CachePlaylistViewModel); anuncios del owner 1 h (MainActivity:433); loops visuales Compose (vida de composición). Batería: los loops de MusicService ya traen auditoría previa (registro #55); SponsorBlock corre en Main 1 s solo con feature activo.
+
+### R8. Almacenamiento
+
+| Ítem | Detalle | Sensible |
+|---|---|---|
+| Room `song.db` (v42, WAL) | Song, Artist, Album, Playlist, mapas, SearchHistory, FormatEntity, LyricsEntity, Event, PlayCount, RecognitionHistory, SpeedDial, ReleaseRadarItem, UpcomingRelease, EnhancedShuffle*; DatabaseDao + SpeedDialDao | sí (historial, búsquedas, gustos) |
+| Room `migration_match_cache.db` | caché desechable del resolver de migración | no |
+| DataStore `"settings"` | incluye `InnerTubeCookieKey`, AccountName/Email/ChannelHandle, VisitorData, DataSyncId | ⚠️ SÍ — cookie de cuenta en texto plano (FASE 5/18) |
+| EncryptedSharedPreferences | tokens Tidal y Qobuz | sí, cifrado |
+| SharedPreferences varios | `jr_license` (clave de suscripción), `echo_eq_prefs`, `app_prefs`, install-marker, prefs widget | ⚠️ `jr_license` en plano (zona license/, no tocar; documentar en FASE 18) |
+| filesDir | `logs/app.log` (+rotación, last_crash), `exoplayer/`, `download/`, cola/automix/player-state, `player_configs_cache.json`, APK del updater | mixto; log redactado vía LogRedaction.kt |
+| cacheDir | imágenes Coil, album-art widget | no |
+| externo | MediaStore solo lectura; SAF Uri del usuario para backup/export/ringtone | no escribe fuera sin SAF |
+
+### R9. Flujos críticos
+
+| Flujo | Entrada | Cadena principal | Estado |
+|---|---|---|---|
+| Reproducción | playback/MusicService.kt | resolve utils/YTPlayerUtils.kt + utils/cipher/ → UI ui/player/Player.kt | PARCIAL (P1/P4 streaming ya auditados) |
+| Descarga offline | playback/DownloadUtil.kt + ExoDownloadService.kt | CachePlaylistViewModel, AuraDownloadsScreen | PARCIAL (registro #91 chunking) |
+| Login de cuenta | ui/screens/LoginScreen.kt (WebView Google) | cookie → DataStore → SyncUtils.sync* | NO_AUDITADO (FASE 7/9) |
+| Backup/restore | viewmodels/BackupRestoreViewModel.kt | zip (Room + settings.preferences_pb) vía SAF; restaurar preserva cookie | NO_AUDITADO (FASE 5) |
+| Licencia/suscripción | license/LicenseGate.kt → LicenseManager.evaluate | LicenseBackendClient (verify/demo por DeviceId), estado en `jr_license` | ZONA PROTEGIDA — solo documentar |
+| Letras | ui/component/Lyrics.kt → lyrics/LyricsUtils.kt | cadena de providers → LyricsEntity en song.db | NO_AUDITADO |
+| Actualización in-app | echomusic/updater/UpdateCheckWorker.kt | UpdateDownloadWorker + REQUEST_INSTALL_PACKAGES | NO_AUDITADO (FASE 17) |
 
 ## Reparación asociada
 
@@ -1386,6 +1535,7 @@ Esta tabla debe mantenerse actualizada durante todo el proceso.
 | HALLAZGO-005 | FASE 4 | MEDIA (verificación) | Componentes `exported="true"` del manifiesto: todos legítimos — launcher alias, `MusicService` (MediaSession/MediaBrowser, obligatorio en reproductores), receivers de AppWidget, tile QS (protegido por `BIND_QUICK_SETTINGS_TILE`), MediaButtonReceiver. FileProvider no exportado. | AndroidManifest.xml | LIMPIO | Ninguna acción necesaria | Lectura del manifiesto completo |
 | HALLAZGO-006 | FASE 9 | MEDIA (riesgo aceptado) | WebViews con JS + `allowFileAccess`/`allowFileAccessFromFileURLs` + JS interface en `CipherWebView`, `EjsNTransformSolver`, `PoTokenWebView`. Son infraestructura de descifrado de streaming que ejecuta el propio JS de YouTube/bundled; tocarlas pone en riesgo la reproducción. `LoginScreen`/`SpotifyImportScreen`: JS activo pero `allowFileAccess=false`. | utils/cipher, utils/sabr, utils/potoken | RIESGO ACEPTADO | Sin código cambiado: documentado aquí. Solo cargan contenido local/bundled; no navegan a URLs arbitrarias del usuario | Inventario completo de WebViews |
 | HALLAZGO-007 | FASE 3 | BAJA (riesgo aceptado) | `GOOGLE_API_KEY` embebida en PoTokenWebView.kt: es la clave pública del cliente web de YouTube (InnerTube), la misma que usan todos los clientes open-source; pública por diseño, igual que las claves Last.fm/Tidal/Qobuz documentadas en AGENTS.md. | utils/potoken/PoTokenWebView.kt | RIESGO ACEPTADO | Ninguna — no es un secreto | Verificación contra el patrón de clientes InnerTube públicos |
+| HALLAZGO-008 | FASE 1/15 | CRITICA (para publicar) + investigación abierta | El build type `release` firma HOY con el keystore DEBUG (app/build.gradle.kts:401, diagnóstico temporal del 2026-08-19 con comentario explícito de revertir). Motivo del diagnóstico: todos los builds release firmados con el certificado real "JR MUSIC PRO" fallaban en la resolución de streams, mientras el build con keystore debug funcionaba — se aisló el certificado como única variable. Consecuencias: (1) si se publica así, TODOS los usuarios pierden la capacidad de actualizar (cambio de firma); (2) sigue abierta la pregunta de por qué el certificado release parece marcado por YouTube. | app/build.gradle.kts:391-401 | ABIERTO | Ninguna aún: revertir a `signingConfigs.getByName("release")` es obligatorio antes de cualquier publicación, y requiere decisión del dueño (puede reabrir el fallo de streams) | Lectura del build.gradle.kts + comentario in situ; pendiente confirmar si el CI sobreescribe la firma en el workflow de release |
 
 ---
 
@@ -1527,6 +1677,8 @@ cambio:
 | 2026-08-23 | FASE 15 | Build beta `assembleUniversalFossDebug` (v0.6.232, versionCode 952) | BUILD SUCCESSFUL; APK contiene ambos fixes (verificado UP-TO-DATE) | build-beta-fenix.txt, build-follow-lyrics.txt | Entregar APK al dueño |
 | 2026-08-24 | FASE 15 | Entrega de la beta para prueba REMOTA (celular desconectado, dueño en el trabajo): APK copiado como `BETA-001_Aura_v0.6.232_vc952.apk` + `BETA-001_LEEME.txt` a `C:\Users\AURA\Desktop\BETA OFICIAL  DE AURA FENIX` (carpeta sincronizada en la nube) | Entregada; convención permanente BETA-NNN | output-metadata.json (952 / 0.6.232) | Esperar reporte de prueba del dueño; al retomar, FASE_1_INVENTARIO |
 | 2026-08-24 | FASE 16 | Prueba de BETA-001 por el dueño (remota, vía carpeta de nube): VERDE — fix A (reproducir/like ya NO auto-suscribe artistas) y fix B (la letra cambia con el crossfade) CONFIRMADOS; reproducción, toggle música↔video y ecualizador bien | APROBADA — fixes #154/#155 validados en dispositivo | reporte del dueño en el chat | Continuar FASE_1_INVENTARIO |
+| 2026-08-24 | FASE 1 | Inventario completo ejecutado con 3 agentes en paralelo: 16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación (+ divergencias vs docs/UI_INVENTORY.md por la UI nueva `ui/newui/`), diálogos, widgets/notificaciones, workers/FGS/loops, almacenamiento y flujos críticos | COMPLETADA — resultados R1–R9 en la sección FASE 1 | SUPER AUDITORIA (sección RESULTADOS) | FASE_2_DEPENDENCIAS |
+| 2026-08-24 | FASE 1/15 | HALLAZGO-008: el build type release firma con keystore DEBUG (diagnóstico temporal 2026-08-19; el certificado release "JR MUSIC PRO" parece marcado: release firmados reales fallan en streams, debug funciona) | ABIERTO — bloqueante para publicar; requiere decisión del dueño | app/build.gradle.kts:391-401 | Decisión del dueño + verificar firma del CI |
 
 ---
 
@@ -1632,10 +1784,11 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_1
-  proxima_accion: FASE_1_INVENTARIO_EN_CURSO
+  fase_actual: FASE_2
+  proxima_accion: FASE_2_DEPENDENCIAS_EN_CURSO
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
   beta: BETA-001_VERDE (2026-08-24, prueba remota del dueño)
+  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar)
 ```
