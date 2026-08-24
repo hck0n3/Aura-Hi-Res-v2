@@ -11183,6 +11183,25 @@ class MusicService :
                         fp?.volume = startVolume * fadeOut * xfHeadroom
                     } catch (e: Exception) { break }
 
+                    // Release the lyrics pin on AUDIBILITY, not on ramp progress. Without this the pin
+                    // survives until cleanupCrossfade — which waits for BOTH ramps (the incoming one can
+                    // lag seconds behind, or freeze on buffering/pause) — so the panel keeps showing the
+                    // OUTGOING song's lyrics over a track that is already playing: the owner's "aparecen
+                    // letras que no son de esa canción si no de otras". The predicate + its unit tests
+                    // live in CrossfadeLyricsPin; this call is the wiring that was missing.
+                    if (_crossfadeOutgoingMetadata.value != null &&
+                        CrossfadeLyricsPin.shouldRelease(
+                            pinned = true,
+                            outgoingGone = outDone,
+                            outgoingCurveGain = fadeOut,
+                            outgoingDetectedSilent = fp?.let {
+                                playerSilenceProcessors[it]?.isCurrentlySilent()
+                            } ?: false,
+                        )
+                    ) {
+                        _crossfadeOutgoingMetadata.value = null
+                    }
+
                     if (inP >= 1f && outP >= 1f) break
                     if (safety > durIn + durOut + 30_000L) break // pathological stall — bail to cleanup
                     delay(40)
