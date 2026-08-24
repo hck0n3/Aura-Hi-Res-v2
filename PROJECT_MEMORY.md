@@ -5,17 +5,26 @@
 
 ## 📍 Estado Actual
 
-- **2026-08-24: 🔴 FALLO REPORTADO EN LA BETA — SUSCRIPCIONES AUTOMÁTICAS DE ARTISTAS.**
-  Con el build modernizado instalado y sonando (BravePipe OK: 18 streams, AudioTrack continuo,
-  cero 403, cero crashes), el dueño reporta: al reproducir una canción o al darle me gusta,
-  el artista queda SUSCRITO sin que él lo haga — lo ve en los artistas de la app Y en las
-  suscripciones reales de su cuenta de YouTube. Sospecha principal en investigación: el
-  auto-bookmark `DatabaseDao.followArtistsWithContent()` (marca TODO artista con contenido en la
-  librería) o alguna ruta que escribe `followedByUserAt` sin tap explícito (el uploader solo
-  suscribe en la cuenta artistas con esa marca). El logcat de esta sesión NO muestra actividad
-  de subida (0 subscribeChannel), así que las suscripciones de cuenta vendrían de pases previos
-  o de otra ruta. Celular desconectado durante la investigación. NO tocar el fix hasta tener la
-  causa raíz trazada (regla 3 de AGENTS.md).
+- **2026-08-24 (continuación): ✅ ARREGLADO EL BUG DE SUSCRIPCIONES AUTOMÁTICAS DE ARTISTAS
+  (commit `88cf0e1`, registro #154) + PIN DE LETRAS EN CROSSFADE (commit `f7022e2`, registro #155).
+  APK 0.6.232 (952) LISTO; PENDIENTE instalar y probar en el celular.**
+  Causa raíz CONFIRMADA del reporte beta (al reproducir o dar me gusta, el artista quedaba
+  suscrito solo): `DatabaseDao.followArtistsWithContent()` — sentencia bulk que cada pase de
+  sync estampa `bookmarkedAt` en TODO artista con contenido en la librería — y TODAS las vistas
+  de suscripción leían `bookmarkedAt`. Fix: sentencia eliminada (tombstone en `DatabaseDao.kt`)
+  + sus 5 call sites; toda vista/query de suscripción ahora lee `followedByUserAt`; ese campo es
+  el discriminador de toggleLike; se estampa directo al leer de vuelta las suscripciones reales
+  de la cuenta. Fuentes legítimas de follow intactas (tap explícito, onboarding, import
+  Spotify/Tidal/Deezer, read-back YTM). Semántica album/playlist y filtro de backup sin cambio.
+  Lyrics: el pin `_crossfadeOutgoingMetadata` dejaba la letra de la canción SALIENTE durante el
+  crossfade (solo se liberaba en `cleanupCrossfade`); ahora el loop de fade evalúa
+  `CrossfadeLyricsPin.shouldRelease` cada tick y libera cuando el player saliente muere, su gain
+  cae bajo el umbral audible o su SilenceDetector reporta silencio.
+  Nota de build: las fuentes ya estaban en disco antes del build de las 11:01 (mtimes 10:31–10:49);
+  el APK de las 11:01 YA contenía ambos fixes — verificado con gradle UP-TO-DATE (BUILD SUCCESSFUL
+  en `build-follow-lyrics.txt`). **SIGUIENTE PASO: dueño conecta el celular e6f2c8eb → instalar
+  `app\build\outputs\apk\universalFoss\debug\app-universal-foss-debug.apk` → probar (a) reproducir/
+  like NO auto-suscribe artistas, (b) la letra cambia a la canción nueva en el crossfade.**
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0
