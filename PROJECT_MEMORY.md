@@ -18,8 +18,12 @@
   Renombrado `pages/TeamNewPipe.kt` → `pages/BraveNewPipe.kt` (clases `BraveNewPipe*`). Force de nanojson
   `c7a6c1c08d…` en todas las configuraciones desde el root (igual que SimpMusic; sin él el fallback crashea
   con `NoSuchMethodError` porque PipePipe trae un nanojson viejo). Orden de `newPipePlayer`: PipePipe →
-  BravePipe. BUILD SUCCESSFUL (`build-bravepipe2.txt`). El dueño salió con el celular desconectado:
-  **instalar y verificar reproducción cuando vuelva a conectar.** Si BravePipe también cae en su IP,
+  BravePipe. BUILD SUCCESSFUL (`build-bravepipe2.txt`).
+  **✅ VERIFICADO EN CELULAR (dueño reconectó ~19:12 local):** install + play. PipePipe sigue muriendo
+  con `AntiBotException`, pero **BraveNewPipe devolvió 15 streams** (itags 139/140/18/137/248/136/247/135/
+  244/134/243/133/242/160/278 — set adaptativo COMPLETO vía cliente ANDROID, ya no solo itag 18),
+  AudioTrack activo y chunks de 5 MB con 206 sostenidos, cero 403. Falta confirmación audible del dueño
+  y prueba de varias canciones + toggle video. Si BravePipe también cae en su IP algún día,
   siguiente paso: login correcto para PipePipe (cliente `mweb` o PoTokenProvider del fork).
 - **2026-08-23 (noche, tarde): ✅ EQ ARREGLADO + VIDEO RESTAURADO POR ORDEN DEL DUEÑO.**
   EQ: la causa era la ausencia de `SUPERPOWERED_LICENSE_KEY` en el build debug; clave copiada
