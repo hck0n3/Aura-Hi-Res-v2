@@ -69,3 +69,11 @@ Se aplicó el batch verde y el build de CI FALLÓ en Hilt:
 `[Hilt] Provided Metadata instance has version 2.4.0, while maximum supported version is 2.3.0`.
 Causa: **coil 3.5.0 / ktor 3.5.0 (releases de jun-2026) ya vienen compilados con Kotlin 2.4**, y su metadata 2.4.0 la procesa Hilt vía `kotlin-metadata-jvm`, que en el stack actual (Kotlin **2.3.10**) topa en 2.3.0. Revertir Hilt a 2.59.1 no lo arregla (el metadata 2.4 viene de los deps, no de Hilt).
 **Conclusión:** los minors nuevos exigen subir PRIMERO el toolchain a **Kotlin 2.4.0 + KSP 2.3.9 + Hilt compatible** (el batch MEDIO). Sin eso, incluso "patch/minor" rompen. → El batch de deps se **revirtió**; la modernización queda como **un solo trabajo aislado**: Gradle 9.6.1 → AGP 9.2.0 → Kotlin 2.4.0/KSP → luego coil/ktor/Compose, cada paso con build verde. El branch de auditoría queda SIN bumps (verde con todos los fixes reales).
+
+## ✅ Ejecución (2026-08-23/24) — cadena aplicada en `main`, un build verde por paso
+1. Gradle wrapper 9.3.1 → **9.6.1** — verde (commit 2e01a84).
+2. AGP 9.0.0 → **9.2.0** — verde (22eb193).
+3. Kotlin 2.3.10 → **2.4.0** + KSP 2.3.5 → **2.3.9** + Hilt → **2.60.1** — verde (e40009b).
+   ⚠️ Desvío del plan: Hilt **2.59.2 NO basta** — reproduce el mismo error de metadata (`Provided Metadata instance has version 2.4.0, while maximum supported version is 2.3.0`) porque su `kotlin-metadata-jvm` empaquetado topea en 2.3.0. Dagger **2.60.1** (2026-07-06) desempaqueta y actualiza esa librería, y eso arregla `:app:hiltJavaCompileUniversalFossDebug`.
+4. Batch verde + Compose 1.10.2 → **1.11.0**: jsoup 1.22.2, guava 33.6.0-jre, datastore 1.2.1, lottie 6.7.1, coil 3.5.0, ktor 3.5.0, protobuf 4.34.2, work 2.10.2, browser 1.9.0, play-services-auth 21.3.0, Firebase BOM 34.15.0, google-services 4.4.3 — verde en `assembleUniversalFossDebug` (build-modern-4-batch.txt, 12m38s).
+5. Pendiente: youtubedl-android 0.17.3 → 0.18.1 (test de descargas en dispositivo después).
