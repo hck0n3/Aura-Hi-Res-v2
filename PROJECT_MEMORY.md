@@ -22,9 +22,13 @@
   cae bajo el umbral audible o su SilenceDetector reporta silencio.
   Nota de build: las fuentes ya estaban en disco antes del build de las 11:01 (mtimes 10:31–10:49);
   el APK de las 11:01 YA contenía ambos fixes — verificado con gradle UP-TO-DATE (BUILD SUCCESSFUL
-  en `build-follow-lyrics.txt`). **SIGUIENTE PASO: dueño conecta el celular e6f2c8eb → instalar
-  `app\build\outputs\apk\universalFoss\debug\app-universal-foss-debug.apk` → probar (a) reproducir/
-  like NO auto-suscribe artistas, (b) la letra cambia a la canción nueva en el crossfade.**
+  en `build-follow-lyrics.txt`). **SIGUIENTE PASO (actualizado 2026-08-24): el dueño está en el
+  trabajo, sin celular por USB; la prueba es REMOTA: APK entregado como
+  `BETA-001_Aura_v0.6.232_vc952.apk` + `BETA-001_LEEME.txt` en
+  `C:\Users\AURA\Desktop\BETA OFICIAL  DE AURA FENIX` (carpeta sincronizada en la nube).
+  Probar: (a) reproducir/like NO auto-suscribe artistas, (b) la letra cambia a la canción nueva en
+  el crossfade. CONVENCIÓN PERMANENTE: cada beta nueva se numera BETA-NNN, se copia a esa carpeta
+  y se avisa en el chat cuando esté lista para probar.**
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0

@@ -82,32 +82,32 @@ Esta sección funciona como memoria oficial del proyecto. Debe actualizarse desp
 
 ```yaml
 memoria_maestra:
-  proyecto: PENDIENTE
-  repositorio: PENDIENTE
-  rama_principal: PENDIENTE
-  rama_auditoria: audit/super-audit
-  commit_base: PENDIENTE
-  fecha_inicio: PENDIENTE
+  proyecto: Aura Hi-Res Player (port modelo SimpMusic)
+  repositorio: echomusic (local)
+  rama_principal: main
+  rama_auditoria: main (la auditoría consolida directo en main; commits 88cf0e1, f7022e2, 1e5f418)
+  commit_base: 1e5f418
+  fecha_inicio: 2026-08-23
   version_plan: 1.0
-  estado_global: EN_PREPARACION
+  estado_global: EN_CURSO
 
   fases:
-    fase_0_preparacion: NO_INICIADA
+    fase_0_preparacion: EN_CURSO   # build verde y checkpoints; falta rama formal y base de tests
     fase_1_inventario: NO_INICIADA
     fase_2_dependencias: NO_INICIADA
-    fase_3_seguridad_estatica: NO_INICIADA
-    fase_4_manifest_config: NO_INICIADA
+    fase_3_seguridad_estatica: EN_CURSO   # pase rápido: secretos y logs (HALLAZGO-003/007); falta SQL/entradas
+    fase_4_manifest_config: COMPLETADA    # HALLAZGO-005 (manifiesto completo leído, todo legítimo)
     fase_5_almacenamiento: NO_INICIADA
     fase_6_red: NO_INICIADA
     fase_7_auth_cripto: NO_INICIADA
-    fase_8_ipc_componentes: NO_INICIADA
-    fase_9_webview: NO_INICIADA
-    fase_10_arquitectura: NO_INICIADA
+    fase_8_ipc_componentes: EN_CURSO      # PendingIntents verificados (HALLAZGO-004); faltan deep links/intents
+    fase_9_webview: COMPLETADA            # inventario completo; HALLAZGO-006 riesgo aceptado
+    fase_10_arquitectura: EN_CURSO        # HALLAZGO-001 corregido (commit 88cf0e1)
     fase_11_calidad_codigo: NO_INICIADA
-    fase_12_concurrencia: NO_INICIADA
+    fase_12_concurrencia: EN_CURSO        # HALLAZGO-002 corregido (commit f7022e2)
     fase_13_rendimiento: NO_INICIADA
     fase_14_ui_ux_tecnica: NO_INICIADA
-    fase_15_recursos_build: NO_INICIADA
+    fase_15_recursos_build: EN_CURSO      # debug 0.6.232 (952) verde; faltan release, lint, tests
     fase_16_testing: NO_INICIADA
     fase_17_cicd: NO_INICIADA
     fase_18_privacidad: NO_INICIADA
@@ -124,15 +124,16 @@ memoria_maestra:
     riesgos_altos_abiertos: 0
 
   calidad:
-    compila: false
+    compila: true    # assembleUniversalFossDebug verde: 0.6.232 (versionCode 952)
     lint_ok: false
     unit_tests_ok: false
     android_tests_ok: false
     coverage_registrado: false
 
   decisiones_criticas: []
-  bloqueos_activos: []
-  proxima_accion: DEFINIR_ALCANCE
+  bloqueos_activos:
+    - CELULAR_DESCONECTADO (dueño en el trabajo; pruebas remotas vía carpeta de nube)
+  proxima_accion: ESPERAR_PRUEBA_REMOTA_DE_BETA_001; al retomar, continuar con FASE_1_INVENTARIO
 ```
 
 ---
@@ -1523,7 +1524,8 @@ cambio:
 | 2026-08-23 | FASE 12 | Trazado del bug de letras equivocadas en crossfade | Causa raíz: pin de letras nunca liberado; predicado testeado sin cablear | HALLAZGO-002 | Fix |
 | 2026-08-23 | FASE 12 | Fix aplicado: `shouldRelease` cableado al loop de fade | Commit `f7022e2`, registro #155 | MusicService.kt | Build |
 | 2026-08-23 | FASE 3/4/8/9 | Auditoría de seguridad rápida: logs de cookies, PendingIntents, manifiesto, WebViews, secretos | 0 hallazgos accionables nuevos; 2 riesgos aceptados documentados | HALLAZGO-003…007 | Build beta |
-| 2026-08-23 | FASE 15 | Build beta `assembleUniversalFossDebug` (v0.6.232, versionCode 952) | En curso | build-beta-fenix.txt | Entregar APK al dueño |
+| 2026-08-23 | FASE 15 | Build beta `assembleUniversalFossDebug` (v0.6.232, versionCode 952) | BUILD SUCCESSFUL; APK contiene ambos fixes (verificado UP-TO-DATE) | build-beta-fenix.txt, build-follow-lyrics.txt | Entregar APK al dueño |
+| 2026-08-24 | FASE 15 | Entrega de la beta para prueba REMOTA (celular desconectado, dueño en el trabajo): APK copiado como `BETA-001_Aura_v0.6.232_vc952.apk` + `BETA-001_LEEME.txt` a `C:\Users\AURA\Desktop\BETA OFICIAL  DE AURA FENIX` (carpeta sincronizada en la nube) | Entregada; convención permanente BETA-NNN | output-metadata.json (952 / 0.6.232) | Esperar reporte de prueba del dueño; al retomar, FASE_1_INVENTARIO |
 
 ---
 
@@ -1624,14 +1626,15 @@ Este plan se compromete a:
 
 ---
 
-## 20. ESTADO INICIAL
+## 20. ESTADO ACTUAL
 
 ```yaml
-estado_inicial:
-  fase_actual: FASE_0
-  proxima_accion: RECIBIR_ARCHIVOS_BASE
+estado_actual:
+  fecha: 2026-08-24
+  fase_actual: FASE_15
+  proxima_accion: ESPERAR_PRUEBA_REMOTA_DE_BETA_001; al retomar, continuar con FASE_1_INVENTARIO
   bloqueos:
-    - FALTA_CODIGO_REAL
+    - CELULAR_DESCONECTADO (dueño en el trabajo; pruebas remotas vía carpeta de nube BETA OFICIAL DE AURA FENIX)
   memoria: ACTIVA
   auditoria_completa: false
 ```
