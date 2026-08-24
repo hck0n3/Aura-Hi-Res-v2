@@ -98,7 +98,7 @@ memoria_maestra:
     fase_3_seguridad_estatica: COMPLETADA # quick pass 003..007 + SQL/entradas/cripto 2026-08-24 (3 agentes); HALLAZGO-013..015; SQL y zip-slip VERDES
     fase_4_manifest_config: COMPLETADA    # HALLAZGO-005 (manifiesto completo leído, todo legítimo)
     fase_5_almacenamiento: COMPLETADA     # 2026-08-24: inventario completo DataStore/XML/archivos/Room/backup; HALLAZGO-016; exclusiones gruesas correctas
-    fase_6_red: NO_INICIADA
+    fase_6_red: COMPLETADA                # 2026-08-24: inventario ~40 clientes + secretos en tránsito + auth/401 + pinning; HALLAZGO-017..019
     fase_7_auth_cripto: NO_INICIADA
     fase_8_ipc_componentes: EN_CURSO      # PendingIntents (HALLAZGO-004); deep links/intents auditados en FASE 3 (HALLAZGO-014); falta cierre formal
     fase_9_webview: COMPLETADA            # inventario completo; HALLAZGO-006 riesgo aceptado
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_6_RED (FASE_5 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016)
+  proxima_accion: FASE_7_AUTH_CRIPTO (FASE_6 completada 2026-08-24; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019)
 ```
 
 ---
@@ -964,6 +964,70 @@ Validar que toda comunicación sea segura.
 6. Revisar headers sensibles.
 7. Revisar URLs hardcoded.
 
+## RESULTADOS DE LA FASE 6 (2026-08-24)
+
+Ejecutada con 2 agentes en paralelo (A: infraestructura de clientes; B: datos en tránsito y flujos
+de autenticación); afirmaciones clave re-verificadas contra el código. TLS ya verificado limpio en
+FASE 3 (cleartext OFF, cero TrustManager/HostnameVerifier inseguros).
+
+### R1 — Clientes HTTP: inventario y timeouts
+
+- ~40 clientes HTTP (Ktor engine OkHttp, OkHttp directo, HttpURLConnection); cero Retrofit, cero
+  `Jsoup.connect`. Todos singleton/lazy — nadie crea cliente por request (salvo `UptimeScreen`,
+  impacto nulo).
+- **HALLAZGO-019 (MEDIA, disponibilidad):** ~22 clientes sin timeouts explícitos, varios en el
+  path crítico de reproducción/resolve (`MusicService.kt:7662/8828`, `DownloadUtil.kt:171`,
+  NewPipe/BraveNewPipe, `PlayerJsFetcher.kt:25`, `PoTokenWebView.kt:462`, `SongPreviewController`,
+  `CanvasArtworkPlayer`). Con red hostil/lenta un resolve puede colgar indefinidamente. El modelo
+  a copiar ya existe en el repo: `QobuzHiRes.kt:47-54` con `callTimeout`.
+- Cero `callTimeout` fuera de `YTPlayerUtils` y `QobuzHiRes`; `LocalFileDownloader` además es
+  bloqueante y no cancelable (menor).
+- **Caché InnerTube 50 MB en disco** (`InnerTube.kt:116-120`) con respuestas de la API YTM,
+  inclusive autenticadas — dentro del dir privado, parcialmente mitigada por `Cache-Control:
+  no-cache` del defaultRequest (menor, sin número).
+
+### R2 — Secretos en tránsito
+
+- **HALLAZGO-017 (MEDIA):** el login de Qobuz envía email y PASSWORD como query parameters en un
+  GET (`QobuzApi.kt:62-66`) — única credencial real que viaja en URL en todo el repo. TLS la
+  protege en tránsito, pero queda expuesta a logs de servidor/proxy. Mitigante: la API oficial de
+  Qobuz es GET-only (diseño del proveedor, no de la app).
+- Todo lo demás viaja bien: cookie InnerTube + SAPISIDHASH en headers, `sp_dc` en header Cookie,
+  Bearer/`X-User-Auth-Token`/`Authorization: Token` en headers, credenciales Last.fm/Tidal en
+  POST body. El TOTP de Spotify va en query pero es un código de 30 s de vida impuesto por el
+  endpoint (BAJA, sin número).
+- Cero logging de secretos en release: no existe `HttpLoggingInterceptor` en el repo; el chokepoint
+  `AppLogger` redacta Authorization/Cookie/tokens con test incluido; el único log de red con
+  contenido es un peek de 160 chars del cuerpo de ERROR de googlevideo (query string excluida por
+  comentario explícito). Trampa armada: `Spotify.kt:251/324` loguea `token.take(8)` vía un logger
+  hoy NO conectado (no-op) — vigilar.
+- Cero endpoints reales `http://` (los 5 matches son namespaces XML y checks `startsWith`).
+
+### R3 — Flujos de autenticación y 401/403
+
+- Spotify (sp_dc + TOTP vía gist comunitario), Tidal (PKCE, verifier en store cifrado), Qobuz,
+  Last.fm, licencia: todos con expiración/refresh manejado y SIN loops de credencial quemada
+  (Spotify refresca y reintenta una vez; YouTube cae a anónimo + cascada de clientes; Tidal fuerza
+  re-login; Qobuz abandona al fallback).
+- Informativo: callback Tidal sin `state` (PKCE lo mitiga, ya en HALLAZGO-014); session key
+  Last.fm muerta no se auto-limpia (higiene, no seguridad); el secreto TOTP de Spotify viene de un
+  gist de terceros (supply chain, entra en HALLAZGO-018).
+
+### R4 — Integridad de canales remotos
+
+- **HALLAZGO-018 (MEDIA):** cero `CertificatePinner` y cero certs embebidos en todo el repo. Los
+  canales remotos que alimentan autenticación/reproducción dependen solo de la CA del sistema:
+  `qobuz_config.json` (candidatos app_id/app_secret), `player_configs.json` (mecanismo de
+  auto-reparación documentado en AGENTS.md), el gist TOTP de Spotify, el actualizador
+  (releases de GitHub + APK) y el Worker de licencia (zona protegida, solo reporte). Un MITM con
+  CA válida o el control del repo/gist podría inyectar configuración. El actualizador mitiga con
+  verificación de versión declarada + firma del APK antes de instalar.
+
+### R5 — Veredicto de la fase
+
+Nada CRÍTICO ni ALTO. Postura de tráfico sólida: secretos en headers/body (salvo Qobuz, impuesto
+por su API), cero logging de secretos, 401/403 sin loops. Abiertos nuevos: HALLAZGO-017, 018, 019.
+
 ## Reparación segura
 
 | Problema | Reparación |
@@ -1728,6 +1792,9 @@ Esta tabla debe mantenerse actualizada durante todo el proceso.
 | HALLAZGO-014 | FASE 3/8 | BAJA | Crash local vía deep link: `?list=a%2Fb` (o browseIds con `/`) llega a `navController.navigate("online_playlist/$playlistId?autoSave=true")` sin validar ni `runCatching`; la ruta no matchea el nav graph y `navigate()` lanza `IllegalArgumentException`. Provocable por cualquier app (MainActivity `exported=true`). Impacto DoS local, sin secuestro de navegación. Relacionados (informativos): `file://` sobre archivos propios (confused deputy sin exfiltración) y callback Tidal sin `state` (mitigado por PKCE). | MainActivity.kt:2474/2483/2427 | ABIERTO | Propuesta: validar charset/formato de `playlistId`/`browseId` (rechazar `/`) o envolver el navigate en `runCatching` — fix barato, candidato a próxima beta | Lectura de MainActivity.kt; trazado del path de crash por el agente de entradas |
 | HALLAZGO-015 | FASE 3 | BAJA (defensa en profundidad) | `provider_paths.xml` más ancho de lo necesario: `external-path`, `cache-path` y `external-cache-path` con `path="."` exponen TODO el almacenamiento externo y ambos caches. No explotable hoy: provider `exported=false` y todos los `getUriForFile` usan archivos fijos generados por la app; riesgo latente si una futura URI compartida usa path influenciable. | app/src/main/res/xml/provider_paths.xml | ABIERTO | Propuesta: restringir cada entrada a las subcarpetas reales que comparten los call sites (logs, playlist_covers, update, export) | Lectura del XML + grep de todos los usos de getUriForFile |
 | HALLAZGO-016 | FASE 5/18 | MEDIA | El auto-backup a la nube de Google incluye por default (sin exclusión explícita) metadatos del usuario: `song_graph.xml` y `artist_genres.xml` (gusto/escucha), `filesDir/logs/app.log*` (diagnóstico) y `persistent_*.data` (cola de reproducción). Las exclusiones gruesas sí existen (DataStore completo, `jr_license.xml`, caches de exoplayer/descargas) y `song.db` viaja por decisión de producto documentada; estos cuatro se suman en silencio sin que la UI lo mencione. | app/src/main/res/xml/backup_rules.xml, data_extraction_rules.xml | ABIERTO | Propuesta: excluir `song_graph.xml`/`artist_genres.xml` (cachés reconstruibles, pérdida cero) y `./logs`; `persistent_*.data` a decisión del dueño (restaura la cola al cambiar de teléfono). Fix barato y seguro | Lectura de ambos XML de backup + inventario de archivos del agente FASE 5 |
+| HALLAZGO-017 | FASE 6 | MEDIA | El login de Qobuz envía email y PASSWORD como query parameters de un GET (`addQueryParameter("email"/"password")`): única credencial real que viaja en URL en todo el repo. TLS la protege en tránsito, pero queda expuesta a logs del servidor/proxy. Mitigante de diseño: la API oficial de Qobuz es GET-only; el resto de credenciales del repo viaja en headers/body. | app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:62-66 | ABIERTO | Sin fix posible dentro de la app mientras la API Qobuz sea GET-only: documentar y aceptar el riesgo, o pedir al proveedor POST (fuera de nuestro control). Decisión del dueño: aceptar formalmente | Lectura de QobuzApi.kt (agente FASE 6B + re-verificación) |
+| HALLAZGO-018 | FASE 6 | MEDIA | Cero certificate pinning y cero certs embebidos en todo el repo: los canales remotos que alimentan autenticación/reproducción (`qobuz_config.json`, `player_configs.json`, gist TOTP de Spotify, releases del actualizador, Worker de licencia) dependen solo de la CA del sistema. Un MITM con CA válida o el control del repo/gist inyectaría configuración. Mitiga parcialmente: el actualizador verifica versión declarada + firma del APK antes de instalar; `player_configs.json` es mecanismo de auto-reparación documentado en AGENTS.md. La parte de licencia es zona protegida (solo reporte). | QobuzConfigProvider.kt:130, RemotePlayerConfig.kt:81, SpotifyAuth.kt:35, echomusicupdater.kt:792, LicenseBackendClient.kt:75-76 | ABIERTO | Candidato FASE 17/22: pinning o verificación de integridad (firma del contenido) en los canales de config remota; priorizar el gist TOTP y qobuz_config. Tocar el Worker de licencia requiere permiso explícito | Grep global CertificatePinner (cero matches) + inventario de endpoints del agente FASE 6B |
+| HALLAZGO-019 | FASE 6/13 | MEDIA (disponibilidad) | ~22 clientes HTTP sin timeouts explícitos, varios en el path crítico de reproducción/resolve (MusicService.kt:7662/8828, DownloadUtil.kt:171, NewPipe/BraveNewPipe, PlayerJsFetcher.kt:25, PoTokenWebView.kt:462, SongPreviewController.kt:234, CanvasArtworkPlayer.kt:84). Con red hostil o lenta un resolve puede colgar indefinidamente ("la app se queda pensando"); solo cuentan con los defaults por fase de OkHttp, sin tope de request completa. | varios (ver descripción) | ABIERTO | Propuesta: añadir connect/read/write + `callTimeout` siguiendo el patrón ya existente en `QobuzHiRes.kt:47-54`; candidato a beta por ser mejora de robustez con riesgo bajo | Inventario de clientes del agente FASE 6A + spot-checks |
 
 ---
 
@@ -1874,6 +1941,7 @@ cambio:
 | 2026-08-24 | FASE 2 | Inventario completo de dependencias (catálogo + 17 build.gradle.kts), repositorios/plugins/fuerzas, escaneo OSV (API por 25 paquetes fijados, osv-query.ps1) y verificación profunda del caso jsoup | COMPLETADA — R1–R4; HALLAZGO-009 cerrado SIN exposición real: BravePipeExtractor ya forzaba jsoup 1.23.1 en el grafo resuelto y el APK BETA-001 contiene el marker `HtmlTagOptions` (clase exclusiva de ≥1.23.1) en classes38.dex; pin del catálogo alineado 1.22.2→1.23.1 como guarda; nuevos abiertos HALLAZGO-010 (mirror aliyun), 011 (sin lockfile/verification), 012 (entradas muertas) | build-osv-api.txt, build-jsoup-deps.txt, build-fase2-jsoup.txt, jar-diff.ps1 | FASE_3_RESTO_SQL_ENTRADAS |
 | 2026-08-24 | FASE 3 | Auditoría estática completa con 3 agentes en paralelo: SQL (barrido total de rawQuery/execSQL/Room en app + 15 módulos), validación de entradas y archivos (deep links, zip-slip, FileProvider, intents, exports), cripto/TLS/aleatoriedad; afirmaciones clave re-verificadas contra el código | COMPLETADA — SQL VERDE (todo Room+binding; 2 interpolaciones teóricas en migraciones one-shot que NO se tocan), SIN zip-slip (restore y updater con destinos fijos + sanitize), TLS limpio; nuevos abiertos HALLAZGO-013 (cookie Google + sp_dc Spotify en texto plano vs EncryptedSharedPreferences de Tidal/Qobuz), 014 (crash por deep link sin validar), 015 (provider_paths.xml ancho) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 3) | FASE_5_ALMACENAMIENTO |
 | 2026-08-24 | FASE 5 | Inventario completo de almacenamiento (agente dedicado): DataStore único (~343 claves), 14 SharedPreferences XML, archivos filesDir/cacheDir/externo, Room, higiene de temporales y reglas de backup; XML de backup re-verificados directamente | COMPLETADA — exclusiones gruesas correctas (DataStore con la cookie, jr_license.xml, caches de exoplayer/descargas fuera del backup; song.db viaja por decisión documentada); higiene de temporales bien (restore/updater limpian en todas las rutas); nuevo abierto HALLAZGO-016 (song_graph/artist_genres/app.log/persistent_*.data viajan al cloud backup por default); LastFMSessionKey (:474) anexada a HALLAZGO-013 | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 5) | FASE_6_RED |
+| 2026-08-24 | FASE 6 | Auditoría de red con 2 agentes en paralelo (infraestructura de ~40 clientes HTTP + secretos en tránsito/flujos auth/401/pinning); afirmaciones clave re-verificadas | COMPLETADA — postura sólida: secretos en headers/body, cero logging de secretos en release, cero tráfico cleartext, 401/403 sin loops; nuevos abiertos HALLAZGO-017 (password Qobuz en query string, impuesto por su API GET-only), 018 (cero pinning en canales de config remota), 019 (~22 clientes sin timeouts, disponibilidad) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 6) | FASE_7_AUTH_CRIPTO |
 
 ---
 
@@ -1979,11 +2047,11 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_5_COMPLETADA
-  proxima_accion: FASE_6_RED
+  fase_actual: FASE_6_COMPLETADA
+  proxima_accion: FASE_7_AUTH_CRIPTO
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false
   beta: BETA-001_VERDE (2026-08-24, prueba remota del dueño)
-  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo) · HALLAZGO-013 (cookie Google + sp_dc Spotify + sesión Last.fm en texto plano en DataStore; fix con migración, decide el dueño) · HALLAZGO-014 (crash por deep link sin validar; fix barato candidato a beta) · HALLAZGO-015 (provider_paths.xml ancho; defensa en profundidad) · HALLAZGO-016 (metadatos de escucha y logs viajan al cloud backup por default; fix barato de exclusiones)
+  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug; decisión del dueño antes de publicar) · HALLAZGO-010 (mirror aliyun) · HALLAZGO-011 (sin lockfile/verification-metadata) · HALLAZGO-012 (entradas muertas del catálogo) · HALLAZGO-013 (cookie Google + sp_dc Spotify + sesión Last.fm en texto plano en DataStore; fix con migración, decide el dueño) · HALLAZGO-014 (crash por deep link sin validar; fix barato candidato a beta) · HALLAZGO-015 (provider_paths.xml ancho; defensa en profundidad) · HALLAZGO-016 (metadatos de escucha y logs viajan al cloud backup por default; fix barato de exclusiones) · HALLAZGO-017 (password Qobuz en query string; aceptar riesgo — API GET-only) · HALLAZGO-018 (cero pinning en canales de config remota; candidato FASE 17/22) · HALLAZGO-019 (~22 clientes sin timeouts; candidato a beta)
 ```

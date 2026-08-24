@@ -26,9 +26,10 @@
   nube): BETA-001 VERDE — TODO FUNCIONA: (a) reproducir/like YA NO auto-suscribe artistas,
   (b) la letra cambia con el crossfade, (c) reproducción, toggle música↔video y ecualizador
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
-  auditoría — FASE 1 (inventario), FASE 2 (dependencias), FASE 3 (seguridad estática) y FASE 5
-  (almacenamiento) ya COMPLETADAS el 2026-08-24; sigue FASE 6 (red). La publicación estable de
-  estos fixes queda a decisión del dueño (publicar exige su permiso explícito).
+  auditoría — FASE 1 (inventario), FASE 2 (dependencias), FASE 3 (seguridad estática), FASE 5
+  (almacenamiento) y FASE 6 (red) ya COMPLETADAS el 2026-08-24; sigue FASE 7 (auth/cripto,
+  mayormente cubierta ya por el agente cripto de FASE 3 → cierre formal). La publicación estable
+  de estos fixes queda a decisión del dueño (publicar exige su permiso explícito).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,
@@ -96,6 +97,22 @@
   Además: clave de sesión Last.fm (`PreferenceKeys.kt:474`) descubierta en texto plano → anexada
   a HALLAZGO-013. `jr_license.xml` en plano reportado pero es zona protegida (sin cambios).
   Siguiente: FASE 6 (red).
+- **2026-08-24 (tarde, 5): ✅ SÚPER AUDITORÍA — FASE 6 (RED) TERMINADA.**
+  Dos agentes en paralelo (infraestructura de ~40 clientes HTTP + datos en tránsito/auth).
+  Resultados en la sección "RESULTADOS DE LA FASE 6" de `SUPER AUDITORIA DE MI CODIGO ANDROID.md`.
+  ✅ **Postura sólida:** todos los secretos viajan en headers/body, cero logging de secretos en
+  release (redacción centralizada con test), cero tráfico cleartext, 401/403 manejados sin loops
+  de credencial quemada.
+  ⚠️ Nuevos hallazgos abiertos:
+  - **HALLAZGO-017 (MEDIA):** el login de Qobuz manda email y PASSWORD como query parameters
+    (`QobuzApi.kt:62-66`) — única credencial real en URL del repo. Sin fix posible: la API oficial
+    de Qobuz es GET-only → requiere su aceptación formal del riesgo.
+  - **HALLAZGO-018 (MEDIA):** cero certificate pinning en todo el repo; los canales de config
+    remota que alimentan auth/reproducción (qobuz_config, player_configs, gist TOTP Spotify,
+    updater, Worker de licencia) dependen solo de la CA del sistema. Candidato FASE 17/22.
+  - **HALLAZGO-019 (MEDIA, disponibilidad):** ~22 clientes HTTP sin timeouts, varios en el path
+    crítico de reproducción. Fix barato con patrón ya existente (`QobuzHiRes.kt`); candidato a beta.
+  Siguiente: FASE 7 (auth/cripto — mayormente cubierta ya por FASE 3, cierre formal).
 - **2026-08-24: ✅ MODERNIZACIÓN DE DEPENDENCIAS COMPLETA (cadena de la auditoría `docs/audit/MODERNIZACION.md`).**
   Cinco pasos, cada uno con build verde y commit propio: Gradle 9.6.1 (`2e01a84`) → AGP 9.2.0
   (`22eb193`) → Kotlin 2.4.0 + KSP 2.3.9 + Hilt **2.60.1** (`e40009b`) → batch seguro + Compose 1.11.0
