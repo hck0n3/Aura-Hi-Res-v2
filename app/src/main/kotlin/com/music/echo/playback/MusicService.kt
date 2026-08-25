@@ -7212,11 +7212,7 @@ class MusicService :
                     // actual bytes. Discard the renewal instead; the current URL stays valid until its
                     // own expiry and handleExpiredUrlError still covers the worst case.
                     val freshMime = playback.format.mimeType
-                    val freshDelivered = when {
-                        freshMime.contains("flac", ignoreCase = true) -> iad1tya.echo.music.constants.AudioQuality.LOSSLESS
-                        freshMime.contains("mp4", ignoreCase = true) || freshMime.contains("m4a", ignoreCase = true) -> iad1tya.echo.music.constants.AudioQuality.SAAVN
-                        else -> iad1tya.echo.music.constants.AudioQuality.OPUS
-                    }
+                    val freshDelivered = DeliveredQuality.fromMimeType(freshMime)
                     if (cached.delivered != null && freshDelivered != cached.delivered) {
                         Timber.tag(TAG).d("Refresh-ahead discarded: delivered quality drifted on renewal")
                         return@launch
@@ -8510,8 +8506,8 @@ class MusicService :
             run {
                 val format = nonNullPlayback.format
 
-                val isFinalLossless = format.mimeType.contains("flac", ignoreCase = true)
-                val isFinalSaavn = format.mimeType.contains("mp4", ignoreCase = true) || format.mimeType.contains("m4a", ignoreCase = true)
+                val isFinalLossless = DeliveredQuality.isLossless(format.mimeType)
+                val isFinalSaavn = DeliveredQuality.isSaavn(format.mimeType)
 
                 if (dbFormat != null && !shouldBypassCache) {
                     val cacheIsLossless = dbFormat.codecs == "flac"
@@ -8616,11 +8612,7 @@ class MusicService :
                 // the request would make this entry disagree with the FormatEntity describing the same stream:
                 // the guard would then see a container mismatch for the very track that is playing, purge its
                 // cached bytes and re-resolve on every re-open — #28 all over again, on a loop.
-                val deliveredQuality = when {
-                    isFinalLossless -> iad1tya.echo.music.constants.AudioQuality.LOSSLESS
-                    isFinalSaavn -> iad1tya.echo.music.constants.AudioQuality.SAAVN
-                    else -> iad1tya.echo.music.constants.AudioQuality.OPUS
-                }
+                val deliveredQuality = DeliveredQuality.fromMimeType(format.mimeType)
                 songUrlCache[mediaId] = CachedStream(
                     url = streamUrl,
                     expiresAt = System.currentTimeMillis() + (nonNullPlayback.streamExpiresInSeconds * 1000L),
@@ -11337,12 +11329,7 @@ class MusicService :
                             // predicate as the resolver + the container guard): a prefetched track that fell back
                             // must not carry a wrong pin into the persisted blob or into the guard's comparison.
                             val preMime = data.format.mimeType
-                            val preQuality = when {
-                                preMime.contains("flac", ignoreCase = true) -> iad1tya.echo.music.constants.AudioQuality.LOSSLESS
-                                preMime.contains("mp4", ignoreCase = true) || preMime.contains("m4a", ignoreCase = true) ->
-                                    iad1tya.echo.music.constants.AudioQuality.SAAVN
-                                else -> iad1tya.echo.music.constants.AudioQuality.OPUS
-                            }
+                            val preQuality = DeliveredQuality.fromMimeType(preMime)
                             songUrlCache[mediaId] = CachedStream(
                                 url = data.streamUrl,
                                 expiresAt = System.currentTimeMillis() + (data.streamExpiresInSeconds * 1000L),
