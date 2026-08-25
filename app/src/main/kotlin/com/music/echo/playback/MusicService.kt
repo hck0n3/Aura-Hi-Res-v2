@@ -11248,12 +11248,10 @@ class MusicService :
         // blocked by a blocking disk read on the callback thread (jank / contributes to mid-song stalls).
         val currentIndex = player.currentMediaItemIndex
         if (currentIndex == androidx.media3.common.C.INDEX_UNSET) return
-        // Cap at the PreloadNextSongLimit slider maximum (10) so `take(preloadLimit)` below can still honour
-        // the user's configured value; the real limit is applied inside the coroutine.
         // Prefetch ONLY the UPCOMING items (after the current index). The current/just-tapped track is
         // resolved by the ResolvingDataSource on play — prefetching it here double-resolves AND can poison
         // songUrlCache with a wrong-container URL.
-        val lookahead = kotlin.math.min(10, player.mediaItemCount - currentIndex - 1)
+        val lookahead = PreloadPlanning.upcomingLookahead(player.mediaItemCount, currentIndex)
         val upcomingAll = ArrayList<String>(kotlin.math.max(0, lookahead))
         for (i in 1..lookahead) {
             upcomingAll.add(player.getMediaItemAt(currentIndex + i).mediaId)
@@ -11284,26 +11282,31 @@ class MusicService :
             if (perfMode && !powerSave) {
                 Timber.tag(TAG).d("Preload: high-performance mode — url-only (extras skipped)")
             }
-            val urlOnlyPreload = powerSave || perfMode
+            val urlOnlyPreload = PreloadPlanning.isUrlOnlyPreload(powerSave, perfMode)
             // Default 2 (was 1) so the very next song is ready even while the current one is still resolving;
             // under battery saver / Auto: just the next 1 URL to limit radio wakeups.
-            val preloadLimit = if (powerSave) 1
-            else dataStore.get(iad1tya.echo.music.constants.PreloadNextSongLimitKey, 2)
+            val preloadLimit = PreloadPlanning.effectiveLimit(
+                powerSave = powerSave,
+                configuredLimit = dataStore.get(iad1tya.echo.music.constants.PreloadNextSongLimitKey, 2),
+            )
             val preloadLyrics = dataStore.get(iad1tya.echo.music.constants.PreloadLyricsEnabledKey, true)
             // Only the next N upcoming tracks per the slider (the current track is resolved on play by the
-            // ResolvingDataSource). distinct() so a duplicated id isn't resolved twice.
-            val upcomingMediaIds = upcomingAll.take(preloadLimit).distinct()
-            for (mediaId in upcomingMediaIds) {
-                // Skip a fully-DOWNLOADED upcoming song — it plays straight from the download cache, so
-                // re-resolving its URL is wasted work (and could poison songUrlCache with a wrong-container URL).
-                // NOTE: do NOT also skip on a playerCache hit here. songUrlCache is in-memory (empty on a fresh
-                // process), so skipping a playerCache-cached song would leave the resolver later hitting
-                // playerCache.isCached with no URL, taking the "Ghost cache entry" path that DELETES the cached
-                // bytes and re-downloads — destroying cross-session cache. The `!songUrlCache.containsKey(mediaId)`
-                // guard just below already prevents redundant resolves for anything already resolved this session.
-                if (downloadCache.isCached(mediaId, 0, 1)) continue
-
-                if (!mediaId.isLocalMediaId() && !songUrlCache.containsKey(mediaId)) {
+            // ResolvingDataSource). The plan drops fully-DOWNLOADED songs (they play straight from the
+            // download cache — re-resolving could poison songUrlCache with a wrong-container URL) and never
+            // resolves local ids or URLs already cached this session. NOTE: do NOT also skip on a
+            // player-cache hit here — see PreloadPlanning.planItems.
+            val planned = PreloadPlanning.planItems(
+                upcoming = upcomingAll,
+                limit = preloadLimit,
+                lyricsEnabled = preloadLyrics,
+                urlOnly = urlOnlyPreload,
+                isLocalMediaId = { it.isLocalMediaId() },
+                isFullyDownloaded = { downloadCache.isCached(it, 0, 1) },
+                hasCachedUrl = { songUrlCache.containsKey(it) },
+            )
+            for (plan in planned) {
+                val mediaId = plan.mediaId
+                if (plan.resolveUrl) {
                     Timber.tag(TAG).d("Preloading stream for $mediaId")
                     kotlin.runCatching {
                         val dbSong = database.song(mediaId).firstOrNull()
@@ -11346,16 +11349,23 @@ class MusicService :
                             // Gated OFF in High-Performance Mode / battery saver (url-only prefetch there).
                             if (!urlOnlyPreload) kotlin.runCatching {
                                 val existing = database.format(mediaId).firstOrNull()
-                                val loudnessDb = data.audioConfig?.loudnessDb ?: existing?.loudnessDb
-                                val perceptualLoudnessDb = data.audioConfig?.perceptualLoudnessDb ?: existing?.perceptualLoudnessDb
-                                val measuredLoudnessDb = existing?.measuredLoudnessDb
+                                val merge = PreloadPlanning.mergeLoudness(
+                                    resolvedLoudnessDb = data.audioConfig?.loudnessDb,
+                                    resolvedPerceptualLoudnessDb = data.audioConfig?.perceptualLoudnessDb,
+                                    existingLoudnessDb = existing?.loudnessDb,
+                                    existingPerceptualLoudnessDb = existing?.perceptualLoudnessDb,
+                                    existingMeasuredLoudnessDb = existing?.measuredLoudnessDb,
+                                )
+                                val loudnessDb = merge.loudnessDb
+                                val perceptualLoudnessDb = merge.perceptualLoudnessDb
+                                val measuredLoudnessDb = merge.measuredLoudnessDb
                                 // Mirror into the in-memory hint cache so a crossfade INTO this track can pre-level it
                                 // synchronously (Fix B) with no main-thread disk read.
-                                if (loudnessDb != null || perceptualLoudnessDb != null || measuredLoudnessDb != null) {
+                                if (merge.cacheHint) {
                                     loudnessHintCache[mediaId] = effectiveLoudnessDb(loudnessDb, perceptualLoudnessDb, measuredLoudnessDb)
                                 }
                                 // Persist the row only when we don't already have loudness cached (nothing to gain otherwise).
-                                if (existing?.loudnessDb == null && existing?.perceptualLoudnessDb == null) {
+                                if (merge.persistRow) {
                                     val format = data.format
                                     database.query {
                                         upsert(
@@ -11387,7 +11397,7 @@ class MusicService :
                     }
                 }
 
-                if (preloadLyrics && !urlOnlyPreload) {
+                if (plan.preloadLyrics) {
                     val dbLyrics = database.lyrics(mediaId).firstOrNull()
                     if (dbLyrics == null) {
                         Timber.tag(TAG).d("Preloading lyrics for $mediaId")
