@@ -411,7 +411,7 @@ fun UpdateScreen(navController: NavHostController) {
                                                 ContextCompat.startActivity(context, installIntent, null)
                                             }
                                         } else {
-                                            val urlToDownload = currentStatus.apkUrl ?: "https://github.com/hck0n3/Aura-Hi-Res-Player/releases/download/${currentStatus.version}/${UpdateApkFiles.apkFileName(currentStatus.version)}"
+                                            val urlToDownload = currentStatus.apkUrl ?: "https://github.com/hck0n3/Aura-Hi-Res-v2/releases/download/${currentStatus.version}/${UpdateApkFiles.apkFileName(currentStatus.version)}"
                                             isDownloading = true
                                             scope.launch {
                                                 val workManager = WorkManager.getInstance(context)
@@ -556,7 +556,7 @@ fun UpdateScreen(navController: NavHostController) {
                                     Spacer(modifier = Modifier.height(24.dp))
                                     androidx.compose.material3.TextButton(
                                         onClick = {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/hck0n3/Aura-Hi-Res-Player/releases/latest"))
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest"))
                                             ContextCompat.startActivity(context, intent, null)
                                         }
                                     ) {
@@ -789,7 +789,7 @@ suspend fun checkForUpdate(
     }
     withContext(Dispatchers.IO) {
         try {
-            val url = URL("https://api.github.com/repos/hck0n3/Aura-Hi-Res-Player/releases/latest")
+            val url = URL("https://api.github.com/repos/hck0n3/Aura-Hi-Res-v2/releases/latest")
             val json = url.openStream().bufferedReader().use { it.readText() }
             val targetRelease = JSONObject(json)
             
@@ -814,7 +814,7 @@ suspend fun checkForUpdate(
                 var imageUrl: String? = null
                 try {
                     val changelogUrl =
-                        URL("https://github.com/hck0n3/Aura-Hi-Res-Player/releases/download/$tagWithPrefix/changelog.json")
+                        URL("https://github.com/hck0n3/Aura-Hi-Res-v2/releases/download/$tagWithPrefix/changelog.json")
                     val changelogJson = changelogUrl.openStream().bufferedReader().use { it.readText() }
                     val changelogData = JSONObject(changelogJson)
 
@@ -844,7 +844,7 @@ suspend fun checkForUpdate(
                 // just the latest release's notes. One section per skipped version, newest first.
                 try {
                     val releasesJson =
-                        URL("https://api.github.com/repos/hck0n3/Aura-Hi-Res-Player/releases?per_page=50")
+                        URL("https://api.github.com/repos/hck0n3/Aura-Hi-Res-v2/releases?per_page=50")
                             .openStream().bufferedReader().use { it.readText() }
                     val releasesArr = org.json.JSONArray(releasesJson)
                     val skipped = ArrayList<Pair<String, ChangelogSection>>()

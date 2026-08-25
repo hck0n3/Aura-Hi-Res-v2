@@ -508,7 +508,7 @@ private fun AboutAppCard(skin: AuraPanelSkin) {
             FilledTonalButton(
                 onClick = {
                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                        putExtra(Intent.EXTRA_TEXT, "Aura Hi-Res Player: https://github.com/hck0n3/Aura-Hi-Res-Player/releases/latest")
+                        putExtra(Intent.EXTRA_TEXT, "Aura Hi-Res Player: https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest")
                         type = "text/plain"
                     }
                     val shareIntent = Intent.createChooser(sendIntent, "Compartir Aura Hi-Res")

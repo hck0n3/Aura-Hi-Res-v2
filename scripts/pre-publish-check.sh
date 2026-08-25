@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REPO="${REPO:-hck0n3/Aura-Hi-Res-Player}"
+REPO="${REPO:-hck0n3/Aura-Hi-Res-v2}"
 DO_BUILD=0
 APK_PATH=""
 SKIP_GH=0
@@ -123,10 +123,14 @@ if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then
 else
   cert_out="$("$APKSIGNER" verify --print-certs "$APK_PATH" 2>&1)"
   owner="$(echo "$cert_out" | sed -n 's/^Owner: //p' | head -n1)"
+  if [[ -z "$owner" ]]; then
+    # apksigner from build-tools 36+ prints "Signer #1 certificate DN:" instead of "Owner:".
+    owner="$(echo "$cert_out" | sed -n 's/^Signer #1 certificate DN: //p' | head -n1)"
+  fi
   sha256="$(echo "$cert_out" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':' | tr 'A-F' 'a-f' | head -n1)"
-  if [[ "$owner" == *"CN=JR-MUSIC-PRO"* ]]; then
-    fail "3/4 APK signing certificate" "Emergency CI keystore (CN=JR-MUSIC-PRO)."
-  elif [[ "$owner" != *"CN=JR MUSIC PRO"* ]]; then
+  if [[ "$owner" == *"CN=AURA-V2-EMERGENCY"* ]]; then
+    fail "3/4 APK signing certificate" "Emergency CI keystore (CN=AURA-V2-EMERGENCY)."
+  elif [[ "$owner" != *"CN=Aura Hi-Res v2"* ]]; then
     fail "3/4 APK signing certificate" "Unexpected signer: $owner"
   else
     pass "3/4 APK signing certificate" "Signer OK. SHA-256=$sha256"

@@ -53,7 +53,7 @@ object PublicDownloads {
      * Removes the update APKs THIS app copied here, except [keepNames]. Returns how many went.
      *
      * The public Downloads folder holds the user's own files, so the filter is deliberately narrow
-     * ([UpdateApkFiles.publicApksToDelete]): only `Aura-Hi-Res-Player-<version>.apk` names this app
+     * ([UpdateApkFiles.publicApksToDelete]): only `Aura-Hi-Res-v2-<version>.apk` names this app
      * could have written, never `-NOSUB` builds, never anything else. On API 29+ MediaStore refuses to
      * delete rows another app owns, which is a second, system-enforced guard; that failure is caught
      * and skipped.

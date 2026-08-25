@@ -169,7 +169,7 @@ Notas:
 ## (d) Config self-healing (opcional, complementaria)
 
 Además del relay, la app lee un JSON opcional
-`https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-Player/main/shazam_recognition_config.json`
+`https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-v2/main/shazam_recognition_config.json`
 (ver `RemoteRecognitionConfig`) que permite **rotar host / path / User-Agents / orden de proveedores**
 sin actualizar la app. Ejemplo (todos los campos opcionales):
 

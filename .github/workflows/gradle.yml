@@ -78,38 +78,25 @@ jobs:
           echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > app/keystore/release.keystore
 
       - name: Generate CI Keystore (fallback when no secrets configured)
+        # Aura Hi-Res v2: emergency fallback identity. If RELEASE_KEYSTORE_BASE64 is missing the
+        # build still succeeds but the APK is signed with this disposable cert — users would get
+        # "app not installed" over any previous install. Detectable at a glance: the real v2
+        # keystore is CN=Aura Hi-Res v2 (alias aurav2); this emergency one is CN=AURA-V2-EMERGENCY.
         run: |
           if [ ! -f app/keystore/release.keystore ]; then
             mkdir -p app/keystore
             keytool -genkeypair -v -keystore app/keystore/release.keystore \
-              -storepass jrmusicpro -keypass jrmusicpro -alias jrmusic \
+              -storepass aurav2emergency -keypass aurav2emergency -alias aurav2 \
               -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=JR-MUSIC-PRO, OU=JR, O=JR, L=NA, ST=NA, C=US"
+              -dname "CN=AURA-V2-EMERGENCY, OU=Aura, O=Aura, L=NA, ST=NA, C=US"
             echo "Generated fallback CI keystore"
-          fi
-
-      - name: Generate debug keystore for diagnostic build
-        # 2026-08-19: the release buildType is TEMPORARILY signed with signingConfigs.getByName("debug")
-        # (see app/build.gradle.kts) to test whether the release certificate itself is what YouTube is
-        # blocking. That built-in "debug" signing config points at ~/.android/debug.keystore, which
-        # Android Studio creates on first use but which AGP only auto-generates here when it processes an
-        # actual `debug` build-type task — this workflow only ever runs assembleUniversalGmsRelease, so
-        # that never happens and validateSigningUniversalGmsRelease fails with "Keystore file ... not
-        # found". Generate it by hand with the same fixed credentials Android tooling always uses.
-        run: |
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            keytool -genkeypair -v -keystore ~/.android/debug.keystore \
-              -storepass android -keypass android -alias androiddebugkey \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
           fi
 
       - name: Build and Sign Release APK (Push to main / Dispatch / Tag)
         env:
-          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || 'jrmusicpro' }}
-          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'jrmusic' }}
-          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'jrmusicpro' }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || 'aurav2emergency' }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'aurav2' }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'aurav2emergency' }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
           # Paid Superpowered licence. Never in source. Release builds embed it XORed with the SHA-256
@@ -127,13 +114,13 @@ jobs:
           # ONE universal APK for EVERY device (arm64/armeabi-v7a/x86/x86_64) — phones, Android TV, car head
           # units, 32-bit boxes — to avoid ABI-compatibility problems. It's the single default download.
           UNIVERSAL_APK=$(find app/build/outputs/apk/universalGms/release -name "*.apk" | head -n 1)
-          cp "$UNIVERSAL_APK" "app/build/outputs/apk/release-artifacts/Aura-Hi-Res-Player-${VERSION_NAME}.apk"
-          echo "universal -> Aura-Hi-Res-Player-${VERSION_NAME}.apk"
+          cp "$UNIVERSAL_APK" "app/build/outputs/apk/release-artifacts/Aura-Hi-Res-v2-${VERSION_NAME}.apk"
+          echo "universal -> Aura-Hi-Res-v2-${VERSION_NAME}.apk"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Aura-Hi-Res-Player
+          name: Aura-Hi-Res-v2
           path: app/build/outputs/apk/release-artifacts/*.apk
 
       # R8 mapping for deobfuscating user crash reports (obfuscated frames like `utils.s2.n` are
@@ -203,9 +190,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         continue-on-error: true
         env:
-          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || 'jrmusicpro' }}
-          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'jrmusic' }}
-          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'jrmusicpro' }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || 'aurav2emergency' }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'aurav2' }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'aurav2emergency' }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
           SUPERPOWERED_LICENSE_KEY: ${{ secrets.SUPERPOWERED_LICENSE_KEY }}
@@ -215,7 +202,7 @@ jobs:
           VERSION_NAME=$(grep "versionName =" app/build.gradle.kts | head -n 1 | awk -F '"' '{print $2}')
           mkdir -p app/build/outputs/apk/nosub-artifacts
           find app/build/outputs/apk/arm64Foss/release -name "*.apk" | while read -r apk_path; do
-            cp "$apk_path" "app/build/outputs/apk/nosub-artifacts/Aura-Hi-Res-Player-${VERSION_NAME}-NOSUB.apk"
+            cp "$apk_path" "app/build/outputs/apk/nosub-artifacts/Aura-Hi-Res-v2-${VERSION_NAME}-NOSUB.apk"
             echo "No-sub APK: $apk_path"
           done
 
@@ -224,5 +211,5 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Aura-Hi-Res-Player-NOSUB
+          name: Aura-Hi-Res-v2-NOSUB
           path: app/build/outputs/apk/nosub-artifacts/*.apk

@@ -227,11 +227,12 @@ android {
         buildConfigField("Boolean", "REQUIRE_SUBSCRIPTION", (!noSub).toString())
         minSdk = 26
         targetSdk = 36
-        // Public version reset to a fresh stable 0.0.1 for the Aura Hi-Res Player relaunch.
-        // versionCode stays monotonic (never below the last shipped 673) so the in-app updater and
-        // sideload-install-over-existing keep working; only the user-facing versionName resets.
-        versionCode = 954
-        versionName = "0.6.234"
+        // Aura Hi-Res v2 (owner decision, 2026-08-25): fresh public identity 2.0.0 for the new
+        // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
+        // and never receives another update. versionCode stays monotonic (never below the last
+        // shipped 954) so sideload-install-over-existing keeps working.
+        versionCode = 955
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -387,18 +388,18 @@ android {
             isShrinkResources = true
             isCrunchPngs = false
             isDebuggable = false
-            // 2026-08-19, sixteenth postmortem: renaming applicationId to iad1tya.aura.music (a package
-            // NEVER used before, zero history) STILL failed identically — ruling out "the old package
-            // name got flagged" too. Every variable that changes between a debug build (still working,
-            // confirmed on-device, same day) and every release build tried (all failing) has now been
-            // eliminated except one: the signing certificate. Every failing build was signed with the
-            // release keystore ("JR MUSIC PRO"); the one build that keeps working is signed with the
-            // generic, shared-by-millions-of-developers Android debug keystore. TEMPORARILY signing this
-            // release build with the debug keystore isolates that one remaining variable — if THIS
-            // build resolves streams, the release certificate itself is what's flagged, not the app.
-            // REVERT to signingConfigs.getByName("release") once this is answered — never ship the real
-            // release signed with the debug key.
-            signingConfig = signingConfigs.getByName("debug")
+            // 2026-08-25, HALLAZGO-008 CLOSED via "Aura Hi-Res v2" (owner decision): the sixteenth
+            // postmortem (2026-08-19) proved the release certificate "JR MUSIC PRO" itself is what
+            // YouTube flags — every release-signed build failed stream resolution while debug-signed
+            // builds worked, even on a never-used package name. The fix is NOT to keep shipping the
+            // debug key: this v2 app is a brand-new identity with zero installed users, so it gets a
+            // brand-new dedicated keystore (CN=Aura Hi-Res v2, alias aurav2 — credentials in
+            // local.properties / CI secrets, never in source) and release builds are signed with it
+            // again. The flagged "JR MUSIC PRO" keystore is retired with the frozen old app.
+            // MANDATORY before any public release: the owner must confirm on-device that THIS
+            // certificate resolves streams (BETA-004 test) — a new cert is expected to be clean,
+            // but that is verified by playback, not assumed.
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

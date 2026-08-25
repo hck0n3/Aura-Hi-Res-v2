@@ -78,7 +78,7 @@ object RemotePlayerConfig {
      * GitHub file, a gist, an object-store URL, …). Point it at your own published `player_configs.json`.
      */
     const val REMOTE_CONFIG_URL =
-        "https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-Player/main/player_configs.json"
+        "https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-v2/main/player_configs.json"
 
     private const val CACHE_FILE_NAME = "player_configs_cache.json"
     private const val ETAG_FILE_NAME = "player_configs_cache.etag"
@@ -319,7 +319,7 @@ object RemotePlayerConfig {
                 readTimeout = READ_TIMEOUT_MS
                 requestMethod = "GET"
                 instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "Aura-Hi-Res-Player")
+                setRequestProperty("User-Agent", "Aura-Hi-Res-v2")
                 setRequestProperty("Accept", "application/json")
                 if (!ifNoneMatch.isNullOrBlank()) setRequestProperty("If-None-Match", ifNoneMatch)
             }

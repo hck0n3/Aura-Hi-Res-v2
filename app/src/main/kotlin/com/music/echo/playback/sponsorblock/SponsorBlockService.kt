@@ -36,7 +36,7 @@ object SponsorBlockService {
         try {
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "Aura-Hi-Res-Player")
+                .header("User-Agent", "Aura-Hi-Res-v2")
                 .get()
                 .build()
             client.newCall(request).execute().use { response ->

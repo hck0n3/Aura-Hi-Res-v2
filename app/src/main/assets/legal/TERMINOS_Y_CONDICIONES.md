@@ -212,7 +212,7 @@ Aclaración técnica, por transparencia (el código es público y menciona Fireb
 Para consultas legales, avisos de propiedad intelectual (cláusula 9), soporte, reportes de errores o sugerencias:
 
 - **Correo electrónico de la Aplicación:** aurahires@gmail.com
-- **Repositorio del proyecto:** https://github.com/hck0n3/Aura-Hi-Res-Player
+- **Repositorio del proyecto:** https://github.com/hck0n3/Aura-Hi-Res-v2
 
 Los reportes de errores y las sugerencias de mejora enviados desde la Aplicación (o directamente a esa dirección) se reciben en el mismo buzón.
 

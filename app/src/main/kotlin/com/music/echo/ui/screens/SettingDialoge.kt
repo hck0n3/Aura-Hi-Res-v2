@@ -455,7 +455,7 @@ private fun SettingDialogeBody(
                             putExtra(android.content.Intent.EXTRA_SUBJECT, "Aura Hi-Res Player")
                             putExtra(
                                 android.content.Intent.EXTRA_TEXT,
-                                "Prueba Aura Hi-Res Player, el reproductor de música con la mejor calidad de audio:\n\nhttps://github.com/hck0n3/Aura-Hi-Res-Player/releases/latest"
+                                "Prueba Aura Hi-Res Player, el reproductor de música con la mejor calidad de audio:\n\nhttps://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest"
                             )
                         }
                         context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartir Aura Hi-Res"))

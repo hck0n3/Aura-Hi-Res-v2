@@ -47,8 +47,8 @@ not on disk.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/hck0n3/Aura-Hi-Res-Player.git
-cd Aura-Hi-Res-Player
+git clone https://github.com/hck0n3/Aura-Hi-Res-v2.git
+cd Aura-Hi-Res-v2
 ```
 
 ### 2. Configure Local Properties

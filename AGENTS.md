@@ -8,12 +8,20 @@
 
 ## Qué es este proyecto
 
-**Aura Hi-Res Player** — reproductor de música Hi-Res para Android (Kotlin + Compose, Gradle multi-módulo).
+**Aura Hi-Res v2** — reproductor de música Hi-Res para Android (Kotlin + Compose, Gradle multi-módulo).
 Es una **app de pago con beta privada**: el dueño es también el usuario que reporta los fallos, y las notas
 de versión (`RELEASE_INFO.md`) se escriben para que las lea él y sus usuarios, no para otros desarrolladores.
 
-El paquete publicado es `iad1tya.echo.music`, el código vive en `com.music.echo` y el root project de Gradle
-se llama `echomusic`: es herencia del fork del que salió, no un despiste. No lo "arregles".
+Este repo (`hck0n3/Aura-Hi-Res-v2`) es la **identidad nueva** creada el 2026-08-25 por decisión del dueño
+para cerrar el HALLAZGO-008: el certificado de release antiguo (`CN=JR MUSIC PRO`) quedó marcado por
+YouTube y ningún build firmado con él resolvía streams. La v2 firma con una **keystore nueva y dedicada**
+(`CN=Aura Hi-Res v2`, alias `aurav2`). El `applicationId` es `iad1tya.aura.music` y la app se instala al
+lado de la anterior. La app publicada anterior (`iad1tya.echo.music`, repo `hck0n3/Aura-Hi-Res-Player`)
+está **CONGELADA**: no recibe más actualizaciones ni tags; su canal de auto-reparación
+(`player_configs.json` en la rama main de ESE repo) sigue vivo para sus usuarios.
+
+El código vive en `com.music.echo` y el root project de Gradle se llama `echomusic`: es herencia del fork
+del que salió, no un despiste. No lo "arregles".
 
 ---
 
@@ -64,7 +72,7 @@ que no hace falta tocar `JAVA_HOME`), Android SDK con **platform 36**, **build-t
 ./gradlew assembleUniversalFossDebug -Pnosub=true   # sin la puerta de suscripción
 ```
 
-`-Pnosub=true` compila con otro `applicationId` (`iad1tya.echo.music.dev`), así que se instala **al lado** de
+`-Pnosub=true` compila con otro `applicationId` (`iad1tya.aura.music.dev`), así que se instala **al lado** de
 la app real sin pisarla. Nunca se publica.
 
 ### Trampas conocidas de este repo
@@ -86,8 +94,8 @@ El actualizador de la app consulta `releases/latest` de GitHub, que **excluye la
 
 | Tag | Quién la recibe |
 |---|---|
-| `v0.6.150-beta1` | **Solo el dueño**, entrando a la página de releases. |
-| `v0.6.150` | **Todos los usuarios**, por el actualizador dentro de la app. |
+| `v2.0.1-beta1` | **Solo el dueño**, entrando a la página de releases. |
+| `v2.0.1` | **Todos los usuarios**, por el actualizador dentro de la app. |
 
 > ### ⛔ Nunca publiques sin permiso explícito del dueño.
 > Compilar y dejar el trabajo listo es correcto. Ejecutar `git push` de un tag **no lo es** salvo que él lo
@@ -95,7 +103,7 @@ El actualizador de la app consulta `releases/latest` de GitHub, que **excluye la
 
 Antes de una versión estable, comprueba:
 
-1. `versionName` sin `-beta`, y `versionCode` incrementado (es monótono, nunca por debajo de 673).
+1. `versionName` sin `-beta`, y `versionCode` incrementado (es monótono, nunca por debajo de 955).
 2. `RELEASE_INFO.md` cuenta **todo lo que el usuario va a recibir**. Si hay varias betas acumuladas desde la
    última estable, hay que fusionarlas o esa parte llega en silencio. La **línea 1 es el título** de la
    release y de la línea 3 en adelante es el cuerpo.
@@ -104,7 +112,7 @@ Antes de una versión estable, comprueba:
 4. El registro de regresiones (regla 1).
 5. Ejecutar `.\scripts\pre-publish-check.ps1 -Build` (Windows) o `./scripts/pre-publish-check.sh --build`
    (Linux/CI). Debe terminar en **READY**; cualquier **FAIL** bloquea la publicación (secretos GitHub,
-   clave Superpowered, certificado `CN=JR MUSIC PRO`, coincidencia con el APK publicado).
+   clave Superpowered, certificado `CN=Aura Hi-Res v2`, coincidencia con el APK publicado).
 6. **⛔ Publicar solo si GitHub está todo en verde.** Tras el push a `main`, esperar a que
    **Android Build & Sign** y **CodeQL Advanced** (y cualquier otro check del commit) terminen en
    `success`. Solo entonces crear/pushear el tag estable `vX.Y.Z` (sin `-beta`). Si algo está rojo o
@@ -120,12 +128,19 @@ Antes de formatear: `.\scripts\backup-dev-secrets.ps1` (copia keystore + `local.
 
 Si el secret `RELEASE_KEYSTORE_BASE64` faltara, el CI **genera una keystore desechable en silencio** y la
 build sale verde igualmente. Los usuarios recibirían "aplicación no instalada" y la única salida sería
-desinstalar, perdiendo sus datos. Se distinguen de un vistazo: la de emergencia usa `CN=JR-MUSIC-PRO` **con
-guiones**; la buena es `CN=JR MUSIC PRO` **con espacios**. Comprobación sobre cualquier APK publicado:
+desinstalar, perdiendo sus datos. Se distinguen de un vistazo: la de emergencia usa `CN=AURA-V2-EMERGENCY`;
+la buena es `CN=Aura Hi-Res v2` (alias `aurav2`). Comprobación sobre cualquier APK publicado:
 
 ```bash
 apksigner verify --print-certs <apk>
 ```
+
+**Historia que no se repite (HALLAZGO-008):** la keystore antigua `CN=JR MUSIC PRO` quedó marcada por
+YouTube y ningún build firmado con ella resolvía streams. Por eso existe la v2 con keystore nueva. Regla
+permanente: **antes de publicar cualquier versión estable de la v2, el dueño debe haber confirmado en su
+dispositivo que el certificado vigente resuelve streams** (una keystore nueva se prueba con reproducción
+real, nunca se asume limpia). Si algún día una keystore vuelve a quedar marcada, la salida es otra
+identidad nueva — jamás firmar un release con la keystore de debug.
 
 ### Arreglar la reproducción sin publicar una versión
 

@@ -53,7 +53,7 @@ object RemoteRecognitionConfig {
      * owner already controls, so both self-healing files live together.
      */
     const val REMOTE_CONFIG_URL =
-        "https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-Player/main/shazam_recognition_config.json"
+        "https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-v2/main/shazam_recognition_config.json"
 
     private const val CACHE_FILE_NAME = "shazam_recognition_config_cache.json"
     private const val ETAG_FILE_NAME = "shazam_recognition_config_cache.etag"
@@ -206,7 +206,7 @@ object RemoteRecognitionConfig {
                 readTimeout = READ_TIMEOUT_MS
                 requestMethod = "GET"
                 instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "Aura-Hi-Res-Player")
+                setRequestProperty("User-Agent", "Aura-Hi-Res-v2")
                 setRequestProperty("Accept", "application/json")
                 if (!ifNoneMatch.isNullOrBlank()) setRequestProperty("If-None-Match", ifNoneMatch)
             }

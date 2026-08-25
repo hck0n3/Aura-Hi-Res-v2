@@ -6,13 +6,13 @@
 
   <p><em>Reproductor de música Hi-Res para Android — sonido potente sin distorsión, ecualizador en tiempo real, videos y lienzos animados, letras sincronizadas, modo sin conexión, podcasts e IA de recomendación en el dispositivo.</em></p>
 
-  [![GitHub Release](https://img.shields.io/github/v/release/hck0n3/Aura-Hi-Res-Player?style=for-the-badge&color=6f42c1)](https://github.com/hck0n3/Aura-Hi-Res-Player/releases/latest)
+  [![GitHub Release](https://img.shields.io/github/v/release/hck0n3/Aura-Hi-Res-v2?style=for-the-badge&color=6f42c1)](https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest)
   [![License](https://img.shields.io/badge/License-GPL--3.0-28a745?style=for-the-badge)](LICENSE)
-  [![Platform](https://img.shields.io/badge/Platform-Android%208%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/hck0n3/Aura-Hi-Res-Player/releases/latest)
+  [![Platform](https://img.shields.io/badge/Platform-Android%208%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest)
 
   <br>
 
-  <a href="https://github.com/hck0n3/Aura-Hi-Res-Player/releases/latest">
+  <a href="https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest">
     <img src="assets/download.png" alt="Download" width="180"/>
   </a>
 
@@ -142,10 +142,10 @@ Aura Hi-Res Player delivers a premium, ad-free listening experience on top of a 
 
 ## Installation / Instalación
 
-Download the latest signed APK from the **[Releases page](https://github.com/hck0n3/Aura-Hi-Res-Player/releases/latest)**.
-*Descarga el APK firmado más reciente desde la **[página de Releases](https://github.com/hck0n3/Aura-Hi-Res-Player/releases/latest)**.*
+Download the latest signed APK from the **[Releases page](https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest)**.
+*Descarga el APK firmado más reciente desde la **[página de Releases](https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest)**.*
 
-- **`Aura-Hi-Res-Player-<version>.apk`** — universal build (all ABIs: arm64/armeabi-v7a/x86/x86_64). One download for every device: phones, Android TV, car head units and older 32-bit boxes.
+- **`Aura-Hi-Res-v2-<version>.apk`** — universal build (all ABIs: arm64/armeabi-v7a/x86/x86_64). One download for every device: phones, Android TV, car head units and older 32-bit boxes.
 
 > If you see an "App not installed" error when updating, uninstall the previous version first.
 > Si al actualizar ves el error "Aplicación no instalada", desinstala primero la versión anterior.
@@ -156,8 +156,8 @@ Download the latest signed APK from the **[Releases page](https://github.com/hck
 
 1. **Clone**
    ```bash
-   git clone https://github.com/hck0n3/Aura-Hi-Res-Player.git
-   cd Aura-Hi-Res-Player
+   git clone https://github.com/hck0n3/Aura-Hi-Res-v2.git
+   cd Aura-Hi-Res-v2
    ```
 2. **Configure the Android SDK** — create a `local.properties` file:
    ```bash

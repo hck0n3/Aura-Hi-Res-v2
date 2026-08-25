@@ -13,7 +13,7 @@
 param(
     [switch]$Build,
     [string]$ApkPath = "",
-    [string]$Repo = "hck0n3/Aura-Hi-Res-Player",
+    [string]$Repo = "hck0n3/Aura-Hi-Res-v2",
     [switch]$SkipGh,
     [switch]$SkipCompareLatest
 )
@@ -202,7 +202,7 @@ function Invoke-GradleGate([string]$Root, [switch]$DoBuild) {
             return $output
         }
         if ($output -match 'Generated fallback CI keystore') {
-            Write-Check "2/4 Gradle Superpowered gate" "FAIL" "Emergency keystore detected (CN=JR-MUSIC-PRO). Users cannot install over the real app."
+            Write-Check "2/4 Gradle Superpowered gate" "FAIL" "Emergency keystore detected (CN=AURA-V2-EMERGENCY). Users cannot install over the real app."
             return $output
         }
         Write-Check "2/4 Gradle Superpowered gate" "PASS" "No blocking SUPERPOWERED warnings in Gradle output."
@@ -253,11 +253,11 @@ function Test-ApkCertificate([string]$ApkSigner, [string]$Apk, [string]$Repo, [s
         return
     }
     $cert = Get-ApkCertSummary $ApkSigner $Apk
-    if ($cert.Owner -match 'CN=JR-MUSIC-PRO') {
-        Write-Check "3/4 APK signing certificate" "FAIL" "Emergency CI keystore detected (CN=JR-MUSIC-PRO). Expected CN=JR MUSIC PRO."
+    if ($cert.Owner -match 'CN=AURA-V2-EMERGENCY') {
+        Write-Check "3/4 APK signing certificate" "FAIL" "Emergency CI keystore detected (CN=AURA-V2-EMERGENCY). Expected CN=Aura Hi-Res v2."
         return
     }
-    if ($cert.Owner -notmatch 'CN=JR MUSIC PRO') {
+    if ($cert.Owner -notmatch 'CN=Aura Hi-Res v2') {
         Write-Check "3/4 APK signing certificate" "FAIL" ("Unexpected signer: {0}" -f $cert.Owner)
         return
     }

@@ -25,8 +25,8 @@ class UpdateApkFilesTest {
     fun `two releases never collide on disk`() {
         val a = UpdateApkFiles.apkFileName("v0.6.145")
         val b = UpdateApkFiles.apkFileName("v0.6.146-beta1")
-        assertEquals("Aura-Hi-Res-Player-0.6.145.apk", a)
-        assertEquals("Aura-Hi-Res-Player-0.6.146-beta1.apk", b)
+        assertEquals("Aura-Hi-Res-v2-0.6.145.apk", a)
+        assertEquals("Aura-Hi-Res-v2-0.6.146-beta1.apk", b)
         assertFalse(a == b)
     }
 
@@ -55,8 +55,8 @@ class UpdateApkFilesTest {
 
     @Test
     fun `a blank or dot-only version still produces a usable name`() {
-        assertEquals("Aura-Hi-Res-Player-unknown.apk", UpdateApkFiles.apkFileName("   "))
-        assertEquals("Aura-Hi-Res-Player-unknown.apk", UpdateApkFiles.apkFileName(".."))
+        assertEquals("Aura-Hi-Res-v2-unknown.apk", UpdateApkFiles.apkFileName("   "))
+        assertEquals("Aura-Hi-Res-v2-unknown.apk", UpdateApkFiles.apkFileName(".."))
     }
 
     @Test
@@ -72,42 +72,42 @@ class UpdateApkFilesTest {
     @Test
     fun `cleanup removes other releases and the legacy fixed name, and keeps the current one`() {
         val names = listOf(
-            "Aura-Hi-Res-Player-0.6.144.apk",
-            "Aura-Hi-Res-Player-0.6.145.apk",
-            "Aura-Hi-Res-Player-0.6.145.apk.part",
+            "Aura-Hi-Res-v2-0.6.144.apk",
+            "Aura-Hi-Res-v2-0.6.145.apk",
+            "Aura-Hi-Res-v2-0.6.145.apk.part",
             "echomusic.apk",
             "echo_temp.zip",
         )
         val doomed = UpdateApkFiles.deletableNames(names, keepVersion = "v0.6.145")
-        assertTrue("Aura-Hi-Res-Player-0.6.144.apk" in doomed)
+        assertTrue("Aura-Hi-Res-v2-0.6.144.apk" in doomed)
         assertTrue("echomusic.apk" in doomed)
         assertTrue("echo_temp.zip" in doomed)
-        assertFalse("Aura-Hi-Res-Player-0.6.145.apk" in doomed)
-        assertFalse("Aura-Hi-Res-Player-0.6.145.apk.part" in doomed)
+        assertFalse("Aura-Hi-Res-v2-0.6.145.apk" in doomed)
+        assertFalse("Aura-Hi-Res-v2-0.6.145.apk.part" in doomed)
     }
 
     @Test
     fun `cleanup never touches a file this app did not write`() {
-        val names = listOf("backup.db", "mi cancion.mp3", "Aura-Hi-Res-Player-0.6.140.apk", "notes.txt")
+        val names = listOf("backup.db", "mi cancion.mp3", "Aura-Hi-Res-v2-0.6.140.apk", "notes.txt")
         val doomed = UpdateApkFiles.deletableNames(names, keepVersion = null)
-        assertEquals(listOf("Aura-Hi-Res-Player-0.6.140.apk"), doomed)
+        assertEquals(listOf("Aura-Hi-Res-v2-0.6.140.apk"), doomed)
     }
 
     @Test
     fun `the Downloads sweep is narrower than the private one`() {
         val names = listOf(
-            "Aura-Hi-Res-Player-0.6.144.apk",
-            "Aura-Hi-Res-Player-0.6.145.apk",
-            "Aura-Hi-Res-Player-0.6.146-beta1-NOSUB.apk", // the owner's private build: never ours to delete
+            "Aura-Hi-Res-v2-0.6.144.apk",
+            "Aura-Hi-Res-v2-0.6.145.apk",
+            "Aura-Hi-Res-v2-0.6.146-beta1-NOSUB.apk", // the owner's private build: never ours to delete
             "echomusic.apk",                              // in Downloads this could be anyone's
             "some-other-app.apk",
             "family.jpg",
         )
         val doomed = UpdateApkFiles.publicApksToDelete(
             names,
-            keepNames = setOf("Aura-Hi-Res-Player-0.6.145.apk"),
+            keepNames = setOf("Aura-Hi-Res-v2-0.6.145.apk"),
         )
-        assertEquals(listOf("Aura-Hi-Res-Player-0.6.144.apk"), doomed)
+        assertEquals(listOf("Aura-Hi-Res-v2-0.6.144.apk"), doomed)
     }
 
     // ---- partial downloads ---------------------------------------------------------------------

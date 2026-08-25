@@ -13,7 +13,7 @@ package iad1tya.echo.music.echomusic.updater
 object UpdateApkFiles {
 
     /** Prefix of every APK this app writes, matching the name of the GitHub release asset. */
-    const val FILE_PREFIX = "Aura-Hi-Res-Player-"
+    const val FILE_PREFIX = "Aura-Hi-Res-v2-"
     const val APK_SUFFIX = ".apk"
 
     /**
@@ -109,7 +109,7 @@ object UpdateApkFiles {
     /**
      * Which copies in the user's public Downloads folder are ours to remove. Stricter than
      * [isOwnUpdateFile] on purpose — that folder holds the user's own files:
-     *  - the name must be one this app could have produced (`Aura-Hi-Res-Player-<version>.apk`);
+     *  - the name must be one this app could have produced (`Aura-Hi-Res-v2-<version>.apk`);
      *  - `-NOSUB` builds are excluded (the owner's private test APKs, which the app never writes);
      *  - anything in [keepNames] survives.
      * Legacy fixed names are NOT matched here: `echomusic.apk` in Downloads could be anyone's.

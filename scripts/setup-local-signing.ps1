@@ -156,7 +156,7 @@ if ($VerifyOnly) {
     Write-Host "  RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD"
     Write-Host ""
 
-    $defaultAlias = if ($keyAlias) { $keyAlias } else { "jrmusic" }
+    $defaultAlias = if ($keyAlias) { $keyAlias } else { "aurav2" }
     $enteredAlias = Read-Host ("Key alias [{0}]" -f $defaultAlias)
     if ([string]::IsNullOrWhiteSpace($enteredAlias)) { $keyAlias = $defaultAlias } else { $keyAlias = $enteredAlias.Trim() }
 
@@ -184,13 +184,13 @@ if (-not $result.Ok) {
 }
 
 Write-Host "Certificate owner: $($result.Owner)" -ForegroundColor Green
-if ($result.Owner -match 'CN=JR-MUSIC-PRO') {
-    Write-Host "ERROR: This is the emergency CI keystore (CN=JR-MUSIC-PRO)." -ForegroundColor Red
-    Write-Host "Replace app/keystore/release.keystore with your real release keystore (CN=JR MUSIC PRO)."
+if ($result.Owner -match 'CN=AURA-V2-EMERGENCY') {
+    Write-Host "ERROR: This is the emergency CI keystore (CN=AURA-V2-EMERGENCY)." -ForegroundColor Red
+    Write-Host "Replace app/keystore/release.keystore with your real release keystore (CN=Aura Hi-Res v2)."
     exit 1
 }
-if ($result.Owner -notmatch 'CN=JR MUSIC PRO' -and $result.Owner -notmatch '^UNKNOWN \(keytool') {
-    Write-Host "WARNING: Expected CN=JR MUSIC PRO. Confirm this is the keystore your users already have installed." -ForegroundColor Yellow
+if ($result.Owner -notmatch 'CN=Aura Hi-Res v2' -and $result.Owner -notmatch '^UNKNOWN \(keytool') {
+    Write-Host "WARNING: Expected CN=Aura Hi-Res v2. Confirm this is the keystore your users already have installed." -ForegroundColor Yellow
     if (-not $NonInteractive -and -not $VerifyOnly) {
         $cont = Read-Host "Continue anyway? [y/N]"
         if ($cont -notmatch '^[Yy]') { exit 1 }

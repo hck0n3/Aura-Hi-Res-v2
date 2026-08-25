@@ -127,7 +127,7 @@ class QobuzConfigProvider(
          * bundle scraper (see [fetchRemote]).
          */
         const val REMOTE_CONFIG_URL =
-            "https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-Player/main/qobuz_config.json"
+            "https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-v2/main/qobuz_config.json"
 
         // Guard against pathological downloads: a real config file is well under a kilobyte.
         const val MAX_BODY_BYTES = 64L * 1024L

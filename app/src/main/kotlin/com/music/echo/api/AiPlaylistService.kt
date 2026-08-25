@@ -306,7 +306,7 @@ object AiPlaylistService {
                 val builder = Request.Builder()
                     .url(url)
                     .addHeader("Content-Type", "application/json")
-                    .addHeader("HTTP-Referer", "https://github.com/hck0n3/Aura-Hi-Res-Player")
+                    .addHeader("HTTP-Referer", "https://github.com/hck0n3/Aura-Hi-Res-v2")
                     .addHeader("X-Title", "Aura Hi-Res Player")
                     .post(requestJson.toString().toRequestBody(JSON))
                 if (!apiKey.isNullOrBlank()) {

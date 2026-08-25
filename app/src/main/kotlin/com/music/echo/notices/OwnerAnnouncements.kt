@@ -60,10 +60,10 @@ fun unreadOwnerNoticeCount(items: List<OwnerAnnouncement>, readIdsCsv: String): 
 object OwnerAnnouncements {
     private const val TAG = "OwnerAnnouncements"
     const val REMOTE_URL =
-        "https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-Player/main/announcements.json"
+        "https://raw.githubusercontent.com/hck0n3/Aura-Hi-Res-v2/main/announcements.json"
     /** Fallback when raw.githubusercontent is slow/blocked (same file on main). */
     private const val REMOTE_FALLBACK_URL =
-        "https://cdn.jsdelivr.net/gh/hck0n3/Aura-Hi-Res-Player@main/announcements.json"
+        "https://cdn.jsdelivr.net/gh/hck0n3/Aura-Hi-Res-v2@main/announcements.json"
     /** Last successful FULL remote payload — never overwrite with a pruned inbox. */
     private const val REMOTE_CACHE_FILE = "announcements_remote.json"
     private const val FIRST_SEEN_FILE = "announcements_first_seen.json"
