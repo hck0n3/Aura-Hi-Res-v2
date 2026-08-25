@@ -42,6 +42,12 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
+      - name: Run unit tests (quality gate)
+        # FASE 17 (2026-08-24, súper auditoría): misma suite mínima de seguridad que en el
+        # pipeline de release — 630 tests unitarios JVM deterministas. Un APK de prueba no debe
+        # salir de una suite roja. Variante FOSS debug a propósito (JVM puro, sin secrets).
+        run: ./gradlew testUniversalFossDebugUnitTest --console=plain
+
       # No google-services.json step: the GMS debug variant builds fine without it (verified), and
       # there is no GOOGLE_SERVICES_JSON secret — the step was dead and only produced an editor lint hint.
 

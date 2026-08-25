@@ -109,7 +109,7 @@ memoria_maestra:
     fase_14_ui_ux_tecnica: COMPLETADA       # 2026-08-24: estático sólido; keys estables en listas, rememberSaveable, a11y correcta (decorativos null, controles con stringResource), RTL+dark mode; sin hallazgos nuevos
     fase_15_recursos_build: COMPLETADA    # 2026-08-24: release verde (R8+shrink reales, APK 80.9 MB), lint corrido, tests 8/629 rojos = tests obsoletos post-88cf0e1 (HALLAZGO-022); 008 probado con apksigner; HALLAZGO-023 RTL
     fase_16_testing: COMPLETADA           # 2026-08-24: 8 tests reescritos al contrato de followedByUserAt (producción intacta); suite 630/630 verde; suite mínima definida (:app:testUniversalFossDebugUnitTest) para gate del CI; HALLAZGO-022 RESUELTO
-    fase_17_cicd: NO_INICIADA
+    fase_17_cicd: COMPLETADA              # 2026-08-24: gap CI-sin-tests CERRADO — gate de suite mínima en gradle.yml y test-build.yml (verificado 630/630 fresco); SearchVideoTest @Ignore; lint y 018 diferidos con razón a FASE 22
     fase_18_privacidad: NO_INICIADA
     fase_19_dinamica: NO_INICIADA
     fase_20_resiliencia: NO_INICIADA
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_17_CICD (FASE_16 completada 2026-08-24: suite 630/630 verde y HALLAZGO-022 resuelto; gatear el CI con :app:testUniversalFossDebugUnitTest y cerrar el gap CI-sin-tests/lint; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021/023)
+  proxima_accion: FASE_18_PRIVACIDAD (FASE_17 completada 2026-08-24: gap CI-sin-tests cerrado, gate de 630 tests verificado en gradle.yml/test-build.yml; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021/023)
 ```
 
 ---
@@ -1760,6 +1760,24 @@ Validar que el pipeline construye, prueba y entrega de forma segura.
    - Artefactos versionados.
    - Publicación controlada.
 
+## RESULTADOS DE LA FASE 17 (ejecutada 2026-08-24)
+
+**R1 — Inventario del pipeline (4 workflows):** `gradle.yml` (Android Build & Sign: push a main/tags + dispatch; build release GMS, firma, artifacts APK+mapping R8, release en GitHub solo con tag, prerelease para `-beta`/`-test`, build nosub privado), `test-build.yml` (APK debug de prueba, dispatch/test/**), `codeql.yml` (5 lenguajes, PR+push+schedule, permisos mínimos), `youtube-player-updater.yml` (auto-reparación de player_configs cada 6 h, mecanismo documentado en AGENTS.md). **Gap confirmado: CERO pasos de tests y CERO de lint en los 4** (lectura línea por línea + grep de `test`/`lint`). El único gate real era la compilación que hace CodeQL.
+
+**R2 — Gate implementado (el fix de la fase):** paso nuevo "Run unit tests (quality gate)" en `gradle.yml` ANTES de construir/firmar (suite roja = job falla, no sale ningún APK) y el mismo gate en `test-build.yml` (un APK de prueba tampoco debe salir de una suite roja). Corre la suite mínima de la FASE 16: `:app:testUniversalFossDebugUnitTest` — variante FOSS debug a propósito (JVM puro, sin native/Superpowered, sin secrets: las claves LASTFM/TIDAL/QOBUZ caen a los defaults embebidos documentados en app/build.gradle.kts; los tests de red de :innertube quedan fuera por diseño).
+
+**R3 — Gate verificado en primera persona:** YAML de ambos workflows validado (pyyaml); el comando exacto del gate re-corrido fresco con `--rerun` (descartado el UP-TO-DATE): **630 tests, 0 fallos, 0 errores, 0 skipped, 53 suites** (log `build-fase17.txt`, XMLs frescos).
+
+**R4 — SearchVideoTest neutralizado:** el test de red sin assertions (:innertube) quedó con `@Ignore` documentado. Verificado: `:innertube:test` verde (log `build-fase17-innertube.txt`) y el XML muestra skipped=1 en 0.006 s (no tocó la red); los otros 15 tests del módulo (parsing, locales) siguen verdes.
+
+**R5 — Evaluación estática del pipeline (sin cambios, ya correcto o documentado):** manejo de secrets por env, nunca hardcodeados en el repo; keystore fallback del CI con `CN=JR-MUSIC-PRO` (con guiones) detectable por `scripts/pre-publish-check.ps1` y documentado en AGENTS.md; google-services deliberadamente deshabilitado (`if: false`); artifacts versionados (APK + mapping R8 para deobfuscar crashes); publicación solo por tag con mecanismo de prerelease para betas; build nosub privado con continue-on-error; CodeQL con permisos mínimos y build trazado limpio; `youtube-player-updater` commitea solo config (JSON) a main — el nuevo gate de tests lo respalda en el siguiente build.
+
+**R6 — Diferidos con razón:** (a) **lint en CI**: con `abortOnError=false` y ~136 errores heredados (FASE 15) no puede gatear hoy sin pagar antes la deuda lint → limpieza en FASE 22 y luego se añade; (b) **HALLAZGO-018 (pinning)** evaluado y sigue ABIERTO: la recomendación es verificación de integridad del CONTENIDO (config firmada), no certificate pinning de certs — pinning en `player_configs.json` rompería el canal de auto-reparación si rota el certificado (mecanismo documentado en AGENTS.md); decisión de diseño para FASE 22; (c) dependabot/dependency-scan y pin de actions por SHA: anotados como endurecimiento opcional (no bloqueante).
+
+**Acciones recomendadas para el dueño (fuera de los workflows, en GitHub):** protección de rama en main con checks requeridos (Android Build & Sign + CodeQL) para que el gate sea obligatorio también en PRs, y opcionalmente Dependabot.
+
+**Veredicto:** el gap CI-sin-tests queda CERRADO — desde esta fase nada se construye ni se firma sobre una suite roja. Secrets y firma con los salvavidas ya documentados. FASE 17 COMPLETADA. Sin hallazgos nuevos.
+
 ## Reparación segura
 
 - Nunca guardar keystore o secretos en texto plano dentro del repo.
@@ -2202,6 +2220,7 @@ cambio:
 | 2026-08-24 | FASE 14 | UI/UX técnica (estático, app 100% Compose): keys de listas lazy (174 contenedores; HomeScreen verificado línea por línea), recomposition/estado sobreviviente, accesibilidad (1 147 contentDescription), RTL y dark mode; validación visual diferida a FASE 19 | COMPLETADA — sólida: keys estables `key = { it.id }` en todas las listas dinámicas principales (el único sin key es shimmer estático), 375 rememberSaveable/isSystemInDarkTheme, práctica a11y correcta (866 decorativos null junto a texto legible, ~280 controles con stringResource), iconos AutoMirrored + LocalLayoutDirection, dark mode con override deliberado documentado (Utils.kt:176); composables gigantes ya cubiertos por HALLAZGO-021; SIN hallazgos nuevos | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 14) | FASE_15_RECURSOS_BUILD |
 | 2026-08-24 | FASE 15 | Recursos y build: estático (build types, R8/ProGuard, lint config, i18n, temas, recursos) + build real release/lint/tests (27 min 41 s, log en `build-fase15.txt`) y `apksigner verify` sobre el APK generado | COMPLETADA — configuración sólida: release verde con R8+shrink reales (APK 80.9 MB), ProGuard completo, 45 idiomas con cero strings hardcoded; tests 8/629 ROJOS = tests obsoletos del contrato viejo de follow (cambiado a propósito en 88cf0e1), NO regresión funcional → HALLAZGO-022 (fix FASE 16; CI no corre tests = gap FASE 17); firma release = keystore debug PROBADA con apksigner (`CN=Android Debug`) → HALLAZGO-008 confirmado (bloquea publicar); `supportsRtl="false"` vs código RTL-aware → HALLAZGO-023 (decisión del dueño); lint: 500 UnusedResources en origen (shrink ya los saca del APK) | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 15) | FASE_16_TESTING |
 | 2026-08-24 | FASE 16 | Testing: inventario de cobertura (67 archivos JVM, cero androidTest), tests rotos, flaky, ausencias críticas, creación de tests y suite mínima de seguridad; corrida completa `:app:testUniversalFossDebugUnitTest` (log en `build-fase16.txt`) con verificación por XMLs de resultado | COMPLETADA — red sólida en lógica crítica (follow/sync, reproducción, licencia, backup gate); los 8 tests rotos (HALLAZGO-022) eran obsoletos post-88cf0e1 y quedaron REESCRITOS al contrato de `followedByUserAt` sin tocar producción (helper `followedSubscription()`, un test dividido en dos); suite 629/8 fallos → 630/0 fallos (XMLs: 53 suites, 0 errores, 0 skipped); cero flaky estructural (SearchVideoTest de red anotado para FASE 17); gaps anotados: characterization tests de migraciones Room, MusicService sin tests (HALLAZGO-021), cero instrumentados; suite mínima definida = `:app:testUniversalFossDebugUnitTest` como gate del CI (FASE 17); HALLAZGO-022 RESUELTO, sin hallazgos nuevos | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 16) | FASE_17_CICD |
+| 2026-08-24 | FASE 17 | CI/CD: inventario de los 4 workflows, verificación de gates/secrets/firma/artifacts/publicación, implementación del gate de tests y neutralización del test de red; evidencia en `build-fase17.txt` (gate fresco 630/630) y `build-fase17-innertube.txt` (:innertube:test verde) | COMPLETADA — gap CI-sin-tests CERRADO: paso "Run unit tests (quality gate)" en gradle.yml (ANTES de construir/firmar: suite roja = no sale APK) y en test-build.yml; gate verificado en primera persona (YAML validado con pyyaml; `--rerun` fresco: 630 tests, 0 fallos, 0 errores, 0 skipped); SearchVideoTest (:innertube, red sin assertions) neutralizado con @Ignore verificado por XML (skipped=1, 0.006 s); pipeline estático sólido (secrets por env, fallback de keystore detectable por pre-publish-check, google-services deshabilitado a propósito, artifacts versionados, release solo por tag); diferidos: lint en CI (deuda primero, FASE 22), HALLAZGO-018 evaluado → recomendada integridad de contenido en vez de pinning (no romper auto-reparación), decisión FASE 22; recomendado al dueño: branch protection con checks requeridos + Dependabot opcional; SIN hallazgos nuevos | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 17) | FASE_18_PRIVACIDAD |
 
 ---
 
@@ -2307,8 +2326,8 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_16_COMPLETADA
-  proxima_accion: FASE_17_CICD
+  fase_actual: FASE_17_COMPLETADA
+  proxima_accion: FASE_18_PRIVACIDAD
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false

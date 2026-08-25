@@ -28,9 +28,9 @@
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
   6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura), 11 (calidad de código),
-  12 (concurrencia), 13 (rendimiento), 14 (UI/UX técnica), 15 (recursos/build) y 16 (testing)
-  ya COMPLETADAS el 2026-08-24; sigue FASE 17 (CI/CD — gatear el CI con la suite mínima de
-  630 tests y cerrar el gap CI-sin-tests/lint).
+  12 (concurrencia), 13 (rendimiento), 14 (UI/UX técnica), 15 (recursos/build), 16 (testing)
+  y 17 (CI/CD) ya COMPLETADAS el 2026-08-24; sigue FASE 18 (privacidad). El CI ya gatea con
+  la suite mínima de 630 tests (gradle.yml y test-build.yml).
   La publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
   explícito).
 - **2026-08-24 (tarde, 9): ✅ SÚPER AUDITORÍA — FASE 12 (CONCURRENCIA Y CICLO DE VIDA)
@@ -120,6 +120,25 @@
   (e) suite mínima de seguridad definida: `:app:testUniversalFossDebugUnitTest` (630 tests
   deterministas, ~30 s) = gate que FASE 17 debe añadir al CI. Ver RESULTADOS DE LA FASE 16
   en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 17 (CI/CD).
+- **2026-08-24 (tarde, 15): ✅ SÚPER AUDITORÍA — FASE 17 (CI/CD) COMPLETADA.**
+  Veredicto: el gap CI-sin-tests queda CERRADO; sin hallazgos nuevos. Evidencia: (a) los 4
+  workflows (gradle.yml, test-build.yml, codeql.yml, youtube-player-updater.yml) tenían CERO
+  pasos de tests y CERO de lint — el único gate real era la compilación de CodeQL; (b) paso
+  nuevo "Run unit tests (quality gate)" añadido en gradle.yml ANTES de construir/firmar
+  (suite roja = no sale ningún APK) y también en test-build.yml; corre la suite mínima
+  `:app:testUniversalFossDebugUnitTest` (FOSS debug, JVM puro, sin secrets — las claves caen
+  a los defaults embebidos); (c) gate verificado en primera persona: YAML validado con
+  pyyaml y el comando re-corrido fresco con `--rerun`: 630 tests, 0 fallos, 0 errores,
+  0 skipped, 53 suites (log `build-fase17.txt`); (d) SearchVideoTest (:innertube, red real
+  sin assertions) neutralizado con @Ignore — `:innertube:test` verde, XML skipped=1 en
+  0.006 s sin tocar red (log `build-fase17-innertube.txt`); (e) pipeline estático sólido:
+  secrets por env, keystore fallback detectable por pre-publish-check, google-services
+  deshabilitado a propósito, artifacts versionados, release solo por tag. Diferidos: lint en
+  CI (primero pagar la deuda lint en FASE 22) y HALLAZGO-018 evaluado → recomendada
+  integridad de contenido (config firmada) en vez de certificate pinning para no romper la
+  auto-reparación de player_configs.json (decisión FASE 22). Recomendado al dueño: branch
+  protection en main con checks requeridos + Dependabot opcional. Ver RESULTADOS DE LA
+  FASE 17 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 18 (privacidad).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,

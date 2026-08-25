@@ -40,6 +40,17 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
+      - name: Run unit tests (quality gate)
+        # FASE 17 (2026-08-24, súper auditoría): suite mínima de seguridad — 630 tests unitarios
+        # JVM deterministas (sin red, sin dispositivo). Suite roja = no se construye ni firma
+        # nada: el job falla aquí, ANTES de generar un APK. Corre la variante FOSS debug a
+        # propósito: es JVM puro (sin Superpowered/native) y no necesita secrets — las claves
+        # LASTFM/TIDAL/QOBUZ caen a los defaults embebidos documentados en app/build.gradle.kts
+        # cuando el secret no está configurado. Los tests de red de :innertube quedan fuera por
+        # diseño (no deterministas). El task imprime "N tests completed, M failed" solo si hay
+        # fallos; un exit code != 0 de Gradle es lo que tumba este paso.
+        run: ./gradlew testUniversalFossDebugUnitTest --console=plain
+
       - name: Create google-services.json
         # 2026-08-19: TEMPORARILY disabled. applicationId just changed (iad1tya.echo.music ->
         # iad1tya.aura.music) as part of the package-identity change to recover from what looks like
