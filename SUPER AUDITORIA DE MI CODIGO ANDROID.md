@@ -112,7 +112,7 @@ memoria_maestra:
     fase_17_cicd: COMPLETADA              # 2026-08-24: gap CI-sin-tests CERRADO — gate de suite mínima en gradle.yml y test-build.yml (verificado 630/630 fresco); SearchVideoTest @Ignore; lint y 018 diferidos con razón a FASE 22
     fase_18_privacidad: COMPLETADA          # 2026-08-24: postura sólida por diseño; HALLAZGO-024 encontrado y RESUELTO en la fase (playback del share bundle sin redactar → fix 1 línea, gate 630/630); telemetría Firebase inactiva; 013 reforzado con inventario DataStore completo
     fase_19_dinamica: COMPLETADA          # 2026-08-24: dinámica sobre el APK release (sin dispositivo): firma/permisos/componentes/deep-links/backup/NSC/telemetría verificados en el binario; HALLAZGO-008 y 016 confirmados en APK real; nuevo HALLAZGO-025 (ui-tooling en release, PreviewActivity exportado); runtime de dispositivo diferido al dueño
-    fase_20_resiliencia: NO_INICIADA
+    fase_20_resiliencia: COMPLETADA       # 2026-08-24: R8 real (73.2% de descriptores renombrados en el dex), logs v/d fuera del binario, sin debug info relevante, anti-tampering existente suficiente (cert ligado a licencia + instalador Android), keystore jamás commiteada; cero hallazgos nuevos; Play Integrity/root/emulator RECHAZADOS por teatrales
     fase_21_reporte_final: NO_INICIADA
     fase_22_reparacion_potenciacion: NO_INICIADA
 
@@ -133,7 +133,7 @@ memoria_maestra:
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: FASE_20_RESILIENCIA (FASE_19 completada 2026-08-24: dinámica sobre el APK release sin dispositivo; 008 y 016 confirmados en el binario real, nuevo HALLAZGO-025; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021/023/025)
+  proxima_accion: FASE_21_REPORTE_FINAL (FASE_20 completada 2026-08-24: ofuscación R8 verificada en el binario, resiliencia sólida, cero hallazgos nuevos; abiertos HALLAZGO-008/010/011/012/013/014/015/016/017/018/019/020/021/023/025)
 ```
 
 ---
@@ -1944,6 +1944,81 @@ fase_19_dinamica: COMPLETADA
 
 ---
 
+# RESULTADOS DE LA FASE 20 — RESILIENCIA Y OFUSCACIÓN (2026-08-24)
+
+> Verificación sobre el binario real (`app-universal-foss-release.apk`, v0.6.232/952) y sobre el
+> código fuente en HEAD. Evidencia consolidada en `build-fase20-dex-scan.txt`; scripts de escaneo
+> `fase20-dex-scan.ps1`, `fase20-dex-scan2.ps1` y `fase20-dex-scan3.ps1` (commiteados).
+
+**R1 — Configuración del build type release:** `isMinifyEnabled = true`, `isShrinkResources = true`,
+`isDebuggable = false`, `proguard-android-optimize.txt` + `proguard-rules.pro` completo. El manifiesto
+del APK release NO contiene el atributo `debuggable` (falso por defecto, re-confirmado sobre el dump
+de FASE 19). `isCrunchPngs = false` es deliberado. La firma sigue siendo la de debug
+(HALLAZGO-008, ya registrado).
+
+**R2 — La ofuscación R8 es real y masiva (medida en el dex, no en la config):** los 3 dex contienen
+17 616 descriptores de tipo únicos; 12 897 (73.2 %) están renombrados a nombres cortos (1-3 caracteres).
+El paquete runtime es `iad1tya/echo/music` (1 389 referencias; el directorio fuente `com/music/echo`
+NO aparece en el binario). Las clases de app que conservan nombre son exclusivamente keeps funcionales:
+componentes del manifiesto (`MainActivity`, `App`), las tres familias WebView de streaming
+(`utils.cipher/sabr/potoken`, requeridas por `@JavascriptInterface`), modelos `@Serializable`
+(kotlinx-serialization necesita Companion/serializer con nombre), persistencia de cola, kuromoji,
+UCrop, Cast y el JNI `VibraSignature`. Clases sensibles como `Utils`, `AppLogger`, el paquete de letras
+y los ViewModel NO aparecen con su nombre real: renombradas. Timber no está en el binario (0 hits); el
+único `BuildConfig` presente es el de la librería UCrop, no el de la app.
+
+**R3 — Logs e información de depuración:** `assumenosideeffects` elimina `Log.v`/`Log.d` del binario;
+`Log.i/w/e` se conservan DELIBERADAMENTE (comentario in situ en `proguard-rules.pro`) y suman 35 sitios
+de llamada directa, todos en rutas de error/advertencia sin datos de usuario. El log persistente
+(`filesDir/logs/app.log`) pasa por el chokepoint `LogRedaction.redact` en las 13 rutas de
+lectura/escritura de `AppLogger` (FASE 18). Stack traces de release SIN `SourceFile/LineNumberTable`
+(atributos comentados en ProGuard): buenos para privacidad, peor para leer crashes — trade-off aceptado.
+Únicas fugas menores de metadatos: `META-INF/version-control-info.textproto` (120 bytes, revisión git;
+desactivable con `android.enableVcsInfo=false` si se desea) y los `.kotlin_builtins` de Kotlin
+(normales). Observación informativa (NO hallazgo): `AudioExportService.kt:431` loguea hasta 400 chars de
+salida de FFmpeg que podría contener la ruta de exportación con título; solo llega a logcat (no a
+`app.log`, por ser `Log.e` directo) y ninguna app puede leer logcat ajeno desde API 16.
+
+**R4 — Modelo de amenazas real (root/emulator/Play Integrity):** Play Integrity NO aplica — la app no
+se distribuye por Google Play (releases de GitHub + actualizador propio), y requeriría distribución Play.
+Detección de root/emulador: NO se recomienda — es seguridad teatral para una app local de pago sin
+backend propio: castiga a usuarios legítimos (root no es hostilidad), se evade trivialmente y rompe
+flujos (criterio de la fase: "no agregar seguridad teatral sin valor real"). El único valor atacable en
+un dispositivo rooteado es la licencia local, que es zona protegida (paquete `license/`) y se reporta
+sin cambios.
+
+**R5 — Anti-tampering que SÍ existe y funciona:** (1) el instalador de Android rechaza cualquier
+actualización firmada con otra clave — defensa a nivel de sistema operativo, sin código que mantener;
+(2) el blob de licencia Superpowered está ligado al certificado de firma (XOR con SHA-256 del
+certificado): un clon re-empaquetado con otra firma reconstruye basura y el checksum lo detecta → sin DSP
+(mecanismo documentado in situ en `app/build.gradle.kts`, zona protegida, solo se reporta); (3) el
+actualizador propio valida destino fijo y sanitiza (FASE 3, zip-slip VERDE). No hace falta añadir nada.
+
+**R6 — Keystore:** la keystore de release JAMÁS estuvo en git (`git log --all --diff-filter=A` sobre
+`app/keystore`, `*.jks`, `*.keystore` = vacío; `.gitignore` cubre `*.keystore`, `keystore.properties` y
+`keystore/` en tres líneas). La carpeta `app/keystore/` está vacía en esta máquina; la keystore real
+(`CN=JR MUSIC PRO`) vive solo en el secret de CI `RELEASE_KEYSTORE_BASE64` y en la PC de respaldo. La
+clave de licencia Superpowered vive en `local.properties` (gitignored). El único riesgo de firma sigue
+siendo HALLAZGO-008 (release local firmado con debug), ya registrado y bloqueante de publicación.
+
+**R7 — Secretos en runtime (cross-check HALLAZGO-013):** sin cambio — el inventario completo de
+credenciales plaintext en DataStore (cookie Google, `sp_dc` Spotify, sesión Last.fm, tokens menores)
+sigue abierto con su camino de migración pendiente de decisión del dueño. Las claves embebidas de
+Last.fm/Tidal/Qobuz son públicas por diseño y están documentadas en `app/build.gradle.kts` (no son fuga).
+
+**Veredicto:** RESILIENCIA Y OFUSCACIÓN SÓLIDAS — R8 activo y efectivo (73.2 % de clases renombradas en
+el binario real), logs v/d eliminados y el resto bajo política deliberada, sin debug info relevante,
+anti-tampering real ya presente (certificado ligado a licencia + validación del instalador de Android),
+keystore fuera del repo. CERO hallazgos nuevos en esta fase (el contador sigue en HALLAZGO-026). Se
+rechaza explícitamente añadir Play Integrity/root/emulator detection por seguridad teatral. Deuda
+heredada: HALLAZGO-008 (firma) y HALLAZGO-013 (credenciales plaintext). FASE 20 COMPLETADA.
+
+```yaml
+fase_20_resiliencia: COMPLETADA   # 2026-08-24: R8 real (73.2% renombrado en dex), logs v/d fuera, sin debug info, anti-tampering existente suficiente, keystore fuera de git; cero hallazgos nuevos; Play Integrity/root/emulator RECHAZADOS por teatrales
+```
+
+---
+
 # FASE 20 — AUDITORÍA DE RESILIENCIA Y OFUSCACIÓN
 
 ## Objetivo
@@ -2289,6 +2364,7 @@ cambio:
 | 2026-08-24 | FASE 17 | CI/CD: inventario de los 4 workflows, verificación de gates/secrets/firma/artifacts/publicación, implementación del gate de tests y neutralización del test de red; evidencia en `build-fase17.txt` (gate fresco 630/630) y `build-fase17-innertube.txt` (:innertube:test verde) | COMPLETADA — gap CI-sin-tests CERRADO: paso "Run unit tests (quality gate)" en gradle.yml (ANTES de construir/firmar: suite roja = no sale APK) y en test-build.yml; gate verificado en primera persona (YAML validado con pyyaml; `--rerun` fresco: 630 tests, 0 fallos, 0 errores, 0 skipped); SearchVideoTest (:innertube, red sin assertions) neutralizado con @Ignore verificado por XML (skipped=1, 0.006 s); pipeline estático sólido (secrets por env, fallback de keystore detectable por pre-publish-check, google-services deshabilitado a propósito, artifacts versionados, release solo por tag); diferidos: lint en CI (deuda primero, FASE 22), HALLAZGO-018 evaluado → recomendada integridad de contenido en vez de pinning (no romper auto-reparación), decisión FASE 22; recomendado al dueño: branch protection con checks requeridos + Dependabot opcional; SIN hallazgos nuevos | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 17) | FASE_18_PRIVACIDAD |
 | 2026-08-24 | FASE 18 | Privacidad: superficie completa de logs en primera persona (AppLogger/Timber/PlaybackLogManager/CrashHandler/ExitReasonReporter + 33 `Log.X` directos) + agente de fondo (manifiesto, analytics/crashlytics, SDKs terceros, consentimiento/eliminación de cuenta, DataStore); claims load-bearing re-verificados contra el código; evidencia `build-fase18.txt` (gate 630/630 fresco post-fix) | COMPLETADA — postura sólida por diseño: telemetría INACTIVA (plugins Firebase condicionales a un google-services.json que no existe ni en repo ni en CI), redacción chokepoint en todo byte persistido/compartido, retención acotada, cero rastreadores, datos a terceros solo por features opt-in; HALLAZGO-024 encontrado y RESUELTO en la fase (sección PLAYBACK del bundle compartido sin redactar → `LogRedaction.redact`, gate verde); HALLAZGO-013 reforzado con el inventario completo de claves plaintext en DataStore; 016/020 siguen abiertos; observaciones: 33 Log.X solo-logcat (higiene), strings de privacidad huérfanos, TOTP-gist ya cubierto por 018 | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 18) | FASE_19_DINAMICA |
 | 2026-08-24 | FASE 19 | Auditoría dinámica SIN dispositivo: inspección completa del APK release real (v0.6.232/952, revisión 22036c1) con apksigner, aapt (badging/permissions/xmltree/resources), volcado de los XML de backup/data-extraction/NSC/provider_paths desde el binario, escaneo de dex y de META-INF; crash de deep link re-trazado en HEAD | COMPLETADA — el binario coincide con lo auditado en estático: permisos mínimos (19+1 propia, FGS types 1:1 con los servicios), componentes sin sorpresa salvo PreviewActivity, deep links reales confirmados, backup y NSC idénticos a la fuente, cero telemetría en los 3 dex (control positivo OK); HALLAZGO-008 y 016 CONFIRMADOS sobre el APK real; nuevo HALLAZGO-025 (BAJA: compose ui-tooling en release, PreviewActivity exportada, cero usos en producción); runtime puro (tráfico/sesión/errores/WebView en vivo/mediciones 13-14) diferido al dueño con comandos de reproducción | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 19) + build-fase19-*.txt (10 archivos) | FASE_20_RESILIENCIA |
+| 2026-08-24 | FASE 20 | Resiliencia y ofuscación: config del build type release, medición de ofuscación R8 directamente en los 3 dex del APK release (descriptores renombrados, keeps, strings sensibles), política de logs (`assumenosideeffects`, AppLogger chokepoint), debug info del binario, modelo de amenazas (root/emulador/Play Integrity/anti-tampering), keystore en historia git y secretos en runtime (cross-check 008/013); evidencia `build-fase20-dex-scan.txt` + 3 scripts de escaneo | COMPLETADA — RESILIENCIA Y OFUSCACIÓN SÓLIDAS: R8 real y masivo (17 616 descriptores únicos, 73.2 % renombrados; paquete runtime `iad1tya/echo/music`, los keeps que conservan nombre son todos funcionales: manifiesto, WebView JS, kotlinx-serialization, cola, JNI); logs v/d eliminados del binario, i/w/e conservados a propósito (35 sitios, solo errores), todo lo persistido pasa por LogRedaction; sin `SourceFile/LineNumberTable` en release; anti-tampering existente suficiente (cert ligado a licencia Superpowered + validación de firma del instalador Android + updater sanitizado); keystore JAMÁS commiteada (historia git limpia); Play Integrity y detección de root/emulador RECHAZADOS por seguridad teatral (app fuera de Play, sin backend propio); cero hallazgos nuevos (contador sigue en 026); deuda heredada 008 y 013 | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 20) + build-fase20-dex-scan.txt + fase20-dex-scan*.ps1 (3 scripts) | FASE_21_REPORTE_FINAL |
 
 ---
 
@@ -2394,8 +2470,8 @@ Este plan se compromete a:
 ```yaml
 estado_actual:
   fecha: 2026-08-24
-  fase_actual: FASE_19_COMPLETADA
-  proxima_accion: FASE_20_RESILIENCIA
+  fase_actual: FASE_20_COMPLETADA
+  proxima_accion: FASE_21_REPORTE_FINAL
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: false

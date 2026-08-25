@@ -1,0 +1,98 @@
+﻿=== FASE 20 escaneo 1: patrones sensibles ===
+PATTERN com/music/echo/ -> total 0
+PATTERN Lcom/music/echo/MainActivity; -> total 0
+PATTERN Lcom/music/echo/App; -> total 0
+PATTERN iad1tya/echo/music/ -> total 1389
+PATTERN timber/log/Timber -> total 0
+PATTERN android/util/Log -> total 2
+PATTERN Superpowered -> total 8
+PATTERN lastfm -> total 72
+PATTERN api_key -> total 2
+PATTERN BuildConfig -> total 1
+PATTERN Lcom/music/echo/utils/ -> total 0
+PATTERN Lcom/music/echo/playback/ -> total 0
+PATTERN Lcom/music/echo/ui/ -> total 0
+RENAMED-SHORT classes.dex -> 0 (ej: )
+RENAMED-SHORT classes2.dex -> 0 (ej: )
+RENAMED-SHORT classes3.dex -> 0 (ej: )
+META-ENTRY META-INF/version-control-info.textproto size=120
+META-ENTRY kotlin/annotation/annotation.kotlin_builtins size=1022
+META-ENTRY kotlin/collections/collections.kotlin_builtins size=8625
+META-ENTRY kotlin/concurrent/atomics/atomics.kotlin_builtins size=2882
+META-ENTRY kotlin/coroutines/coroutines.kotlin_builtins size=139
+META-ENTRY kotlin/internal/internal.kotlin_builtins size=596
+META-ENTRY kotlin/kotlin.kotlin_builtins size=30920
+META-ENTRY kotlin/ranges/ranges.kotlin_builtins size=4353
+META-ENTRY kotlin/reflect/reflect.kotlin_builtins size=4859
+scan-done
+
+=== FASE 20 escaneo 2: descriptores app renombrados vs sin renombrar ===
+DESCRIPTORES UNICOS iad1tya/echo/music: 796
+--- RENOMBRADAS (nombre corto 1-3 chars en ultimo segmento) ---
+renombradas: 36
+Liad1tya/echo/music/api/a;
+Liad1tya/echo/music/api/b;
+Liad1tya/echo/music/api/c;
+Liad1tya/echo/music/api/d;
+Liad1tya/echo/music/api/e;
+Liad1tya/echo/music/api/f;
+Liad1tya/echo/music/App;
+Liad1tya/echo/music/models/lastfm/a;
+Liad1tya/echo/music/models/lastfm/b;
+Liad1tya/echo/music/models/lastfm/c;
+--- SIN RENOMBRAR (nombre largo visible) ---
+sin renombrar: 760
+Liad1tya/echo/music/api/AiPlaylistParser$Dto$Companion;
+Liad1tya/echo/music/api/AiPlaylistParser$Dto;
+Liad1tya/echo/music/api/AiPlaylistParser$EditDto$Companion;
+Liad1tya/echo/music/api/AiPlaylistParser$EditDto;
+Liad1tya/echo/music/api/AiPlaylistParser$TrackDto$Companion;
+Liad1tya/echo/music/api/AiPlaylistParser$TrackDto;
+Liad1tya/echo/music/artistvideo/ArtistVideoResponse$Companion;
+Liad1tya/echo/music/artistvideo/ArtistVideoResponse;
+Liad1tya/echo/music/betterlyrics/models/TTMLResponse$Companion;
+Liad1tya/echo/music/betterlyrics/models/TTMLResponse;
+Liad1tya/echo/music/canvas/CanvasArtwork$Companion;
+Liad1tya/echo/music/canvas/CanvasArtwork;
+Liad1tya/echo/music/cast/CastOptionsProvider;
+Liad1tya/echo/music/constants/DownloadQuality;
+Liad1tya/echo/music/db/entities/SongEntity;
+
+=== FASE 20 escaneo 3: amplitud global R8 ===
+DESCRIPTORES UNICOS TOTALES: 17616
+RENOMBRADAS GLOBAL (nombre corto): 12897 (73.2 %)
+--- PAQUETES APP (descriptores por paquete) ---
+(raiz): 2
+api: 12
+artistvideo: 2
+betterlyrics: 2
+canvas: 2
+cast: 1
+constants: 1
+db: 4
+echomusic: 2
+echomusiccanvas: 4
+eq: 9
+listentogether: 466
+migration: 2
+models: 32
+playback: 23
+playlistimport: 9
+qobuz: 17
+reco: 5
+recognition: 3
+releaseradar: 3
+spotify: 45
+spotifyimport: 3
+ui: 5
+utils: 124
+widget: 6
+CHECK Liad1tya/echo/music/MainActivity; -> PRESENTE
+CHECK Liad1tya/echo/music/MusicService; -> AUSENTE
+CHECK Liad1tya/echo/music/utils/Utils; -> AUSENTE
+CHECK Liad1tya/echo/music/utils/AppLogger; -> AUSENTE
+CHECK Liad1tya/echo/music/App; -> PRESENTE
+CHECK Liad1tya/echo/music/lyrics/ -> AUSENTE
+CHECK Liad1tya/echo/music/ui/ -> PRESENTE
+BUILDCONFIG-CTX: %Lcom/music/youlyplus/models/Syllable;. Lcom/yalantis/ucrop/BuildConfig;.&Lcom/yalantis/ucrop/OkHttpClientStore;..Lcom/y
+scan-done
