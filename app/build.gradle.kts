@@ -624,7 +624,7 @@ dependencies {
     // Reliable cold app-restart (used after Google login) — replaces the flaky AlarmManager relaunch.
     implementation("com.jakewharton:process-phoenix:3.0.0")
     // In-app browser (Chrome Custom Tabs) for the in-app Gumroad checkout (no leaving the app).
-    implementation("androidx.browser:browser:1.9.0")
+    implementation("androidx.browser:browser:1.10.0")
     implementation(libs.smoothCorner)
     implementation(libs.lottie.compose)
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
