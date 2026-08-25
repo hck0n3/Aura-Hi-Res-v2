@@ -5,6 +5,15 @@
 
 ## 📍 Estado Actual
 
+- **2026-08-24 (madrugada): ✅ BETA-002 (v0.6.233 / vc953) ENTREGADA en la carpeta de nube,
+  PENDIENTE DE PRUEBA DEL DUEÑO EN REMOTO.**
+  Mismo paquete debug (`iad1tya.aura.music.debug`) y misma firma que BETA-001: actualiza encima
+  sin pérdida. Build verde en 7m21s (build-beta-002.txt). Contenido: los 7 fixes de la FASE 22
+  — todos preventivos/de robustez, la app se ve y se usa igual que BETA-001. Qué probar:
+  reproducción general, compartir el registro, enlaces de playlist desde otra app, cierre de
+  sesión de Last.fm. Archivo: `BETA-002_Aura_v0.6.233_vc953.apk` + `BETA-002_LEEME.txt` en
+  `C:\Users\AURA\Desktop\BETA OFICIAL  DE AURA FENIX`. Si sale VERDE → siguiente paso:
+  revertir la firma a release (HALLAZGO-008) antes de publicar a todos los usuarios.
 - **2026-08-24 (madrugada): ✅ SÚPER AUDITORÍA — FASE 22 (REPARACIÓN Y POTENCIACIÓN
   CONTROLADA) COMPLETADA: LA AUDITORÍA QUEDA COMPLETA, 22/22 FASES.**
   Siete hallazgos reparados, todos con verificación contra el código antes y después:
