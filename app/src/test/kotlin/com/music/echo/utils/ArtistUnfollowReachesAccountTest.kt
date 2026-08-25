@@ -20,10 +20,15 @@ import java.time.LocalDateTime
  *   like, eso se tiene que sincronizar con mi cuenta de YouTube o YouTube Music."*
  *
  * A follow/unfollow the user just tapped must reach the account IMMEDIATELY, and must survive as a
- * retryable instruction if it did not. Both properties have to hold in the state `MIGRATION_39_40`
- * leaves behind: three NULL columns on every single row, including artists the user genuinely
- * subscribes to, for as long as the 30-minute down-sync cooldown (whose key survives the update) says
- * so.
+ * retryable instruction if it did not.
+ *
+ * Contract note (commit 88cf0e1, registry #154): the toggle discriminator is `followedByUserAt`, not
+ * `bookmarkedAt` — every follow display keys off it. The rows `MIGRATION_39_40` leaves behind (three
+ * NULL columns, or a bare legacy bookmark) therefore read as NOT FOLLOWED: the only tap they can
+ * receive is a FOLLOW, which is idempotent upstream and arms no unsubscribe. An unfollow tap can only
+ * land on a row with `followedByUserAt` set, and those are exactly the rows this file pins: the live
+ * call fires unconditionally (`mustCallAccountLive` gates on nothing but `isLocal`), and a failed call
+ * leaves the marker as the retry.
  */
 class ArtistUnfollowReachesAccountTest {
 
@@ -49,6 +54,21 @@ class ArtistUnfollowReachesAccountTest {
         bookmarkedAt = earlier,
         followedByUserAt = null,
         ytmSyncedAt = null,
+        unfollowedByUserAt = null,
+    )
+
+    /**
+     * The ONLY row shape an unfollow tap can land on under the followedByUserAt contract: the UI
+     * shows "Suscrito/Seguido" for `followedByUserAt != null` and nothing else. `synced = false`
+     * covers a deliberate follow whose live subscribe never landed (offline, expired cookie).
+     */
+    private fun followedSubscription(id: String = "UCreal", synced: Boolean = true) = ArtistEntity(
+        id = id,
+        name = "Artist $id",
+        channelId = "UC${id}Channel",
+        bookmarkedAt = earlier,
+        followedByUserAt = earlier,
+        ytmSyncedAt = if (synced) earlier else null,
         unfollowedByUserAt = null,
     )
 
@@ -92,15 +112,39 @@ class ArtistUnfollowReachesAccountTest {
     }
 
     /**
-     * If the live call did not land (offline, expired cookie, unresolved channel), the intent has to
-     * survive as a retryable instruction. It survives as `unfollowedByUserAt` — and the regression
-     * only stamped that when `followedByUserAt` was already set, which post-migration it never is.
-     *
-     * This is the assertion that fails loudest against the blocked build.
+     * Under the followedByUserAt contract a post-migration row displays as NOT FOLLOWED, so the tap
+     * it can receive is a FOLLOW — never an unfollow. Pin both halves: the tap follows (idempotent
+     * upstream) and arms no unsubscribe.
      */
     @Test
-    fun unfollowRightAfterTheMigrationRecordsRetryableIntent() {
-        val unfollowed = justMigratedRealSubscription().localToggleLike()
+    fun aTapOnAPostMigrationRowIsAFollowThatArmsNoUnsubscribe() {
+        val tapped = justMigratedRealSubscription().localToggleLike()
+
+        assertNotNull(
+            "The row reads as not-followed, so the tap must be a follow.",
+            tapped.followedByUserAt,
+        )
+        assertNull(
+            "A tap on a not-followed row armed an unsubscribe — the destructive direction would no " +
+                "longer be gated behind what the UI actually displays.",
+            tapped.unfollowedByUserAt,
+        )
+        assertFalse(ArtistSyncPolicy.mayUnsubscribe(tapped))
+        assertTrue(
+            "The follow tap must still reach the account — it is half the owner's requirement, and " +
+                "an idempotent subscribe upstream.",
+            ArtistSyncPolicy.mustCallAccountLive(justMigratedRealSubscription()),
+        )
+    }
+
+    /**
+     * The unfollow path: if the live call did not land (offline, expired cookie, unresolved channel),
+     * the intent has to survive as a retryable instruction. The tap can only land on a followed row,
+     * and on one it always stamps `unfollowedByUserAt`.
+     */
+    @Test
+    fun unfollowOfAFollowedArtistRecordsRetryableIntent() {
+        val unfollowed = followedSubscription().localToggleLike()
 
         assertNotNull(
             "The unfollow left NO trace: no marker, so `artistsPendingUnsubscribe` returns nothing, " +
@@ -118,7 +162,7 @@ class ArtistUnfollowReachesAccountTest {
      */
     @Test
     fun theQueuedUnfollowSurvivesTheDownSyncAndBecomesAnUnsubscribe() {
-        val unfollowed = justMigratedRealSubscription().localToggleLike()
+        val unfollowed = followedSubscription().localToggleLike()
 
         // The down-sync / upload pass reads FEmusic_library_corpus_artists and finds the artist still
         // subscribed (the live call never landed). `afterRemoteSubscriptionSeen` must preserve the
@@ -143,7 +187,7 @@ class ArtistUnfollowReachesAccountTest {
      */
     @Test
     fun aQueuedUnfollowOnAnArtistTheAccountDoesNotHoldStaysInert() {
-        val unfollowed = justMigratedRealSubscription().localToggleLike()
+        val unfollowed = followedSubscription(synced = false).localToggleLike()
 
         assertEquals(
             ArtistSyncPolicy.UnsubscribeRefusal.NOT_SUBSCRIBED,
@@ -155,7 +199,7 @@ class ArtistUnfollowReachesAccountTest {
     /** Re-following supersedes the queued unfollow: the newest deliberate action wins. */
     @Test
     fun reFollowingCancelsTheQueuedUnsubscribe() {
-        val reFollowed = justMigratedRealSubscription().localToggleLike().localToggleLike()
+        val reFollowed = followedSubscription().localToggleLike().localToggleLike()
 
         assertNull(reFollowed.unfollowedByUserAt)
         assertNotNull(reFollowed.followedByUserAt)
@@ -184,8 +228,8 @@ class ArtistUnfollowReachesAccountTest {
      */
     @Test
     fun aDeliveredUnfollowDoesNotReverseALaterReSubscribeOnYouTube() {
-        // 1. The user unfollows in Aura. Post-migration the row has no ytmSyncedAt.
-        val queued = justMigratedRealSubscription().localToggleLike()
+        // 1. The user unfollows in Aura a followed, account-synced artist.
+        val queued = followedSubscription().localToggleLike()
         assertNotNull(queued.unfollowedByUserAt)
 
         // 2. The live call LANDS. Production must retire the honoured intent.
@@ -226,7 +270,7 @@ class ArtistUnfollowReachesAccountTest {
             ArtistSyncPolicy.liveCallHonouredTheUnfollow(subscribing = false, confirmedByAccount = false),
         )
 
-        val queued = justMigratedRealSubscription().localToggleLike()
+        val queued = followedSubscription().localToggleLike()
         // The read-back confirms the account really does still hold the subscription...
         val afterReadBack = ArtistSyncPolicy.afterRemoteSubscriptionSeen(queued, LocalDateTime.now())
         // ...so the queued unfollow becomes a real upstream unsubscribe, exactly as before.
@@ -257,7 +301,7 @@ class ArtistUnfollowReachesAccountTest {
      */
     @Test
     fun theWriteBackMustNotClobberAnActionTakenWhileTheCallWasInFlight() {
-        val queued = justMigratedRealSubscription().localToggleLike()
+        val queued = followedSubscription().localToggleLike()
         val deliveredAt = requireNotNull(queued.unfollowedByUserAt)
 
         // (a) re-followed in flight -> `followedByUserAt IS NULL` is false, so no row matches.

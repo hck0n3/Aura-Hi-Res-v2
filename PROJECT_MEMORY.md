@@ -28,9 +28,9 @@
   bien. Fixes #154 y #155 CONFIRMADOS en dispositivo.** SIGUIENTE PASO: continuar la súper
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
   6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura), 11 (calidad de código),
-  12 (concurrencia), 13 (rendimiento), 14 (UI/UX técnica) y 15 (recursos/build) ya COMPLETADAS
-  el 2026-08-24; sigue FASE 16 (testing — incluye reescribir los 8 tests obsoletos del
-  HALLAZGO-022 al contrato nuevo de `followedByUserAt`).
+  12 (concurrencia), 13 (rendimiento), 14 (UI/UX técnica), 15 (recursos/build) y 16 (testing)
+  ya COMPLETADAS el 2026-08-24; sigue FASE 17 (CI/CD — gatear el CI con la suite mínima de
+  630 tests y cerrar el gap CI-sin-tests/lint).
   La publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
   explícito).
 - **2026-08-24 (tarde, 9): ✅ SÚPER AUDITORÍA — FASE 12 (CONCURRENCIA Y CICLO DE VIDA)
@@ -100,6 +100,26 @@
   habilitar+testear). i18n: 45 idiomas, 2 898 stringResource, cero strings hardcoded en XML.
   Ver RESULTADOS DE LA FASE 15 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 16
   (testing).
+- **2026-08-24 (tarde, 14): ✅ SÚPER AUDITORÍA — FASE 16 (TESTING) COMPLETADA.**
+  Veredicto: red de pruebas SÓLIDA en lógica crítica; HALLAZGO-022 RESUELTO sin tocar código
+  de producción; sin hallazgos nuevos. Evidencia: (a) inventario — 67 archivos de test
+  unitario JVM (app 52; canvas 1, innertube 5, jiosaavn 1, lrclib 2, migration 5), cero
+  androidTest en todo el repo; cobertura fuerte en follow/sync (4), reproducción/shuffle/
+  crossfade (~9), licencia (3), eq/audio (4), backup gate, migraciones, parsing innertube y
+  lógica de UI; (b) los 8 tests rotos de la FASE 15 eran exactamente los obsoletos del
+  contrato viejo de follow: reescritos al contrato de `followedByUserAt` (helper nuevo
+  `followedSubscription()`; el test obsoleto se dividió en dos que fijan el contrato real:
+  fila post-MIGRATION_39_40 → tap = FOLLOW idempotente que no arma unsubscribe; artista ya
+  seguido → unfollow marca intento reintentable y limpia marcadores); producción intacta;
+  suite 629/8 fallos → **630 tests, 0 fallos, 0 errores, 0 skipped** (BUILD SUCCESSFUL 32 s,
+  verificado por XMLs frescos: 53 suites; log en `build-fase16.txt`); (c) cero flaky
+  estructural (cero Thread.sleep/@Ignore); SearchVideoTest (:innertube) pega contra la red
+  real sin assertions → anotado para el CI de FASE 17; (d) gaps anotados como deuda: cero
+  characterization tests de migraciones Room (MIGRATION_39_40 sin test), MusicService sin
+  tests (HALLAZGO-021 → FASE 22), cero instrumentados, backup cubierto solo por BackupGate;
+  (e) suite mínima de seguridad definida: `:app:testUniversalFossDebugUnitTest` (630 tests
+  deterministas, ~30 s) = gate que FASE 17 debe añadir al CI. Ver RESULTADOS DE LA FASE 16
+  en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 17 (CI/CD).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,

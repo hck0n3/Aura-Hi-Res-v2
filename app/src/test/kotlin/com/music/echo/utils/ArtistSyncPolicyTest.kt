@@ -417,25 +417,29 @@ class ArtistSyncPolicyTest {
 
     @Test
     fun unBookmarkingAnIncidentalArtistNeverUnsubscribes() {
-        // The user tidies up "tus artistas" and removes an artist that was only there because one of
-        // their songs is in the library. The account holds no subscription for them, so nothing about
-        // this may reach it.
+        // An artist that is in the library only because one of their songs is. The account holds no
+        // subscription for them, so nothing about any interaction with this row may reach it.
         //
-        // NOTE — this test used to assert `unfollowedByUserAt == null` here, i.e. that the intent
-        // marker was withheld from any row without a `followedByUserAt`. That mechanism is what caused
-        // the shipped regression: after MIGRATION_39_40 EVERY row has a null `followedByUserAt`,
-        // including artists the user really is subscribed to, so withholding the marker silently
-        // discarded genuine unfollows (see ArtistUnfollowReachesAccountTest). The marker is now
-        // recorded for any non-local artist; what protects this case is the thing that always did the
-        // real work — `ytmSyncedAt`, which is written ONLY from the account's own subscription list.
-        // No subscription, no unsubscribe, whatever the marker says.
-        // The stamp is pinned to the test clock so the assertions below do not depend on the wall
+        // NOTE — under the followedByUserAt contract (commit 88cf0e1, registry #154) an incidental
+        // row displays as NOT FOLLOWED, so the only tap it can receive is a FOLLOW; the destructive
+        // direction is not reachable on it. Two independent pins below: the tap itself arms no
+        // unsubscribe, and even a marker present on a row the account does not hold stays inert —
+        // `ytmSyncedAt` is written ONLY from the account's own subscription list, so no subscription
+        // means no unsubscribe, whatever the marker says.
+        // The stamps are pinned to the test clock so the assertions below do not depend on the wall
         // clock of the machine running them.
-        val tidiedUp = incidentalBookmark("a").localToggleLike().copy(unfollowedByUserAt = now)
+        val tapped = incidentalBookmark("a").localToggleLike()
         assertNotNull(
-            "The tap must be recorded — withholding the marker is what discarded real unfollows.",
-            tidiedUp.unfollowedByUserAt,
+            "The row reads as not-followed, so the tap must be a follow.",
+            tapped.followedByUserAt,
         )
+        assertNull(
+            "A tap on a not-followed row armed an unsubscribe.",
+            tapped.unfollowedByUserAt,
+        )
+        assertFalse(ArtistSyncPolicy.mayUnsubscribe(tapped))
+
+        val tidiedUp = incidentalBookmark("b").copy(unfollowedByUserAt = now)
         assertEquals(
             ArtistSyncPolicy.UnsubscribeRefusal.NOT_SUBSCRIBED,
             ArtistSyncPolicy.refuseUnsubscribe(tidiedUp),
