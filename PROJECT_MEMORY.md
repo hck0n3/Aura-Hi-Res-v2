@@ -29,8 +29,9 @@
   auditoría — FASES 1 (inventario), 2 (dependencias), 3 (seguridad estática), 5 (almacenamiento),
   6 (red), 7 (auth/cripto), 8 (componentes/IPC), 10 (arquitectura), 11 (calidad de código),
   12 (concurrencia), 13 (rendimiento), 14 (UI/UX técnica), 15 (recursos/build), 16 (testing)
-  y 17 (CI/CD) ya COMPLETADAS el 2026-08-24; sigue FASE 18 (privacidad). El CI ya gatea con
-  la suite mínima de 630 tests (gradle.yml y test-build.yml).
+  y 17 (CI/CD) y 18 (privacidad) ya COMPLETADAS el 2026-08-24; sigue FASE 19 (dinámica).
+  El CI ya gatea con la suite mínima de 630 tests (gradle.yml y test-build.yml); en FASE 18
+  se resolvió el HALLAZGO-024 (sección playback del bundle compartido sin redactar).
   La publicación estable de estos fixes queda a decisión del dueño (publicar exige su permiso
   explícito).
 - **2026-08-24 (tarde, 9): ✅ SÚPER AUDITORÍA — FASE 12 (CONCURRENCIA Y CICLO DE VIDA)
@@ -139,6 +140,30 @@
   auto-reparación de player_configs.json (decisión FASE 22). Recomendado al dueño: branch
   protection en main con checks requeridos + Dependabot opcional. Ver RESULTADOS DE LA
   FASE 17 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue FASE 18 (privacidad).
+- **2026-08-24 (tarde, 16): ✅ SÚPER AUDITORÍA — FASE 18 (PRIVACIDAD) COMPLETADA.**
+  Postura sólida por diseño; una fuga encontrada y RESUELTA en la misma fase. Resumen:
+  (a) superficie completa de logs en primera persona — todo byte persistido pasa por
+  `LogRedaction.redact()` (write chokepoint en `AppLogger.append` + re-redacción en todas
+  las rutas de lectura); retención acotada (app.log 256 KB + 1 backup, exit_reasons 128 KB,
+  playback en RAM 500 entradas); los 33 `android.util.Log.X` directos van solo a logcat
+  (nunca a disco ni al bundle) → aceptables. (b) **HALLAZGO-024 (BAJA, privacidad)
+  encontrado y RESUELTO**: la sección PLAYBACK del bundle de diagnóstico compartido
+  (`AppLogger.buildFullShareBundle`) salía sin redactar — el fallo de un stream produce un
+  IOException cuyo `e.message` trae la URL completa de googlevideo con `pot`/`sig` → email
+  de soporte con tokens de sesión. Fix: `append(LogRedaction.redact(playback))` (único
+  consumidor de `formatRecent`); gate post-fix 630/630 verde (`build-fase18.txt`, suite
+  re-ejecutada fresca). (c) Telemetría INACTIVA: plugins Firebase condicionales a un
+  `google-services.json` que no existe (app/build.gradle.kts:23-27); cero FirebaseAnalytics;
+  telemetría efectiva = nada. (d) Cero rastreadores; datos a terceros solo por features
+  opt-in del usuario (Shazam, Cast, IA con su propia key, Spotify/Tidal/Qobuz/Last.fm,
+  InnerTube/PoToken, Listen Together al servidor elegido). (e) El agente de fondo enumeró
+  TODA la PII plaintext del DataStore (HALLAZGO-013 reforzado): Google/Spotify/Last.fm/
+  Discord/ListenTogether/ListenBrainz/OpenRouter/DeepL/proxyPassword — Tidal y Qobuz ya
+  usan EncryptedSharedPreferences; la migración sigue pendiente (riesgosa). (f) Sin flujo
+  "eliminar cuenta" — consistente: Aura no tiene cuentas propias (datos = local +
+  conexiones a terceros). Deuda abierta: 013, 016 (backup), 020 (revocación Last.fm).
+  Ver RESULTADOS DE LA FASE 18 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`. Sigue
+  FASE 19 (dinámica).
 - **2026-08-24 (tarde): ✅ SÚPER AUDITORÍA — FASE 1 (INVENTARIO COMPLETO) TERMINADA.**
   Resultados R1–R9 dentro de `SUPER AUDITORIA DE MI CODIGO ANDROID.md` (3 agentes en paralelo):
   16 módulos, componentes de manifiesto, flavors, ~60 rutas de navegación, diálogos, widgets,

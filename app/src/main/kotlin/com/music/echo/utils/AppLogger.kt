@@ -122,7 +122,11 @@ object AppLogger {
         val playback = PlaybackLogManager.formatRecent(80)
         if (playback.isNotBlank()) {
             appendLine("--- PLAYBACK LOG (recent, in-memory) ---")
-            append(playback)
+            // These entries live in RAM and never passed the write chokepoint in [append], so they
+            // are scrubbed HERE like every other section. A "Playback failed" entry carries the
+            // exception message, and an IOException from a stream request embeds the whole URL —
+            // including its pot/sig query parameters (see LogRedaction.QUERY_PARAM).
+            append(LogRedaction.redact(playback))
         }
     }
 
