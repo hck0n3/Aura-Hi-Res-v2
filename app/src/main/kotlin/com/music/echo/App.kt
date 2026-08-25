@@ -36,6 +36,7 @@ import iad1tya.echo.music.utils.cipher.CipherDeobfuscator
 import iad1tya.echo.music.utils.SyncUtils
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.localeAwareContext
+import iad1tya.echo.music.utils.migrateEncryptedSecrets
 import iad1tya.echo.music.utils.reportException
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -204,6 +205,16 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             // Owner notices inbox (Ajustes ▸ Avisos) — cache first, then soft refresh.
             iad1tya.echo.music.notices.OwnerAnnouncements.loadCache(applicationContext)
             iad1tya.echo.music.notices.OwnerAnnouncements.refresh(applicationContext)
+        }
+
+        // HALLAZGO-013 (2026-08-25): migración one-time y nunca destructiva — las credenciales que
+        // el DataStore de ajustes guardaba en plaintext (cookie de Google, sp_dc de Spotify, sesión
+        // de Last.fm, tokens menores) se cifran en reposo con una clave Keystore ligada al
+        // dispositivo. Lecturas/escrituras siguen siendo transparentes (EncryptedSecretsDataStore)
+        // y settings.preferences_pb no viaja en ningún backup, así que no hay nada que perder. Sin
+        // Keystore disponible (raro) esto es un no-op y los valores siguen en plaintext.
+        applicationScope.launch(Dispatchers.IO) {
+            runCatching { applicationContext.migrateEncryptedSecrets() }
         }
 
         // Cold-start freeze fix: force the two @PlayerCache/@DownloadCache SimpleCache singletons (via DownloadUtil,

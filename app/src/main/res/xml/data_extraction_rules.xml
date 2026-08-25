@@ -24,6 +24,18 @@
         <exclude
             domain="file"
             path="./logs" />
+        <!-- HALLAZGO-016 resto (aprobado por el dueño 2026-08-25): la cola persistente, el automix y
+             el estado del reproductor llevan metadatos de escucha; no viajan al backup en la nube. La
+             copia dentro de la app los sigue llevando (lee los archivos directamente). -->
+        <exclude
+            domain="file"
+            path="persistent_queue.data" />
+        <exclude
+            domain="file"
+            path="persistent_automix.data" />
+        <exclude
+            domain="file"
+            path="persistent_player_state.data" />
         <!-- song.db stays INCLUDED on purpose (the library must survive a phone change); the restored
              data is treated as untrusted instead — see App.classifyInstallOrigin. The sharedpref
              "aura_install_marker" must also stay INCLUDED: it is what tells a restored first launch
@@ -57,6 +69,16 @@
         <exclude
             domain="file"
             path="./logs" />
+        <!-- Mismas exclusiones de HALLAZGO-016 resto que en cloud-backup. -->
+        <exclude
+            domain="file"
+            path="persistent_queue.data" />
+        <exclude
+            domain="file"
+            path="persistent_automix.data" />
+        <exclude
+            domain="file"
+            path="persistent_player_state.data" />
         <!-- Same as cloud-backup: song.db travels, the sharedpref "aura_install_marker" travels, and
              the restored account-scoped artist markers are cleared on arrival. -->
 

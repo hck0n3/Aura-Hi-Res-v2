@@ -52,6 +52,12 @@
             <data android:scheme="mailto" />
         </intent>
     </queries>
+    <!-- HALLAZGO-023 (resuelto 2026-08-25): LTR-only es una decisión de producto DELIBERADA, no un
+         olvido. La app no trae traducciones RTL y sus pantallas no están probadas bajo espejado;
+         activar supportsRtl voltearía la interfaz para usuarios con locale RTL a un estado sin
+         verificar. Las ramas RTL del código Compose (MiniPlayer, PlayerSlider, Thumbnail, Library)
+         son defensivas e inofensivas bajo LTR. Reabrir el soporte RTL exige una pasada de pruebas en
+         dispositivo con locale RTL. -->
     <application
         android:name="iad1tya.echo.music.App"
         android:allowBackup="true"

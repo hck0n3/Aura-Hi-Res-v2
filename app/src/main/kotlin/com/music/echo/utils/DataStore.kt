@@ -20,9 +20,24 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.util.Collections
+import java.util.WeakHashMap
 import kotlin.properties.ReadOnlyProperty
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+private val Context.rawSettingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
+// HALLAZGO-013 (2026-08-25): el único punto de entrada al DataStore de ajustes ahora envuelve el
+// store real con EncryptedSecretsDataStore, que cifra/descifra las credenciales de forma
+// transparente. Los ~560 sitios de lectura/escritura no cambian; el archivo en disco queda
+// cifrado con una clave del Keystore ligada al dispositivo. Un solo wrapper por applicationContext
+// (el store real ya es un singleton por proceso; el wrapper no tiene estado propio).
+private val encryptedDataStores: MutableMap<Context, DataStore<Preferences>> =
+    Collections.synchronizedMap(WeakHashMap())
+
+val Context.dataStore: DataStore<Preferences>
+    get() = encryptedDataStores.getOrPut(applicationContext) {
+        EncryptedSecretsDataStore(applicationContext.rawSettingsDataStore)
+    }
 
 operator fun <T> DataStore<Preferences>.get(key: Preferences.Key<T>): T? =
     runBlocking {

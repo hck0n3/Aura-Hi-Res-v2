@@ -51,7 +51,15 @@ fun UptimeScreen(
     navController: NavController,
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
-    val client = remember { OkHttpClient() }
+    // HALLAZGO-019 resto (2026-08-25): chequeo de disponibilidad acotado — un servicio caído no
+    // debe dejar la pantalla esperando para siempre.
+    val client = remember {
+        OkHttpClient.Builder()
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
     val musicServices = remember {
         mutableStateListOf(
             ServiceStatus("Catálogo principal", { "https://music.youtube.com" }),

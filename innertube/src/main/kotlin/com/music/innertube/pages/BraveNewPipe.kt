@@ -65,6 +65,10 @@ class BraveNewPipeDownloaderImpl(
                         .build()
                 } ?: response.request
             }
+            // HALLAZGO-019 resto (2026-08-25): mismo criterio que NewPipeDownloaderImpl — extracción
+            // acotada antes del stream; sin callTimeout por el player JS (~2MB).
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
             .build()
 
     @Throws(IOException::class, ReCaptchaException::class)

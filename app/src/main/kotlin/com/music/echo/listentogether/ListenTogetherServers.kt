@@ -50,7 +50,12 @@ object ListenTogetherServers {
     init {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                val client = okhttp3.OkHttpClient()
+                val client = okhttp3.OkHttpClient.Builder()
+                    // HALLAZGO-019 resto (2026-08-25): el JSON de servidores es pequeño y acotado.
+                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
                 val request = okhttp3.Request.Builder().url(SERVER_JSON_URL).build()
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {

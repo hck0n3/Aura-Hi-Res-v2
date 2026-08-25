@@ -115,25 +115,26 @@ memoria_maestra:
     fase_20_resiliencia: COMPLETADA       # 2026-08-24: R8 real (73.2% de descriptores renombrados en el dex), logs v/d fuera del binario, sin debug info relevante, anti-tampering existente suficiente (cert ligado a licencia + instalador Android), keystore jamás commiteada; cero hallazgos nuevos; Play Integrity/root/emulator RECHAZADOS por teatrales
     fase_21_reporte_final: COMPLETADA     # 2026-08-24: consolidación de los 25 hallazgos (4 resueltos, 1 cerrado, 3 aceptados, 6 verificaciones limpias, 15 abiertos; único crítico = 008 que bloquea publicar); reporte de 13 secciones; orden de reparación para FASE 22
     fase_22_reparacion_potenciacion: COMPLETADA  # 2026-08-24: 7 hallazgos reparados (025, 014, 016-parcial, 020, 019-críticos, 015, 012); suite 630/630 verde; release verde; AUDITORÍA 22/22 TERMINADA
+    vuelta_2_2026_08_25: COMPLETADA  # misión del dueño: reparar todo lo abierto salvo 008 sin dañar la reproducción. RESUELTOS: 013 (cifrado DataStore + migración + 12 tests), 011 (dependency locking, 17 lockfiles), 016-resto, 019 completo, 023; DOCUMENTADOS: 010, 018. Suite 642/642 --rerun sin --write-locks
 
   seguridad:
     backup_creado: false
     pruebas_base_verdes: false
-    flujos_criticos_protegidos: false
+    flujos_criticos_protegidos: true    # vuelta 2: el wrapper cifrado es transparente y disponibilidad-primero; el path de reproducción no se tocó
     riesgos_criticos_abiertos: 0
     riesgos_altos_abiertos: 0
 
   calidad:
     compila: true    # assembleUniversalFossDebug verde: 0.6.232 (versionCode 952)
-    prueba_beta: BETA-001_VERDE   # 2026-08-24, dueño, remoto; fixes #154/#155 confirmados
+    prueba_beta: BETA-002_ENTREGADA   # v0.6.233/vc953, 2026-08-24, pendiente de prueba del dueño en el celular
     lint_ok: false    # deuda de lint diferida desde FASE 17; la FASE 22 priorizó reparaciones; queda para un ciclo futuro
-    unit_tests_ok: true    # FASE 22 (2026-08-24): 630 tests --rerun, 0 fallos, 0 errores, 0 skipped (build-fase22-tests.txt + XMLs frescos)
+    unit_tests_ok: true    # VUELTA 2 (2026-08-25): 642 tests --rerun SIN --write-locks, 0 fallos, 0 errores, 0 skipped (build-verif-tests.txt; valida también los lockfiles de HALLAZGO-011)
     android_tests_ok: false
     coverage_registrado: false
 
   decisiones_criticas: []
   bloqueos_activos: []
-  proxima_accion: AUDITORIA_COMPLETA_22_DE_22 (FASE_22 completada 2026-08-24: 7 hallazgos reparados — 025/014/016-parcial/020/019-críticos/015/012; suite 630/630 y release verdes. Restan SOLO decisiones del dueño: 008 firma release [ÚNICO CRÍTICO, bloquea publicar], 013, 016-resto, 017, 023, 010, 018, 011, 021. Ver RESULTADOS DE LA FASE 22)
+  proxima_accion: VUELTA_2_COMPLETADA (2026-08-25: resueltos 013/011/016-resto/019/023; documentados 010/018; suite 642/642). Restan SOLO decisiones del dueño: ratificación formal de 017, decisión sobre 008 (excluido de esta vuelta por instrucción suya), ciclo propio para 021 y plan de salida de 010 (reemplazar ffmpeg-kit/tinypinyin)
 ```
 
 ---
@@ -589,7 +590,8 @@ dependencias:
   criticas_vulnerables: []        # jsoup CVE-2026-71497: nunca expuesta (grafo ya resolvía 1.23.1 vía BravePipeExtractor)
   actualizadas: [jsoup pin catálogo 1.22.2 -> 1.23.1 (defensa en profundidad; el classpath resuelto no cambió)]
   revertidas: []
-  pendientes: [ffmpeg-kit EOL reemplazo diferido, limpieza HALLAZGO-012, mirror aliyun HALLAZGO-010, lockfile HALLAZGO-011]
+  pendientes: [reemplazar ffmpeg-kit y tinypinyin para poder retirar el mirror aliyun (HALLAZGO-010, riesgo documentado con evidencia 2026-08-25)]
+  resueltos_vuelta_2: [lockfile HALLAZGO-011 RESUELTO 2026-08-25 (dependencyLocking + 17 gradle.lockfile con las 3 tareas del CI), limpieza HALLAZGO-012 (FASE 22)]
 ```
 
 ## Criterio de salida
@@ -2118,32 +2120,34 @@ o compartido, y datos a terceros únicamente por features opt-in del usuario.
 | ID | Estado | Resumen |
 |---|---|---|
 | HALLAZGO-009 | CERRADO | jsoup: catálogo declaraba 1.22.2 (CVE-2026-71497) pero el grafo YA resolvía 1.23.1 vía BravePipeExtractor — verificado en el binario; pin alineado por defensa en profundidad |
-| HALLAZGO-010 | ABIERTO | Mirror `maven.aliyun.com` en la cadena de resolución; quitarlo puede romper ffmpeg-kit EOL — decisión del dueño |
-| HALLAZGO-011 | ABIERTO (BAJA/MEDIA) | Sin lockfile ni verification-metadata: integridad de dependencias no verificada |
-| HALLAZGO-013 | ABIERTO | Credenciales plaintext en DataStore (cookie Google `:837`, `sp_dc` Spotify `:240`, sesión Last.fm `:474`, tokens menores) vs Tidal/Qobuz que SÍ usan EncryptedSharedPreferences; fix con migración one-time RIESGOSA — decide el dueño |
-| HALLAZGO-016 | ABIERTO | `song_graph.xml`, `artist_genres.xml`, `app.log*` y `persistent_*.data` viajan al cloud backup por default (CONFIRMADO en el binario FASE 19); fix barato de exclusiones |
+| HALLAZGO-010 | **RIESGO DOCUMENTADO** (vuelta 2, 2026-08-25) | El mirror `maven.aliyun.com` es IRREMPLAZABLE hoy: la prueba real de resolución sin él deja FAILED `com.arthenica:ffmpeg-kit-full:6.0-2` (exportación de audio) y `com.github.promeG:tinypinyin:2.0.3` (pinyin de letras) — artefactos EOL que solo existen en el espejo de JCenter de aliyun/public (`build-010-resolve.txt` vs `build-010-restored.txt`, FAILED_count=0 con mirror). Mirror restaurado al final de la cadena de resolución con comentario de evidencia; plan de salida = reemplazar esas dos librerías |
+| HALLAZGO-011 | **RESUELTO** (vuelta 2, 2026-08-25) | Dependency locking Gradle: `dependencyLocking { lockAllConfigurations() }` en root + subprojects; 17 lockfiles generados corriendo las 3 tareas EXACTAS del CI con `--write-locks` (tests, GmsRelease, Arm64FossRelease `-Pnosub=true` — 3/3 BUILD SUCCESSFUL, `build-011-locks.txt`); una sustitución de artefacto ahora cambia el hash y rompe el build en vez de colarse; actualizar una dependencia exige `--write-locks` a propósito |
+| HALLAZGO-013 | **RESUELTO** (vuelta 2, 2026-08-25) | Cifrado de las 16 claves sensibles del DataStore vía wrapper transparente en el chokepoint `Context.dataStore` (Keystore AES-256-GCM, prefijo `ENC1:`): cero cambios en los ~560 sitios consumidores, disponibilidad-primero (sin Keystore → plaintext passthrough), valores bloqueados se presentan `""` pero JAMÁS se sobreescriben, migración one-time en `App.onCreate` (solo proceso default). El proto `settings.preferences_pb` no viaja en ningún backup (ver 016), así que el cifrado por-dispositivo no pierde nada. 12/12 tests nuevos (`EncryptedSecretsTest`, `build-013-tests.txt`) |
+| HALLAZGO-016 | **RESUELTO** (FASE 22 parcial + vuelta 2, 2026-08-25) | Los dos XML de backup excluyen ya TODO lo señalado: FASE 22 añadió `song_graph.xml`, `artist_genres.xml` y `./logs`; la vuelta 2 añadió `persistent_queue.data`, `persistent_automix.data` y `persistent_player_state.data` (metadatos de escucha) en `cloud-backup` Y `device-transfer`. `song.db` y `aura_install_marker` siguen incluidos a propósito (la biblioteca debe sobrevivir el cambio de teléfono; lo restaurado se trata como no-confiable en `App.classifyInstallOrigin`). Costo asumido y documentado in situ: cambio de teléfono vía backup de Google = cola vacía, biblioteca intacta |
 | HALLAZGO-017 | ABIERTO (aceptación formal) | Password de Qobuz viaja en query string de GET — la API oficial es GET-only; TLS lo protege en tránsito |
-| HALLAZGO-018 | ABIERTO | Cero pinning en canales de config remota (qobuz_config, player_configs, gist TOTP, releases, Worker licencia); recomendado en FASE 17: integridad de contenido en vez de pinning (no romper auto-reparación) — FASE 22 |
-| HALLAZGO-019 | ABIERTO | ~22 clientes HTTP sin timeouts explícitos, varios en path crítico de reproducción; patrón de fix ya existe (`QobuzHiRes.kt:47-54`) |
+| HALLAZGO-018 | **RIESGO DOCUMENTADO** (vuelta 2, 2026-08-25) | Investigación completa: todos los canales remotos son HTTPS (player_configs, shazam config, qobuz_config, announcements, ListenTogether server.json, AutoEq, releases); `network_security_config.xml` ya prohíbe cleartext en TODA la app (solo loopback); el updater YA verifica `ApkSignatureVerifier.matchesInstalledSignature` antes de instalar (además del chequeo de firma del instalador Android); la config remota falla CERRADO (fetch corrupto/alterado conserva lo cargado, nunca vacía el mapa). Certificate pinning RECHAZADO: GitHub rota certificados y un pin roto mataría la auto-reparación de `player_configs.json` = la reproducción de todos (mismo razonamiento que 006 aceptado). Amenaza residual: MITM con CA válida contra GitHub = config alterada temporal, sin ejecución de código; mitigación = 2FA del repo |
+| HALLAZGO-019 | **RESUELTO** (FASE 22 path crítico + vuelta 2, 2026-08-25, cobertura completa) | Timeouts explícitos en TODOS los clientes petición/respuesta: 7 críticos (FASE 22) + 8 de la vuelta 2 (`QobuzApiClient`, `ListenTogetherServers`, `LocalFileDownloader`, `UptimeScreen`, `ListenBrainzManager`, `MigrationModule`, extractores vendoreados `NewPipe.kt`/`BraveNewPipe.kt` con 15s/30s y SIN `callTimeout` para no cortar el fetch del player.js ~2MB). El barrido final de la vuelta 2 verificó que el resto YA tenía topes (DeepL/OpenRouter/Mistral/AiPlaylist 30s/90s, streaming SSE 120s, scrappers, preview, export, `MusicService.kt:8857`); excepciones deliberadas: `ArtistVideo.kt` (video-streaming con defaults OkHttp 10s) y `old-newpipe-team.kt` (fuera de todo source set, no compila) |
 | HALLAZGO-022 | **RESUELTO** (FASE 16) | Suite roja por 8 tests obsoletos post-`88cf0e1` (contrato viejo de follow); reescritos a `followedByUserAt` sin tocar producción; suite 630/630 verde |
 
 ## 6. Hallazgos bajos
 
 | ID | Estado | Resumen |
 |---|---|---|
-| HALLAZGO-012 | ABIERTO | Entradas muertas del catálogo de versiones + doble pin kotlinx-serialization + okhttp hardcode en migration |
-| HALLAZGO-014 | ABIERTO | Crash local por deep link sin validar (`MainActivity.kt:2474`; superficie confirmada en el APK real); fix barato (~1 línea con `runCatching`/validación) candidato a beta |
-| HALLAZGO-015 | ABIERTO | `provider_paths.xml` más ancho de lo necesario; no explotable hoy (provider no exportado, URIs fijas) |
-| HALLAZGO-020 | ABIERTO | Logout sin revocación server-side; Last.fm `auth.logout` sin usar (fix barato, FASE 22); Tidal/Spotify expiran solos |
-| HALLAZGO-021 | ABIERTO | Deuda estructural: `MusicService.kt` 10 953 líneas (god object, archivo compartido #1 del registro de regresiones); split incremental con characterization tests primero — FASE 22 |
-| HALLAZGO-023 | ABIERTO | `supportsRtl="false"` vs código RTL-aware; decisión del dueño (LTR-only deliberado o habilitar+testear) |
+| HALLAZGO-012 | **RESUELTO** (FASE 22) | Catálogo de versiones limpio (entradas muertas fuera) + código muerto de `DatabaseDao` eliminado, con build verde |
+| HALLAZGO-014 | **RESUELTO** (FASE 22) | Deep links validados con `isRouteSafeId` (`MainActivity.kt:2463`): solo IDs alfanuméricos pasan; el crash re-trazado en FASE 19 queda sin superficie |
+| HALLAZGO-015 | **RESUELTO** (FASE 22) | `provider_paths.xml` restringido a las 6 entradas reales + crash/CSV mudados; provider no exportado |
+| HALLAZGO-020 | **RESUELTO** (FASE 22) | Logout de Last.fm ahora invalida la sesión server-side (`auth.logout`, `LastFM.kt:134`) antes de borrar lo local; Tidal/Spotify expiran solos |
+| HALLAZGO-021 | ABIERTO (ciclo propio, jamás en caliente) | Deuda estructural: `MusicService.kt` 10 953 líneas (god object, archivo compartido #1 del registro de regresiones); split incremental EXIGE characterization tests primero y su propio ciclo de trabajo — no entra en rondas de fixes |
+| HALLAZGO-023 | **RESUELTO** (vuelta 2, 2026-08-25) | Decisión del dueño ratificada: LTR-only es DELIBERADO (audiencia hispana). Documentado en el propio manifiesto (`AndroidManifest.xml:55-58`): con `supportsRtl="false"` las piezas RTL-aware quedan muertas a propósito; activarlo voltearía la UI a un estado sin probar. Si algún día se habilita, requiere ciclo de pruebas completo |
 | HALLAZGO-024 | **RESUELTO** (FASE 18) | Sección PLAYBACK del bundle de diagnóstico compartido salía sin redactar (fuentes en RAM bypaseaban el chokepoint); fix 1 línea, gate 630/630 fresco |
-| HALLAZGO-025 | ABIERTO | `compose.ui.tooling` como `implementation` mete PreviewActivity exportada en release (cero usos en producción); fix barato `debugImplementation` — candidato beta/FASE 22 |
+| HALLAZGO-025 | **RESUELTO** (FASE 22) | `debugImplementation(libs.compose.ui.tooling)` (`app/build.gradle.kts:546`): PreviewActivity verificado AUSENTE del manifiesto binario release (aapt, 0 matches) |
 
 **Riesgos aceptados (no son deuda):** HALLAZGO-006 (WebViews de descifrado de streaming con JS y file
 access — infraestructura crítica que solo carga contenido local/bundled; tocarla pone en riesgo la
-reproducción) y HALLAZGO-007 (`GOOGLE_API_KEY` pública por diseño, igual que Last.fm/Tidal/Qobuz,
-documentadas en AGENTS.md).
+reproducción), HALLAZGO-007 (`GOOGLE_API_KEY` pública por diseño, igual que Last.fm/Tidal/Qobuz,
+documentadas en AGENTS.md), HALLAZGO-010 (mirror aliyun irremplazable mientras vivan ffmpeg-kit y
+tinypinyin; documentado con evidencia y plan de salida) y HALLAZGO-018 (pinning de GitHub rechazado
+para no romper la auto-reparación de la reproducción; mitigaciones existentes verificadas).
 
 **Verificaciones LIMPIAS (sin acción):** HALLAZGO-003 (cookies jamás logueadas), 004 (PendingIntents
 inmutables), 005 (10 componentes exportados, todos legítimos), SQL (todo Room+binding), zip-slip
@@ -2161,30 +2165,36 @@ telemetría (cero Firebase/GMS analytics en los 3 dex del APK real).
 6. **Gap CI-sin-tests** — paso "Run unit tests (quality gate)" en `gradle.yml` y `test-build.yml`,
    ANTES de construir/firmar (FASE 17); verificado 630/630 fresco.
 7. **SearchVideoTest** neutralizado con `@Ignore` para que el gate no dependa de red viva (FASE 17).
+8. **VUELTA 2 (2026-08-25):** HALLAZGO-013 (cifrado Keystore AES-256-GCM del DataStore vía wrapper
+   transparente + migración one-time, 12 tests), 011 (dependency locking + 17 lockfiles con las tareas
+   del CI), 016-resto (exclusiones de backup persistent_queue/automix/player_state), 019-resto
+   (timeouts en 6 clientes + 2 extractores vendoreados; barrido final confirma cobertura completa),
+   023 (LTR-only documentado como decisión deliberada en el manifiesto), 010 (mirror documentado con
+   evidencia de resolución real) y 018 (investigación completa → riesgo documentado).
 
-## 8. Reparaciones pendientes (para FASE 22, en orden de riesgo/beneficio)
+## 8. Reparaciones pendientes
 
 1. **HALLAZGO-008** — revertir firma de release a `signingConfigs.getByName("release")` + investigar
    por qué el certificado real fallaba en streams. **Requiere decisión del dueño; bloquea publicar.**
-2. **HALLAZGO-014** — validar deep links (`runCatching`/charset) — barato, candidato a beta.
-3. **HALLAZGO-025** — `debugImplementation(libs.compose.ui.tooling)` — barato, candidato a beta.
-4. **HALLAZGO-016** — exclusiones de backup (`song_graph.xml`, `artist_genres.xml`, `./logs`;
-   `persistent_*.data` decide el dueño) — barato y seguro.
-5. **HALLAZGO-019** — timeouts en ~22 clientes (patrón `QobuzHiRes`) — candidato a beta.
-6. **HALLAZGO-020** — llamada `auth.logout` de Last.fm al cerrar sesión — barato.
-7. **HALLAZGO-013** — migración de credenciales plaintext a EncryptedSharedPreferences — RIESGOSA,
-   con camino de migración probado; decisión del dueño.
-8. **HALLAZGO-018** — integridad de contenido en canales de config remota (prioridad: gist TOTP y
-   qobuz_config) — FASE 22; el Worker de licencia requiere permiso explícito.
-9. **HALLAZGO-012** — limpieza del catálogo de versiones (con build verde).
-10. **HALLAZGO-011** — verification-metadata o lockfile + CI que lo valide.
-11. **HALLAZGO-010** — quitar mirror aliyun (desbloqueado al reemplazar ffmpeg-kit EOL).
+   El dueño pidió EXPLÍCITAMENTE excluirlo de la vuelta 2 (2026-08-25).
+2. **HALLAZGO-017** — aceptación FORMAL por el dueño (password Qobuz en query string; la API oficial
+   es GET-only, TLS lo protege en tránsito). Explicado; falta su ratificación.
+3. **HALLAZGO-021** — split de `MusicService.kt`: ciclo propio con characterization tests primero.
+   JAMÁS en una ronda de fixes en caliente (riesgo directo a la reproducción).
+4. **HALLAZGO-010 (plan de salida)** — reemplazar ffmpeg-kit (exportación de audio) y tinypinyin
+   (una llamada en `LyricsUtils`) para poder retirar el mirror aliyun. Trabajo mayor diferido.
 
 ## 9. Riesgos aceptados
 
 - **006** WebViews de streaming con JS/file-access (infraestructura crítica; solo contenido bundled).
 - **007** GOOGLE_API_KEY y claves Last.fm/Tidal/Qobuz embebidas (públicas por diseño, documentadas).
+- **010** mirror aliyun (vuelta 2): irremplazable mientras vivan ffmpeg-kit-full:6.0-2 y
+  tinypinyin:2.0.3 (EOL, solo en el espejo JCenter); evidencia de resolución real en
+  `build-010-resolve.txt`/`build-010-restored.txt`; plan de salida = reemplazar ambas librerías.
 - **017** password Qobuz en query GET (API GET-only; pendiente ratificación formal del dueño).
+- **018** ausencia de certificate pinning (vuelta 2): todos los canales remotos HTTPS + cleartext OFF
+  global + firma de APK verificada antes de instalar + config remota fail-closed; pinning rechazado
+  porque la rotación de certificados de GitHub rompería la auto-reparación = la reproducción.
 - **song.db en backup** — decisión de producto documentada en `backup_rules.xml` (la biblioteca viaja).
 - **`license/` y `eq/`** — zonas protegidas: se reportan, no se tocan sin petición explícita.
 - **Ausencia de línea base de pruebas instrumentadas** — aceptada por costo; suite JVM 630 + beta en
@@ -2653,6 +2663,7 @@ cambio:
 | 2026-08-24 | FASE 20 | Resiliencia y ofuscación: config del build type release, medición de ofuscación R8 directamente en los 3 dex del APK release (descriptores renombrados, keeps, strings sensibles), política de logs (`assumenosideeffects`, AppLogger chokepoint), debug info del binario, modelo de amenazas (root/emulador/Play Integrity/anti-tampering), keystore en historia git y secretos en runtime (cross-check 008/013); evidencia `build-fase20-dex-scan.txt` + 3 scripts de escaneo | COMPLETADA — RESILIENCIA Y OFUSCACIÓN SÓLIDAS: R8 real y masivo (17 616 descriptores únicos, 73.2 % renombrados; paquete runtime `iad1tya/echo/music`, los keeps que conservan nombre son todos funcionales: manifiesto, WebView JS, kotlinx-serialization, cola, JNI); logs v/d eliminados del binario, i/w/e conservados a propósito (35 sitios, solo errores), todo lo persistido pasa por LogRedaction; sin `SourceFile/LineNumberTable` en release; anti-tampering existente suficiente (cert ligado a licencia Superpowered + validación de firma del instalador Android + updater sanitizado); keystore JAMÁS commiteada (historia git limpia); Play Integrity y detección de root/emulador RECHAZADOS por seguridad teatral (app fuera de Play, sin backend propio); cero hallazgos nuevos (contador sigue en 026); deuda heredada 008 y 013 | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 20) + build-fase20-dex-scan.txt + fase20-dex-scan*.ps1 (3 scripts) | FASE_21_REPORTE_FINAL |
 | 2026-08-24 | FASE 21 | Reporte final: consolidación autoritativa de toda la auditoría (25 hallazgos, 20 fases ejecutadas, estado por área, reparaciones aplicadas y pendientes, riesgos aceptados, pruebas, recomendaciones) — sin investigación nueva, solo síntesis verificada contra la tabla de hallazgos y el YAML maestro | COMPLETADA — veredicto global SALUDABLE: 4 hallazgos resueltos (001, 002, 022, 024), 1 cerrado (009), 3 riesgos aceptados (006, 007, 017 pendiente de ratificación), 6 verificaciones limpias, 15 abiertos; único CRÍTICO = HALLAZGO-008 (firma release = debug; bloquea publicar; decisión del dueño); orden de reparación de 11 items para FASE 22 (baratos primero: 014, 025, 016, 019, 020; riesgosos con decisión: 008, 013); recomendaciones de proceso: branch protection, pre-publish-check + Actions en verde antes de taggear | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 21) | FASE_22_REPARACION_POTENCIACION |
 | 2026-08-24 | FASE 22 | Reparación y potenciación controlada: 7 hallazgos reparados (025 debugImplementation, 014 validador isRouteSafeId, 016 parcial exclusiones de backup, 020 LastFM.logout con auth.logout, 019 timeouts en 7 clientes críticos con política streaming-sin-callTimeout, 015 provider_paths restringido a 6 entradas + mudanza de crash/CSV, 012 catálogo limpio + código muerto de DatabaseDao fuera) | COMPLETADA — AUDITORÍA 22/22 TERMINADA: suite 630/630 con --rerun (build-fase22-tests.txt), release verde en 10m19s (build-fase22-release.txt), PreviewActivity AUSENTE del manifiesto binario (0 matches, aapt) y firma CN=Android Debug intacta como espera el HALLAZGO-008 abierto (build-fase22-binario.txt); sin hallazgos nuevos (contador 026); lo restante son decisiones del dueño (008 primero) y la entrega opcional de BETA-002 | SUPER AUDITORIA (sección RESULTADOS DE LA FASE 22) + build-fase22-{tests,release,binario}.txt | AUDITORIA_COMPLETA_DECISIONES_DEL_DUENO |
+| 2026-08-25 | VUELTA 2 | Misión del dueño: reparar TODOS los hallazgos abiertos salvo el 008, sin dañar lo logrado ni la reproducción. Ejecutado: 013 cifrado del DataStore (wrapper transparente en el chokepoint `Context.dataStore`, Keystore AES-256-GCM, migración one-time en `App.onCreate`, disponibilidad-primero, 12 tests nuevos), 011 dependency locking (17 lockfiles generados con las 3 tareas exactas del CI), 016-resto exclusiones de backup (persistent_queue/automix/player_state en cloud-backup y device-transfer), 019-resto timeouts (6 clientes + 2 extractores vendoreados; barrido final confirma cobertura completa), 023 LTR-only documentado en el manifiesto como decisión deliberada, 010 mirror aliyun documentado como riesgo irremplazable con evidencia de resolución, 018 investigación completa → riesgo documentado (HTTPS total, cleartext OFF, firma de APK verificada pre-install, config fail-closed; pinning rechazado por la auto-reparación) | COMPLETADA — suite 642/642 con --rerun y SIN --write-locks (build-verif-tests.txt; los lockfiles validan de verdad); las 3 tareas del CI verdes con --write-locks (build-011-locks.txt) y las dos release re-verificadas sin él (build-verif-release.txt); cero cambios en el path de cifrado/reproducción (013 es un wrapper por encima del DataStore, la reproducción no se toca); 021 explicado como ciclo propio (jamás en caliente); 017 espera ratificación formal del dueño; 008 excluido por instrucción explícita | SUPER AUDITORIA (tabla de hallazgos + esta fila) + build-013-tests.txt, build-011-locks.txt, build-verif-tests.txt, build-verif-release.txt, build-010-{resolve,restored}.txt | RATIFICACION_DUENO_017 · DECISION_008 · CICLO_PROPIO_021 |
 
 ---
 
@@ -2757,14 +2768,15 @@ Este plan se compromete a:
 
 ```yaml
 estado_actual:
-  fecha: 2026-08-24
-  fase_actual: FASE_22_COMPLETADA_AUDITORIA_TERMINADA_22_DE_22
-  proxima_accion: DECISIONES_DEL_DUENO (ver RESULTADOS DE LA FASE 22, R3) — prioridad 1: HALLAZGO-008 (único CRÍTICO, bloquea publicar); resto: 013, 016-resto (persistent_*.data), 017, 023, 010, 018, 011, 021. Opcional: BETA-002 con los 7 fixes de la FASE 22
+  fecha: 2026-08-25
+  fase_actual: VUELTA_2_COMPLETADA
+  proxima_accion: DECISIONES_DEL_DUENO — (1) ratificación formal de HALLAZGO-017 (password Qobuz GET-only, ya explicado); (2) decisión sobre HALLAZGO-008 (único CRÍTICO, bloquea publicar; excluido de la vuelta 2 por instrucción explícita del dueño); (3) HALLAZGO-021 cuando se abra su ciclo propio (characterization tests primero, jamás en caliente); (4) plan de salida de HALLAZGO-010 (reemplazar ffmpeg-kit/tinypinyin). Opcional: entregar los fixes de la vuelta 2 como BETA-003 tras probar BETA-002 en el celular
   bloqueos: []
   memoria: ACTIVA
   auditoria_completa: true
-  beta: BETA-001_VERDE (2026-08-24, prueba remota del dueño); BETA-002 con fixes FASE 22 pendiente de entrega
-  diferido_al_dueno: pruebas de dispositivo de la FASE 19 — restore de backup, startup/jank/batería, contraste/targets táctiles, WebView en vivo, captura de tráfico. La reproducción del crash HALLAZGO-014 ya es opcional (el fix isRouteSafeId entró en FASE 22; el comando de repro sirve ahora para VER que NO crashea)
-  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug — ÚNICO CRÍTICO, bloquea publicar; decisión del dueño) · HALLAZGO-010 (mirror aliyun; ligado al reemplazo de ffmpeg-kit EOL) · HALLAZGO-011 (sin lockfile/verification-metadata; decisión de proceso) · HALLAZGO-013 (cookie Google + sp_dc Spotify + sesión Last.fm en texto plano en DataStore; migración riesgosa, decide el dueño) · HALLAZGO-016-resto (persistent_*.data en el backup; decide el dueño) · HALLAZGO-017 (password Qobuz en query string; aceptar formalmente — API GET-only) · HALLAZGO-018 (cero pinning en canales de config remota; en parte diseño de feature) · HALLAZGO-021 (deuda estructural MusicService.kt; jamás en caliente, ciclo propio con characterization tests) · HALLAZGO-023 (supportsRtl="false"; decisión del dueño) · HALLAZGO-019-resto (extractores vendoreados y ~15 clientes no críticos sin timeouts; segunda pasada opcional)
-  hallazgos_resueltos_recientes: HALLAZGO-022 (FASE 16: 8 tests reescritos al contrato de followedByUserAt) · HALLAZGO-024 (FASE 18: sección PLAYBACK del bundle compartido pasa por LogRedaction) · FASE 22 (2026-08-24): HALLAZGO-025 (debugImplementation, PreviewActivity fuera del release), HALLAZGO-014 (validador isRouteSafeId), HALLAZGO-016 parcial (exclusiones de backup), HALLAZGO-020 (LastFM.logout con auth.logout), HALLAZGO-019 path crítico (timeouts en 7 clientes), HALLAZGO-015 (provider_paths restringido), HALLAZGO-012 (catálogo limpio + código muerto fuera) — suite 630/630 y release verdes
+  beta: BETA-002_ENTREGADA (v0.6.233/vc953, 2026-08-24, pendiente de prueba del dueño); vuelta 2 lista para BETA-003 si el dueño la pide
+  diferido_al_dueno: pruebas de dispositivo de la FASE 19 — restore de backup, startup/jank/batería, contraste/targets táctiles, WebView en vivo, captura de tráfico; prueba de BETA-002 en el celular
+  hallazgos_abiertos: HALLAZGO-008 (firma release = keystore debug — ÚNICO CRÍTICO, bloquea publicar; el dueño lo excluyó de la vuelta 2) · HALLAZGO-017 (password Qobuz en query string; explicado, espera ratificación formal) · HALLAZGO-021 (deuda estructural MusicService.kt 11k líneas; ciclo propio con characterization tests, jamás en caliente)
+  riesgos_documentados_vuelta_2: HALLAZGO-010 (mirror aliyun irremplazable hoy: ffmpeg-kit-full:6.0-2 y tinypinyin:2.0.3 EOL solo existen allí; plan de salida = reemplazar ambas) · HALLAZGO-018 (sin pinning: canales todos HTTPS + cleartext OFF global + ApkSignatureVerifier pre-install + config remota fail-closed; pinning rechazado porque la rotación de certs de GitHub rompería la auto-reparación = reproducción)
+  hallazgos_resueltos_recientes: VUELTA 2 (2026-08-25): HALLAZGO-013 (cifrado Keystore AES-256-GCM del DataStore vía wrapper transparente + migración one-time, 12 tests), HALLAZGO-011 (dependency locking, 17 lockfiles con las tareas del CI), HALLAZGO-016 completo, HALLAZGO-019 cobertura completa, HALLAZGO-023 (LTR-only deliberado documentado en manifiesto) — suite 642/642 --rerun sin --write-locks · FASE 22 (2026-08-24): 025, 014, 016-parcial, 020, 019-críticos, 015, 012 · FASE 18: 024 · FASE 16: 022
 ```

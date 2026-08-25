@@ -67,6 +67,14 @@ class NewPipeDownloaderImpl(
                         .build()
                 } ?: response.request
             }
+            // HALLAZGO-019 resto (2026-08-25): la extracción (llamadas InnerTube + player JS para
+            // deobfuscación) son fetches acotados que corren ANTES del stream. Sin topes, una
+            // extracción colgada dejaba al usuario con el spinner para siempre; con topes la app
+            // falla rápido y la capa de fallback puede intentar el siguiente camino. Sin callTimeout
+            // a propósito: el player JS pesa ~2MB y el readTimeout topa stalls, no descargas lentas
+            // legítimas (mismo criterio que PlayerJsFetcher).
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
             .build()
 
     @Throws(IOException::class, ReCaptchaException::class)

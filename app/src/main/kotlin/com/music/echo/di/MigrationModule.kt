@@ -46,7 +46,14 @@ object MigrationModule {
     // One client for everything the migration does over plain OkHttp (HttpJson sources + token endpoint).
     // Private on purpose: no OkHttpClient binding is exposed to the graph, so this can never collide with
     // a future app-wide client binding.
-    private val migrationHttpClient by lazy { OkHttpClient() }
+    // HALLAZGO-019 resto (2026-08-25): topes por fase; sin callTimeout porque importar bibliotecas
+    // grandes (miles de pistas paginadas) tarda de forma legítima.
+    private val migrationHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
 
     @Provides
     @Singleton

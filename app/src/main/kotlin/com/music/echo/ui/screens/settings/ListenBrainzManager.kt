@@ -16,7 +16,13 @@ object ListenBrainzManager {
     // client version the app had not been on for dozens of releases. Read the real one.
     private val clientVersion = BuildConfig.VERSION_NAME
     private val userAgent = "AuraHiRes/${BuildConfig.VERSION_NAME}"
-    private val httpClient = OkHttpClient()
+    // HALLAZGO-019 resto (2026-08-25): submits y validación de token acotados; si ListenBrainz está
+    // caído el scrobble se descarta solo en vez de bloquear.
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     suspend fun submitPlayingNow(
         context: Context,

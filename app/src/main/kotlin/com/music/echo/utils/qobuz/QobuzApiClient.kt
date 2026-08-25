@@ -109,6 +109,11 @@ class QobuzApiClient {
                 .build()
             chain.proceed(request)
         }
+        // HALLAZGO-019 resto (2026-08-25): llamadas API acotadas — sin topes, un servidor caído o
+        // un proxy colgado dejaba la petición (login/búsqueda) bloqueada indefinidamente.
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
         .build()
     private val baseUrl: String = "https://qobuz.kennyy.com.br/api"
     private val json: Json = Json {

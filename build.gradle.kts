@@ -10,6 +10,13 @@ buildscript {
         google()
         mavenCentral()
         maven { setUrl("https://jitpack.io") }
+        // HALLAZGO-010 (verificado 2026-08-25): este mirror NO se puede retirar todavía. La prueba
+        // real de resolución sin él deja dos artefactos FAILED: com.arthenica:ffmpeg-kit-full:6.0-2
+        // (exportación de audio) y com.github.promeG:tinypinyin:2.0.3 (pinyin de letras) — ambos son
+        // dependencias EOL que ya solo existen en el espejo de JCenter que sirve aliyun/public.
+        // La salida real es reemplazar esas dos librerías (ffmpeg-kit toca la exportación; tinypinyin
+        // es una sola llamada en LyricsUtils); hasta entonces el mirror se queda, al final de la
+        // lista para que google()/mavenCentral()/jitpack tengan prioridad de resolución.
         maven { setUrl("https://maven.aliyun.com/repository/public") }
     }
     dependencies {
@@ -24,7 +31,18 @@ tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
 
+// HALLAZGO-011 (2026-08-25): dependency locking. Cada resolución de dependencias queda fijada en
+// los gradle.lockfile commiteados: lo que se compiló es exactamente lo que se compilará en CI y en
+// cualquier otra máquina, y una sustitución maliciosa o accidental de un artefacto cambia el hash
+// y rompe el build en vez de colarse. Actualizar una dependencia exige --write-locks a propósito.
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 subprojects {
+    dependencyLocking {
+        lockAllConfigurations()
+    }
     configurations.all {
         resolutionStrategy {
             // SimpMusic forces this exact nanojson commit in its root build for the same reason:

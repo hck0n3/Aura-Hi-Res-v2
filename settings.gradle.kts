@@ -7,6 +7,9 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { setUrl("https://jitpack.io") }
+        // HALLAZGO-010 (verificado 2026-08-25): el mirror se queda — sin él quedan FAILED
+        // ffmpeg-kit-full:6.0-2 y tinypinyin:2.0.3 (solo viven en el espejo de JCenter que sirve
+        // aliyun/public). Ver el comentario completo en build.gradle.kts raíz.
         maven { setUrl("https://maven.aliyun.com/repository/public") }
     }
 }

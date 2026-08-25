@@ -14,7 +14,12 @@ import okhttp3.Request
 import timber.log.Timber
 
 object LocalFileDownloader {
-    private val client = OkHttpClient()
+    // HALLAZGO-019 resto (2026-08-25): topes por fase para el stream a disco. Sin callTimeout: una
+    // descarga grande en red lenta es legítima; el readTimeout topa stalls de paquetes, no la duración.
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     suspend fun download(
         context: Context,

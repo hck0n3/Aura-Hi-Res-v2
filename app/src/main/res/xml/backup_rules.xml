@@ -21,6 +21,20 @@
     <exclude
         domain="file"
         path="./logs" />
+    <!-- HALLAZGO-016 resto (aprobado por el dueño 2026-08-25): la cola persistente, el automix y el
+         estado del reproductor llevan metadatos de escucha (qué sonó y qué hay en cola). Se quedan en
+         el dispositivo. El backup/restauración DENTRO de la app los sigue incluyendo porque lee los
+         archivos directamente; esto solo afecta el backup en la nube de Google y la transferencia.
+         Costo: al cambiar de teléfono vía backup de Google la cola llega vacía (la biblioteca no). -->
+    <exclude
+        domain="file"
+        path="persistent_queue.data" />
+    <exclude
+        domain="file"
+        path="persistent_automix.data" />
+    <exclude
+        domain="file"
+        path="persistent_player_state.data" />
     <!-- NOTE on song.db: it is deliberately NOT excluded. Excluding it would close the
          restored-markers hole outright, but at the cost of every customer losing their whole library
          on a phone transfer — a bigger and far likelier harm. The library travels; the RESTORED data
