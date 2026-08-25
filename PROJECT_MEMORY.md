@@ -5,6 +5,34 @@
 
 ## 📍 Estado Actual
 
+- **2026-08-24 (noche): ✅ SÚPER AUDITORÍA — FASES 19 (DINÁMICA), 20 (RESILIENCIA Y OFUSCACIÓN)
+  y 21 (REPORTE FINAL) COMPLETADAS. Van 21 de 22 fases; solo falta FASE 22 (reparación y
+  potenciación controlada).**
+  **FASE 19 — dinámica sobre el APK release real (v0.6.232/952, revisión git 22036c1), sin
+  dispositivo:** apksigner (`CN=Android Debug` → HALLAZGO-008 RE-CONFIRMADO en el binario),
+  19+1 permisos todos justificados (FGS types 1:1 con servicios), componentes del manifiesto
+  binario = inventario de las FASES 4/8 salvo sorpresa única: `PreviewActivity` exportada
+  (→ nuevo HALLAZGO-025, BAJA: `implementation(libs.compose.ui.tooling)` incondicional en
+  app/build.gradle.kts:544, cero usos en producción; fix `debugImplementation`), deep links
+  reales confirmados (superficie de 014 viva), backup/data-extraction/NSC/provider_paths
+  dumpeados del binario e idénticos a la fuente (016 CONFIRMADO), CERO telemetría en los 3 dex
+  (escaneo con control positivo). Runtime puro diferido al dueño (comandos adb en el doc).
+  **FASE 20 — RESILIENCIA Y OFUSCACIÓN SÓLIDAS, cero hallazgos nuevos:** R8 real y masivo
+  medido en los dex (17 616 descriptores únicos, 73.2 % renombrados; los keeps con nombre son
+  todos funcionales); `Log.v/d` eliminados del binario, i/w/e conservados a propósito (35
+  sitios, solo errores) y todo lo persistido pasa por `LogRedaction`; release sin
+  SourceFile/LineNumberTable; anti-tampering existente suficiente (licencia Superpowered ligada
+  al certificado + validación de firma del instalador de Android + updater sanitizado); la
+  keystore JAMÁS fue commiteada (historia git limpia); Play Integrity y detección root/emulador
+  RECHAZADOS por seguridad teatral (la app no va por Play y no hay backend propio).
+  **FASE 21 — REPORTE FINAL consolidado (13 secciones) en el doc:** de los 25 hallazgos hay
+  4 resueltos (001, 002, 022, 024), 1 cerrado (009 jsoup), 3 riesgos aceptados (006, 007, 017
+  pendiente de ratificación formal), 6 verificaciones limpias y 15 abiertos. Veredicto global:
+  app SALUDABLE; el único CRÍTICO sigue siendo HALLAZGO-008 (firma de release con keystore
+  debug — bloquea publicar; decisión del dueño). Orden de reparación para FASE 22 definido en
+  el doc (baratos primero: 014, 025, 016, 019, 020 → candidatos a beta; con decisión del dueño:
+  008, 013, 017, 023; luego 018, 012, 011, 010). Evidencia: build-fase19-*.txt (10),
+  build-fase20-dex-scan.txt, scripts fase19/fase20-*.ps1 (commiteados).
 - **2026-08-24 (continuación): ✅ ARREGLADO EL BUG DE SUSCRIPCIONES AUTOMÁTICAS DE ARTISTAS
   (commit `88cf0e1`, registro #154) + PIN DE LETRAS EN CROSSFADE (commit `f7022e2`, registro #155).
   BETA-001 ENTREGADA Y ✅ PROBADA CON ÉXITO POR EL DUEÑO EN REMOTO (2026-08-24): todo funciona.**
