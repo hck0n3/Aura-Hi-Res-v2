@@ -1,0 +1,17 @@
+E: network-security-config (line=2)
+  E: base-config (line=5)
+    A: cleartextTrafficPermitted=(type 0x12)0x0
+    E: trust-anchors (line=6)
+      E: certificates (line=7)
+        A: src="system" (Raw: "system")
+  E: domain-config (line=12)
+    A: cleartextTrafficPermitted=(type 0x12)0xffffffff
+    E: domain (line=13)
+      A: includeSubdomains=(type 0x12)0xffffffff
+      C: "localhost"
+    E: domain (line=14)
+      A: includeSubdomains=(type 0x12)0xffffffff
+      C: "127.0.0.1"
+    E: domain (line=15)
+      A: includeSubdomains=(type 0x12)0xffffffff
+      C: "10.0.2.2"
