@@ -7005,117 +7005,9 @@ class MusicService :
     }
 
     
-    private fun getHttpResponseCode(error: PlaybackException): Int? {
-        var cause: Throwable? = error.cause
-        while (cause != null) {
-            if (cause is HttpDataSource.InvalidResponseCodeException) {
-                return cause.responseCode
-            }
-            cause = cause.cause
-        }
-        return null
-    }
-
-    
-    private fun isExpiredUrlError(error: PlaybackException): Boolean {
-        val responseCode = getHttpResponseCode(error)
-        return responseCode == 403
-    }
-
-    
-    private fun isRangeNotSatisfiableError(error: PlaybackException): Boolean {
-        val responseCode = getHttpResponseCode(error)
-        return responseCode == 416
-    }
-
-    
-    private fun isPageReloadError(error: PlaybackException): Boolean {
-        val errorMessage = error.message?.lowercase() ?: ""
-        val causeMessage = error.cause?.message?.lowercase() ?: ""
-        val innerCauseMessage = error.cause?.cause?.message?.lowercase() ?: ""
-
-        val reloadKeywords = listOf(
-            "page needs to be reloaded",
-            "pagina deve essere ricaricata",
-            "la pagina deve essere ricaricata",
-            "page must be reloaded",
-            "reload",
-            "ricaricata"
-        )
-
-        return reloadKeywords.any { keyword ->
-            errorMessage.contains(keyword) ||
-            causeMessage.contains(keyword) ||
-            innerCauseMessage.contains(keyword)
-        }
-    }
-
-    private fun isNetworkRelatedError(error: PlaybackException): Boolean {
-        
-        if (isExpiredUrlError(error) || isRangeNotSatisfiableError(error) || isPageReloadError(error)) {
-            return false
-        }
-        return error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-                error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-                error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT ||
-                error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
-                error.cause is java.net.ConnectException ||
-                error.cause is java.net.UnknownHostException ||
-                (error.cause as? PlaybackException)?.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
-    }
-
-    // Unresolvable-song dead-end (see YTPlayerUtils.StreamResolutionException, mapped to ERROR_CODE_NO_STREAM
-    // in the loader). This is NOT a network error — it must fail fast with a message + skip, never wait/retry
-    // or silently pause. Walk the WHOLE cause chain (like getHttpResponseCode): our PlaybackException(NO_STREAM)
-    // is thrown from inside the ResolvingDataSource, so media3's Loader wraps it in UnexpectedLoaderException
-    // (an IOException) and ExoPlayer wraps THAT again — the NO_STREAM code / StreamResolutionException ends up
-    // 2+ levels deep, so a one-level check would miss it and fall through to handleGenericIOError (the exact
-    // "stuck / never loads" behavior this fix kills). Anchoring on StreamResolutionException is most robust.
-    private fun isNoStreamError(error: PlaybackException): Boolean {
-        var cause: Throwable? = error
-        while (cause != null) {
-            if (cause is YTPlayerUtils.StreamResolutionException) return true
-            if (cause is PlaybackException && cause.errorCode == ERROR_CODE_NO_STREAM) return true
-            cause = cause.cause
-        }
-        return false
-    }
-
-    // The real, user-facing reason for an unresolvable song lives on the innermost StreamResolutionException
-    // (region-locked / premium / members-only / timed-out …), NOT on the top-level ExoPlaybackException whose
-    // message is a generic loader string. Walk the chain to recover it so the toast surfaces WHY.
-    private fun noStreamReason(error: PlaybackException): String? {
-        var cause: Throwable? = error
-        while (cause != null) {
-            if (cause is YTPlayerUtils.StreamResolutionException) return cause.reason
-            if (cause is PlaybackException && cause.errorCode == ERROR_CODE_NO_STREAM) return cause.message
-            cause = cause.cause
-        }
-        return error.message
-    }
-
-
-    private fun isAudioRendererError(error: PlaybackException): Boolean {
-        return error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED ||
-                error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
-                (error.cause as? PlaybackException)?.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED ||
-                (error.cause as? PlaybackException)?.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
-                error.errorCode == PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK
-    }
-
-    private fun isCacheOrStreamCorruptionError(error: PlaybackException): Boolean {
-        // Top-level code only. Walking the cause chain here was tried and reverted: the format-guard's own
-        // CONTAINER_MALFORMED surfaces at top level as IO_UNSPECIFIED and would route to handleExpiredUrlError
-        // instead of handleGenericIOError — but both do the same purge + re-prepare, so the only real effect
-        // was moving a SimpleCache file-unlink onto the main looper inside onPlayerError (the exact cost
-        // registry #74 flagged). No behaviour gained, a main-thread cost added.
-        // CONTAINER_UNSUPPORTED (3003) + NoDeclaredBrand: googlevideo often returns HTML/empty when the
-        // URL is dead or n-transform failed — not a playable container. Treat like a bad stream so we
-        // drop the cached URL and re-resolve (owner log 0.6.162: Source error / extractors could not read).
-        return error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
-                error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
-                error.errorCode == PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE
-    }
+    // Error CLASSIFICATION (what kind of failure is this?) moved to PlaybackErrorClassifier —
+    // pure predicates, pinned by PlaybackErrorClassifierTest. Here stays the ROUTING: which handler
+    // runs, retry counts, cache purges.
 
     override fun onPlayerError(error: PlaybackException) {
         super.onPlayerError(error)
@@ -7180,28 +7072,31 @@ class MusicService :
 
 
         when {
-            isNoStreamError(error) && isNetworkConnected.value -> {
+            PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value -> {
                 // UNRESOLVABLE SONG dead-end (fix #3): the song genuinely can't be served by any client
                 // AND we ARE online (so it's not just the network being down). Surface the reason and SKIP
                 // past it (regardless of the AutoSkipNextOnErrorKey toggle) — never silently pause forever,
                 // never loop in a fake "no internet" state. When OFFLINE, this branch is skipped and the
                 // `!isNetworkConnected.value` branch below waits for the network instead (a resolve failure
                 // while offline may just be the outage, not a genuinely unavailable song).
-                Timber.tag(TAG).w(error, "Unresolvable song (no stream) for $mediaId: ${noStreamReason(error)}")
-                handleUnresolvableSong(mediaId, noStreamReason(error))
+                Timber.tag(TAG).w(
+                    error,
+                    "Unresolvable song (no stream) for $mediaId: ${PlaybackErrorClassifier.noStreamReason(error)}",
+                )
+                handleUnresolvableSong(mediaId, PlaybackErrorClassifier.noStreamReason(error))
                 return
             }
-            isAudioRendererError(error) -> {
+            PlaybackErrorClassifier.isAudioRendererError(error) -> {
                 Timber.tag(TAG).d("AudioTrack error detected (${error.errorCode}), performing safe recovery")
                 handleAudioRendererError(mediaId)
                 return
             }
-            isRangeNotSatisfiableError(error) -> {
+            PlaybackErrorClassifier.isRangeNotSatisfiableError(error) -> {
                 Timber.tag(TAG).d("Range Not Satisfiable (416) detected, performing strict recovery")
                 handleRangeNotSatisfiableError(mediaId)
                 return
             }
-            isCacheOrStreamCorruptionError(error) -> {
+            PlaybackErrorClassifier.isCacheOrStreamCorruptionError(error) -> {
                 // The cached BYTES are what is bad here (CONTAINER_MALFORMED / READ_POSITION_OUT_OF_RANGE),
                 // so they must actually be deleted. This used to call handleExpiredUrlError, which only
                 // drops songUrlCache and deliberately KEEPS the bytes — correct for a 403, wrong for
@@ -7209,9 +7104,7 @@ class MusicService :
                 // first; with that gone, the resolver's "ghost cache entry — keeping cached bytes" path
                 // would re-serve the SAME corrupt data on every retry, so a song that used to hiccup once
                 // and heal would stutter through its 3 retries and get skipped — on every single play.
-                val noDeclaredBrand = error.message?.contains("NoDeclaredBrand", ignoreCase = true) == true ||
-                    generateSequence(error as Throwable?) { it.cause }
-                        .any { it.message?.contains("NoDeclaredBrand", ignoreCase = true) == true }
+                val noDeclaredBrand = PlaybackErrorClassifier.hasNoDeclaredBrand(error)
                 val attempts = if (mediaId != null) (currentMediaIdRetryCount[mediaId] ?: 0) + 1 else 0
                 Timber.tag(TAG).i(
                     "CONTAINER_3003 id=${mediaId?.take(11)} attempts=$attempts noBrand=$noDeclaredBrand code=${error.errorCode}",
@@ -7235,12 +7128,12 @@ class MusicService :
                 handleExpiredUrlError(mediaId)
                 return
             }
-            isPageReloadError(error) -> {
+            PlaybackErrorClassifier.isPageReloadError(error) -> {
                 Timber.tag(TAG).d("Page reload error detected, performing strict recovery")
                 handlePageReloadError(mediaId)
                 return
             }
-            isExpiredUrlError(error) -> {
+            PlaybackErrorClassifier.isExpiredUrlError(error) -> {
                 Timber.tag(TAG).d("Expired URL (403) detected, refreshing stream URL")
                 handleExpiredUrlError(mediaId)
                 return
@@ -7253,7 +7146,7 @@ class MusicService :
                 waitOnNetworkError()
                 return
             }
-            isNetworkRelatedError(error) -> {
+            PlaybackErrorClassifier.isNetworkRelatedError(error) -> {
                 // CONNECTED but the error still looks network-ish (fix #2). This is the fake "no internet"
                 // trap: a dead deciphered URL / bad content-type keeps failing while we ARE online, so an
                 // unbounded wait/retry would loop forever. Bound it PER SONG: count each attempt and, once
@@ -11352,7 +11245,11 @@ class MusicService :
 
         const val CHANNEL_ID = "music_channel_01"
         const val NOTIFICATION_ID = 888
-        const val ERROR_CODE_NO_STREAM = 1000001
+
+        // Canonical value lives on PlaybackErrorClassifier (the loader maps StreamResolutionException
+        // to it and the classifier matches on it); alias kept so MusicService.ERROR_CODE_NO_STREAM and
+        // the unqualified uses inside this class keep compiling unchanged.
+        const val ERROR_CODE_NO_STREAM = PlaybackErrorClassifier.ERROR_CODE_NO_STREAM
         const val CHUNK_LENGTH = 512 * 1024L
 
         // REFRESH-AHEAD window (SimpMusic-model port): a cached stream URL with less than this much
