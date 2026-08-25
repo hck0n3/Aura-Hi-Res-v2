@@ -461,6 +461,13 @@ class PoTokenWebView private constructor(
 
         private val httpClient = OkHttpClient.Builder()
             .proxy(YouTube.proxy)
+            // HALLAZGO-019 (FASE 22): the BotGuard call above is a blocking execute() inside a
+            // coroutine timeout — coroutine cancellation alone cannot abort it, so the HTTP client
+            // itself must enforce the cap. Bounded single POST → whole-call timeout is safe here.
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(25, java.util.concurrent.TimeUnit.SECONDS)
             .build()
 
         suspend fun getNewPoTokenGenerator(context: Context): PoTokenWebView {

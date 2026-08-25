@@ -124,6 +124,10 @@ fun CanvasArtworkPlayer(
 
                     chain.proceed(builder.build())
                 }
+                // HALLAZGO-019 (FASE 22): per-phase timeouts, no callTimeout (canvas video streams
+                // through ExoPlayer; the 30s read bound caps packet stalls only).
+                .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
         }
     val mediaSourceFactory =

@@ -30,7 +30,10 @@ object ImportFailuresCsv {
         failures: List<ImportFailureRow>,
         filePrefix: String = "import_failures",
     ): File {
-        val file = File(cacheDir, "${filePrefix}_${System.currentTimeMillis()}.csv")
+        // HALLAZGO-015 (FASE 22): provider_paths.xml only exposes the csv_exports/ subfolder of
+        // cacheDir, so shared CSVs must live there.
+        val dir = File(cacheDir, "csv_exports").apply { mkdirs() }
+        val file = File(dir, "${filePrefix}_${System.currentTimeMillis()}.csv")
         file.writeText(buildCsv(failures))
         return file
     }

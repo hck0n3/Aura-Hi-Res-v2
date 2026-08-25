@@ -7718,6 +7718,12 @@ class MusicService :
                                                     .build()
                                             } ?: response.request
                                         }
+                                        // HALLAZGO-019 (FASE 22): explicit per-phase timeouts. Deliberately NO
+                                        // callTimeout: this call lives for the whole song stream, and a whole-call
+                                        // cap would kill playback mid-song. The 30s read bound still caps an
+                                        // indefinite packet stall without starving slow/throttled googlevideo links.
+                                        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                                        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                                         .build()
                                 )
                         )
@@ -8846,6 +8852,10 @@ class MusicService :
                 }
                 chain.proceed(req.newBuilder().header("User-Agent", agent).build())
             }
+            // HALLAZGO-019 (FASE 22): per-phase timeouts, no callTimeout (video stream call lives
+            // for the whole playback session).
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
             .build()
     }
 

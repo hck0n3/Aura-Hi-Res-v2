@@ -120,6 +120,29 @@ object LastFM {
     }
 
     /**
+     * HALLAZGO-020 (FASE 22): invalidate the session server-side (auth.logout), then drop the local
+     * key. Best-effort by design: the local key is cleared up front so logout always succeeds from
+     * the user's perspective even offline — a stale server session can at most scrobble nothing.
+     */
+    suspend fun logout() {
+        val key = sessionKey
+        sessionKey = null
+        if (key != null && isInitialized()) {
+            runCatching {
+                client.post {
+                    lastfmParams(
+                        method = "auth.logout",
+                        apiKey = API_KEY,
+                        secret = SECRET,
+                        sessionKey = key
+                    )
+                    parameter("format", "json")
+                }
+            }
+        }
+    }
+
+    /**
      * Last.fm reports API failures as HTTP 200 with an `"error"` field in the JSON body (the same shape
      * getMobileSession already string-matches), so a completed POST proves nothing on its own. Validate
      * the payload first, then the status line, and throw so the enclosing runCatching yields a failure.

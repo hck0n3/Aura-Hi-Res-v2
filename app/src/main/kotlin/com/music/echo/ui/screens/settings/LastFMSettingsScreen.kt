@@ -344,7 +344,9 @@ fun LastFMSettingsScreen(
                             OutlinedButton(onClick = {
                                 lastfmSession = ""
                                 lastfmUsername = ""
-                                LastFM.sessionKey = null
+                                // HALLAZGO-020 (FASE 22): also invalidate the session on Last.fm's
+                                // servers; logout() clears the local key itself, best-effort offline.
+                                coroutineScope.launch { LastFM.logout() }
                             }) {
                                 Text(stringResource(R.string.action_logout))
                             }

@@ -10,6 +10,17 @@
     <exclude
         domain="sharedpref"
         path="jr_license.xml" />
+    <!-- HALLAZGO-016 (FASE 22): derived caches and diagnostic logs carry no user value but can leak
+         listening history; both are rebuilt on demand in-app. -->
+    <exclude
+        domain="sharedpref"
+        path="song_graph.xml" />
+    <exclude
+        domain="sharedpref"
+        path="artist_genres.xml" />
+    <exclude
+        domain="file"
+        path="./logs" />
     <!-- NOTE on song.db: it is deliberately NOT excluded. Excluding it would close the
          restored-markers hole outright, but at the cost of every customer losing their whole library
          on a phone transfer — a bigger and far likelier harm. The library travels; the RESTORED data

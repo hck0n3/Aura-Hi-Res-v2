@@ -187,6 +187,10 @@ constructor(
                                         .build()
                                 } ?: response.request
                             }
+                            // HALLAZGO-019 (FASE 22): per-phase timeouts, no callTimeout (downloads
+                            // stream for minutes; the 30s read bound caps packet stalls only).
+                            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                             .build(),
                     ),
             ),

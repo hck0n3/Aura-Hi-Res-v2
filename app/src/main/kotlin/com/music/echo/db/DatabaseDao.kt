@@ -57,9 +57,7 @@ import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.ui.utils.resize
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
 import java.text.Collator
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -586,9 +584,6 @@ interface DatabaseDao {
 
     @Query("SELECT sum(count) from playCount WHERE song = :songId AND year = :year")
     fun getPlayCountByYear(songId: String?, year: Int): Flow<Int>
-
-    @Query("SELECT count from playCount WHERE song = :songId AND year = :year AND month = :month")
-    fun getPlayCountByMonth(songId: String?, year: Int, month: Int): Flow<Int>
 
     @Transaction
     @Query(
@@ -1470,23 +1465,10 @@ interface DatabaseDao {
     @Query("SELECT id FROM song WHERE totalPlayTime > 0 AND id IN (:ids)")
     fun songIdsWithPlayTimeFlow(ids: List<String>): Flow<List<String>>
 
-    @Query("UPDATE playCount SET count = count + 1 WHERE song = :songId AND year = :year AND month = :month")
-    fun incrementPlayCount(songId: String, year: Int, month: Int)
-
-    
-    fun incrementPlayCount(songId: String) {
-        val time = LocalDateTime.now().atOffset(ZoneOffset.UTC)
-        var oldCount: Int
-        runBlocking {
-            oldCount = getPlayCountByMonth(songId, time.year, time.monthValue).first()
-        }
-
-        
-        if (oldCount <= 0) {
-            insert(PlayCountEntity(songId, time.year, time.monthValue, 0))
-        }
-        incrementPlayCount(songId, time.year, time.monthValue)
-    }
+    // HALLAZGO-012 (FASE 22): incrementPlayCount(songId, year, month), its runBlocking wrapper and
+    // getPlayCountByMonth were removed here — all three were dead code with zero callers (the wrapper
+    // was the only writer of the playCount table). The playCount TABLE itself stays: dropping it needs
+    // a Room migration, which is out of scope for a cleanup pass.
 
     @Transaction
     @Query("UPDATE song SET inLibrary = :inLibrary WHERE id = :songId")

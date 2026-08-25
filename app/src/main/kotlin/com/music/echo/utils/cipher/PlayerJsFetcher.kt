@@ -24,6 +24,11 @@ object PlayerJsFetcher {
 
     private val httpClient = OkHttpClient.Builder()
         .proxy(YouTube.proxy)
+        // HALLAZGO-019 (FASE 22): per-phase timeouts so a hostile/slow network cannot hang the
+        // resolve path indefinitely. No callTimeout: base.js is ~2MB and a whole-call cap would
+        // kill legitimate slow downloads — the 30s read bound caps stalls only.
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
     // Regex to extract player hash from iframe_api response

@@ -90,7 +90,9 @@ class CrashActivity : ComponentActivity() {
             
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val fileName = "aura_crash_$timestamp.txt"
-            val crashFile = File(cacheDir, fileName)
+            // HALLAZGO-015 (FASE 22): write into the crash_reports/ subfolder — provider_paths.xml
+            // only exposes that subfolder of cacheDir now, not the whole cache root.
+            val crashFile = File(File(cacheDir, "crash_reports").apply { mkdirs() }, fileName)
             // Full bundle: crash text plus app log, system exits, and recent playback log so
             // support never gets only the throwable without the surrounding session.
             crashFile.writeText(

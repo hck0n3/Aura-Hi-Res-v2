@@ -2456,10 +2456,18 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        // HALLAZGO-014 (FASE 22): deep links are external input (MainActivity is exported). A query
+        // parameter arrives URL-decoded and may carry '/', '?' or '#', which break NavController's
+        // route parsing with an IllegalArgumentException; a malformed link must no-op, not crash.
+        // Real YT/YTM ids are always [A-Za-z0-9_-]+.
+        fun isRouteSafeId(id: String): Boolean = id.isNotEmpty() && id.all {
+            it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '-' || it == '_'
+        }
+
         when (val path = uri.pathSegments.firstOrNull()) {
             // /playlist?list=… — OLAK5uy_ ids are album playlists, so resolve them to the album screen;
             // everything else opens the online playlist screen.
-            "playlist" -> uri.getQueryParameter("list")?.let { playlistId ->
+            "playlist" -> uri.getQueryParameter("list")?.takeIf(::isRouteSafeId)?.let { playlistId ->
                 if (playlistId.startsWith("OLAK5uy_")) {
                     coroutineScope.launch(Dispatchers.IO) {
                         YouTube.albumSongs(playlistId).onSuccess { songs ->

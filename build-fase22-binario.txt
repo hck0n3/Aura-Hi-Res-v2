@@ -1,0 +1,14 @@
+﻿EVIDENCIA BINARIA FASE 22 (2026-08-24)
+APK: C:\Users\AURA\Desktop\PROYECTOS DE PROGRAMACION\AURA BETADO\Aura-Hi-Res-Player-0.6.231\Aura-Hi-Res-Player-0.6.231\app\build\outputs\apk\universalFoss\release\app-universal-foss-release.apk
+Ultima escritura: 08/24/2026 23:09:21 | Tamano: 84844993
+
+--- 1) HALLAZGO-025: PreviewActivity en el manifiesto binario (debe ser 0) ---
+PreviewActivity matches: 0
+
+--- 2) Firma del APK (HALLAZGO-008 sigue abierto: CN=Android Debug esperada) ---
+WARNING: java.lang.System::loadLibrary has been called by org.conscrypt.NativeLibraryUtil in an unnamed module 
+(file:/C:/Users/AURA/AppData/Local/Android/Sdk/build-tools/36.0.0/lib/apksigner.jar)
+Signer #1 certificate DN: C=US, O=Android, CN=Android Debug
+Signer #1 certificate SHA-256 digest: 4cc4192eabf995756988517870fd2d29cf9a3a78cd5b25edbf695e3df742fe1f
+Signer #1 certificate SHA-1 digest: b8f71171d7e88f0e75d7be07f489b3a2782ae030
+Signer #1 certificate MD5 digest: 59fd1da0a61f2ff71235adeda3381636

@@ -541,7 +541,9 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.util)
-    implementation(libs.compose.ui.tooling)
+    // HALLAZGO-025 (FASE 22): ui-tooling arrastraba PreviewActivity exportada al APK release sin
+    // ningún uso en producción; solo hace falta en debug para los @Preview del IDE.
+    debugImplementation(libs.compose.ui.tooling)
     implementation(libs.compose.animation)
     implementation(libs.compose.reorderable)
 

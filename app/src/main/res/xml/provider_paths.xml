@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- HALLAZGO-015 (FASE 22): restricted to the exact subdirectories FileProvider actually serves.
+     Every call site was audited: logs + playlist covers (filesDir), update APKs
+     (getExternalFilesDir/Download/echo_updates), shared images / crash bundles / failure CSVs
+     (cacheDir subfolders). The old external-path="." and external-cache-path="." entries exposed
+     the whole of external storage to any app granted a single URI; both are gone, and nothing
+     reads or writes externalCacheDir in this codebase. -->
 <paths>
     <files-path
         name="logs"
@@ -6,13 +12,16 @@
     <files-path
         name="playlist_covers"
         path="playlist_covers/" />
-    <external-path
-        name="external_files"
-        path="." />
+    <external-files-path
+        name="update_apks"
+        path="Download/echo_updates/" />
     <cache-path
-        name="cache"
-        path="." />
-    <external-cache-path
-        name="external_cache"
-        path="." />
+        name="shared_images"
+        path="images/" />
+    <cache-path
+        name="crash_reports"
+        path="crash_reports/" />
+    <cache-path
+        name="csv_exports"
+        path="csv_exports/" />
 </paths>

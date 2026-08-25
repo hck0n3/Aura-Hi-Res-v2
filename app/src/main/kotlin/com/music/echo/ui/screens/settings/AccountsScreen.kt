@@ -46,6 +46,7 @@ import iad1tya.echo.music.utils.lastfm.LastFM
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AccountSettingsViewModel
 import iad1tya.echo.music.viewmodels.HomeViewModel
+import kotlinx.coroutines.launch
 
 /**
  * "Cuentas": one card per connectable music service (YouTube Music + Spotify + Last.fm + ListenBrainz).
@@ -58,8 +59,8 @@ import iad1tya.echo.music.viewmodels.HomeViewModel
  * - Spotify: state + logout come straight from the existing SpotifyImportViewModel; connect opens the
  *   existing "settings/spotify_import" screen.
  * - Last.fm: state from the SAME prefs the scrobbling screen reads (session key + username); connect
- *   opens "settings/lastfm"; logout is the scrobbling screen's exact 3-line clear (incl. LastFM.sessionKey)
- *   behind a confirm dialog.
+ *   opens "settings/lastfm"; logout is the scrobbling screen's clear (via LastFM.logout(), which also
+ *   invalidates the session server-side — HALLAZGO-020) behind a confirm dialog.
  * - ListenBrainz: token + enable switch read from prefs (honest 3-state description); connect/manage
  *   opens "settings/lastfm" (token editing lives there).
  *
@@ -99,6 +100,7 @@ fun AccountsScreen(
     var lastfmSession by rememberPreference(LastFMSessionKey, "")
     var lastfmUsername by rememberPreference(LastFMUsernameKey, "")
     val lastFmLoggedIn = remember(lastfmSession) { lastfmSession.isNotBlank() }
+    val lastFmScope = rememberCoroutineScope()
 
     // ── Qobuz (owner's OWN subscription; token vault + toggle live in the Qobuz screen) ──
     // The enabled preference flips true on link / false on logout, so it is a reactive proxy for the
@@ -487,7 +489,7 @@ fun AccountsScreen(
             }
         }
 
-        // ── Last.fm logout: confirm, then the scrobbling screen's exact 3-line clear ──
+        // ── Last.fm logout: confirm, then clear local prefs + invalidate the session server-side ──
         if (showLastFmLogoutDialog) {
             DefaultDialog(
                 onDismiss = { showLastFmLogoutDialog = false },
@@ -511,7 +513,9 @@ fun AccountsScreen(
                             onCheckedChange = {
                                 lastfmSession = ""
                                 lastfmUsername = ""
-                                LastFM.sessionKey = null
+                                // HALLAZGO-020 (FASE 22): also invalidate the session on Last.fm's
+                                // servers; logout() clears the local key itself, best-effort offline.
+                                lastFmScope.launch { LastFM.logout() }
                                 showLastFmLogoutDialog = false
                             },
                             modifier = Modifier.weight(1f),

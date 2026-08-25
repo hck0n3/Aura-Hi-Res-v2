@@ -5,6 +5,42 @@
 
 ## 📍 Estado Actual
 
+- **2026-08-24 (madrugada): ✅ SÚPER AUDITORÍA — FASE 22 (REPARACIÓN Y POTENCIACIÓN
+  CONTROLADA) COMPLETADA: LA AUDITORÍA QUEDA COMPLETA, 22/22 FASES.**
+  Siete hallazgos reparados, todos con verificación contra el código antes y después:
+  (1) **HALLAZGO-025** — `compose.ui.tooling` a `debugImplementation`: PreviewActivity y el
+  tooling de desarrollo fuera del binario release (app/build.gradle.kts:544).
+  (2) **HALLAZGO-014** — validador `isRouteSafeId` (charset `[A-Za-z0-9_-]`) en la rama
+  playlist del deep link de MainActivity.kt: un link malformado ya no crashea la app.
+  (3) **HALLAZGO-016 (parcial)** — exclusiones de backup añadidas (`song_graph.xml`,
+  `artist_genres.xml`, `./logs`) en backup_rules.xml y data_extraction_rules.xml, cloud-backup
+  y device-transfer; `persistent_*.data` queda a decisión del dueño (restaura sesión/cola en
+  cambio de teléfono).
+  (4) **HALLAZGO-020** — nuevo `LastFM.logout()` (llamada `auth.logout` firmada, best-effort:
+  la clave local se borra antes de la red) cableado en AccountsScreen y LastFMSettingsScreen.
+  (5) **HALLAZGO-019 (path crítico)** — timeouts explícitos en 7 clientes con política por
+  uso: streaming con connect 15s + read 30s y SIN callTimeout (la llamada vive lo que dura la
+  canción; un tope total cortaría la reproducción a mitad) en MusicService (audio y video),
+  DownloadUtil, SongPreviewController y CanvasArtworkPlayer; PlayerJsFetcher con connect/read;
+  PoTokenWebView con callTimeout 25s (su execute bloqueante no se cancela vía coroutine).
+  Extractores vendoreados y ~15 clientes no críticos documentados para segunda pasada opcional.
+  (6) **HALLAZGO-015** — provider_paths.xml reducido de "todo el almacenamiento externo y
+  ambos caches" a 6 entradas exactas; crash bundle y CSV movidos a subcarpetas cubiertas
+  (crash_reports/, csv_exports/); verificado que nada usa las entradas eliminadas.
+  (7) **HALLAZGO-012** — catálogo limpio (fuera org.json, youtubedl-android ×3 + bundle,
+  ktor-client-retry, material-icons core/extended) + código muerto de DatabaseDao eliminado
+  (`incrementPlayCount` ×2, `getPlayCountByMonth`, 2 imports huérfanos). No tocados
+  (deliberado): doble pin serialization y okhttp del módulo vendoreado migration (EN USO) y la
+  tabla playCount (borrarla exige migración Room).
+  Verificación: suite completa 630/630 con `--rerun` (build-fase22-tests.txt, XMLs frescos),
+  release `assembleUniversalFossRelease` verde (build-fase22-release.txt) con prueba binaria de
+  PreviewActivity ausente (aapt xmltree) y firma verificada con apksigner. Sin hallazgos nuevos
+  (contador en 026). Ver RESULTADOS DE LA FASE 22 en `SUPER AUDITORIA DE MI CODIGO ANDROID.md`.
+  **ESTADO FINAL:** ya no hay fases pendientes. Lo único abierto son decisiones del dueño, en
+  este orden: HALLAZGO-008 (ÚNICO CRÍTICO — la release sigue firmando con keystore debug por
+  el diagnóstico de 2026-08-19; revertir a `CN=JR MUSIC PRO` bloquea publicar y requiere su
+  decisión), luego 013, 016-resto, 017, 023, 010, 018, 011, 021 y la segunda pasada opcional
+  de 019. BETA-002 con estos 7 fixes pendiente de entrega (informar al dueño primero).
 - **2026-08-24 (noche): ✅ SÚPER AUDITORÍA — FASES 19 (DINÁMICA), 20 (RESILIENCIA Y OFUSCACIÓN)
   y 21 (REPORTE FINAL) COMPLETADAS. Van 21 de 22 fases; solo falta FASE 22 (reparación y
   potenciación controlada).**
