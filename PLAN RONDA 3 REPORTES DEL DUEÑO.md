@@ -52,6 +52,30 @@ proyecto actualizada en cada checkpoint.
 | HALLAZGO-040 | Verificar que no haya consumos de batería excesivos | Salud | 7 |
 | HALLAZGO-041 | Optimización general (paraguas de 038–040): que todo quede muy optimizado | Salud | 7 |
 
+## RESULTADOS FASE 0 — causas raíz (2026-08-25)
+
+Investigación en paralelo con 6 agentes de solo lectura; todos los claims
+críticos re-verificados contra el código. Rutas relativas a
+`app/src/main/kotlin/com/music/echo/` salvo indicación.
+
+| Hallazgo | Causa raíz confirmada | Evidencia | Dirección de fix |
+|---|---|---|---|
+| 031 | (1) `abandonAudioFocus()` en la rama AUDIOFOCUS_LOSS: el dictado/llamada toma foco permanente, la app pausa Y se desregistra; al liberarse, el GAIN de retorno no llega a nadie y no reanuda. (2) Flag `wasPlayingBeforeAudioFocusLoss` capturado con `player.isPlaying` (false durante buffering) en vez de `playWhenReady`. (3) Duck 0.2x queda pegado si el LOSS llega duckado | playback/MusicService.kt:2994-3063 | No abandonar foco en LOSS (solo en stop/onDestroy); capturar con playWhenReady; el GAIN ya restaura volumen (:3015) |
+| 027 | Trabajo síncrono en Main en los flips del BottomSheet: mini-player compuesto de golpe al inicio (Coil+Palette), disposal del árbol completo al final (release del Visualizer vía binder a AudioFlinger en plena reproducción = candidato al micro-corte), recomposición por frame por lecturas de `progress` en fase de composición | ui/component/BottomSheet.kt:115-198, MainActivity.kt:1798, ui/player/Player.kt:910, ui/newui/AuraRhythm.kt:91-97 | Lecturas de progress diferidas a graphicsLayer/offset; diferir releases a post-animación/IO; mini pre-compuesto |
+| 026a | Botones finales con glyphs dp FIJOS (20-22dp) en cápsulas 42-48dp que no escalan con el tamaño de pantalla; precedente REGRESSION_REGISTRY #153: "subir dp fijos" ya se hizo y no resolvió de fondo | ui/newui/AuraQueue.kt:1158-1290, ui/newui/AuraPlayer.kt, ui/player/Queue.kt:316-535 | Escala relativa (BoxWithConstraints/WindowSizeClass), no otro aumento de dp fijos |
+| 026b | Mecanismo propio de escala de densidad: `originalDensityDpi` se captura UNA vez y se re-aplica en cada resume con `updateConfiguration` (deprecada); tras cambiar la resolución del sistema re-escribe el dpi viejo escalado sobre la densidad nueva. `configChanges` incluye density\|screenSize (sin recreación) | com/dpi/DensityConfiguration.kt:17-66, AndroidManifest.xml:~95 | Recapturar el dpi original en cada cambio real; re-aplicar sobre la densidad vigente o retirar el mecanismo. Preguntar al dueño si usa escala != 1.0 en Ajustes > Apariencia |
+| 026c | Costo GPU en 4K: blurs a pantalla completa sin downscale (34-150dp) + rotación infinita de la capa blurreada + `preferredDisplayModeId` que no se recalcula tras cambio de resolución (solo con el toggle de refresh) | ui/newui/AuraPlayer.kt:2415-2438, ui/player/Player.kt:973+, MainActivity.kt:663-680 | Downscale antes del blur (patrón glassResolutionScale ya existe en DrawBackdropModifier); recalcular display mode con Configuration; reducir blur/spin en 4K |
+| 028 | Login: detección SOLO en onPageFinished con allowlist estrecha (URL exactamente music.youtube.com + cookie SAPISID), sin reintentos; fallo de validación sin feedback en UI. Biblioteca: 4 syncs SECUENCIALES (cola de 1 consumidor) con paginación completa (hasta 50 páginas) + 1 petición getChannelId POR artista (concurrencia 5) | ui/screens/LoginScreen.kt:204-259, utils/SyncUtils.kt:120-186,1100-1290 | Monitoreo continuo de cookies + overlay "verificando" + reintento; primera página directa de InnerTube (estilo SimpMusic) mientras el mirror sigue; syncs en paralelo; channelId desde el parser |
+| 029 | Ruta de streaming 100% DESAUTENTICADA: cliente principal con loginSupported=false + InnerTube solo adjunta cookie si el cliente soporta login + NewPipe fuerza tokens="" (parche emergencia 2026-08-23) → YouTube sirve bitrates de invitado a todos, incluso Premium. Ajuste de calidad existe como pref pero sin UI (candado a OPUS). AUDIO_ITAG_PREFERENCE pone 141 (AAC 256k) detrás de Opus de ~50k | innertube/.../YouTubeClient.kt:167, InnerTube.kt:176, pages/NewPipe.kt:262-275, ui/screens/settings/PlayerSettings.kt:102-106, utils/YTPlayerUtils.kt:93 | Recuperar descubrimiento autenticado de formatos (con pruebas: el tokens="" se puso por fallos reales); renderizar selector de calidad; reordenar itags |
+| 030 | Sin diferencias de código por marca (mismos AudioAttributes/float/offload). DSP default NO plano de la app: Simulador Tidal ON + Safe Volume ON + normalización -7dB a pistas sin metadatos, apilado bajo el Dolby "modo música" de Samsung (doble coloreado). Toggles de Normalización/Tidal existen cableados pero sin UI | ui/screens/settings/SoundSettings.kt:111, eq/audio/AudioGain.kt, playback/MusicService.kt:2495 | Exponer toggles faltantes + modo directo/bit-perfect; NO tocar AudioAttributes |
+| 032 | Parser grid de biblioteca descarta EN SILENCIO todo artista sin íconos MUSIC_SHUFFLE y MIX (`?: return null`); la variante shelf del mismo archivo deja esos campos nulables (asimetría = bug). Agravado por 028: sin login detectado el sync ni corre | innertube/.../pages/LibraryPage.kt:64-76 | shuffleEndpoint/radioEndpoint nulables en el parser grid |
+| 033 | La sección "Me gusta/Favoritos" de artistas filtra followedByUserAt IS NOT NULL = literalmente la lista de suscritos; no existe favorito independiente | db/DatabaseDao.kt:807-843, ui/screens/library/LibraryArtistsScreen.kt:113-122 | DECISIÓN DEL DUEÑO: favorito real de artistas o rebautizar a "Seguidos" |
+| 034 | Blur de ventana (`setBackgroundBlurRadius`/`FLAG_BLUR_BEHIND`) es extensión OEM: Samsung lo ignora EN SILENCIO (sin excepción, el try/catch no detecta nada); Xiaomi sí lo implementa. La ventana se vuelve TRANSPARENTE antes de pedir blur y la placa frost es alpha real 0.34 que confía 100% en el blur → transparencia total sin blur | ui/newui/AuraFloatingChrome.kt:60-140 | Detectar soporte real (ro.surface_flinger.supports_background_blur + isCrossWindowBlurEnabled) ANTES de transparentar; fallback opaco (la rama no-premium ya existe) |
+| 035 | Export de video resuelve SOLO con videoStreamUrlDiag (cliente TVHTML5 quemado por bot-check); el modo video in-app usa adaptiveVideoStreamNewPipe (vivo) pero el export nunca lo llama. Sonda del diálogo de export y descarga offline de video con el mismo agujero | playback/AudioExportService.kt:328, utils/YTPlayerUtils.kt:240,1520,1543, ui/utils/ExportFormatChooser.kt:82, playback/DownloadUtil.kt:207 | adaptiveVideoStreamNewPipe primero en los 3 puntos; manejar stream muxed (itag 18/22) en el mux ffmpeg |
+| 036 | Menús genéricos de YouTube aplicados a archivos locales ya exportados: re-descargar, re-exportar, bulk "Descargar" que baja AUDIO en vez de video (id sin sufijo ::video); falta "Eliminar del dispositivo" para MP3; el borrado devuelve true aunque falle | ui/newui/AuraDownloadsScreen.kt:127-294, ui/menu/SongMenu.kt:405-497,541-1084, utils/LocalMediaIntents.kt:125-170 | Menús dedicados por tipo; extraer MP3 del MP4 local con ffmpeg; fix del borrado silenciado |
+| 037 | (1) onTrimMemory borra el DISK cache de Coil ante presión rutinaria (TRIM_MEMORY_BACKGROUND = estado normal del reproductor) → re-descarga todo. (2) Misma portada en 3-6 tamaños = 3-6 cache keys distintas. (3) Cachés canvas solo memoria (TTL 24h y 60s) → búsquedas repetidas. (4) Video de fondo de artista autoplay y sin caché de disco. (5) Letras solo memoria | playback/MusicService.kt:9666-9675, ui/utils/YouTubeUtils.kt:5-48, canvas/...providers, artistvideo/ArtistVideo.kt, lyrics/LyricsHelper.kt:57 | Nunca borrar diskCache ahí; tamaños canónicos/cache key estable por mediaId; persistir canvas y letras a disco; CacheDataSource + gate por red medida en videos |
+| 038-041 | Pendientes: barrido dedicado al inicio de FASE 7 | — | — |
+
 ## Fases
 
 ### FASE 0 — Triage y recolección (sin cambios de código)
@@ -167,12 +191,13 @@ Hallazgos: 038, 039, 040, 041.
 | Fecha | Evento | Estado |
 |---|---|---|
 | 2026-08-25 | El dueño reporta 16 problemas de BETA-004 en el S26 Ultra; se registran HALLAZGO-026..041 y se abre la RONDA 3 por fases | EN_CURSO — FASE 0 |
+| 2026-08-25 | FASE 0 completa: 6 agentes en paralelo + re-verificación principal; causas raíz confirmadas para 026-037 (tabla RESULTADOS FASE 0); 038-041 quedan para FASE 7; decisiones pendientes del dueño: 033 (favoritos) y 026b (¿usa escala de densidad?) | COMPLETADA |
 
 ```yaml
 estado_actual:
   fecha: 2026-08-25
-  fase_actual: RONDA_3_FASE_0_TRIAGE
-  proxima_accion: FASE_0_RECOLECTAR — investigación en paralelo por cluster para confirmar causas raíz de HALLAZGO-026..041
+  fase_actual: RONDA_3_FASE_1_REPRODUCCION
+  proxima_accion: FASE_1 — fix HALLAZGO-031 (no abandonar AudioFocus en LOSS + flag con playWhenReady) y HALLAZGO-027 (trabajo Main en flips del BottomSheet); characterization tests + suite + build + BETA-005
   bloqueos: []
   memoria: ACTIVA
 ```
