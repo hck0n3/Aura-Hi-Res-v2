@@ -1,0 +1,1325 @@
+
+> Configure project :app
+WARNING: The option setting 'android.newDsl=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+WARNING: API 'applicationVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling applicationVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+WARNING: API 'testVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling testVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+WARNING: API 'unitTestVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling unitTestVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+SUPERPOWERED: licence key configured but the release signing certificate could not be read (app/keystore/release.keystore + STORE_PASSWORD, or SUPERPOWERED_CERT_SHA256). The key will be embedded UNBOUND — it still works, but a repackaged clone could reuse it.
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+
+> Task :app:preBuild UP-TO-DATE
+> Task :innertube:preBuild UP-TO-DATE
+> Task :artistvideo:preBuild UP-TO-DATE
+> Task :shazamkit:preBuild UP-TO-DATE
+> Task :lrclib:preBuild UP-TO-DATE
+> Task :kugou:preBuild UP-TO-DATE
+> Task :simpmusic:preBuild UP-TO-DATE
+> Task :jiosaavn:preBuild UP-TO-DATE
+> Task :echomusiccanvas:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :betterlyrics:preBuild UP-TO-DATE
+> Task :canvas:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :unison:preBuild UP-TO-DATE
+> Task :migration:preBuild UP-TO-DATE
+> Task :kugou:preReleaseBuild UP-TO-DATE
+> Task :youlyplus:preBuild UP-TO-DATE
+> Task :applecanvas:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :paxsenixlyrics:preBuild UP-TO-DATE
+> Task :simpmusic:preReleaseBuild UP-TO-DATE
+> Task :app:preArm64GmsReleaseBuild UP-TO-DATE
+> Task :betterlyrics:preReleaseBuild UP-TO-DATE
+> Task :artistvideo:preReleaseBuild UP-TO-DATE
+> Task :innertube:preReleaseBuild UP-TO-DATE
+> Task :lrclib:preReleaseBuild UP-TO-DATE
+> Task :migration:preReleaseBuild UP-TO-DATE
+> Task :jiosaavn:preReleaseBuild UP-TO-DATE
+> Task :shazamkit:preReleaseBuild UP-TO-DATE
+> Task :youlyplus:preReleaseBuild UP-TO-DATE
+> Task :paxsenixlyrics:preReleaseBuild UP-TO-DATE
+> Task :echomusiccanvas:processResources NO-SOURCE
+> Task :unison:preReleaseBuild UP-TO-DATE
+> Task :applecanvas:processResources NO-SOURCE
+> Task :lrclib:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :kugou:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :artistvideo:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :innertube:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :migration:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :shazamkit:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :jiosaavn:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :paxsenixlyrics:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :innertube:mergeReleaseNativeLibs NO-SOURCE
+> Task :migration:mergeReleaseNativeLibs NO-SOURCE
+> Task :paxsenixlyrics:mergeReleaseNativeLibs NO-SOURCE
+> Task :jiosaavn:mergeReleaseNativeLibs NO-SOURCE
+> Task :kugou:mergeReleaseNativeLibs NO-SOURCE
+> Task :lrclib:mergeReleaseNativeLibs NO-SOURCE
+> Task :betterlyrics:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :shazamkit:mergeReleaseNativeLibs NO-SOURCE
+> Task :artistvideo:mergeReleaseNativeLibs NO-SOURCE
+> Task :paxsenixlyrics:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :betterlyrics:mergeReleaseNativeLibs NO-SOURCE
+> Task :simpmusic:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :youlyplus:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :artistvideo:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :unison:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :lrclib:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :migration:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :jiosaavn:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :shazamkit:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :simpmusic:mergeReleaseNativeLibs NO-SOURCE
+> Task :innertube:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :betterlyrics:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :kugou:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :paxsenixlyrics:prepareReleaseArtProfile UP-TO-DATE
+> Task :lrclib:prepareReleaseArtProfile UP-TO-DATE
+> Task :artistvideo:prepareReleaseArtProfile UP-TO-DATE
+> Task :migration:prepareReleaseArtProfile UP-TO-DATE
+> Task :simpmusic:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :innertube:prepareReleaseArtProfile UP-TO-DATE
+> Task :jiosaavn:prepareReleaseArtProfile UP-TO-DATE
+> Task :betterlyrics:prepareReleaseArtProfile UP-TO-DATE
+> Task :shazamkit:prepareReleaseArtProfile UP-TO-DATE
+> Task :kugou:prepareReleaseArtProfile UP-TO-DATE
+> Task :lrclib:generateReleaseResources UP-TO-DATE
+> Task :paxsenixlyrics:generateReleaseResources UP-TO-DATE
+> Task :migration:generateReleaseResources UP-TO-DATE
+> Task :youlyplus:mergeReleaseNativeLibs NO-SOURCE
+> Task :artistvideo:generateReleaseResources UP-TO-DATE
+> Task :unison:mergeReleaseNativeLibs NO-SOURCE
+> Task :shazamkit:generateReleaseResources UP-TO-DATE
+> Task :jiosaavn:generateReleaseResources UP-TO-DATE
+> Task :simpmusic:prepareReleaseArtProfile UP-TO-DATE
+> Task :betterlyrics:generateReleaseResources UP-TO-DATE
+> Task :kugou:generateReleaseResources UP-TO-DATE
+> Task :unison:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :youlyplus:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :innertube:generateReleaseResources UP-TO-DATE
+> Task :youlyplus:prepareReleaseArtProfile UP-TO-DATE
+> Task :innertube:processReleaseNavigationResources UP-TO-DATE
+> Task :unison:prepareReleaseArtProfile UP-TO-DATE
+> Task :simpmusic:generateReleaseResources UP-TO-DATE
+> Task :youlyplus:generateReleaseResources UP-TO-DATE
+> Task :kugou:packageReleaseResources UP-TO-DATE
+> Task :simpmusic:processReleaseNavigationResources UP-TO-DATE
+> Task :artistvideo:packageReleaseResources UP-TO-DATE
+> Task :unison:generateReleaseResources UP-TO-DATE
+> Task :shazamkit:packageReleaseResources UP-TO-DATE
+> Task :jiosaavn:packageReleaseResources UP-TO-DATE
+> Task :migration:packageReleaseResources UP-TO-DATE
+> Task :innertube:javaPreCompileRelease UP-TO-DATE
+> Task :paxsenixlyrics:packageReleaseResources UP-TO-DATE
+> Task :betterlyrics:packageReleaseResources UP-TO-DATE
+> Task :lrclib:packageReleaseResources UP-TO-DATE
+> Task :artistvideo:processReleaseNavigationResources UP-TO-DATE
+> Task :simpmusic:javaPreCompileRelease UP-TO-DATE
+> Task :jiosaavn:processReleaseNavigationResources UP-TO-DATE
+> Task :shazamkit:processReleaseNavigationResources UP-TO-DATE
+> Task :paxsenixlyrics:processReleaseNavigationResources UP-TO-DATE
+> Task :migration:processReleaseNavigationResources UP-TO-DATE
+> Task :betterlyrics:processReleaseNavigationResources UP-TO-DATE
+> Task :kugou:processReleaseNavigationResources UP-TO-DATE
+> Task :lrclib:processReleaseNavigationResources UP-TO-DATE
+> Task :innertube:packageReleaseResources UP-TO-DATE
+> Task :unison:packageReleaseResources UP-TO-DATE
+> Task :simpmusic:packageReleaseResources UP-TO-DATE
+> Task :shazamkit:parseReleaseLocalResources UP-TO-DATE
+> Task :paxsenixlyrics:parseReleaseLocalResources UP-TO-DATE
+> Task :youlyplus:packageReleaseResources UP-TO-DATE
+> Task :unison:processReleaseNavigationResources UP-TO-DATE
+> Task :jiosaavn:parseReleaseLocalResources UP-TO-DATE
+> Task :artistvideo:parseReleaseLocalResources UP-TO-DATE
+> Task :lrclib:parseReleaseLocalResources UP-TO-DATE
+> Task :youlyplus:processReleaseNavigationResources UP-TO-DATE
+> Task :paxsenixlyrics:generateReleaseRFile UP-TO-DATE
+> Task :kugou:parseReleaseLocalResources UP-TO-DATE
+> Task :shazamkit:generateReleaseRFile UP-TO-DATE
+> Task :migration:parseReleaseLocalResources UP-TO-DATE
+> Task :jiosaavn:generateReleaseRFile UP-TO-DATE
+> Task :lrclib:generateReleaseRFile UP-TO-DATE
+> Task :paxsenixlyrics:javaPreCompileRelease UP-TO-DATE
+> Task :simpmusic:parseReleaseLocalResources UP-TO-DATE
+> Task :kugou:generateReleaseRFile UP-TO-DATE
+> Task :paxsenixlyrics:extractReleaseSupportedLocales UP-TO-DATE
+> Task :migration:generateReleaseRFile UP-TO-DATE
+> Task :simpmusic:generateReleaseRFile UP-TO-DATE
+> Task :artistvideo:generateReleaseRFile UP-TO-DATE
+> Task :innertube:parseReleaseLocalResources UP-TO-DATE
+> Task :betterlyrics:parseReleaseLocalResources UP-TO-DATE
+> Task :betterlyrics:generateReleaseRFile UP-TO-DATE
+> Task :youlyplus:parseReleaseLocalResources UP-TO-DATE
+> Task :innertube:generateReleaseRFile UP-TO-DATE
+> Task :unison:parseReleaseLocalResources UP-TO-DATE
+> Task :youlyplus:generateReleaseRFile UP-TO-DATE
+> Task :unison:generateReleaseRFile UP-TO-DATE
+> Task :paxsenixlyrics:extractDeepLinksRelease UP-TO-DATE
+> Task :paxsenixlyrics:writeReleaseAarMetadata
+> Task :app:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :paxsenixlyrics:processReleaseManifest UP-TO-DATE
+> Task :paxsenixlyrics:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :paxsenixlyrics:compileReleaseLibraryResources UP-TO-DATE
+> Task :paxsenixlyrics:generateReleaseAssets UP-TO-DATE
+> Task :paxsenixlyrics:mergeReleaseAssets UP-TO-DATE
+> Task :app:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :app:preArmeabiGmsReleaseBuild UP-TO-DATE
+> Task :app:configureCMakeRelWithDebInfo[armeabi-v7a]
+> Task :canvas:compileKotlin UP-TO-DATE
+> Task :canvas:compileJava NO-SOURCE
+> Task :canvas:processResources NO-SOURCE
+> Task :canvas:classes UP-TO-DATE
+> Task :canvas:jar UP-TO-DATE
+> Task :echomusiccanvas:compileKotlin UP-TO-DATE
+> Task :echomusiccanvas:compileJava NO-SOURCE
+> Task :echomusiccanvas:classes UP-TO-DATE
+> Task :echomusiccanvas:jar UP-TO-DATE
+> Task :applecanvas:compileKotlin UP-TO-DATE
+> Task :applecanvas:compileJava NO-SOURCE
+> Task :applecanvas:classes UP-TO-DATE
+> Task :applecanvas:jar UP-TO-DATE
+> Task :simpmusic:extractReleaseSupportedLocales UP-TO-DATE
+> Task :jiosaavn:javaPreCompileRelease UP-TO-DATE
+> Task :jiosaavn:extractReleaseSupportedLocales UP-TO-DATE
+> Task :simpmusic:extractDeepLinksRelease UP-TO-DATE
+> Task :simpmusic:processReleaseManifest UP-TO-DATE
+> Task :jiosaavn:extractDeepLinksRelease UP-TO-DATE
+> Task :simpmusic:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :simpmusic:compileReleaseLibraryResources UP-TO-DATE
+> Task :simpmusic:generateReleaseAssets UP-TO-DATE
+> Task :jiosaavn:processReleaseManifest UP-TO-DATE
+> Task :simpmusic:mergeReleaseAssets UP-TO-DATE
+> Task :jiosaavn:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :simpmusic:writeReleaseAarMetadata
+> Task :jiosaavn:compileReleaseLibraryResources UP-TO-DATE
+> Task :jiosaavn:generateReleaseAssets UP-TO-DATE
+> Task :jiosaavn:mergeReleaseAssets UP-TO-DATE
+> Task :jiosaavn:writeReleaseAarMetadata
+> Task :lrclib:javaPreCompileRelease UP-TO-DATE
+> Task :lrclib:extractReleaseSupportedLocales UP-TO-DATE
+> Task :betterlyrics:javaPreCompileRelease UP-TO-DATE
+> Task :betterlyrics:extractReleaseSupportedLocales UP-TO-DATE
+> Task :migration:kspReleaseKotlin FROM-CACHE
+> Task :unison:javaPreCompileRelease UP-TO-DATE
+> Task :unison:extractReleaseSupportedLocales UP-TO-DATE
+> Task :betterlyrics:extractDeepLinksRelease UP-TO-DATE
+> Task :betterlyrics:processReleaseManifest UP-TO-DATE
+> Task :betterlyrics:writeReleaseAarMetadata
+> Task :betterlyrics:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :unison:writeReleaseAarMetadata
+> Task :unison:extractDeepLinksRelease UP-TO-DATE
+> Task :lrclib:extractDeepLinksRelease UP-TO-DATE
+> Task :lrclib:writeReleaseAarMetadata
+> Task :betterlyrics:compileReleaseLibraryResources UP-TO-DATE
+> Task :betterlyrics:generateReleaseAssets UP-TO-DATE
+> Task :betterlyrics:mergeReleaseAssets UP-TO-DATE
+> Task :unison:processReleaseManifest UP-TO-DATE
+> Task :lrclib:processReleaseManifest UP-TO-DATE
+> Task :lrclib:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :unison:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :unison:compileReleaseLibraryResources UP-TO-DATE
+> Task :unison:generateReleaseAssets UP-TO-DATE
+> Task :lrclib:compileReleaseLibraryResources UP-TO-DATE
+> Task :lrclib:generateReleaseAssets UP-TO-DATE
+> Task :unison:mergeReleaseAssets UP-TO-DATE
+> Task :lrclib:mergeReleaseAssets UP-TO-DATE
+> Task :app:buildCMakeRelWithDebInfo[armeabi-v7a]
+> Task :app:preX86GmsReleaseBuild UP-TO-DATE
+> Task :kugou:javaPreCompileRelease UP-TO-DATE
+> Task :kugou:extractReleaseSupportedLocales UP-TO-DATE
+> Task :youlyplus:javaPreCompileRelease UP-TO-DATE
+> Task :youlyplus:extractReleaseSupportedLocales UP-TO-DATE
+> Task :shazamkit:javaPreCompileRelease UP-TO-DATE
+> Task :shazamkit:extractReleaseSupportedLocales UP-TO-DATE
+> Task :kugou:extractDeepLinksRelease UP-TO-DATE
+> Task :kugou:writeReleaseAarMetadata
+> Task :kugou:processReleaseManifest UP-TO-DATE
+> Task :youlyplus:extractDeepLinksRelease UP-TO-DATE
+> Task :app:configureCMakeRelWithDebInfo[x86]
+> Task :shazamkit:extractDeepLinksRelease UP-TO-DATE
+> Task :kugou:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :youlyplus:writeReleaseAarMetadata
+> Task :shazamkit:writeReleaseAarMetadata
+> Task :kugou:compileReleaseLibraryResources UP-TO-DATE
+> Task :kugou:generateReleaseAssets UP-TO-DATE
+> Task :shazamkit:processReleaseManifest UP-TO-DATE
+> Task :youlyplus:processReleaseManifest UP-TO-DATE
+> Task :kugou:mergeReleaseAssets UP-TO-DATE
+> Task :youlyplus:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :shazamkit:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :youlyplus:compileReleaseLibraryResources UP-TO-DATE
+> Task :shazamkit:compileReleaseLibraryResources UP-TO-DATE
+> Task :youlyplus:generateReleaseAssets UP-TO-DATE
+> Task :shazamkit:generateReleaseAssets UP-TO-DATE
+> Task :shazamkit:mergeReleaseAssets UP-TO-DATE
+> Task :youlyplus:mergeReleaseAssets UP-TO-DATE
+> Task :artistvideo:javaPreCompileRelease UP-TO-DATE
+> Task :artistvideo:extractReleaseSupportedLocales UP-TO-DATE
+> Task :artistvideo:extractDeepLinksRelease UP-TO-DATE
+> Task :artistvideo:writeReleaseAarMetadata
+> Task :artistvideo:processReleaseManifest UP-TO-DATE
+> Task :artistvideo:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :artistvideo:compileReleaseLibraryResources UP-TO-DATE
+> Task :artistvideo:generateReleaseAssets UP-TO-DATE
+> Task :artistvideo:mergeReleaseAssets UP-TO-DATE
+> Task :app:buildCMakeRelWithDebInfo[x86]
+> Task :app:preX86_64GmsReleaseBuild UP-TO-DATE
+> Task :app:configureCMakeRelWithDebInfo[x86_64]
+> Task :migration:javaPreCompileRelease FROM-CACHE
+> Task :migration:extractReleaseSupportedLocales UP-TO-DATE
+> Task :migration:writeReleaseAarMetadata UP-TO-DATE
+> Task :migration:extractDeepLinksRelease UP-TO-DATE
+> Task :migration:processReleaseManifest UP-TO-DATE
+> Task :migration:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :migration:compileReleaseLibraryResources UP-TO-DATE
+> Task :migration:generateReleaseAssets UP-TO-DATE
+> Task :migration:mergeReleaseAssets UP-TO-DATE
+> Task :app:buildCMakeRelWithDebInfo[x86_64]
+> Task :app:preUniversalGmsReleaseBuild UP-TO-DATE
+> Task :app:mergeUniversalGmsReleaseJniLibFolders UP-TO-DATE
+> Task :innertube:extractReleaseSupportedLocales UP-TO-DATE
+> Task :innertube:extractDeepLinksRelease UP-TO-DATE
+> Task :innertube:writeReleaseAarMetadata
+> Task :innertube:processReleaseManifest UP-TO-DATE
+> Task :innertube:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :innertube:compileReleaseLibraryResources UP-TO-DATE
+> Task :innertube:generateReleaseAssets UP-TO-DATE
+> Task :innertube:mergeReleaseAssets UP-TO-DATE
+> Task :app:mergeUniversalGmsReleaseNativeLibs UP-TO-DATE
+> Task :app:stripUniversalGmsReleaseDebugSymbols UP-TO-DATE
+> Task :app:extractUniversalGmsReleaseNativeSymbolTables UP-TO-DATE
+> Task :app:mergeUniversalGmsReleaseNativeDebugMetadata UP-TO-DATE
+> Task :app:mergeUniversalGmsReleaseArtProfile
+> Task :app:checkUniversalGmsReleaseDuplicateClasses UP-TO-DATE
+> Task :app:generateUniversalGmsReleaseBuildConfig UP-TO-DATE
+> Task :app:protobufDummy UP-TO-DATE
+> Task :app:extractGmsProto UP-TO-DATE
+> Task :app:extractProto UP-TO-DATE
+> Task :app:extractReleaseProto UP-TO-DATE
+> Task :app:extractUniversalGmsProto UP-TO-DATE
+> Task :app:extractUniversalGmsReleaseProto UP-TO-DATE
+> Task :app:extractUniversalProto UP-TO-DATE
+> Task :app:extractUniversalGmsReleaseSupportedLocales UP-TO-DATE
+> Task :app:mapUniversalGmsReleaseSourceSetPaths UP-TO-DATE
+> Task :app:generateUniversalGmsReleaseLocaleConfig UP-TO-DATE
+> Task :app:generateUniversalGmsReleaseResources UP-TO-DATE
+> Task :app:expandUniversalGmsReleaseL8ArtProfileWildcards
+> Task :app:packageUniversalGmsReleaseResources UP-TO-DATE
+> Task :app:processUniversalGmsReleaseNavigationResources UP-TO-DATE
+> Task :app:parseUniversalGmsReleaseLocalResources UP-TO-DATE
+> Task :app:generateUniversalGmsReleaseRFile UP-TO-DATE
+> Task :app:javaPreCompileUniversalGmsRelease FROM-CACHE
+> Task :app:compileUniversalGmsReleaseNavigationResources UP-TO-DATE
+> Task :app:checkUniversalGmsReleaseAarMetadata
+> Task :app:mergeUniversalGmsReleaseResources UP-TO-DATE
+> Task :app:createUniversalGmsReleaseCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksUniversalGmsRelease UP-TO-DATE
+> Task :app:processUniversalGmsReleaseMainManifest UP-TO-DATE
+> Task :app:processUniversalGmsReleaseManifest UP-TO-DATE
+> Task :app:processUniversalGmsReleaseManifestForPackage UP-TO-DATE
+> Task :app:extractProguardFiles UP-TO-DATE
+> Task :app:mergeUniversalGmsReleaseStartupProfile UP-TO-DATE
+> Task :app:generateUniversalGmsReleaseAssets UP-TO-DATE
+> Task :app:mergeUniversalGmsReleaseAssets UP-TO-DATE
+> Task :app:compressUniversalGmsReleaseAssets UP-TO-DATE
+> Task :app:extractUniversalGmsReleaseVersionControlInfo UP-TO-DATE
+> Task :app:validateSigningUniversalGmsRelease UP-TO-DATE
+> Task :app:writeUniversalGmsReleaseAppMetadata UP-TO-DATE
+> Task :app:writeUniversalGmsReleaseSigningConfigVersions UP-TO-DATE
+> Task :simpmusic:compileReleaseKotlin
+> Task :simpmusic:compileReleaseJavaWithJavac NO-SOURCE
+> Task :simpmusic:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :simpmusic:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :simpmusic:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :simpmusic:processReleaseJavaRes UP-TO-DATE
+> Task :simpmusic:createFullJarRelease UP-TO-DATE
+> Task :simpmusic:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :unison:compileReleaseKotlin
+> Task :unison:compileReleaseJavaWithJavac NO-SOURCE
+> Task :unison:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :unison:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :unison:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :unison:processReleaseJavaRes UP-TO-DATE
+> Task :unison:createFullJarRelease UP-TO-DATE
+> Task :unison:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :jiosaavn:compileReleaseKotlin
+> Task :jiosaavn:compileReleaseJavaWithJavac NO-SOURCE
+> Task :jiosaavn:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :jiosaavn:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :jiosaavn:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :jiosaavn:processReleaseJavaRes UP-TO-DATE
+> Task :jiosaavn:createFullJarRelease UP-TO-DATE
+> Task :jiosaavn:bundleLibCompileToJarRelease UP-TO-DATE
+
+> Task :betterlyrics:compileReleaseKotlin
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/betterlyrics/src/main/kotlin/com/music/echo/betterlyrics/BetterLyrics.kt:122:86 Unnecessary safe call on a non-null receiver of type 'HttpResponse'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/betterlyrics/src/main/kotlin/com/music/echo/betterlyrics/BetterLyrics.kt:122:116 Unnecessary safe call on a non-null receiver of type 'String'.
+
+> Task :kugou:compileReleaseKotlin
+> Task :kugou:compileReleaseJavaWithJavac NO-SOURCE
+> Task :kugou:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :kugou:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :kugou:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :kugou:processReleaseJavaRes UP-TO-DATE
+> Task :kugou:createFullJarRelease UP-TO-DATE
+> Task :kugou:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :artistvideo:compileReleaseKotlin
+> Task :artistvideo:compileReleaseJavaWithJavac NO-SOURCE
+> Task :artistvideo:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :artistvideo:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :artistvideo:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :artistvideo:processReleaseJavaRes UP-TO-DATE
+> Task :artistvideo:createFullJarRelease UP-TO-DATE
+> Task :artistvideo:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :youlyplus:compileReleaseKotlin
+> Task :youlyplus:compileReleaseJavaWithJavac NO-SOURCE
+> Task :youlyplus:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :youlyplus:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :youlyplus:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :youlyplus:processReleaseJavaRes UP-TO-DATE
+> Task :youlyplus:createFullJarRelease UP-TO-DATE
+> Task :youlyplus:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :betterlyrics:compileReleaseJavaWithJavac NO-SOURCE
+> Task :betterlyrics:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :betterlyrics:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :betterlyrics:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :betterlyrics:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :betterlyrics:processReleaseJavaRes UP-TO-DATE
+> Task :betterlyrics:createFullJarRelease UP-TO-DATE
+> Task :lrclib:compileReleaseKotlin
+> Task :lrclib:compileReleaseJavaWithJavac NO-SOURCE
+> Task :lrclib:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :lrclib:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :lrclib:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :lrclib:processReleaseJavaRes UP-TO-DATE
+> Task :lrclib:createFullJarRelease UP-TO-DATE
+> Task :lrclib:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :shazamkit:compileReleaseKotlin
+> Task :shazamkit:compileReleaseJavaWithJavac NO-SOURCE
+> Task :shazamkit:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :shazamkit:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :shazamkit:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :shazamkit:processReleaseJavaRes UP-TO-DATE
+> Task :shazamkit:createFullJarRelease UP-TO-DATE
+> Task :shazamkit:bundleLibCompileToJarRelease UP-TO-DATE
+
+> Task :migration:compileReleaseKotlin
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:199:68 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:270:73 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:288:74 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:308:37 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:318:74 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:338:71 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/migration/src/main/kotlin/com/aura/migration/source/tidal/TidalSource.kt:364:75 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+
+> Task :migration:compileReleaseJavaWithJavac NO-SOURCE
+> Task :migration:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :migration:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :migration:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :migration:processReleaseJavaRes UP-TO-DATE
+> Task :migration:createFullJarRelease UP-TO-DATE
+> Task :migration:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :paxsenixlyrics:compileReleaseKotlin
+> Task :paxsenixlyrics:compileReleaseJavaWithJavac NO-SOURCE
+> Task :paxsenixlyrics:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :paxsenixlyrics:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :paxsenixlyrics:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :paxsenixlyrics:processReleaseJavaRes UP-TO-DATE
+> Task :paxsenixlyrics:createFullJarRelease UP-TO-DATE
+> Task :paxsenixlyrics:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :app:processUniversalGmsReleaseResources
+> Task :innertube:compileReleaseKotlin
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/YouTube.kt:143:91 Unnecessary safe call on a non-null receiver of type 'SearchSuggestionsSectionRenderer'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/YouTube.kt:273:32 Unnecessary safe call on a non-null receiver of type 'Tabs.Tab.TabRenderer'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/YouTube.kt:290:32 Unnecessary safe call on a non-null receiver of type 'Tabs.Tab.TabRenderer'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/pages/NewPipe.kt:136:28 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/innertube/src/main/kotlin/com/music/innertube/pages/RelatedPage.kt:127:58 Unnecessary safe call on a non-null receiver of type 'Runs'.
+
+> Task :innertube:compileReleaseJavaWithJavac NO-SOURCE
+> Task :innertube:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :innertube:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :innertube:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :innertube:processReleaseJavaRes UP-TO-DATE
+> Task :innertube:createFullJarRelease UP-TO-DATE
+> Task :innertube:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :app:extractIncludeUniversalGmsReleaseProto UP-TO-DATE
+> Task :app:generateUniversalGmsReleaseProto UP-TO-DATE
+
+> Task :app:kspUniversalGmsReleaseKotlin
+w: [ksp] C:/Users/AURA/Desktop/PROYECTOS DE PROGRAMACION/AURA BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt:1136: The return value includes a data class with a @Relation. It is usually desired to annotate this function with @Transaction to avoid possibility of inconsistent results between the data class and its relations. See https://developer.android.com/reference/androidx/room/Transaction.html for details.
+w: [ksp] C:/Users/AURA/Desktop/PROYECTOS DE PROGRAMACION/AURA BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt:1139: The return value includes a data class with a @Relation. It is usually desired to annotate this function with @Transaction to avoid possibility of inconsistent results between the data class and its relations. See https://developer.android.com/reference/androidx/room/Transaction.html for details.
+
+> Task :app:compileUniversalGmsReleaseKotlin
+w: The argument '-Xannotation-default-target=param-property' is redundant for the current language version 2.4.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/App.kt:350:58 'static field TRIM_MEMORY_RUNNING_LOW: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/App.kt:351:58 'static field TRIM_MEMORY_RUNNING_CRITICAL: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/App.kt:368:66 'static field TRIM_MEMORY_RUNNING_CRITICAL: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/App.kt:391:48 This declaration needs opt-in. Its usage should be marked with '@coil3.annotation.DelicateCoilApi' or '@OptIn(coil3.annotation.DelicateCoilApi::class)'
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/MainActivity.kt:2000:41 'when' is exhaustive so 'else' is redundant here.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/AiPlaylistService.kt:317:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/DeepLService.kt:79:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/MistralService.kt:153:53 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/OpenRouterService.kt:150:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/OpenRouterStreamingService.kt:128:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/OpenRouterStreamingService.kt:138:76 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/AudioDeviceBottomSheet.kt:543:88 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/AudioDeviceBottomSheet.kt:726:74 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/AudioDeviceBottomSheet.kt:726:101 'val Icons.Filled.VolumeOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeOff.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/AudioDeviceBottomSheet.kt:1059:52 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/BluetoothUtils.kt:31:42 'var isBluetoothA2dpOn: Boolean' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/BluetoothUtils.kt:31:76 'var isBluetoothScoOn: Boolean' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:146:75 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:147:73 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:148:74 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:425:49 'fun ClickableText(text: AnnotatedString, modifier: Modifier = ..., style: TextStyle = ..., softWrap: Boolean = ..., overflow: TextOverflow = ..., maxLines: Int = ..., onTextLayout: (TextLayoutResult) -> Unit = ..., onClick: (Int) -> Unit): Unit' is deprecated. Use Text or BasicText and pass an AnnotatedString that contains a LinkAnnotation. Check LinkAnnotation's documentation for more details and samples.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:429:75 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:522:50 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:523:62 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:524:54 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:173:41 Unnecessary safe call on a non-null receiver of type 'List<WorkInfo>'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:317:44 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:411:63 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:560:59 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:605:41 'fun ClickableText(text: AnnotatedString, modifier: Modifier = ..., style: TextStyle = ..., softWrap: Boolean = ..., overflow: TextOverflow = ..., maxLines: Int = ..., onTextLayout: (TextLayoutResult) -> Unit = ..., onClick: (Int) -> Unit): Unit' is deprecated. Use Text or BasicText and pass an AnnotatedString that contains a LinkAnnotation. Check LinkAnnotation's documentation for more details and samples.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:609:67 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:648:72 'fun LinearProgressIndicator(progress: Float, modifier: Modifier = ..., color: Color = ..., trackColor: Color = ..., strokeCap: StrokeCap = ...): Unit' is deprecated. Use the overload that takes `progress` as a lambda.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/eq/audio/AudioEnhanceProcessor.kt:17:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/eq/audio/JrDspAudioProcessor.kt:32:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/eq/audio/NormalizationGainAudioProcessor.kt:25:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/eq/audio/TruePeakLimiterAudioProcessor.kt:19:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/legal/TermsScreens.kt:304:48 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/license/LicenseScreens.kt:317:55 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/listentogether/ListenTogetherServers.kt:65:51 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/lyrics/LyricsTranslationHelper.kt:94:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/migration/TidalAuthCallbackBus.kt:33:17 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/migration/TidalTokenStore.kt:150:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/AudioExportService.kt:206:38 Elvis operator (?:) always returns the left operand of non-nullable type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/AudioExportService.kt:234:38 Elvis operator (?:) always returns the left operand of non-nullable type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/AudioExportService.kt:917:30 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/ChunkingDataSource.kt:109:53 'static field POSITION_OUT_OF_RANGE: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/MediaLibrarySessionCallback.kt:106:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/MediaLibrarySessionCallback.kt:118:22 'fun onPlayerCommandRequest(p0: MediaSession, p1: MediaSession.ControllerInfo, p2: Int): Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/MediaLibrarySessionCallback.kt:139:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/MusicService.kt:4531:27 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/sponsorblock/SponsorBlockService.kt:45:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:70:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:103:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:128:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:167:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzBundleScraper.kt:83:68 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/BottomSheetMenu.kt:82:81 'val windowInsets: WindowInsets' is deprecated. Renamed as modalWindowInsets.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:815:79 Unnecessary safe call on a non-null receiver of type 'LyricsEntity'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1167:59 Unnecessary safe call on a non-null receiver of type 'LyricsEntity'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1547:97 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1592:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1649:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1696:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1752:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1819:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1873:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/MetroLyrics.kt:853:47 Unnecessary non-null assertion (!!) on a non-null receiver of type 'MetroWordTimestamp'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/UpdaterComponents.kt:279:13 'fun ClickableText(text: AnnotatedString, modifier: Modifier = ..., style: TextStyle = ..., softWrap: Boolean = ..., overflow: TextOverflow = ..., maxLines: Int = ..., onTextLayout: (TextLayoutResult) -> Unit = ..., onClick: (Int) -> Unit): Unit' is deprecated. Use Text or BasicText and pass an AnnotatedString that contains a LinkAnnotation. Check LinkAnnotation's documentation for more details and samples.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/UpdaterComponents.kt:283:39 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/backdrop/internal/Paint.kt:18:10 'fun asFrameworkPaint(): Paint' is deprecated. Use platform-specific extension to get platform reference.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/backdrop/internal/Paint.kt:24:10 'fun asFrameworkPaint(): Paint' is deprecated. Use platform-specific extension to get platform reference.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/AlbumMenu.kt:276:33 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/AlbumMenu.kt:599:37 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/OldPlayerMenu.kt:760:58 Unnecessary safe call on a non-null receiver of type 'ListenTogetherManager'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/YouTubeAlbumMenu.kt:210:33 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/YouTubeAlbumMenu.kt:228:37 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraMigrationScreen.kt:112:37 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraMigrationScreen.kt:989:41 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraMigrationScreen.kt:1012:56 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraMigrationScreen.kt:1017:57 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraPlayerMenu.kt:695:50 Unnecessary safe call on a non-null receiver of type 'ListenTogetherManager'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraSearchSuggestions.kt:408:9 'when' is exhaustive so 'else' is redundant here.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraSearchSuggestions.kt:631:21 'when' is exhaustive so 'else' is redundant here.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/Player.kt:1574:54 Unnecessary safe call on a non-null receiver of type 'MediaMetadata'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/Player.kt:1966:80 Unnecessary safe call on a non-null receiver of type 'MediaMetadata'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/Player.kt:1966:118 Unnecessary safe call on a non-null receiver of type 'MediaMetadata'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/PlayerVideoSurface.kt:60:35 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/PlayerVideoSurface.kt:60:79 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/PlayerVideoSurface.kt:77:29 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/PlayerVideoSurface.kt:77:75 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/OnboardingArtistsScreen.kt:68:38 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/PodcastScreen.kt:101:35 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/SpotifyImportScreen.kt:63:54 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/SpotifyImportScreen.kt:117:39 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/SpotifyImportScreen.kt:124:39 'fun largeTopAppBarColors(): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistScreen.kt:436:74 Unnecessary safe call on a non-null receiver of type 'ArtistPage'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistScreen.kt:526:65 Unnecessary safe call on a non-null receiver of type 'ArtistPage'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistScreen.kt:527:69 Unnecessary safe call on a non-null receiver of type 'ArtistPage'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistScreen.kt:669:72 Unnecessary safe call on a non-null receiver of type 'ArtistPage'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/autoeq/AutoEqScreen.kt:73:41 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt:139:13 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt:292:13 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt:524:28 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt:537:28 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:450:52 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:826:24 Unnecessary non-null assertion (!!) on a non-null receiver of type 'LocalSongScanSummary'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationScreen.kt:41:37 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationTidalScreen.kt:61:41 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationTidalScreen.kt:85:56 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationTidalScreen.kt:89:57 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationViewModel.kt:955:29 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/playlist/CachePlaylistScreen.kt:471:76 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/playlist/SongPreviewController.kt:349:49 Unnecessary safe call on a non-null receiver of type 'PlayerConnection'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/search/SearchScreen.kt:366:17 'fun SearchBar(query: String, onQueryChange: (String) -> Unit, onSearch: (String) -> Unit, active: Boolean, onActiveChange: (Boolean) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., placeholder: ComposableFunction0<Unit>? = ..., leadingIcon: ComposableFunction0<Unit>? = ..., trailingIcon: ComposableFunction0<Unit>? = ..., shape: Shape = ..., colors: SearchBarColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ..., windowInsets: WindowInsets = ..., interactionSource: MutableInteractionSource? = ..., content: ComposableFunction1<ColumnScope, Unit>): Unit' is deprecated. Use overload which takes inputField as a parameter.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/search/suggestions/AppleMusicScraper.kt:31:30 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/AboutScreen.kt:240:44 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/ListenBrainzManager.kt:68:42 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/ListenBrainzManager.kt:131:42 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/LogsScreen.kt:114:44 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/QobuzSettingsScreen.kt:77:39 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/QobuzSettingsScreen.kt:85:39 'fun largeTopAppBarColors(): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/utils/ShowMediaInfo.kt:189:58 Redundant call of conversion method.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/utils/ShowMediaInfo.kt:195:53 Redundant call of conversion method.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/utils/ShowMediaInfo.kt:210:82 Redundant call of conversion method.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/BotDetectionMitigator.kt:106:46 Unnecessary safe call on a non-null receiver of type 'Context'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/CoilBitmapLoader.kt:131:89 Unnecessary safe call on a non-null receiver of type 'Throwable'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/LocalFileDownloader.kt:94:26 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/RingtoneHelper.kt:418:46 Elvis operator (?:) always returns the left operand of non-nullable type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/WebAuthSessionCleaner.kt:79:9 'fun clearFormData(): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/WebAuthSessionCleaner.kt:81:9 'fun clearUsernamePassword(): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:531:68 Elvis operator (?:) always returns the left operand of non-nullable type 'Boolean'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:532:71 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1304:48 Unnecessary safe call on a non-null receiver of type 'YTPlayerUtils.StreamUrlResult'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1305:101 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1310:93 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1325:57 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1363:54 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1383:113 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1390:97 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1470:135 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/CipherWebView.kt:191:43 Unnecessary safe call on a non-null receiver of type 'FunctionNameExtractor.SigFunctionInfo'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/CipherWebView.kt:192:45 Unnecessary safe call on a non-null receiver of type 'FunctionNameExtractor.SigFunctionInfo'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/CipherWebView.kt:193:45 Unnecessary safe call on a non-null receiver of type 'FunctionNameExtractor.SigFunctionInfo'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/CipherWebView.kt:218:43 Unnecessary safe call on a non-null receiver of type 'FunctionNameExtractor.NFunctionInfo'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/PlayerJsFetcher.kt:240:33 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/PlayerJsFetcher.kt:278:33 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/potoken/PoTokenWebView.kt:410:38 Unnecessary non-null assertion (!!) on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/qobuz/QobuzApiClient.kt:161:37 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/ArtistItemsViewModel.kt:370:101 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/ArtistViewModel.kt:290:57 Unnecessary safe call on a non-null receiver of type 'ArtistItem'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/ArtistViewModel.kt:302:53 Unnecessary safe call on a non-null receiver of type 'ArtistItem'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/ArtistViewModel.kt:421:53 Unnecessary safe call on a non-null receiver of type 'ArtistItem'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/BackupRestoreViewModel.kt:102:47 Unnecessary non-null assertion (!!) on a non-null receiver of type 'File'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/BackupRestoreViewModel.kt:262:43 Java type mismatch: inferred type is 'String?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/BackupRestoreViewModel.kt:548:30 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/HomeViewModel.kt:1022:17 'when' is exhaustive so 'else' is redundant here.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/HomeViewModel.kt:1370:37 Condition is always 'true'.
+
+> Task :app:compileUniversalGmsReleaseJavaWithJavac UP-TO-DATE
+> Task :app:hiltCollectClassesUniversalGmsRelease
+> Task :app:hiltAggregateDepsUniversalGmsRelease UP-TO-DATE
+> Task :app:hiltJavaCompileUniversalGmsRelease
+> Task :app:processUniversalGmsReleaseJavaRes UP-TO-DATE
+> Task :app:mergeUniversalGmsReleaseJavaResource
+> Task :app:transformUniversalGmsReleaseClassesWithAsm
+> Task :app:mergeUniversalGmsReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :app:expandUniversalGmsReleaseArtProfileWildcards
+> Task :app:produceUniversalGmsReleaseComposeMapping
+> Task :app:reportUniversalGmsReleaseComposeMappingErrors
+> Task :app:minifyUniversalGmsReleaseWithR8
+> Task :app:mergeUniversalGmsReleaseComposeMapping
+> Task :app:convertShrunkResourcesToBinaryUniversalGmsRelease UP-TO-DATE
+> Task :app:optimizeUniversalGmsReleaseResources UP-TO-DATE
+> Task :app:l8DexDesugarLibUniversalGmsRelease
+> Task :app:compileUniversalGmsReleaseArtProfile
+> Task :app:packageUniversalGmsRelease
+> Task :app:createUniversalGmsReleaseApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleUniversalGmsRelease
+
+[Incubating] Problems report is available at: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 10m 11s
+354 actionable tasks: 48 executed, 3 from cache, 303 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.1/userguide/configuration_cache_enabling.html
+
+> Configure project :app
+WARNING: The option setting 'android.newDsl=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+WARNING: API 'applicationVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling applicationVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+WARNING: API 'testVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling testVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+WARNING: API 'unitTestVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling unitTestVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+SUPERPOWERED: licence key configured but the release signing certificate could not be read (app/keystore/release.keystore + STORE_PASSWORD, or SUPERPOWERED_CERT_SHA256). The key will be embedded UNBOUND — it still works, but a repackaged clone could reuse it.
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [armeabi-v7a] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+WARNING: [CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+[CXX5202] This app only has 32-bit [x86] native libraries. Beginning August 1, 2019 Google Play store requires that all apps that include native libraries must provide 64-bit versions. For more information, visit https://g.co/64-bit-requirement
+
+> Task :kugou:preBuild UP-TO-DATE
+> Task :lrclib:preBuild UP-TO-DATE
+> Task :betterlyrics:preBuild UP-TO-DATE
+> Task :paxsenixlyrics:preBuild UP-TO-DATE
+> Task :migration:preBuild UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :artistvideo:preBuild UP-TO-DATE
+> Task :jiosaavn:preBuild UP-TO-DATE
+> Task :applecanvas:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :canvas:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :innertube:preBuild UP-TO-DATE
+> Task :echomusiccanvas:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :youlyplus:preBuild UP-TO-DATE
+> Task :unison:preBuild UP-TO-DATE
+> Task :shazamkit:preBuild UP-TO-DATE
+> Task :simpmusic:preBuild UP-TO-DATE
+> Task :kugou:preReleaseBuild UP-TO-DATE
+> Task :artistvideo:preReleaseBuild UP-TO-DATE
+> Task :betterlyrics:preReleaseBuild UP-TO-DATE
+> Task :paxsenixlyrics:preReleaseBuild UP-TO-DATE
+> Task :shazamkit:preReleaseBuild UP-TO-DATE
+> Task :lrclib:preReleaseBuild UP-TO-DATE
+> Task :unison:preReleaseBuild UP-TO-DATE
+> Task :migration:preReleaseBuild UP-TO-DATE
+> Task :innertube:preReleaseBuild UP-TO-DATE
+> Task :simpmusic:preReleaseBuild UP-TO-DATE
+> Task :youlyplus:preReleaseBuild UP-TO-DATE
+> Task :shazamkit:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :kugou:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :artistvideo:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :echomusiccanvas:processResources NO-SOURCE
+> Task :betterlyrics:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :lrclib:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :unison:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :jiosaavn:preReleaseBuild UP-TO-DATE
+> Task :simpmusic:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :app:preArm64GmsReleaseBuild UP-TO-DATE
+> Task :applecanvas:processResources NO-SOURCE
+> Task :betterlyrics:mergeReleaseNativeLibs NO-SOURCE
+> Task :kugou:mergeReleaseNativeLibs NO-SOURCE
+> Task :artistvideo:mergeReleaseNativeLibs NO-SOURCE
+> Task :shazamkit:mergeReleaseNativeLibs NO-SOURCE
+> Task :innertube:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :lrclib:mergeReleaseNativeLibs NO-SOURCE
+> Task :migration:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :youlyplus:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :paxsenixlyrics:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :unison:mergeReleaseNativeLibs NO-SOURCE
+> Task :jiosaavn:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :betterlyrics:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :kugou:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :shazamkit:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :innertube:mergeReleaseNativeLibs NO-SOURCE
+> Task :lrclib:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :artistvideo:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :simpmusic:mergeReleaseNativeLibs NO-SOURCE
+> Task :youlyplus:mergeReleaseNativeLibs NO-SOURCE
+> Task :paxsenixlyrics:mergeReleaseNativeLibs NO-SOURCE
+> Task :unison:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :jiosaavn:mergeReleaseNativeLibs NO-SOURCE
+> Task :shazamkit:prepareReleaseArtProfile UP-TO-DATE
+> Task :innertube:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :jiosaavn:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :migration:mergeReleaseNativeLibs NO-SOURCE
+> Task :kugou:prepareReleaseArtProfile UP-TO-DATE
+> Task :lrclib:prepareReleaseArtProfile UP-TO-DATE
+> Task :artistvideo:prepareReleaseArtProfile UP-TO-DATE
+> Task :betterlyrics:prepareReleaseArtProfile UP-TO-DATE
+> Task :simpmusic:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :betterlyrics:generateReleaseResources UP-TO-DATE
+> Task :innertube:prepareReleaseArtProfile UP-TO-DATE
+> Task :shazamkit:generateReleaseResources UP-TO-DATE
+> Task :youlyplus:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :migration:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :unison:prepareReleaseArtProfile UP-TO-DATE
+> Task :lrclib:generateReleaseResources UP-TO-DATE
+> Task :jiosaavn:prepareReleaseArtProfile UP-TO-DATE
+> Task :paxsenixlyrics:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :kugou:generateReleaseResources UP-TO-DATE
+> Task :artistvideo:generateReleaseResources UP-TO-DATE
+> Task :jiosaavn:generateReleaseResources UP-TO-DATE
+> Task :unison:generateReleaseResources UP-TO-DATE
+> Task :simpmusic:prepareReleaseArtProfile UP-TO-DATE
+> Task :migration:prepareReleaseArtProfile UP-TO-DATE
+> Task :paxsenixlyrics:prepareReleaseArtProfile UP-TO-DATE
+> Task :youlyplus:prepareReleaseArtProfile UP-TO-DATE
+> Task :jiosaavn:packageReleaseResources UP-TO-DATE
+> Task :betterlyrics:packageReleaseResources UP-TO-DATE
+> Task :shazamkit:packageReleaseResources UP-TO-DATE
+> Task :innertube:generateReleaseResources UP-TO-DATE
+> Task :paxsenixlyrics:generateReleaseResources UP-TO-DATE
+> Task :lrclib:packageReleaseResources UP-TO-DATE
+> Task :kugou:packageReleaseResources UP-TO-DATE
+> Task :migration:generateReleaseResources UP-TO-DATE
+> Task :unison:packageReleaseResources UP-TO-DATE
+> Task :simpmusic:generateReleaseResources UP-TO-DATE
+> Task :betterlyrics:processReleaseNavigationResources UP-TO-DATE
+> Task :youlyplus:generateReleaseResources UP-TO-DATE
+> Task :jiosaavn:processReleaseNavigationResources UP-TO-DATE
+> Task :lrclib:processReleaseNavigationResources UP-TO-DATE
+> Task :shazamkit:processReleaseNavigationResources UP-TO-DATE
+> Task :kugou:processReleaseNavigationResources UP-TO-DATE
+> Task :artistvideo:packageReleaseResources UP-TO-DATE
+> Task :paxsenixlyrics:packageReleaseResources UP-TO-DATE
+> Task :innertube:packageReleaseResources UP-TO-DATE
+> Task :unison:processReleaseNavigationResources UP-TO-DATE
+> Task :migration:packageReleaseResources UP-TO-DATE
+> Task :innertube:processReleaseNavigationResources UP-TO-DATE
+> Task :migration:processReleaseNavigationResources UP-TO-DATE
+> Task :paxsenixlyrics:processReleaseNavigationResources UP-TO-DATE
+> Task :artistvideo:processReleaseNavigationResources UP-TO-DATE
+> Task :simpmusic:packageReleaseResources UP-TO-DATE
+> Task :youlyplus:packageReleaseResources UP-TO-DATE
+> Task :simpmusic:processReleaseNavigationResources UP-TO-DATE
+> Task :youlyplus:processReleaseNavigationResources UP-TO-DATE
+> Task :lrclib:parseReleaseLocalResources UP-TO-DATE
+> Task :betterlyrics:parseReleaseLocalResources UP-TO-DATE
+> Task :shazamkit:parseReleaseLocalResources UP-TO-DATE
+> Task :betterlyrics:generateReleaseRFile UP-TO-DATE
+> Task :jiosaavn:parseReleaseLocalResources UP-TO-DATE
+> Task :kugou:parseReleaseLocalResources UP-TO-DATE
+> Task :paxsenixlyrics:parseReleaseLocalResources UP-TO-DATE
+> Task :artistvideo:parseReleaseLocalResources UP-TO-DATE
+> Task :lrclib:generateReleaseRFile UP-TO-DATE
+> Task :kugou:generateReleaseRFile UP-TO-DATE
+> Task :paxsenixlyrics:generateReleaseRFile UP-TO-DATE
+> Task :shazamkit:generateReleaseRFile UP-TO-DATE
+> Task :jiosaavn:generateReleaseRFile UP-TO-DATE
+> Task :unison:parseReleaseLocalResources UP-TO-DATE
+> Task :artistvideo:generateReleaseRFile UP-TO-DATE
+> Task :simpmusic:parseReleaseLocalResources UP-TO-DATE
+> Task :migration:parseReleaseLocalResources UP-TO-DATE
+> Task :innertube:parseReleaseLocalResources UP-TO-DATE
+> Task :youlyplus:parseReleaseLocalResources UP-TO-DATE
+> Task :paxsenixlyrics:javaPreCompileRelease UP-TO-DATE
+> Task :app:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :paxsenixlyrics:extractReleaseSupportedLocales UP-TO-DATE
+> Task :unison:generateReleaseRFile UP-TO-DATE
+> Task :migration:generateReleaseRFile UP-TO-DATE
+> Task :youlyplus:generateReleaseRFile UP-TO-DATE
+> Task :innertube:generateReleaseRFile UP-TO-DATE
+> Task :simpmusic:generateReleaseRFile UP-TO-DATE
+> Task :paxsenixlyrics:writeReleaseAarMetadata UP-TO-DATE
+> Task :paxsenixlyrics:extractDeepLinksRelease UP-TO-DATE
+> Task :paxsenixlyrics:processReleaseManifest UP-TO-DATE
+> Task :paxsenixlyrics:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :paxsenixlyrics:compileReleaseLibraryResources UP-TO-DATE
+> Task :paxsenixlyrics:generateReleaseAssets UP-TO-DATE
+> Task :paxsenixlyrics:mergeReleaseAssets UP-TO-DATE
+> Task :app:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :app:preArm64FossReleaseBuild UP-TO-DATE
+> Task :app:mergeArm64FossReleaseJniLibFolders UP-TO-DATE
+> Task :lrclib:compileReleaseKotlin UP-TO-DATE
+> Task :betterlyrics:compileReleaseKotlin UP-TO-DATE
+> Task :shazamkit:compileReleaseKotlin UP-TO-DATE
+> Task :jiosaavn:compileReleaseKotlin UP-TO-DATE
+> Task :simpmusic:compileReleaseKotlin UP-TO-DATE
+> Task :betterlyrics:javaPreCompileRelease UP-TO-DATE
+> Task :jiosaavn:javaPreCompileRelease UP-TO-DATE
+> Task :lrclib:javaPreCompileRelease UP-TO-DATE
+> Task :shazamkit:javaPreCompileRelease UP-TO-DATE
+> Task :kugou:compileReleaseKotlin UP-TO-DATE
+> Task :simpmusic:javaPreCompileRelease UP-TO-DATE
+> Task :unison:compileReleaseKotlin UP-TO-DATE
+> Task :kugou:javaPreCompileRelease UP-TO-DATE
+> Task :jiosaavn:compileReleaseJavaWithJavac NO-SOURCE
+> Task :betterlyrics:compileReleaseJavaWithJavac NO-SOURCE
+> Task :simpmusic:compileReleaseJavaWithJavac NO-SOURCE
+> Task :lrclib:compileReleaseJavaWithJavac NO-SOURCE
+> Task :shazamkit:compileReleaseJavaWithJavac NO-SOURCE
+> Task :unison:javaPreCompileRelease UP-TO-DATE
+> Task :kugou:compileReleaseJavaWithJavac NO-SOURCE
+> Task :jiosaavn:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :simpmusic:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :betterlyrics:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :jiosaavn:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :unison:compileReleaseJavaWithJavac NO-SOURCE
+> Task :shazamkit:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :kugou:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :simpmusic:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :innertube:compileReleaseKotlin UP-TO-DATE
+> Task :kugou:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :shazamkit:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :betterlyrics:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :lrclib:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :kugou:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :jiosaavn:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :shazamkit:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :betterlyrics:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :lrclib:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :unison:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :betterlyrics:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :innertube:javaPreCompileRelease UP-TO-DATE
+> Task :jiosaavn:processReleaseJavaRes UP-TO-DATE
+> Task :unison:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :shazamkit:processReleaseJavaRes UP-TO-DATE
+> Task :lrclib:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :simpmusic:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :betterlyrics:processReleaseJavaRes UP-TO-DATE
+> Task :kugou:processReleaseJavaRes UP-TO-DATE
+> Task :shazamkit:createFullJarRelease UP-TO-DATE
+> Task :jiosaavn:createFullJarRelease UP-TO-DATE
+> Task :youlyplus:compileReleaseKotlin UP-TO-DATE
+> Task :innertube:compileReleaseJavaWithJavac NO-SOURCE
+> Task :unison:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :betterlyrics:createFullJarRelease UP-TO-DATE
+> Task :lrclib:processReleaseJavaRes UP-TO-DATE
+> Task :youlyplus:javaPreCompileRelease UP-TO-DATE
+> Task :jiosaavn:extractReleaseSupportedLocales UP-TO-DATE
+> Task :kugou:createFullJarRelease UP-TO-DATE
+> Task :lrclib:createFullJarRelease UP-TO-DATE
+> Task :simpmusic:processReleaseJavaRes UP-TO-DATE
+> Task :betterlyrics:extractReleaseSupportedLocales UP-TO-DATE
+> Task :youlyplus:compileReleaseJavaWithJavac NO-SOURCE
+> Task :kugou:extractReleaseSupportedLocales UP-TO-DATE
+> Task :innertube:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :shazamkit:extractReleaseSupportedLocales UP-TO-DATE
+> Task :lrclib:extractReleaseSupportedLocales UP-TO-DATE
+> Task :kugou:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :youlyplus:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :innertube:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :jiosaavn:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :simpmusic:createFullJarRelease UP-TO-DATE
+> Task :lrclib:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :youlyplus:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :unison:processReleaseJavaRes UP-TO-DATE
+> Task :innertube:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :simpmusic:extractReleaseSupportedLocales UP-TO-DATE
+> Task :shazamkit:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :youlyplus:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :unison:createFullJarRelease UP-TO-DATE
+> Task :simpmusic:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :unison:extractReleaseSupportedLocales UP-TO-DATE
+> Task :youlyplus:processReleaseJavaRes UP-TO-DATE
+> Task :unison:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :youlyplus:createFullJarRelease UP-TO-DATE
+> Task :kugou:writeReleaseAarMetadata UP-TO-DATE
+> Task :lrclib:writeReleaseAarMetadata UP-TO-DATE
+> Task :jiosaavn:writeReleaseAarMetadata UP-TO-DATE
+> Task :jiosaavn:extractDeepLinksRelease UP-TO-DATE
+> Task :kugou:extractDeepLinksRelease UP-TO-DATE
+> Task :shazamkit:writeReleaseAarMetadata UP-TO-DATE
+> Task :youlyplus:extractReleaseSupportedLocales UP-TO-DATE
+> Task :betterlyrics:writeReleaseAarMetadata UP-TO-DATE
+> Task :lrclib:extractDeepLinksRelease UP-TO-DATE
+> Task :innertube:processReleaseJavaRes UP-TO-DATE
+> Task :youlyplus:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :shazamkit:extractDeepLinksRelease UP-TO-DATE
+> Task :betterlyrics:extractDeepLinksRelease UP-TO-DATE
+> Task :lrclib:processReleaseManifest UP-TO-DATE
+> Task :kugou:processReleaseManifest UP-TO-DATE
+> Task :innertube:createFullJarRelease UP-TO-DATE
+> Task :youlyplus:writeReleaseAarMetadata UP-TO-DATE
+> Task :jiosaavn:processReleaseManifest UP-TO-DATE
+> Task :shazamkit:processReleaseManifest UP-TO-DATE
+> Task :betterlyrics:processReleaseManifest UP-TO-DATE
+> Task :lrclib:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :youlyplus:extractDeepLinksRelease UP-TO-DATE
+> Task :jiosaavn:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :kugou:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :innertube:extractReleaseSupportedLocales UP-TO-DATE
+> Task :unison:writeReleaseAarMetadata UP-TO-DATE
+> Task :canvas:compileKotlin UP-TO-DATE
+> Task :simpmusic:writeReleaseAarMetadata UP-TO-DATE
+> Task :lrclib:compileReleaseLibraryResources UP-TO-DATE
+> Task :lrclib:generateReleaseAssets UP-TO-DATE
+> Task :shazamkit:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :innertube:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :betterlyrics:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :shazamkit:compileReleaseLibraryResources UP-TO-DATE
+> Task :canvas:compileJava NO-SOURCE
+> Task :simpmusic:extractDeepLinksRelease UP-TO-DATE
+> Task :unison:extractDeepLinksRelease UP-TO-DATE
+> Task :shazamkit:generateReleaseAssets UP-TO-DATE
+> Task :canvas:processResources NO-SOURCE
+> Task :canvas:classes UP-TO-DATE
+> Task :kugou:compileReleaseLibraryResources UP-TO-DATE
+> Task :lrclib:mergeReleaseAssets UP-TO-DATE
+> Task :jiosaavn:compileReleaseLibraryResources UP-TO-DATE
+> Task :jiosaavn:generateReleaseAssets UP-TO-DATE
+> Task :betterlyrics:compileReleaseLibraryResources UP-TO-DATE
+> Task :betterlyrics:generateReleaseAssets UP-TO-DATE
+> Task :kugou:generateReleaseAssets UP-TO-DATE
+> Task :shazamkit:mergeReleaseAssets UP-TO-DATE
+> Task :unison:processReleaseManifest UP-TO-DATE
+> Task :simpmusic:processReleaseManifest UP-TO-DATE
+> Task :kugou:mergeReleaseAssets UP-TO-DATE
+> Task :betterlyrics:mergeReleaseAssets UP-TO-DATE
+> Task :youlyplus:processReleaseManifest UP-TO-DATE
+> Task :jiosaavn:mergeReleaseAssets UP-TO-DATE
+> Task :innertube:writeReleaseAarMetadata UP-TO-DATE
+> Task :unison:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :youlyplus:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :simpmusic:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :innertube:extractDeepLinksRelease UP-TO-DATE
+> Task :simpmusic:compileReleaseLibraryResources UP-TO-DATE
+> Task :unison:compileReleaseLibraryResources UP-TO-DATE
+> Task :canvas:jar UP-TO-DATE
+> Task :unison:generateReleaseAssets UP-TO-DATE
+> Task :simpmusic:generateReleaseAssets UP-TO-DATE
+> Task :youlyplus:compileReleaseLibraryResources UP-TO-DATE
+> Task :youlyplus:generateReleaseAssets UP-TO-DATE
+> Task :innertube:processReleaseManifest UP-TO-DATE
+> Task :simpmusic:mergeReleaseAssets UP-TO-DATE
+> Task :unison:mergeReleaseAssets UP-TO-DATE
+> Task :innertube:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :youlyplus:mergeReleaseAssets UP-TO-DATE
+> Task :innertube:compileReleaseLibraryResources UP-TO-DATE
+> Task :innertube:generateReleaseAssets UP-TO-DATE
+> Task :innertube:mergeReleaseAssets UP-TO-DATE
+> Task :paxsenixlyrics:compileReleaseKotlin UP-TO-DATE
+> Task :paxsenixlyrics:compileReleaseJavaWithJavac NO-SOURCE
+> Task :paxsenixlyrics:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :paxsenixlyrics:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :paxsenixlyrics:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :paxsenixlyrics:processReleaseJavaRes UP-TO-DATE
+> Task :paxsenixlyrics:createFullJarRelease UP-TO-DATE
+> Task :paxsenixlyrics:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :echomusiccanvas:compileKotlin UP-TO-DATE
+> Task :applecanvas:compileKotlin UP-TO-DATE
+> Task :echomusiccanvas:compileJava NO-SOURCE
+> Task :applecanvas:compileJava NO-SOURCE
+> Task :applecanvas:classes UP-TO-DATE
+> Task :echomusiccanvas:classes UP-TO-DATE
+> Task :echomusiccanvas:jar UP-TO-DATE
+> Task :applecanvas:jar UP-TO-DATE
+> Task :migration:kspReleaseKotlin UP-TO-DATE
+> Task :migration:compileReleaseKotlin UP-TO-DATE
+> Task :migration:javaPreCompileRelease UP-TO-DATE
+> Task :migration:compileReleaseJavaWithJavac NO-SOURCE
+> Task :migration:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :migration:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :migration:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :migration:processReleaseJavaRes UP-TO-DATE
+> Task :migration:createFullJarRelease UP-TO-DATE
+> Task :migration:extractReleaseSupportedLocales UP-TO-DATE
+> Task :migration:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :migration:writeReleaseAarMetadata UP-TO-DATE
+> Task :migration:extractDeepLinksRelease UP-TO-DATE
+> Task :migration:processReleaseManifest UP-TO-DATE
+> Task :migration:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :artistvideo:compileReleaseKotlin UP-TO-DATE
+> Task :artistvideo:javaPreCompileRelease UP-TO-DATE
+> Task :artistvideo:compileReleaseJavaWithJavac NO-SOURCE
+> Task :migration:compileReleaseLibraryResources UP-TO-DATE
+> Task :migration:generateReleaseAssets UP-TO-DATE
+> Task :artistvideo:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :migration:mergeReleaseAssets UP-TO-DATE
+> Task :artistvideo:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :artistvideo:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :artistvideo:processReleaseJavaRes UP-TO-DATE
+> Task :artistvideo:createFullJarRelease UP-TO-DATE
+> Task :artistvideo:extractReleaseSupportedLocales UP-TO-DATE
+> Task :artistvideo:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :artistvideo:writeReleaseAarMetadata UP-TO-DATE
+> Task :artistvideo:extractDeepLinksRelease UP-TO-DATE
+> Task :artistvideo:processReleaseManifest UP-TO-DATE
+> Task :artistvideo:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :artistvideo:compileReleaseLibraryResources UP-TO-DATE
+> Task :artistvideo:generateReleaseAssets UP-TO-DATE
+> Task :artistvideo:mergeReleaseAssets UP-TO-DATE
+> Task :app:mergeArm64FossReleaseArtProfile
+> Task :app:mergeArm64FossReleaseNativeLibs UP-TO-DATE
+> Task :app:stripArm64FossReleaseDebugSymbols UP-TO-DATE
+> Task :app:extractArm64FossReleaseNativeSymbolTables UP-TO-DATE
+> Task :app:mergeArm64FossReleaseNativeDebugMetadata UP-TO-DATE
+> Task :app:checkArm64FossReleaseDuplicateClasses UP-TO-DATE
+> Task :app:generateArm64FossReleaseBuildConfig UP-TO-DATE
+> Task :app:protobufDummy UP-TO-DATE
+> Task :app:extractArm64FossProto UP-TO-DATE
+> Task :app:extractArm64FossReleaseProto UP-TO-DATE
+> Task :app:extractArm64Proto UP-TO-DATE
+> Task :app:extractFossProto UP-TO-DATE
+> Task :app:expandArm64FossReleaseL8ArtProfileWildcards
+> Task :app:extractIncludeArm64FossReleaseProto UP-TO-DATE
+> Task :app:extractProto UP-TO-DATE
+> Task :app:extractReleaseProto UP-TO-DATE
+> Task :app:generateArm64FossReleaseProto UP-TO-DATE
+> Task :app:extractArm64FossReleaseSupportedLocales UP-TO-DATE
+> Task :app:mapArm64FossReleaseSourceSetPaths UP-TO-DATE
+> Task :app:generateArm64FossReleaseLocaleConfig UP-TO-DATE
+> Task :app:generateArm64FossReleaseResources UP-TO-DATE
+> Task :app:packageArm64FossReleaseResources UP-TO-DATE
+> Task :app:processArm64FossReleaseNavigationResources UP-TO-DATE
+> Task :app:parseArm64FossReleaseLocalResources UP-TO-DATE
+> Task :app:generateArm64FossReleaseRFile UP-TO-DATE
+> Task :app:javaPreCompileArm64FossRelease FROM-CACHE
+> Task :app:compileArm64FossReleaseNavigationResources UP-TO-DATE
+> Task :app:checkArm64FossReleaseAarMetadata
+> Task :app:mergeArm64FossReleaseResources UP-TO-DATE
+> Task :app:createArm64FossReleaseCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksArm64FossRelease UP-TO-DATE
+> Task :app:processArm64FossReleaseMainManifest UP-TO-DATE
+> Task :app:processArm64FossReleaseManifest UP-TO-DATE
+> Task :app:processArm64FossReleaseManifestForPackage UP-TO-DATE
+> Task :app:extractProguardFiles UP-TO-DATE
+> Task :app:mergeArm64FossReleaseStartupProfile UP-TO-DATE
+> Task :app:generateArm64FossReleaseAssets UP-TO-DATE
+> Task :app:mergeArm64FossReleaseAssets UP-TO-DATE
+> Task :app:compressArm64FossReleaseAssets UP-TO-DATE
+> Task :app:extractArm64FossReleaseVersionControlInfo UP-TO-DATE
+> Task :app:validateSigningArm64FossRelease UP-TO-DATE
+> Task :app:writeArm64FossReleaseAppMetadata UP-TO-DATE
+> Task :app:writeArm64FossReleaseSigningConfigVersions UP-TO-DATE
+> Task :app:processArm64FossReleaseResources
+> Task :app:kspArm64FossReleaseKotlin
+w: [ksp] C:/Users/AURA/Desktop/PROYECTOS DE PROGRAMACION/AURA BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt:1136: The return value includes a data class with a @Relation. It is usually desired to annotate this function with @Transaction to avoid possibility of inconsistent results between the data class and its relations. See https://developer.android.com/reference/androidx/room/Transaction.html for details.
+w: [ksp] C:/Users/AURA/Desktop/PROYECTOS DE PROGRAMACION/AURA BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt:1139: The return value includes a data class with a @Relation. It is usually desired to annotate this function with @Transaction to avoid possibility of inconsistent results between the data class and its relations. See https://developer.android.com/reference/androidx/room/Transaction.html for details.
+
+> Task :app:compileArm64FossReleaseKotlin
+w: The argument '-Xannotation-default-target=param-property' is redundant for the current language version 2.4.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/App.kt:350:58 'static field TRIM_MEMORY_RUNNING_LOW: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/App.kt:351:58 'static field TRIM_MEMORY_RUNNING_CRITICAL: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/App.kt:368:66 'static field TRIM_MEMORY_RUNNING_CRITICAL: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/App.kt:391:48 This declaration needs opt-in. Its usage should be marked with '@coil3.annotation.DelicateCoilApi' or '@OptIn(coil3.annotation.DelicateCoilApi::class)'
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/MainActivity.kt:2000:41 'when' is exhaustive so 'else' is redundant here.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/AiPlaylistService.kt:317:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/DeepLService.kt:79:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/MistralService.kt:153:53 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/OpenRouterService.kt:150:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/OpenRouterStreamingService.kt:128:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/api/OpenRouterStreamingService.kt:138:76 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/AudioDeviceBottomSheet.kt:543:88 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/AudioDeviceBottomSheet.kt:726:74 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/AudioDeviceBottomSheet.kt:726:101 'val Icons.Filled.VolumeOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeOff.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/AudioDeviceBottomSheet.kt:1059:52 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/BluetoothUtils.kt:31:42 'var isBluetoothA2dpOn: Boolean' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/BluetoothUtils.kt:31:76 'var isBluetoothScoOn: Boolean' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:146:75 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:147:73 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:148:74 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:425:49 'fun ClickableText(text: AnnotatedString, modifier: Modifier = ..., style: TextStyle = ..., softWrap: Boolean = ..., overflow: TextOverflow = ..., maxLines: Int = ..., onTextLayout: (TextLayoutResult) -> Unit = ..., onClick: (Int) -> Unit): Unit' is deprecated. Use Text or BasicText and pass an AnnotatedString that contains a LinkAnnotation. Check LinkAnnotation's documentation for more details and samples.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:429:75 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:522:50 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:523:62 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/changelog/changelogscreen.kt:524:54 Java type mismatch: inferred type is 'Nothing?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:173:41 Unnecessary safe call on a non-null receiver of type 'List<WorkInfo>'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:317:44 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:411:63 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:560:59 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:605:41 'fun ClickableText(text: AnnotatedString, modifier: Modifier = ..., style: TextStyle = ..., softWrap: Boolean = ..., overflow: TextOverflow = ..., maxLines: Int = ..., onTextLayout: (TextLayoutResult) -> Unit = ..., onClick: (Int) -> Unit): Unit' is deprecated. Use Text or BasicText and pass an AnnotatedString that contains a LinkAnnotation. Check LinkAnnotation's documentation for more details and samples.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:609:67 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/echomusic/updater/echomusicupdater.kt:648:72 'fun LinearProgressIndicator(progress: Float, modifier: Modifier = ..., color: Color = ..., trackColor: Color = ..., strokeCap: StrokeCap = ...): Unit' is deprecated. Use the overload that takes `progress` as a lambda.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/eq/audio/AudioEnhanceProcessor.kt:17:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/eq/audio/JrDspAudioProcessor.kt:32:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/eq/audio/NormalizationGainAudioProcessor.kt:25:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/eq/audio/TruePeakLimiterAudioProcessor.kt:19:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/legal/TermsScreens.kt:304:48 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/license/LicenseScreens.kt:317:55 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/listentogether/ListenTogetherServers.kt:65:51 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/lyrics/LyricsTranslationHelper.kt:94:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/migration/TidalAuthCallbackBus.kt:33:17 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/migration/TidalTokenStore.kt:150:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/AudioExportService.kt:206:38 Elvis operator (?:) always returns the left operand of non-nullable type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/AudioExportService.kt:234:38 Elvis operator (?:) always returns the left operand of non-nullable type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/AudioExportService.kt:917:30 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/ChunkingDataSource.kt:109:53 'static field POSITION_OUT_OF_RANGE: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/MediaLibrarySessionCallback.kt:106:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/MediaLibrarySessionCallback.kt:118:22 'fun onPlayerCommandRequest(p0: MediaSession, p1: MediaSession.ControllerInfo, p2: Int): Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/MediaLibrarySessionCallback.kt:139:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/MusicService.kt:4531:27 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/playback/sponsorblock/SponsorBlockService.kt:45:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:70:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:103:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:128:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzApi.kt:167:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/qobuz/QobuzBundleScraper.kt:83:68 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/BottomSheetMenu.kt:82:81 'val windowInsets: WindowInsets' is deprecated. Renamed as modalWindowInsets.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:815:79 Unnecessary safe call on a non-null receiver of type 'LyricsEntity'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1167:59 Unnecessary safe call on a non-null receiver of type 'LyricsEntity'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1547:97 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1592:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1649:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1696:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1752:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1819:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt:1873:70 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/MetroLyrics.kt:853:47 Unnecessary non-null assertion (!!) on a non-null receiver of type 'MetroWordTimestamp'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/UpdaterComponents.kt:279:13 'fun ClickableText(text: AnnotatedString, modifier: Modifier = ..., style: TextStyle = ..., softWrap: Boolean = ..., overflow: TextOverflow = ..., maxLines: Int = ..., onTextLayout: (TextLayoutResult) -> Unit = ..., onClick: (Int) -> Unit): Unit' is deprecated. Use Text or BasicText and pass an AnnotatedString that contains a LinkAnnotation. Check LinkAnnotation's documentation for more details and samples.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/UpdaterComponents.kt:283:39 'static fun startActivity(p0: Context, p1: Intent, p2: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/backdrop/internal/Paint.kt:18:10 'fun asFrameworkPaint(): Paint' is deprecated. Use platform-specific extension to get platform reference.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/component/backdrop/internal/Paint.kt:24:10 'fun asFrameworkPaint(): Paint' is deprecated. Use platform-specific extension to get platform reference.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/AlbumMenu.kt:276:33 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/AlbumMenu.kt:599:37 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/OldPlayerMenu.kt:760:58 Unnecessary safe call on a non-null receiver of type 'ListenTogetherManager'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/YouTubeAlbumMenu.kt:210:33 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/menu/YouTubeAlbumMenu.kt:228:37 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraMigrationScreen.kt:112:37 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraMigrationScreen.kt:989:41 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraMigrationScreen.kt:1012:56 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraMigrationScreen.kt:1017:57 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraPlayerMenu.kt:695:50 Unnecessary safe call on a non-null receiver of type 'ListenTogetherManager'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraSearchSuggestions.kt:408:9 'when' is exhaustive so 'else' is redundant here.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/newui/AuraSearchSuggestions.kt:631:21 'when' is exhaustive so 'else' is redundant here.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/Player.kt:1574:54 Unnecessary safe call on a non-null receiver of type 'MediaMetadata'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/Player.kt:1966:80 Unnecessary safe call on a non-null receiver of type 'MediaMetadata'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/Player.kt:1966:118 Unnecessary safe call on a non-null receiver of type 'MediaMetadata'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/PlayerVideoSurface.kt:60:35 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/PlayerVideoSurface.kt:60:79 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/PlayerVideoSurface.kt:77:29 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/player/PlayerVideoSurface.kt:77:75 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/OnboardingArtistsScreen.kt:68:38 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/PodcastScreen.kt:101:35 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/SpotifyImportScreen.kt:63:54 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/SpotifyImportScreen.kt:117:39 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/SpotifyImportScreen.kt:124:39 'fun largeTopAppBarColors(): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistScreen.kt:436:74 Unnecessary safe call on a non-null receiver of type 'ArtistPage'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistScreen.kt:526:65 Unnecessary safe call on a non-null receiver of type 'ArtistPage'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistScreen.kt:527:69 Unnecessary safe call on a non-null receiver of type 'ArtistPage'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistScreen.kt:669:72 Unnecessary safe call on a non-null receiver of type 'ArtistPage'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/autoeq/AutoEqScreen.kt:73:41 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt:139:13 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt:292:13 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt:524:28 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt:537:28 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:450:52 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:826:24 Unnecessary non-null assertion (!!) on a non-null receiver of type 'LocalSongScanSummary'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationScreen.kt:41:37 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationTidalScreen.kt:61:41 'fun <reified VM : ViewModel> hiltViewModel(viewModelStoreOwner: ViewModelStoreOwner = ..., key: String? = ...): VM' is deprecated. Moved to package: androidx.hilt.lifecycle.viewmodel.compose.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationTidalScreen.kt:85:56 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationTidalScreen.kt:89:57 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationViewModel.kt:955:29 Condition is always 'true'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/playlist/CachePlaylistScreen.kt:471:76 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/playlist/SongPreviewController.kt:349:49 Unnecessary safe call on a non-null receiver of type 'PlayerConnection'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/search/SearchScreen.kt:366:17 'fun SearchBar(query: String, onQueryChange: (String) -> Unit, onSearch: (String) -> Unit, active: Boolean, onActiveChange: (Boolean) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., placeholder: ComposableFunction0<Unit>? = ..., leadingIcon: ComposableFunction0<Unit>? = ..., trailingIcon: ComposableFunction0<Unit>? = ..., shape: Shape = ..., colors: SearchBarColors = ..., tonalElevation: Dp = ..., shadowElevation: Dp = ..., windowInsets: WindowInsets = ..., interactionSource: MutableInteractionSource? = ..., content: ComposableFunction1<ColumnScope, Unit>): Unit' is deprecated. Use overload which takes inputField as a parameter.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/search/suggestions/AppleMusicScraper.kt:31:30 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/AboutScreen.kt:240:44 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/ListenBrainzManager.kt:68:42 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/ListenBrainzManager.kt:131:42 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/LogsScreen.kt:114:44 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/QobuzSettingsScreen.kt:77:39 'fun largeTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/screens/settings/QobuzSettingsScreen.kt:85:39 'fun largeTopAppBarColors(): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/utils/ShowMediaInfo.kt:189:58 Redundant call of conversion method.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/utils/ShowMediaInfo.kt:195:53 Redundant call of conversion method.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/ui/utils/ShowMediaInfo.kt:210:82 Redundant call of conversion method.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/BotDetectionMitigator.kt:106:46 Unnecessary safe call on a non-null receiver of type 'Context'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/CoilBitmapLoader.kt:131:89 Unnecessary safe call on a non-null receiver of type 'Throwable'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/LocalFileDownloader.kt:94:26 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/RingtoneHelper.kt:418:46 Elvis operator (?:) always returns the left operand of non-nullable type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/WebAuthSessionCleaner.kt:79:9 'fun clearFormData(): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/WebAuthSessionCleaner.kt:81:9 'fun clearUsernamePassword(): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:531:68 Elvis operator (?:) always returns the left operand of non-nullable type 'Boolean'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:532:71 Elvis operator (?:) always returns the left operand of non-nullable type 'Int'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1304:48 Unnecessary safe call on a non-null receiver of type 'YTPlayerUtils.StreamUrlResult'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1305:101 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1310:93 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1325:57 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1363:54 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1383:113 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1390:97 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/YTPlayerUtils.kt:1470:135 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/CipherWebView.kt:191:43 Unnecessary safe call on a non-null receiver of type 'FunctionNameExtractor.SigFunctionInfo'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/CipherWebView.kt:192:45 Unnecessary safe call on a non-null receiver of type 'FunctionNameExtractor.SigFunctionInfo'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/CipherWebView.kt:193:45 Unnecessary safe call on a non-null receiver of type 'FunctionNameExtractor.SigFunctionInfo'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/CipherWebView.kt:218:43 Unnecessary safe call on a non-null receiver of type 'FunctionNameExtractor.NFunctionInfo'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/PlayerJsFetcher.kt:240:33 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/cipher/PlayerJsFetcher.kt:278:33 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/potoken/PoTokenWebView.kt:410:38 Unnecessary non-null assertion (!!) on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/utils/qobuz/QobuzApiClient.kt:161:37 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/ArtistItemsViewModel.kt:370:101 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/ArtistViewModel.kt:290:57 Unnecessary safe call on a non-null receiver of type 'ArtistItem'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/ArtistViewModel.kt:302:53 Unnecessary safe call on a non-null receiver of type 'ArtistItem'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/ArtistViewModel.kt:421:53 Unnecessary safe call on a non-null receiver of type 'ArtistItem'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/BackupRestoreViewModel.kt:102:47 Unnecessary non-null assertion (!!) on a non-null receiver of type 'File'.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/BackupRestoreViewModel.kt:262:43 Java type mismatch: inferred type is 'String?', but 'String' was expected.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/BackupRestoreViewModel.kt:548:30 Redundant creation of Json format. Creating instances for each usage can be slow.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/HomeViewModel.kt:1022:17 'when' is exhaustive so 'else' is redundant here.
+w: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/app/src/main/kotlin/com/music/echo/viewmodels/HomeViewModel.kt:1370:37 Condition is always 'true'.
+
+> Task :app:compileArm64FossReleaseJavaWithJavac UP-TO-DATE
+> Task :app:hiltCollectClassesArm64FossRelease
+> Task :app:hiltAggregateDepsArm64FossRelease UP-TO-DATE
+> Task :app:hiltJavaCompileArm64FossRelease
+> Task :app:processArm64FossReleaseJavaRes UP-TO-DATE
+> Task :app:mergeArm64FossReleaseJavaResource
+> Task :app:transformArm64FossReleaseClassesWithAsm
+> Task :app:mergeArm64FossReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :app:expandArm64FossReleaseArtProfileWildcards
+> Task :app:produceArm64FossReleaseComposeMapping
+> Task :app:reportArm64FossReleaseComposeMappingErrors
+> Task :app:minifyArm64FossReleaseWithR8
+> Task :app:mergeArm64FossReleaseComposeMapping
+> Task :app:convertShrunkResourcesToBinaryArm64FossRelease UP-TO-DATE
+> Task :app:optimizeArm64FossReleaseResources UP-TO-DATE
+> Task :app:l8DexDesugarLibArm64FossRelease
+> Task :app:compileArm64FossReleaseArtProfile
+> Task :app:packageArm64FossRelease
+> Task :app:createArm64FossReleaseApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleArm64FossRelease
+
+[Incubating] Problems report is available at: file:///C:/Users/AURA/Desktop/PROYECTOS%20DE%20PROGRAMACION/AURA%20BETADO/Aura-Hi-Res-Player-0.6.231/Aura-Hi-Res-Player-0.6.231/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 9m 29s
+348 actionable tasks: 19 executed, 1 from cache, 328 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.1/userguide/configuration_cache_enabling.html
