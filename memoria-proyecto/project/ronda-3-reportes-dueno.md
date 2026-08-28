@@ -1175,12 +1175,15 @@ del REGRESSION_REGISTRY, bump v2.0.14/vc970, bitácora del plan actualizada,
 y lanzó suite + `assembleUniversalGmsRelease` (receta: `--stop` previo,
 `--max-workers=6 -Pkotlin.daemon.jvmargs=-Xmx8g`).
 
-**SIGUIENTE:** verificar el resultado de la suite (esperado 942 = 936 + 6
-PrefsBridgeTest) y del build; verificar el APK con aapt2 + apksigner
-(CN=Aura Hi-Res v2, SHA-256 ba82c11d…) y ENTREGAR BETA-017 (v2.0.14/vc970)
-con su LEEME (pruebas: tiempos de reacción tras tocar cualquier cosa —tabs,
-player, Ajustes, post-login—, scroll fluido, persistencia de ajustes y sesión
-intacta). Veredictos del dueño pendientes: BETA-015, BETA-016 y BETA-017.
+**SIGUIENTE:** BETA-017 ENTREGADA — suite 942/942 verde (936 + 6
+PrefsBridgeTest), BUILD SUCCESSFUL 2m19s, aapt2 (iad1tya.aura.music,
+2.0.14/970, universal 4 ABIs) + apksigner (verify OK, CN=Aura Hi-Res v2,
+SHA-256 ba82c11d… idéntico a v2.0.11/12/13) — copiada a `~/Desktop/betas
+apks/` (nueva carpeta oficial de entrega en la Mac, sincronizada con Google
+Drive) como BETA-017_Aura_v2.0.14_vc970.apk (87,382,003 bytes) +
+LEEME_BETA-017.txt. Git local re-inicializado (commit 22a4931). Veredictos
+del dueño pendientes: BETA-015, BETA-016 y BETA-017 (confirmar si recibió
+las dos de Windows antes de la migración).
 Si verde → preparar ESTABLE v2.0.14 (con permiso explícito). Tras el
 desbloqueo de GitHub (~09-02): primer tag estable con permiso explícito del
 dueño + decisión Superpowered (repo privado o reescritura + SDK fuera) +
