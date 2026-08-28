@@ -60,6 +60,7 @@ import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.SyncUtils
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.isLoggedCookie
+import iad1tya.echo.music.utils.isLoginTargetUrl
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.reportException
 import iad1tya.echo.music.utils.shouldCompleteLogin
@@ -78,6 +79,26 @@ import timber.log.Timber
  * Reset in `finally` so a later logout -> login cycle in the same process can complete again.
  */
 private val loginCompletionRunning = AtomicBoolean(false)
+
+/**
+ * Registry #182: the sign-in entry point. InnerTune — the reference implementation this flow
+ * descends from — enters Google sign-in through the FULL YouTube handshake (ltmpl=music,
+ * service=youtube, passive=true, continue → youtube.com/signin?action_handle_signin=true →
+ * music.youtube.com), not a bare `continue=music.youtube.com`. That extra handshake leg is what
+ * makes Google mint the .youtube.com session cookie (SAPISID) the whole login detection keys on;
+ * with the bare continue the WebView can land on music.youtube.com without it, detection never
+ * fires, and the app "se queda allí donde inicio sesión y no hace nada" (the owner's report).
+ */
+private fun youTubeServiceLoginUrl(emailHint: String? = null): String {
+    val base = "https://accounts.google.com/ServiceLogin" +
+        "?ltmpl=music&service=youtube&passive=true" +
+        "&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F"
+    return if (emailHint.isNullOrBlank()) {
+        base
+    } else {
+        base + "&Email=${Uri.encode(emailHint)}&login_hint=${Uri.encode(emailHint)}"
+    }
+}
 
 /**
  * HALLAZGO-061: validates the fresh YouTube session and persists the account. Runs on the
@@ -165,13 +186,12 @@ fun LoginScreen(
     val dataSyncIdState = rememberPreference(DataSyncIdKey, "")
     var dataSyncId by dataSyncIdState
     val innerTubeCookieState = rememberPreference(InnerTubeCookieKey, "")
-    var innerTubeCookie by innerTubeCookieState
     val hasCompletedLoginState = remember { mutableStateOf(false) }
-    var hasCompletedLogin by hasCompletedLoginState
     val skin = rememberAuraPanelSkin()
 
-    // Held in state so the account-picker callback can reload it. The WebView still loads the normal
-    // ServiceLogin URL by default; the picker only PRE-FILLS the email so the user skips typing it.
+    // Held in state so the account-picker callback can reload it. The WebView loads the full
+    // handshake ServiceLogin URL (#182); the picker only PRE-FILLS the email so the user skips
+    // typing it.
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
     // System account picker (AndroidX framework, NOT Google Play Services) — enumerates the phone's
@@ -183,10 +203,8 @@ fun LoginScreen(
     ) { result ->
         val email = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
         if (!email.isNullOrBlank()) {
-            val hinted = "https://accounts.google.com/ServiceLogin" +
-                "?continue=https%3A%2F%2Fmusic.youtube.com" +
-                "&Email=${Uri.encode(email)}&login_hint=${Uri.encode(email)}"
-            webViewRef?.loadUrl(hinted)
+            // Same full-handshake URL (#182), with the chosen account pre-filled.
+            webViewRef?.loadUrl(youTubeServiceLoginUrl(email))
         }
     }
 
@@ -197,6 +215,44 @@ fun LoginScreen(
             )
             accountPicker.launch(intent)
         }.onFailure { Timber.w(it, "Account picker unavailable") }
+    }
+
+    // #182: ONE detection helper, called from BOTH WebView callbacks. Reads/writes go through
+    // the State objects (not the delegated vars) so the callbacks always see the latest values.
+    // The hasCompletedLogin latch + the process-level CAS inside completeLogin keep it
+    // idempotent no matter how many times the callbacks fire.
+    fun tryCompleteLoginFromPage(url: String?) {
+        if (!isLoginTargetUrl(url)) return
+        val pageCookie = CookieManager.getInstance().getCookie(url)
+        if (!shouldCompleteLogin(pageCookie, hasCompletedLoginState.value)) return
+        // Persist the cookie right away (App's cookie watcher picks the session up live) and
+        // latch so the completion fires once per screen visit.
+        innerTubeCookieState.value = pageCookie!!
+        hasCompletedLoginState.value = true
+
+        // HALLAZGO-061: completion runs on the application scope — leaving the screen during
+        // validation can no longer cancel it.
+        completeLogin(context, syncUtils, pageCookie, visitorDataState, dataSyncIdState) { ok ->
+            if (ok) {
+                webViewRef?.apply {
+                    stopLoading()
+                    clearHistory()
+                    clearCache(true)
+                    clearFormData()
+                }
+                // The completion also finishes after the user left on their own — only
+                // navigate when still ON the login screen.
+                if (navController.currentDestination?.route == "login") {
+                    navController.navigateUp()
+                }
+            } else {
+                // HALLAZGO-061 fix D: the old failure path was completely silent — the user
+                // was left staring at a WebView that never goes back, with no idea the
+                // validation failed.
+                hasCompletedLoginState.value = false
+                Toast.makeText(context, R.string.login_validation_failed, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     Column(
@@ -272,42 +328,21 @@ fun LoginScreen(
             factory = { webViewContext ->
                 WebView(webViewContext).apply {
                     webViewClient = object : WebViewClient() {
+                        // #182: fires on EVERY URL change — the whole post-login redirect chain,
+                        // not just the final page-finished event. InnerTune detects login here
+                        // for exactly this reason: onPageFinished alone is a single-shot race
+                        // that the cookie flush can lose ("se queda allí y no hace nada").
+                        override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                            tryCompleteLoginFromPage(url)
+                        }
+
                         override fun onPageFinished(view: WebView, url: String?) {
                             loadUrl("javascript:Android.onRetrieveVisitorData(window.yt.config_.VISITOR_DATA)")
                             loadUrl("javascript:Android.onRetrieveDataSyncId(window.yt.config_.DATASYNC_ID)")
-
-                            val pageCookie = if (url?.startsWith("https://music.youtube.com") == true)
-                                CookieManager.getInstance().getCookie(url) else null
-                            if (shouldCompleteLogin(pageCookie, hasCompletedLogin)) {
-                                // Persist the cookie right away (App's cookie watcher picks the
-                                // session up live) and latch so this fires once per screen visit.
-                                innerTubeCookie = pageCookie!!
-                                hasCompletedLogin = true
-
-                                // HALLAZGO-061: completion runs on the application scope — leaving
-                                // the screen during validation can no longer cancel it.
-                                completeLogin(context, syncUtils, pageCookie, visitorDataState, dataSyncIdState) { ok ->
-                                    if (ok) {
-                                        webViewRef?.apply {
-                                            stopLoading()
-                                            clearHistory()
-                                            clearCache(true)
-                                            clearFormData()
-                                        }
-                                        // The completion also finishes after the user left on their
-                                        // own — only navigate when still ON the login screen.
-                                        if (navController.currentDestination?.route == "login") {
-                                            navController.navigateUp()
-                                        }
-                                    } else {
-                                        // HALLAZGO-061 fix D: the old failure path was completely
-                                        // silent — the user was left staring at a WebView that
-                                        // never goes back, with no idea the validation failed.
-                                        hasCompletedLogin = false
-                                        Toast.makeText(context, R.string.login_validation_failed, Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            }
+                            // Second detection chance: the session cookie can finish flushing
+                            // after the last URL change. Same latched helper, so it is safe to
+                            // run on every page.
+                            tryCompleteLoginFromPage(url)
                         }
                     }
                     settings.apply {
@@ -333,7 +368,9 @@ fun LoginScreen(
                         }
                     }, "Android")
                     webViewRef = this
-                    loadUrl("https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com")
+                    // Full YouTube handshake URL, not a bare continue (#182 — see
+                    // youTubeServiceLoginUrl).
+                    loadUrl(youTubeServiceLoginUrl())
                 }
             },
         )

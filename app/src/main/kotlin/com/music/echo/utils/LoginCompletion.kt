@@ -16,6 +16,15 @@ fun isLoggedCookie(cookie: String?): Boolean =
     !cookie.isNullOrBlank() && cookie.contains("SAPISID")
 
 /**
+ * The WebView landed on the post-login destination: the page whose cookies hold the signed-in
+ * session. Checked on EVERY URL change (doUpdateVisitedHistory) and on page-finished, so the
+ * detection gets multiple chances instead of one single-shot race (registry #182 — InnerTune,
+ * the reference implementation this flow descends from, detects on doUpdateVisitedHistory).
+ */
+fun isLoginTargetUrl(url: String?): Boolean =
+    url != null && url.startsWith("https://music.youtube.com")
+
+/**
  * The WebView just finished a page on music.youtube.com: should the login completion run now?
  * Only once per screen visit ([hasCompleted] is the in-screen latch) and only when the page
  * cookie is a real logged-in session.
@@ -24,12 +33,14 @@ fun shouldCompleteLogin(pageCookie: String?, hasCompleted: Boolean): Boolean =
     !hasCompleted && isLoggedCookie(pageCookie)
 
 /**
- * App-level cookie watcher: did the persisted cookie just transition into a logged-in session?
- * True only on the logged-out -> logged-in edge, so a cold start that merely re-emits the
- * already-persisted cookie does NOT re-fire the library syncs.
+ * App-level cookie watcher: did the persisted cookie just change into work that needs a library
+ * sync? True on the logged-out -> logged-in edge AND on a logged-in -> logged-in change with a
+ * DIFFERENT cookie (account switch A -> B): the old code only fired on the first edge, so
+ * switching accounts left the library synced to the previous account (registry #182). A cold
+ * start that merely re-emits the already-persisted cookie still does NOT re-fire the syncs.
  */
 fun shouldSyncOnCookieChange(oldCookie: String?, newCookie: String?): Boolean =
-    isLoggedCookie(newCookie) && !isLoggedCookie(oldCookie)
+    isLoggedCookie(newCookie) && (!isLoggedCookie(oldCookie) || oldCookie != newCookie)
 
 /**
  * Cold-start recovery: the cookie says logged-in but no liked-songs sync ever completed

@@ -90,6 +90,7 @@ import iad1tya.echo.music.eq.data.FactoryPreset
 import iad1tya.echo.music.eq.data.FilterType
 import iad1tya.echo.music.eq.data.ParametricEQBand
 import iad1tya.echo.music.eq.data.SavedEQProfile
+import iad1tya.echo.music.eq.data.eqFactoryPresetMatch
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.LocalPlayerConnection
@@ -257,6 +258,25 @@ fun AxionEqScreen(
             // any residual fling velocity.
             var activeSliderDrags by remember { mutableIntStateOf(0) }
             val sliderDragActive = activeSliderDrags > 0
+            // #181 — the preset-selection UI (FactoryPresetGrid's description box, CustomPresetRow
+            // chips) is derived from the band gains. Recomputing it on every drag tick flips the
+            // selection the instant the finger moves >0.5 dB off a preset, and the description box's
+            // AnimatedVisibility sits ABOVE the band card: its height change yanks the faders out
+            // from under the finger mid-drag, the absolute mapping (gainForFaderY) reads a new Y,
+            // the value jumps, and the whole thing oscillates — the owner's "parpadea y se mueve
+            // raro la interfaz mientras muevo la barra". Freeze the gains the selection UI reads
+            // for the duration of the drag: captured on pointer DOWN (EqBandSlider raises the flag
+            // synchronously BEFORE the first value write, so the snapshot is always pre-drag), and
+            // released when the LAST finger lifts. The curve and the faders keep reading the live
+            // gains; only the selection highlight/description waits for the finger to leave
+            // (official guidance: isolate fast-changing drag state from UI that only needs the
+            // settled value — same intent as derivedStateOf / deferred reads).
+            var frozenSelectionGains by remember { mutableStateOf<FloatArray?>(null) }
+            val selectionGains = if (sliderDragActive) {
+                frozenSelectionGains ?: bandGains
+            } else {
+                bandGains
+            }
             val freezePageScroll = remember {
                 object : NestedScrollConnection {
                     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
@@ -285,6 +305,7 @@ fun AxionEqScreen(
                     enabled = enabled,
                     graphicEnabled = graphicEnabled,
                     bandGains = bandGains,
+                    selectionGains = selectionGains,
                     preamp = preamp,
                     autoEqActive = autoEqActive,
                     isDirty = isDirty,
@@ -297,11 +318,20 @@ fun AxionEqScreen(
                     onAutoEqClick = onAutoEqClick,
                     // Counter, not a boolean: two fingers on two faders must keep the page frozen
                     // until the LAST one lifts (each source pairs its own true/false — #51).
+                    // The 0→1 edge also snapshots the gains for the selection UI (#181) — safe to
+                    // do here because EqBandSlider invokes this synchronously on pointer DOWN,
+                    // before the first live gain write of the drag.
                     onSliderDragActiveChange = { active ->
-                        activeSliderDrags = if (active) {
-                            activeSliderDrags + 1
+                        if (active) {
+                            if (activeSliderDrags == 0) {
+                                frozenSelectionGains = viewModel.bandGains.value.copyOf()
+                            }
+                            activeSliderDrags += 1
                         } else {
-                            (activeSliderDrags - 1).coerceAtLeast(0)
+                            activeSliderDrags = (activeSliderDrags - 1).coerceAtLeast(0)
+                            if (activeSliderDrags == 0) {
+                                frozenSelectionGains = null
+                            }
                         }
                     },
                 )
@@ -635,6 +665,7 @@ private fun ColumnScope.EqMainContent(
     enabled: Boolean,
     graphicEnabled: Boolean,
     bandGains: FloatArray,
+    selectionGains: FloatArray,
     preamp: Float,
     autoEqActive: Boolean,
     isDirty: Boolean,
@@ -854,7 +885,10 @@ private fun ColumnScope.EqMainContent(
 
         FactoryPresetGrid(
             skin = skin,
-            bandGains = bandGains,
+            // Selection reads the FROZEN gains while a finger is on a fader (#181) — the live
+            // gains would deselect the preset mid-drag and toggle the description box above the
+            // band card, shifting the layout under the finger.
+            bandGains = selectionGains,
             enabled = graphicEnabled,
             onPresetClick = { viewModel.applyPreset(it) },
         )
@@ -943,7 +977,8 @@ private fun ColumnScope.EqMainContent(
     if (customProfiles.isNotEmpty()) {
         CustomPresetRow(
             customProfiles = customProfiles,
-            bandGains = bandGains,
+            // Same frozen-selection rule as FactoryPresetGrid (#181).
+            bandGains = selectionGains,
             enabled = enabled,
             onApplyProfile = { viewModel.applySavedProfile(it) },
             onEditClick = onManageClick,
@@ -1447,10 +1482,8 @@ private fun FactoryPresetGrid(
 
     // Derived from the CANONICAL enum order on purpose: several curves can match within the 0.5 dB
     // tolerance (FLAT matches anything near zero), so the winner must not depend on display order.
-    val selectedPreset = FactoryPreset.entries.firstOrNull { preset ->
-        bandGains.size == preset.gains.size &&
-            bandGains.indices.all { kotlin.math.abs(bandGains[it] - preset.gains[it]) < 0.5f }
-    }
+    // The match rule itself lives in eqFactoryPresetMatch (pure, JVM-tested — registry #181).
+    val selectedPreset = eqFactoryPresetMatch(bandGains)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(

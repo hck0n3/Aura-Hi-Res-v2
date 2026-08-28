@@ -1,5 +1,7 @@
 package iad1tya.echo.music.eq.data
 
+import kotlin.math.abs
+
 /** Canonical 10-band ISO standard equalizer, optimized for 32-bit floating point processing. */
 object EqConstants {
     val FREQUENCIES = doubleArrayOf(
@@ -92,3 +94,20 @@ enum class FactoryPreset(val displayName: String, val description: String, val g
 
     AURA_HI_RES("Aura Hi-Res", "La firma de la casa: graves con cuerpo, medios limpios y agudos con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(6.0f, 4.0f, 1.0f, -1.0f, 0f, 0f, 1.0f, 0f, 1.0f, 2.0f))
 }
+
+/** Per-band tolerance (dB) used to decide whether the live gains still "are" a factory preset. */
+const val FACTORY_PRESET_MATCH_TOLERANCE_DB = 0.5f
+
+/**
+ * Matches a set of band gains against the factory presets.
+ *
+ * Derived from the CANONICAL enum order on purpose: several curves can match within the
+ * [FACTORY_PRESET_MATCH_TOLERANCE_DB] tolerance (FLAT matches anything near zero), so the winner
+ * must not depend on display order. Pure and allocation-light so the EQ screen can call it on
+ * every recomposition — and so the match rule is testable off-device (registry #181).
+ */
+fun eqFactoryPresetMatch(bandGains: FloatArray): FactoryPreset? =
+    FactoryPreset.entries.firstOrNull { preset ->
+        bandGains.size == preset.gains.size &&
+            bandGains.indices.all { abs(bandGains[it] - preset.gains[it]) < FACTORY_PRESET_MATCH_TOLERANCE_DB }
+    }

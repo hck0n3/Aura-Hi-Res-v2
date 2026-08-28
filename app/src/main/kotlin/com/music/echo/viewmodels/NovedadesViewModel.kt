@@ -21,7 +21,6 @@ import iad1tya.echo.music.db.entities.ReleaseRadarItem
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.db.entities.UpcomingReleaseEntity
 import iad1tya.echo.music.extensions.filterExplicit
-import iad1tya.echo.music.notices.OwnerAnnouncements
 import iad1tya.echo.music.releaseradar.ReleaseRadarWorker
 import iad1tya.echo.music.spotify.Spotify
 import iad1tya.echo.music.utils.dataStore
@@ -136,15 +135,6 @@ constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val next = !item.presaved
             database.setUpcomingPresaved(item.id, next)
-            if (next) {
-                OwnerAnnouncements.recordLocal(
-                    context,
-                    id = "presave-${item.id}",
-                    title = item.title,
-                    body = item.artistName,
-                    priority = "info",
-                )
-            }
         }
     }
 

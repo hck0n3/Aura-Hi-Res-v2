@@ -235,10 +235,6 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             // publishes shazam_recognition_config.json — cures a Shazam rotation with no app update.
             iad1tya.echo.music.recognition.RemoteRecognitionConfig.loadCache(applicationContext)
             iad1tya.echo.music.recognition.RemoteRecognitionConfig.refresh(applicationContext)
-
-            // Owner notices inbox (Ajustes ▸ Avisos) — cache first, then soft refresh.
-            iad1tya.echo.music.notices.OwnerAnnouncements.loadCache(applicationContext)
-            iad1tya.echo.music.notices.OwnerAnnouncements.refresh(applicationContext)
         }
 
         // HALLAZGO-013 (2026-08-25): migración one-time y nunca destructiva — las credenciales que
@@ -1747,8 +1743,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             // completion that enqueues the library syncs can still be cancelled afterwards. Watch
             // the logged-out -> logged-in EDGE here (process scope, never cancelled) and enqueue
             // the syncs on the transition, so the library fills even if the LoginScreen is gone.
-            // The first emission is just the persisted cookie replayed at startup: skip it, the
-            // cold-start recovery below handles that case with its never-synced check instead.
+            // #182: the predicate also fires on a logged-in -> logged-in change with a different
+            // cookie (account switch A -> B), which used to leave the library pinned to the
+            // previous account. The first emission is just the persisted cookie replayed at
+            // startup: skip it, the cold-start recovery below handles that case with its
+            // never-synced check instead.
             var previousCookie: String? = null
             var firstEmission = true
             dataStore.data

@@ -15,8 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,7 +59,6 @@ import iad1tya.echo.music.ui.newui.AuraPanel
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
-import iad1tya.echo.music.ui.newui.rememberUnreadOwnerNoticesCount
 import iad1tya.echo.music.utils.SupportContact
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AccountSettingsViewModel
@@ -101,7 +98,6 @@ fun SettingDialoge(
     val primaryColor = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface
     val mutedColor = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
     val premium = skin.enabled && skin.darkGround
-    val unreadNotices = rememberUnreadOwnerNoticesCount()
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -116,7 +112,6 @@ fun SettingDialoge(
                     accountName = accountName,
                     accountEmail = accountEmail,
                     accountImageUrl = accountImageUrl,
-                    unreadNotices = unreadNotices,
                     primaryColor = primaryColor,
                     mutedColor = mutedColor,
                     titleStyle = premium || skin.enabled,
@@ -164,7 +159,6 @@ private fun SettingDialogeBody(
     accountName: String,
     accountEmail: String,
     accountImageUrl: String?,
-    unreadNotices: Int,
     primaryColor: androidx.compose.ui.graphics.Color,
     mutedColor: androidx.compose.ui.graphics.Color,
     titleStyle: Boolean,
@@ -177,7 +171,6 @@ private fun SettingDialogeBody(
     tight: Boolean,
     allowScroll: Boolean,
 ) {
-    val hasUnread = unreadNotices > 0
     val context = LocalContext.current
     val vPad = if (tight) 8.dp else 16.dp
     val hPad = if (tight) 8.dp else 12.dp
@@ -234,22 +227,14 @@ private fun SettingDialogeBody(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                BadgedBox(
-                    badge = {
-                        if (hasUnread) {
-                            Badge(containerColor = MaterialTheme.colorScheme.error)
-                        }
-                    },
-                ) {
-                    AsyncImage(
-                        model = accountImageUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(avatar)
-                            .clip(CircleShape),
-                    )
-                }
+                AsyncImage(
+                    model = accountImageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(avatar)
+                        .clip(CircleShape),
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = accountName.ifBlank { stringResource(R.string.account) },
@@ -392,28 +377,6 @@ private fun SettingDialogeBody(
             title = "App",
             compact = true,
             items = listOf(
-                Material3SettingsItem(
-                    title = { Text(stringResource(R.string.owner_notices_title)) },
-                    description = {
-                        Text(
-                            stringResource(R.string.owner_notices_settings_desc),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    icon = painterResource(R.drawable.notification),
-                    showBadge = hasUnread,
-                    trailingContent = {
-                        if (hasUnread) {
-                            Text(
-                                text = unreadNotices.toString(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    },
-                    onClick = { onNavigate("settings/notices") },
-                ),
                 Material3SettingsItem(
                     title = { Text("Actualizaciones") },
                     description = {

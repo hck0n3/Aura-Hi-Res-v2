@@ -635,13 +635,6 @@
     <string name="migrate_open_in_library">Abrir en Biblioteca</string>
     <string name="migrate_another">Migrar otra</string>
     <string name="migrate_export_failures_csv">Exportar no migrados (CSV)</string>
-    <string name="owner_notices_title">Avisos</string>
-    <string name="owner_notices_empty">No hay avisos activos. Caducan 24 horas después de leerlos.</string>
-    <string name="owner_notices_mark_all_read">Marcar todo leído</string>
-    <string name="owner_notices_mark_read">Marcar leído</string>
-    <string name="owner_notices_settings_desc">Mensajes y alertas de Aura</string>
-    <string name="owner_notices_popup_ok">Entendido</string>
-    <string name="owner_notices_popup_eyebrow">AVISO DE AURA</string>
     <string name="delete_exported_video">Eliminar del dispositivo</string>
     <string name="delete_exported_video_desc">Quitar de Aura y borrar el archivo del almacenamiento</string>
     <string name="delete_exported_video_done">Vídeo eliminado</string>

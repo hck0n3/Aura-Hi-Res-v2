@@ -287,16 +287,6 @@ fun AuraSettingsScreen(
             ),
         ),
         AuraSettingsGroup(
-            icon = AuraIcons.Settings,
-            title = stringResource(R.string.owner_notices_title),
-            entries = listOf(
-                AuraSettingsEntry(
-                    title = stringResource(R.string.owner_notices_title),
-                    description = stringResource(R.string.owner_notices_settings_desc),
-                ) { navController.navigate("settings/notices") },
-            ),
-        ),
-        AuraSettingsGroup(
             icon = AuraIcons.Share,
             title = stringResource(R.string.feedback_title),
             entries = listOf(

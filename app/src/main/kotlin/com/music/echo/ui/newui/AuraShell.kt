@@ -34,8 +34,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -225,9 +223,8 @@ fun AuraGlobalActions(
             tint = if (offlineMode) AuraPalette.Teal else AuraPalette.OnGroundFaint,
         )
         // Cuenta / ajustes. With a signed-in avatar it is the avatar, exactly as today; otherwise the
-        // render's cog. Drawn small, touched at 48 dp. Unread owner notices → badge on the avatar/gear.
+        // render's cog. Drawn small, touched at 48 dp.
         val accountLabel = stringResource(R.string.account)
-        val unreadNotices = rememberUnreadOwnerNoticesCount()
         if (accountImageUrl != null) {
             Box(
                 modifier = Modifier
@@ -243,38 +240,22 @@ fun AuraGlobalActions(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                BadgedBox(
-                    badge = {
-                        if (unreadNotices > 0) {
-                            Badge(containerColor = MaterialTheme.colorScheme.error)
-                        }
-                    },
-                ) {
-                    AsyncImage(
-                        model = accountImageUrl,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape),
-                    )
-                }
-            }
-        } else {
-            BadgedBox(
-                badge = {
-                    if (unreadNotices > 0) {
-                        Badge(containerColor = MaterialTheme.colorScheme.error)
-                    }
-                },
-            ) {
-                AuraIconButton(
-                    icon = AuraIcons.Settings,
-                    contentDescription = accountLabel,
-                    onClick = onAccountClick,
-                    size = 20.dp,
-                    tint = AuraPalette.OnGroundFaint,
+                AsyncImage(
+                    model = accountImageUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape),
                 )
             }
+        } else {
+            AuraIconButton(
+                icon = AuraIcons.Settings,
+                contentDescription = accountLabel,
+                onClick = onAccountClick,
+                size = 20.dp,
+                tint = AuraPalette.OnGroundFaint,
+            )
         }
     }
 }

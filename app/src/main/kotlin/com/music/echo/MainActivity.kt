@@ -66,8 +66,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialogDefaults
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -254,7 +252,6 @@ import iad1tya.echo.music.ui.newui.AuraPaletteSync
 import iad1tya.echo.music.ui.newui.BottomSheetPlayerHost
 import iad1tya.echo.music.ui.newui.LocalAuraTopActions
 import iad1tya.echo.music.ui.newui.rememberNewUiEnabled
-import iad1tya.echo.music.ui.newui.rememberUnreadOwnerNoticesCount
 import iad1tya.echo.music.ui.player.NowPlayingSidePanel
 import iad1tya.echo.music.ui.screens.Screens
 import iad1tya.echo.music.widget.PlaylistWidgetReceiver
@@ -350,7 +347,6 @@ class MainActivity : ComponentActivity() {
     // the key didn't change, so we need a separate signal).
     private var pipExitExpandTrigger by mutableStateOf(0)
     private var pipPlayPauseJob: kotlinx.coroutines.Job? = null
-    private var noticesPollJob: kotlinx.coroutines.Job? = null
     // Receives the PiP RemoteAction taps (play/pause, next, prev) and drives the player.
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -426,21 +422,6 @@ class MainActivity : ComponentActivity() {
         // external controls work normally (onServiceConnected covers the cold-start bind-after-onStart case).
         playerConnection?.service?.onAppForegrounded()
 
-        // Notices: force pull on every open/resume, then poll about once per hour while resumed.
-        noticesPollJob?.cancel()
-        noticesPollJob = lifecycleScope.launch(Dispatchers.IO) {
-            runCatching {
-                iad1tya.echo.music.notices.OwnerAnnouncements.loadCache(applicationContext)
-                iad1tya.echo.music.notices.OwnerAnnouncements.refresh(applicationContext, force = true)
-            }
-            while (true) {
-                kotlinx.coroutines.delay(60L * 60L * 1_000L)
-                runCatching {
-                    iad1tya.echo.music.notices.OwnerAnnouncements.refresh(applicationContext, force = true)
-                }
-            }
-        }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1000)
@@ -459,8 +440,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
-        noticesPollJob?.cancel()
-        noticesPollJob = null
         if (isServiceBound) {
             runCatching { unbindService(serviceConnection) }
             isServiceBound = false
@@ -1732,32 +1711,21 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             }
                                              IconButton(onClick = { showSettingDialoge = true }) {
-                                                val unreadNotices = rememberUnreadOwnerNoticesCount()
-                                                BadgedBox(
-                                                    badge = {
-                                                        if (unreadNotices > 0) {
-                                                            Badge(
-                                                                containerColor = MaterialTheme.colorScheme.error,
-                                                            )
-                                                        }
-                                                    },
-                                                ) {
-                                                    if (accountImageUrl != null) {
-                                                        AsyncImage(
-                                                            model = accountImageUrl,
-                                                            contentDescription = stringResource(R.string.account),
-                                                            modifier = Modifier
-                                                                .size(24.dp)
-                                                                .clip(CircleShape)
-                                                        )
-                                                     } else {
-                                                         Icon(
-                                                             painter = painterResource(R.drawable.settings),
-                                                             contentDescription = stringResource(R.string.account),
-                                                             modifier = Modifier.size(24.dp)
-                                                         )
-                                                     }
-                                                }
+                                                if (accountImageUrl != null) {
+                                                    AsyncImage(
+                                                        model = accountImageUrl,
+                                                        contentDescription = stringResource(R.string.account),
+                                                        modifier = Modifier
+                                                            .size(24.dp)
+                                                            .clip(CircleShape)
+                                                    )
+                                                 } else {
+                                                     Icon(
+                                                         painter = painterResource(R.drawable.settings),
+                                                         contentDescription = stringResource(R.string.account),
+                                                         modifier = Modifier.size(24.dp)
+                                                     )
+                                                 }
                                             }
                                         },
                                         scrollBehavior = topAppBarScrollBehavior,
@@ -2244,11 +2212,6 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         )
-                    }
-
-                    // Owner notices popup: after welcome so first-run tour stays first.
-                    if (!showWelcomeDialog) {
-                        iad1tya.echo.music.ui.newui.OwnerNoticesWarmup()
                     }
 
                     if (showBatteryReliabilityDialog) {

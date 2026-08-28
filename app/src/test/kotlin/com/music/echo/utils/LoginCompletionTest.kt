@@ -54,6 +54,14 @@ class LoginCompletionTest {
     }
 
     @Test
+    fun `the cookie watcher fires on account switch between two logged sessions`() {
+        // Registry #182: switching account A -> B (both logged) must re-sync the library; the
+        // old edge-only rule left it pinned to the previous account.
+        val otherAccountCookie = "HSID=zzz; SSID=yyy; SAPISID=other456; __Secure-3PSAPISID=other456"
+        assertTrue(shouldSyncOnCookieChange(loggedCookie, otherAccountCookie))
+    }
+
+    @Test
     fun `the cookie watcher stays quiet on re-emission and on logout`() {
         // Cold start re-emits the persisted cookie: NOT a new login.
         assertFalse(shouldSyncOnCookieChange(loggedCookie, loggedCookie))
@@ -63,6 +71,22 @@ class LoginCompletionTest {
         assertFalse(shouldSyncOnCookieChange(loggedCookie, null))
         assertFalse(shouldSyncOnCookieChange(loggedCookie, ""))
         assertFalse(shouldSyncOnCookieChange(loggedCookie, guestCookie))
+    }
+
+    @Test
+    fun `the login target is the music youtube origin`() {
+        assertTrue(isLoginTargetUrl("https://music.youtube.com"))
+        assertTrue(isLoginTargetUrl("https://music.youtube.com/library"))
+        assertTrue(isLoginTargetUrl("https://music.youtube.com/?foo=bar"))
+    }
+
+    @Test
+    fun `google and other origins are not the login target`() {
+        assertFalse(isLoginTargetUrl(null))
+        assertFalse(isLoginTargetUrl(""))
+        assertFalse(isLoginTargetUrl("https://accounts.google.com/v3/signin/identifier"))
+        assertFalse(isLoginTargetUrl("https://www.youtube.com/"))
+        assertFalse(isLoginTargetUrl("http://music.youtube.com"))
     }
 
     @Test
