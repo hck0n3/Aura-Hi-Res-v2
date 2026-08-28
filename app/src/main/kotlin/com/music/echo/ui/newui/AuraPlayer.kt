@@ -1848,8 +1848,17 @@ private fun AuraPlayerShape(
                     .windowInsetsPadding(
                         WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.End)
                     )
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .size(22.dp),
+                    // REAL touch target (owner report: the button needed several taps, and a missed tap
+                    // leaked to the gestures underneath — it even changed the song). The clickable inside
+                    // [CastButton] is a 40 dp circle, but the old 22 dp box left it overflowing the layout
+                    // bounds and Compose does NOT hit-test past a node's bounds, so only the central 22 dp
+                    // ever answered. The box is now the full 40 dp: no overflow, the whole circle answers on
+                    // the first tap, and the drawn icon stays put (it was already centred in the clickable).
+                    // 8 dp end + 40 dp box = 48 dp from the screen edge, which the header's 40 dp end
+                    // reservation (plus its own 8 dp) still clears exactly; 4 dp vertical keeps the 40 dp
+                    // box inside the 48 dp header so it never spills onto the artwork's swipe-to-skip.
+                    .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp)
+                    .size(40.dp),
                 tintColor = AuraPalette.OnGround,
             )
         }
