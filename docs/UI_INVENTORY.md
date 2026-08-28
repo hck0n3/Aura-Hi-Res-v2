@@ -535,6 +535,9 @@ La barra tiene **cuatro implementaciones distintas** según el ajuste de estilo.
 |---|---|---|---|---|---|
 | **Cast** / **Stop casting** *(hardcoded, en inglés — contentDescription)* | Reproductor > esquina sup. der., todos los layouts | colocación `app/.../ui/player/Player.kt:3549` · onClick `app/src/gms/kotlin/com/music/echo/ui/component/CastButton.kt:138` | navegación | ocasional | **solo en la compilación `gms`** (en FOSS es un stub vacío), `EnableGoogleCast` ON, SDK disponible, sin PiP, cola no expandida, controles visibles |
 | Selector de dispositivos Cast (hoja) | Reproductor > Cast | `app/src/gms/kotlin/com/music/echo/ui/component/CastButton.kt:186` | navegación | ocasional | igual |
+| **Cast** *(overlay TopEnd; ÚNICO botón de esa esquina)* | Reproductor Aura > cabecera | `ui/newui/AuraPlayer.kt:1845-1848` | navegación | ocasional | mismas condiciones que el clásico |
+| Títulos con reserva de 40 dp para no correr bajo el Cast | Reproductor Aura > cabecera central | `ui/newui/AuraPlayer.kt:902-910` | informativo | constante | la reserva se anula con la letra abierta |
+| **⋯ Menú de la letra** *(solo con letra abierta; el «Más opciones» trasero se eliminó — petición del dueño)* | Reproductor Aura > cabecera | `ui/newui/AuraPlayer.kt:938-965` | acción secundaria | ocasional | **solo con `showInlineLyrics`**; el menú del reproductor sigue vivo vía «Más opciones» de la cola (`Queue.kt`) y el botón more de la barra de cola (`QueueHost onMore`) |
 
 ## 2.12 Mini reproductor
 
@@ -1306,15 +1309,15 @@ algo. Una captura de pantalla nunca muestra más de la mitad.
 
 ## 10.1 Inicio sin conexión
 
-Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo. **Todo hardcoded.**
+Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo. Textos en `strings.xml` (traducidos).
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| **«Modo sin conexión»** *(banner, hardcoded)* | Inicio sin conexión | `ui/screens/OfflineHome.kt:166` | informativo | constante | siempre en este modo |
-| **«Solo descargas. Desactívalo en Ajustes…»** *(hardcoded)* — ⚠️ **no es pulsable** | Inicio sin conexión | `ui/screens/OfflineHome.kt:173` | informativo | constante | siempre |
-| **«Aún no tienes canciones descargadas…»** *(hardcoded)* — sin botón de acción | Inicio sin conexión > vacío | `ui/screens/OfflineHome.kt:83` | informativo | rara | sin descargas |
-| Fila de canción → reproducir la cola «Descargas» | Inicio sin conexión | `ui/screens/OfflineHome.kt:114-126` | acción primaria | constante | con descargas |
-| Fila *(pulsación larga)* → menú de canción; **⋯** | Inicio sin conexión | `ui/screens/OfflineHome.kt:127-136`, `:96-111` | acción secundaria | diaria | igual |
+| **«Modo sin conexión»** *(banner)* | Inicio sin conexión | `ui/screens/OfflineHome.kt:185` (banner completo `:162-203`, colocado `:82-86`) | informativo | constante | siempre en este modo |
+| **«Solo descargas. La reproducción no usará internet.»** + botón **«Volver online»** *(desactiva el modo desde la propia pantalla)* | Inicio sin conexión | `ui/screens/OfflineHome.kt:192`, `:197-199` | informativo / acción | constante | siempre |
+| **«Aún no tienes canciones descargadas…»** — sin botón de acción | Inicio sin conexión > vacío | `ui/screens/OfflineHome.kt:88-95` | informativo | rara | sin descargas |
+| **Renglón Apple** de canción → reproducir la cola «Descargas» | Inicio sin conexión | `ui/screens/OfflineHome.kt:104-155` (fila `AuraSongRow` dentro de `AuraAppleListRowFrame`; misma estética que Local — petición del dueño, v2.0.16) | acción primaria | constante | con descargas |
+| Fila *(pulsación larga)* → menú de canción; **⋯** | Inicio sin conexión | `ui/screens/OfflineHome.kt:135-153` | acción secundaria | diaria | igual |
 
 ---
 
@@ -1465,14 +1468,14 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 |---|---|---|---|---|---|
 | Chip **Local** | Historial > chips | `ui/screens/HistoryScreen.kt:215` | conmutador | ocasional | siempre |
 | Chip **Remoto** | Historial > chips | `ui/screens/HistoryScreen.kt:216` | conmutador | ocasional | **solo con sesión de YouTube iniciada** |
-| Fila remota → reproducir; pulsación larga → menú; **⋯** | Historial remoto | `ui/screens/HistoryScreen.kt:273-294`, `:251-269` | acción primaria / secundaria | diaria | solo en modo Remoto |
-| **Hoy / Ayer / Esta semana / La semana pasada / `aaaa/MM`** *(cabeceras pegajosas)* | Historial local | `ui/screens/HistoryScreen.kt:302-309` | informativo | constante | solo en modo Local |
-| Fila local → reproducir / marcar | Historial local | `ui/screens/HistoryScreen.kt:357-372` | acción primaria | diaria | siempre |
-| Fila local *(pulsación larga)* → entra en modo selección | Historial local | `ui/screens/HistoryScreen.kt:373-379` | acción secundaria | ocasional | fuera del modo selección |
-| Casilla de selección / **⋯** de fila | Historial local | `ui/screens/HistoryScreen.kt:331-334`, `:336-352` | conmutador / secundaria | diaria | según el modo |
-| **FAB aleatorio** | Historial > FAB | `ui/screens/HistoryScreen.kt:392-420` | acción primaria | diaria | solo con resultados y al desplazar hacia arriba |
-| **Historial** *(título)* / **%d seleccionadas** / campo **Buscar** | Historial > barra | `ui/screens/HistoryScreen.kt:452`, `:426`, `:428-450` | informativo / primaria | constante | según el modo |
-| Cerrar selección / Volver *(long-press = inicio)* / Seleccionar todo / Acciones de selección / Buscar | Historial > barra | `ui/screens/HistoryScreen.kt:457-527` | navegación / conmutador / primaria | ocasional | según el modo; **acciones deshabilitadas con selección vacía** |
+| Fila remota → reproducir; pulsación larga → menú; **⋯** | Historial remoto | `ui/screens/HistoryScreen.kt:247-300` (⋯ `:253-271`) | acción primaria / secundaria | diaria | solo en modo Remoto; **se queda con el diseño clásico a propósito: los elementos de YouTube pueden llevar portadas de vídeo** |
+| **Hoy / Ayer / Esta semana / La semana pasada / `aaaa/MM`** *(cabeceras pegajosas)* | Historial local | `ui/screens/HistoryScreen.kt:304-311` | informativo | constante | solo en modo Local |
+| **Renglón Apple** local → reproducir / marcar | Historial local | `ui/screens/HistoryScreen.kt:329-383` (fila `AuraSongRow` dentro de `AuraAppleListRowFrame`; misma estética que Local/Descargas — petición del dueño, v2.0.16) | acción primaria | diaria | siempre |
+| Fila local *(pulsación larga)* → entra en modo selección | Historial local | `ui/screens/HistoryScreen.kt:365-372` | acción secundaria | ocasional | fuera del modo selección |
+| Casilla de selección *(nativa de `AuraSongRow`, parámetro `selected`)* / **⋯** de fila | Historial local | `ui/screens/HistoryScreen.kt:347-348`, `:373-382` | conmutador / secundaria | diaria | según el modo |
+| **FAB aleatorio** | Historial > FAB | `ui/screens/HistoryScreen.kt:391-421` | acción primaria | diaria | solo con resultados y al desplazar hacia arriba |
+| **Historial** *(título)* / **%d seleccionadas** / campo **Buscar** | Historial > barra | `ui/screens/HistoryScreen.kt:451`, `:426`, `:428-449` | informativo / primaria | constante | según el modo |
+| Cerrar selección / Volver *(long-press = inicio)* / Seleccionar todo / Acciones de selección / Buscar | Historial > barra | `ui/screens/HistoryScreen.kt:453-479`, `:482-492`, `:493-512`, `:514-522` | navegación / conmutador / primaria | ocasional | según el modo; **acciones deshabilitadas con selección vacía** |
 
 ## 13.2 Estadísticas
 
@@ -1530,8 +1533,9 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 | **Comentarios** *(icono chat)* → `listen_together/chat` | Juntos > tarjeta de sala | `ui/screens/ListenTogetherScreen.kt:735-754` | navegación | diaria | solo en sala |
 | **Copiar enlace** | Juntos > tarjeta de sala | `ui/screens/ListenTogetherScreen.kt:768-786` | acción secundaria | ocasional | **solo el anfitrión** |
 | **Copiar código** | Juntos > tarjeta de sala | `ui/screens/ListenTogetherScreen.kt:788-804` | acción secundaria | ocasional | **solo el anfitrión** |
-| **Usuarios conectados (N)** + avatar → diálogo de gestión | Juntos > usuarios | `ui/screens/ListenTogetherScreen.kt:829-868` | acción secundaria | ocasional | el avatar solo es pulsable siendo anfitrión y sobre otro usuario |
-| Insignias **Anfitrión** / **Tú** | Juntos > avatar | `ui/screens/ListenTogetherScreen.kt:898-948` | informativo | constante | según el rol |
+| **Usuarios conectados (N)** + avatar → diálogo de gestión | Juntos > usuarios | `ui/screens/ListenTogetherScreen.kt:859-906` (llamada `:324-330`) | acción secundaria | ocasional | el avatar solo es pulsable siendo anfitrión y sobre otro usuario |
+| Insignias **Anfitrión** / **Tú** | Juntos > avatar | `ui/screens/ListenTogetherScreen.kt:1008-1023` | informativo | constante | según el rol |
+| **«Cargando…»** *(bajo el nombre del avatar)* | Juntos > avatar | `ui/screens/ListenTogetherScreen.kt:1025-1033` (cálculo `:900`, estado `bufferingUsers` `:135`/`:329`) | informativo | ocasional | solo mientras ESE usuario está en buffering (coincidencia por ID o nombre); añadido v2.0.16 |
 | **Solicitudes de conexión** + **Aprobar** / **Rechazar** | Juntos > solicitudes | `ui/screens/ListenTogetherScreen.kt:969-1023` | acción primaria / destructiva | ocasional | solo anfitrión con solicitudes |
 | **Sugerencias pendientes** + **Aprobar** / **Rechazar** | Juntos > sugerencias | `ui/screens/ListenTogetherScreen.kt:1047-1100` | acción primaria / destructiva | ocasional | solo anfitrión con sugerencias |
 | Pestañas **Crear** / **Unirse** | Juntos > selector | `ui/screens/ListenTogetherScreen.kt:1146-1181` | navegación | diaria | solo fuera de sala |
@@ -1663,6 +1667,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Novedades → `release_radar` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:393-399 / :715-721 | navegación | ocasional | siempre |
 | Podcasts → `podcasts` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:400-406 / :722-728 | navegación | ocasional | siempre |
 | Local → `local_songs` (media fila) | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:407-415 / :729-737 | navegación | diaria | siempre (duplica el chip "Local") |
+| **Local (tesela del hub Aura, junto a Podcasts)** → activa el chip LOCAL in situ (misma `LocalSongScreen` embebida, misma hoja de escaneo; sin segunda ruta) | Biblioteca > hub Aura | app/src/main/kotlin/com/music/echo/ui/newui/AuraLibraryTabs.kt:483-488 (`AuraLibraryHub` :318; tesela Podcasts :473-477) | navegación | diaria | siempre — **visible nada más abrir Biblioteca (petición del dueño, v2.0.16; antes solo era alcanzable vía el último chip de la fila)** |
 | Artistas (título de sección) | Biblioteca > separador | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:421-426 / :743-748 | informativo | constante | solo si `artistItems.isNotEmpty()` |
 | Fila/tarjeta de artista → `artist/{id}` | Biblioteca > sección Artistas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:447 / :761 | navegación | diaria | siempre que haya artistas |
 | ⋯ del artista → `ArtistMenu` (solo icono, cD = null) | Biblioteca > sección Artistas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:436-442 | acción secundaria | ocasional | solo en vista lista |
@@ -1818,6 +1823,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | (✕ quitar carpeta) (solo icono, cD = null) | Local > hoja > chip de carpeta | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:908-915 / :1140-1157 | destructiva | rara | deshabilitado mientras escanea |
 | Escanear dispositivo (botón principal) | Local > hoja > botón inferior | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:926-986 (texto :663) | acción primaria | ocasional | solo con permiso; deshabilitado mientras escanea |
 | Permitir (botón principal) | Local > hoja > botón inferior | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:926-986 (texto :665) | acción primaria | rara | solo si NO hay permiso |
+| **Auto-escaneo al conceder el permiso** *(sin segundo toque: conceder el permiso del sistema arranca el escaneo solo)* | Local > hoja de escaneo | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:226-234 (acción primaria de la hoja :310-317) | acción primaria | rara | solo la primera vez — añadido v2.0.16 |
 | Escaneando dispositivo… (texto del botón) | Local > hoja > botón inferior | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:977 | informativo | rara | solo si escanea |
 | (banner de error crudo) | Local > hoja > pie | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:988-1019 | informativo | rara | solo si `scanState.errorMessage != null` |
 
@@ -1897,16 +1903,16 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| (botón de orden) | Artista > canciones > cabecera | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:110-122 | navegación | diaria | siempre |
-| Fecha añadida (orden) | Artista > canciones > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:117 | conmutador | diaria | solo con el desplegable abierto |
-| Nombre (orden) | Artista > canciones > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:118 | conmutador | diaria | solo con el desplegable abierto |
-| Tiempo de reproducción (orden) | Artista > canciones > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:119 | conmutador | diaria | solo con el desplegable abierto |
+| (botón de orden) | Artista > canciones > cabecera | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:109-122 | navegación | diaria | siempre |
+| Fecha añadida (orden) | Artista > canciones > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:116 | conmutador | diaria | solo con el desplegable abierto |
+| Nombre (orden) | Artista > canciones > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:117 | conmutador | diaria | solo con el desplegable abierto |
+| Tiempo de reproducción (orden) | Artista > canciones > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:118 | conmutador | diaria | solo con el desplegable abierto |
 | "Toggle sort order" (hardcoded) — invertir asc/desc | Artista > canciones > cabecera | app/src/main/kotlin/com/music/echo/ui/component/SortHeader.kt:85-118 | conmutador | diaria | siempre |
-| «%d canciones» | Artista > canciones > cabecera | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:126-130 | informativo | constante | siempre |
-| Fila de canción → reproducir toda la lista desde ahí | Artista > canciones | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:165-178 | acción primaria | constante | cola "Todas las canciones" (:172) |
-| ⋯ de canción (solo icono, cD = null) | Artista > canciones > fila | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:145-160 | acción secundaria | diaria | siempre |
-| (atrás) (solo icono, cD = null) | Artista > canciones > barra superior | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:198-206 | navegación | constante | siempre |
-| Aleatorio (FAB, memoria `AR:`) (cD = null) | Artista > canciones > FAB | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:210-240 | acción primaria | diaria | solo mientras `isScrollingUp` |
+| «%d canciones» | Artista > canciones > cabecera | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:126-129 | informativo | constante | siempre |
+| **Renglón Apple** de canción → reproducir toda la lista desde ahí | Artista > canciones | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:140-190 (fila `AuraSongRow` dentro de `AuraAppleListRowFrame`; misma estética que Local — petición del dueño, v2.0.16) | acción primaria | constante | cola "Todas las canciones" (:164) |
+| ⋯ de canción + pulsación larga → `SongMenu` | Artista > canciones > fila | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:171-189 | acción secundaria | diaria | siempre |
+| (atrás) (solo icono, cD = null) | Artista > canciones > barra superior | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:195-208 | navegación | constante | siempre |
+| Aleatorio (FAB, memoria `AR:`) (cD = null) | Artista > canciones > FAB | app/src/main/kotlin/com/music/echo/ui/screens/artist/ArtistSongsScreen.kt:210-242 | acción primaria | diaria | solo mientras `isScrollingUp` |
 
 ### 17.2.4 Artista > álbumes — `ArtistAlbumsScreen` (ruta `artist/{artistId}/albums`)
 
@@ -3583,7 +3589,7 @@ para el volumen.
 | Gesto | Dónde | archivo:línea | Condicional |
 |---|---|---|---|
 | Pulsación larga → modo multiselección (con háptica) | Álbum, Lista local, Lista online, Auto-lista, En caché, Mi Top | AlbumScreen.kt:824-830 · LocalPlaylistScreen.kt:815-821 · OnlinePlaylistScreen.kt:358-364 · AutoPlaylistScreen.kt:464-470 · CachePlaylistScreen.kt:324-330 · TopPlaylistScreen.kt:380-386 | solo si `!inSelectMode` |
-| Pulsación larga → menú contextual (canción) | Canciones (cuadrícula), Artista, Artista>canciones, Local, Biblioteca | LibrarySongsScreen.kt:456-465 · ArtistScreen.kt:831-840, :979-988 · ArtistSongsScreen.kt:179-188 · LocalSongScreen.kt:466-475 · LibraryMixScreen.kt:506-515 / :804-813 | siempre |
+| Pulsación larga → menú contextual (canción) | Canciones (cuadrícula), Artista, Artista>canciones, Local, Biblioteca | LibrarySongsScreen.kt:456-465 · ArtistScreen.kt:831-840, :979-988 · ArtistSongsScreen.kt:171-180 · LocalSongScreen.kt:466-475 · LibraryMixScreen.kt:506-515 / :804-813 | siempre |
 | Pulsación larga → menú contextual (artista / álbum / lista) | Biblioteca, Artistas, Álbumes, Listas, Álbumes favoritos, Artista, Álbum | Library.kt:77-85, :150-158, :248-286 · LibraryMixScreen.kt:448-453 / :594-603 / :762-767 / :859-868 · ArtistScreen.kt:881-890, :1033-1065 · ArtistItemsScreen.kt:279-307 · AlbumScreen.kt:860-869, :902-911 | siempre. SIN háptica en artistas/álbumes/listas de biblioteca (solo canciones vibran) |
 | ~~Pulsación larga en la flecha atrás → volver al inicio (`backToMain`)~~ **ELIMINADO (0.6.145)** | Artista×5, Álbum, Lista local, Lista online, Auto-lista, En caché, Mi Top | ArtistScreen.kt:1227 · ArtistItemsScreen.kt:330 · ArtistSongsScreen.kt:200 · ArtistAlbumsScreen.kt:179 · ArtistAlbumsGridScreen.kt:70 · AlbumScreen.kt:993 · LocalPlaylistScreen.kt:941-945 · OnlinePlaylistScreen.kt:528-532 · AutoPlaylistScreen.kt:562-566 · CachePlaylistScreen.kt:410-414 · TopPlaylistScreen.kt:465-469 | **YA NO EXISTE.** Gesto oculto que reventaba la pila de navegación sin aviso; `backToMain()` borrado y `IconButton.onLongClick` pasa a opcional (`null`). Ver REGRESSION_REGISTRY fila 111 |
 | Arrastrar para reordenar canciones (`ReorderableItem` + `draggableHandle`) | Lista local | LocalPlaylistScreen.kt:535-549 (estado), :681-684 (item), :777-787 (asa), :551-578 (persistencia DB + `YouTube.moveSongPlaylist`) | `sortType == CUSTOM && !locked && !inSelectMode && !isSearching && editable`; `headerItems = 2` (:530) |
