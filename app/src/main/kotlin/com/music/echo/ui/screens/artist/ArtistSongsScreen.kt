@@ -3,13 +3,11 @@
 package iad1tya.echo.music.ui.screens.artist
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -47,12 +45,14 @@ import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.ui.component.HideOnScrollFAB
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.LocalMenuState
-import iad1tya.echo.music.ui.component.SongListItem
 import iad1tya.echo.music.ui.component.SortHeader
 import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
 import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
 import iad1tya.echo.music.ui.menu.SongMenu
-import iad1tya.echo.music.utils.listItemShape
+import iad1tya.echo.music.ui.newui.AuraAppleCoverDividerInset
+import iad1tya.echo.music.ui.newui.AuraAppleListRowFrame
+import iad1tya.echo.music.ui.newui.AuraSongRow
+import iad1tya.echo.music.ui.newui.auraAppleDurationLabel
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.ArtistSongsViewModel
@@ -134,60 +134,61 @@ fun ArtistSongsScreen(
                 items = songs,
                 key = { _, item -> item.id },
             ) { index, song ->
-                SongListItem(
-                    song = song,
-                    showInLibraryIcon = true,
-                    isActive = song.id == mediaMetadata?.id,
-                    isPlaying = isPlaying,
-                    shape = listItemShape(index, songs.size),
-                    trailingContent = {
-                        IconButton(
-                            onClick = {
-                                menuState.show {
-                                    SongMenu(
-                                        originalSong = song,
-                                        navController = navController,
-                                        onDismiss = menuState::dismiss,
-                                    )
-                                }
-                            },
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.more_vert),
-                                contentDescription = null,
-                            )
-                        }
-                    },
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .combinedClickable(
-                            onClick = {
-                                if (song.id == mediaMetadata?.id) {
-                                    playerConnection.togglePlayPause()
-                                } else {
-                                    playerConnection.playQueue(
-                                        ListQueue(
-                                            title = context.getString(R.string.queue_all_songs),
-                                            items = songs.map { it.toMediaItem() },
-                                            startIndex = index,
-                                        ),
-                                    )
-                                }
-                            },
-                            onLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                menuState.show {
-                                    SongMenu(
-                                        originalSong = song,
-                                        navController = navController,
-                                        onDismiss = menuState::dismiss,
-                                    )
-                                }
-                            },
-                        )
-                        .animateItem(),
-                )
+                // Apple-style renglones (owner request): "all songs" is a PURE song list and is
+                // reached from the Aura artist page, so it gets the same row design as
+                // Local/Downloads/History — unconditional, both shells.
+                AuraAppleListRowFrame(
+                    showDivider = index < songs.lastIndex,
+                    dividerInset = AuraAppleCoverDividerInset,
+                    modifier = Modifier.animateItem(),
+                ) {
+                    AuraSongRow(
+                        title = song.song.title,
+                        subtitle = song.artists.joinToString { it.name },
+                        thumbnailUrl = song.song.thumbnailUrl,
+                        seed = song.id,
+                        isActive = song.id == mediaMetadata?.id,
+                        isPlaying = isPlaying,
+                        liked = song.song.liked,
+                        explicit = song.song.explicit,
+                        inLibrary = song.song.inLibrary != null,
+                        format = song.format,
+                        durationLabel = auraAppleDurationLabel(song.song.duration.takeIf { it > 0 }),
+                        swipeMediaItem = song.toMediaItem(),
+                        onClick = {
+                            if (song.id == mediaMetadata?.id) {
+                                playerConnection.togglePlayPause()
+                            } else {
+                                playerConnection.playQueue(
+                                    ListQueue(
+                                        title = context.getString(R.string.queue_all_songs),
+                                        items = songs.map { it.toMediaItem() },
+                                        startIndex = index,
+                                    ),
+                                )
+                            }
+                        },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            menuState.show {
+                                SongMenu(
+                                    originalSong = song,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+                        },
+                        onMenuClick = {
+                            menuState.show {
+                                SongMenu(
+                                    originalSong = song,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+                        },
+                    )
+                }
             }
         }
 

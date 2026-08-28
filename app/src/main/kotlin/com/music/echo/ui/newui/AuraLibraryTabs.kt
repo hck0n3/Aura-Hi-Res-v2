@@ -317,6 +317,7 @@ private fun AuraSearchField(
 @Composable
 fun AuraLibraryHub(
     navController: NavController,
+    onOpenLocal: () -> Unit,
     viewModel: LibraryMixViewModel = hiltViewModel(),
 ) {
     val menuState = LocalMenuState.current
@@ -473,6 +474,16 @@ fun AuraLibraryHub(
                         AuraIcons.Lyrics,
                         stringResource(R.string.podcasts),
                         { navController.navigate("podcasts") },
+                        tile,
+                    )
+                    // Owner request: Local must be visible the moment Biblioteca opens — it used to be
+                    // reachable only through the LAST chip of a scrolling row, i.e. hidden. The tile sits
+                    // next to Podcasts and switches to the LOCAL chip in-place (same embedded
+                    // LocalSongScreen, same scan sheet — no second route, no second screen).
+                    AuraTile(
+                        AuraIcons.Device,
+                        stringResource(R.string.filter_local),
+                        onOpenLocal,
                         tile,
                     )
                 }

@@ -830,6 +830,7 @@
     <string name="listen_together_no_blocked_users">No blocked users</string>
     <string name="unblock">Unblock</string>
     <string name="user_blocked_by_host">User blocked by host</string>
+    <string name="listen_together_user_buffering">Loading…</string>
 
     <!-- AI Lyrics Translation -->
     <string name="ai_lyrics_translation">AI Lyrics Translation</string>

@@ -516,6 +516,7 @@
     <string name="listen_together_no_blocked_users">No hay usuarios bloqueados</string>
     <string name="unblock">Desbloquear</string>
     <string name="user_blocked_by_host">Usuario bloqueado por el anfitrión</string>
+    <string name="listen_together_user_buffering">Cargando…</string>
     <string name="ai_lyrics_translation">Traducción de letras con IA</string>
     <string name="ai_translating_lyrics">Traduciendo letras...</string>
     <string name="ai_lyrics_translated">Letras traducidas</string>

@@ -1,7 +1,6 @@
 package iad1tya.echo.music.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,11 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,8 +42,11 @@ import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.ui.component.EmptyPlaceholder
 import iad1tya.echo.music.ui.component.LocalMenuState
-import iad1tya.echo.music.ui.component.SongListItem
 import iad1tya.echo.music.ui.menu.SongMenu
+import iad1tya.echo.music.ui.newui.AuraAppleCoverDividerInset
+import iad1tya.echo.music.ui.newui.AuraAppleListRowFrame
+import iad1tya.echo.music.ui.newui.AuraSongRow
+import iad1tya.echo.music.ui.newui.auraAppleDurationLabel
 import iad1tya.echo.music.utils.rememberPreference
 
 /**
@@ -92,33 +93,32 @@ fun DownloadedOnlyView(
                 )
             }
         } else {
-            items(
+            itemsIndexed(
                 items = downloadedSongs,
-                key = { it.id },
-            ) { song ->
-                SongListItem(
-                    song = song,
-                    isActive = song.id == mediaMetadata?.id,
-                    isPlaying = isPlaying,
-                    trailingContent = {
-                        IconButton(
-                            onClick = {
-                                menuState.show {
-                                    SongMenu(
-                                        originalSong = song,
-                                        navController = navController,
-                                        onDismiss = menuState::dismiss,
-                                    )
-                                }
-                            }
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.more_vert),
-                                contentDescription = null,
-                            )
-                        }
-                    },
-                    modifier = Modifier.combinedClickable(
+                key = { _, song -> song.id },
+            ) { index, song ->
+                // Apple-style renglones (owner request): the offline body is a PURE song list — no
+                // video covers anywhere in it — so it gets the same row design as Local and the
+                // library lists. Same frame + hairline divider + trailing duration LocalSongScreen
+                // uses, and likewise unconditional: this view renders inside BOTH shells.
+                AuraAppleListRowFrame(
+                    showDivider = index < downloadedSongs.lastIndex,
+                    dividerInset = AuraAppleCoverDividerInset,
+                    modifier = Modifier.animateItem(),
+                ) {
+                    AuraSongRow(
+                        title = song.song.title,
+                        subtitle = song.artists.joinToString { it.name },
+                        thumbnailUrl = song.song.thumbnailUrl,
+                        seed = song.id,
+                        isActive = song.id == mediaMetadata?.id,
+                        isPlaying = isPlaying,
+                        liked = song.song.liked,
+                        explicit = song.song.explicit,
+                        inLibrary = song.song.inLibrary != null,
+                        format = song.format,
+                        durationLabel = auraAppleDurationLabel(song.song.duration.takeIf { it > 0 }),
+                        swipeMediaItem = song.toMediaItem(),
                         onClick = {
                             if (song.id == mediaMetadata?.id) {
                                 playerConnection.togglePlayPause()
@@ -127,7 +127,7 @@ fun DownloadedOnlyView(
                                     ListQueue(
                                         title = downloadsTitle,
                                         items = downloadedSongs.map { it.toMediaItem() },
-                                        startIndex = downloadedSongs.indexOfFirst { it.id == song.id },
+                                        startIndex = index,
                                     )
                                 )
                             }
@@ -142,8 +142,17 @@ fun DownloadedOnlyView(
                                 )
                             }
                         },
-                    ),
-                )
+                        onMenuClick = {
+                            menuState.show {
+                                SongMenu(
+                                    originalSong = song,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+                        },
+                    )
+                }
             }
         }
     }

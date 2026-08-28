@@ -571,6 +571,7 @@
     <string name="listen_together_no_blocked_users">No hay usuarios bloqueados</string>
     <string name="unblock">Desbloquear</string>
     <string name="user_blocked_by_host">Usuario bloqueado por el anfitrión</string>
+    <string name="listen_together_user_buffering">Cargando…</string>
     <string name="together">Juntos</string>
     <string name="reconnect">Reconectar</string>
     <string name="enter_room_code">Ingresar código de sala</string>

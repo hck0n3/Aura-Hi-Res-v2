@@ -227,6 +227,10 @@ fun LocalSongScreen(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         hasStoragePermission = granted
+        // The user tapped "Escanear", the system asked for the permission and they granted it: the
+        // scan they asked for now RUNS instead of waiting for a second tap on the same button.
+        // `scanDevice` guards on `isScanning`, so a double fire is a no-op.
+        if (granted) viewModel.scanDevice(scanConfig)
     }
 
     val includedFolderPickerLauncher = rememberLauncherForActivityResult(

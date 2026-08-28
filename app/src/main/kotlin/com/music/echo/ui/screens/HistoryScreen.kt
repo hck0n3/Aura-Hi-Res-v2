@@ -73,11 +73,14 @@ import iad1tya.echo.music.ui.component.HideOnScrollFAB
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.component.NavigationTitle
-import iad1tya.echo.music.ui.component.SongListItem
 import iad1tya.echo.music.ui.component.YouTubeListItem
 import iad1tya.echo.music.ui.menu.SelectionMediaMetadataMenu
 import iad1tya.echo.music.ui.menu.SongMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
+import iad1tya.echo.music.ui.newui.AuraAppleCoverDividerInset
+import iad1tya.echo.music.ui.newui.AuraAppleListRowFrame
+import iad1tya.echo.music.ui.newui.AuraSongRow
+import iad1tya.echo.music.ui.newui.auraAppleDurationLabel
 import iad1tya.echo.music.utils.listItemShape
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.DateAgo
@@ -319,66 +322,64 @@ fun HistoryScreen(
                             }
                         }
 
-                        SongListItem(
-                            song = event.song,
-                            isActive = event.song.id == mediaMetadata?.id,
-                            isPlaying = isPlaying,
-                            showInLibraryIcon = true,
-                            shape = listItemShape(index, dateEvents.size),
-                            trailingContent = {
-                                if (inSelectMode) {
-                                    Checkbox(
-                                        checked = event.event.id in selection,
-                                        onCheckedChange = onCheckedChange
-                                    )
-                                } else {
-                                    IconButton(
-                                        onClick = {
-                                            menuState.show {
-                                                SongMenu(
-                                                    originalSong = event.song,
-                                                    event = event.event,
-                                                    navController = navController,
-                                                    onDismiss = menuState::dismiss
-                                                )
-                                            }
-                                        }
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.more_vert),
-                                            contentDescription = null
+                        // Apple-style renglones (owner request): local history is a PURE song
+                        // list, so it gets the same row design as Local/Downloads. Selection mode
+                        // maps onto AuraSongRow's native `selected` checkbox. The REMOTE section
+                        // above stays classic on purpose: YouTube items can carry video covers.
+                        AuraAppleListRowFrame(
+                            showDivider = index < dateEvents.lastIndex,
+                            dividerInset = AuraAppleCoverDividerInset,
+                            modifier = Modifier.animateItem(),
+                        ) {
+                            AuraSongRow(
+                                title = event.song.song.title,
+                                subtitle = event.song.artists.joinToString { it.name },
+                                thumbnailUrl = event.song.song.thumbnailUrl,
+                                seed = event.song.id,
+                                isActive = event.song.id == mediaMetadata?.id,
+                                isPlaying = isPlaying,
+                                liked = event.song.song.liked,
+                                explicit = event.song.song.explicit,
+                                inLibrary = event.song.song.inLibrary != null,
+                                format = event.song.format,
+                                durationLabel = auraAppleDurationLabel(event.song.song.duration.takeIf { it > 0 }),
+                                swipeMediaItem = event.song.toMediaItem(),
+                                selected = if (inSelectMode) event.event.id in selection else null,
+                                onSelectedChange = onCheckedChange,
+                                onClick = {
+                                    if (inSelectMode) {
+                                        onCheckedChange(event.event.id !in selection)
+                                    } else if (event.song.id == mediaMetadata?.id) {
+                                        playerConnection.togglePlayPause()
+                                    } else {
+                                        playerConnection.playQueue(
+                                            ListQueue(
+                                                title = dateAgoToString(dateAgo),
+                                                items = dateEvents.map { it.song.toMediaItem() },
+                                                startIndex = index
+                                            )
                                         )
                                     }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = {
-                                        if (inSelectMode) {
-                                            onCheckedChange(event.event.id !in selection)
-                                        } else if (event.song.id == mediaMetadata?.id) {
-                                            playerConnection.togglePlayPause()
-                                        } else {
-                                            playerConnection.playQueue(
-                                                ListQueue(
-                                                    title = dateAgoToString(dateAgo),
-                                                    items = dateEvents.map { it.song.toMediaItem() },
-                                                    startIndex = index
-                                                )
-                                            )
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!inSelectMode) {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            inSelectMode = true
-                                            onCheckedChange(true)
-                                        }
+                                },
+                                onLongClick = {
+                                    if (!inSelectMode) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        inSelectMode = true
+                                        onCheckedChange(true)
                                     }
-                                )
-                                .animateItem()
-                        )
+                                },
+                                onMenuClick = {
+                                    menuState.show {
+                                        SongMenu(
+                                            originalSong = event.song,
+                                            event = event.event,
+                                            navController = navController,
+                                            onDismiss = menuState::dismiss
+                                        )
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }

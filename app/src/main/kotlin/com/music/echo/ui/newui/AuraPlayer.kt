@@ -935,16 +935,16 @@ private fun AuraPlayerShape(
                         tint = if (isFullScreen) AuraPalette.Teal else AuraPalette.OnGround.copy(alpha = 0.6f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
-                }
-                
-                // The player menu's door (Más opciones) is now always in the header.
-                // If lyrics are open, it shows the lyrics menu instead.
-                AuraIconButton(
-                    icon = AuraIcons.More,
-                    contentDescription = if (showInlineLyrics) "Menú de la letra" else "Más opciones",
-                    onClick = {
-                        val meta = mediaMetadata ?: return@AuraIconButton
-                        if (showInlineLyrics) {
+                    // The lyrics menu door stays ONLY while the lyrics are open. In the normal view the
+                    // pinned top-right Cast owns that corner — the old "Más opciones" button sat directly
+                    // behind it (owner request: remove it, leave only Cast). The player menu survives the
+                    // removal: the queue header's "Más opciones" (Queue.kt) and the queue bar's more
+                    // button (QueueHost onMore below) both still open it.
+                    AuraIconButton(
+                        icon = AuraIcons.More,
+                        contentDescription = "Menú de la letra",
+                        onClick = {
+                            val meta = mediaMetadata ?: return@AuraIconButton
                             menuState.show {
                                 iad1tya.echo.music.ui.menu.LyricsMenu(
                                     lyricsProvider = { currentLyrics },
@@ -958,24 +958,12 @@ private fun AuraPlayerShape(
                                     },
                                 )
                             }
-                        } else {
-                            menuState.show {
-                                PlayerMenuHost(
-                                    mediaMetadata = meta,
-                                    navController = navController,
-                                    playerBottomSheetState = state,
-                                    onShowDetailsDialog = {
-                                        meta.id.let { id -> bottomSheetPageState.show { ShowMediaInfo(id) } }
-                                    },
-                                    onDismiss = menuState::dismiss,
-                                )
-                            }
-                        }
-                    },
-                    size = 22.dp,
-                    tint = AuraPalette.OnGround.copy(alpha = 0.6f),
-                    modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
-                )
+                        },
+                        size = 22.dp,
+                        tint = AuraPalette.OnGround.copy(alpha = 0.6f),
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                    )
+                }
             }
         }
 

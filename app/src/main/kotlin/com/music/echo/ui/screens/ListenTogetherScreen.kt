@@ -129,6 +129,10 @@ fun ListenTogetherScreen(
     val userId by listenTogetherManager.userId.collectAsState()
     val pendingJoinRequests by listenTogetherManager.pendingJoinRequests.collectAsState()
     val pendingSuggestions by listenTogetherManager.pendingSuggestions.collectAsState()
+    // The server fans out BUFFER_WAIT with the participants still loading the track; the client has
+    // always exposed it, no screen ever showed it. Without this the host stares at a silent room
+    // while a guest buffers and cannot tell a slow phone from a dropped connection.
+    val bufferingUsers by listenTogetherManager.bufferingUsers.collectAsState()
 
     val (listenTogetherInTopBar) = rememberPreference(ListenTogetherInTopBarKey, defaultValue = true)
     val shouldShowTopBar = showTopBar || listenTogetherInTopBar
@@ -322,6 +326,7 @@ fun ListenTogetherScreen(
                         isHost = isHost,
                         skin = skin,
                         currentUserId = currentUserIdValue,
+                        bufferingUsers = bufferingUsers,
                         onUserClick = { clickedUserId, username ->
                             if (isHost && clickedUserId != currentUserIdValue) {
                                 selectedUserForMenu = clickedUserId
@@ -856,6 +861,7 @@ private fun ConnectedUsersSection(
     isHost: Boolean,
     skin: AuraPanelSkin,
     currentUserId: String,
+    bufferingUsers: List<String>,
     onUserClick: (String, String) -> Unit
 ) {
     AuraPanel(
@@ -889,6 +895,9 @@ private fun ConnectedUsersSection(
                         isCurrentUser = user.userId == currentUserId,
                         isClickable = isHost && user.userId != currentUserId,
                         skin = skin,
+                        // The room server is not ours: its waiting_for list has carried user IDs in
+                        // some builds and usernames in others, so match on both rather than guess.
+                        isBuffering = user.userId in bufferingUsers || user.username in bufferingUsers,
                         onClick = { onUserClick(user.userId, user.username) }
                     )
                 }
@@ -903,6 +912,7 @@ private fun UserAvatar(
     isCurrentUser: Boolean,
     isClickable: Boolean,
     skin: AuraPanelSkin,
+    isBuffering: Boolean = false,
     onClick: () -> Unit
 ) {
     Column(
@@ -1006,6 +1016,17 @@ private fun UserAvatar(
                 style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
                 color = if (skin.enabled && skin.darkGround) AuraPalette.Blue.copy(alpha = 0.8f)
                 else MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
+            )
+        }
+
+        if (isBuffering) {
+            Text(
+                text = stringResource(R.string.listen_together_user_buffering),
+                style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
+                color = if (skin.enabled && skin.darkGround) AuraPalette.Blue.copy(alpha = 0.8f)
+                else MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

@@ -500,6 +500,16 @@ object AuraIcons {
         }
     }
 
+    /** `#i-device` — "Música local": the phone's own library (Biblioteca › hub tile and Local chip). */
+    val Device: ImageVector by lazy {
+        stroked("Device", join = StrokeJoin.Miter) {
+            // rect x=7 y=2.8 w=10 h=18.4 rx=2.4
+            roundedRect(7f, 2.8f, 10f, 18.4f, 2.4f)
+            // M10.5 18.6h3 — the home bar.
+            moveTo(10.5f, 18.6f); horizontalLineToRelative(3f)
+        }
+    }
+
     /** Push-pin — "Fijadas en inicio" section leading. */
     val Pin: ImageVector by lazy {
         stroked("Pin", join = StrokeJoin.Miter) {
