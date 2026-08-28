@@ -1,0 +1,952 @@
+
+
+package iad1tya.echo.music.echomusic.updater
+
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.util.Log
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.lifecycle.Observer
+import androidx.navigation.NavHostController
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.workDataOf
+import iad1tya.echo.music.BuildConfig
+import iad1tya.echo.music.R
+import coil3.compose.AsyncImage
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import iad1tya.echo.music.echomusic.updater.downloadmanager.UpdateDownloadWorker
+import iad1tya.echo.music.echomusic.updater.downloadmanager.DownloadNotificationManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.net.URL
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.regex.Pattern
+import iad1tya.echo.music.ui.component.ChangelogItem
+import iad1tya.echo.music.ui.component.leadingItemShape
+import iad1tya.echo.music.ui.component.middleItemShape
+import iad1tya.echo.music.ui.component.endItemShape
+import iad1tya.echo.music.ui.component.detachedItemShape
+import iad1tya.echo.music.ui.component.parseMarkdown
+import iad1tya.echo.music.ui.component.AnimatedActionButton
+import iad1tya.echo.music.ui.component.ExpressiveIconButton
+import iad1tya.echo.music.ui.component.ErrorSnackbar
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.text.style.TextDecoration
+
+data class ChangelogSection(val title: String, val items: List<String>)
+
+sealed class EchoUpdateStatus {
+    object Idle : EchoUpdateStatus()
+    object Checking : EchoUpdateStatus()
+    data class Available(
+        val version: String,
+        val changelog: List<ChangelogSection>,
+        val size: String,
+        /** Exact asset size in bytes, as GitHub reports it — the authority on "is the file complete". */
+        val sizeBytes: Long,
+        val releaseDate: String,
+        val description: String?,
+        val imageUrl: String?,
+        val apkUrl: String?
+    ) : EchoUpdateStatus()
+
+    data class NoUpdate(val version: String) : EchoUpdateStatus()
+    data class Error(val message: String) : EchoUpdateStatus()
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun UpdateScreen(navController: NavHostController) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf<EchoUpdateStatus>(EchoUpdateStatus.NoUpdate(BuildConfig.VERSION_NAME)) }
+    var isDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0f) }
+    var isDownloadComplete by remember { mutableStateOf(false) }
+    var downloadedFile by remember { mutableStateOf<File?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // The release this screen is currently offering. EVERY piece of download state is keyed on it: a
+    // WorkManager result, a file on disk or a notification belonging to a different release must not
+    // be able to drive this screen. Null until a check says an update exists.
+    val offeredVersion = remember { mutableStateOf<String?>(null) }
+
+    val currentVersion = BuildConfig.VERSION_NAME
+    val autoUpdateCheckEnabled = getAutoUpdateCheckSetting(context)
+
+    LaunchedEffect(Unit) {
+        DownloadNotificationManager.initialize(context)
+    }
+
+
+    // Observe the download WorkInfo with an observer that is explicitly removed when this
+    // composable leaves composition. Using observeForever inside a LaunchedEffect would leak
+    // the observer (and duplicate it on every screen re-entry), since observeForever is not
+    // tied to the composition/coroutine lifecycle. DisposableEffect guarantees cleanup.
+    //
+    // Keyed on the offered version, and filtered by that version's tag. WorkManager REPLAYS the last
+    // result of a unique work name for days, so after any earlier update the first thing this screen
+    // used to receive was the PREVIOUS release's SUCCEEDED run, complete with the path of the APK it
+    // had downloaded back then. That is what turned the action button into "Install" the moment the
+    // screen opened and installed the old build — no download, no error, no way to tell.
+    DisposableEffect(offeredVersion.value) {
+        val version = offeredVersion.value
+        if (version == null) {
+            onDispose { }
+        } else {
+            val wantedTag = UpdateApkFiles.versionTag(version)
+            val liveData = WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWorkLiveData(UpdateDownloadWorker.WORK_NAME)
+            val observer = Observer<List<WorkInfo>> { workInfos ->
+                val workInfo = workInfos?.firstOrNull { it.tags.contains(wantedTag) } ?: return@Observer
+
+                when (workInfo.state) {
+                    WorkInfo.State.RUNNING -> {
+                        isDownloading = true
+                        downloadProgress = workInfo.progress.getFloat("progress", 0f)
+                    }
+                    WorkInfo.State.SUCCEEDED -> {
+                        isDownloading = false
+                        val filePath = workInfo.outputData.getString("file_path")
+                        if (filePath != null) {
+                            downloadedFile = File(filePath)
+                            isDownloadComplete = true
+                        }
+                    }
+                    WorkInfo.State.FAILED -> {
+                        isDownloading = false
+                        scope.launch {
+                            snackbarHostState.showSnackbar(context.getString(R.string.download_failed))
+                        }
+                    }
+                    WorkInfo.State.CANCELLED -> {
+                        isDownloading = false
+                        downloadProgress = 0f
+                    }
+                    else -> {}
+                }
+            }
+            liveData.observeForever(observer)
+            onDispose {
+                liveData.removeObserver(observer)
+            }
+        }
+    }
+
+    // Second gate, on the file itself: a path is only worth an "Install" button if the archive at the
+    // end of it really is this release. getPackageArchiveInfo reads the version out of the APK, so a
+    // leftover, truncated or tampered file answers for itself and is thrown away instead of installed.
+    LaunchedEffect(isDownloadComplete, downloadedFile, offeredVersion.value) {
+        val file = downloadedFile
+        val version = offeredVersion.value
+        if (!isDownloadComplete || file == null || version == null) return@LaunchedEffect
+        val exists = withContext(Dispatchers.IO) { file.isFile }
+        if (!exists) {
+            isDownloadComplete = false
+            downloadedFile = null
+            downloadProgress = 0f
+            return@LaunchedEffect
+        }
+        val installable = withContext(Dispatchers.IO) {
+            ApkVersionInspector.isInstallable(context, file, version)
+        }
+        if (!installable) {
+            withContext(Dispatchers.IO) { file.delete() }
+            isDownloadComplete = false
+            downloadedFile = null
+            downloadProgress = 0f
+            snackbarHostState.showSnackbar(context.getString(R.string.update_version_mismatch))
+        }
+    }
+
+    fun triggerUpdateCheck() {
+        status = EchoUpdateStatus.Checking
+        scope.launch {
+            
+            delay(1000L)
+            checkForUpdate(
+                context = context,
+                onSuccess = { tag, isAvailable, changelog, size, sizeBytes, date, description, imageUrl, apkUrl ->
+                    saveLastCheckedTime(context, LocalDateTime.now().format(DateTimeFormatter.ofPattern("d MMMM yyyy, h:mm a")))
+                    saveUpdateAvailableState(context, isAvailable)
+                    // Re-key the download state on whatever release the server is offering NOW. If it
+                    // is not the one the screen was showing, the old download state is meaningless.
+                    val newVersion = tag.takeIf { isAvailable }
+                    if (offeredVersion.value != newVersion) {
+                        offeredVersion.value = newVersion
+                        isDownloading = false
+                        isDownloadComplete = false
+                        downloadedFile = null
+                        downloadProgress = 0f
+                    }
+                    status = if (isAvailable) {
+                        EchoUpdateStatus.Available(
+                            version = tag,
+                            changelog = changelog,
+                            size = size,
+                            sizeBytes = sizeBytes,
+                            releaseDate = date,
+                            description = description,
+                            imageUrl = imageUrl,
+                            apkUrl = apkUrl
+                        )
+                    } else {
+                        EchoUpdateStatus.NoUpdate(tag)
+                    }
+                },
+                onError = {
+                    status = EchoUpdateStatus.Error(context.getString(R.string.cant_check_updates))
+                }
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (autoUpdateCheckEnabled) {
+            triggerUpdateCheck()
+        }
+    }
+
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    Scaffold(
+        topBar = {
+            LargeTopAppBar(
+                title = {
+                    val titleText = if (status is EchoUpdateStatus.Available) {
+                        buildAnnotatedString {
+                            append(stringResource(R.string.new_update) + " ")
+                            withStyle(
+                                SpanStyle(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            ) {
+                                append((status as EchoUpdateStatus.Available).version)
+                            }
+                        }
+                    } else {
+                        AnnotatedString(stringResource(R.string.settings_check_updates_title))
+                    }
+                    Text(text = titleText, maxLines = 1)
+                },
+                navigationIcon = {
+                    Box(modifier = Modifier.padding(start = 16.dp, end = 16.dp)) {
+                        ExpressiveIconButton(
+                            onClick = { navController.navigateUp() },
+                            painter = painterResource(R.drawable.arrow_back),
+                            contentDescription = stringResource(R.string.cancel),
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
+                )
+            )
+        },
+        bottomBar = {
+            Surface(
+                color = MaterialTheme.colorScheme.background,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(WindowInsets.navigationBars.asPaddingValues())
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    when (val currentStatus = status) {
+                        is EchoUpdateStatus.Idle, is EchoUpdateStatus.Checking, is EchoUpdateStatus.NoUpdate, is EchoUpdateStatus.Error -> {
+                            AnimatedActionButton(
+                                text = stringResource(R.string.check_for_update),
+                                onClick = { triggerUpdateCheck() },
+                                enabled = currentStatus !is EchoUpdateStatus.Checking && !isDownloading,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        is EchoUpdateStatus.Available -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                AnimatedActionButton(
+                                    text = stringResource(R.string.later),
+                                    onClick = { navController.navigateUp() },
+                                    modifier = Modifier.weight(1f),
+                                    isOutlined = true,
+                                    enabled = !isDownloading
+                                )
+                                AnimatedActionButton(
+                                    text = if (isDownloading) "${(downloadProgress * 100).toInt()}%" else if (isDownloadComplete) stringResource(R.string.install) else stringResource(R.string.update_available),
+                                    onClick = {
+                                        if (isDownloadComplete) {
+                                            val file = downloadedFile
+                                            if (file == null || !file.exists()) {
+                                                isDownloadComplete = false
+                                                downloadedFile = null
+                                                downloadProgress = 0f
+                                                return@AnimatedActionButton
+                                            }
+                                            file.let { f ->
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                    if (!context.packageManager.canRequestPackageInstalls()) {
+                                                        val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                                            data = Uri.parse("package:${context.packageName}")
+                                                        }
+                                                        context.startActivity(intent)
+                                                        return@let
+                                                    }
+                                                }
+                                                // Last gate before the system installer, re-run at the moment of
+                                                // the tap: the archive must declare the version we are offering
+                                                // (a stale or truncated file cannot fake that) AND carry our
+                                                // signing certificate (a tampered/MITM'd APK cannot fake that).
+                                                if (ApkVersionInspector.verdict(context, f, currentStatus.version) ==
+                                                    UpdateApkFiles.ApkVerdict.REJECT
+                                                ) {
+                                                    f.delete()
+                                                    isDownloadComplete = false
+                                                    downloadedFile = null
+                                                    downloadProgress = 0f
+                                                    android.widget.Toast.makeText(
+                                                        context,
+                                                        context.getString(R.string.update_version_mismatch),
+                                                        android.widget.Toast.LENGTH_LONG
+                                                    ).show()
+                                                    return@let
+                                                }
+                                                if (!ApkSignatureVerifier.matchesInstalledSignature(context, f)) {
+                                                    android.widget.Toast.makeText(
+                                                        context,
+                                                        context.getString(R.string.update_signature_mismatch),
+                                                        android.widget.Toast.LENGTH_LONG
+                                                    ).show()
+                                                    return@let
+                                                }
+                                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.FileProvider", f)
+                                                val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(uri, "application/vnd.android.package-archive")
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                ContextCompat.startActivity(context, installIntent, null)
+                                            }
+                                        } else {
+                                            val urlToDownload = currentStatus.apkUrl ?: "https://github.com/hck0n3/Aura-Hi-Res-v2/releases/download/${currentStatus.version}/${UpdateApkFiles.apkFileName(currentStatus.version)}"
+                                            isDownloading = true
+                                            scope.launch {
+                                                val workManager = WorkManager.getInstance(context)
+                                                val versionTag = UpdateApkFiles.versionTag(currentStatus.version)
+                                                // A run left ENQUEUED by a failed attempt keeps ITS OWN input
+                                                // data — the previous release's URL. Under a blanket KEEP that
+                                                // stale run swallowed every later tap and then downloaded the
+                                                // old APK. KEEP still applies to a run for THIS version, so a
+                                                // re-tap resumes it instead of restarting.
+                                                val pendingOtherVersion = withContext(Dispatchers.IO) {
+                                                    runCatching {
+                                                        workManager
+                                                            .getWorkInfosForUniqueWork(UpdateDownloadWorker.WORK_NAME)
+                                                            .get()
+                                                            .any { !it.state.isFinished && !it.tags.contains(versionTag) }
+                                                    }.getOrDefault(false)
+                                                }
+                                                val downloadRequest = OneTimeWorkRequestBuilder<UpdateDownloadWorker>()
+                                                    .setInputData(
+                                                        workDataOf(
+                                                            UpdateDownloadWorker.KEY_APK_URL to urlToDownload,
+                                                            UpdateDownloadWorker.KEY_VERSION to currentStatus.version,
+                                                            UpdateDownloadWorker.KEY_FILE_SIZE to currentStatus.size,
+                                                            UpdateDownloadWorker.KEY_FILE_SIZE_BYTES to currentStatus.sizeBytes,
+                                                        )
+                                                    )
+                                                    .setConstraints(
+                                                        androidx.work.Constraints.Builder()
+                                                            .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                                                            .build()
+                                                    )
+                                                    .setBackoffCriteria(androidx.work.BackoffPolicy.LINEAR, 10, java.util.concurrent.TimeUnit.SECONDS)
+                                                    .addTag(UpdateDownloadWorker.WORK_NAME)
+                                                    .addTag(versionTag)
+                                                    .build()
+                                                val enqueued = runCatching {
+                                                    workManager.enqueueUniqueWork(
+                                                        UpdateDownloadWorker.WORK_NAME,
+                                                        if (pendingOtherVersion) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
+                                                        downloadRequest,
+                                                    )
+                                                }.isSuccess
+                                                if (!enqueued) {
+                                                    // Never leave the button stuck on "downloading" for a
+                                                    // download that was never queued.
+                                                    isDownloading = false
+                                                    snackbarHostState.showSnackbar(context.getString(R.string.download_failed))
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !isDownloading || isDownloadComplete
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        snackbarHost = { ErrorSnackbar(hostState = snackbarHostState) },
+        containerColor = MaterialTheme.colorScheme.background,
+        modifier = Modifier
+            .widthIn(max = 700.dp)
+            .fillMaxSize()
+            .nestedScroll(scrollBehavior.nestedScrollConnection)
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                item {
+                    val contentModifier = if (status is EchoUpdateStatus.Available) {
+                        Modifier.fillMaxWidth()
+                    } else {
+                        Modifier.fillParentMaxSize()
+                    }
+
+                    Box(
+                        modifier = contentModifier,
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when (val currentStatus = status) {
+                            is EchoUpdateStatus.Checking -> {
+                                androidx.compose.material3.ContainedLoadingIndicator(
+                                    modifier = Modifier.size(64.dp)
+                                )
+                            }
+
+                            is EchoUpdateStatus.NoUpdate -> {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.deployed_app_update),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(120.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    Text(
+                                        text = stringResource(R.string.on_latest_version),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        textAlign = TextAlign.Center,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = stringResource(R.string.current_version_v, currentStatus.version),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+
+                            is EchoUpdateStatus.Error -> {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.error),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(120.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    Text(
+                                        text = currentStatus.message,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = MaterialTheme.colorScheme.error,
+                                        textAlign = TextAlign.Center,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    androidx.compose.material3.TextButton(
+                                        onClick = {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest"))
+                                            ContextCompat.startActivity(context, intent, null)
+                                        }
+                                    ) {
+                                        Text(
+                                            text = "Descarga directa",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                                        )
+                                    }
+                                }
+                            }
+
+                            is EchoUpdateStatus.Available -> {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = stringResource(R.string.release_date_v, currentStatus.releaseDate),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.update_size_v, currentStatus.size),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    if (!currentStatus.imageUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = currentStatus.imageUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(200.dp)
+                                                .clip(RoundedCornerShape(24.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                        Spacer(modifier = Modifier.height(24.dp))
+                                    }
+                                    if (!currentStatus.description.isNullOrBlank()) {
+                                        val annotatedText = currentStatus.description.parseMarkdown()
+
+                                        ClickableText(
+                                            text = annotatedText,
+                                            onClick = { offset ->
+                                                annotatedText.getStringAnnotations("URL", offset, offset).firstOrNull()?.let {
+                                                    ContextCompat.startActivity(context, Intent(Intent.ACTION_VIEW, Uri.parse(it.item)), null)
+                                                }
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                lineHeight = 20.sp
+                                            ),
+                                            modifier = Modifier.padding(bottom = 24.dp)
+                                        )
+                                    }
+                                    
+                                    currentStatus.changelog.forEach { section ->
+                                        Text(
+                                            text = section.title,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onBackground,
+                                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                                        )
+                                        section.items.forEachIndexed { index, item ->
+                                            val shape = when {
+                                                section.items.size == 1 -> detachedItemShape()
+                                                index == 0 -> leadingItemShape()
+                                                index == section.items.size - 1 -> endItemShape()
+                                                else -> middleItemShape()
+                                            }
+                                            ChangelogItem(text = item, shape = shape)
+                                            if (index != section.items.size - 1) {
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (currentStatus.changelog.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(24.dp))
+                                    }
+
+                                    if (isDownloading) {
+                                        if (downloadProgress > 0f) {
+                                            androidx.compose.material3.LinearProgressIndicator(
+                                                progress = downloadProgress,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(8.dp)
+                                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                            )
+                                        } else {
+                                            androidx.compose.material3.LinearProgressIndicator(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(8.dp)
+                                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(24.dp))
+                                    }
+
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+const val PREFS_NAME = "settings"
+const val KEY_AUTO_UPDATE_CHECK = "auto_update_check"
+const val KEY_LAST_CHECKED_TIME = "last_checked_time"
+const val KEY_BETA_UPDATES = "beta_updates"
+const val KEY_UPDATE_AVAILABLE = "update_available"
+
+fun getUpdateAvailableState(context: Context): Boolean {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return sharedPrefs.getBoolean(KEY_UPDATE_AVAILABLE, false)
+}
+
+fun saveUpdateAvailableState(context: Context, available: Boolean) {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    sharedPrefs.edit().putBoolean(KEY_UPDATE_AVAILABLE, available).apply()
+}
+
+fun getAutoUpdateCheckSetting(context: Context): Boolean {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return sharedPrefs.getBoolean(KEY_AUTO_UPDATE_CHECK, true)
+}
+
+fun saveAutoUpdateCheckSetting(context: Context, enabled: Boolean) {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    sharedPrefs.edit().putBoolean(KEY_AUTO_UPDATE_CHECK, enabled).apply()
+}
+
+const val KEY_UPDATE_NOTIFICATIONS = "update_notifications"
+
+fun getUpdateNotificationsSetting(context: Context): Boolean {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return sharedPrefs.getBoolean(KEY_UPDATE_NOTIFICATIONS, true)
+}
+
+fun saveUpdateNotificationsSetting(context: Context, enabled: Boolean) {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    sharedPrefs.edit().putBoolean(KEY_UPDATE_NOTIFICATIONS, enabled).apply()
+}
+
+fun saveLastCheckedTime(context: Context, timestamp: String) {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    sharedPrefs.edit().putString(KEY_LAST_CHECKED_TIME, timestamp).apply()
+}
+
+fun getLastCheckedTime(context: Context): String {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return sharedPrefs.getString(KEY_LAST_CHECKED_TIME, "") ?: ""
+}
+
+fun getBetaUpdatesSetting(context: Context): Boolean {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return sharedPrefs.getBoolean(KEY_BETA_UPDATES, false)
+}
+
+fun saveBetaUpdatesSetting(context: Context, enabled: Boolean) {
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    sharedPrefs.edit().putBoolean(KEY_BETA_UPDATES, enabled).apply()
+}
+
+private fun formatGitHubDate(githubDate: String): String = try {
+    val githubFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    val displayFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy, h:mm a")
+    val dateTime = LocalDateTime.parse(githubDate, githubFormatter)
+    dateTime.format(displayFormatter)
+} catch (e: Exception) {
+    githubDate
+}
+
+
+fun isNewerVersion(latestVersion: String, currentVersion: String): Boolean {
+    val latestVersionClean = latestVersion.removePrefix("b").removePrefix("v")
+    val currentVersionClean = currentVersion.removePrefix("b").removePrefix("v")
+
+    val latestParts = latestVersionClean.split(".").map { it.toIntOrNull() ?: 0 }
+    val currentParts = currentVersionClean.split(".").map { it.toIntOrNull() ?: 0 }
+    
+    
+    for (i in 0 until maxOf(latestParts.size, currentParts.size)) {
+        val latest = latestParts.getOrElse(i) { 0 }
+        val current = currentParts.getOrElse(i) { 0 }
+        when {
+            latest > current -> return true
+            latest < current -> return false
+        }
+    }
+    
+    
+    if (latestVersionClean == currentVersionClean) {
+        val latestIsBeta = latestVersion.startsWith("b")
+        val currentIsBeta = currentVersion.startsWith("b")
+        
+        if (currentIsBeta && !latestIsBeta) return true
+    }
+    
+    return false
+}
+
+
+suspend fun checkForUpdate(
+    context: Context,
+    onSuccess: (tag: String, isAvailable: Boolean, changelog: List<ChangelogSection>, size: String, sizeBytes: Long, date: String, description: String?, imageUrl: String?, apkUrl: String?) -> Unit,
+    onError: () -> Unit,
+) {
+    // Private no-subscription test build: never look for updates (so it can't pull the public/paid APK).
+    if (!BuildConfig.REQUIRE_SUBSCRIPTION) {
+        onSuccess(BuildConfig.VERSION_NAME, false, emptyList(), "", 0L, "", null, null, null)
+        return
+    }
+    withContext(Dispatchers.IO) {
+        try {
+            val url = URL("https://api.github.com/repos/hck0n3/Aura-Hi-Res-v2/releases/latest")
+            val json = url.openStream().bufferedReader().use { it.readText() }
+            val targetRelease = JSONObject(json)
+            
+            val currentVersion = BuildConfig.VERSION_NAME
+            val targetTagName = targetRelease.getString("tag_name")
+            val currentClean = currentVersion.removePrefix("b").removePrefix("v").trim()
+            val targetClean = targetTagName.removePrefix("b").removePrefix("v").trim()
+            // Only a STRICTLY NEWER release is an update. This was `currentClean != targetClean`, which
+            // offered any release that merely differed — and `releases/latest` skips prereleases, so a
+            // user on a -beta build was offered the previous STABLE release as if it were new. Taking
+            // that offer is a downgrade: the same "it installed the older version" symptom, arrived at
+            // from the check rather than from the file on disk.
+            val shouldShow = UpdateApkFiles.isNewerRelease(targetTagName, currentVersion)
+
+            if (shouldShow) {
+                val tagWithPrefix = targetRelease.getString("tag_name")
+                val displayTag = tagWithPrefix
+
+                
+                val changelogList = mutableListOf<ChangelogSection>()
+                var description: String? = null
+                var imageUrl: String? = null
+                try {
+                    val changelogUrl =
+                        URL("https://github.com/hck0n3/Aura-Hi-Res-v2/releases/download/$tagWithPrefix/changelog.json")
+                    val changelogJson = changelogUrl.openStream().bufferedReader().use { it.readText() }
+                    val changelogData = JSONObject(changelogJson)
+
+                    description = changelogData.optString("description").takeIf { it.isNotEmpty() }
+                    imageUrl = changelogData.optString("image").takeIf { it.isNotEmpty() }
+
+                    val changelogArray = changelogData.getJSONArray("changelog")
+                    for (j in 0 until changelogArray.length()) {
+                        val sectionObj = changelogArray.getJSONObject(j)
+                        val title = sectionObj.getString("title")
+                        val itemsArray = sectionObj.getJSONArray("items")
+                        val itemsList = mutableListOf<String>()
+                        for (k in 0 until itemsArray.length()) {
+                            itemsList.add(itemsArray.getString(k))
+                        }
+                        changelogList.add(ChangelogSection(title, itemsList))
+                    }
+                } catch (e: Exception) {
+
+                    val body = targetRelease.optString("body", context.getString(R.string.no_changelog_available))
+                    val fallbackItems = body.split("\n").filter { it.isNotBlank() }
+                    changelogList.add(ChangelogSection(context.getString(R.string.changelog), fallbackItems))
+                }
+
+                // Aggregate the changelog of EVERY version the user skipped (strictly between their
+                // current version and the target), so they see all the changes they're getting — not
+                // just the latest release's notes. One section per skipped version, newest first.
+                try {
+                    val releasesJson =
+                        URL("https://api.github.com/repos/hck0n3/Aura-Hi-Res-v2/releases?per_page=50")
+                            .openStream().bufferedReader().use { it.readText() }
+                    val releasesArr = org.json.JSONArray(releasesJson)
+                    val skipped = ArrayList<Pair<String, ChangelogSection>>()
+                    for (i in 0 until releasesArr.length()) {
+                        val rel = releasesArr.getJSONObject(i)
+                        val ver = rel.optString("tag_name").removePrefix("b").removePrefix("v").trim()
+                        if (ver.isBlank()) continue
+                        // Strictly between current and target (target's notes are already shown above).
+                        if (compareVersions(ver, currentClean) > 0 && compareVersions(ver, targetClean) < 0) {
+                            val items = rel.optString("body", "").split("\n")
+                                .map { it.trim().trimStart('#', '-', '*', ' ').trim() }
+                                .filter { it.isNotBlank() }
+                            if (items.isNotEmpty()) {
+                                val relName = rel.optString("name").takeIf { it.isNotBlank() } ?: "v$ver"
+                                skipped.add(ver to ChangelogSection(relName, items))
+                            }
+                        }
+                    }
+                    skipped.sortWith(Comparator { a, b -> compareVersions(b.first, a.first) })
+                    skipped.forEach { changelogList.add(it.second) }
+                } catch (_: Exception) { /* best-effort aggregation */ }
+
+                val publishedAt = targetRelease.getString("published_at")
+                val formattedReleaseDate = formatGitHubDate(publishedAt)
+                val assets = targetRelease.getJSONArray("assets")
+
+                // Collect all installable APK assets (a release may ship an arm64 APK and a larger
+                // "universal" APK that also includes armeabi-v7a/x86 for Android TV and older devices).
+                data class ApkAsset(val name: String, val url: String, val size: Long)
+                val apkAssets = ArrayList<ApkAsset>()
+                for (j in 0 until assets.length()) {
+                    val asset = assets.getJSONObject(j)
+                    val assetName = asset.getString("name")
+                    if (assetName.endsWith(".apk", ignoreCase = true) && !assetName.lowercase().contains("debug")) {
+                        apkAssets.add(ApkAsset(assetName, asset.getString("browser_download_url"), asset.getLong("size")))
+                    }
+                }
+
+                // Pick the APK that matches this device's CPU: arm64 devices take the small arch APK;
+                // everything else (e.g. 32-bit Android TVs like Sony's MediaTek sets) takes the
+                // universal APK so it actually installs.
+                val supportsArm64 = android.os.Build.SUPPORTED_ABIS.any { it.equals("arm64-v8a", ignoreCase = true) }
+                fun String.isUniversal() = lowercase().contains("universal")
+                val chosen = if (supportsArm64) {
+                    apkAssets.firstOrNull { !it.name.isUniversal() } ?: apkAssets.firstOrNull()
+                } else {
+                    apkAssets.firstOrNull { it.name.isUniversal() } ?: apkAssets.firstOrNull()
+                }
+
+                var apkSizeInMB = ""
+                var apkDownloadUrl = ""
+                var apkSizeBytes = 0L
+                if (chosen != null) {
+                    apkSizeInMB = String.format("%.1f", chosen.size / (1024.0 * 1024.0))
+                    apkDownloadUrl = chosen.url
+                    apkSizeBytes = chosen.size
+                }
+
+                if (apkDownloadUrl.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        onSuccess(displayTag, true, changelogList, apkSizeInMB, apkSizeBytes, formattedReleaseDate, description, imageUrl, apkDownloadUrl)
+                    }
+                    return@withContext
+                }
+            }
+
+
+            withContext(Dispatchers.Main) {
+                onSuccess(currentVersion, false, emptyList(), "", 0L, "", null, null, null)
+            }
+        } catch (e: Exception) {
+            Log.e("UpdateCheck", "Error checking for updates: ${e.message}", e)
+            withContext(Dispatchers.Main) { onError() }
+        }
+    }
+}
+/** Semver-ish numeric compare: "6.3" vs "5.10" → handles each dotted part numerically. */
+fun compareVersions(a: String, b: String): Int {
+    val pa = a.split(".").map { it.trim().toIntOrNull() ?: 0 }
+    val pb = b.split(".").map { it.trim().toIntOrNull() ?: 0 }
+    for (i in 0 until maxOf(pa.size, pb.size)) {
+        val x = pa.getOrElse(i) { 0 }
+        val y = pb.getOrElse(i) { 0 }
+        if (x != y) return x - y
+    }
+    return 0
+}
+
+fun String.extractUrls(): List<Pair<IntRange, String>> {
+    val urlPattern = Pattern.compile(
+        "(?:^|[\\s])((https?://|www\\.|pic\\.)[\\w-]+(\\.[\\w-]+)+([/?].*)?)"
+    )
+    val matcher = urlPattern.matcher(this)
+    val urlList = mutableListOf<Pair<IntRange, String>>()
+
+    while (matcher.find()) {
+        val url = matcher.group(1)?.trim() ?: continue
+        val range = IntRange(matcher.start(1), matcher.end(1) - 1)
+        
+        val fullUrl = if (url.startsWith("http")) url else "https://$url"
+        urlList.add(range to fullUrl)
+    }
+
+    return urlList
+}

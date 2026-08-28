@@ -1,0 +1,352 @@
+
+
+package iad1tya.echo.music.ui.screens.artist
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.navigation.NavController
+import com.music.innertube.models.AlbumItem
+import com.music.innertube.models.ArtistItem
+import com.music.innertube.models.PlaylistItem
+import com.music.innertube.models.SongItem
+import com.music.innertube.models.WatchEndpoint
+import iad1tya.echo.music.LocalPlayerAwareWindowInsets
+import iad1tya.echo.music.LocalPlayerConnection
+import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.GridItemSize
+import iad1tya.echo.music.constants.GridItemsSizeKey
+import iad1tya.echo.music.constants.GridThumbnailHeight
+import iad1tya.echo.music.models.toMediaMetadata
+import iad1tya.echo.music.extensions.toMediaItem
+import iad1tya.echo.music.playback.queues.ListQueue
+import iad1tya.echo.music.playback.queues.YouTubeQueue
+import iad1tya.echo.music.ui.component.IconButton
+import iad1tya.echo.music.ui.component.LocalMenuState
+import iad1tya.echo.music.ui.component.YouTubeGridItem
+import iad1tya.echo.music.ui.component.YouTubeListItem
+import iad1tya.echo.music.ui.component.shimmer.GridItemPlaceHolder
+import iad1tya.echo.music.ui.component.shimmer.ListItemPlaceHolder
+import iad1tya.echo.music.ui.component.shimmer.ShimmerHost
+import iad1tya.echo.music.ui.menu.YouTubeAlbumMenu
+import iad1tya.echo.music.ui.menu.YouTubeArtistMenu
+import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
+import iad1tya.echo.music.ui.menu.YouTubeSongMenu
+import iad1tya.echo.music.utils.listItemShape
+import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.viewmodels.ArtistItemsViewModel
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@Composable
+fun ArtistItemsScreen(
+    navController: NavController,
+    scrollBehavior: TopAppBarScrollBehavior,
+    viewModel: ArtistItemsViewModel = hiltViewModel(),
+) {
+    val menuState = LocalMenuState.current
+    val haptic = LocalHapticFeedback.current
+    val playerConnection = LocalPlayerConnection.current ?: return
+    val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
+    val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+
+    val lazyListState = rememberLazyListState()
+    val lazyGridState = rememberLazyGridState()
+    val coroutineScope = rememberCoroutineScope()
+    val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
+
+    val title by viewModel.title.collectAsState()
+    val itemsPage by viewModel.itemsPage.collectAsState()
+    val hasFailed by viewModel.hasFailed.collectAsState()
+
+    // Top songs / song grids must play as a LIST queue (owner: continue with the next in this list),
+    // never a single-song YouTube radio that abandons the rest of the page.
+    val playSongFromPage: (SongItem) -> Unit = { song ->
+        if (song.id == mediaMetadata?.id) {
+            playerConnection.togglePlayPause()
+        } else {
+            val pageSongs = itemsPage?.items.orEmpty()
+                .filterIsInstance<SongItem>()
+                .distinctBy { it.id }
+            if (pageSongs.isEmpty()) {
+                playerConnection.playQueue(
+                    YouTubeQueue(
+                        song.endpoint ?: WatchEndpoint(videoId = song.id),
+                        song.toMediaMetadata(),
+                    ),
+                )
+            } else {
+                playerConnection.playQueue(
+                    ListQueue(
+                        title = title,
+                        items = pageSongs.map { it.toMediaItem() },
+                        startIndex = pageSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0),
+                    ),
+                )
+            }
+        }
+    }
+
+    LaunchedEffect(lazyListState) {
+        snapshotFlow {
+            lazyListState.layoutInfo.visibleItemsInfo.any { it.key == "loading" }
+        }.collect { shouldLoadMore ->
+            if (!shouldLoadMore) return@collect
+            viewModel.loadMore()
+        }
+    }
+
+    LaunchedEffect(lazyGridState) {
+        snapshotFlow {
+            lazyGridState.layoutInfo.visibleItemsInfo.any { it.key == "loading" }
+        }.collect { shouldLoadMore ->
+            if (!shouldLoadMore) return@collect
+            viewModel.loadMore()
+        }
+    }
+
+    if (itemsPage == null && !hasFailed) {
+        // Genuine loading only: shimmer until we have items OR the fetch terminates in failure.
+        ShimmerHost(
+            modifier = Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current),
+        ) {
+            repeat(8) {
+                ListItemPlaceHolder()
+            }
+        }
+    } else if (itemsPage == null && hasFailed) {
+        // Terminal failure: stop the infinite spinner and let the user retry the fetch.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(LocalPlayerAwareWindowInsets.current),
+            contentAlignment = Alignment.Center,
+        ) {
+            Button(onClick = viewModel::load) {
+                Text(stringResource(R.string.retry))
+            }
+        }
+    }
+
+    if (itemsPage != null) {
+    if (itemsPage?.items?.firstOrNull() is SongItem) {
+        LazyColumn(
+            state = lazyListState,
+            contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+        ) {
+            itemsIndexed(
+                items = itemsPage?.items.orEmpty().distinctBy { it.id },
+                key = { _, it -> it.id },
+            ) { index, item ->
+                YouTubeListItem(
+                    item = item,
+                    isActive =
+                    when (item) {
+                        is SongItem -> mediaMetadata?.id == item.id
+                        is AlbumItem -> mediaMetadata?.album?.id == item.id
+                        else -> false
+                    },
+                    isPlaying = isPlaying,
+                    shape = listItemShape(index, itemsPage?.items.orEmpty().distinctBy { it.id }.size),
+                    trailingContent = {
+                        IconButton(
+                            onClick = {
+                                menuState.show {
+                                    when (item) {
+                                        is SongItem ->
+                                            YouTubeSongMenu(
+                                                song = item,
+                                                navController = navController,
+                                                onDismiss = menuState::dismiss,
+                                            )
+
+                                        is AlbumItem ->
+                                            YouTubeAlbumMenu(
+                                                albumItem = item,
+                                                navController = navController,
+                                                onDismiss = menuState::dismiss,
+                                            )
+
+                                        is ArtistItem ->
+                                            YouTubeArtistMenu(
+                                                artist = item,
+                                                onDismiss = menuState::dismiss,
+                                            )
+
+                                        is PlaylistItem ->
+                                            YouTubePlaylistMenu(
+                                                playlist = item,
+                                                coroutineScope = coroutineScope,
+                                                onDismiss = menuState::dismiss,
+                                            )
+                                    }
+                                }
+                            },
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.more_vert),
+                                contentDescription = null,
+                            )
+                        }
+                    },
+                    modifier =
+                    Modifier
+                        .clickable {
+                            when (item) {
+                                is SongItem -> playSongFromPage(item)
+
+                                is AlbumItem -> navController.navigate("album/${item.id}")
+                                is ArtistItem -> navController.navigate("artist/${item.id}")
+                                is PlaylistItem -> navController.navigate("online_playlist/${item.id}")
+                            }
+                        },
+                )
+            }
+
+            if (itemsPage?.continuation != null) {
+                item(key = "loading") {
+                    ShimmerHost {
+                        repeat(3) {
+                            ListItemPlaceHolder()
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Panel-relative columns (split-screen aware): phone / narrow pane keeps 3; a wider pane adds columns.
+        val columns = (maxWidth / 152.dp).toInt().coerceAtLeast(3)
+        LazyVerticalGrid(
+            state = lazyGridState,
+            modifier = Modifier.fillMaxSize(),
+            columns = GridCells.Fixed(columns),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
+        ) {
+            items(
+                items = itemsPage?.items.orEmpty().distinctBy { it.id }
+                    .sortedByDescending { (it as? AlbumItem)?.year ?: 0 },
+                key = { it.id }
+            ) { item ->
+                YouTubeGridItem(
+                    item = item,
+                    isActive = when (item) {
+                        is SongItem -> mediaMetadata?.id == item.id
+                        is AlbumItem -> mediaMetadata?.album?.id == item.id
+                        else -> false
+                    },
+                    isPlaying = isPlaying,
+                    fillMaxWidth = true,
+                    albumSubtitleYearOnly = true,
+                    coroutineScope = coroutineScope,
+                    modifier = Modifier
+                        .combinedClickable(
+                            onClick = {
+                                when (item) {
+                                    is SongItem -> playSongFromPage(item)
+
+                                    is AlbumItem -> navController.navigate("album/${item.id}")
+                                    is ArtistItem -> navController.navigate("artist/${item.id}")
+                                    is PlaylistItem -> navController.navigate("online_playlist/${item.id}")
+                                }
+                            },
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                menuState.show {
+                                    when (item) {
+                                        is SongItem -> YouTubeSongMenu(
+                                            song = item,
+                                            navController = navController,
+                                            onDismiss = menuState::dismiss
+                                        )
+
+                                        is AlbumItem -> YouTubeAlbumMenu(
+                                            albumItem = item,
+                                            navController = navController,
+                                            onDismiss = menuState::dismiss
+                                        )
+
+                                        is ArtistItem -> YouTubeArtistMenu(
+                                            artist = item,
+                                            onDismiss = menuState::dismiss
+                                        )
+
+                                        is PlaylistItem -> YouTubePlaylistMenu(
+                                            playlist = item,
+                                            coroutineScope = coroutineScope,
+                                            onDismiss = menuState::dismiss
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                        .animateItem()
+                )
+            }
+
+            if (itemsPage?.continuation != null) {
+                item(key = "loading") {
+                    ShimmerHost(Modifier.animateItem()) {
+                        GridItemPlaceHolder(fillMaxWidth = true)
+                    }
+                }
+            }
+        }
+        }
+    }
+    }
+
+    TopAppBar(
+        title = { Text(title) },
+        navigationIcon = {
+            IconButton(
+                onClick = navController::navigateUp,
+                onLongClick = null,
+            ) {
+                Icon(
+                    painterResource(R.drawable.arrow_back),
+                    contentDescription = null,
+                )
+            }
+        },
+    )
+}

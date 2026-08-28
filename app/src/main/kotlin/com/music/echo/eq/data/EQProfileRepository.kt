@@ -1,0 +1,199 @@
+package iad1tya.echo.music.eq.data
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.core.content.edit
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import javax.inject.Inject
+import javax.inject.Singleton
+
+
+@Serializable
+data class SavedEQProfile(
+    val id: String,
+    val name: String,
+    val deviceModel: String,
+    val bands: List<ParametricEQBand>,
+    // Auto-EQ correction bands persisted alongside the manual [bands]. A default + ignoreUnknownKeys
+    // means OLD persisted/exported profiles (without this field) still deserialize cleanly. Applied as a
+    // separate cascaded stage that the manual EQ stacks on top of (it does NOT replace the manual EQ).
+    val autoBands: List<ParametricEQBand> = emptyList(),
+    val preamp: Double = 0.0,
+    val isCustom: Boolean = false,
+    val isActive: Boolean = false,
+    // Sound effects snapshot saved WITH the EQ profile: which effects are on + their levels (Aura
+    // signature, bass, exciter, multiband comp, stereo width, dialogue, HRTF, loudness, audio enhance).
+    // Booleans are stored as 1f/0f. Restored when the profile is applied. Exportable as part of the JSON.
+    val effects: Map<String, Float> = emptyMap(),
+    val addedTimestamp: Long = System.currentTimeMillis()
+)
+
+
+@Singleton
+class EQProfileRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
+    private val prefs: SharedPreferences = context.getSharedPreferences(
+        "nanosonic_eq_profiles",
+        Context.MODE_PRIVATE
+    )
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        prettyPrint = true
+    }
+
+    private val _profiles = MutableStateFlow<List<SavedEQProfile>>(emptyList())
+    val profiles: StateFlow<List<SavedEQProfile>> = _profiles.asStateFlow()
+
+    private val _activeProfile = MutableStateFlow<SavedEQProfile?>(null)
+    val activeProfile: StateFlow<SavedEQProfile?> = _activeProfile.asStateFlow()
+
+    private val _unsavedProfile = MutableStateFlow<SavedEQProfile?>(null)
+    val unsavedProfile: StateFlow<SavedEQProfile?> = _unsavedProfile.asStateFlow()
+
+    companion object {
+        private const val KEY_PROFILES = "eq_profiles"
+        private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
+        private const val KEY_UNSAVED_PROFILE = "unsaved_profile"
+    }
+
+    init {
+        loadProfiles()
+    }
+
+    
+    private fun loadProfiles() {
+        try {
+            val profilesJson = prefs.getString(KEY_PROFILES, null)
+            if (profilesJson != null) {
+                val loadedProfiles = json.decodeFromString<List<SavedEQProfile>>(profilesJson)
+                _profiles.value = loadedProfiles
+
+                
+                val activeId = prefs.getString(KEY_ACTIVE_PROFILE_ID, null)
+                _activeProfile.value = loadedProfiles.find { it.id == activeId }
+            }
+            
+            val unsavedJson = prefs.getString(KEY_UNSAVED_PROFILE, null)
+            if (unsavedJson != null) {
+                _unsavedProfile.value = json.decodeFromString<SavedEQProfile>(unsavedJson)
+            }
+        } catch (e: Exception) {
+            println("Error loading EQ profiles: ${e.message}")
+            _profiles.value = emptyList()
+            _activeProfile.value = null
+            _unsavedProfile.value = null
+        }
+    }
+
+    
+    suspend fun saveProfile(profile: SavedEQProfile) = withContext(Dispatchers.IO) {
+        val currentProfiles = _profiles.value.toMutableList()
+
+        
+        val existingIndex = currentProfiles.indexOfFirst { it.id == profile.id }
+
+        if (existingIndex >= 0) {
+            
+            currentProfiles[existingIndex] = profile
+        } else {
+            
+            currentProfiles.add(profile)
+        }
+
+        
+        val profilesJson = json.encodeToString<List<SavedEQProfile>>(currentProfiles)
+        prefs.edit { putString(KEY_PROFILES, profilesJson) }
+
+        _profiles.value = currentProfiles
+    }
+
+    
+    suspend fun deleteProfile(profileId: String) = withContext(Dispatchers.IO) {
+        val currentProfiles = _profiles.value.toMutableList()
+        currentProfiles.removeAll { it.id == profileId }
+
+        val profilesJson = json.encodeToString<List<SavedEQProfile>>(currentProfiles)
+        prefs.edit { putString(KEY_PROFILES, profilesJson) }
+
+        
+        if (_activeProfile.value?.id == profileId) {
+            _activeProfile.value = null
+            prefs.edit { remove(KEY_ACTIVE_PROFILE_ID) }
+        }
+
+        _profiles.value = currentProfiles
+    }
+
+    
+    suspend fun setActiveProfile(profileId: String?) = withContext(Dispatchers.IO) {
+        val currentProfiles = _profiles.value
+
+        if (profileId == null) {
+            
+            _activeProfile.value = null
+            prefs.edit { remove(KEY_ACTIVE_PROFILE_ID) }
+        } else {
+            val profile = currentProfiles.find { it.id == profileId }
+            _activeProfile.value = profile
+            prefs.edit { putString(KEY_ACTIVE_PROFILE_ID, profileId) }
+        }
+    }
+
+    
+    fun getAllProfiles(): List<SavedEQProfile> {
+        return _profiles.value
+    }
+
+    
+    fun getActiveProfile(): SavedEQProfile? {
+        return _activeProfile.value
+    }
+    
+    fun setUnsavedProfile(profile: SavedEQProfile?) {
+        val jsonString = profile?.let { json.encodeToString(it) }
+        if (jsonString != null) {
+            prefs.edit { putString(KEY_UNSAVED_PROFILE, jsonString) }
+        } else {
+            prefs.edit { remove(KEY_UNSAVED_PROFILE) }
+        }
+        _unsavedProfile.value = profile
+    }
+
+    
+    suspend fun importCustomProfile(
+        name: String,
+        parametricEQ: ParametricEQ
+    ) = withContext(Dispatchers.IO) {
+        
+        val id = "custom_${System.currentTimeMillis()}_${name.hashCode()}"
+
+        val customProfile = SavedEQProfile(
+            id = id,
+            name = name,
+            deviceModel = name,
+            bands = parametricEQ.bands,  
+            preamp = parametricEQ.preamp,
+            isActive = false,
+            isCustom = true 
+        )
+
+        saveProfile(customProfile)
+    }
+
+    
+    fun getSortedProfiles(): List<SavedEQProfile> {
+        
+        return _profiles.value
+            .filter { it.isCustom }
+            .sortedByDescending { it.addedTimestamp }
+    }
+}

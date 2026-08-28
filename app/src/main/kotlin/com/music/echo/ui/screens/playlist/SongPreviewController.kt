@@ -1,0 +1,361 @@
+package iad1tya.echo.music.ui.screens.playlist
+
+import android.content.Context
+import android.net.ConnectivityManager
+import android.widget.Toast
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.getSystemService
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.music.innertube.YouTube
+import com.music.innertube.models.YouTubeClient
+import iad1tya.echo.music.LocalPlayerConnection
+import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.AudioQuality
+import iad1tya.echo.music.utils.YTPlayerUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+
+/**
+ * In-place, NON-disruptive song preview. Plays a song through a DEDICATED short-lived [ExoPlayer]
+ * (modeled on CanvasArtworkPlayer) WITHOUT ever
+ * touching the main player's queue / crossfade.
+ *
+ * Starting a preview pauses the main player (only if it was playing) and remembers that so it can be
+ * resumed exactly when the preview stops (tap again / another row / sheet or screen dismissed). URL
+ * resolution failures are a silent no-op that resumes the main player. Only ONE preview plays at a
+ * time — starting a new one stops the previous.
+ */
+class SongPreviewController(
+    private val context: Context,
+    private val scope: CoroutineScope,
+    private val onRequestMainPause: () -> Boolean,
+    private val onResumeMain: () -> Unit,
+) {
+    /** The videoId currently being previewed (null = nothing playing). Drives the row UI. */
+    var currentPreviewId by mutableStateOf<String?>(null)
+        private set
+
+    /** True while the stream URL for [currentPreviewId] is being resolved. */
+    var isLoading by mutableStateOf(false)
+        private set
+
+    private var exoPlayer: ExoPlayer? = null
+    private var resolveJob: Job? = null
+    private var mainWasPlaying = false
+
+    /** One-shot guard so [maybePrewarm] warms the session exactly once per controller. */
+    private var prewarmed = false
+
+    /**
+     * Fire-and-forget, ONCE per controller: warm the poToken WebView + cipher player.js so the very
+     * FIRST preview tap isn't fully cold. A cold session (poToken/cipher/visitorData still spinning up)
+     * is why the first tap used to resolve null → "unavailable" and only the 2nd (now-warm) tap played.
+     * Bounded: single shot, best-effort (both prewarms are internally guarded / never throw), runs off
+     * the main thread and never blocks the tap. Mirrors MusicService's startup warm.
+     */
+    private fun maybePrewarm() {
+        if (prewarmed) return
+        prewarmed = true
+        scope.launch(Dispatchers.IO) {
+            runCatching { YTPlayerUtils.prewarmPoToken() }
+            runCatching { YTPlayerUtils.prewarmCipher() }
+        }
+    }
+
+    /** Max entries kept in [urlCache] — a small LRU so a long browsing session can't grow it unbounded. */
+    private val URL_CACHE_MAX = 50
+
+    /**
+     * Session cache of resolved preview stream URLs: videoId -> (streamUrl, expiry epoch ms).
+     * Re-previewing the same song (tap again, or toggle back and forth between rows) skips the whole
+     * resolution pipeline and plays instantly. Expiry uses YouTube's own `streamExpiresInSeconds`
+     * minus a safety margin. Access-ordered LRU capped at [URL_CACHE_MAX]; expired entries are
+     * dropped when touched (see [start]) and failed URLs are evicted on player error so a re-tap
+     * re-resolves. Only touched from the main thread (composition scope).
+     */
+    private val urlCache = object : LinkedHashMap<String, Pair<String, Long>>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<String, Long>>): Boolean =
+            size > URL_CACHE_MAX
+    }
+
+    /** Brief feedback when a preview can't play (resolution failure / stream 403), so a failed tap isn't
+     *  silent. Called on the main thread (resolve launch is Main-scoped; player callbacks are on Main). */
+    private fun notifyUnavailable() {
+        Toast.makeText(context, R.string.preview_unavailable, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Tap handler: same song toggles it off; a different song starts a new preview. */
+    fun toggle(videoId: String) {
+        if (currentPreviewId == videoId) {
+            stop()
+        } else {
+            start(videoId)
+        }
+    }
+
+    private fun start(videoId: String) {
+        // Warm poToken/cipher on the first preview so the very first tap isn't fully cold (fire-and-forget).
+        maybePrewarm()
+
+        // Stop any in-flight preview but DON'T resume the main player yet — we're immediately starting
+        // another preview, so the main player should stay paused across the swap.
+        teardown(resumeMain = false)
+
+        currentPreviewId = videoId
+        // Preserve the remembered state across a preview→preview swap: the main player is already paused
+        // by us (onRequestMainPause returns false), so only capture a fresh value when nothing was active.
+        mainWasPlaying = onRequestMainPause() || mainWasPlaying
+
+        // Cache hit (unexpired): skip the whole resolution pipeline + loading spinner and play instantly.
+        // An EXPIRED entry is dropped on touch so the LRU doesn't keep dead URLs alive.
+        var cached = urlCache[videoId]
+        if (cached != null && cached.second <= System.currentTimeMillis()) {
+            urlCache.remove(videoId)
+            cached = null
+        }
+        if (cached != null) {
+            isLoading = false
+            playUrl(cached.first)
+            return
+        }
+
+        isLoading = true
+        resolveJob = scope.launch {
+            suspend fun resolveOnce(): YTPlayerUtils.PlaybackData? = withContext(Dispatchers.IO) {
+                runCatching {
+                    val cm = context.getSystemService<ConnectivityManager>() ?: return@runCatching null
+                    YTPlayerUtils.playerResponseForPlayback(
+                        videoId = videoId,
+                        audioQuality = AudioQuality.OPUS,
+                        connectivityManager = cm,
+                        context = context,
+                    ).getOrNull()
+                }.getOrNull()
+            }
+
+            var data = resolveOnce()
+            // The user tapped a different row (or dismissed) while we were resolving — abandon.
+            if (currentPreviewId != videoId) return@launch
+
+            // First cold-session resolve can come back null/blank while poToken/cipher/visitorData are
+            // still warming — the exact reason the FIRST tap used to fail and only the 2nd (warm) tap
+            // played. Wait briefly for the just-warmed session, then RETRY ONCE before giving up; only
+            // surface "unavailable" if the warm retry also fails (spinner stays up across the retry).
+            if (data?.streamUrl.isNullOrBlank()) {
+                delay(500)
+                if (currentPreviewId != videoId) return@launch
+                data = resolveOnce()
+                if (currentPreviewId != videoId) return@launch
+            }
+
+            isLoading = false
+            val resolved = data
+            val url = resolved?.streamUrl
+            if (url.isNullOrBlank()) {
+                // Both attempts failed (YouTube rotated its player / throttle / region- or age-restriction):
+                // tell the user so a failed preview isn't a silent dead tap, then resume the main player.
+                notifyUnavailable()
+                stop()
+                return@launch
+            }
+
+            // Cache for instant re-preview this session, keyed to YouTube's own stream expiry minus a
+            // ~60s safety margin so a URL isn't replayed right at the edge of expiring (403 mid-play).
+            urlCache[videoId] =
+                url to (System.currentTimeMillis() + resolved.streamExpiresInSeconds * 1000L - 60_000L)
+            playUrl(url)
+        }
+    }
+
+    /** Feed a resolved URL into the (lazily-created, reused) preview player and start immediately. */
+    private fun playUrl(url: String) {
+        val player = getOrCreatePlayer()
+        player.setMediaItem(MediaItem.fromUri(url))
+        player.prepare()
+        player.playWhenReady = true
+    }
+
+    /** Stop the current preview and resume the main player if it was playing. */
+    fun stop() = teardown(resumeMain = true)
+
+    private fun teardown(resumeMain: Boolean) {
+        resolveJob?.cancel()
+        resolveJob = null
+        currentPreviewId = null
+        isLoading = false
+        exoPlayer?.let {
+            it.stop()
+            it.clearMediaItems()
+        }
+        if (resumeMain && mainWasPlaying) {
+            mainWasPlaying = false
+            onResumeMain()
+        }
+    }
+
+    /** Release the dedicated player entirely (call from onDispose). */
+    fun release() {
+        resolveJob?.cancel()
+        resolveJob = null
+        exoPlayer?.release()
+        exoPlayer = null
+        val resume = mainWasPlaying
+        mainWasPlaying = false
+        currentPreviewId = null
+        isLoading = false
+        if (resume) onResumeMain()
+    }
+
+    private fun getOrCreatePlayer(): ExoPlayer {
+        exoPlayer?.let { return it }
+        // googlevideo stream URLs 403 without the right per-client User-Agent — reuse the same interceptor
+        // pattern as the video/canvas players (keyed off the URL's `c=` client param).
+        val okHttpClient = OkHttpClient.Builder()
+            .proxy(YouTube.proxy)
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val host = request.url.host
+                val isYouTubeMediaHost =
+                    host.endsWith("googlevideo.com") ||
+                        host.endsWith("googleusercontent.com") ||
+                        host.endsWith("youtube.com") ||
+                        host.endsWith("youtube-nocookie.com") ||
+                        host.endsWith("ytimg.com")
+                if (!isYouTubeMediaHost) return@addInterceptor chain.proceed(request)
+
+                val clientParam = request.url.queryParameter("c")?.trim().orEmpty()
+                val isWeb =
+                    clientParam.startsWith("WEB", ignoreCase = true) ||
+                        clientParam.startsWith("WEB_REMIX", ignoreCase = true) ||
+                        request.url.toString().contains("c=WEB", ignoreCase = true)
+                val userAgent = when {
+                    clientParam.startsWith("WEB", ignoreCase = true) ||
+                        clientParam.startsWith("WEB_REMIX", ignoreCase = true) -> YouTubeClient.USER_AGENT_WEB
+                    clientParam.startsWith("IOS", ignoreCase = true) -> YouTubeClient.IOS.userAgent
+                    clientParam.startsWith("ANDROID_VR", ignoreCase = true) -> YouTubeClient.ANDROID_VR_NO_AUTH.userAgent
+                    clientParam.startsWith("ANDROID", ignoreCase = true) -> YouTubeClient.MOBILE.userAgent
+                    else -> YouTubeClient.USER_AGENT_WEB
+                }
+                val builder = request.newBuilder().header("User-Agent", userAgent)
+                if (isWeb) {
+                    builder.header("Origin", YouTubeClient.ORIGIN_YOUTUBE_MUSIC)
+                    builder.header("Referer", YouTubeClient.REFERER_YOUTUBE_MUSIC)
+                }
+                chain.proceed(builder.build())
+            }
+            // HALLAZGO-019 (FASE 22): per-phase timeouts, no callTimeout (the preview is itself a
+            // stream; the 30s read bound caps packet stalls only).
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+
+        val mediaSourceFactory = DefaultMediaSourceFactory(
+            DefaultDataSource.Factory(context, OkHttpDataSource.Factory(okHttpClient)),
+        )
+
+        // PREVIEW-ONLY LoadControl (never the main/shared player's): start playback after only ~300ms of
+        // audio is buffered instead of media3's default 2.5s, so a tapped preview begins almost instantly.
+        // This is a throwaway preview stream, so the thin start buffer is fine and never touches the main
+        // audio chain / crossfade.
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+                // bufferForPlaybackMs: ~300ms before the preview starts (default is 2500ms).
+                300,
+                // bufferForPlaybackAfterRebufferMs: ~1s to resume after a stall (default is 5000ms).
+                1000,
+            )
+            .build()
+
+        return ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .build()
+            .apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(C.USAGE_MEDIA)
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                        .build(),
+                    true,
+                )
+                repeatMode = Player.REPEAT_MODE_OFF
+                // Approximates Safe Volume headroom so a hot-mastered preview isn't jarringly louder than the just-paused (attenuated) main playback; preview player only, main audio chain untouched.
+                volume = 0.85f
+                // Natural end (song plays to completion) or a playback error (e.g. googlevideo 403) must
+                // stop the preview so the main player is resumed — otherwise it stays paused forever.
+                // NOTE: the CONTROLLER's stop() must be called explicitly — a bare stop() here resolves
+                // to the enclosing apply's ExoPlayer.stop(), which would never clear currentPreviewId
+                // nor resume the main player.
+                addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_ENDED) this@SongPreviewController.stop()
+                    }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        // Evict the failed entry (e.g. a cached URL that started 403ing) BEFORE stop()
+                        // clears currentPreviewId, so a re-tap re-resolves instead of replaying it.
+                        currentPreviewId?.let { urlCache.remove(it) }
+                        notifyUnavailable()
+                        this@SongPreviewController.stop()
+                    }
+                })
+            }
+            .also { exoPlayer = it }
+    }
+}
+
+/**
+ * Creates a [SongPreviewController] tied to the current composition. Pauses/resumes the app's main
+ * player via [LocalPlayerConnection] and releases the dedicated preview player on dispose.
+ */
+@Composable
+fun rememberSongPreviewController(): SongPreviewController {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val playerConnection = LocalPlayerConnection.current
+
+    val controller = remember(playerConnection) {
+        SongPreviewController(
+            context = context.applicationContext,
+            scope = scope,
+            onRequestMainPause = {
+                val player = playerConnection?.player
+                val wasPlaying = player != null &&
+                    player.playWhenReady &&
+                    player.playbackState != Player.STATE_ENDED
+                if (wasPlaying) playerConnection?.pause()
+                wasPlaying
+            },
+            onResumeMain = { playerConnection?.play() },
+        )
+    }
+
+    DisposableEffect(controller) {
+        onDispose { controller.release() }
+    }
+
+    return controller
+}

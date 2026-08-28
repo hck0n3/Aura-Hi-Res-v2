@@ -1,0 +1,330 @@
+
+
+package iad1tya.echo.music.ui.screens.library
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import iad1tya.echo.music.LocalPlayerAwareWindowInsets
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
+import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.ArtistFilter
+import iad1tya.echo.music.constants.ArtistFilterKey
+import iad1tya.echo.music.constants.ArtistSortDescendingKey
+import iad1tya.echo.music.constants.ArtistSortType
+import iad1tya.echo.music.constants.ArtistSortTypeKey
+import iad1tya.echo.music.constants.ArtistViewTypeKey
+import iad1tya.echo.music.constants.CONTENT_TYPE_ARTIST
+import iad1tya.echo.music.constants.CONTENT_TYPE_HEADER
+import iad1tya.echo.music.constants.GridItemSize
+import iad1tya.echo.music.constants.GridItemsSizeKey
+import iad1tya.echo.music.constants.GridThumbnailHeight
+import iad1tya.echo.music.constants.LibraryViewType
+import iad1tya.echo.music.constants.YtmSyncKey
+import iad1tya.echo.music.ui.component.ChipsRow
+import iad1tya.echo.music.ui.component.EmptyPlaceholder
+import iad1tya.echo.music.ui.component.LibraryArtistGridItem
+import iad1tya.echo.music.ui.component.LibraryArtistListItem
+import iad1tya.echo.music.ui.component.LibraryViewToggle
+import iad1tya.echo.music.ui.component.LocalMenuState
+import iad1tya.echo.music.ui.component.SortHeader
+import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.viewmodels.LibraryArtistsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun LibraryArtistsScreen(
+    navController: NavController,
+    onDeselect: () -> Unit,
+    viewModel: LibraryArtistsViewModel = hiltViewModel(),
+) {
+    val menuState = LocalMenuState.current
+    val haptic = LocalHapticFeedback.current
+    val coroutineScope = rememberCoroutineScope()
+    var viewType by rememberEnumPreference(ArtistViewTypeKey, LibraryViewType.GRID)
+
+    var filter by rememberEnumPreference(ArtistFilterKey, ArtistFilter.LIKED)
+    val (sortType, onSortTypeChange) = rememberEnumPreference(
+        ArtistSortTypeKey,
+        ArtistSortType.CREATE_DATE
+    )
+    val (sortDescending, onSortDescendingChange) = rememberPreference(ArtistSortDescendingKey, true)
+    val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
+    val (ytmSync) = rememberPreference(YtmSyncKey, true)
+
+    val searchQuery by viewModel.searchQuery.collectAsState()
+
+    val filterContent = @Composable {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.width(12.dp))
+                FilterChip(
+                    label = { Text(stringResource(R.string.artists)) },
+                    selected = true,
+                    colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
+                    onClick = onDeselect,
+                    shape = RoundedCornerShape(16.dp),
+                    leadingIcon = {
+                        Icon(painter = painterResource(R.drawable.close), contentDescription = "")
+                    },
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
+                ChipsRow(
+                    chips =
+                    listOf(
+                        ArtistFilter.LIKED to stringResource(R.string.filter_liked),
+                        ArtistFilter.LIBRARY to stringResource(R.string.filter_library)
+                    ),
+                    currentValue = filter,
+                    onValueUpdate = {
+                        filter = it
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.searchQuery.value = it },
+                singleLine = true,
+                leadingIcon = {
+                    Icon(painter = painterResource(R.drawable.search), contentDescription = null)
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.searchQuery.value = "" }) {
+                            Icon(painter = painterResource(R.drawable.close), contentDescription = null)
+                        }
+                    }
+                },
+                placeholder = { Text(stringResource(R.string.search_library)) },
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (ytmSync) {
+            withContext(Dispatchers.IO) {
+                viewModel.sync()
+            }
+        }
+    }
+
+    val artists by viewModel.filteredArtists.collectAsState()
+
+    val lazyListState = rememberLazyListState()
+    val lazyGridState = rememberLazyGridState()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val scrollToTop =
+        backStackEntry?.savedStateHandle?.getStateFlow("scrollToTop", false)?.collectAsState()
+
+    LaunchedEffect(scrollToTop?.value) {
+        if (scrollToTop?.value == true) {
+            when (viewType) {
+                LibraryViewType.LIST -> lazyListState.animateScrollToItem(0)
+                LibraryViewType.GRID -> lazyGridState.animateScrollToItem(0)
+            }
+            backStackEntry?.savedStateHandle?.set("scrollToTop", false)
+        }
+    }
+
+    val headerContent = @Composable {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 16.dp),
+        ) {
+            SortHeader(
+                sortType = sortType,
+                sortDescending = sortDescending,
+                onSortTypeChange = onSortTypeChange,
+                onSortDescendingChange = onSortDescendingChange,
+                sortTypeText = { sortType ->
+                    when (sortType) {
+                        ArtistSortType.CREATE_DATE -> R.string.sort_by_create_date
+                        ArtistSortType.NAME -> R.string.sort_by_name
+                        ArtistSortType.SONG_COUNT -> R.string.sort_by_song_count
+                        ArtistSortType.PLAY_TIME -> R.string.sort_by_play_time
+                    }
+                },
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            Text(
+                text = pluralStringResource(
+                    R.plurals.n_artist,
+                    artists.size,
+                    artists.size
+                ),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+
+            LibraryViewToggle(
+                viewType = viewType,
+                onViewTypeChange = { viewType = it },
+            )
+        }
+    }
+
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        when (viewType) {
+            LibraryViewType.LIST ->
+                LazyColumn(
+                    state = lazyListState,
+                    contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+                    modifier = Modifier.tvFocusRestorer(),
+                ) {
+                    item(
+                        key = "filter",
+                        contentType = CONTENT_TYPE_HEADER,
+                    ) {
+                        filterContent()
+                    }
+
+                    item(
+                        key = "header",
+                        contentType = CONTENT_TYPE_HEADER,
+                    ) {
+                        headerContent()
+                    }
+
+                    artists.let { artists ->
+                        if (artists.isEmpty()) {
+                            item(key = "empty_placeholder") {
+                                EmptyPlaceholder(
+                                    icon = R.drawable.artist,
+                                    text = if (searchQuery.isNotBlank()) stringResource(R.string.no_results_found)
+                                    else stringResource(R.string.library_artist_empty),
+                                    modifier = Modifier.animateItem()
+                                )
+                            }
+                        }
+
+                        items(
+                            items = artists.distinctBy { it.id },
+                            key = { it.id },
+                            contentType = { CONTENT_TYPE_ARTIST },
+                        ) { artist ->
+                            LibraryArtistListItem(
+                                navController = navController,
+                                menuState = menuState,
+                                coroutineScope = coroutineScope,
+                                modifier = Modifier.animateItem(),
+                                artist = artist
+                            )
+                        }
+                    }
+                }
+
+            LibraryViewType.GRID ->
+                LazyVerticalGrid(
+                    state = lazyGridState,
+                    columns =
+                    GridCells.Adaptive(
+                        // Reflow to the REAL panel width (split-screen aware), NOT the window. Only a
+                        // genuinely wide content pane (>= 840dp, the expanded breakpoint) uses the compact
+                        // 110dp cell = more, smaller circles; a narrow split pane keeps phone-size circles
+                        // instead of inheriting the wide window's compact sizing.
+                        minSize = if (maxWidth >= 840.dp) 110.dp
+                        else GridThumbnailHeight + if (gridItemSize == GridItemSize.BIG) 24.dp else (-24).dp,
+                    ),
+                    contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+                    modifier = Modifier.tvFocusRestorer(),
+                ) {
+                    item(
+                        key = "filter",
+                        span = { GridItemSpan(maxLineSpan) },
+                        contentType = CONTENT_TYPE_HEADER,
+                    ) {
+                        filterContent()
+                    }
+
+                    item(
+                        key = "header",
+                        span = { GridItemSpan(maxLineSpan) },
+                        contentType = CONTENT_TYPE_HEADER,
+                    ) {
+                        headerContent()
+                    }
+
+                    artists.let { artists ->
+                        if (artists.isEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                EmptyPlaceholder(
+                                    icon = R.drawable.artist,
+                                    text = if (searchQuery.isNotBlank()) stringResource(R.string.no_results_found)
+                                    else stringResource(R.string.library_artist_empty),
+                                    modifier = Modifier.animateItem()
+                                )
+                            }
+                        }
+
+                        items(
+                            items = artists.distinctBy { it.id },
+                            key = { it.id },
+                            contentType = { CONTENT_TYPE_ARTIST },
+                        ) { artist ->
+                            LibraryArtistGridItem(
+                                navController = navController,
+                                menuState = menuState,
+                                coroutineScope = coroutineScope,
+                                modifier = Modifier.animateItem(),
+                                artist = artist
+                            )
+                        }
+                    }
+                }
+        }
+    }
+}

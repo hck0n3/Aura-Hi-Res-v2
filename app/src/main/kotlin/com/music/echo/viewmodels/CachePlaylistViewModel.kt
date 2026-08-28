@@ -1,0 +1,100 @@
+
+
+package iad1tya.echo.music.viewmodels
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.media3.datasource.cache.SimpleCache
+import iad1tya.echo.music.constants.HideExplicitKey
+import iad1tya.echo.music.constants.HideVideoSongsKey
+import iad1tya.echo.music.db.MusicDatabase
+import iad1tya.echo.music.db.entities.Song
+import iad1tya.echo.music.di.DownloadCache
+import iad1tya.echo.music.di.PlayerCache
+import iad1tya.echo.music.extensions.filterExplicit
+import iad1tya.echo.music.extensions.filterVideoSongs
+import iad1tya.echo.music.utils.dataStore
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import java.time.LocalDateTime
+import javax.inject.Inject
+
+@HiltViewModel
+class CachePlaylistViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val database: MusicDatabase,
+    @PlayerCache private val playerCache: SimpleCache,
+    @DownloadCache private val downloadCache: SimpleCache
+) : ViewModel() {
+
+    private val _cachedSongs = MutableStateFlow<List<Song>>(emptyList())
+    val cachedSongs: StateFlow<List<Song>> = _cachedSongs
+
+    init {
+        // Run off the main thread: the DataStore reads and SimpleCache key-scans below
+        // must not block the UI thread. Tied to viewModelScope so it is cancelled when the
+        // ViewModel is cleared; delay() is cancellable, so the loop stops.
+        //
+        // SUBSCRIBER-GATED (thermal audit's #1 finding): this ViewModel is ALSO obtained by the song
+        // ⋯-menu via hiltViewModel(), whose host sits OUTSIDE the NavHost — its owner is the ACTIVITY,
+        // so onCleared never fires until the app dies. Opening any song menu ONCE therefore left this
+        // loop issuing a Room relation query + two full cache-key-set copies + N SimpleCache lock scans
+        // EVERY SECOND for the rest of the session, screen off included (~86k queries/day). The loop now
+        // PARKS (suspends, zero work) whenever nobody is collecting [cachedSongs] — collectAsState
+        // subscribes only while the cache screen/menu is actually composed — and resumes on demand.
+        viewModelScope.launch(Dispatchers.IO) {
+            while (true) {
+                if (_cachedSongs.subscriptionCount.value == 0) {
+                    _cachedSongs.subscriptionCount.first { it > 0 }
+                }
+                // Non-blocking suspend read of the latest preferences (no runBlocking on any thread).
+                val prefs = context.dataStore.data.first()
+                val hideExplicit = prefs[HideExplicitKey] ?: false
+                val hideVideoSongs = prefs[HideVideoSongsKey] ?: false
+                val cachedIds = playerCache.keys.toSet()
+                val downloadedIds = downloadCache.keys.toSet()
+                val pureCacheIds = cachedIds.subtract(downloadedIds)
+
+                val songs = if (pureCacheIds.isNotEmpty()) {
+                    database.getSongsByIds(pureCacheIds.toList())
+                } else {
+                    emptyList()
+                }
+
+                val completeSongs = songs.filter {
+                    val contentLength = it.format?.contentLength
+                    contentLength != null && playerCache.isCached(it.song.id, 0, contentLength)
+                }
+
+                if (completeSongs.isNotEmpty()) {
+                    database.query {
+                        completeSongs.forEach {
+                            if (it.song.dateDownload == null) {
+                                update(it.song.copy(dateDownload = LocalDateTime.now()))
+                            }
+                        }
+                    }
+                }
+
+                _cachedSongs.value = completeSongs
+                    .filter { it.song.dateDownload != null }
+                    .sortedByDescending { it.song.dateDownload }
+                    .filterExplicit(hideExplicit)
+                    .filterVideoSongs(hideVideoSongs)
+
+                delay(1000)
+            }
+        }
+    }
+
+    fun removeSongFromCache(songId: String) {
+        playerCache.removeResource(songId)
+    }
+}

@@ -1,0 +1,267 @@
+package iad1tya.echo.music.reco
+
+import iad1tya.echo.music.db.entities.ArtistEntity
+import iad1tya.echo.music.db.entities.EventWithSong
+import iad1tya.echo.music.db.entities.Song
+import iad1tya.echo.music.dislike.DislikeStore
+import java.time.Instant
+import java.time.ZoneId
+import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.min
+
+/**
+ * On-device "taste model". Builds an explainable affinity profile purely from the local listening
+ * history — every play weighted by how recently it happened (recency decay) and how much of the song
+ * actually played (a track skipped after a few seconds counts AGAINST it, a full listen counts FOR it),
+ * plus likes and "No me gusta". Nothing leaves the phone: fast, private, and easy to reason about.
+ *
+ * This is the single source of truth that Home, autoplay/radio, search ranking and smart shuffle all
+ * reuse, so "more of what you like" means the same thing everywhere in the app.
+ *
+ * Phase 1 models per-artist affinity (the strongest signal) plus a light genre-lane nudge. Later phases
+ * generalise the lanes and add context (time of day, novelty/exploration).
+ */
+object AffinityEngine {
+
+    /** A play from this many days ago counts half as much as one today. */
+    private const val HALF_LIFE_DAYS = 30.0
+
+    /** Don't scan the entire history forever; the most recent N events dominate taste anyway. */
+    private const val MAX_EVENTS = 3000
+
+    /** Below this fraction of the song, a play is treated as a skip (negative signal). */
+    private const val SKIP_PIVOT = 0.30
+
+    /** Baseline weight given to each onboarding-selected genre so brand-new users still get genre affinity. */
+    private const val ONBOARDING_GENRE_SEED = 2.0
+
+    /** Weight each saved/imported library song contributes to taste (below an actual play; liked counts more). */
+    private const val LIBRARY_SEED = 0.2
+    private const val LIBRARY_LIKED_SEED = 0.4
+    /** Max a single artist/name (resp. genre/lane) may gain from the library, so one big imported discography
+     *  can't dominate the max-weight normalization and bury the artists you actually play most. */
+    private const val LIBRARY_KEY_CAP = 2.0
+    private const val LIBRARY_GENRE_CAP = 4.0
+
+    /** Cap the library scan so a huge imported library (10k+) can't make profile-building pathological. */
+    const val MAX_LIBRARY = 6000
+
+    /** Weight each FOLLOWED/subscribed artist contributes to taste even with zero plays. Sits above a plain
+     *  library import (0.2/0.4) and below a real recent play, so subscribing to an artist immediately shapes
+     *  Home/radio/quick-picks — the "recommendations from artists you follow" the engine previously ignored. */
+    private const val FOLLOWED_ARTIST_SEED = 0.6
+
+    /** Max a single artist NAME may gain from the user's Last.fm history (top artists + loved tracks). A
+     *  SECONDARY, opt-in cross-app seed: capped like the library so it can cold-start yet auto-normalizes
+     *  BELOW real local plays once history exists (local stays primary). Merged into byName ONLY — Last.fm
+     *  gives artist names, not YouTube ids, so it never touches maxArtistWeight (computed from byId). */
+    private const val LASTFM_KEY_CAP = 2.0
+
+    suspend fun buildProfile(
+        events: List<EventWithSong>,
+        disliked: DislikeStore.Disliked,
+        now: Long = System.currentTimeMillis(),
+        // Optional "artist name (lowercase) -> primary genre" map (from GenreCache/iTunes). When present,
+        // the engine also learns per-genre affinity; when empty it falls back to artist + lane only.
+        artistGenres: Map<String, String> = emptyMap(),
+        // The user's onboarding genre picks (already mapped to iTunes genre names) — seeded as baseline
+        // affinity so the first-run "¿Qué géneros te gustan?" step actually influences recommendations.
+        onboardingGenres: List<String> = emptyList(),
+        // The user's saved/imported library (Spotify + YouTube Music import, "Me gusta", etc.). These count
+        // as taste even for songs never played yet, so Home/autoplay/shuffle reflect the WHOLE library the
+        // user brought in — not only what they've happened to play inside the app.
+        librarySongs: List<Song> = emptyList(),
+        // The user's followed/subscribed artists (followedByUserAt != null). Seeded as a real taste signal even
+        // for artists with no plays and no saved songs, so following an artist actually drives recommendations.
+        followedArtists: List<ArtistEntity> = emptyList(),
+        // The user's Last.fm listening history (top artists + loved tracks), keyed by LOWERCASED artist NAME and
+        // pre-weighted by LastFmTasteSource. A SECONDARY, opt-in cross-app signal: merged into byName ONLY and
+        // capped, so it seeds cold-start / cross-app taste but never outranks real local plays. Empty by default
+        // (Last.fm off/absent) => zero behavior change.
+        externalArtistWeights: Map<String, Double> = emptyMap(),
+    ): TasteProfile {
+        val byId = HashMap<String, Double>()
+        val byName = HashMap<String, Double>()
+        val lane = HashMap<String, Double>()
+        val genre = HashMap<String, Double>()
+        val ln2 = ln(2.0)
+        val nowHour = runCatching {
+            Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).hour
+        }.getOrDefault(12)
+
+        events.asSequence().take(MAX_EVENTS).forEach { ews ->
+            val ev = ews.event
+            val song = ews.song
+            val playedAt = runCatching {
+                ev.timestamp.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            }.getOrDefault(now)
+            val ageDays = ((now - playedAt) / 86_400_000.0).coerceAtLeast(0.0)
+            val decay = exp(-ln2 * ageDays / HALF_LIFE_DAYS)
+
+            // Time-of-day context: what you play around THIS hour counts a bit more, so mornings feel
+            // like mornings and nights like nights.
+            val hourDist = runCatching { circularHourDistance(ev.timestamp.hour, nowHour) }.getOrDefault(12)
+            val timeBoost = if (hourDist <= 3) 1.25 else 1.0
+
+            val durMs = song.song.duration.takeIf { it > 0 }?.let { it.toLong() * 1000L } ?: 0L
+            val completion = if (durMs > 0) (ev.playTime.toDouble() / durMs).coerceIn(0.0, 1.0) else 0.5
+            // Map completion to a [-?..+1] quality: a skip (completion < SKIP_PIVOT) is negative, a full
+            // listen is +1. This turns the play-time we already store into a free "skip" signal.
+            val quality = (completion - SKIP_PIVOT) / (1.0 - SKIP_PIVOT)
+            var w = decay * quality * timeBoost
+            if (song.song.liked) w += decay * 0.5
+
+            song.artists.forEach { a ->
+                byId.merge(a.id, w, Double::plus)
+                if (a.name.isNotBlank()) {
+                    byName.merge(a.name.lowercase(), w, Double::plus)
+                    artistGenres[a.name.lowercase()]?.takeIf { it.isNotBlank() }?.let { g ->
+                        genre.merge(g, w, Double::plus)
+                    }
+                }
+            }
+            GenreLane.laneOf(song.song.title, song.artists.joinToString(" ") { it.name })?.let { l ->
+                lane.merge(l, w, Double::plus)
+            }
+        }
+
+        // B4: seed taste from the saved/imported library. A song you saved but never played is a real
+        // (if weaker) taste signal — so the AI works from the whole imported library, even on a fresh install
+        // where there's no in-app play history yet. Liked songs weigh a bit more than plain imported ones.
+        // We accumulate the library contribution separately and CAP it per key before merging, so a huge
+        // imported discography of one artist can't inflate maxArtistWeight and crush the artists you play most.
+        if (librarySongs.isNotEmpty()) {
+            val libById = HashMap<String, Double>()
+            val libByName = HashMap<String, Double>()
+            val libGenre = HashMap<String, Double>()
+            val libLane = HashMap<String, Double>()
+            librarySongs.asSequence().take(MAX_LIBRARY).forEach { s ->
+                val w = if (s.song.liked) LIBRARY_LIKED_SEED else LIBRARY_SEED
+                s.artists.forEach { a ->
+                    libById.merge(a.id, w, Double::plus)
+                    if (a.name.isNotBlank()) {
+                        libByName.merge(a.name.lowercase(), w, Double::plus)
+                        artistGenres[a.name.lowercase()]?.takeIf { it.isNotBlank() }?.let { g ->
+                            libGenre.merge(g, w, Double::plus)
+                        }
+                    }
+                }
+                GenreLane.laneOf(s.song.title, s.artists.joinToString(" ") { it.name })?.let { l ->
+                    libLane.merge(l, w, Double::plus)
+                }
+            }
+            libById.forEach { (k, v) -> byId.merge(k, min(v, LIBRARY_KEY_CAP), Double::plus) }
+            libByName.forEach { (k, v) -> byName.merge(k, min(v, LIBRARY_KEY_CAP), Double::plus) }
+            libGenre.forEach { (k, v) -> genre.merge(k, min(v, LIBRARY_GENRE_CAP), Double::plus) }
+            libLane.forEach { (k, v) -> lane.merge(k, min(v, LIBRARY_GENRE_CAP), Double::plus) }
+        }
+
+        // Seed onboarding genre picks: strong signal for a new user with no history, a light nudge once
+        // real listening history accumulates (history weights grow past the seed over time).
+        onboardingGenres.forEach { g -> if (g.isNotBlank()) genre.merge(g, ONBOARDING_GENRE_SEED, Double::plus) }
+
+        // Seed followed/subscribed artists: a real taste signal even with zero plays, so subscribing to an
+        // artist immediately shapes Home/radio/quick-picks (and its genre affinity when known via GenreCache).
+        followedArtists.forEach { a ->
+            byId.merge(a.id, FOLLOWED_ARTIST_SEED, Double::plus)
+            if (a.name.isNotBlank()) {
+                byName.merge(a.name.lowercase(), FOLLOWED_ARTIST_SEED, Double::plus)
+                artistGenres[a.name.lowercase()]?.takeIf { it.isNotBlank() }?.let { g ->
+                    genre.merge(g, FOLLOWED_ARTIST_SEED, Double::plus)
+                }
+            }
+        }
+
+        // Secondary cross-app signal: fold the user's Last.fm history into per-NAME affinity ONLY (Last.fm gives
+        // artist names, not YouTube ids). Capped per key like the library, so maxArtistWeight — computed from
+        // byId ONLY (real local plays) — stays the yardstick: with local history these auto-normalize below it
+        // (local primary); on a cold start they seed. Mirrors the LIBRARY_KEY_CAP merge shape above.
+        externalArtistWeights.forEach { (k, v) -> byName.merge(k, min(v, LASTFM_KEY_CAP), Double::plus) }
+
+        val maxW = byId.values.maxOrNull()?.takeIf { it > 0 } ?: 1.0
+        val maxG = genre.values.maxOrNull()?.takeIf { it > 0 } ?: 1.0
+        return TasteProfile(byId, byName, lane, genre, artistGenres, disliked, maxW, maxG)
+    }
+
+    /** Smallest distance between two hours on a 24h clock (0..12). */
+    private fun circularHourDistance(a: Int, b: Int): Int {
+        val d = abs(a - b)
+        return min(d, 24 - d)
+    }
+}
+
+/**
+ * Immutable snapshot of the user's taste. [score] / [scoreNames] return higher numbers for a better fit;
+ * ~0 is neutral/unknown and a disliked item returns [AVOID] so it sinks to the bottom everywhere.
+ */
+class TasteProfile internal constructor(
+    private val artistWeightById: Map<String, Double>,
+    private val artistWeightByName: Map<String, Double>,
+    private val laneWeight: Map<String, Double>,
+    private val genreWeight: Map<String, Double>,
+    private val artistGenres: Map<String, String>,
+    private val disliked: DislikeStore.Disliked,
+    private val maxArtistWeight: Double,
+    private val maxGenreWeight: Double,
+) {
+    /** Score a locally-known song (best signal: we have its real artist ids). */
+    fun score(song: Song): Double {
+        val e = song.song
+        if (e.id in disliked.songs) return AVOID
+        if (e.albumId != null && e.albumId in disliked.albums) return AVOID
+        if (song.artists.any { it.id in disliked.artists }) return AVOID
+        val names = song.artists.map { it.name }
+        val raw = song.artists.maxOfOrNull {
+            artistWeightById[it.id] ?: artistWeightByName[it.name.lowercase()] ?: 0.0
+        } ?: 0.0
+        var s = norm(raw)
+        s += genreScore(names)
+        if (laneFits(e.title, names.joinToString(" "))) s += LANE_BONUS
+        if (e.liked) s += LIKE_BONUS
+        return s
+    }
+
+    /** Score a remote item (YouTube) by artist name + title, when we only have text. */
+    fun scoreNames(artistNames: List<String>, title: String?): Double {
+        val raw = artistNames.maxOfOrNull { artistWeightByName[it.lowercase()] ?: 0.0 } ?: 0.0
+        var s = norm(raw)
+        s += genreScore(artistNames)
+        if (laneFits(title, artistNames.joinToString(" "))) s += LANE_BONUS
+        return s
+    }
+
+    /**
+     * True when [name]'s artist is already part of the taste profile (a positive-weight key in the per-name
+     * affinity map). The exploration quota uses the inverse — an artist we DON'T know — to reserve ~1-in-5
+     * radio slots for discovery, so radio isn't pure exploit. Cold start (empty profile) → nothing is known.
+     */
+    fun isKnownArtist(name: String): Boolean {
+        if (name.isBlank()) return false
+        return (artistWeightByName[name.lowercase()] ?: 0.0) > 0.0
+    }
+
+    /** Affinity for the artist's real genre (Latin, Rock, Hip-Hop...), when known via GenreCache. */
+    private fun genreScore(artistNames: List<String>): Double {
+        if (genreWeight.isEmpty()) return 0.0
+        val g = artistNames.firstNotNullOfOrNull { artistGenres[it.lowercase()] } ?: return 0.0
+        val w = genreWeight[g] ?: return 0.0
+        return (w / maxGenreWeight).coerceIn(-1.0, 1.0) * GENRE_BONUS
+    }
+
+    private fun laneFits(title: String?, artistText: String): Boolean {
+        val l = GenreLane.laneOf(title, artistText) ?: return false
+        return (laneWeight[l] ?: 0.0) > 0
+    }
+
+    private fun norm(w: Double): Double =
+        if (maxArtistWeight > 0) (w / maxArtistWeight).coerceIn(-1.0, 1.0) else 0.0
+
+    companion object {
+        const val AVOID = -1_000_000.0
+        private const val LANE_BONUS = 0.4
+        private const val LIKE_BONUS = 0.35
+        private const val GENRE_BONUS = 0.55
+    }
+}

@@ -1,0 +1,229 @@
+package com.music.innertube.pages
+
+import com.music.innertube.models.Album
+import com.music.innertube.models.AlbumItem
+import com.music.innertube.models.Artist
+import com.music.innertube.models.ArtistItem
+import com.music.innertube.models.MusicResponsiveListItemRenderer
+import com.music.innertube.models.PlaylistItem
+import com.music.innertube.models.SongItem
+import com.music.innertube.models.YTItem
+import com.music.innertube.models.oddElements
+import com.music.innertube.models.splitBySeparator
+import com.music.innertube.utils.parseTime
+
+data class SearchResult(
+    val items: List<YTItem>,
+    val continuation: String? = null,
+)
+
+object SearchPage {
+    fun toYTItem(renderer: MusicResponsiveListItemRenderer): YTItem? {
+        val secondaryLine =
+            renderer.flexColumns
+                .getOrNull(1)
+                ?.musicResponsiveListItemFlexColumnRenderer
+                ?.text
+                ?.runs
+                ?.splitBySeparator()
+                ?: return null
+        return when {
+            renderer.isSong -> {
+                // Extract library tokens using the new method that properly handles multiple toggle items
+                val libraryTokens = PageHelper.extractLibraryTokensFromMenuItems(renderer.menu?.menuRenderer?.items)
+
+                val songId = renderer.playlistItemData?.videoId ?: renderer.navigationEndpoint?.watchEndpoint?.videoId
+                    ?: renderer.overlay?.musicItemThumbnailOverlayRenderer
+                        ?.content?.musicPlayButtonRenderer
+                        ?.playNavigationEndpoint?.watchEndpoint?.videoId
+                    ?: renderer.flexColumns.firstOrNull()
+                        ?.musicResponsiveListItemFlexColumnRenderer
+                        ?.text?.runs?.firstOrNull()
+                        ?.navigationEndpoint?.watchEndpoint?.videoId
+                    ?: return null
+                SongItem(
+                    id = songId,
+                    title =
+                        renderer.flexColumns
+                            .firstOrNull()
+                            ?.musicResponsiveListItemFlexColumnRenderer
+                            ?.text
+                            ?.runs
+                            ?.firstOrNull()
+                            ?.text ?: return null,
+                    artists =
+                        secondaryLine.firstOrNull()?.oddElements()?.map {
+                            Artist(
+                                name = it.text,
+                                id = it.navigationEndpoint?.browseEndpoint?.browseId,
+                            )
+                        } ?: return null,
+                    album =
+                        secondaryLine.getOrNull(1)?.firstOrNull()?.takeIf { it.navigationEndpoint?.browseEndpoint != null }?.let {
+                            Album(
+                                name = it.text,
+                                id = it.navigationEndpoint?.browseEndpoint?.browseId!!,
+                            )
+                        },
+                    duration =
+                        secondaryLine
+                            .lastOrNull()
+                            ?.firstOrNull()
+                            ?.text
+                            ?.parseTime(),
+                    musicVideoType = renderer.musicVideoType,
+                    // Never drop a hit for a missing thumb — i.ytimg fallback keeps a real cover.
+                    thumbnail = renderer.thumbnailUrlOrFallback
+                        ?: "https://i.ytimg.com/vi/$songId/hqdefault.jpg",
+                    explicit =
+                        renderer.badges?.find {
+                            it.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE"
+                        } != null,
+                    libraryAddToken = libraryTokens.addToken,
+                    libraryRemoveToken = libraryTokens.removeToken
+                )
+            }
+            renderer.isArtist -> {
+                ArtistItem(
+                    id = renderer.navigationEndpoint?.browseEndpoint?.browseId ?: return null,
+                    title =
+                        renderer.flexColumns
+                            .firstOrNull()
+                            ?.musicResponsiveListItemFlexColumnRenderer
+                            ?.text
+                            ?.runs
+                            ?.firstOrNull()
+                            ?.text
+                            ?: return null,
+                    thumbnail = renderer.thumbnailUrlOrFallback.orEmpty(),
+                    shuffleEndpoint =
+                        renderer.menu
+                            ?.menuRenderer
+                            ?.items
+                            ?.find { it.menuNavigationItemRenderer?.icon?.iconType == "MUSIC_SHUFFLE" }
+                            ?.menuNavigationItemRenderer
+                            ?.navigationEndpoint
+                            ?.watchPlaylistEndpoint ?: return null,
+                    radioEndpoint =
+                        renderer.menu.menuRenderer.items
+                            .find { it.menuNavigationItemRenderer?.icon?.iconType == "MIX" }
+                            ?.menuNavigationItemRenderer
+                            ?.navigationEndpoint
+                            ?.watchPlaylistEndpoint ?: return null,
+                )
+            }
+            renderer.isAlbum -> {
+                AlbumItem(
+                    browseId = renderer.navigationEndpoint?.browseEndpoint?.browseId ?: return null,
+                    playlistId =
+                        renderer.overlay
+                            ?.musicItemThumbnailOverlayRenderer
+                            ?.content
+                            ?.musicPlayButtonRenderer
+                            ?.playNavigationEndpoint
+                            ?.anyWatchEndpoint
+                            ?.playlistId
+                            ?: return null,
+                    title =
+                        renderer.flexColumns
+                            .firstOrNull()
+                            ?.musicResponsiveListItemFlexColumnRenderer
+                            ?.text
+                            ?.runs
+                            ?.firstOrNull()
+                            ?.text ?: return null,
+                    artists =
+                        secondaryLine.getOrNull(1)?.oddElements()?.map {
+                            Artist(
+                                name = it.text,
+                                id = it.navigationEndpoint?.browseEndpoint?.browseId,
+                            )
+                        } ?: return null,
+                    year =
+                        secondaryLine
+                            .getOrNull(2)
+                            ?.firstOrNull()
+                            ?.text
+                            ?.toIntOrNull(),
+                    thumbnail = renderer.thumbnailUrlOrFallback.orEmpty(),
+                    explicit =
+                        renderer.badges?.find {
+                            it.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE"
+                        } != null,
+                )
+            }
+            renderer.isPlaylist -> {
+                PlaylistItem(
+                    id =
+                        renderer.navigationEndpoint
+                            ?.browseEndpoint
+                            ?.browseId
+                            ?.removePrefix("VL") ?: return null,
+                    title =
+                        renderer.flexColumns
+                            .firstOrNull()
+                            ?.musicResponsiveListItemFlexColumnRenderer
+                            ?.text
+                            ?.runs
+                            ?.firstOrNull()
+                            ?.text ?: return null,
+                    author =
+                        secondaryLine.firstOrNull()?.firstOrNull()?.let {
+                            Artist(
+                                name = it.text,
+                                id = it.navigationEndpoint?.browseEndpoint?.browseId,
+                            )
+                        } ?: return null,
+                    songCountText =
+                        renderer.flexColumns
+                            .getOrNull(1)
+                            ?.musicResponsiveListItemFlexColumnRenderer
+                            ?.text
+                            ?.runs
+                            ?.lastOrNull()
+                            ?.text ?: return null,
+                    thumbnail = renderer.thumbnailUrlOrFallback.orEmpty(),
+                    playEndpoint =
+                        renderer.overlay
+                            ?.musicItemThumbnailOverlayRenderer
+                            ?.content
+                            ?.musicPlayButtonRenderer
+                            ?.playNavigationEndpoint
+                            ?.watchPlaylistEndpoint ?: return null,
+                    shuffleEndpoint =
+                        renderer.menu
+                            ?.menuRenderer
+                            ?.items
+                            ?.find { it.menuNavigationItemRenderer?.icon?.iconType == "MUSIC_SHUFFLE" }
+                            ?.menuNavigationItemRenderer
+                            ?.navigationEndpoint
+                            ?.watchPlaylistEndpoint ?: return null,
+                    radioEndpoint =
+                        renderer.menu.menuRenderer.items
+                            .find { it.menuNavigationItemRenderer?.icon?.iconType == "MIX" }
+                            ?.menuNavigationItemRenderer
+                            ?.navigationEndpoint
+                            ?.watchPlaylistEndpoint ?: return null,
+                )
+            }
+            // Podcast shows -> lenient PlaylistItem so the "Podcasts" filter/section can list them.
+            renderer.isPodcast -> {
+                PlaylistItem(
+                    id = renderer.navigationEndpoint?.browseEndpoint?.browseId?.removePrefix("VL") ?: return null,
+                    title = renderer.flexColumns.firstOrNull()
+                        ?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.firstOrNull()?.text ?: return null,
+                    author = secondaryLine.getOrNull(1)?.firstOrNull()?.let {
+                        Artist(name = it.text, id = it.navigationEndpoint?.browseEndpoint?.browseId)
+                    },
+                    songCountText = null,
+                    thumbnail = renderer.thumbnailUrlOrFallback.orEmpty(),
+                    playEndpoint = null,
+                    shuffleEndpoint = null,
+                    radioEndpoint = null,
+                )
+            }
+            else -> null
+        }
+    }
+}
+

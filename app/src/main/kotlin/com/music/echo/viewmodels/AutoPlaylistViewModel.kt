@@ -1,0 +1,131 @@
+
+
+package iad1tya.echo.music.viewmodels
+
+import android.content.Context
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import iad1tya.echo.music.constants.ExportedSongIdsKey
+import iad1tya.echo.music.constants.ExportedVideoIdsKey
+import iad1tya.echo.music.constants.HideExplicitKey
+import iad1tya.echo.music.constants.HideVideoSongsKey
+import iad1tya.echo.music.constants.SongSortDescendingKey
+import iad1tya.echo.music.constants.SongSortType
+import iad1tya.echo.music.constants.SongSortTypeKey
+import iad1tya.echo.music.db.MusicDatabase
+import iad1tya.echo.music.extensions.filterExplicit
+import iad1tya.echo.music.extensions.filterVideoSongs
+import iad1tya.echo.music.extensions.toEnum
+import iad1tya.echo.music.utils.SyncUtils
+import iad1tya.echo.music.utils.dataStore
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@HiltViewModel
+class AutoPlaylistViewModel
+@Inject
+constructor(
+    @ApplicationContext context: Context,
+    private val database: MusicDatabase,
+    savedStateHandle: SavedStateHandle,
+    private val syncUtils: SyncUtils,
+) : ViewModel() {
+    val playlist = savedStateHandle.get<String>("playlist")!!
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val likedSongs =
+        context.dataStore.data
+            .map {
+                Triple(
+                    Triple(
+                        it[SongSortTypeKey].toEnum(SongSortType.CREATE_DATE) to (it[SongSortDescendingKey] ?: true),
+                        it[HideExplicitKey] ?: false,
+                        it[HideVideoSongsKey] ?: false
+                    ),
+                    it[ExportedSongIdsKey] ?: "",
+                    it[ExportedVideoIdsKey] ?: "",
+                )
+            }
+            .distinctUntilChanged()
+            .flatMapLatest { (triple, exportedSongIds, exportedVideoIds) ->
+                val (sortDesc, hideExplicit, hideVideoSongs) = triple
+                val (sortType, descending) = sortDesc
+                when (playlist) {
+                    "liked" -> database.likedSongs(sortType, descending)
+                        .map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
+
+                    "downloaded" -> database.downloadedSongs(sortType, descending)
+                        .map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
+
+                    // Uploaded playlist removed from product UI; keep empty for legacy deep links.
+                    "uploaded" -> flowOf(emptyList())
+
+                    "exported" -> {
+                        val ids = exportedSongIds.split(",").filter { it.isNotBlank() }
+                        // `WHERE id IN (...)` comes back unordered, so the sort selector is applied here.
+                        database.getSongsByIdsFlow(ids)
+                            .map {
+                                it.filterExplicit(hideExplicit)
+                                    .filterVideoSongs(hideVideoSongs)
+                                    .sortedAsExported(ids, sortType, descending)
+                            }
+                    }
+
+                    "exported_videos" -> {
+                        val ids = exportedVideoIds.split(",").filter { it.isNotBlank() }
+                        if (ids.isEmpty()) return@flatMapLatest flowOf(emptyList())
+                        database.getSongsByIdsFlow(ids)
+                            .map { songs ->
+                                // Force isVideo so tap → auto video mode + expanded player.
+                                songs.filterExplicit(hideExplicit)
+                                    .map { song ->
+                                        if (song.song.isVideo) song
+                                        else song.copy(song = song.song.copy(isVideo = true))
+                                    }
+                                    .sortedAsExported(ids, sortType, descending)
+                            }
+                    }
+
+                    else -> flowOf(emptyList())
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    fun syncLikedSongs() {
+        viewModelScope.launch(Dispatchers.IO) { syncUtils.syncLikedSongs() }
+    }
+
+    fun syncUploadedSongs() {
+        viewModelScope.launch(Dispatchers.IO) { syncUtils.syncUploadedSongs() }
+    }
+
+    fun refresh() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isRefreshing.value = true
+            try {
+                when (playlist) {
+                    "liked" -> syncUtils.syncLikedSongsSuspend()
+                }
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
+}
