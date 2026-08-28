@@ -30,6 +30,7 @@ datos, tu sesión y tus ajustes.
 
 ## Reproductor
 
+- **El botón Cast responde al primer toque (interfaz nueva):** su zona táctil real era más grande que la caja donde vivía, y solo una franja central invisible respondía — por eso hacía falta tocarlo varias veces y un toque fallido podía colarse al gesto de la portada y cambiar la canción. Ahora todo el círculo responde al primer toque y los toques cerca del botón ya no cambian de pista.
 - **Cabecera más limpia (interfaz nueva):** solo queda el botón Cast en la esquina superior derecha; se eliminó el botón de tres puntos que estaba detrás. Los títulos de las canciones ya no corren por debajo del botón Cast. El menú del reproductor sigue disponible desde la cola («Más opciones» de la cabecera de la cola y botón more de la barra de cola) y el menú de la letra aparece con la letra abierta.
 
 ## Biblioteca y música local
