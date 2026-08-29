@@ -28,6 +28,35 @@ object CipherDeobfuscator {
         Timber.tag(TAG).d("CipherDeobfuscator initialized")
     }
 
+    /**
+     * Batch sig solver for [PipePipeLocalCipherDecoder] (SimpMusic-model local decoder tier).
+     * Solves each obfuscated signature by EXECUTING the real player JS function in the shared
+     * CipherWebView — same engine and same table as the URL path, so the "never guess" registry
+     * rule holds. Returns only the values that solved; the CALLER enforces the all-or-nothing
+     * contract (PipePipe hands a partial batch back to its server when this map is incomplete).
+     */
+    suspend fun solveSignatures(obfuscatedSigs: List<String>, context: Context): Map<String, String> =
+        deobfuscateMutex.withLock {
+            val webView = getOrCreateWebView(forceRefresh = false) ?: return@withLock emptyMap()
+            obfuscatedSigs.mapNotNull { sig ->
+                runCatching { sig to webView.deobfuscateSignature(sig) }.getOrNull()
+            }.toMap()
+        }
+
+    /**
+     * Batch n-parameter solver for [PipePipeLocalCipherDecoder]. Same contract as
+     * [solveSignatures]: executes the REAL n transform in the shared WebView; returns only the
+     * solved values. A null nFunction WebView yields an empty map → the caller hands the batch back.
+     */
+    suspend fun solveNParameters(nParams: List<String>, context: Context): Map<String, String> =
+        deobfuscateMutex.withLock {
+            val webView = getOrCreateWebView(forceRefresh = false) ?: return@withLock emptyMap()
+            if (!webView.nFunctionAvailable) return@withLock emptyMap()
+            nParams.mapNotNull { n ->
+                runCatching { n to webView.transformN(n) }.getOrNull()
+            }.toMap()
+        }
+
     private val rendererRecoveryPolicy = RendererRecoveryPolicy()
     private var cipherWebView: CipherWebView? = null
     private var currentPlayerHash: String? = null

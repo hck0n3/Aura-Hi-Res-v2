@@ -231,6 +231,15 @@ object NewPipeExtractor {
     // on some device/IP combinations) so resolves go straight to the BraveNewPipe fallback.
     private val pipePipeBreaker = ExtractorCircuitBreaker()
 
+    /**
+     * App-injected hook that re-registers the on-device cipher decoder with PipePipe before every
+     * extraction (set by App.kt → PipePipeLocalCipherDecoder.reRegister). PipePipe disables a local
+     * decoder permanently after it throws; re-registering per extraction is what keeps the local
+     * tier alive across tracks. Null = pre-existing behavior (PipePipe server solves everything).
+     */
+    @Volatile
+    var localDecoderRegistrar: (() -> Unit)? = null
+
     @Synchronized
     fun init() {
         if (!isInitialized) {
@@ -287,6 +296,13 @@ object NewPipeExtractor {
                 "PipePipe breaker open — going straight to BraveNewPipe"
             )
         } else {
+            // LOCAL CIPHER TIER (SimpMusic v2.0.0 model): re-register the app-side on-device decoder
+            // before EVERY PipePipe extraction. PipePipe clears the local decoder permanently after
+            // a decoder throw (disableLocalDecoder, package-private getter — the SimpMusic lesson),
+            // so re-registering here turns "disabled forever" into "skipped for one track". The
+            // registrar is injected by the app (PipePipeLocalCipherDecoder) — this module cannot
+            // depend on the app module. A null registrar simply keeps the pre-existing behavior.
+            localDecoderRegistrar?.invoke()
             pipePipeStreams = try {
                 // music.youtube.com, same entry URL SimpMusic uses with the fork.
                 val streamInfo = StreamInfo.getInfo(

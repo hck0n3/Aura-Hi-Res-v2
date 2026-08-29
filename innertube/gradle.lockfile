@@ -4,11 +4,15 @@
 # To regenerate this file, run: ./gradlew :innertube:dependencies --write-locks
 com.android.tools:desugar_jdk_libs_configuration_nio:2.1.5=coreLibraryDesugaring
 com.android.tools:desugar_jdk_libs_nio:2.1.5=coreLibraryDesugaring
-com.github.maxrave-dev.PipePipeExtractor:PipePipeExtractor:208e43b184=debugCompileClasspath,releaseCompileClasspath
-com.github.maxrave-dev.PipePipeExtractor:extractor:208e43b184=debugCompileClasspath,releaseCompileClasspath
-com.github.maxrave-dev.PipePipeExtractor:timeago-parser:208e43b184=debugCompileClasspath,releaseCompileClasspath
+com.github.maxrave-dev.PipePipeExtractor:PipePipeExtractor:208e43b184=releaseCompileClasspath
+com.github.maxrave-dev.PipePipeExtractor:PipePipeExtractor:f8982ca9e7=debugCompileClasspath
+com.github.maxrave-dev.PipePipeExtractor:extractor:208e43b184=releaseCompileClasspath
+com.github.maxrave-dev.PipePipeExtractor:extractor:f8982ca9e7=debugCompileClasspath
+com.github.maxrave-dev.PipePipeExtractor:timeago-parser:208e43b184=releaseCompileClasspath
+com.github.maxrave-dev.PipePipeExtractor:timeago-parser:f8982ca9e7=debugCompileClasspath
 com.github.maxrave-dev:BravePipeExtractor:fa5d4a8b4c=debugCompileClasspath,releaseCompileClasspath
-com.github.maxrave-dev:PipePipeExtractor:208e43b184=debugCompileClasspath,releaseCompileClasspath
+com.github.maxrave-dev:PipePipeExtractor:208e43b184=releaseCompileClasspath
+com.github.maxrave-dev:PipePipeExtractor:f8982ca9e7=debugCompileClasspath
 com.jakewharton.timber:timber:5.0.1=debugCompileClasspath,releaseCompileClasspath
 com.squareup.okhttp3:okhttp-android:5.3.2=debugCompileClasspath,releaseCompileClasspath
 com.squareup.okhttp3:okhttp:5.3.2=debugCompileClasspath,releaseCompileClasspath

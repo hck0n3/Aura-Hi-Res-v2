@@ -591,6 +591,13 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     implementation(project(":innertube"))
+    // PipePipeExtractor f8982ca9e7 exposes YoutubeJavaScriptDecoder/YoutubeApiDecoder, which
+    // PipePipeLocalCipherDecoder (app) implements as the on-device cipher tier. innertube declares
+    // it `implementation` (not api), so the app needs its own declaration to see the interfaces.
+    // Same version + same protobuf exclusion as innertube's to keep ONE copy on the classpath.
+    implementation(libs.pipepipeextractor) {
+        exclude(group = "com.google.protobuf", module = "protobuf-java")
+    }
     implementation(project(":migration"))
     // Tidal OAuth tokens at rest (bridge TidalTokenStore). MUST stay on the exact same version the
     // :migration module uses, or two Tink stacks end up on the classpath.

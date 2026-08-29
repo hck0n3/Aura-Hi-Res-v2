@@ -152,6 +152,13 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
 
         CipherDeobfuscator.initialize(this)
 
+        // LOCAL CIPHER TIER for PipePipe (SimpMusic v2.0.0 model): register Aura's own decoder so
+        // sig/n challenges are solved on-device first; on any gap it throws and PipePipe falls
+        // through to its server → BravePipe, keeping the extraction chain alive through rotations.
+        iad1tya.echo.music.utils.cipher.PipePipeLocalCipherDecoder.initialize(this)
+        com.music.innertube.NewPipeExtractor.localDecoderRegistrar =
+            { iad1tya.echo.music.utils.cipher.PipePipeLocalCipherDecoder.reRegister() }
+
         if (iad1tya.echo.music.BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
