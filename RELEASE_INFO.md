@@ -17,7 +17,7 @@ datos, tu sesión y tus ajustes.
 ## Inicio de sesión
 
 - **La app captura tu cuenta de inmediato:** al terminar de iniciar sesión, la app vuelve sola y empieza a cargar tu biblioteca, sin quedarse parada en la pantalla de Google.
-- **Ya no se queda en blanco tras aceptar la sesión:** en algunos teléfonos la última pantalla del inicio de sesión (blanca) se quedaba colgada y la app nunca volvía sola hasta que elegías tu cuenta con «Usar correo del teléfono». Ahora, si esa pantalla no avanza por sí sola, la app la empuja y vuelve con tu cuenta cargada.
+- **Ya no se queda en blanco tras aceptar la sesión:** en algunos teléfonos la última pantalla del inicio de sesión (blanca) se quedaba colgada y la app nunca volvía sola hasta que elegías tu cuenta con «Usar correo del teléfono». Ahora la app vigila la sesión por dentro: en cuanto tu cuenta queda registrada, vuelve a la interfaz y continúa con la carga de tu biblioteca aunque la pantalla blanca siga ahí; y si el traspaso a YouTube se atasca, la app lo relanza sola (lo mismo que hacía tu elección manual).
 - **Iniciar sesión con otra cuenta** ya logueada en el dispositivo ahora sí re-sincroniza la biblioteca a la cuenta nueva.
 - **Salir del WebView o matar la app durante la validación** ya no deja la biblioteca sin sincronizar: la sesión se completa igualmente y, si quedó a medias, el próximo arranque se auto-repara solo.
 
