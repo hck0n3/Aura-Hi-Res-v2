@@ -348,6 +348,15 @@ fun AuraNavigationBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            // SHELL GLASS (A1): the bar keeps its OPAQUE ground (legibility + sub-API-31 fallback)
+            // and adds the haze-sampled film on top, so the content scrolling under the bar shows
+            // through the render's own frost. Null state (classic shell/previews) = plain ground.
+            .then(
+                run {
+                    val hazeState = LocalShellHazeState.current
+                    if (hazeState != null) Modifier.shellGlass(hazeState) else Modifier
+                }
+            )
             .background(AuraPalette.Ground),
     ) {
         AuraDivider()
@@ -700,10 +709,16 @@ fun AuraMiniPlayer(
         // already avoided by gating cover and scrim together.
         val pillHasArtwork = (pillRecipe.cover > 0f && ground.coverUrl != null) ||
             pillRecipe.wash > 0f || pillRecipe.lobes > 0f
+        // SHELL GLASS (A1): the pill's own ground recipe (the USER's MiniPlayerBackgroundStyleKey)
+        // stays exactly as-is underneath; the haze film is added ON TOP as the render's `.mi` frost,
+        // sampling the screen content behind the pill. The user's style key keeps final authority —
+        // DEFAULT's opaque pill simply reads through a light frost instead of a hard edge.
+        val pillHazeState = LocalShellHazeState.current
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .then(if (pillHazeState != null) Modifier.shellGlass(pillHazeState) else Modifier)
                 .clip(AuraShapes.Card),
         ) {
             AuraGroundLayer(

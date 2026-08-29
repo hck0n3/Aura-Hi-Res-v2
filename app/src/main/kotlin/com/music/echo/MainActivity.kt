@@ -251,6 +251,7 @@ import iad1tya.echo.music.ui.newui.AuraNavigationBar
 import iad1tya.echo.music.ui.newui.AuraPaletteSync
 import iad1tya.echo.music.ui.newui.BottomSheetPlayerHost
 import iad1tya.echo.music.ui.newui.LocalAuraTopActions
+import iad1tya.echo.music.ui.newui.shellHazeSource
 import iad1tya.echo.music.ui.newui.rememberNewUiEnabled
 import iad1tya.echo.music.ui.player.NowPlayingSidePanel
 import iad1tya.echo.music.ui.screens.Screens
@@ -1609,6 +1610,17 @@ class MainActivity : ComponentActivity() {
                         AuraPaletteSync()
                     }
 
+                    // SHELL GLASS (A1): the one haze source the shell chrome samples. Provided only
+                    // while the new UI is on — the classic shell keeps its own opaque surfaces.
+                    val shellHazeState = if (newUiShell) {
+                        remember { dev.chrisbanes.haze.HazeState() }
+                    } else {
+                        null
+                    }
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        iad1tya.echo.music.ui.newui.LocalShellHazeState provides shellHazeState,
+                    ) {
+
                     Scaffold(
                         snackbarHost = { SnackbarHost(snackbarHostState) },
                         topBar = {
@@ -1996,7 +2008,7 @@ class MainActivity : ComponentActivity() {
                                         .width(sidePanelWidth),
                                 )
                             }
-                            Box(Modifier.weight(1f)) {
+                            Box(Modifier.weight(1f).shellHazeSource(shellHazeState)) {
 
                                 NavHost(
                                     navController = navController,
@@ -2249,6 +2261,7 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     }
+                    } // SHELL GLASS (A1): close of the CompositionLocalProvider(LocalShellHazeState)
                 }
             }
         }
