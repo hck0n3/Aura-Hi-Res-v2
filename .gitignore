@@ -260,6 +260,7 @@ graph.html
 !app/libs/discord_partner_sdk.aar
 .claude/
 .qwen/
+.serena/
 .brand-mockup/
 Aura-Hi-Res-v2-NOSUB*.zip
 *.apk
