@@ -324,6 +324,67 @@ class InnerTube {
         }
     }
 
+    /**
+     * ATR (attitude/transition) tracking ping a real client POSTs alongside the playback
+     * registration. Same shape as [registerPlayback] but POST with the event-time headers —
+     * mirrors SimpMusic v2.0.0's Ytmusic.atr.
+     */
+    suspend fun atr(
+        url: String,
+        cpn: String,
+        playlistId: String?,
+        client: YouTubeClient = YouTubeClient.WEB_REMIX,
+    ) = withRetry {
+        val nowMs = System.currentTimeMillis().toString()
+        httpClient.post(url) {
+            ytClient(client, true)
+            headers {
+                append("X-Goog-Event-Time", nowMs)
+                append("X-Goog-Request-Time", nowMs)
+            }
+            parameter("cpn", cpn)
+            if (playlistId != null) {
+                parameter("list", playlistId)
+                parameter("referrer", "https://music.youtube.com/playlist?list=$playlistId")
+            }
+        }
+    }
+
+    /**
+     * Watchtime heartbeat: a real client sends one GET per listening milestone with the CUMULATIVE
+     * seconds so far in `cmt` (0, ~5.54, ~10, ~30, ~60, then every 60) plus st/et/state markers.
+     * [cmtValues] carries the cumulative marks for this ping, mirroring SimpMusic v2.0.0's
+     * updateWatchTime (watchTimeList).
+     */
+    suspend fun updateWatchTime(
+        url: String,
+        cpn: String,
+        playlistId: String?,
+        cmtValues: List<Float>,
+        client: YouTubeClient = YouTubeClient.WEB_REMIX,
+    ) = withRetry {
+        val nowMs = System.currentTimeMillis().toString()
+        httpClient.get(url) {
+            ytClient(client, true)
+            headers {
+                append("X-Goog-Event-Time", nowMs)
+                append("X-Goog-Request-Time", nowMs)
+            }
+            parameter("ver", "2")
+            parameter("c", client.clientName)
+            parameter("cpn", cpn)
+            cmtValues.forEach { cmt ->
+                parameter("cmt", cmt.toString())
+            }
+            parameter("st", cmtValues.firstOrNull()?.toInt()?.toString() ?: "0")
+            parameter("et", cmtValues.lastOrNull()?.toInt()?.toString() ?: "0")
+            if (playlistId != null) {
+                parameter("list", playlistId)
+                parameter("referrer", "https://music.youtube.com/playlist?list=$playlistId")
+            }
+        }
+    }
+
     suspend fun browse(
         client: YouTubeClient,
         browseId: String? = null,

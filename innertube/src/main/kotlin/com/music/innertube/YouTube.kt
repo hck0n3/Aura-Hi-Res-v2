@@ -1249,6 +1249,67 @@ object YouTube {
         )
     }
 
+    /**
+     * FULL playback-metrics registration (SimpMusic v2.0.0 sendBackToGoogle model): one call covers
+     * the three tracking endpoints a real YouTube Music client pings — videostats playback (GET,
+     * ver=2), atr (POST), and the first watchtime heartbeat (GET with cmt=0/5.54/10). All three
+     * carry the SAME cpn so Google sees one coherent session; the cmt ladder matches what a real
+     * client sends after ~10s of listening. Returns the cpn so the caller can send further
+     * watchtime updates through [updateWatchTime] with the same session identity.
+     */
+    suspend fun registerPlaybackFull(
+        playlistId: String? = null,
+        videostatsPlaybackUrl: String?,
+        atrUrl: String?,
+        videostatsWatchtimeUrl: String?,
+    ): Result<String> = runCatching {
+        val cpn = (1..16).map {
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"[Random.Default.nextInt(0, 64)]
+        }.joinToString("")
+
+        fun normalized(url: String?) = url?.takeIf { it.isNotBlank() }
+            ?.replace("https://s.youtube.com", "https://music.youtube.com")
+
+        val playback = normalized(videostatsPlaybackUrl)
+        val atr = normalized(atrUrl)
+        val watchtime = normalized(videostatsWatchtimeUrl)
+
+        if (playback != null) {
+            innerTube.registerPlayback(url = playback, playlistId = playlistId, cpn = cpn)
+        }
+        if (atr != null) {
+            innerTube.atr(url = atr, playlistId = playlistId, cpn = cpn)
+        }
+        if (watchtime != null) {
+            // Same first-heartbeat ladder a real client sends (~10s in): 0, 5.54, then 10.
+            innerTube.updateWatchTime(
+                url = watchtime,
+                playlistId = playlistId,
+                cpn = cpn,
+                cmtValues = listOf(0f, 5.54f, 10f),
+            )
+        }
+        cpn
+    }
+
+    /**
+     * Follow-up watchtime heartbeat for a session started by [registerPlaybackFull], with the SAME
+     * cpn. [cmtValues] are the cumulative-listening seconds marks a real client sends.
+     */
+    suspend fun updateWatchTime(
+        playlistId: String? = null,
+        videostatsWatchtimeUrl: String,
+        cpn: String,
+        cmtValues: List<Float>,
+    ) = runCatching {
+        innerTube.updateWatchTime(
+            url = videostatsWatchtimeUrl.replace("https://s.youtube.com", "https://music.youtube.com"),
+            playlistId = playlistId,
+            cpn = cpn,
+            cmtValues = cmtValues,
+        )
+    }
+
     suspend fun next(endpoint: WatchEndpoint, continuation: String? = null): Result<NextResult> = runCatching {
         val response = innerTube.next(
             WEB_REMIX,

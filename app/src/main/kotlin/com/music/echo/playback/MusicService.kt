@@ -865,6 +865,9 @@ class MusicService :
     @Volatile private var persistentQueueHint: Boolean = true
     @Volatile private var historyDurationMsHint: Float = 30000f
     @Volatile private var pauseListenHistoryHint: Boolean = false
+
+    /** "Send playback metrics to Google" mirror (default OFF, SimpMusic sendBackToGoogle default). */
+    @Volatile private var sendPlaybackMetricsHint: Boolean = false
     // High-Performance Mode master switch, mirrored for the player-thread hot paths (scheduleCrossfade) so
     // they read a @Volatile field instead of a blocking DataStore read on the transition callback thread.
     @Volatile private var highPerformanceModeHint: Boolean = false
@@ -2574,6 +2577,7 @@ class MusicService :
                 persistentQueueHint = prefs[PersistentQueueKey] ?: true
                 historyDurationMsHint = (prefs[HistoryDuration]?.times(1000f)) ?: 30000f
                 pauseListenHistoryHint = prefs[PauseListenHistoryKey] ?: false
+                sendPlaybackMetricsHint = prefs[iad1tya.echo.music.constants.SendPlaybackMetricsKey] ?: false
                 highPerformanceModeHint = prefs[iad1tya.echo.music.constants.HighPerformanceModeKey] ?: false
             }
         }
@@ -8791,15 +8795,30 @@ class MusicService :
         }
 
         if (playbackStats.totalPlayTimeMs >= historyDurationMs) {
+            // User opt-in gate (SimpMusic sends the ping always-when-enabled; we keep their OFF
+            // default). OFF = zero tracking traffic, exactly the pre-metrics behavior.
+            if (!sendPlaybackMetricsHint) return
             scope.launch(Dispatchers.IO) {
-                val playbackUrl = database.format(mediaItem.mediaId).first()?.playbackUrl
-                    ?: YTPlayerUtils.playerResponseForMetadata(mediaItem.mediaId, null)
-                        .getOrNull()?.playbackTracking?.videostatsPlaybackUrl?.baseUrl
-                playbackUrl?.let {
-                    YouTube.registerPlayback(null, playbackUrl)
-                        .onFailure {
-                            reportException(it)
-                        }
+                // SEND METRICS TO GOOGLE (SimpMusic v2.0.0 sendBackToGoogle model): once a listen
+                // counts, send the full triple ping a real YT Music client sends — videostats
+                // playback + atr + the first watchtime heartbeat, all sharing ONE cpn. The old code
+                // sent only the playback URL; the atr/watchtime pair is what makes the session look
+                // complete to Google's server-side metrics.
+                val response = YTPlayerUtils.playerResponseForMetadata(mediaItem.mediaId, null)
+                    .getOrNull()?.playbackTracking
+                val playbackUrlFromDb = database.format(mediaItem.mediaId).first()?.playbackUrl
+
+                if (response == null && playbackUrlFromDb == null) return@launch
+
+                YouTube.registerPlaybackFull(
+                    // The pre-existing ping passed null playlistId (MediaMetadata carries none);
+                    // keeping null matches what this app has always sent.
+                    playlistId = null,
+                    videostatsPlaybackUrl = playbackUrlFromDb ?: response?.videostatsPlaybackUrl?.baseUrl,
+                    atrUrl = response?.atrUrl?.baseUrl,
+                    videostatsWatchtimeUrl = response?.videostatsWatchtimeUrl?.baseUrl,
+                ).onFailure {
+                    reportException(it)
                 }
             }
         }

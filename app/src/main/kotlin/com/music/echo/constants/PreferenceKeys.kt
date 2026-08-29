@@ -385,6 +385,13 @@ val EnhancedShuffleKey = booleanPreferencesKey("enhanced_shuffle")
 // prompt. The snapshot expires after PreviousQueueRule.OFFER_TTL_MS and never touches disk.
 val PreviousQueueOfferKey = booleanPreferencesKey("previousQueueOffer")
 
+// "Enviar métricas de reproducción a Google" (SimpMusic v2.0.0 sendBackToGoogle model). Default OFF —
+// same default SimpMusic ships. When ON, once a listen crosses the history threshold MusicService sends
+// the full tracking ping (videostats playback + atr + first watchtime heartbeat, one shared cpn), which
+// is what a real YT Music client sends and what makes YouTube's server-side history/radio quality see
+// the play. OFF = the ping is skipped entirely (previous behavior: always-on playback URL only).
+val SendPlaybackMetricsKey = booleanPreferencesKey("sendPlaybackMetrics")
+
 // AIMP-style smooth entry on MANUAL track changes (skip/next/tap): the new song fades in over ~400ms
 // instead of slamming in at full level. Default ON (owner request). Auto-advance crossfade unaffected.
 val FadeOnManualChangeKey = booleanPreferencesKey("fade_on_manual_change")

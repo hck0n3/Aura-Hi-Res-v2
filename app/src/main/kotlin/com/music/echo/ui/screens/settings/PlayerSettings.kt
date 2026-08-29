@@ -279,6 +279,10 @@ fun PlayerSettings(
         PauseOnMute,
         defaultValue = false
     )
+    val (sendPlaybackMetrics, onSendPlaybackMetricsChange) = rememberPreference(
+        iad1tya.echo.music.constants.SendPlaybackMetricsKey,
+        defaultValue = false
+    )
     val (resumeOnBluetoothConnect, onResumeOnBluetoothConnectChange) = rememberPreference(
         ResumeOnBluetoothConnectKey,
         defaultValue = false
@@ -992,6 +996,30 @@ fun PlayerSettings(
                         )
                     },
                     onClick = { onPauseOnMuteChange(!pauseOnMute) }
+                ),
+                // SEND PLAYBACK METRICS TO GOOGLE (SimpMusic v2.0.0 sendBackToGoogle parity). OFF by
+                // default, same as SimpMusic: enabling it is an explicit privacy choice — it tells
+                // YouTube's servers what was listened to, exactly as the official client does.
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.stats),
+                    title = { Text(stringResource(R.string.send_playback_metrics_title)) },
+                    description = { Text(stringResource(R.string.send_playback_metrics_description)) },
+                    trailingContent = {
+                        Switch(
+                            checked = sendPlaybackMetrics,
+                            onCheckedChange = onSendPlaybackMetricsChange,
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (sendPlaybackMetrics) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        )
+                    },
+                    onClick = { onSendPlaybackMetricsChange(!sendPlaybackMetrics) }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.bluetooth),
