@@ -7379,6 +7379,34 @@ class MusicService :
         }
     }
 
+    /**
+     * STABLE CACHE KEY for googlevideo streams (owner directive 2026-08-29: every listened song
+     * must be cached to save data). googlevideo rotates URL query params (ip, expire, signature) on
+     * every resolve, so caching by URL would store the SAME bytes once per resolve and never hit.
+     * The stable identity is the videoId (param `id=`) + itag (`itag=`) — both survive rotation.
+     * Non-googlevideo hosts (Qobuz FLAC, Saavn, podcasts, local URIs) fall back to the default
+     * cache key (their URLs are stable, so URL-keying is correct for them).
+     */
+    private val stableStreamCacheKeyFactory =
+        androidx.media3.datasource.cache.CacheKeyFactory { dataSpec ->
+            val uri = dataSpec.uri
+            if (uri.host?.endsWith("googlevideo.com") == true) {
+                val videoId = uri.getQueryParameter("id")
+                val itag = uri.getQueryParameter("itag")
+                if (!videoId.isNullOrBlank()) {
+                    buildString {
+                        append("yt-stream-")
+                        append(videoId)
+                        if (!itag.isNullOrBlank()) append("-").append(itag)
+                    }
+                } else {
+                    dataSpec.key ?: uri.toString()
+                }
+            } else {
+                dataSpec.key ?: uri.toString()
+            }
+        }
+
     private fun createCacheDataSource(): CacheDataSource.Factory =
         CacheDataSource
             .Factory()
@@ -7387,15 +7415,22 @@ class MusicService :
                 CacheDataSource
                     .Factory()
                     .setCache(playerCache)
-                    // STREAMING CHUNKING (SimpMusic-model port): the hardened ChunkingDataSource —
-                    // until now wired only into downloads (DownloadUtil) and the video source — now also
-                    // wraps the audio network fetch. It re-opens the RESOLVED googlevideo URL every 5 MB
-                    // via Range headers, which defeats googlevideo's long-connection throttling during
-                    // buffering/preload (fewer underruns, faster Hi-Res/FLAC ramps). The host gate inside
-                    // the class passes every non-googlevideo stream (Qobuz FLAC, Saavn, direct-URL
-                    // podcasts) through byte-identical. Order matches DownloadUtil's proven chain:
-                    // resolver OUTSIDE, caches, chunker INSIDE — resolution still runs once per open.
+                    // LISTEN-CACHE WRITE (owner directive 2026-08-29): streaming audio/video bytes now
+                    // LAND in playerCache. The inherited `setCacheWriteDataSinkFactory(null)` (Echo
+                    // Music lineage) disabled ALL writing — playback only ever READ the cache, which is
+                    // why "cada canción que escucho no se guarda": literally none of them did. Writing
+                    // is now enabled (default sink factory); eviction stays governed by the user's
+                    // MaxSongCacheSize setting (unlimited by default, LRU once a limit is set).
+                    .setCacheKeyFactory(stableStreamCacheKeyFactory)
                     .setUpstreamDataSourceFactory(
+                        // STREAMING CHUNKING (SimpMusic-model port): the hardened ChunkingDataSource —
+                        // until now wired only into downloads (DownloadUtil) and the video source — now also
+                        // wraps the audio network fetch. It re-opens the RESOLVED googlevideo URL every 5 MB
+                        // via Range headers, which defeats googlevideo's long-connection throttling during
+                        // buffering/preload (fewer underruns, faster Hi-Res/FLAC ramps). The host gate inside
+                        // the class passes every non-googlevideo stream (Qobuz FLAC, Saavn, direct-URL
+                        // podcasts) through byte-identical. Order matches DownloadUtil's proven chain:
+                        // resolver OUTSIDE, caches, chunker INSIDE — resolution still runs once per open.
                         ChunkingDataSourceFactory(
                             OkHttpDataSource.Factory(
                                 OkHttpClient
@@ -7467,7 +7502,10 @@ class MusicService :
                                 )
                         )
                     )
-            ).setCacheWriteDataSinkFactory(null)
+            )
+            // Cache WRITE enabled (owner directive 2026-08-29): no setCacheWriteDataSinkFactory(null) —
+            // the inherited Echo-lineage null DISCARDED every streamed byte, so listening never saved
+            // data. Default sink → bytes land in playerCache under the stable yt-stream-<id>-<itag> key.
             .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
 
     
