@@ -345,19 +345,22 @@ fun AuraNavigationBar(
     // slide recomposes that one Box and never this bar (which would re-run every cell, every
     // stringResource and every icon lookup, 60×/s, on every tab switch).
 
-    Column(
-        modifier = modifier
+    // SHELL GLASS (A1): with a live haze source the bar's surface IS the hazeChild film (the style
+    // carries its own backgroundColor + 0.72 tint + opaque fallbackTint) — drawing an opaque
+    // .background on top of it would cover the glass entirely, so the ground moves INSIDE the
+    // fallback: no source (classic shell, previews, sub-API-31) = today's opaque bar, byte-identical.
+    val navHazeState = LocalShellHazeState.current
+    val navBarModifier = if (navHazeState != null) {
+        modifier
             .fillMaxWidth()
-            // SHELL GLASS (A1): the bar keeps its OPAQUE ground (legibility + sub-API-31 fallback)
-            // and adds the haze-sampled film on top, so the content scrolling under the bar shows
-            // through the render's own frost. Null state (classic shell/previews) = plain ground.
-            .then(
-                run {
-                    val hazeState = LocalShellHazeState.current
-                    if (hazeState != null) Modifier.shellGlass(hazeState) else Modifier
-                }
-            )
-            .background(AuraPalette.Ground),
+            .shellGlass(navHazeState)
+    } else {
+        modifier
+            .fillMaxWidth()
+            .background(AuraPalette.Ground)
+    }
+    Column(
+        modifier = navBarModifier,
     ) {
         AuraDivider()
         Box(
@@ -718,7 +721,6 @@ fun AuraMiniPlayer(
             modifier = Modifier
                 .fillMaxSize()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .then(if (pillHazeState != null) Modifier.shellGlass(pillHazeState) else Modifier)
                 .clip(AuraShapes.Card),
         ) {
             AuraGroundLayer(
@@ -740,7 +742,11 @@ fun AuraMiniPlayer(
                 .fillMaxSize()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                 .clip(AuraShapes.Card)
-                .background(AuraPalette.SurfaceFill)
+                // SHELL GLASS (A1): the render's `.mi` film — with a live haze source the content Row's
+                // surface becomes the hazeChild film (GroundRaised-tinted frost sampling the screen
+                // behind); without one it keeps the exact SurfaceFill it shipped with. The pill's GROUND
+                // (the user's MiniPlayerBackgroundStyleKey recipe below) is untouched underneath.
+                .then(if (pillHazeState != null) Modifier.shellGlass(pillHazeState) else Modifier.background(AuraPalette.SurfaceFill))
                 .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
                 // The render's `.mi` has no timeline; the classic mini does, and losing "how far in am
                 // I" is a real loss. Drawn as a hairline along the bottom edge, inside the draw phase:
