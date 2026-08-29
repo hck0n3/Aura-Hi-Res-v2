@@ -119,7 +119,16 @@ object YTPlayerUtils {
     // progressives (22, 18) are the EMERGENCY tail: when YouTube bot-limits the extraction it hands
     // over only itag 18, and a playing low-quality stream beats a perfect silent one — the pipe is
     // proven end-to-end and format quality is recovered separately.
-    private val AUDIO_ITAG_PREFERENCE = listOf(251, 250, 249, 141, 140, 171, 139, 22, 18)
+    // The Premium/high twins lead the list, matching SimpMusic v2.0.0's ITAG table (core commit
+    // "split high audio into opus and aac"): 774 = Opus 256k, 141 = AAC 256k. When the chosen
+    // format is missing from the extraction, the twin of the SAME tier degrades first (774→141,
+    // SimpMusic's highQualityTwinOf) before dropping a quality tier to 251 (160k). YouTube hands an
+    // entitled account only ONE of the two families, so 141-present-without-774 is the Premium AAC
+    // case where 141 is the correct same-tier pick. The local fork evidence (NewPipe.kt) is that
+    // anonymous ANDROID_VR already carries audio 250/251/774 while 141 only appears with the
+    // cookie's supplementary WEB_REMIX call — so this order changes anonymous resolves too (774
+    // when present) and stays invisible when it is not: firstNotNullOfOrNull just skips ahead.
+    private val AUDIO_ITAG_PREFERENCE = listOf(774, 141, 251, 250, 249, 140, 171, 139, 22, 18)
 
     // The signature timestamp (sts) is a per-PLAYER-VERSION constant — identical for every video until
     // YouTube rotates player.js (rare, ~weekly). Recomputing it for every song runs NewPipe's JS engine
