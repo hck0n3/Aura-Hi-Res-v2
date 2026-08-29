@@ -478,8 +478,12 @@ private fun AuraPlayerShape(
     // ── Position / duration (same ticker the classic player uses) ─────────────────────────────────
     val positionState = remember { mutableLongStateOf(0L) }
     val durationState = remember { mutableLongStateOf(0L) }
+    // D3 (premium scrubber): the BUFFERED extent, ticked by the same loop. Read once per tick as a
+    // plain Long in state — the slider's Canvas draws it, so no recomposition per tick.
+    val bufferedState = remember { mutableLongStateOf(0L) }
     var position by positionState
     var duration by durationState
+    var buffered by bufferedState
     var sliderPosition by remember { mutableStateOf<Long?>(null) }
     var lastManualSeekTime by remember { mutableLongStateOf(0L) }
 
@@ -490,6 +494,7 @@ private fun AuraPlayerShape(
                 if (sliderPosition == null) {
                     position = playerConnection.player.currentPosition
                     duration = playerConnection.player.duration
+                    buffered = playerConnection.player.bufferedPosition
                 }
             }
         }
@@ -498,6 +503,7 @@ private fun AuraPlayerShape(
         if (!isCasting) {
             position = playerConnection.player.currentPosition
             duration = playerConnection.player.duration
+            buffered = playerConnection.player.bufferedPosition
         }
     }
     LaunchedEffect(isCasting, castPosition, castDuration) {
@@ -1317,6 +1323,8 @@ private fun AuraPlayerShape(
                     // that composable is the only place SliderStyleKey/SquigglySliderKey are read. There is
                     // no second timeline to keep in sync, so the setting cannot go quiet in one UI.
                     Spacer(Modifier.height(if (dense) 6.dp else 14.dp))
+                    // D3: haptic tick on scrub start (selection-grade, one per gesture).
+                    val scrubHaptics = androidx.compose.ui.platform.LocalHapticFeedback.current
                     PlayerProgressSlider(
                         // D-pad: Material's Slider shows no focus affordance on a remote, so without the
                         // ring a TV user cannot tell the timeline is selected. Same shape the classic
@@ -1340,6 +1348,17 @@ private fun AuraPlayerShape(
                         enabled = !isListenTogetherGuest,
                         colors = auraSliderColors(),
                         isPlaying = effectiveIsPlaying,
+                        // D3: buffered extent of the timeline (0 when unknown) + scrub-start haptic.
+                        bufferedFraction = if (duration > 0) {
+                            (buffered.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                        } else {
+                            null
+                        },
+                        onScrubStart = {
+                            scrubHaptics.performHapticFeedback(
+                                androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+                            )
+                        },
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),

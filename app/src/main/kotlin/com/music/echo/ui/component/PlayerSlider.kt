@@ -19,8 +19,11 @@ import androidx.compose.material3.SliderColors
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SliderState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.lerp
@@ -66,9 +69,26 @@ fun PlayerProgressSlider(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     slimTrackGrowsOnDrag: Boolean = true,
+    /** D3: fraction (0..1) of the timeline already buffered, drawn as a translucent inactive track. */
+    bufferedFraction: Float? = null,
+    /** D3: fired once when the user STARTS dragging — the caller's haptic tick (LocalHapticFeedback). */
+    onScrubStart: (() -> Unit)? = null,
 ) {
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.DEFAULT)
     val squigglySlider by rememberPerfGatedBoolean(SquigglySliderKey, false)
+
+    // D3 scrub haptic: one tick when a drag gesture STARTS (rising edge), not per frame.
+    val scrubInteraction = remember { MutableInteractionSource() }
+    var scrubFired by remember { mutableStateOf(false) }
+    val isScrubbing by scrubInteraction.collectIsDraggedAsState()
+    LaunchedEffect(isScrubbing) {
+        if (isScrubbing && !scrubFired) {
+            scrubFired = true
+            onScrubStart?.invoke()
+        } else if (!isScrubbing) {
+            scrubFired = false
+        }
+    }
 
     when (sliderStyle) {
         SliderStyle.DEFAULT -> {
@@ -79,6 +99,14 @@ fun PlayerProgressSlider(
                 onValueChangeFinished = { if (enabled) onValueChangeFinished() },
                 enabled = enabled,
                 colors = colors,
+                interactionSource = scrubInteraction,
+                track = { sliderState ->
+                    BufferedSliderTrack(
+                        sliderState = sliderState,
+                        colors = colors,
+                        bufferedFraction = bufferedFraction,
+                    )
+                },
                 modifier = modifier,
             )
         }
@@ -237,3 +265,53 @@ private fun stepsToTickFractions(steps: Int): FloatArray {
 
 private fun calcFraction(a: Float, b: Float, pos: Float) =
     (if (b - a == 0f) 0f else (pos - a) / (b - a)).coerceIn(0f, 1f)
+
+/**
+ * D3: the DEFAULT style's track with the buffered extent drawn as a translucent inactive-bar
+ * segment. The buffered segment sits BETWEEN the played value and the buffered end — the visual
+ * language every 2026 streaming player uses (YTM/Spotify), so the user can see how much of the
+ * song is safely cached ahead.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BufferedSliderTrack(
+    sliderState: SliderState,
+    modifier: Modifier = Modifier,
+    colors: SliderColors = SliderDefaults.colors(),
+    bufferedFraction: Float? = null,
+) {
+    val inactiveTrackColor = colors.inactiveTrackColor
+    val activeTrackColor = colors.activeTrackColor
+    val bufferedColor = activeTrackColor.copy(alpha = 0.30f)
+    val valueRange = sliderState.valueRange
+    val fraction = calcFraction(
+        valueRange.start,
+        valueRange.endInclusive,
+        sliderState.value.coerceIn(valueRange.start, valueRange.endInclusive),
+    )
+    val buffered = (bufferedFraction ?: 0f).coerceIn(0f, 1f)
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(14.dp)
+    ) {
+        val stroke = 10.dp.toPx()
+        val y = center.y
+        // Full inactive rail.
+        drawLine(inactiveTrackColor, Offset(0f, y), Offset(size.width, y), stroke, StrokeCap.Round)
+        // Buffered ahead of the played position (only when it actually extends past it).
+        if (buffered > fraction) {
+            val startX = size.width * fraction
+            val endX = size.width * buffered
+            drawLine(bufferedColor, Offset(startX, y), Offset(endX, y), stroke, StrokeCap.Round)
+        }
+        // Played portion.
+        drawLine(
+            activeTrackColor,
+            Offset(0f, y),
+            Offset(size.width * fraction, y),
+            stroke,
+            StrokeCap.Round,
+        )
+    }
+}
