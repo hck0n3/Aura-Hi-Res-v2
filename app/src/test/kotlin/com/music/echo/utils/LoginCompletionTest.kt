@@ -81,6 +81,35 @@ class LoginCompletionTest {
     }
 
     @Test
+    fun `the handshake interstitial is the youtube signin action handle page`() {
+        // The exact URL the #182 handshake continue-chain lands on after the password leg.
+        assertTrue(
+            isHandshakeInterstitialUrl(
+                "https://www.youtube.com/signin?action_handle_signin=true&next=https%3A%2F%2Fmusic.youtube.com%2F",
+            ),
+        )
+        // Structural match: Google reordering the query must not break detection (#189).
+        assertTrue(
+            isHandshakeInterstitialUrl(
+                "https://www.youtube.com/signin?next=https%3A%2F%2Fmusic.youtube.com%2F&action_handle_signin=true",
+            ),
+        )
+    }
+
+    @Test
+    fun `google pages, the music app and plain signin are not the interstitial`() {
+        // The bare /signin page is a logged-out destination — never push the final leg from it.
+        assertFalse(isHandshakeInterstitialUrl("https://www.youtube.com/signin"))
+        assertFalse(isHandshakeInterstitialUrl("https://www.youtube.com/signin?next=/"))
+        assertFalse(isHandshakeInterstitialUrl("https://accounts.google.com/ServiceLogin?ltmpl=music"))
+        assertFalse(isHandshakeInterstitialUrl("https://accounts.google.com/v3/signin/identifier?action_handle_signin=true"))
+        assertFalse(isHandshakeInterstitialUrl("https://music.youtube.com"))
+        assertFalse(isHandshakeInterstitialUrl("http://www.youtube.com/signin?action_handle_signin=true"))
+        assertFalse(isHandshakeInterstitialUrl(null))
+        assertFalse(isHandshakeInterstitialUrl(""))
+    }
+
+    @Test
     fun `google and other origins are not the login target`() {
         assertFalse(isLoginTargetUrl(null))
         assertFalse(isLoginTargetUrl(""))

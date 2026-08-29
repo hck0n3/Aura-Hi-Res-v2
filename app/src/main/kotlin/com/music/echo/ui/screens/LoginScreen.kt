@@ -59,6 +59,7 @@ import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.SyncUtils
 import iad1tya.echo.music.utils.dataStore
+import iad1tya.echo.music.utils.isHandshakeInterstitialUrl
 import iad1tya.echo.music.utils.isLoggedCookie
 import iad1tya.echo.music.utils.isLoginTargetUrl
 import iad1tya.echo.music.utils.rememberPreference
@@ -79,6 +80,21 @@ import timber.log.Timber
  * Reset in `finally` so a later logout -> login cycle in the same process can complete again.
  */
 private val loginCompletionRunning = AtomicBoolean(false)
+
+/**
+ * Registry #189: grace window given to the interstitial's own JavaScript redirect before the
+ * app pushes the final leg itself. Long enough that a healthy redirect always wins the race
+ * (it fires within ~a second of the cookie landing), short enough that the owner never reads
+ * the pause as "the app does nothing".
+ */
+private const val INTERSTITIAL_REDIRECT_GRACE_MS = 3000L
+
+/**
+ * Registry #189: total budget of scheduled interstitial checks per WebView. Each check that
+ * finds no minted session schedules the next (slow network), so the cap bounds the loop and
+ * guarantees the login screen never polls forever on a genuinely dead page.
+ */
+private const val MAX_INTERSTITIAL_CHECKS = 10
 
 /**
  * Registry #182: the sign-in entry point. InnerTune — the reference implementation this flow
@@ -333,12 +349,53 @@ fun LoginScreen(
                         // for exactly this reason: onPageFinished alone is a single-shot race
                         // that the cookie flush can lose ("se queda allí y no hace nada").
                         override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                            scheduleFinalLegCheckIfNeeded(view, url)
                             tryCompleteLoginFromPage(url)
+                        }
+
+                        // #189: the interstitial (www.youtube.com/signin) is a blank page whose
+                        // redirect to music.youtube.com is driven by page JavaScript, and on
+                        // some WebView builds that script never fires — the URL never reaches
+                        // the login-target detection and the owner stares at the white screen
+                        // ("cuando uno inicia sesión la app se queda en blanco"). The session
+                        // cookies arrive with the interstitial's response headers, so after a
+                        // short grace window a minted jar means the only thing missing is the
+                        // redirect itself: push the final leg ourselves. URL-change callbacks
+                        // CANNOT be the trigger (a stuck page produces no further URL changes),
+                        // so the check is scheduled on the view; if the natural redirect won
+                        // the race the check sees a non-interstitial URL and no-ops. Bounded by
+                        // [interstitialChecksScheduled] so a genuinely dead page (no session
+                        // minted, e.g. still waiting on a slow network) never loops forever.
+                        private var interstitialChecksScheduled = 0
+                        private fun scheduleFinalLegCheckIfNeeded(view: WebView, url: String?) {
+                            if (!isHandshakeInterstitialUrl(url)) return
+                            if (interstitialChecksScheduled >= MAX_INTERSTITIAL_CHECKS) return
+                            interstitialChecksScheduled++
+                            view.postDelayed({
+                                // The natural redirect already moved the page on — nothing to do.
+                                if (!isHandshakeInterstitialUrl(view.url)) return@postDelayed
+                                val jar = runCatching {
+                                    CookieManager.getInstance().getCookie("https://www.youtube.com")
+                                }.getOrNull()
+                                if (!isLoggedCookie(jar)) {
+                                    // Session not minted yet (slow network keeps waiting) —
+                                    // keep checking while the attempt budget lasts.
+                                    scheduleFinalLegCheckIfNeeded(view, view.url)
+                                    return@postDelayed
+                                }
+                                Timber.d("Login: interstitial did not redirect by itself, pushing the final leg to music.youtube.com (#189)")
+                                view.loadUrl("https://music.youtube.com")
+                            }, INTERSTITIAL_REDIRECT_GRACE_MS)
                         }
 
                         override fun onPageFinished(view: WebView, url: String?) {
                             loadUrl("javascript:Android.onRetrieveVisitorData(window.yt.config_.VISITOR_DATA)")
                             loadUrl("javascript:Android.onRetrieveDataSyncId(window.yt.config_.DATASYNC_ID)")
+                            // #189: backup scheduling path — if the history callback never saw
+                            // the interstitial URL (fragment-only navigation, redirect quirks),
+                            // the finished page still arms the final-leg check. Same budget,
+                            // same guards; the helper no-ops when already scheduled.
+                            scheduleFinalLegCheckIfNeeded(view, url)
                             // Second detection chance: the session cookie can finish flushing
                             // after the last URL change. Same latched helper, so it is safe to
                             // run on every page.

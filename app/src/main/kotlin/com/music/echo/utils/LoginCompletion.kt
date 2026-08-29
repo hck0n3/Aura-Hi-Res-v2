@@ -49,3 +49,22 @@ fun shouldSyncOnCookieChange(oldCookie: String?, newCookie: String?): Boolean =
  */
 fun shouldRecoverLibrarySyncOnStart(loggedIn: Boolean, lastLikedSyncTimeMs: Long): Boolean =
     loggedIn && lastLikedSyncTimeMs <= 0L
+
+/**
+ * Registry #189: the YouTube sign-in interstitial. The full handshake URL (#182) redirects
+ * here after the password leg — `www.youtube.com/signin?action_handle_signin=…` — a blank
+ * page that mints the .youtube.com session cookies (SAPISID) and then redirects to
+ * music.youtube.com via page JavaScript. On some WebView builds that script never fires: the
+ * URL never reaches the login-target detection, the app never returns on its own, and the
+ * owner is left staring at the white interstitial.
+ *
+ * Matching is structural (origin + `/signin` path + `action_handle_signin` marker), never
+ * query-order dependent, so Google can reorder parameters without breaking detection.
+ */
+fun isHandshakeInterstitialUrl(url: String?): Boolean {
+    if (url == null) return false
+    if (!url.startsWith("https://www.youtube.com/signin")) return false
+    // Stricter than the bare path: the plain /signin page is a logged-out destination; the
+    // action_handle_signin form only appears in the post-password redirect chain.
+    return url.contains("action_handle_signin")
+}
