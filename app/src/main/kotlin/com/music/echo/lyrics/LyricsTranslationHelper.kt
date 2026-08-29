@@ -13,12 +13,7 @@ import iad1tya.echo.music.db.entities.LyricsEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -29,11 +24,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONObject
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONArray
 import timber.log.Timber
-import java.net.URLEncoder
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -54,16 +48,63 @@ object LyricsTranslationHelper {
     private const val FREE_KEYLESS_BASE_URL = "https://text.pollinations.ai/openai"
     private val FREE_KEYLESS_MODELS = listOf("openai")
 
-    // FREE, reliable, keyless lyric translation via Google Translate's public web endpoint.
-    // GET https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=<code>&dt=t&q=<text>
-    // returns HTTP 200 with NO API key. It preserves \n and translates line-by-line, which is ideal for
-    // lyrics. This is the primary keyless path; the old Pollinations AI cascade is only a fallback.
-    private const val GOOGLE_TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
+    // FREE, reliable, keyless lyric translation. 2026-08-29 live probe: Google Translate's public
+    // gtx endpoint now returns the "Sorry..." bot HTML (or 429) for BOTH browser and okhttp UAs,
+    // and Pollinations' legacy text API is deprecated (402 "budget too low" for anything but the
+    // barest request, 429 otherwise). Both former keyless primaries are effectively dead, which is
+    // why lyric translation showed "error" with no usable fallback left. New keyless chain:
+    //   1. SimpMusic community translated-lyrics API (api-lyrics.simpmusic.org/v1/translated/…) —
+    //      keyless, human-made translations, but partial coverage (404 = nobody translated it yet).
+    //   2. The owner's Aura Worker /ai (Llama 3.3 70B) — same relay AiPlaylistService uses; verified
+    //      live 200 with correct OpenAI-shape completions, works for ALL modes including Romanized.
+    //   3. Pollinations legacy (kept as last resort; often 402/429 — never the only hope again).
+    private const val SIMPMUSIC_TRANSLATED_URL = "https://api-lyrics.simpmusic.org/v1/translated"
+    private const val AURA_WORKER_AI_URL = "https://round-math-d64e.toberto4000.workers.dev/ai"
+    private const val AURA_WORKER_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+
+    /**
+     * Keyless step 1: the SimpMusic community translated-lyrics cache. A 200 with data is a
+     * human-made translation for THIS videoId+language; a 404 is a clean miss (nobody translated it
+     * yet) and any other outcome is treated as a miss — this step can only help, never block.
+     * Returns the plain translated lines (one per non-empty input line) or null.
+     */
+    private fun simpmusicTranslatedLines(
+        songId: String,
+        nonEmptyCount: Int,
+        targetLang: String,
+    ): List<String>? = try {
+        if (songId.isBlank()) return null
+        val tl = targetLang.substringBefore('-').lowercase()
+        if (tl.isBlank()) return null
+        val request = Request.Builder()
+            .url("$SIMPMUSIC_TRANSLATED_URL/$songId/$tl")
+            .header("User-Agent", "okhttp/5.4.0")
+            .get()
+            .build()
+        googleTranslateClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return null
+            val body = response.body?.string() ?: return null
+            val data = JSONObject(body).optJSONArray("data") ?: return null
+            val lyric = data.optJSONObject(0)?.optString("translatedLyric")?.takeIf { it.isNotBlank() }
+                ?: data.optJSONObject(0)?.optString("lyrics")?.takeIf { it.isNotBlank() }
+                ?: return null
+            val lines = lyric.split("\n").map { it.trim() }
+            // Accept only a shape we can align 1:1 with the requested non-empty lines: synced
+            // translations carry timestamps ([00:12.34] text) which we strip before counting. An
+            // empty/blank payload (split yields [""]) must never be accepted as a translation.
+            val clean = lines.map { l -> l.replace("""^\[\d{2}:\d{2}\.\d{2}\]\s*""".toRegex(), "") }
+            if (clean.size == nonEmptyCount && clean.any { it.isNotBlank() }) clean else null
+        }
+    } catch (e: Exception) {
+        Timber.w(e, "SimpMusic translated-lyrics lookup failed")
+        null
+    }
 
     // Overall budget for the whole keyless path so the UI can never hang on "Translating" forever.
     private const val KEYLESS_TRANSLATE_TIMEOUT_MS = 30_000L
 
-    // Short-timeout client for the Google Translate endpoint (must be fast; never block the UI).
+    // Short-timeout client for the keyless HTTP lookups (SimpMusic translated API); must be fast,
+    // never block the UI. Reused from the old Google path (whose endpoint is now bot-blocked).
     private val googleTranslateClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
@@ -72,67 +113,6 @@ object LyricsTranslationHelper {
             .build()
     }
 
-    /**
-     * FREE, keyless lyric translation via Google Translate's public endpoint.
-     * Joins [lines] with '\n', URL-encodes them, and asks Google to translate to [targetLang]
-     * (a 2-letter code such as "es"/"en"/"pt"). Google keeps the '\n' boundaries, so we reconstruct
-     * the translated text by concatenating each segment's translated part and re-split on '\n'.
-     *
-     * Returns exactly [lines].size translated strings (padded/truncated as needed), or null on ANY
-     * failure (empty input, network error, non-200, parse error). Never throws — safe for the keyless
-     * branch, where null simply advances to the AI cascade fallback.
-     */
-    /** One free Google-Translate request for a single text; returns the concatenated translation or null. */
-    private fun googleTranslateOnce(text: String, tl: String): String? {
-        if (text.isBlank()) return ""
-        return try {
-            val encoded = URLEncoder.encode(text, "UTF-8")
-            val url = "$GOOGLE_TRANSLATE_URL?client=gtx&sl=auto&tl=$tl&dt=t&q=$encoded"
-            val request = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0").get().build()
-            googleTranslateClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val body = response.body?.string()
-                if (body.isNullOrBlank()) return null
-                // Shape: [[[ "<translated seg>", "<orig seg>", ...], ...], null, "<detected src>", ...]
-                val segments = JSONArray(body).optJSONArray(0) ?: return null
-                val b = StringBuilder()
-                for (i in 0 until segments.length()) b.append(segments.optJSONArray(i)?.optString(0, "") ?: "")
-                b.toString().ifBlank { null }
-            }
-        } catch (e: Exception) {
-            Timber.w(e, "Google Translate single call failed")
-            null
-        }
-    }
-
-    private suspend fun googleTranslateFree(
-        lines: List<String>,
-        targetLang: String,
-    ): List<String>? = withContext(Dispatchers.IO) {
-        if (lines.isEmpty()) return@withContext null
-        // Google wants a 2-letter code; strip any region suffix (es-ES -> es) just in case.
-        val tl = targetLang.substringBefore('-').lowercase().ifBlank { return@withContext null }
-
-        // Fast path: ONE request with the lines joined by '\n' (Google preserves the newlines). Accept it
-        // ONLY if the split lines up 1:1 with the input — otherwise a merged/split line would shift every
-        // subsequent line (blind end-padding is exactly that bug).
-        val batch = googleTranslateOnce(lines.joinToString("\n"), tl)?.split("\n")
-        if (batch != null && batch.size == lines.size) return@withContext batch
-
-        // Alignment fallback: translate each line INDIVIDUALLY → guaranteed 1:1 mapping, no line-shift.
-        // Bounded concurrency (thermal/battery gate); a line that fails keeps its original text.
-        val sem = Semaphore(6)
-        val perLine = coroutineScope {
-            lines.map { line ->
-                async {
-                    if (line.isBlank()) "" else (sem.withPermit { googleTranslateOnce(line, tl) } ?: line)
-                }
-            }.awaitAll()
-        }
-        // Every non-blank line came back unchanged/failed → treat as failure so the caller can fall back.
-        if (lines.indices.all { lines[it].isBlank() || perLine[it] == lines[it] }) return@withContext null
-        return@withContext perLine
-    }
 
     
     private val _hasActiveTranslations = MutableStateFlow(false)
@@ -438,34 +418,48 @@ object LyricsTranslationHelper {
                         mode = mode,
                     )
                 } else if (keyless) {
-                    // FREE keyless path. Google Translate's public endpoint (no key, HTTP 200) is
-                    // reliable and fast, so it goes FIRST for standard translation. The old Pollinations
-                    // AI cascade — which was DOWN (502) / not deployed (404) and hung on "Translating" —
-                    // is now only a fallback (and still needed for Romanized/Transcribed, which Google's
-                    // dt=t translation cannot do). An overall timeout guarantees the UI never hangs: if
-                    // every provider stalls we surface a clear error card (no crash, no infinite spinner).
-                    Timber.d("Using FREE keyless translation (Google Translate first)")
+                    // FREE keyless path (2026-08-29 rebuild — see the chain comment at the constants).
+                    // Old chain was Google-gtx-first; that endpoint is bot-blocked now, so the whole
+                    // keyless path surfaced "error" and this is the fix:
+                    //   1. SimpMusic community translated API (only for standard translation; it
+                    //      cannot Romanize/Transcribe). Fast, human-made, partial coverage.
+                    //   2. Aura Worker (Llama 3.3) — handles every mode.
+                    //   3. Pollinations — legacy last resort.
+                    Timber.d("Using FREE keyless translation (SimpMusic translated → Aura Worker → Pollinations)")
                     val standardTranslate = mode != "Romanized" && mode != "Transcribed"
                     withTimeoutOrNull(KEYLESS_TRANSLATE_TIMEOUT_MS) {
                         var freeResult: Result<List<String>> =
                             Result.failure(Exception("No free translation available"))
 
-                        // 1) Google Translate FREE keyless endpoint (reliable, no key).
+                        // 1) SimpMusic community cache (no key, human translations, standard modes only).
                         if (standardTranslate) {
-                            val googleLines = googleTranslateFree(
-                                lines = nonEmptyEntries.map { it.second.text },
+                            val community = simpmusicTranslatedLines(
+                                songId = songId,
+                                nonEmptyCount = nonEmptyEntries.size,
                                 targetLang = targetLanguage,
                             )
-                            if (googleLines != null) {
-                                Timber.d("Google Translate returned ${googleLines.size} lines")
-                                freeResult = Result.success(googleLines)
+                            if (community != null) {
+                                Timber.d("SimpMusic translated API returned ${community.size} lines")
+                                freeResult = Result.success(community)
                             }
                         }
 
-                        // 2) Fallback: keyless AI cascade (Pollinations) — used only if Google failed
-                        // or the mode needs AI. Mirrors AiPlaylistService's free path.
+                        // 2) Aura Worker (owner-hosted keyless LLM relay). Works for every mode.
                         if (freeResult.isFailure) {
-                            Timber.d("Falling back to keyless AI cascade")
+                            Timber.d("Falling back to Aura Worker translation")
+                            freeResult = OpenRouterService.translate(
+                                text = fullText,
+                                targetLanguage = fullLanguageName,
+                                apiKey = "",
+                                baseUrl = AURA_WORKER_AI_URL,
+                                model = AURA_WORKER_AI_MODEL,
+                                mode = mode,
+                            )
+                        }
+
+                        // 3) Legacy Pollinations last resort (often 402/429 since its deprecation).
+                        if (freeResult.isFailure) {
+                            Timber.d("Falling back to legacy Pollinations cascade")
                             for (freeModel in FREE_KEYLESS_MODELS) {
                                 freeResult = OpenRouterService.translate(
                                     text = fullText,
