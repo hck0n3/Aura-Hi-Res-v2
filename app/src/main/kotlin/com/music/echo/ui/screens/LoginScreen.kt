@@ -6,6 +6,7 @@ import android.accounts.AccountManager
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -27,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,12 +61,12 @@ import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.SyncUtils
 import iad1tya.echo.music.utils.dataStore
-import iad1tya.echo.music.utils.isHandshakeInterstitialUrl
 import iad1tya.echo.music.utils.isLoggedCookie
 import iad1tya.echo.music.utils.isLoginTargetUrl
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.reportException
 import iad1tya.echo.music.utils.shouldCompleteLogin
+import iad1tya.echo.music.utils.shouldRescueHandshake
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -82,19 +84,28 @@ import timber.log.Timber
 private val loginCompletionRunning = AtomicBoolean(false)
 
 /**
- * Registry #189: grace window given to the interstitial's own JavaScript redirect before the
- * app pushes the final leg itself. Long enough that a healthy redirect always wins the race
- * (it fires within ~a second of the cookie landing), short enough that the owner never reads
- * the pause as "the app does nothing".
+ * Registry #190: how often the jar watcher polls the WebView cookie jar while the post-password
+ * chain is wedged. Polling the jar (not URL callbacks) is what makes the completion immune to
+ * every variant of the white screen: the jar is the truth, the URL is just where the WebView
+ * happens to be stuck.
  */
-private const val INTERSTITIAL_REDIRECT_GRACE_MS = 3000L
+private const val JAR_WATCH_INTERVAL_MS = 500L
 
 /**
- * Registry #189: total budget of scheduled interstitial checks per WebView. Each check that
- * finds no minted session schedules the next (slow network), so the cap bounds the loop and
- * guarantees the login screen never polls forever on a genuinely dead page.
+ * Registry #190: how long a minted Google account session (password accepted) is given to
+ * finish minting the YouTube session before the app re-loads the handshake itself — the same
+ * passive fast-forward the account picker triggers manually, which the owner confirmed works
+ * on the S26 Ultra.
  */
-private const val MAX_INTERSTITIAL_CHECKS = 10
+private const val HANDSHAKE_RESCUE_GRACE_MS = 4000L
+
+/**
+ * Registry #190: total rescue attempts per screen visit. Each rescue re-loads the handshake
+ * URL; if Google keeps failing to carry the session over to YouTube the loop stops instead
+ * of reloading forever (the owner can still use the account picker, which forces the same
+ * passive flow from a trusted chooser).
+ */
+private const val MAX_HANDSHAKE_RESCUES = 3
 
 /**
  * Registry #182: the sign-in entry point. InnerTune — the reference implementation this flow
@@ -233,13 +244,11 @@ fun LoginScreen(
         }.onFailure { Timber.w(it, "Account picker unavailable") }
     }
 
-    // #182: ONE detection helper, called from BOTH WebView callbacks. Reads/writes go through
-    // the State objects (not the delegated vars) so the callbacks always see the latest values.
-    // The hasCompletedLogin latch + the process-level CAS inside completeLogin keep it
-    // idempotent no matter how many times the callbacks fire.
-    fun tryCompleteLoginFromPage(url: String?) {
-        if (!isLoginTargetUrl(url)) return
-        val pageCookie = CookieManager.getInstance().getCookie(url)
+    // #182: ONE detection helper, called from BOTH WebView callbacks AND the #190 jar watcher.
+    // Reads/writes go through the State objects (not the delegated vars) so every caller always
+    // sees the latest values. The hasCompletedLogin latch + the process-level CAS inside
+    // completeLogin keep it idempotent no matter how many times the paths fire.
+    fun tryCompleteLoginWithCookie(pageCookie: String?) {
         if (!shouldCompleteLogin(pageCookie, hasCompletedLoginState.value)) return
         // Persist the cookie right away (App's cookie watcher picks the session up live) and
         // latch so the completion fires once per screen visit.
@@ -269,6 +278,11 @@ fun LoginScreen(
                 Toast.makeText(context, R.string.login_validation_failed, Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    fun tryCompleteLoginFromPage(url: String?) {
+        if (!isLoginTargetUrl(url)) return
+        tryCompleteLoginWithCookie(CookieManager.getInstance().getCookie(url))
     }
 
     Column(
@@ -349,53 +363,12 @@ fun LoginScreen(
                         // for exactly this reason: onPageFinished alone is a single-shot race
                         // that the cookie flush can lose ("se queda allí y no hace nada").
                         override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
-                            scheduleFinalLegCheckIfNeeded(view, url)
                             tryCompleteLoginFromPage(url)
-                        }
-
-                        // #189: the interstitial (www.youtube.com/signin) is a blank page whose
-                        // redirect to music.youtube.com is driven by page JavaScript, and on
-                        // some WebView builds that script never fires — the URL never reaches
-                        // the login-target detection and the owner stares at the white screen
-                        // ("cuando uno inicia sesión la app se queda en blanco"). The session
-                        // cookies arrive with the interstitial's response headers, so after a
-                        // short grace window a minted jar means the only thing missing is the
-                        // redirect itself: push the final leg ourselves. URL-change callbacks
-                        // CANNOT be the trigger (a stuck page produces no further URL changes),
-                        // so the check is scheduled on the view; if the natural redirect won
-                        // the race the check sees a non-interstitial URL and no-ops. Bounded by
-                        // [interstitialChecksScheduled] so a genuinely dead page (no session
-                        // minted, e.g. still waiting on a slow network) never loops forever.
-                        private var interstitialChecksScheduled = 0
-                        private fun scheduleFinalLegCheckIfNeeded(view: WebView, url: String?) {
-                            if (!isHandshakeInterstitialUrl(url)) return
-                            if (interstitialChecksScheduled >= MAX_INTERSTITIAL_CHECKS) return
-                            interstitialChecksScheduled++
-                            view.postDelayed({
-                                // The natural redirect already moved the page on — nothing to do.
-                                if (!isHandshakeInterstitialUrl(view.url)) return@postDelayed
-                                val jar = runCatching {
-                                    CookieManager.getInstance().getCookie("https://www.youtube.com")
-                                }.getOrNull()
-                                if (!isLoggedCookie(jar)) {
-                                    // Session not minted yet (slow network keeps waiting) —
-                                    // keep checking while the attempt budget lasts.
-                                    scheduleFinalLegCheckIfNeeded(view, view.url)
-                                    return@postDelayed
-                                }
-                                Timber.d("Login: interstitial did not redirect by itself, pushing the final leg to music.youtube.com (#189)")
-                                view.loadUrl("https://music.youtube.com")
-                            }, INTERSTITIAL_REDIRECT_GRACE_MS)
                         }
 
                         override fun onPageFinished(view: WebView, url: String?) {
                             loadUrl("javascript:Android.onRetrieveVisitorData(window.yt.config_.VISITOR_DATA)")
                             loadUrl("javascript:Android.onRetrieveDataSyncId(window.yt.config_.DATASYNC_ID)")
-                            // #189: backup scheduling path — if the history callback never saw
-                            // the interstitial URL (fragment-only navigation, redirect quirks),
-                            // the finished page still arms the final-leg check. Same budget,
-                            // same guards; the helper no-ops when already scheduled.
-                            scheduleFinalLegCheckIfNeeded(view, url)
                             // Second detection chance: the session cookie can finish flushing
                             // after the last URL change. Same latched helper, so it is safe to
                             // run on every page.
@@ -431,6 +404,56 @@ fun LoginScreen(
                 }
             },
         )
+    }
+
+    // #190: the jar watcher — the completion no longer depends on WHERE the WebView is stuck.
+    // The owner's stable showed every variant: the chain wedges on a blank page after the
+    // password, the URL never reaches music.youtube.com, and the #189 interstitial push did
+    // not help because the wedge can sit BEFORE the YouTube leg (no .youtube.com cookie at
+    // all). So the screen now watches the cookie jar itself, which is the truth:
+    //  - .youtube.com SAPISID present -> the session InnerTube needs is minted: complete the
+    //    login and return to the interface right away, white screen or not.
+    //  - .google.com SAPISID present but no YouTube one for HANDSHAKE_RESCUE_GRACE_MS -> the
+    //    password was accepted but the chain died mid-flight: re-load the handshake URL so
+    //    Google fast-forwards passively through its own session — the exact flow the account
+    //    picker triggers, which the owner confirmed works on the S26 Ultra. Bounded attempts.
+    // Cancelled automatically when the screen leaves composition; the HALLAZGO-061 disposal
+    // net below still catches a session minted in the very last instant.
+    LaunchedEffect(Unit) {
+        var rescueCount = 0
+        var googleSessionSince = 0L
+        while (true) {
+            delay(JAR_WATCH_INTERVAL_MS)
+            if (hasCompletedLoginState.value) break
+            val youTubeCookie = runCatching {
+                CookieManager.getInstance().getCookie("https://www.youtube.com")
+            }.getOrNull()
+            // #190: a .youtube.com session can mint while the page is stuck anywhere in the
+            // chain — complete from the jar, do not wait for the URL to reach music.
+            tryCompleteLoginWithCookie(youTubeCookie)
+            if (hasCompletedLoginState.value) break
+            val googleCookie = runCatching {
+                CookieManager.getInstance().getCookie("https://accounts.google.com")
+            }.getOrNull()
+            if (shouldRescueHandshake(googleCookie, youTubeCookie)) {
+                val now = SystemClock.elapsedRealtime()
+                if (googleSessionSince == 0L) {
+                    googleSessionSince = now
+                } else if (now - googleSessionSince >= HANDSHAKE_RESCUE_GRACE_MS) {
+                    if (rescueCount < MAX_HANDSHAKE_RESCUES) {
+                        rescueCount++
+                        Timber.d("Login: Google session minted but YouTube leg never arrived, re-loading the handshake (rescue $rescueCount/$MAX_HANDSHAKE_RESCUES, #190)")
+                        webViewRef?.loadUrl(youTubeServiceLoginUrl())
+                        googleSessionSince = 0L
+                    } else {
+                        Timber.d("Login: rescue budget exhausted, leaving the screen to the owner (#190)")
+                        break
+                    }
+                }
+            } else {
+                googleSessionSince = 0L
+            }
+        }
     }
 
     // HALLAZGO-061 safety net: the user can leave BEFORE onPageFinished ever matches the logged-in

@@ -81,32 +81,30 @@ class LoginCompletionTest {
     }
 
     @Test
-    fun `the handshake interstitial is the youtube signin action handle page`() {
-        // The exact URL the #182 handshake continue-chain lands on after the password leg.
-        assertTrue(
-            isHandshakeInterstitialUrl(
-                "https://www.youtube.com/signin?action_handle_signin=true&next=https%3A%2F%2Fmusic.youtube.com%2F",
-            ),
-        )
-        // Structural match: Google reordering the query must not break detection (#189).
-        assertTrue(
-            isHandshakeInterstitialUrl(
-                "https://www.youtube.com/signin?next=https%3A%2F%2Fmusic.youtube.com%2F&action_handle_signin=true",
-            ),
-        )
+    fun `the rescue fires when google is minted but youtube is not`() {
+        // #190: password accepted (.google.com SAPISID) but the YouTube leg never minted.
+        val googleCookie = "SAPISID=xyz; HSID=g1; SSID=g2"
+        assertTrue(shouldRescueHandshake(googleCookie, null))
+        assertTrue(shouldRescueHandshake(googleCookie, ""))
+        assertTrue(shouldRescueHandshake(googleCookie, "VISITOR_INFO1_LIVE=abc"))
     }
 
     @Test
-    fun `google pages, the music app and plain signin are not the interstitial`() {
-        // The bare /signin page is a logged-out destination — never push the final leg from it.
-        assertFalse(isHandshakeInterstitialUrl("https://www.youtube.com/signin"))
-        assertFalse(isHandshakeInterstitialUrl("https://www.youtube.com/signin?next=/"))
-        assertFalse(isHandshakeInterstitialUrl("https://accounts.google.com/ServiceLogin?ltmpl=music"))
-        assertFalse(isHandshakeInterstitialUrl("https://accounts.google.com/v3/signin/identifier?action_handle_signin=true"))
-        assertFalse(isHandshakeInterstitialUrl("https://music.youtube.com"))
-        assertFalse(isHandshakeInterstitialUrl("http://www.youtube.com/signin?action_handle_signin=true"))
-        assertFalse(isHandshakeInterstitialUrl(null))
-        assertFalse(isHandshakeInterstitialUrl(""))
+    fun `no rescue while the password is still being typed`() {
+        // No .google.com session yet — credential entry must never be interrupted.
+        assertFalse(shouldRescueHandshake(null, null))
+        assertFalse(shouldRescueHandshake("", null))
+        assertFalse(shouldRescueHandshake("SIDCC=abc", null))
+    }
+
+    @Test
+    fun `no rescue once the youtube session exists or google is absent`() {
+        val googleCookie = "SAPISID=xyz; HSID=g1; SSID=g2"
+        val youTubeCookie = "SAPISID=yt; VISITOR_INFO1_LIVE=abc; __Secure-3PSAPISID=yt"
+        // The YouTube session minted: nothing left to rescue, the completion takes over.
+        assertFalse(shouldRescueHandshake(googleCookie, youTubeCookie))
+        // No Google session: nothing to fast-forward through.
+        assertFalse(shouldRescueHandshake(null, youTubeCookie))
     }
 
     @Test

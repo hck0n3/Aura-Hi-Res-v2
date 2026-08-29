@@ -51,20 +51,16 @@ fun shouldRecoverLibrarySyncOnStart(loggedIn: Boolean, lastLikedSyncTimeMs: Long
     loggedIn && lastLikedSyncTimeMs <= 0L
 
 /**
- * Registry #189: the YouTube sign-in interstitial. The full handshake URL (#182) redirects
- * here after the password leg — `www.youtube.com/signin?action_handle_signin=…` — a blank
- * page that mints the .youtube.com session cookies (SAPISID) and then redirects to
- * music.youtube.com via page JavaScript. On some WebView builds that script never fires: the
- * URL never reaches the login-target detection, the app never returns on its own, and the
- * owner is left staring at the white interstitial.
+ * Registry #190: the rescue decision for a wedged post-password chain. Google has minted the
+ * ACCOUNT session (password accepted — SAPISID present on .google.com) but the YouTube session
+ * InnerTube needs has not appeared in the jar yet, so the redirect chain is stuck somewhere
+ * between accounts.google.com and music.youtube.com (the owner sees a white screen). The cure
+ * is the same flow the account picker triggers manually: re-load the handshake URL and let
+ * Google fast-forward passively through its own session.
  *
- * Matching is structural (origin + `/signin` path + `action_handle_signin` marker), never
- * query-order dependent, so Google can reorder parameters without breaking detection.
+ * SAFETY: while the password (or a 2FA step) is still being typed there is no .google.com
+ * session yet, so this never interrupts credential entry — forgetAccount clears the whole
+ * WebView jar at logout, so a .google.com SAPISID can only mean the auth just SUCCEEDED.
  */
-fun isHandshakeInterstitialUrl(url: String?): Boolean {
-    if (url == null) return false
-    if (!url.startsWith("https://www.youtube.com/signin")) return false
-    // Stricter than the bare path: the plain /signin page is a logged-out destination; the
-    // action_handle_signin form only appears in the post-password redirect chain.
-    return url.contains("action_handle_signin")
-}
+fun shouldRescueHandshake(googleCookie: String?, youTubeCookie: String?): Boolean =
+    !isLoggedCookie(youTubeCookie) && isLoggedCookie(googleCookie)
