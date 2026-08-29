@@ -1,7 +1,7 @@
-# Aura Hi-Res v2.0.16 — reacción instantánea, login al instante y reproductor más limpio
+# Aura Hi-Res v2.0.16 — login al instante, reacción inmediata y reproductor más limpio
 
 Versión estable que reúne todo lo probado en las betas v2.0.12, v2.0.13,
-v2.0.14 y v2.0.15 más los cambios de esta ronda. Actualización directa sobre
+v2.0.14, v2.0.15 y v2.0.16 más los cambios de esta ronda. Actualización directa sobre
 cualquier versión de la identidad v2 (desde la estable v2.0.11): mismo
 paquete (iad1tya.aura.music) y misma firma (CN=Aura Hi-Res v2), conserva tus
 datos, tu sesión y tus ajustes.
@@ -55,6 +55,6 @@ datos, tu sesión y tus ajustes.
 
 ## Cómo actualizar
 
-- Si tienes cualquier versión de la identidad v2 (estable v2.0.11 o betas v2.0.12 a v2.0.15): actualización directa; conserva tus datos, tu sesión y tus ajustes.
+- Si tienes cualquier versión de la identidad v2 (estable v2.0.11 o betas v2.0.12 a v2.0.16): actualización directa; conserva tus datos, tu sesión y tus ajustes.
 - Si tienes una beta de desarrollo (terminación .dev): esta estable se instala AL LADO, no la pisa. Son apps distintas: aquí empiezas con datos frescos.
 - Si tenías la Aura antigua (iad1tya.echo.music): sigue intacta; esta v2 vive a su lado.
