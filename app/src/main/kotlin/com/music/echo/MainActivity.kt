@@ -248,9 +248,11 @@ import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.ui.newui.AuraGlobalActions
 import iad1tya.echo.music.ui.newui.AuraNavBarHeight
 import iad1tya.echo.music.ui.newui.AuraNavigationBar
+import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraPaletteSync
 import iad1tya.echo.music.ui.newui.BottomSheetPlayerHost
 import iad1tya.echo.music.ui.newui.LocalAuraTopActions
+import iad1tya.echo.music.ui.newui.ShellScrollBus
 import iad1tya.echo.music.ui.newui.shellGlass
 import iad1tya.echo.music.ui.newui.shellHazeSource
 import iad1tya.echo.music.ui.newui.rememberNewUiEnabled
@@ -1642,6 +1644,13 @@ class MainActivity : ComponentActivity() {
                     Scaffold(
                         snackbarHost = { SnackbarHost(snackbarHostState) },
                         topBar = {
+                            // Extracted to a val (registry row 196, audit fix #3b) so the
+                            // AnimatedVisibility AND the glass gate in the TopAppBar's modifier below
+                            // read the SAME boolean from one place. The moment it flips false the 200ms
+                            // exit fade starts AND the hazeChild dismantles in the same frame: during
+                            // that window the NavHost is mid-transition with BOTH destinations
+                            // composed, and the bar must not sample that sliding sandwich.
+                            val topBarVisible = shouldShowTopBar && !auraOwnsHeader
                             AnimatedVisibility(
                                 // "la parte donde está el título de la app está fea, solo es una barra
                                 // negra y ya" — with the new UI on, routes that draw their own
@@ -1650,7 +1659,7 @@ class MainActivity : ComponentActivity() {
                                 // it stacked a SECOND header above the new one. Its actions are not lost;
                                 // they are provided through [LocalAuraTopActions] and rendered inside
                                 // that header's trailing slot.
-                                visible = shouldShowTopBar && !auraOwnsHeader,
+                                visible = topBarVisible,
                                 enter = fadeIn(animationSpec = tween(durationMillis = 300)),
                                 exit = fadeOut(animationSpec = tween(durationMillis = 200))
                             ) {
@@ -1659,6 +1668,23 @@ class MainActivity : ComponentActivity() {
                                     // an argument list): the glass surface this bar wears, or null
                                     // when the Liquid Glass switch is off / classic shell.
                                     val topBarHazeState = iad1tya.echo.music.ui.newui.LocalShellHazeState.current
+                                    // SCROLL FREEZE (registry row 196, adversarial audit fix #3b):
+                                    // the global top bar is the THIRD persistent hazeChild, and the
+                                    // screens it floats over (Home/Library/Search) scroll content
+                                    // UNDER it without any gate — every one of their scroll frames
+                                    // re-records the NavHost source layer this bar samples, the same
+                                    // native-cost pattern the nav bar gate (fix #1) freezes on. Same
+                                    // reader recipe as AuraShell's: a 50ms poll that only writes on
+                                    // EDGES, so an idle screen costs ~20 cheap reads/s and a whole
+                                    // scroll costs exactly two recompositions of this bar.
+                                    var shellScrollActive by remember { mutableStateOf(false) }
+                                    LaunchedEffect(Unit) {
+                                        while (true) {
+                                            val a = ShellScrollBus.isActive()
+                                            if (a != shellScrollActive) shellScrollActive = a
+                                            delay(50)
+                                        }
+                                    }
                                     TopAppBar(
                                         title = {
                                             if (navBackStackEntry?.destination?.route == Screens.Home.route) {
@@ -1795,14 +1821,34 @@ class MainActivity : ComponentActivity() {
                                             )
                                         },
                                         windowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Top),
+                                        // GLASS GATES (registry row 196, audit fix #3b): the hazeChild
+                                        // unmounts the INSTANT either gate trips — it is REPLACED by
+                                        // the flat frozen tint, never painted on top of it (hazeChild
+                                        // IS the surface, lesson 0b1151e). Gate 1 = the scroll bus:
+                                        // mid-gesture/fling the sampled NavHost layer is re-recorded
+                                        // every frame, so the bar freezes to
+                                        // GroundRaised.copy(0.72f) — the same tint the detail bars
+                                        // and the nav bar wear mid-gesture — and the glass returns
+                                        // when the scroll settles. Gate 2 = the exit window: the
+                                        // AnimatedVisibility above fades this bar out over 200ms when
+                                        // navigating into a detail screen, and DURING that fade the
+                                        // NavHost is mid-transition with BOTH destinations composed —
+                                        // the top bar kept sampling that sliding sandwich for 200ms
+                                        // after it was logically gone. Tying the glass to `visible`
+                                        // (the same expression the AnimatedVisibility reads) makes the
+                                        // hazeChild dismantle at the first frame of the exit: the
+                                        // fade animates a plain tint for its 200ms, sampling nothing.
                                         modifier = Modifier
                                             // The glass surface itself, sampling the content that
                                             // scrolls beneath the bar. Applied BEFORE the insets
                                             // padding so the frost also covers the status-bar strip
                                             // the bar reserves above the title.
                                             .then(
-                                                if (topBarHazeState != null) {
+                                                if (topBarHazeState != null && !shellScrollActive && topBarVisible) {
                                                     Modifier.shellGlass(topBarHazeState)
+                                                } else if (topBarHazeState != null) {
+                                                    // Scrolling or exiting: frozen plate.
+                                                    Modifier.background(AuraPalette.GroundRaised.copy(alpha = 0.72f))
                                                 } else {
                                                     Modifier
                                                 }
