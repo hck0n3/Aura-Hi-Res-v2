@@ -53,6 +53,7 @@ import iad1tya.echo.music.constants.SpotifyAutoSyncSourceIdsKey
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.resetAuthWebViewSession
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.flow.first
@@ -477,6 +478,8 @@ private fun SpotifyLoginSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var webView by remember { mutableStateOf<WebView?>(null) }
     var captured by remember { mutableStateOf(false) }
+    // Last URL the blank-page rescue already reloaded — bounds the rescue to one retry per URL.
+    var lastRescuedUrl by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -530,6 +533,12 @@ private fun SpotifyLoginSheet(
                         settings.setSupportZoom(true)
                         settings.builtInZoomControls = true
                         settings.displayZoomControls = false
+                        // Desktop UA (login white-screen fix, owner report 2026-08-29): without this
+                        // accounts.spotify.com serves its SPA to a system WebView UA ("; wv") and the
+                        // page can hang on a blank shell — the same failure mode the YouTube login had
+                        // (registry rows 189/190). SpotifyAuth.USER_AGENT is the Chrome/Windows UA the
+                        // app already uses for token requests; the login page now sees the same client.
+                        settings.userAgentString = SpotifyAuth.USER_AGENT
                         webViewClient = object : WebViewClient() {
                             private fun captureCookies(url: String?): Boolean {
                                 if (captured) return true
@@ -557,12 +566,32 @@ private fun SpotifyLoginSheet(
 
                             override fun onPageFinished(view: WebView, url: String?) {
                                 captureCookies(url)
+                                // Blank-page rescue (rows 189/190 lesson applied to Spotify): if the
+                                // SPA finished but produced no login UI, the jar is still empty —
+                                // reload once so a hung first render gets a fresh attempt. Bounded to
+                                // a single retry per URL to never loop.
+                                if (!captured && url != null && url.contains("accounts.spotify.com") &&
+                                    view.title.isNullOrBlank()
+                                ) {
+                                    if (lastRescuedUrl != url) {
+                                        lastRescuedUrl = url
+                                        view.postDelayed({ if (!captured) view.reload() }, 1500L)
+                                    }
+                                }
                             }
                         }
                         webView = this
-                        cookieManager.removeAllCookies(null)
-                        cookieManager.flush()
-                        loadUrl(SpotifyAuth.LOGIN_URL)
+                        // Awaited cookie cleanup (login white-screen fix): removeAllCookies is async;
+                        // loading the login URL in parallel raced the cleanup and could wipe the
+                        // session mid-handshake. resetAuthWebViewSession already encapsulates the
+                        // correct await-and-flush sequence — reuse it instead of duplicating it.
+                        resetAuthWebViewSession(
+                            context = context,
+                            webView = this,
+                            clearCookies = true,
+                        ) {
+                            loadUrl(SpotifyAuth.LOGIN_URL)
+                        }
                     }
                 },
                 update = { view ->
