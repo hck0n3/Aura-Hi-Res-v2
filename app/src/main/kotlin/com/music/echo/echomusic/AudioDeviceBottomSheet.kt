@@ -322,6 +322,13 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
             iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome provides premiumSheet,
         ) {
         iad1tya.echo.music.ui.newui.AuraFrostWindowIfPremium()
+        // Cover-blur plate (registry row 197): first background layer of the sheet's panel,
+        // above the flat containerColor it replaces and under all the content. Composes NOTHING
+        // with the Liquid Glass switch OFF or no cover playing — byte-identical sheet.
+        Box {
+        if (premiumSheet) {
+            iad1tya.echo.music.ui.newui.AuraCoverBlurPlate(modifier = Modifier.matchParentSize())
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -622,6 +629,7 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                     }
                 }
             }
+        }
         }
         }
     }

@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import iad1tya.echo.music.R
+import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.AuraType
@@ -76,6 +77,13 @@ fun ActivityHistoryBottomSheet(
     ) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides auraDark) {
         iad1tya.echo.music.ui.newui.AuraFrostWindowIfPremium()
+        // Cover-blur plate (registry row 197): first background layer of the sheet's panel,
+        // above the flat containerColor it replaces and under all the content. Composes NOTHING
+        // with the Liquid Glass switch OFF or no cover playing — byte-identical sheet.
+        Box {
+        if (auraDark) {
+            AuraCoverBlurPlate(modifier = Modifier.matchParentSize())
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -437,6 +445,7 @@ fun ActivityHistoryBottomSheet(
                     )
                 }
             }
+        }
         }
         }
     }

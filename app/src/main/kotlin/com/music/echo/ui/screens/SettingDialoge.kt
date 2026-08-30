@@ -53,6 +53,7 @@ import iad1tya.echo.music.constants.UseLoginForBrowse
 import iad1tya.echo.music.constants.YtmSyncKey
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
+import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.AuraDialogWindowEffects
 import iad1tya.echo.music.ui.newui.AuraFloatingSurface
 import iad1tya.echo.music.ui.newui.AuraPanel
@@ -134,7 +135,15 @@ fun SettingDialoge(
                         .fillMaxWidth()
                         .heightIn(max = maxHeight - outerPad * 2),
                     shape = AuraShapes.Card,
-                ) { body() }
+                ) {
+                    // Cover-blur plate (registry row 197): first background layer under the frost
+                    // tint; composes nothing with the Liquid Glass switch OFF or no cover playing.
+                    AuraCoverBlurPlate(
+                        modifier = Modifier.matchParentSize(),
+                        stroke = AuraShapes.Card,
+                    )
+                    body()
+                }
             } else {
                 AuraPanel(
                     skin = skin,
