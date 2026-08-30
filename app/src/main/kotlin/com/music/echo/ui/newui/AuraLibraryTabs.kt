@@ -856,15 +856,26 @@ fun AuraLibrarySongsTab(
                     .auraClickableInternal(
                         onClick = onShuffleClick,
                         contentDescription = stringResource(R.string.shuffle),
-                    )
-                    .padding(16.dp),
+                    ),
+                contentAlignment = Alignment.Center,
             ) {
-                AuraIconGlyph(
-                    icon = AuraIcons.Shuffle,
-                    contentDescription = null,
-                    size = 24.dp,
-                    tint = AuraPalette.OnAccent,
-                )
+                // The mini player's cover-blur skin (owner directive 2026-08-30) — first child, so
+                // it spans the WHOLE circle. The 16 dp padding that used to close the Box's own
+                // modifier chain now lives on the content: matchParentSize sizes against the
+                // content area, and a trailing padding would have left the skin covering only the
+                // 24 dp glyph slot in the middle of a 56 dp button. Final size is unchanged
+                // (24 + 2×16 = 56 dp) and so is the click target.
+                AuraFabCoverSkin(CircleShape)
+                // Ink follows the ground: dark OnAccent on the teal gradient, teal on the skin's
+                // dark frost plate (a dark glyph on a dark plate would vanish).
+                Box(Modifier.padding(16.dp)) {
+                    AuraIconGlyph(
+                        icon = AuraIcons.Shuffle,
+                        contentDescription = null,
+                        size = 24.dp,
+                        tint = if (fabBlurSkinOn()) AuraPalette.Teal else AuraPalette.OnAccent,
+                    )
+                }
             }
         }
     }

@@ -1,17 +1,36 @@
 package iad1tya.echo.music.ui.newui
 
+import android.os.Build
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.request.crossfade
 import dev.chrisbanes.haze.HazeProgressive
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
+import iad1tya.echo.music.LocalPlayerConnection
+import iad1tya.echo.music.ui.component.LocalGlassEffectConfig
+import iad1tya.echo.music.utils.isLocalMediaId
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -206,3 +225,178 @@ fun ScrollStateBusReporter(isScrolling: () -> Boolean) {
         }
     }
 }
+
+// ── Floating action buttons: the mini player's cover-blur skin (owner directive 2026-08-30) ───────
+//
+// "los BOTONES FLOTANTES los quiero con el mismo blur que le pusiste al mini reproductor" — the
+// owner is asking for the pill's own technique, NOT for a new haze surface. The mini pill's
+// "Desenfoque" is the CURRENT TRACK'S COVER, decoded once at 128×128 and blurred once with the
+// NATIVE `Modifier.blur(30.dp)` under a frost tint (AuraShell.kt → AuraGroundLayer /
+// AuraCoverGround). That technique works on every OEM — it is the same `Modifier.blur` the
+// expanded player's covers use — and its cost is one static bitmap per track, zero per-frame work.
+//
+// ## Why this lives in AuraGlass.kt but does NOT touch haze
+// Registry row 196 forbids adding hazeChild surfaces while the native sig-11 audit is open: every
+// additional sampler multiplies the re-recorded source layer's cost on One UI 8.5. This skin never
+// calls haze/hazeSource/hazeChild — it paints its OWN backdrop (the cover), so there is nothing to
+// sample. A FAB is also 52–56 dp against the pill's full width: sampling the screen behind a
+// floating button would be the most expensive blur in the app for the least visible one.
+//
+// ## Thermal contract (AGENTS rule 7)
+// ONE 128×128 decode per track — byte for byte the request `AuraCoverGround` makes
+// (AuraPlayer.kt:2419: `.size(128, 128).allowHardware(false).crossfade(false)`), so it shares the
+// same Coil memory-cache slot the pill and the bloom already fill: for a track whose ground has
+// resolved, this costs NO decode at all. The blur rasterizes once per bitmap; a static image under
+// `Modifier.blur` does not re-run the RenderEffect on frames where nothing invalidates it, and a
+// FAB neither scrolls nor animates per frame. No animation is attached to the skin — the buttons
+// keep exactly the motion they already had.
+
+/**
+ * The pure gate of the cover-blur skin, extracted for the test. Mirrors [auraFloatingScrimAlpha]'s
+ * discipline: the decision is a function of facts, so it can be pinned without a device.
+ *
+ * · `globalEnabled` — the Liquid Glass master switch (owner directive 2026-08-29 made the stored
+ *   switch the governor; MainActivity folds Performance Mode's veto into `globalEnabled` before
+ *   providing it, so OFF here already means "the user turned it off OR Performance Mode is on").
+ * · `hasRemoteCover` — the pill's own rule: a local track has no remote cover to blur, and below
+ *   API 31 `Modifier.blur` is a no-op (drawing an UNBLURRED cover there would be a different
+ *   style, not a degraded one — the pill drops the cover below API 31 too).
+ */
+internal fun fabBlurSkinActive(globalEnabled: Boolean, hasRemoteCover: Boolean): Boolean =
+    globalEnabled && hasRemoteCover
+
+/**
+ * The ONE resolver of the skin's decision chain: the reactive `LocalGlassEffectConfig` read (the
+ * master switch + Performance Mode veto, provided by MainActivity) folded with the current track's
+ * remote cover through [fabBlurSkinActive]. Both [AuraFabCoverSkin] and [fabBlurSkinOn] call it,
+ * so what paints and what the ink-adapters see is the SAME fact from the SAME origin — the
+ * registry's row-40 lesson ("when two sites compare the same fact, they must derive it from the
+ * same origin with the same predicate").
+ *
+ * Null = no skin: switch off, nothing playing, a local track, or API < 31.
+ */
+@Composable
+private fun currentFabCoverUrl(): String? {
+    // Switch OFF → bail BEFORE subscribing to anything: with the Liquid Glass master switch off
+    // the five skinned buttons across the app cost zero reads, zero subscriptions, zero work.
+    if (!LocalGlassEffectConfig.current.globalEnabled) return null
+    val playerConnection = LocalPlayerConnection.current ?: return null
+    val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+    val coverUrl = mediaMetadata
+        ?.takeIf { !it.id.isLocalMediaId() }
+        ?.thumbnailUrl
+        ?.takeIf { it.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S }
+    return if (fabBlurSkinActive(globalEnabled = true, hasRemoteCover = coverUrl != null)) coverUrl else null
+}
+
+/** Blur radius of the FAB skin, in dp. The pill's `auraPillRecipe` keeps the sheet's `coverBlur`
+ *  (34–52 dp per style); 30 dp is the radius the mini pill's glass look was tuned to and reads as
+ *  the same frost at a button's scale. */
+internal val FabSkinBlur = 30.dp
+
+/**
+ * The frost drawn OVER the blurred cover — the SAME `GroundRaised.copy(alpha = 0.72f)` plate the
+ * shell chrome freezes to mid-scroll (registry row 196) and the detail bars wear. It is what
+ * makes light ink on a bright sleeve legible: the blurred cover colours the skin, the tint holds
+ * the contrast. */
+internal val FabSkinTint: Color get() = AuraPalette.GroundRaised.copy(alpha = 0.72f)
+
+/**
+ * Whether the skin is actually PAINTING right now — for call sites that must adapt INK to the new
+ * ground (the accent FAB's glyph: [AuraPalette.OnAccent] is dark ink for the teal gradient, but the
+ * skin's frost is a dark plate, so that glyph must switch to [AuraPalette.Teal] while the skin is
+ * on). Reads the SAME resolver [currentFabCoverUrl] the skin reads — one origin for the whole
+ * decision chain (registry row 40's lesson), so the ink and the plate can never disagree: they
+ * recompose off the same state in the same frame.
+ *
+ * True only when the Liquid Glass switch is on AND the current track has a remote cover — when the
+ * skin is not painting, the button is today's, and so is its ink.
+ */
+@Composable
+fun fabBlurSkinOn(): Boolean = currentFabCoverUrl() != null
+
+/**
+ * The mini player's cover-blur skin, as the FIRST CHILD of a floating action button's Box.
+ * [BoxScope] receiver on purpose: the skin sizes itself with [BoxScope.matchParentSize], so it can
+ * only be mounted from inside a Box — a plain `Modifier.fillMaxSize` here would inflate a
+ * wrap-content pill to the incoming maximum width (the documented reason `matchParentSize` exists),
+ * and the receiver makes that misuse impossible to write.
+ *
+ * [shape] is the button's own shape (the one its `clip` uses) — the skin draws the SAME hairline the
+ * button ships ([AuraPalette.SurfaceLine], 1 dp) on top of its frost. It has to: a node's
+ * `background`/`border` draw UNDER its children, so the button's own hairline is covered by this
+ * full-bounds skin — without the redraw the frost would arrive edge-less, and the pill the owner
+ * named as the reference keeps its hairline OVER its frost (the pill's border sits in its own
+ * modifier chain and its children never reach the edge). With the skin OFF nothing here runs and
+ * the button's own hairline is the visible one, exactly as today.
+ *
+ * ## What it draws, bottom to top
+ * 1. The button's OWN ground, untouched underneath (opaque [AuraPalette.FloatingFill] /
+ *    [AuraPalette.SurfaceFill] / [AuraPalette.PlayButtonGradient] — whatever that button ships).
+ *    The skin composites OVER it, so a cover that fails to decode can never open a transparency
+ *    hole — the pill's own discipline (an opaque fill under every layer).
+ * 2. The current track's cover, one 128×128 decode (byte for byte the pill's ground request, so it
+ *    SHARES the Coil memory-cache slot the pill and the bloom already fill — a resolved track
+ *    costs NO extra decode), cropped to the button, blurred [FabSkinBlur] with the NATIVE
+ *    `Modifier.blur` — the same blur the expanded player's covers use, on every OEM.
+ * 3. The [FabSkinTint] frost — the same `GroundRaised.copy(0.72f)` plate the shell chrome freezes
+ *    to mid-scroll, which holds light ink legible over a bright sleeve — plus the hairline above.
+ *
+ * The button keeps its own `clip(shape)` — it cuts the skin with it (no second clip, no double-cut
+ * radius), its clickable, and its motion. `contentAlignment` and the sibling order are the caller's:
+ * the skin contributes NOTHING to the Box's size (matchParentSize), so the button's layout is
+ * decided by its real content exactly as today.
+ *
+ * ## Toggle — OFF (and no-cover) is byte-identical
+ * [LocalGlassEffectConfig.globalEnabled] governs (the REACTIVE master switch MainActivity provides
+ * — the stored Liquid Glass key AND the Performance Mode veto, folded together; flipping the switch
+ * in Ajustes flips the FABs in the same frame, no restart, no poll). OFF → this composes NOTHING:
+ * today's plate, hairline, gradient, glyph, pixel for pixel. The same holds when there is no remote
+ * cover to blur — nothing playing, a local track, or API < 31 (where `Modifier.blur` is a no-op and
+ * drawing an UNBLURRED cover would be a different style, not a degraded one): the pill gates its
+ * scrim and its cover TOGETHER for exactly this reason ("drawing the scrim anyway would only
+ * darken the ground for nothing"), and so does the skin — no cover, no frost, the button untouched.
+ *
+ * ## Thermal contract (AGENTS rule 7)
+ * One static 128×128 bitmap per track, `remember`-keyed by URL. No animation is attached — the
+ * buttons keep exactly the motion they already had, and nothing here invalidates per frame. The
+ * blur rasterizes once per bitmap; a FAB neither scrolls nor samples the screen (registry row 196:
+ * NOT a haze surface — nothing behind it is recorded or re-blurred by scrolling).
+ */
+@Composable
+fun BoxScope.AuraFabCoverSkin(shape: androidx.compose.ui.graphics.Shape) {
+    val context = LocalContext.current
+    val coverUrl = currentFabCoverUrl() ?: return
+    Box(modifier = Modifier.matchParentSize()) {
+        // Byte for byte the request the mini pill's ground makes (AuraPlayer.kt `AuraCoverGround`:
+        // 128×128, no hardware, no crossfade) — same Coil memory-cache slot, no second decode.
+        val request = remember(context, coverUrl) {
+            ImageRequest.Builder(context)
+                .data(coverUrl)
+                .size(128, 128)
+                .allowHardware(false)
+                .crossfade(false)
+                .build()
+        }
+        // Bottom layer: the blurred cover. Unclipped on purpose — the parent button's own
+        // `clip(shape)` already cuts this layer to the pill/circle.
+        AsyncImage(
+            model = request,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(FabSkinBlur),
+        )
+        // Top layer: the frost tint OVER the cover (the pill's scrim stacking — cover first, then
+        // the plate that keeps light ink legible on a bright sleeve), carrying the hairline the
+        // button's own chain drew under this full-bounds child.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(FabSkinTint)
+                .border(1.dp, AuraPalette.SurfaceLine, shape),
+        )
+    }
+}
+

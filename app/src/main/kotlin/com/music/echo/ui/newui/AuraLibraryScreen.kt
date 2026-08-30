@@ -516,9 +516,12 @@ private fun auraLibraryChips(): List<Pair<LibraryFilter, Int>> = listOf(
  *
  * [AuraPalette.FloatingFill] is the same film pre-composited onto an opaque base, so it looks like the
  * render wherever the ground IS behind it and stays a surface wherever the ground is not. The owner
- * asked for a blur; he is getting an opaque plate instead, because a live backdrop blur is what the
- * thermal contract forbids and because the plate is the more legible of the two — the label lands at
- * ~14.8:1 on it, where a blurred bright cover would still be a light backdrop under light text.
+ * asked for a blur; the opaque plate was the 2026-08 answer because a live backdrop blur is what the
+ * thermal contract forbids. The 2026-08-30 directive re-opens it with the pill's OWN technique, which
+ * was never a backdrop sample: [AuraFabCoverSkin] paints the current track's cover — one static
+ * 128×128 bitmap, blurred once with the native `Modifier.blur`, under the shell's frost tint — over
+ * this plate, gated on the Liquid Glass master switch. OFF → the plate, hairline and glyph exactly as
+ * they are today. No live sampling, no per-frame work, nothing the thermal contract forbids.
  */
 @Composable
 private fun AuraFab(
@@ -537,22 +540,34 @@ private fun AuraFab(
 
     if (label == null) {
         Box(base.size(52.dp), contentAlignment = Alignment.Center) {
+            // The mini player's cover-blur skin (owner directive 2026-08-30) — first child, under
+            // the glyph; returns without drawing anything while the Liquid Glass switch is OFF.
+            AuraFabCoverSkin(AuraShapes.Pill)
             AuraIconGlyph(icon, null, size = 22.dp, tint = AuraPalette.Teal)
         }
     } else {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = base.padding(horizontal = 20.dp),
-        ) {
-            AuraIconGlyph(icon, null, size = 20.dp, tint = AuraPalette.Teal)
-            Text(
-                text = label,
-                style = AuraType.Chip,
-                color = AuraPalette.OnGround,
-                maxLines = 1,
-                overflow = AuraDefaultOverflow,
-            )
+        // The extended pill: the skin layers UNDER the whole Row (the pill's own structure —
+        // ground layers first, content last), so the Row's spacing and glyph/label alignment stay
+        // byte-identical and the frost sits behind BOTH, not beside them. The Box takes the
+        // centering the Row used to own: before, the Row itself was the pill (height 52 dp) and
+        // centered its children; now the Row is a wrap-content child of the Box, so without
+        // contentAlignment it would sit at the Box's top-start corner instead of its middle.
+        Box(base, contentAlignment = Alignment.Center) {
+            AuraFabCoverSkin(AuraShapes.Pill)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(horizontal = 20.dp),
+            ) {
+                AuraIconGlyph(icon, null, size = 20.dp, tint = AuraPalette.Teal)
+                Text(
+                    text = label,
+                    style = AuraType.Chip,
+                    color = AuraPalette.OnGround,
+                    maxLines = 1,
+                    overflow = AuraDefaultOverflow,
+                )
+            }
         }
     }
 }

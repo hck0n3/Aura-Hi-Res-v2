@@ -519,7 +519,9 @@ private fun AuraStatsShelf(
     )
 }
 
-/** The shuffle action: a `SurfaceFill` circle with a hairline and a teal glyph, like Biblioteca's. */
+/** The shuffle action: a `SurfaceFill` circle with a hairline and a teal glyph, like Biblioteca's.
+ *  With the Liquid Glass master switch on it wears the mini player's cover-blur skin
+ *  ([AuraFabCoverSkin], owner directive 2026-08-30); OFF it is this plate, unchanged. */
 @Composable
 private fun AuraStatsShuffleButton(
     contentDescription: String,
@@ -535,6 +537,9 @@ private fun AuraStatsShuffleButton(
             .auraClickableInternal(onClick = onClick, contentDescription = contentDescription),
         contentAlignment = Alignment.Center,
     ) {
+        // The mini player's cover-blur skin (owner directive 2026-08-30) — first child, under the
+        // glyph; draws nothing while the Liquid Glass switch is OFF.
+        AuraFabCoverSkin(AuraShapes.Pill)
         AuraIconGlyph(
             icon = AuraIcons.Shuffle,
             contentDescription = null,
