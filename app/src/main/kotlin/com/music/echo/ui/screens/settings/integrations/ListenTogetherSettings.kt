@@ -1,5 +1,3 @@
-
-
 package iad1tya.echo.music.ui.screens.settings.integrations
 
 import android.widget.Toast
@@ -17,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,10 +24,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -43,22 +38,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,29 +58,33 @@ import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.ListenTogetherAutoApprovalKey
 import iad1tya.echo.music.constants.ListenTogetherServerUrlKey
-import iad1tya.echo.music.constants.ListenTogetherSmartResyncKey
-import iad1tya.echo.music.constants.ListenTogetherSyncVolumeKey
 import iad1tya.echo.music.constants.ListenTogetherUsernameKey
-import iad1tya.echo.music.listentogether.ListenTogetherEvent
-import iad1tya.echo.music.listentogether.ListenTogetherServer
-import iad1tya.echo.music.listentogether.ListenTogetherServers
-import iad1tya.echo.music.listentogether.LogEntry
-import iad1tya.echo.music.listentogether.LogLevel
-import iad1tya.echo.music.listentogether.RoomRole
+import iad1tya.echo.music.listentogether.ListenTogetherClient
 import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.IntegrationCard
 import iad1tya.echo.music.ui.component.IntegrationCardItem
 import iad1tya.echo.music.ui.newui.AuraPalette
-import iad1tya.echo.music.ui.newui.AuraPanel
+import iad1tya.echo.music.ui.newui.AuraPanelSkin
 import iad1tya.echo.music.ui.newui.AuraShapes
-import iad1tya.echo.music.ui.newui.AuraSpacing
 import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.ListenTogetherViewModel
-import kotlinx.coroutines.flow.collectLatest
 
+/**
+ * Listen Together settings, on the SimpMusic model:
+ * - ONE default public server (the same `metroserver` every SimpMusic and Metrolist client uses —
+ *   what makes rooms interoperable out of the box), verified alive 2026-08-30.
+ * - A custom server URL for anyone who runs their own metroserver.
+ * - Auto-approve join requests (host convenience, applied by the session itself).
+ *
+ * REMOVED with the port (deliberate, documented): the remote "server list" fetched from
+ * EchoMusicApp/Echo-Music (fila 38 del registro: fuga de branding viva; upstream SimpMusic has no
+ * such list), the on-screen connection log (upstream keeps none — the room state IS the state), and
+ * the smart-resync/volume-sync toggles (both were knobs of the old engine; the SimpMusic engine has
+ * neither a volume publish nor a manual resync — requestSync happens on guest resume by design).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListenTogetherSettings(
@@ -99,80 +93,43 @@ fun ListenTogetherSettings(
     viewModel: ListenTogetherViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    
-    val connectionState by viewModel.connectionState.collectAsState()
+
     val roomState by viewModel.roomState.collectAsState()
-    val role by viewModel.role.collectAsState()
-    val pendingJoinRequests by viewModel.pendingJoinRequests.collectAsState()
-    val logs by viewModel.logs.collectAsState()
     val blockedUsernames by viewModel.blockedUsernames.collectAsState()
-    
+
     // ONE flag read for the whole screen. The rows below (IntegrationCard -> Material3SettingsGroup)
     // already re-skin themselves; what was missing was the page background and the TopAppBar, which
     // this screen draws by hand rather than through that seam.
-    val skin = rememberAuraPanelSkin()
+    val skin: AuraPanelSkin = rememberAuraPanelSkin()
     val ground = if (skin.enabled && skin.darkGround) AuraPalette.Ground else MaterialTheme.colorScheme.surface
 
-    val servers by ListenTogetherServers.serversFlow.collectAsState()
-    var serverUrl by rememberPreference(ListenTogetherServerUrlKey, ListenTogetherServers.defaultServerUrl)
+    // Empty value = the DEFAULT server (upstream SimpMusic semantics: the store holds "" unless the
+    // user explicitly saved a custom URL; the client reads it per connection attempt).
+    var serverUrl by rememberPreference(ListenTogetherServerUrlKey, "")
     var username by rememberPreference(ListenTogetherUsernameKey, "")
     var autoApproval by rememberPreference(ListenTogetherAutoApprovalKey, false)
-    var syncHostVolume by rememberPreference(ListenTogetherSyncVolumeKey, true)
-    var smartResync by rememberPreference(ListenTogetherSmartResyncKey, true)
-    
+
     var showServerUrlDialog by rememberSaveable { mutableStateOf(false) }
     var showUsernameDialog by rememberSaveable { mutableStateOf(false) }
-    var showLogsDialog by rememberSaveable { mutableStateOf(false) }
     var showBlockedUsersDialog by rememberSaveable { mutableStateOf(false) }
-    
-    
-    LaunchedEffect(Unit) {
-        viewModel.events.collectLatest { event ->
-            when (event) {
-                is ListenTogetherEvent.RoomCreated -> {
-                    
-                }
-                is ListenTogetherEvent.JoinApproved -> {
-                    Toast.makeText(context, "Te uniste a la sala: ${event.roomCode}", Toast.LENGTH_SHORT).show()
-                }
-                is ListenTogetherEvent.JoinRejected -> {
-                    Toast.makeText(context, "Solicitud rechazada: ${event.reason}", Toast.LENGTH_SHORT).show()
-                }
-                is ListenTogetherEvent.JoinRequestReceived -> {
-                    Toast.makeText(context, "${event.username} wants to join", Toast.LENGTH_SHORT).show()
-                }
-                is ListenTogetherEvent.Kicked -> {
-                    Toast.makeText(context, "Expulsado: ${event.reason}", Toast.LENGTH_SHORT).show()
-                }
-                is ListenTogetherEvent.ConnectionError -> {
-                    Toast.makeText(context, "Error de conexión: ${event.error}", Toast.LENGTH_SHORT).show()
-                }
-                is ListenTogetherEvent.ServerError -> {
-                    Toast.makeText(context, "Error: ${event.message}", Toast.LENGTH_SHORT).show()
-                }
-                else -> {}
-            }
-        }
-    }
-    
-    
+
+    val inRoom = roomState?.inRoom == true
+
     if (showServerUrlDialog) {
-        ServerChooserDialog(
-            servers = servers,
+        ServerUrlDialog(
             currentUrl = serverUrl,
-            onSelect = { server ->
-                serverUrl = server.url
+            onSave = { url ->
+                serverUrl = url
                 showServerUrlDialog = false
             },
-            onUseCustom = { customUrl ->
-                serverUrl = customUrl
+            onUseDefault = {
+                serverUrl = ""
                 showServerUrlDialog = false
             },
             onDismiss = { showServerUrlDialog = false }
         )
     }
-    
+
     if (showUsernameDialog) {
         var tempUsername by rememberSaveable(showUsernameDialog) { mutableStateOf(username) }
 
@@ -192,7 +149,7 @@ fun ListenTogetherSettings(
         ) {
             OutlinedTextField(
                 value = tempUsername,
-                onValueChange = { tempUsername = it },
+                onValueChange = { tempUsername = it.take(50) },
                 label = { Text(stringResource(R.string.listen_together_username)) },
                 leadingIcon = {
                     Icon(painterResource(R.drawable.person), contentDescription = null)
@@ -209,20 +166,6 @@ fun ListenTogetherSettings(
             )
         }
     }
-    
-    // The "Crear sala" / "Unirse a la sala" dialogs used to live here, guarded by
-    // showCreateRoomDialog / showJoinRoomDialog — two flags that were declared and read but never
-    // set to true by anything, so neither dialog could ever open from this screen. The feature
-    // itself is NOT lost: the live create/join flows are in ListenTogetherScreen.kt (:388/:407) and
-    // PlayerMenu.kt (:2050/:2087). Removed as unreachable duplicates.
-
-    if (showLogsDialog) {
-        LogsDialog(
-            logs = logs,
-            onClear = { viewModel.clearLogs() },
-            onDismiss = { showLogsDialog = false }
-        )
-    }
 
     if (showBlockedUsersDialog) {
         BlockedUsersDialog(
@@ -237,273 +180,143 @@ fun ListenTogetherSettings(
             .fillMaxSize()
             .background(ground)
     ) {
-    Column(
-        Modifier
-            .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
-            .verticalScroll(rememberScrollState())
-    ) {
-        Spacer(
-            Modifier.windowInsetsPadding(
-                LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)
-            )
-        )
-        
-        
-        val selectedServer = remember(serverUrl) { ListenTogetherServers.findByUrl(serverUrl) }
-        
-        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-            IntegrationCard(
-                title = stringResource(R.string.settings),
-                items = listOf(
-                    IntegrationCardItem(
-                        icon = painterResource(R.drawable.person),
-                        title = { Text(stringResource(R.string.listen_together_blocked_users)) },
-                        description = {
-                            Text(
-                                if (blockedUsernames.isNotEmpty()) 
-                                    stringResource(R.string.listen_together_blocked_users_count, blockedUsernames.size)
-                                else 
-                                    stringResource(R.string.listen_together_no_blocked_users)
-                            )
-                        },
-                        onClick = if (blockedUsernames.isNotEmpty()) {
-                            { showBlockedUsersDialog = true }
-                        } else null
-                    ),
-                    IntegrationCardItem(
-                        icon = painterResource(R.drawable.cloud),
-                        title = { Text(stringResource(R.string.listen_together_server_url)) },
-                        description = {
-                            Text(
-                                selectedServer?.let { server ->
-                                    "${server.name} - ${server.location}"
-                                } ?: serverUrl,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        onClick = { showServerUrlDialog = true }
-                    ),
-                    IntegrationCardItem(
-                        icon = painterResource(R.drawable.person),
-                        title = { Text(stringResource(R.string.listen_together_username)) },
-                        description = {
-                            Text(username.ifEmpty { stringResource(R.string.not_set) })
-                        },
-                        onClick = if (roomState == null) {
-                            { showUsernameDialog = true }
-                        } else {
-                            { Toast.makeText(context, context.getString(R.string.listen_together_cannot_edit_username_in_room), Toast.LENGTH_SHORT).show() }
-                        }
-                    ),
-                    IntegrationCardItem(
-                        icon = painterResource(R.drawable.done),
-                        title = { Text(stringResource(R.string.listen_together_auto_approval)) },
-                        description = {
-                            Text(stringResource(R.string.listen_together_auto_approval_desc))
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = autoApproval,
-                                onCheckedChange = { autoApproval = it },
-                                
-                                enabled = roomState == null || role != RoomRole.GUEST,
-                                thumbContent = {
-                                    Icon(
-                                        painter = painterResource(
-                                            id = if (autoApproval) R.drawable.check else R.drawable.close
-                                        ),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(SwitchDefaults.IconSize),
-                                    )
-                                }
-                            )
-                        },
-                        
-                        onClick = { if (roomState == null || role != RoomRole.GUEST) autoApproval = !autoApproval }
-                    ),
-                    IntegrationCardItem(
-                        icon = painterResource(R.drawable.volume_up),
-                        title = { Text(stringResource(R.string.listen_together_sync_volume)) },
-                        description = {
-                            Text(stringResource(R.string.listen_together_sync_volume_desc))
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = syncHostVolume,
-                                onCheckedChange = { syncHostVolume = it },
-                                thumbContent = {
-                                    Icon(
-                                        painter = painterResource(
-                                            id = if (syncHostVolume) R.drawable.check else R.drawable.close
-                                        ),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(SwitchDefaults.IconSize),
-                                    )
-                                }
-                            )
-                        },
-                        onClick = { syncHostVolume = !syncHostVolume }
-                    ),
-                    IntegrationCardItem(
-                        icon = painterResource(R.drawable.automation_slow_connecttion),
-                        title = { Text(stringResource(R.string.listen_together_smart_resync)) },
-                        description = {
-                            Text(stringResource(R.string.listen_together_smart_resync_desc))
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = smartResync,
-                                onCheckedChange = { smartResync = it },
-                                thumbContent = {
-                                    Icon(
-                                        painter = painterResource(
-                                            id = if (smartResync) R.drawable.check else R.drawable.close
-                                        ),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(SwitchDefaults.IconSize),
-                                    )
-                                }
-                            )
-                        },
-                        onClick = { smartResync = !smartResync }
-                    ),
-                    IntegrationCardItem(
-                        icon = painterResource(R.drawable.bug_report),
-                        title = { Text(stringResource(R.string.listen_together_view_logs)) },
-                        description = {
-                            Text(stringResource(R.string.listen_together_view_logs_desc))
-                        },
-                        onClick = { showLogsDialog = true }
-                    )
-                )
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-    }
-
-    TopAppBar(
-        title = { Text(stringResource(R.string.listen_together)) },
-        navigationIcon = {
-            IconButton(
-                onClick = navController::navigateUp,
-                onLongClick = null,
-            ) {
-                Icon(
-                    painterResource(R.drawable.arrow_back),
-                    contentDescription = null,
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = ground,
-            scrolledContainerColor = if (skin.enabled && skin.darkGround)
-                AuraPalette.GroundRaised
-            else
-                MaterialTheme.colorScheme.surfaceContainer,
-            titleContentColor = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface,
-            navigationIconContentColor = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface,
-        ),
-    )
-    }
-}
-
-@Composable
-fun LogsDialog(
-    logs: List<LogEntry>,
-    onClear: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val listState = rememberLazyListState()
-    
-    LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty()) {
-            listState.animateScrollToItem(logs.size - 1)
-        }
-    }
-    
-    val context = LocalContext.current
-
-    DefaultDialog(
-        onDismiss = onDismiss,
-        icon = { Icon(painterResource(R.drawable.bug_report), contentDescription = null) },
-        title = { Text(stringResource(R.string.listen_together_logs)) },
-        buttons = {
-            TextButton(
-                onClick = {
-                    val textToCopy = logs.joinToString("\n") { log ->
-                        buildString {
-                            append(log.timestamp)
-                            append(" [")
-                            append(log.level.name)
-                            append("] ")
-                            append(log.message)
-                            log.details?.let { d -> append(" -- $d") }
-                        }
-                    }
-                    val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    val clip = android.content.ClipData.newPlainText("ListenTogetherLogs", textToCopy)
-                    cm.setPrimaryClip(clip)
-                    Toast.makeText(context, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show()
-                },
-                enabled = logs.isNotEmpty()
-            ) {
-                Text(stringResource(R.string.copy))
-            }
-            TextButton(onClick = onClear) {
-                Text(stringResource(R.string.clear))
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = onDismiss) {
-                Text(stringResource(android.R.string.ok))
-            }
-        }
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(350.dp)
+        Column(
+            Modifier
+                .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+                .verticalScroll(rememberScrollState())
         ) {
-            if (logs.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+            Spacer(
+                Modifier.windowInsetsPadding(
+                    LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)
+                )
+            )
+
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                IntegrationCard(
+                    title = stringResource(R.string.settings),
+                    items = listOf(
+                        IntegrationCardItem(
+                            icon = painterResource(R.drawable.person),
+                            title = { Text(stringResource(R.string.listen_together_blocked_users)) },
+                            description = {
+                                Text(
+                                    if (blockedUsernames.isNotEmpty())
+                                        stringResource(R.string.listen_together_blocked_users_count, blockedUsernames.size)
+                                    else
+                                        stringResource(R.string.listen_together_no_blocked_users)
+                                )
+                            },
+                            onClick = if (blockedUsernames.isNotEmpty()) {
+                                { showBlockedUsersDialog = true }
+                            } else null
+                        ),
+                        IntegrationCardItem(
+                            icon = painterResource(R.drawable.cloud),
+                            title = { Text(stringResource(R.string.listen_together_server_url)) },
+                            description = {
+                                Text(
+                                    if (serverUrl.isBlank())
+                                        stringResource(R.string.listen_together_default_server)
+                                    else
+                                        serverUrl,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            onClick = { showServerUrlDialog = true }
+                        ),
+                        IntegrationCardItem(
+                            icon = painterResource(R.drawable.person),
+                            title = { Text(stringResource(R.string.listen_together_username)) },
+                            description = {
+                                Text(username.ifEmpty { stringResource(R.string.not_set) })
+                            },
+                            // metroserver mints a fresh identity per connection; the NAME is what a
+                            // room knows you by, so it cannot change while a room is live.
+                            onClick = if (!inRoom) {
+                                { showUsernameDialog = true }
+                            } else {
+                                {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.listen_together_cannot_edit_username_in_room),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        ),
+                        IntegrationCardItem(
+                            icon = painterResource(R.drawable.done),
+                            title = { Text(stringResource(R.string.listen_together_auto_approval)) },
+                            description = {
+                                Text(stringResource(R.string.listen_together_auto_approval_desc))
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = autoApproval,
+                                    onCheckedChange = { autoApproval = it },
+                                    enabled = !inRoom || roomState?.isHost == true,
+                                    thumbContent = {
+                                        Icon(
+                                            painter = painterResource(
+                                                id = if (autoApproval) R.drawable.check else R.drawable.close
+                                            ),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(SwitchDefaults.IconSize),
+                                        )
+                                    }
+                                )
+                            },
+                            onClick = {
+                                if (!inRoom || roomState?.isHost == true) autoApproval = !autoApproval
+                            }
+                        )
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        TopAppBar(
+            title = { Text(stringResource(R.string.listen_together)) },
+            navigationIcon = {
+                IconButton(
+                    onClick = navController::navigateUp,
+                    onLongClick = null,
                 ) {
-                    Text(
-                        text = stringResource(R.string.listen_together_no_logs),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Icon(
+                        painterResource(R.drawable.arrow_back),
+                        contentDescription = null,
                     )
                 }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(logs) { log ->
-                        LogEntryItem(log)
-                    }
-                }
-            }
-        }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = ground,
+                scrolledContainerColor = if (skin.enabled && skin.darkGround)
+                    AuraPalette.GroundRaised
+                else
+                    MaterialTheme.colorScheme.surfaceContainer,
+                titleContentColor = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface,
+                navigationIconContentColor = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface,
+            ),
+        )
     }
 }
 
+/**
+ * The server picker, reduced to what the SimpMusic model actually offers: the default public server
+ * or your own URL. No remote list — the old one came from a third-party repo we do not control.
+ */
 @Composable
-private fun ServerChooserDialog(
-    servers: List<ListenTogetherServer>,
+private fun ServerUrlDialog(
     currentUrl: String,
-    onSelect: (ListenTogetherServer) -> Unit,
-    onUseCustom: (String) -> Unit,
+    onSave: (String) -> Unit,
+    onUseDefault: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var customUrl by rememberSaveable(currentUrl) { mutableStateOf(currentUrl) }
-    val trimmedCustomUrl = customUrl.trim()
-
-    // ONE flag read for the dialog, handed to every server card below. These cards are drawn INSIDE
-    // `DefaultDialog`, i.e. on a dialog surface rather than on the page — which is exactly why
-    // `AuraPanel`'s fill is a translucent wash and not an opaque `surface`: an opaque plate would
-    // stamp a mismatched rectangle per server.
+    val trimmed = customUrl.trim()
     val skin = rememberAuraPanelSkin()
 
     DefaultDialog(
@@ -522,80 +335,47 @@ private fun ServerChooserDialog(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            servers.forEach { server ->
-                val isSelected = server.url == currentUrl
-                AuraPanel(
-                    skin = skin,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (skin.enabled) Modifier.sizeIn(minHeight = AuraSpacing.MinTouchTarget) else Modifier)
-                        .clickable { onSelect(server) },
-                    classicShape = RoundedCornerShape(16.dp),
-                    classicColors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        }
-                    )
+            // The DEFAULT option: the one public server, the same one SimpMusic and Metrolist ship.
+            val isDefault = currentUrl.isBlank()
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = if (isDefault) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onUseDefault)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            // The SELECTED server takes the render's "SONANDO" wash instead of a
-                            // different card colour, so selection reads the same here as everywhere
-                            // else in the redesign. Painted inside the panel so the hairline stays.
-                            .then(
-                                if (skin.enabled && isSelected)
-                                    Modifier.background(skin.accent.copy(alpha = 0.10f))
-                                else Modifier
-                            )
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = server.name,
-                                style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.titleSmall,
-                                color = if (skin.enabled) skin.ink else Color.Unspecified,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "${server.location} - ${server.operator}",
-                                style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodySmall,
-                                color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = server.url,
-                                // A URL is technical data — tracked monospace in the render.
-                                style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
-                                color = if (skin.enabled) skin.inkFaint else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (isSelected) {
-                            Icon(
-                                painter = painterResource(R.drawable.done),
-                                contentDescription = null,
-                                tint = if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary
-                            )
-                        }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.listen_together_default_server_name),
+                            style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = ListenTogetherClient.DEFAULT_SERVER_URL,
+                            style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (isDefault) {
+                        Icon(
+                            painter = painterResource(R.drawable.done),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
-            }
-
-            if (skin.enabled) {
-                HorizontalDivider(thickness = 1.dp, color = skin.hairline)
-            } else {
-                HorizontalDivider()
             }
 
             Text(
                 text = stringResource(R.string.listen_together_custom_server),
                 style = if (skin.enabled) AuraType.MenuGroupLabel else MaterialTheme.typography.titleSmall,
-                color = if (skin.enabled) skin.inkFaint else Color.Unspecified,
-                fontWeight = if (skin.enabled) FontWeight.Normal else FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold
             )
             OutlinedTextField(
                 value = customUrl,
@@ -608,8 +388,8 @@ private fun ServerChooserDialog(
                 modifier = Modifier.fillMaxWidth()
             )
             Button(
-                onClick = { onUseCustom(trimmedCustomUrl) },
-                enabled = trimmedCustomUrl.isNotBlank(),
+                onClick = { onSave(trimmed) },
+                enabled = trimmed.isNotBlank() && trimmed != currentUrl,
                 modifier = Modifier.fillMaxWidth(),
                 shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp)
             ) {
@@ -620,67 +400,8 @@ private fun ServerChooserDialog(
 }
 
 @Composable
-fun LogEntryItem(log: LogEntry) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = log.timestamp,
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = when (log.level) {
-                    LogLevel.ERROR -> MaterialTheme.colorScheme.errorContainer
-                    LogLevel.WARNING -> Color(0xFFFFF3CD)
-                    LogLevel.DEBUG -> MaterialTheme.colorScheme.surfaceVariant
-                    LogLevel.INFO -> MaterialTheme.colorScheme.primaryContainer
-                }
-            ) {
-                Text(
-                    text = log.level.name,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                    color = when (log.level) {
-                        LogLevel.ERROR -> MaterialTheme.colorScheme.onErrorContainer
-                        LogLevel.WARNING -> Color(0xFF856404)
-                        LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
-                        LogLevel.INFO -> MaterialTheme.colorScheme.onPrimaryContainer
-                    }
-                )
-            }
-        }
-
-        Text(
-            text = log.message,
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace
-        )
-        log.details?.let { details ->
-            Text(
-                text = details,
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
 fun BlockedUsersDialog(
-    blockedUsernames: Set<String>,
+    blockedUsernames: List<String>,
     onUnblock: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -693,66 +414,38 @@ fun BlockedUsersDialog(
         icon = { Icon(painterResource(R.drawable.person), contentDescription = null) },
         title = { Text(stringResource(R.string.listen_together_blocked_users)) },
         buttons = {
-            Button(onClick = onDismiss) {
+            TextButton(onClick = onDismiss) {
                 Text(stringResource(android.R.string.ok))
             }
         }
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(280.dp)
-        ) {
-            if (blockedUsernames.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.listen_together_no_blocked_users),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(blockedUsernames.toList()) { username ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(if (skin.enabled) AuraShapes.Highlight else RoundedCornerShape(12.dp))
-                                .background(
-                                    if (skin.enabled) skin.fill else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.person),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = if (skin.enabled) skin.accent else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = username,
-                                    style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.bodyMedium,
-                                    color = if (skin.enabled) skin.ink else Color.Unspecified
-                                )
-                            }
-                            TextButton(
-                                onClick = { onUnblock(username) }
-                            ) {
-                                Text(stringResource(R.string.unblock))
-                            }
+        if (blockedUsernames.isEmpty()) {
+            Text(
+                text = stringResource(R.string.listen_together_no_blocked_users),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+            ) {
+                items(blockedUsernames) { name ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = name,
+                            style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { onUnblock(name) }) {
+                            Text(stringResource(R.string.listen_together_unblock))
                         }
                     }
                 }
@@ -760,4 +453,3 @@ fun BlockedUsersDialog(
         }
     }
 }
-

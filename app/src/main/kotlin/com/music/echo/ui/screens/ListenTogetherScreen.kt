@@ -1,13 +1,9 @@
-
-
 package iad1tya.echo.music.ui.screens
 
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,12 +24,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -41,17 +35,14 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import iad1tya.echo.music.ui.component.DefaultDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton as MaterialIconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -79,7 +70,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -91,13 +81,10 @@ import iad1tya.echo.music.constants.AppBarHeight
 import iad1tya.echo.music.constants.ListenTogetherInTopBarKey
 import iad1tya.echo.music.constants.ListenTogetherUsernameKey
 import iad1tya.echo.music.listentogether.ConnectionState
-import iad1tya.echo.music.listentogether.JoinRequestPayload
-import iad1tya.echo.music.listentogether.ListenTogetherEvent
-import iad1tya.echo.music.listentogether.SuggestionReceivedPayload
-import iad1tya.echo.music.listentogether.UserInfo
-import iad1tya.echo.music.ui.component.ListDialog
-import iad1tya.echo.music.ui.component.Material3SettingsGroup
-import iad1tya.echo.music.ui.component.Material3SettingsItem
+import iad1tya.echo.music.listentogether.PendingJoin
+import iad1tya.echo.music.listentogether.PendingSuggestion
+import iad1tya.echo.music.listentogether.RoomMember
+import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraPanel
@@ -109,7 +96,20 @@ import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+/**
+ * Listen Together — the SimpMusic/Metrolist room screen, on this app's surfaces.
+ *
+ * The ENGINE is the SimpMusic port (protocol + session + playback bridge); this screen only renders
+ * [iad1tya.echo.music.listentogether.ListenTogetherState]. Room semantics that differ from the previous
+ * implementation and are visible here:
+ * - Joining waits for the HOST to approve (`pendingJoinCode`), shown as its own state.
+ * - The buffer barrier is named out loud (`waitingForNames`) — playback stops for the slowest
+ *   device, and silence without explanation reads as a hang.
+ * - Chat is GONE: the metroproto wire protocol has no chat message, so the old chat was a private
+ *   extension that only worked between two of OUR clients. (Regla 5: ocultar también es perder —
+ *   documentado en el registro, fila 190.)
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListenTogetherScreen(
     navController: NavController,
@@ -126,33 +126,24 @@ fun ListenTogetherScreen(
 
     val connectionState by listenTogetherManager.connectionState.collectAsState()
     val roomState by listenTogetherManager.roomState.collectAsState()
-    val userId by listenTogetherManager.userId.collectAsState()
     val pendingJoinRequests by listenTogetherManager.pendingJoinRequests.collectAsState()
     val pendingSuggestions by listenTogetherManager.pendingSuggestions.collectAsState()
-    // The server fans out BUFFER_WAIT with the participants still loading the track; the client has
-    // always exposed it, no screen ever showed it. Without this the host stares at a silent room
-    // while a guest buffers and cannot tell a slow phone from a dropped connection.
+    // The room fans out BUFFER_WAIT with the participants still loading the track; the state
+    // exposes it per member (isBuffering) AND as the id list — both are rendered below.
     val bufferingUsers by listenTogetherManager.bufferingUsers.collectAsState()
+    val blockedUsernames by listenTogetherManager.blockedUsernames.collectAsState()
 
     val (listenTogetherInTopBar) = rememberPreference(ListenTogetherInTopBarKey, defaultValue = true)
     val shouldShowTopBar = showTopBar || listenTogetherInTopBar
-    
+
     var savedUsername by rememberPreference(ListenTogetherUsernameKey, "")
     var roomCodeInput by rememberSaveable { mutableStateOf("") }
     var usernameInput by rememberSaveable { mutableStateOf(savedUsername) }
-
-    var isCreatingRoom by rememberSaveable { mutableStateOf(false) }
-    var isJoiningRoom by rememberSaveable { mutableStateOf(false) }
     var joinErrorMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var managing by rememberSaveable { mutableStateOf<String?>(null) }
 
-    var selectedUserForMenu by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedUsername by rememberSaveable { mutableStateOf<String?>(null) }
-
-    val waitingForApprovalText = stringResource(R.string.waiting_for_approval)
-    val invalidRoomCodeText = stringResource(R.string.invalid_room_code)
-    val joinRequestDeniedText = stringResource(R.string.join_request_denied)
-    val connectionFailedText = stringResource(R.string.listen_together_connection_failed)
     val kickedFromRoomText = stringResource(R.string.listen_together_kicked_from_room)
+    val connectionFailedText = stringResource(R.string.listen_together_connection_failed)
 
     LaunchedEffect(savedUsername) {
         if (usernameInput.isBlank() && savedUsername.isNotBlank()) {
@@ -160,112 +151,51 @@ fun ListenTogetherScreen(
         }
     }
 
-    LaunchedEffect(listenTogetherManager) {
-        listenTogetherManager.events.collect { event ->
-            when (event) {
-                is ListenTogetherEvent.JoinRejected -> {
-                    val reason = event.reason
-                    joinErrorMessage = when {
-                        reason.isNullOrBlank() -> joinRequestDeniedText
-                        reason.contains("invalid", ignoreCase = true) -> invalidRoomCodeText
-                        else -> "$joinRequestDeniedText: $reason"
-                    }
-                    isJoiningRoom = false
-                    isCreatingRoom = false
-                }
-                is ListenTogetherEvent.JoinApproved -> {
-                    isJoiningRoom = false
-                    joinErrorMessage = null
-                }
-                is ListenTogetherEvent.RoomCreated -> {
-                    isCreatingRoom = false
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    val clip = android.content.ClipData.newPlainText("ListenTogetherRoom", event.roomCode)
-                    clipboard.setPrimaryClip(clip)
-                }
-                // Without these branches the client could retry up to 15 times / 120s and then emit a
-                // failure nobody read, leaving isJoiningRoom stuck true and the spinner running forever.
-                is ListenTogetherEvent.ConnectionError -> {
-                    joinErrorMessage = connectionFailedText
-                    isJoiningRoom = false
-                    isCreatingRoom = false
-                }
-                is ListenTogetherEvent.Kicked -> {
-                    joinErrorMessage = if (event.reason.isBlank()) {
-                        kickedFromRoomText
-                    } else {
-                        "$kickedFromRoomText: ${event.reason}"
-                    }
-                    isJoiningRoom = false
-                    isCreatingRoom = false
-                }
-                is ListenTogetherEvent.ServerError -> {
-                    // Only while a join/create is in flight: in-room server errors are handled elsewhere.
-                    if (isJoiningRoom || isCreatingRoom) {
-                        joinErrorMessage = event.message.ifBlank { connectionFailedText }
-                        isJoiningRoom = false
-                        isCreatingRoom = false
-                    }
-                }
-                is ListenTogetherEvent.Disconnected -> {
-                    // Disconnected also fires on a normal leave, so it is only an error when the user is
-                    // still waiting on a join/create — otherwise leaving a room would flash a fake error.
-                    if (isJoiningRoom || isCreatingRoom) {
-                        joinErrorMessage = connectionFailedText
-                        isJoiningRoom = false
-                        isCreatingRoom = false
-                    }
-                }
-                else -> {}
+    // The session owns the error message (bad code, host declined, server error, kicked); surface
+    // it once and clear it — a transient failure must not wedge the form.
+    LaunchedEffect(roomState?.error) {
+        val error = roomState?.error
+        joinErrorMessage = error?.let { raw ->
+            when {
+                raw.contains("kicked", ignoreCase = true) -> kickedFromRoomText
+                else -> raw
             }
         }
+        if (error != null) listenTogetherManager.clearError()
     }
 
-    val isInRoom = listenTogetherManager.isInRoom
-    val isHost = roomState?.hostId == userId
+    val isInRoom = roomState?.inRoom == true
+    val isHost = roomState?.isHost == true
 
-    
-    if (selectedUserForMenu != null && selectedUsername != null) {
+    val memberForDialog = managing?.let { id -> roomState?.members?.firstOrNull { it.userId == id } }
+    if (memberForDialog != null) {
         UserActionDialog(
-            username = selectedUsername ?: "",
+            username = memberForDialog.username,
+            isBlocked = blockedUsernames.any { it.equals(memberForDialog.username, ignoreCase = true) },
             onKick = {
-                selectedUserForMenu?.let {
-                    listenTogetherManager.kickUser(it, "Removed by host")
-                }
-                selectedUserForMenu = null
-                selectedUsername = null
+                listenTogetherManager.kickUser(memberForDialog.userId, "Removed by host")
+                managing = null
             },
-            onPermanentKick = {
-                selectedUserForMenu?.let { userId ->
-                    selectedUsername?.let { username ->
-                        listenTogetherManager.blockUser(username)
-                        listenTogetherManager.kickUser(userId, R.string.user_blocked_by_host.toString())
-                    }
-                }
-                selectedUserForMenu = null
-                selectedUsername = null
+            onBlockAndKick = {
+                listenTogetherManager.blockUser(memberForDialog.username)
+                listenTogetherManager.kickUser(memberForDialog.userId, "Removed by host")
+                managing = null
             },
             onTransferOwnership = {
-                selectedUserForMenu?.let {
-                    listenTogetherManager.transferHost(it)
-                }
-                selectedUserForMenu = null
-                selectedUsername = null
+                listenTogetherManager.transferHost(memberForDialog.userId)
+                managing = null
             },
-            onDismiss = {
-                selectedUserForMenu = null
-                selectedUsername = null
-            }
+            onDismiss = { managing = null }
         )
     }
 
     val lazyListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val scrollToTop = backStackEntry?.savedStateHandle?.getStateFlow("scrollToTop", false)?.collectAsState()
-    
+
     LaunchedEffect(scrollToTop?.value) {
         if (scrollToTop?.value == true) {
             lazyListState.animateScrollToItem(0)
@@ -273,8 +203,7 @@ fun ListenTogetherScreen(
         }
     }
 
-    // ONE flag read for the whole screen; every panel below takes it as a parameter. The Listen
-    // Together PROTOCOL and its state machine are untouched — this is chrome only.
+    // ONE flag read for the whole screen; every panel below takes it as a parameter.
     val skin = rememberAuraPanelSkin()
     val auraDark = skin.enabled && skin.darkGround
 
@@ -292,7 +221,9 @@ fun ListenTogetherScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        if (connectionState == ConnectionState.CONNECTED && !isInRoom) {
+        // Not-in-room + connected: the room you create disappears if you background the app with
+        // nothing playing, because Android freezes an idle process. Said once, not as a dialog.
+        if (connectionState is ConnectionState.Connected && !isInRoom) {
             item {
                 Text(
                     text = stringResource(R.string.listen_together_background_disconnect_note),
@@ -305,38 +236,38 @@ fun ListenTogetherScreen(
         }
 
         if (isInRoom) {
-            
             roomState?.let { room ->
+                // The buffer barrier, said out loud: playback genuinely stops until everyone is
+                // ready, and naming who is being waited for is what stops the silence reading as
+                // a hang (SimpMusic rule).
+                if (room.waitingForNames.isNotEmpty()) {
+                    item { BufferBarrierBanner(names = room.waitingForNames, skin = skin) }
+                }
+
                 item {
                     RoomStatusCard(
-                        roomCode = room.roomCode,
+                        roomCode = room.roomCode.orEmpty(),
                         isHost = isHost,
+                        hostName = room.members.firstOrNull { it.isHost }?.username.orEmpty(),
                         skin = skin,
-                        context = context,
-                        navController = navController
+                        context = context
                     )
                 }
 
-                
-                val connectedUsers = room.users.filter { it.isConnected }
-                val currentUserIdValue = userId ?: ""
                 item {
                     ConnectedUsersSection(
-                        users = connectedUsers,
+                        members = room.members,
                         isHost = isHost,
                         skin = skin,
-                        currentUserId = currentUserIdValue,
-                        bufferingUsers = bufferingUsers,
-                        onUserClick = { clickedUserId, username ->
-                            if (isHost && clickedUserId != currentUserIdValue) {
-                                selectedUserForMenu = clickedUserId
-                                selectedUsername = username
+                        currentUserId = room.selfUserId,
+                        onUserClick = { clickedUserId ->
+                            if (isHost && clickedUserId != room.selfUserId) {
+                                managing = clickedUserId
                             }
                         }
                     )
                 }
 
-                
                 if (isHost && pendingJoinRequests.isNotEmpty()) {
                     item {
                         PendingJoinRequestsSection(
@@ -348,7 +279,6 @@ fun ListenTogetherScreen(
                     }
                 }
 
-                
                 if (isHost && pendingSuggestions.isNotEmpty()) {
                     item {
                         PendingSuggestionsSection(
@@ -360,14 +290,11 @@ fun ListenTogetherScreen(
                     }
                 }
 
-                
                 item {
                     Button(
                         onClick = { listenTogetherManager.leaveRoom() },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
-                            // Stays the theme's error colour: leaving a room is a destructive action
-                            // and its colour is the warning.
                             containerColor = MaterialTheme.colorScheme.error
                         ),
                         shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp)
@@ -385,8 +312,17 @@ fun ListenTogetherScreen(
                     }
                 }
             }
+        } else if (roomState?.pendingJoinCode != null) {
+            // Joining is not immediate — the host has to approve it. Without this state a wrong
+            // code and a host who has not looked at their phone are indistinguishable.
+            item {
+                WaitingForApprovalCard(
+                    code = roomState?.pendingJoinCode.orEmpty(),
+                    skin = skin,
+                    onCancel = { listenTogetherManager.session.cancelJoin() }
+                )
+            }
         } else {
-            
             item {
                 JoinCreateRoomSection(
                     skin = skin,
@@ -395,19 +331,15 @@ fun ListenTogetherScreen(
                     roomCodeInput = roomCodeInput,
                     onRoomCodeChange = { roomCodeInput = it },
                     savedUsername = savedUsername,
-                    isJoiningRoom = isJoiningRoom,
-                    isCreatingRoom = isCreatingRoom,
                     joinErrorMessage = joinErrorMessage,
-                    waitingForApprovalText = waitingForApprovalText,
+                    isConnected = connectionState is ConnectionState.Connected,
+                    waitingForApprovalText = stringResource(R.string.waiting_for_approval),
                     bringIntoViewRequester = bringIntoViewRequester,
                     onCreateRoom = {
                         val username = usernameInput.takeIf { it.isNotBlank() } ?: savedUsername
                         val finalUsername = username.trim()
                         if (finalUsername.isNotBlank()) {
                             savedUsername = finalUsername
-                            Toast.makeText(context, R.string.creating_room, Toast.LENGTH_SHORT).show()
-                            isCreatingRoom = true
-                            isJoiningRoom = false
                             joinErrorMessage = null
                             listenTogetherManager.createRoom(finalUsername)
                         } else {
@@ -419,13 +351,6 @@ fun ListenTogetherScreen(
                         val finalUsername = username.trim()
                         if (finalUsername.isNotBlank()) {
                             savedUsername = finalUsername
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.joining_room, roomCodeInput),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            isJoiningRoom = true
-                            isCreatingRoom = false
                             joinErrorMessage = null
                             listenTogetherManager.joinRoom(roomCodeInput, finalUsername)
                         } else {
@@ -441,56 +366,10 @@ fun ListenTogetherScreen(
             }
         }
 
-        
         item {
             SettingsLinkCard(
                 onClick = { navController.navigate("settings/integrations/listen_together") }
             )
-        }
-        
-        if (!isInRoom) {
-            item {
-                AuraPanel(
-                    skin = skin,
-                    modifier = Modifier.fillMaxWidth(),
-                    classicShape = RoundedCornerShape(24.dp),
-                    classicColors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                    ),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
-                        Text(
-                            text = "How it Works",
-                            style = if (skin.enabled) AuraType.MenuGroupLabel else MaterialTheme.typography.titleLarge,
-                            fontWeight = if (skin.enabled) FontWeight.Normal else FontWeight.Bold,
-                            color = if (skin.enabled) skin.inkFaint else MaterialTheme.colorScheme.primary
-                        )
-
-                        InstructionStep(
-                            title = "1. Create a Room",
-                            description = "Start a session and share the unique room code with your friends.",
-                            skin = skin
-                        )
-
-                        InstructionStep(
-                            title = "2. Join a Friend",
-                            description = "Enter their room code to join their session instantly.",
-                            skin = skin
-                        )
-
-                        InstructionStep(
-                            title = "3. Sync Playback",
-                            description = "The host controls the music. Everyone listens in perfect sync!",
-                            skin = skin
-                        )
-                    }
-                }
-            }
         }
     }
 
@@ -509,59 +388,71 @@ fun ListenTogetherScreen(
                 }
             },
             actions = {
-                if (connectionState == ConnectionState.DISCONNECTED || connectionState == ConnectionState.ERROR) {
-                    TextButton(onClick = { listenTogetherManager.connect() }) {
-                        Text(stringResource(R.string.connect))
+                when (val state = connectionState) {
+                    is ConnectionState.Connected -> {
+                        TextButton(onClick = { listenTogetherManager.disconnect() }) {
+                            Text(stringResource(R.string.disconnect))
+                        }
                     }
-                } else if (connectionState == ConnectionState.CONNECTED) {
-                    TextButton(onClick = { listenTogetherManager.disconnect() }) {
-                        Text(stringResource(R.string.disconnect))
+                    is ConnectionState.Failed -> {
+                        TextButton(onClick = { listenTogetherManager.connect() }) {
+                            Text(stringResource(R.string.connect))
+                        }
                     }
-                } else {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .padding(end = 16.dp)
-                            .size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary
-                    )
+                    is ConnectionState.Disconnected -> {
+                        TextButton(onClick = { listenTogetherManager.connect() }) {
+                            Text(stringResource(R.string.connect))
+                        }
+                    }
+                    is ConnectionState.Connecting -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(12.dp))
+                    }
                 }
-            },
-            colors = if (auraDark) {
-                androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-                    containerColor = AuraPalette.Ground,
-                    titleContentColor = skin.ink,
-                    navigationIconContentColor = skin.ink,
-                    actionIconContentColor = skin.ink,
-                )
-            } else {
-                // The `TopAppBar` default, spelled out so the classic bar is unchanged.
-                androidx.compose.material3.TopAppBarDefaults.topAppBarColors()
             }
         )
     }
 }
 
+/** The room waits for the slowest device; the banner names them (SimpMusic BufferBanner). */
 @Composable
-private fun InstructionStep(title: String, description: String, skin: AuraPanelSkin) {
-    Column(
+private fun BufferBarrierBanner(
+    names: List<String>,
+    skin: AuraPanelSkin
+) {
+    AuraPanel(
+        skin = skin,
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        classicShape = RoundedCornerShape(24.dp),
+        classicColors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
+        ),
     ) {
-        Text(
-            text = title,
-            style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.titleMedium,
-            fontWeight = if (skin.enabled) FontWeight.SemiBold else FontWeight.Bold,
-            color = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = description,
-            style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodyMedium,
-            color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant,
-            // `RowSubtitle` carries its own 18 sp leading; the classic 20 sp override only applies to
-            // the `bodyMedium` it replaces.
-            lineHeight = if (skin.enabled) TextUnit.Unspecified else 20.sp
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = if (names.isEmpty()) stringResource(R.string.listen_together_waiting_everyone)
+                else stringResource(R.string.listen_together_waiting_for, names.joinToString(", ")),
+                style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.tertiary,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(R.string.listen_together_buffer_resumes),
+                style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodySmall,
+                color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
@@ -571,154 +462,13 @@ private fun NotConfiguredContent() {
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp)
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.group),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(64.dp)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = stringResource(R.string.listen_together),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.listen_together_not_configured),
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-
-
-@Composable
-private fun ConnectionStatusCard(
-    connectionState: ConnectionState,
-    onConnect: () -> Unit,
-    onDisconnect: () -> Unit,
-    onReconnect: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                )
-            ),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(
-                            color = when (connectionState) {
-                                ConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary
-                                ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> MaterialTheme.colorScheme.tertiary
-                                ConnectionState.ERROR -> MaterialTheme.colorScheme.error
-                                ConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.outline
-                            }
-                        )
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = when (connectionState) {
-                        ConnectionState.CONNECTED -> stringResource(R.string.listen_together_connected)
-                        ConnectionState.CONNECTING -> stringResource(R.string.listen_together_connecting)
-                        ConnectionState.RECONNECTING -> stringResource(R.string.listen_together_reconnecting)
-                        ConnectionState.ERROR -> stringResource(R.string.listen_together_error)
-                        ConnectionState.DISCONNECTED -> stringResource(R.string.listen_together_disconnected)
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = when (connectionState) {
-                        ConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary
-                        ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> MaterialTheme.colorScheme.tertiary
-                        ConnectionState.ERROR -> MaterialTheme.colorScheme.error
-                        ConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-            }
-
-            if (connectionState == ConnectionState.CONNECTING || connectionState == ConnectionState.RECONNECTING) {
-                Spacer(modifier = Modifier.height(12.dp))
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp)),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (connectionState == ConnectionState.DISCONNECTED || connectionState == ConnectionState.ERROR) {
-                    Button(
-                        onClick = onConnect,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.link),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.connect), fontWeight = FontWeight.SemiBold)
-                    }
-                } else {
-                    Button(
-                        onClick = onDisconnect,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text(stringResource(R.string.disconnect), fontWeight = FontWeight.SemiBold)
-                    }
-                    FilledTonalButton(
-                        onClick = onReconnect,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Reconectar", fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-        }
+        Text(
+            text = stringResource(R.string.listen_together_not_configured),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(32.dp)
+        )
     }
 }
 
@@ -726,9 +476,9 @@ private fun ConnectionStatusCard(
 private fun RoomStatusCard(
     roomCode: String,
     isHost: Boolean,
+    hostName: String,
     skin: AuraPanelSkin,
-    context: Context,
-    navController: NavController
+    context: Context
 ) {
     AuraPanel(
         skin = skin,
@@ -753,9 +503,6 @@ private fun RoomStatusCard(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = roomCode,
-                // The code is the one thing on this card the user has to read out loud, so under the
-                // new skin it becomes what the render uses for technical data: tracked monospace, at
-                // display size. The existing 6 sp tracking is kept on both paths.
                 style = if (skin.enabled)
                     AuraType.Technical.copy(fontSize = 34.sp, lineHeight = 40.sp)
                 else
@@ -770,42 +517,16 @@ private fun RoomStatusCard(
                 text = if (isHost)
                     stringResource(R.string.listen_together_you_are_host)
                 else
-                    stringResource(R.string.listen_together_you_are_guest),
+                    stringResource(R.string.listen_together_hosted_by, hostName),
                 style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodyMedium,
                 color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = { navController.navigate("listen_together/chat") },
-                shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth(0.8f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (skin.enabled) skin.accent.copy(alpha = 0.12f)
-                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    contentColor = if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.chat_msg),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.comments),
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
             if (isHost) {
                 Spacer(modifier = Modifier.height(16.dp))
-                // echomusic://listen?code=… is the scheme this app actually registers (AndroidManifest)
-                // and parses (MainActivity.handleDeepLink: host "listen" + "code" query parameter). The
-                // previous https://echomusic-listen-together.onrender.com host belongs to an upstream
-                // fork we do not control, so its App Link could never verify and every invite 404'd.
+                // echomusic://listen?code=… is the scheme this app registers (AndroidManifest) and
+                // parses (MainActivity.handleDeepLink: host "listen" + "code" query parameter).
                 val inviteLink = remember(roomCode) { "echomusic://listen?code=$roomCode" }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -816,8 +537,6 @@ private fun RoomStatusCard(
                         shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp),
                         onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            // The BARE link: this button is labelled "copy link", so pasting it into a URL
-                            // field must work. (The friendly invite sentence belongs to a share action.)
                             val clip = android.content.ClipData.newPlainText("Listen Together Link", inviteLink)
                             clipboard.setPrimaryClip(clip)
                             Toast.makeText(context, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show()
@@ -828,7 +547,7 @@ private fun RoomStatusCard(
                             contentDescription = stringResource(R.string.copy_link),
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.copy_link))
                     }
 
@@ -846,7 +565,7 @@ private fun RoomStatusCard(
                             contentDescription = stringResource(R.string.copy_code),
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.copy_code))
                     }
                 }
@@ -857,12 +576,11 @@ private fun RoomStatusCard(
 
 @Composable
 private fun ConnectedUsersSection(
-    users: List<UserInfo>,
+    members: List<RoomMember>,
     isHost: Boolean,
     skin: AuraPanelSkin,
     currentUserId: String,
-    bufferingUsers: List<String>,
-    onUserClick: (String, String) -> Unit
+    onUserClick: (String) -> Unit
 ) {
     AuraPanel(
         skin = skin,
@@ -876,30 +594,97 @@ private fun ConnectedUsersSection(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "${stringResource(R.string.connected_users)} (${users.size})",
+                text = stringResource(R.string.listen_together_users, members.size),
                 style = if (skin.enabled) AuraType.MenuGroupLabel else MaterialTheme.typography.titleMedium,
                 fontWeight = if (skin.enabled) FontWeight.Normal else FontWeight.Bold,
                 color = if (skin.enabled) skin.inkFaint else MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                users.forEach { user ->
-                    UserAvatar(
-                        user = user,
-                        isCurrentUser = user.userId == currentUserId,
-                        isClickable = isHost && user.userId != currentUserId,
-                        skin = skin,
-                        // The room server is not ours: its waiting_for list has carried user IDs in
-                        // some builds and usernames in others, so match on both rather than guess.
-                        isBuffering = user.userId in bufferingUsers || user.username in bufferingUsers,
-                        onClick = { onUserClick(user.userId, user.username) }
-                    )
+            Column(Modifier.fillMaxWidth()) {
+                members.forEachIndexed { index, member ->
+                    if (index > 0) {
+                        Box(
+                            Modifier
+                                .padding(start = 52.dp)
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(
+                                    if (skin.enabled) skin.line
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.10f)
+                                )
+                        )
+                    }
+                    val clickable = isHost && member.userId != currentUserId
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (skin.enabled) Modifier.sizeIn(minHeight = AuraSpacing.MinTouchTarget)
+                                else Modifier
+                            )
+                            .then(if (clickable) Modifier.clickable { onUserClick(member.userId) } else Modifier)
+                            .padding(horizontal = 4.dp, vertical = 8.dp)
+                    ) {
+                        AvatarBadge(
+                            letter = member.username.take(1).uppercase(),
+                            isHost = member.isHost,
+                            isSelf = member.userId == currentUserId,
+                            skin = skin
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = member.username,
+                                    style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (skin.enabled) skin.ink else Color.Unspecified,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (member.isHost) {
+                                    Text(
+                                        text = stringResource(R.string.listen_together_you_are_host),
+                                        style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
+                                        color = if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            when {
+                                                member.isBuffering -> MaterialTheme.colorScheme.tertiary
+                                                member.isConnected -> if (skin.enabled) skin.accent
+                                                else MaterialTheme.colorScheme.primary
+                                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                            }
+                                        )
+                                )
+                                Text(
+                                    text = when {
+                                        member.isBuffering -> stringResource(R.string.listen_together_user_buffering)
+                                        !member.isConnected -> stringResource(R.string.listen_together_user_disconnected)
+                                        else -> stringResource(R.string.listen_together_user_in_sync)
+                                    },
+                                    style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodySmall,
+                                    color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -907,134 +692,94 @@ private fun ConnectedUsersSection(
 }
 
 @Composable
-private fun UserAvatar(
-    user: UserInfo,
-    isCurrentUser: Boolean,
-    isClickable: Boolean,
-    skin: AuraPanelSkin,
-    isBuffering: Boolean = false,
-    onClick: () -> Unit
+private fun AvatarBadge(
+    letter: String,
+    isHost: Boolean,
+    isSelf: Boolean,
+    skin: AuraPanelSkin
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .width(72.dp)
-            .clickable(enabled = isClickable, onClick = onClick)
+    Surface(
+        modifier = Modifier.size(40.dp),
+        shape = CircleShape,
+        // Host = accent, you = blue, everyone else = the card's own wash (the render's ramp).
+        color = when {
+            isHost -> if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary
+            isSelf -> if (skin.enabled && skin.darkGround) AuraPalette.Blue
+            else MaterialTheme.colorScheme.secondary
+            else -> if (skin.enabled) skin.fill else MaterialTheme.colorScheme.surfaceVariant
+        }
     ) {
         Box(
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
         ) {
-            Surface(
-                modifier = Modifier.size(56.dp),
-                shape = CircleShape,
-                // Host = teal, you = blue, everyone else = the card's own wash. Three ROLES, three
-                // stops of the render's own ramp, instead of three unrelated Material containers.
+            Text(
+                text = letter,
+                style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
                 color = when {
-                    user.isHost -> if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary
-                    isCurrentUser -> if (skin.enabled && skin.darkGround) AuraPalette.Blue
-                    else MaterialTheme.colorScheme.secondary
-                    else -> if (skin.enabled) skin.fill else MaterialTheme.colorScheme.surfaceVariant
+                    isHost || isSelf ->
+                        if (skin.enabled && skin.darkGround) AuraPalette.OnAccent
+                        else MaterialTheme.colorScheme.onPrimary
+                    else -> if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
                 }
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Text(
-                        text = user.username.take(1).uppercase(),
-                        style = if (skin.enabled) AuraType.PlayerTitle else MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = when {
-                            user.isHost -> if (skin.enabled && skin.darkGround) AuraPalette.OnAccent
-                            else MaterialTheme.colorScheme.onPrimary
-                            isCurrentUser -> if (skin.enabled && skin.darkGround) AuraPalette.OnAccent
-                            else MaterialTheme.colorScheme.onSecondary
-                            else -> if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                }
-            }
-
-            if (user.isHost || isCurrentUser) {
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .offset(x = 4.dp, y = 4.dp)
-                        .size(20.dp),
-                    shape = CircleShape,
-                    color = if (user.isHost) {
-                        if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary
-                    } else {
-                        if (skin.enabled && skin.darkGround) AuraPalette.Blue
-                        else MaterialTheme.colorScheme.secondary
-                    }
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Icon(
-                            painter = painterResource(
-                                if (user.isHost) R.drawable.crown else R.drawable.person
-                            ),
-                            contentDescription = null,
-                            tint = if (skin.enabled && skin.darkGround) AuraPalette.OnAccent
-                            else MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = user.username,
-            style = if (skin.enabled) AuraType.MiniTitle else MaterialTheme.typography.labelMedium,
-            fontWeight = if (isCurrentUser) FontWeight.Bold else FontWeight.Medium,
-            color = if (user.isHost) {
-                if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary
-            } else {
-                if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface
-            },
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
-        )
-
-        if (user.isHost) {
-            Text(
-                text = stringResource(R.string.host_label),
-                style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
-                color = if (skin.enabled) skin.accent.copy(alpha = 0.8f)
-                else MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-            )
-        } else if (isCurrentUser) {
-            Text(
-                text = stringResource(R.string.you_label),
-                style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
-                color = if (skin.enabled && skin.darkGround) AuraPalette.Blue.copy(alpha = 0.8f)
-                else MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
             )
         }
+    }
+}
 
-        if (isBuffering) {
+@Composable
+private fun WaitingForApprovalCard(
+    code: String,
+    skin: AuraPanelSkin,
+    onCancel: () -> Unit
+) {
+    AuraPanel(
+        skin = skin,
+        modifier = Modifier.fillMaxWidth(),
+        classicShape = RoundedCornerShape(24.dp),
+        classicColors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Text(
-                text = stringResource(R.string.listen_together_user_buffering),
-                style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
-                color = if (skin.enabled && skin.darkGround) AuraPalette.Blue.copy(alpha = 0.8f)
-                else MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = stringResource(R.string.waiting_for_approval),
+                style = if (skin.enabled) AuraType.SectionLabel else MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.tertiary
             )
+            Text(
+                text = code.chunked(4).joinToString("  "),
+                style = if (skin.enabled) AuraType.Technical.copy(fontSize = 24.sp)
+                else MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 3.sp,
+                color = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = stringResource(R.string.listen_together_waiting_approval_desc),
+                style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodySmall,
+                color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(4.dp))
+            TextButton(onClick = onCancel) {
+                Text(stringResource(R.string.cancel_join))
+            }
         }
     }
 }
 
 @Composable
 private fun PendingJoinRequestsSection(
-    requests: List<JoinRequestPayload>,
+    requests: List<PendingJoin>,
     skin: AuraPanelSkin,
     onApprove: (String) -> Unit,
     onReject: (String) -> Unit
@@ -1063,37 +808,24 @@ private fun PendingJoinRequestsSection(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        // Identity on the classic path; asserts the touch minimum on the new one.
                         .then(if (skin.enabled) Modifier.sizeIn(minHeight = AuraSpacing.MinTouchTarget) else Modifier)
                         .padding(vertical = 8.dp)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(40.dp),
-                        shape = CircleShape,
-                        color = if (skin.enabled && skin.darkGround) AuraPalette.Blue
-                        else MaterialTheme.colorScheme.secondary
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Text(
-                                text = request.username.take(1).uppercase(),
-                                style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (skin.enabled && skin.darkGround) AuraPalette.OnAccent
-                                else MaterialTheme.colorScheme.onSecondary
-                            )
-                        }
-                    }
+                    AvatarBadge(letter = request.username.take(1).uppercase(), isHost = false, isSelf = false, skin = skin)
                     Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = request.username,
-                        style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.bodyLarge,
-                        fontWeight = if (skin.enabled) FontWeight.SemiBold else FontWeight.Medium,
-                        color = if (skin.enabled) skin.ink else Color.Unspecified,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = request.username,
+                            style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (skin.enabled) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (skin.enabled) skin.ink else Color.Unspecified
+                        )
+                        Text(
+                            text = stringResource(R.string.listen_together_just_asked),
+                            style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodySmall,
+                            color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     MaterialIconButton(onClick = { onApprove(request.userId) }) {
                         Icon(
                             painter = painterResource(R.drawable.check),
@@ -1118,7 +850,7 @@ private fun PendingJoinRequestsSection(
 
 @Composable
 private fun PendingSuggestionsSection(
-    suggestions: List<SuggestionReceivedPayload>,
+    suggestions: List<PendingSuggestion>,
     skin: AuraPanelSkin,
     onApprove: (String) -> Unit,
     onReject: (String) -> Unit
@@ -1159,7 +891,7 @@ private fun PendingSuggestionsSection(
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = suggestion.trackInfo.title,
+                            text = suggestion.track.title,
                             style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.bodyMedium,
                             fontWeight = if (skin.enabled) FontWeight.SemiBold else FontWeight.Medium,
                             color = if (skin.enabled) skin.ink else Color.Unspecified,
@@ -1167,7 +899,7 @@ private fun PendingSuggestionsSection(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = suggestion.fromUsername,
+                            text = stringResource(R.string.listen_together_suggestion_by, suggestion.fromUsername),
                             style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodySmall,
                             color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -1204,9 +936,8 @@ private fun JoinCreateRoomSection(
     roomCodeInput: String,
     onRoomCodeChange: (String) -> Unit,
     savedUsername: String,
-    isJoiningRoom: Boolean,
-    isCreatingRoom: Boolean,
     joinErrorMessage: String?,
+    isConnected: Boolean,
     waitingForApprovalText: String,
     bringIntoViewRequester: BringIntoViewRequester,
     onCreateRoom: () -> Unit,
@@ -1214,6 +945,12 @@ private fun JoinCreateRoomSection(
     onFieldFocused: () -> Unit = {}
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(0) }
+
+    // The SimpMusic input rules, applied at the edge so the protocol never has to reject:
+    // metroserver caps usernames at 50 and mints 8-char uppercase room codes.
+    fun onUsernameChangeCapped(value: String) = onUsernameChange(value.take(50))
+    fun onRoomCodeChangeNormalized(value: String) =
+        onRoomCodeChange(value.uppercase().filter { it.isLetterOrDigit() }.take(8))
 
     AuraPanel(
         skin = skin,
@@ -1230,7 +967,6 @@ private fun JoinCreateRoomSection(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Crear / Unirse: a two-way segmented control, which the render draws as a pill track.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1270,8 +1006,6 @@ private fun JoinCreateRoomSection(
                     modifier = Modifier.weight(1f),
                     shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        // The second stop of the render's ramp, so the two tabs read as one control
-                        // rather than two unrelated Material roles.
                         containerColor = if (selectedTab == 1) {
                             if (skin.enabled && skin.darkGround) AuraPalette.Blue
                             else MaterialTheme.colorScheme.tertiary
@@ -1297,7 +1031,7 @@ private fun JoinCreateRoomSection(
 
             OutlinedTextField(
                 value = usernameInput,
-                onValueChange = onUsernameChange,
+                onValueChange = ::onUsernameChangeCapped,
                 label = { Text(stringResource(R.string.username)) },
                 placeholder = { Text(stringResource(R.string.enter_username)) },
                 leadingIcon = {
@@ -1335,7 +1069,7 @@ private fun JoinCreateRoomSection(
             ) {
                 OutlinedTextField(
                     value = roomCodeInput,
-                    onValueChange = { if (it.length <= 8) onRoomCodeChange(it.uppercase()) },
+                    onValueChange = ::onRoomCodeChangeNormalized,
                     label = { Text(stringResource(R.string.room_code)) },
                     placeholder = { Text(stringResource(R.string.enter_room_code)) },
                     leadingIcon = {
@@ -1369,46 +1103,10 @@ private fun JoinCreateRoomSection(
             }
 
             AnimatedVisibility(
-                visible = isJoiningRoom || isCreatingRoom,
+                visible = joinErrorMessage != null,
                 enter = fadeIn() + slideInVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = if (skin.enabled) AuraShapes.Card else RoundedCornerShape(12.dp),
-                    color = if (skin.enabled) skin.accent.copy(alpha = 0.12f)
-                    else MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = if (isCreatingRoom) stringResource(R.string.creating_room) else waitingForApprovalText,
-                            style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodyMedium,
-                            color = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-
-            AnimatedVisibility(
-                visible = joinErrorMessage != null,
-                enter = fadeIn() + slideInVertically(),
-                exit = fadeOut() + slideOutVertically()
-            ) {
-                // The error banner keeps `errorContainer` on both paths: its colour is the message.
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = if (skin.enabled) AuraShapes.Card else RoundedCornerShape(12.dp),
@@ -1427,7 +1125,7 @@ private fun JoinCreateRoomSection(
                             modifier = Modifier.size(20.dp),
                             tint = MaterialTheme.colorScheme.onErrorContainer
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(Modifier.width(12.dp))
                         Text(
                             text = joinErrorMessage ?: "",
                             style = MaterialTheme.typography.bodyMedium,
@@ -1441,12 +1139,15 @@ private fun JoinCreateRoomSection(
 
             val hasUsername = usernameInput.trim().isNotBlank() || savedUsername.isNotBlank()
             val hasRoomCode = roomCodeInput.length == 8
+            // SimpMusic gates both buttons on a live socket: sending create_room with no server is
+            // a message that goes nowhere, and the room state never changes.
+            val canAct = hasUsername && isConnected
 
             if (selectedTab == 0) {
                 Button(
                     onClick = onCreateRoom,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = hasUsername && !isCreatingRoom && !isJoiningRoom,
+                    enabled = canAct,
                     shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary,
@@ -1466,7 +1167,7 @@ private fun JoinCreateRoomSection(
                 Button(
                     onClick = onJoinRoom,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = hasUsername && hasRoomCode && !isJoiningRoom && !isCreatingRoom,
+                    enabled = canAct && hasRoomCode,
                     shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (skin.enabled && skin.darkGround) AuraPalette.Blue
@@ -1484,15 +1185,27 @@ private fun JoinCreateRoomSection(
                     Text(stringResource(R.string.join_room), fontWeight = FontWeight.SemiBold)
                 }
             }
+
+            if (!isConnected) {
+                Text(
+                    text = connectionNeededText(),
+                    style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodySmall,
+                    color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
 
 @Composable
+private fun connectionNeededText(): String = stringResource(R.string.listen_together_not_connected_hint)
+
+@Composable
 private fun SettingsLinkCard(onClick: () -> Unit) {
-    Material3SettingsGroup(
+    iad1tya.echo.music.ui.component.Material3SettingsGroup(
         items = listOf(
-            Material3SettingsItem(
+            iad1tya.echo.music.ui.component.Material3SettingsItem(
                 icon = painterResource(R.drawable.settings),
                 title = { Text(stringResource(R.string.settings)) },
                 description = { Text(stringResource(R.string.listen_together_settings_desc)) },
@@ -1505,8 +1218,9 @@ private fun SettingsLinkCard(onClick: () -> Unit) {
 @Composable
 private fun UserActionDialog(
     username: String,
+    isBlocked: Boolean,
     onKick: () -> Unit,
-    onPermanentKick: () -> Unit,
+    onBlockAndKick: () -> Unit,
     onTransferOwnership: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1541,7 +1255,6 @@ private fun UserActionDialog(
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1559,7 +1272,7 @@ private fun UserActionDialog(
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.kick_user),
@@ -1576,11 +1289,14 @@ private fun UserActionDialog(
                 }
             }
 
-            
+            // Blocks by NAME, then kicks. The protocol has no ban and the server mints a new user
+            // id per connection, so the id cannot be blocked on — the name is the only thing that
+            // survives a reconnect, and it is changeable. A convenience, not a security control
+            // (upstream documents the same limitation).
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onPermanentKick),
+                    .clickable(onClick = onBlockAndKick),
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant
             ) {
@@ -1594,7 +1310,7 @@ private fun UserActionDialog(
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.permanently_kick_user),
@@ -1610,7 +1326,6 @@ private fun UserActionDialog(
                 }
             }
 
-            
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1628,7 +1343,7 @@ private fun UserActionDialog(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.transfer_ownership),

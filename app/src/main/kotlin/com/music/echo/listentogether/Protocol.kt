@@ -1,14 +1,28 @@
-
-
+/*
+ * The Listen Together wire protocol, ported from SimpMusic (which itself ported it from Metrolist,
+ * GPL-3.0 — the same licence as this project) so that Aura clients share rooms with SimpMusic and
+ * Metrolist clients on the same servers.
+ *
+ * Metrolist Project (C) 2026 — Licensed under GPL-3.0 | See git history for contributors
+ * SimpMusic (C) maxrave-dev — Licensed under GPL-3.0
+ *
+ * Source of truth: MetrolistGroup/metroproto → listentogether.proto. Every @ProtoNumber below is
+ * that file's field number, and every constant is its string spelled exactly. NOTHING here may be
+ * "improved": a renamed field or a reordered number is a client that silently cannot join.
+ *
+ * Why @Serializable rather than generated protobuf classes: kotlinx-serialization-protobuf produces
+ * the same wire bytes from these annotations, so the whole codec lives in plain Kotlin with no
+ * protoc step and no JVM-only generated sources. The previous implementation of this feature in
+ * this app used protoc-generated classes from app/src/main/proto — this port drops that entirely
+ * (upstream SimpMusic does not use protoc for the client either).
+ */
 package iad1tya.echo.music.listentogether
 
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.protobuf.ProtoNumber
 
-
+/** Envelope `type` values. Client → server first, then server → client. */
 object MessageTypes {
-    
     const val CREATE_ROOM = "create_room"
     const val JOIN_ROOM = "join_room"
     const val LEAVE_ROOM = "leave_room"
@@ -26,7 +40,15 @@ object MessageTypes {
     const val APPROVE_SUGGESTION = "approve_suggestion"
     const val REJECT_SUGGESTION = "reject_suggestion"
 
-    
+    /**
+     * Capability negotiation rides in an ordinary [Envelope] like everything else — the `.proto`
+     * only says "first message from client" and never names the type, so these two strings come
+     * from the server itself: metroserver `internal/server/protocol.go`, `MsgTypeClientCapabilities`
+     * / `MsgTypeServerCapabilities`. Getting either one wrong is answered with `unknown_message_type`
+     * and the handshake simply never completes.
+     */
+    const val CLIENT_CAPABILITIES = "client_capabilities"
+
     const val ROOM_CREATED = "room_created"
     const val JOIN_REQUEST = "join_request"
     const val JOIN_APPROVED = "join_approved"
@@ -47,9 +69,12 @@ object MessageTypes {
     const val SUGGESTION_RECEIVED = "suggestion_received"
     const val SUGGESTION_APPROVED = "suggestion_approved"
     const val SUGGESTION_REJECTED = "suggestion_rejected"
+
+    /** The server's half of the handshake — see [CLIENT_CAPABILITIES]. */
+    const val SERVER_CAPABILITIES = "server_capabilities"
 }
 
-
+/** Values of [PlaybackActionPayload.action]. */
 object PlaybackActions {
     const val PLAY = "play"
     const val PAUSE = "pause"
@@ -64,262 +89,316 @@ object PlaybackActions {
     const val SET_VOLUME = "set_volume"
 }
 
-
+/**
+ * The frame every message travels in.
+ *
+ * [compressed] says whether [payload] was gzipped before being placed here — see
+ * [MessageCodec.COMPRESSION_THRESHOLD] for when that happens.
+ */
 @Serializable
-data class Message(
-    val type: String,
-    val payload: JsonElement? = null
-)
+data class Envelope(
+    @ProtoNumber(1) val type: String = "",
+    @ProtoNumber(2) val payload: ByteArray = ByteArray(0),
+    @ProtoNumber(3) val compressed: Boolean = false,
+) {
+    // ByteArray gives identity equality by default, which would make two envelopes carrying the
+    // same bytes compare unequal — and the round-trip tests compare envelopes.
+    override fun equals(other: Any?): Boolean =
+        this === other ||
+            (
+                other is Envelope &&
+                    type == other.type &&
+                    compressed == other.compressed &&
+                    payload.contentEquals(other.payload)
+            )
 
+    override fun hashCode(): Int = (type.hashCode() * 31 + payload.contentHashCode()) * 31 + compressed.hashCode()
+}
 
+/**
+ * One track, as the room sees it.
+ *
+ * [id] is the YouTube videoId, which is why two different clients resolve the same row: both read
+ * the same catalogue. Everything else is display metadata.
+ */
 @Serializable
 data class TrackInfo(
-    val id: String,
-    val title: String,
-    val artist: String,
-    val album: String? = null,
-    val duration: Long, 
-    val thumbnail: String? = null,
-    @SerialName("suggested_by") val suggestedBy: String? = null
+    @ProtoNumber(1) val id: String = "",
+    @ProtoNumber(2) val title: String = "",
+    @ProtoNumber(3) val artist: String = "",
+    @ProtoNumber(4) val album: String = "",
+    /** Milliseconds. */
+    @ProtoNumber(5) val duration: Long = 0L,
+    @ProtoNumber(6) val thumbnail: String = "",
+    @ProtoNumber(7) val suggestedBy: String = "",
 )
-
 
 @Serializable
 data class UserInfo(
-    @SerialName("user_id") val userId: String,
-    val username: String,
-    @SerialName("is_host") val isHost: Boolean,
-    @SerialName("is_connected") val isConnected: Boolean = true
+    @ProtoNumber(1) val userId: String = "",
+    @ProtoNumber(2) val username: String = "",
+    @ProtoNumber(3) val isHost: Boolean = false,
+    @ProtoNumber(4) val isConnected: Boolean = false,
 )
-
 
 @Serializable
 data class RoomState(
-    @SerialName("room_code") val roomCode: String,
-    @SerialName("host_id") val hostId: String,
-    val users: List<UserInfo>,
-    @SerialName("current_track") val currentTrack: TrackInfo? = null,
-    @SerialName("is_playing") val isPlaying: Boolean,
-    val position: Long, 
-    @SerialName("last_update") val lastUpdate: Long, 
-    val volume: Float = 1f,
-    val queue: List<TrackInfo> = emptyList()
+    @ProtoNumber(1) val roomCode: String = "",
+    @ProtoNumber(2) val hostId: String = "",
+    @ProtoNumber(3) val users: List<UserInfo> = emptyList(),
+    @ProtoNumber(4) val currentTrack: TrackInfo? = null,
+    @ProtoNumber(5) val isPlaying: Boolean = false,
+    @ProtoNumber(6) val position: Long = 0L,
+    @ProtoNumber(7) val lastUpdate: Long = 0L,
+    @ProtoNumber(8) val volume: Float = 0f,
+    @ProtoNumber(9) val queue: List<TrackInfo> = emptyList(),
+    @ProtoNumber(10) val revision: Long = 0L,
 )
 
-
+// ───────────────────────────── client → server ─────────────────────────────
 
 @Serializable
 data class CreateRoomPayload(
-    val username: String
+    @ProtoNumber(1) val username: String = "",
 )
 
 @Serializable
 data class JoinRoomPayload(
-    @SerialName("room_code") val roomCode: String,
-    val username: String
+    @ProtoNumber(1) val roomCode: String = "",
+    @ProtoNumber(2) val username: String = "",
 )
 
 @Serializable
+class LeaveRoomPayload
+
+@Serializable
 data class ApproveJoinPayload(
-    @SerialName("user_id") val userId: String
+    @ProtoNumber(1) val userId: String = "",
 )
 
 @Serializable
 data class RejectJoinPayload(
-    @SerialName("user_id") val userId: String,
-    val reason: String? = null
+    @ProtoNumber(1) val userId: String = "",
+    @ProtoNumber(2) val reason: String = "",
+)
+
+/**
+ * Every transport command, and the only message whose timing fields matter.
+ *
+ * [serverTime] and [capturedAtServerTime] are what let a late-arriving PLAY still land on the right
+ * position: the receiver advances [position] by however long the frame spent in flight, measured on
+ * the SERVER's clock rather than its own. See [ServerClock.positionAt].
+ */
+@Serializable
+data class PlaybackActionPayload(
+    @ProtoNumber(1) val action: String = "",
+    @ProtoNumber(2) val trackId: String = "",
+    /** Milliseconds. */
+    @ProtoNumber(3) val position: Long = 0L,
+    @ProtoNumber(4) val trackInfo: TrackInfo? = null,
+    @ProtoNumber(5) val insertNext: Boolean = false,
+    @ProtoNumber(6) val queue: List<TrackInfo> = emptyList(),
+    @ProtoNumber(7) val queueTitle: String = "",
+    @ProtoNumber(8) val volume: Float = 0f,
+    @ProtoNumber(9) val serverTime: Long = 0L,
+    @ProtoNumber(10) val revision: Long = 0L,
+    @ProtoNumber(11) val capturedAtServerTime: Long = 0L,
 )
 
 @Serializable
-data class PlaybackActionPayload(
-    val action: String,
-    @SerialName("track_id") val trackId: String? = null,
-    val position: Long? = null, 
-    @SerialName("track_info") val trackInfo: TrackInfo? = null,
-    @SerialName("insert_next") val insertNext: Boolean? = null,
-    val queue: List<TrackInfo>? = null,
-    @SerialName("queue_title") val queueTitle: String? = null,
-    val volume: Float? = null,
-    @SerialName("server_time") val serverTime: Long? = null
+data class PingPayload(
+    @ProtoNumber(1) val clientTime: Long = 0L,
+    @ProtoNumber(2) val sequence: Long = 0L,
 )
 
 @Serializable
 data class BufferReadyPayload(
-    @SerialName("track_id") val trackId: String
+    @ProtoNumber(1) val trackId: String = "",
 )
 
 @Serializable
 data class KickUserPayload(
-    @SerialName("user_id") val userId: String,
-    val reason: String? = null
+    @ProtoNumber(1) val userId: String = "",
+    @ProtoNumber(2) val reason: String = "",
 )
 
 @Serializable
 data class TransferHostPayload(
-    @SerialName("new_host_id") val newHostId: String
+    @ProtoNumber(1) val newHostId: String = "",
 )
-
-@Serializable
-data class ChatPayload(
-    val message: String,
-    @SerialName("reply_to") val replyTo: RepliedMessage? = null
-)
-
-@Serializable
-data class RepliedMessage(
-    val username: String,
-    val message: String
-)
-
-
 
 @Serializable
 data class SuggestTrackPayload(
-    @SerialName("track_info") val trackInfo: TrackInfo
-)
-
-@Serializable
-data class SuggestionReceivedPayload(
-    @SerialName("suggestion_id") val suggestionId: String,
-    @SerialName("from_user_id") val fromUserId: String,
-    @SerialName("from_username") val fromUsername: String,
-    @SerialName("track_info") val trackInfo: TrackInfo
+    @ProtoNumber(1) val trackInfo: TrackInfo? = null,
 )
 
 @Serializable
 data class ApproveSuggestionPayload(
-    @SerialName("suggestion_id") val suggestionId: String
+    @ProtoNumber(1) val suggestionId: String = "",
 )
 
 @Serializable
 data class RejectSuggestionPayload(
-    @SerialName("suggestion_id") val suggestionId: String,
-    val reason: String? = null
+    @ProtoNumber(1) val suggestionId: String = "",
+    @ProtoNumber(2) val reason: String = "",
 )
 
 @Serializable
-data class SuggestionApprovedPayload(
-    @SerialName("suggestion_id") val suggestionId: String,
-    @SerialName("track_info") val trackInfo: TrackInfo
+data class ReconnectPayload(
+    @ProtoNumber(1) val sessionToken: String = "",
 )
 
-@Serializable
-data class SuggestionRejectedPayload(
-    @SerialName("suggestion_id") val suggestionId: String,
-    val reason: String? = null
-)
-
-
+// ───────────────────────────── server → client ─────────────────────────────
 
 @Serializable
 data class RoomCreatedPayload(
-    @SerialName("room_code") val roomCode: String,
-    @SerialName("user_id") val userId: String,
-    @SerialName("session_token") val sessionToken: String
+    @ProtoNumber(1) val roomCode: String = "",
+    @ProtoNumber(2) val userId: String = "",
+    @ProtoNumber(3) val sessionToken: String = "",
 )
 
 @Serializable
 data class JoinRequestPayload(
-    @SerialName("user_id") val userId: String,
-    val username: String
+    @ProtoNumber(1) val userId: String = "",
+    @ProtoNumber(2) val username: String = "",
 )
 
 @Serializable
 data class JoinApprovedPayload(
-    @SerialName("room_code") val roomCode: String,
-    @SerialName("user_id") val userId: String,
-    @SerialName("session_token") val sessionToken: String,
-    val state: RoomState
+    @ProtoNumber(1) val roomCode: String = "",
+    @ProtoNumber(2) val userId: String = "",
+    @ProtoNumber(3) val sessionToken: String = "",
+    @ProtoNumber(4) val state: RoomState? = null,
 )
 
 @Serializable
 data class JoinRejectedPayload(
-    val reason: String
+    @ProtoNumber(1) val reason: String = "",
 )
 
 @Serializable
 data class UserJoinedPayload(
-    @SerialName("user_id") val userId: String,
-    val username: String
+    @ProtoNumber(1) val userId: String = "",
+    @ProtoNumber(2) val username: String = "",
 )
 
 @Serializable
 data class UserLeftPayload(
-    @SerialName("user_id") val userId: String,
-    val username: String
+    @ProtoNumber(1) val userId: String = "",
+    @ProtoNumber(2) val username: String = "",
 )
 
+/**
+ * Nobody hears anything until everyone in [waitingFor] has answered [BufferReadyPayload].
+ *
+ * This is the whole synchronisation model, and the reason the UI has to name who it is waiting for:
+ * playback genuinely stops for the slowest device, and silence with no explanation reads as a hang.
+ */
 @Serializable
 data class BufferWaitPayload(
-    @SerialName("track_id") val trackId: String,
-    @SerialName("waiting_for") val waitingFor: List<String>
+    @ProtoNumber(1) val trackId: String = "",
+    @ProtoNumber(2) val waitingFor: List<String> = emptyList(),
 )
 
 @Serializable
 data class BufferCompletePayload(
-    @SerialName("track_id") val trackId: String
+    @ProtoNumber(1) val trackId: String = "",
 )
 
 @Serializable
 data class ErrorPayload(
-    val code: String,
-    val message: String
-)
-
-@Serializable
-data class ChatMessagePayload(
-    @SerialName("user_id") val userId: String,
-    val username: String,
-    val message: String,
-    val timestamp: Long,
-    @SerialName("reply_to") val replyTo: RepliedMessage? = null
+    @ProtoNumber(1) val code: String = "",
+    @ProtoNumber(2) val message: String = "",
 )
 
 @Serializable
 data class HostChangedPayload(
-    @SerialName("new_host_id") val newHostId: String,
-    @SerialName("new_host_name") val newHostName: String
+    @ProtoNumber(1) val newHostId: String = "",
+    @ProtoNumber(2) val newHostName: String = "",
 )
 
 @Serializable
 data class KickedPayload(
-    val reason: String
+    @ProtoNumber(1) val reason: String = "",
 )
-
 
 @Serializable
 data class SyncStatePayload(
-    @SerialName("current_track") val currentTrack: TrackInfo?,
-    @SerialName("is_playing") val isPlaying: Boolean,
-    val position: Long,
-    @SerialName("last_update") val lastUpdate: Long,
-    val queue: List<TrackInfo>? = null,
-    val volume: Float? = null
+    @ProtoNumber(1) val currentTrack: TrackInfo? = null,
+    @ProtoNumber(2) val isPlaying: Boolean = false,
+    @ProtoNumber(3) val position: Long = 0L,
+    @ProtoNumber(4) val lastUpdate: Long = 0L,
+    @ProtoNumber(5) val queue: List<TrackInfo> = emptyList(),
+    @ProtoNumber(6) val volume: Float = 0f,
+    @ProtoNumber(7) val revision: Long = 0L,
 )
 
-
-
 @Serializable
-data class ReconnectPayload(
-    @SerialName("session_token") val sessionToken: String
+data class PongPayload(
+    @ProtoNumber(1) val clientTime: Long = 0L,
+    @ProtoNumber(2) val serverReceiveTime: Long = 0L,
+    @ProtoNumber(3) val serverSendTime: Long = 0L,
+    @ProtoNumber(4) val sequence: Long = 0L,
 )
 
 @Serializable
 data class ReconnectedPayload(
-    @SerialName("room_code") val roomCode: String,
-    @SerialName("user_id") val userId: String,
-    val state: RoomState,
-    @SerialName("is_host") val isHost: Boolean
+    @ProtoNumber(1) val roomCode: String = "",
+    @ProtoNumber(2) val userId: String = "",
+    @ProtoNumber(3) val state: RoomState? = null,
+    @ProtoNumber(4) val isHost: Boolean = false,
 )
 
 @Serializable
 data class UserReconnectedPayload(
-    @SerialName("user_id") val userId: String,
-    val username: String
+    @ProtoNumber(1) val userId: String = "",
+    @ProtoNumber(2) val username: String = "",
 )
 
 @Serializable
 data class UserDisconnectedPayload(
-    @SerialName("user_id") val userId: String,
-    val username: String
+    @ProtoNumber(1) val userId: String = "",
+    @ProtoNumber(2) val username: String = "",
+)
+
+@Serializable
+data class SuggestionReceivedPayload(
+    @ProtoNumber(1) val suggestionId: String = "",
+    @ProtoNumber(2) val fromUserId: String = "",
+    @ProtoNumber(3) val fromUsername: String = "",
+    @ProtoNumber(4) val trackInfo: TrackInfo? = null,
+)
+
+@Serializable
+data class SuggestionApprovedPayload(
+    @ProtoNumber(1) val suggestionId: String = "",
+    @ProtoNumber(2) val trackInfo: TrackInfo? = null,
+)
+
+@Serializable
+data class SuggestionRejectedPayload(
+    @ProtoNumber(1) val suggestionId: String = "",
+    @ProtoNumber(2) val reason: String = "",
+)
+
+// ───────────────────────── capability negotiation ─────────────────────────
+
+/**
+ * Sent first, before anything else.
+ *
+ * This is the protocol's only version signal, so it is also the only place a future Metrolist
+ * change can be detected rather than merely suffered.
+ */
+@Serializable
+data class ClientCapabilities(
+    @ProtoNumber(1) val supportsProtobuf: Boolean = false,
+    @ProtoNumber(2) val supportsCompression: Boolean = false,
+    @ProtoNumber(3) val clientVersion: String = "",
+)
+
+@Serializable
+data class ServerCapabilities(
+    @ProtoNumber(1) val supportsProtobuf: Boolean = false,
+    @ProtoNumber(2) val supportsCompression: Boolean = false,
+    @ProtoNumber(3) val serverVersion: String = "",
 )
