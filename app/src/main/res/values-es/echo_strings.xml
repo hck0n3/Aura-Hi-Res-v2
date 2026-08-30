@@ -396,6 +396,8 @@
     <string name="remember_shuffle_and_repeat">Recuerda mezclar y repetir</string>
     <string name="remember_shuffle_and_repeat_desc">Recuerda el modo aleatorio y repetir al reiniciar la aplicación</string>
     <string name="pause_music_when_media_is_muted">Pausar la música cuando se silencia el medio</string>
+    <string name="send_playback_metrics_title">Enviar métricas de reproducción a Google</string>
+    <string name="send_playback_metrics_description">Cuando una escucha cuenta, informa a los servidores de YouTube qué se reprodujo (como la app oficial). Desactivado por defecto</string>
     <string name="equalizer_header">Ecualizador</string>
     <string name="no_profiles">Sin perfiles de ecualizador</string>
     <string name="import_profile">Importar perfil</string>

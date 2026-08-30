@@ -19,6 +19,12 @@ class YouTubeQueue(
      */
     val automaticRadio: Boolean = false,
 ) : Queue {
+    /**
+     * Read-only exposure of the seed endpoint's playlist context for the send-playback-metrics
+     * ping (SimpMusic queueData.playlistId). The underlying endpoint keeps mutating as pagination
+     * advances, so this is a snapshot of the CONTEXT the queue was started from, read fresh.
+     */
+    val metricsPlaylistId: String? get() = endpoint.playlistId?.takeIf { it.isNotBlank() }
     private var continuation: String? = null
     private val maxRetries = 3
 

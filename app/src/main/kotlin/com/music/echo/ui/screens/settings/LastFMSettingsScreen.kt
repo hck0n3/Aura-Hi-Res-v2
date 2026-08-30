@@ -129,6 +129,12 @@ fun LastFMSettingsScreen(
         defaultValue = LastFM.DEFAULT_SCROBBLE_DELAY_SECONDS
     )
 
+    // SEND PLAYBACK METRICS TO GOOGLE (SimpMusic sendBackToGoogle parity) — opt-in, default OFF.
+    val (sendPlaybackMetrics, onSendPlaybackMetricsChange) = rememberPreference(
+        iad1tya.echo.music.constants.SendPlaybackMetricsKey,
+        defaultValue = false
+    )
+
     // ListenBrainz (opt-in, network-only)
     val (listenBrainzEnabled, onListenBrainzEnabledChange) = rememberPreference(ListenBrainzEnabledKey, false)
     val (listenBrainzToken, onListenBrainzTokenChange) = rememberPreference(ListenBrainzTokenKey, "")
@@ -447,6 +453,32 @@ fun LastFMSettingsScreen(
                     },
                     enabled = isLoggedIn,
                     icon = painterResource(R.drawable.queue_music)
+                ),
+                // SEND PLAYBACK METRICS TO GOOGLE (SimpMusic v2.0.0 sendBackToGoogle parity — lives
+                // in Scrobbling because it is the same class of feature: telling a remote service
+                // what was listened to). OFF by default, same as SimpMusic: enabling it is an
+                // explicit privacy choice — it tells YouTube's servers what was played, exactly as
+                // the official client does.
+                Material3SettingsItem(
+                    title = { Text(stringResource(R.string.send_playback_metrics_title)) },
+                    description = { Text(stringResource(R.string.send_playback_metrics_description)) },
+                    icon = painterResource(R.drawable.stats),
+                    trailingContent = {
+                        Switch(
+                            checked = sendPlaybackMetrics,
+                            onCheckedChange = onSendPlaybackMetricsChange,
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (sendPlaybackMetrics) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize),
+                                )
+                            }
+                        )
+                    },
+                    onClick = { onSendPlaybackMetricsChange(!sendPlaybackMetrics) }
                 )
                 // "Send likes to Last.fm" toggle intentionally omitted for 0.6.92: LastFM.setLoveStatus()
                 // has no call site yet, so the switch would do nothing (anti-placebo — don't ship a control

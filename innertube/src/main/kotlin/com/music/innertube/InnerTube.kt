@@ -351,16 +351,18 @@ class InnerTube {
     }
 
     /**
-     * Watchtime heartbeat: a real client sends one GET per listening milestone with the CUMULATIVE
-     * seconds so far in `cmt` (0, ~5.54, ~10, ~30, ~60, then every 60) plus st/et/state markers.
-     * [cmtValues] carries the cumulative marks for this ping, mirroring SimpMusic v2.0.0's
-     * updateWatchTime (watchTimeList).
+     * Watchtime ping. VERIFIED against SimpMusic v2.0.0 (Ytmusic.initPlayback → YouTube.updateWatchTime):
+     * a real client does NOT send `cmt` on these pings — it sends the last two cumulative listen marks
+     * as comma-separated `st` (start) / `et` (end) pairs, e.g. st="0,5.54" et="5.54,17.82". Every mark
+     * so far is NOT resent; only the last window moves. The X-Goog-Event/Request-Time headers mirror
+     * SimpMusic's initPlayback (they are present on ALL its tracking GETs).
      */
     suspend fun updateWatchTime(
         url: String,
         cpn: String,
         playlistId: String?,
-        cmtValues: List<Float>,
+        st: String,
+        et: String,
         client: YouTubeClient = YouTubeClient.WEB_REMIX,
     ) = withRetry {
         val nowMs = System.currentTimeMillis().toString()
@@ -373,11 +375,8 @@ class InnerTube {
             parameter("ver", "2")
             parameter("c", client.clientName)
             parameter("cpn", cpn)
-            cmtValues.forEach { cmt ->
-                parameter("cmt", cmt.toString())
-            }
-            parameter("st", cmtValues.firstOrNull()?.toInt()?.toString() ?: "0")
-            parameter("et", cmtValues.lastOrNull()?.toInt()?.toString() ?: "0")
+            parameter("st", st)
+            parameter("et", et)
             if (playlistId != null) {
                 parameter("list", playlistId)
                 parameter("referrer", "https://music.youtube.com/playlist?list=$playlistId")

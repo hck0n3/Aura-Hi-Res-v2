@@ -66,6 +66,7 @@ import com.music.innertube.pages.SearchSummary
 import com.music.innertube.pages.SearchSummaryPage
 import io.ktor.client.call.body
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -73,6 +74,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import java.net.Proxy
+import kotlin.math.round
 import kotlin.random.Random
 
 /**
@@ -1250,19 +1252,28 @@ object YouTube {
     }
 
     /**
-     * FULL playback-metrics registration (SimpMusic v2.0.0 sendBackToGoogle model): one call covers
-     * the three tracking endpoints a real YouTube Music client pings — videostats playback (GET,
-     * ver=2), atr (POST), and the first watchtime heartbeat (GET with cmt=0/5.54/10). All three
-     * carry the SAME cpn so Google sees one coherent session; the cmt ladder matches what a real
-     * client sends after ~10s of listening. Returns the cpn so the caller can send further
-     * watchtime updates through [updateWatchTime] with the same session identity.
+     * FULL playback-metrics registration — VERIFIED against SimpMusic v2.0.0's
+     * YouTube.initPlayback (sendBackToGoogle). The exact ladder a real client walks, sharing ONE
+     * cpn for the whole session:
+     *
+     *  1. videostats playback GET → expect 204
+     *  2. watchtime GET st=0 et=5.54 → expect 204
+     *  3. delay(5000) — a real client waits between the registration and the atr transition
+     *  4. atr POST → expect 204
+     *  5. delay(500)
+     *  6. watchtime GET st="0,5.54" et="5.54,<random ~12.00-12.99>" — the second listen window
+     *
+     * Each step only runs if the previous one answered 204 (mirrors SimpMusic's if-chain; a failed
+     * step aborts the rest so we never send a watchtime for a playback Google never registered).
+     * Returns the cpn so the caller can keep sending follow-up watchtime windows with the same
+     * session identity, plus the second-window end mark it must seed its ladder with.
      */
     suspend fun registerPlaybackFull(
         playlistId: String? = null,
         videostatsPlaybackUrl: String?,
         atrUrl: String?,
         videostatsWatchtimeUrl: String?,
-    ): Result<String> = runCatching {
+    ): Result<PlaybackMetricsSession> = runCatching {
         val cpn = (1..16).map {
             "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"[Random.Default.nextInt(0, 64)]
         }.joinToString("")
@@ -1274,40 +1285,97 @@ object YouTube {
         val atr = normalized(atrUrl)
         val watchtime = normalized(videostatsWatchtimeUrl)
 
-        if (playback != null) {
-            innerTube.registerPlayback(url = playback, playlistId = playlistId, cpn = cpn)
+        // SimpMusic requires all three URLs before starting (its initPlayback returns early on a
+        // null in any slot); with a partial set the session never registers, so we keep that rule.
+        if (playback == null || atr == null || watchtime == null) {
+            error("Incomplete playback tracking URLs — skipping metrics session")
         }
-        if (atr != null) {
-            innerTube.atr(url = atr, playlistId = playlistId, cpn = cpn)
-        }
-        if (watchtime != null) {
-            // Same first-heartbeat ladder a real client sends (~10s in): 0, 5.54, then 10.
-            innerTube.updateWatchTime(
-                url = watchtime,
-                playlistId = playlistId,
-                cpn = cpn,
-                cmtValues = listOf(0f, 5.54f, 10f),
-            )
-        }
-        cpn
+
+        // 1. Playback registration.
+        val playbackStatus = innerTube.registerPlayback(url = playback, playlistId = playlistId, cpn = cpn).status.value
+        if (playbackStatus != 204) error("Playback registration failed with HTTP $playbackStatus")
+
+        // 2. First watchtime window: st=0, et=5.54.
+        val firstWatchtime = innerTube.updateWatchTime(
+            url = watchtime,
+            playlistId = playlistId,
+            cpn = cpn,
+            st = "0",
+            et = "5.54",
+        ).status.value
+        if (firstWatchtime != 204) error("First watchtime failed with HTTP $firstWatchtime")
+
+        // 3. The real client waits before the atr transition.
+        delay(5000)
+
+        // 4. ATR transition ping.
+        val atrStatus = innerTube.atr(url = atr, playlistId = playlistId, cpn = cpn).status.value
+        if (atrStatus != 204) error("ATR ping failed with HTTP $atrStatus")
+
+        // 5. Short settle before the second listen window.
+        delay(500)
+
+        // 6. Second watchtime window. SimpMusic: (round(Random.nextFloat() * 100) / 100) + 12f —
+        // a 12.00–12.99s end mark for the 5.54→here window.
+        val secondWatchTime = (round(Random.nextFloat() * 100.0) / 100.0).toFloat() + 12f
+        innerTube.updateWatchTime(
+            url = watchtime,
+            playlistId = playlistId,
+            cpn = cpn,
+            st = "0,5.54",
+            et = "5.54,$secondWatchTime",
+        )
+
+        PlaybackMetricsSession(
+            cpn = cpn,
+            watchtimeUrl = watchtime,
+            secondWindowEndSeconds = secondWatchTime,
+        )
     }
 
     /**
-     * Follow-up watchtime heartbeat for a session started by [registerPlaybackFull], with the SAME
-     * cpn. [cmtValues] are the cumulative-listening seconds marks a real client sends.
+     * Follow-up watchtime window for a session started by [registerPlaybackFull], with the SAME
+     * cpn. VERIFIED against SimpMusic's updateWatchTime: the request carries ONLY the last two
+     * cumulative marks — `st` = the two marks before the new one, `et` = the previous mark and the
+     * new one. The caller keeps the full cumulative ladder (watchTimeList) and passes it here; this
+     * slices the last window out of it exactly like SimpMusic's takeLast(2)/dropLast(1).takeLast(2).
      */
     suspend fun updateWatchTime(
         playlistId: String? = null,
-        videostatsWatchtimeUrl: String,
+        watchtimeUrl: String,
         cpn: String,
-        cmtValues: List<Float>,
+        watchTimeList: List<Float>,
     ) = runCatching {
+        // takeLast(2) = the new mark + the previous one; drop the new mark to get the previous pair.
+        val et = watchTimeList.takeLast(2).joinToString(",")
+        val st = watchTimeList.dropLast(1).takeLast(2).joinToString(",")
         innerTube.updateWatchTime(
-            url = videostatsWatchtimeUrl.replace("https://s.youtube.com", "https://music.youtube.com"),
+            url = watchtimeUrl.replace("https://s.youtube.com", "https://music.youtube.com"),
             playlistId = playlistId,
             cpn = cpn,
-            cmtValues = cmtValues,
-        )
+            st = st,
+            et = et,
+        ).status.value
+    }
+
+    /**
+     * FINAL watchtime ping when the track finished (SimpMusic updateWatchTimeFull): st = et = the
+     * track's full length, read from the len= parameter of the watchtime URL itself.
+     */
+    suspend fun updateWatchTimeFull(
+        playlistId: String? = null,
+        watchtimeUrl: String,
+        cpn: String,
+    ) = runCatching {
+        val length = Regex("len=([^&]+)")
+            .find(watchtimeUrl)?.groupValues?.firstOrNull()?.drop(4) ?: "0"
+        innerTube.updateWatchTime(
+            url = watchtimeUrl.replace("https://s.youtube.com", "https://music.youtube.com"),
+            playlistId = playlistId,
+            cpn = cpn,
+            st = length,
+            et = length,
+        ).status.value
     }
 
     suspend fun next(endpoint: WatchEndpoint, continuation: String? = null): Result<NextResult> = runCatching {
@@ -1815,4 +1883,16 @@ object YouTube {
         Pair(mergedReplies, nextToken)
     }
 }
+
+/**
+ * Session identity for an in-flight playback-metrics session (sendBackToGoogle, SimpMusic model):
+ * the shared cpn plus the pieces MusicService needs to keep the watchtime ladder going after the
+ * registration handshake completes.
+ */
+data class PlaybackMetricsSession(
+    val cpn: String,
+    val watchtimeUrl: String,
+    /** Cumulative seconds of the second listen window (5.54 → ~12.x) — seeds the follow-up ladder. */
+    val secondWindowEndSeconds: Float,
+)
 

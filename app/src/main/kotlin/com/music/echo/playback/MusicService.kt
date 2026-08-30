@@ -74,6 +74,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
+import com.music.innertube.PlaybackMetricsSession
 import com.music.innertube.YouTube
 import com.music.innertube.models.SongItem
 import com.music.innertube.models.WatchEndpoint
@@ -5293,6 +5294,14 @@ class MusicService :
         val previousMediaId = currentPlayingMediaId
         currentPlayingMediaId = mediaItem?.mediaId
         val trackChanged = previousMediaId != mediaItem?.mediaId
+        // Metrics session net (SimpMusic sendBackToGoogle): a new track means the previous listen is
+        // over. Cancel the heartbeat loop and clear the session so the next track's threshold crossing
+        // starts a FRESH cpn. (SimpMusic restarts initPlayback per track; a skip mid-listen simply
+        // drops the follow-up windows — its final full ping only fires on natural completion.)
+        if (trackChanged) {
+            metricsSessionJob?.cancel()
+            endMetricsSession()
+        }
         mediaItem?.mediaId?.let { id ->
             if (id != lastNormalizedId) lastNormalizedId = null
             if (normalizationEnabledHint || safeVolumeEnabledHint) {
@@ -8870,8 +8879,8 @@ class MusicService :
      * also what a client playing a bare track sends.
      */
     private fun metricsPlaylistId(): String? = when (val q = currentQueue) {
-        is iad1tya.echo.music.playback.queues.YouTubePlaylistQueue -> q.playlistId
-        is iad1tya.echo.music.playback.queues.YouTubeQueue -> q.endpoint.playlistId
+        is iad1tya.echo.music.playback.queues.YouTubePlaylistQueue -> q.metricsPlaylistId
+        is iad1tya.echo.music.playback.queues.YouTubeQueue -> q.metricsPlaylistId
         else -> null
     }.takeUnless { it.isNullOrBlank() }
 

@@ -23,6 +23,8 @@ class YouTubePlaylistQueue(
     override val contextId: String? = iad1tya.echo.music.playback.ShuffleContexts.onlinePlaylist(playlistId),
     override val seedPlayedIds: Set<String> = emptySet(),
 ) : Queue {
+    /** Read-only exposure for the send-playback-metrics ping (SimpMusic queueData.playlistId). */
+    val metricsPlaylistId: String get() = playlistId
     private var continuation: String? = initialContinuation
     private var retryCount = 0
     private val maxRetries = 3
