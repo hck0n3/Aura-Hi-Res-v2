@@ -36,10 +36,13 @@ import iad1tya.echo.music.ui.newui.LocalShellHazeState
 import iad1tya.echo.music.ui.newui.detailShellGlass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.background
+import iad1tya.echo.music.ui.newui.AuraPalette
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -176,7 +179,13 @@ fun ArtistAlbumsScreen(
 
         // Glass when the toggle is on (owner directive 2026-08-29): same recipe as the shell nav
         // bar — verified translucent on Samsung One UI 8.5. No source → Material default solid.
+        // NATIVE-CRASH GUARD (registry row 196, BETA-025 still crashed): sibling of the
+        // LazyVerticalGrid + scrollBehavior collapse — same sig-11 bomb as ArtistSongs. Gate the
+        // sampling to scroll-idle; the frozen tint carries the look during the gesture.
         val classicBarHazeState = LocalShellHazeState.current
+        val classicScrollIdle by remember {
+            derivedStateOf { !lazyGridState.isScrollInProgress }
+        }
         TopAppBar(
             title = { Text(artist?.artist?.name.orEmpty()) },
             navigationIcon = {
@@ -200,8 +209,11 @@ fun ArtistAlbumsScreen(
                 TopAppBarDefaults.topAppBarColors()
             },
             modifier = Modifier.then(
-                if (classicBarHazeState != null) {
+                if (classicBarHazeState != null && classicScrollIdle) {
                     Modifier.detailShellGlass(classicBarHazeState)
+                } else if (classicBarHazeState != null) {
+                    // Scrolling: the frozen translucent tint — keeps the look, stops the sampling.
+                    Modifier.background(AuraPalette.GroundRaised.copy(alpha = 0.72f))
                 } else {
                     Modifier
                 },

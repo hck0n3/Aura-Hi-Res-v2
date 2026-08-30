@@ -25,7 +25,11 @@ import iad1tya.echo.music.ui.newui.LocalShellHazeState
 import iad1tya.echo.music.ui.newui.detailShellGlass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.background
+import iad1tya.echo.music.ui.newui.AuraPalette
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -200,7 +204,16 @@ fun ArtistSongsScreen(
         // inside the same shell haze source Box, so they get the exact recipe the nav bar uses —
         // the technique verified translucent on Samsung One UI 8.5. No source → Material default
         // solid bar, byte-identical to what shipped before (scrolledContainerColor included).
+        // NATIVE-CRASH GUARD (registry row 196, BETA-025 still crashed): this TopAppBar is a
+        // SIBLING of the LazyColumn, so it re-sampled the haze layer on every scroll frame — the
+        // sig-11 native bomb on One UI 8.5. Same gate as AuraDetailTopBar: sample ONLY while the
+        // scroll is idle; during the gesture the bar falls back to the translucent GroundRaised
+        // tint (no sampling, no native cost). This screen also collapses the bar via
+        // scrollBehavior — resizing the hazeChild layer every frame is the other half of the bomb.
         val classicBarHazeState = LocalShellHazeState.current
+        val classicScrollIdle by remember {
+            derivedStateOf { !lazyListState.isScrollInProgress }
+        }
         TopAppBar(
             title = { Text(artist?.artist?.name.orEmpty()) },
             navigationIcon = {
@@ -223,8 +236,11 @@ fun ArtistSongsScreen(
                 TopAppBarDefaults.topAppBarColors()
             },
             modifier = Modifier.then(
-                if (classicBarHazeState != null) {
+                if (classicBarHazeState != null && classicScrollIdle) {
                     Modifier.detailShellGlass(classicBarHazeState)
+                } else if (classicBarHazeState != null) {
+                    // Scrolling: the frozen translucent tint — keeps the look, stops the sampling.
+                    Modifier.background(AuraPalette.GroundRaised.copy(alpha = 0.72f))
                 } else {
                     Modifier
                 },
