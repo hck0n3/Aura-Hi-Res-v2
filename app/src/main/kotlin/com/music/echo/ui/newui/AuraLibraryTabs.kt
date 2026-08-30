@@ -80,6 +80,8 @@ import iad1tya.echo.music.constants.ShowExportedPlaylistKey
 import iad1tya.echo.music.constants.ShowExportedVideosPlaylistKey
 import iad1tya.echo.music.constants.ShowLikedPlaylistKey
 import iad1tya.echo.music.constants.ShowTopPlaylistKey
+import iad1tya.echo.music.constants.ShowDownloadedPlaylistKey
+import iad1tya.echo.music.constants.ShowCachedPlaylistKey
 import iad1tya.echo.music.constants.SongFilter
 import iad1tya.echo.music.constants.SongFilterKey
 import iad1tya.echo.music.constants.SongSortDescendingKey
@@ -336,6 +338,8 @@ fun AuraLibraryHub(
     val (showExported) = rememberPreference(ShowExportedPlaylistKey, true)
     val (showExportedVideos) = rememberPreference(ShowExportedVideosPlaylistKey, true)
     val (showTop) = rememberPreference(ShowTopPlaylistKey, true)
+    val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, true)
+    val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
 
     val albums by viewModel.albums.collectAsState()
     val artists by viewModel.artists.collectAsState()
@@ -455,6 +459,25 @@ fun AuraLibraryHub(
                             AuraIcons.Speed,
                             stringResource(R.string.my_top) + " $topSize",
                             { navController.navigate("top_playlist/$topSize") },
+                            tile,
+                        )
+                    }
+                    // The Library's auto-list tiles obey the same toggles as the classic UI (F9:
+                    // every appearance setting must work in the new UI too). Previously these were
+                    // only reachable from the classic LocalSongScreen shortcuts.
+                    if (showDownloaded) {
+                        AuraTile(
+                            AuraIcons.Downloaded,
+                            stringResource(R.string.offline),
+                            { navController.navigate("auto_playlist/downloaded") },
+                            tile,
+                        )
+                    }
+                    if (showCached) {
+                        AuraTile(
+                            AuraIcons.Cloud,
+                            stringResource(R.string.cached_playlist),
+                            { navController.navigate("cache_playlist/cached") },
                             tile,
                         )
                     }
@@ -1076,6 +1099,8 @@ fun AuraLibraryPlaylistsTab(
     val (showExported) = rememberPreference(ShowExportedPlaylistKey, true)
     val (showExportedVideos) = rememberPreference(ShowExportedVideosPlaylistKey, true)
     val (showTop) = rememberPreference(ShowTopPlaylistKey, true)
+    val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, true)
+    val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
 
     val playlists by viewModel.allPlaylists.collectAsState()
     var playlistSearchQuery by rememberSaveable { mutableStateOf("") }
