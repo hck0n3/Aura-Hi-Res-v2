@@ -12,6 +12,7 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
+import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * REAL glass for the new shell — the 2026 premium surface (owner-approved package "A1").
@@ -40,6 +41,33 @@ import dev.chrisbanes.haze.hazeChild
 
 /** The single haze source for the shell chrome. Provided by MainActivity's content Box. */
 val LocalShellHazeState = staticCompositionLocalOf<HazeState?> { null }
+
+/**
+ * SHELL SCROLL BUS (registry row 196, adversarial audit fix #1): true while ANY scrollable of the
+ * visible screen is in an active gesture/fling. The persistent chrome (nav bar, mini pill) reads
+ * it and FREEZES its haze sampling while it is true — on One UI 8.5 the source layer (the whole
+ * NavHost Box) is re-recorded at native resolution on every scroll frame, and two persistent
+ * hazeChildren re-running their 18dp RenderEffect over that mutation is the sig-11 native bomb
+ * (RSS 700-800MB in the owner's logs). Frozen = same GroundRaised tint the detail bars use, so
+ * the look survives the gesture at zero native cost. Screens publish their scroll state here via
+ * [ShellScrollBus] from a rememberScrollStateReporter or plain derived state.
+ */
+val LocalShellScrollActive = staticCompositionLocalOf<() -> Boolean> { { false } }
+
+/** Publisher side of [LocalShellScrollActive]. */
+object ShellScrollBus {
+    private val states = CopyOnWriteArraySet<() -> Boolean>()
+
+    fun register(provider: () -> Boolean) {
+        states.add(provider)
+    }
+
+    fun unregister(provider: () -> Boolean) {
+        states.remove(provider)
+    }
+
+    fun isActive(): Boolean = states.any { it() }
+}
 
 /**
  * The shell chrome's glass style: the render's frosted film — GroundRaised tinted at the render's

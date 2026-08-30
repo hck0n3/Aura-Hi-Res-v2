@@ -89,6 +89,7 @@ import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import kotlin.math.exp
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -297,6 +298,36 @@ fun AuraGlobalActions(
  * @param bottomInset the system gesture inset. The bar paints its ground THROUGH it, which is what
  *   makes the classic opaque strip over the gesture area unnecessary.
  */
+// ── Scroll-freeze reader (registry row 196, adversarial audit fix #1) ─────────────────────────────
+//
+// WHY THIS EXISTS: on Samsung One UI 8.5 an active scroll re-records the whole NavHost Box (the haze
+// SOURCE layer) at native resolution on every frame, and the two persistent hazeChildren of the shell
+// chrome (nav bar + mini pill) re-running their 18dp RenderEffect over that mutation is the sig-11
+// native crash (RSS 700-800MB in the owner's logs). While [ShellScrollBus.isActive] is true the chrome
+// FREEZES its haze sampling: the hazeChild unmounts and a flat tint — the SAME GroundRaised.copy(0.72f)
+// the detail bars use (AuraAlbumScreen) — keeps the look alive at zero native cost. When the scroll
+// settles (gesture OR fling) the state flips back to false and the glass returns. The bus is read as a
+// 50ms poll, NOT per frame: one coroutine per chrome surface, launched once, that only writes state on
+// EDGES (a != shellScrollActive), so an idle screen costs ~20 cheap reads/s and a whole scroll costs
+// exactly two recompositions (enter + exit) — the shell itself never scrolls, so its glass is only
+// expensive when a SCREEN below it does, which is exactly when this gate fires.
+//
+// The CompositionLocal is deliberately NOT used here: the shell is composed by MainActivity OUTSIDE
+// the NavHost, so a provider set by a screen is not guaranteed to reach it — ShellScrollBus is the
+// global, source-of-truth registry both sides already share.
+@Composable
+private fun rememberShellScrollActive(): Boolean {
+    var shellScrollActive by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val a = ShellScrollBus.isActive()
+            if (a != shellScrollActive) shellScrollActive = a
+            delay(50)
+        }
+    }
+    return shellScrollActive
+}
+
 @Composable
 fun AuraNavigationBar(
     items: List<Screens>,
@@ -349,11 +380,23 @@ fun AuraNavigationBar(
     // carries its own backgroundColor + 0.72 tint + opaque fallbackTint) — drawing an opaque
     // .background on top of it would cover the glass entirely, so the ground moves INSIDE the
     // fallback: no source (classic shell, previews, sub-API-31) = today's opaque bar, byte-identical.
+    //
+    // SCROLL FREEZE (registry row 196, audit fix #1): while any screen below is scrolling (gesture or
+    // fling) the hazeChild is REPLACED by the frozen tint — the flat GroundRaised.copy(0.72f) the
+    // detail bars use, a substitute FOR the glass (never painted on top of it: hazeChild IS the
+    // surface, lesson 0b1151e), not an extra layer. Idle → glass returns; the bar itself never
+    // scrolls, so the expensive case for its sample is exactly the case this gate turns off.
     val navHazeState = LocalShellHazeState.current
-    val navBarModifier = if (navHazeState != null) {
+    val shellScrollActive = rememberShellScrollActive()
+    val navBarModifier = if (navHazeState != null && !shellScrollActive) {
         modifier
             .fillMaxWidth()
             .shellGlass(navHazeState)
+    } else if (navHazeState != null) {
+        // Scrolling: frozen plate — same look family as the detail bars mid-gesture.
+        modifier
+            .fillMaxWidth()
+            .background(AuraPalette.GroundRaised.copy(alpha = 0.72f))
     } else {
         modifier
             .fillMaxWidth()
@@ -717,6 +760,15 @@ fun AuraMiniPlayer(
         // sampling the screen content behind the pill. The user's style key keeps final authority —
         // DEFAULT's opaque pill simply reads through a light frost instead of a hard edge.
         val pillHazeState = LocalShellHazeState.current
+        // SCROLL FREEZE (registry row 196, audit fix #1): same reader as the nav bar above — the
+        // pill's hazeChild is REPLACED by the frozen GroundRaised.copy(0.72f) tint while any screen
+        // scrolls (substitute FOR the film, never on top: hazeChild IS the surface, lesson 0b1151e),
+        // so the 18dp re-blur over a re-recorded source layer — the sig-11 on One UI 8.5 — cannot
+        // run. Idle → the frost returns. The infinite ground animations (spin/drift) live in
+        // AuraGroundLayer behind branches the pill's own recipe CANNOT reach (auraPillRecipe pins
+        // drift=false/spin=false, the HALLAZGO-059 guardian), so there is nothing here to disable;
+        // with the film frozen the idle-animated ground under the pill no longer re-blurs either.
+        val shellScrollActive = rememberShellScrollActive()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -746,7 +798,18 @@ fun AuraMiniPlayer(
                 // surface becomes the hazeChild film (GroundRaised-tinted frost sampling the screen
                 // behind); without one it keeps the exact SurfaceFill it shipped with. The pill's GROUND
                 // (the user's MiniPlayerBackgroundStyleKey recipe below) is untouched underneath.
-                .then(if (pillHazeState != null) Modifier.shellGlass(pillHazeState) else Modifier.background(AuraPalette.SurfaceFill))
+                // SCROLL FREEZE (row 196): mid-gesture the film is REPLACED by the frozen tint, not
+                // painted over — the swap is exclusive, the ground recipe underneath is unchanged.
+                .then(
+                    if (pillHazeState != null && !shellScrollActive) {
+                        Modifier.shellGlass(pillHazeState)
+                    } else if (pillHazeState != null) {
+                        // Scrolling: frozen plate — the detail bars' mid-gesture look, zero native cost.
+                        Modifier.background(AuraPalette.GroundRaised.copy(alpha = 0.72f))
+                    } else {
+                        Modifier.background(AuraPalette.SurfaceFill)
+                    },
+                )
                 .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
                 // The render's `.mi` has no timeline; the classic mini does, and losing "how far in am
                 // I" is a real loss. Drawn as a hairline along the bottom edge, inside the draw phase:
