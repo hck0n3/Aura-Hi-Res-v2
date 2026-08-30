@@ -32,6 +32,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import android.os.Handler
+import android.os.Looper
 
 /**
  * Manages Google Cast connections and media playback on Cast devices.
@@ -40,6 +42,14 @@ import timber.log.Timber
  * - Session management
  * - Media loading and playback control
  * - Synchronization between local and remote playback
+ *
+ * THREAD CONTRACT (crash fix, registry row 195): every Cast/GMS callback below can fire on a
+ * Google-Play-Services executor thread — the SAME thread family the R8 stack of the 2026-08-29
+ * crash showed (ExecutorsRegistrar lambda → ExoPlayerImpl.updatePlaybackInfo → IllegalStateException,
+ * deobfuscated with the gms/release mapping). ExoPlayer demands ALL player calls on its own
+ * application thread; touching player.* from the GMS callback thread is the crash. Every player
+ * touch in this class now goes through [onPlayerThread] (or a main-dispatcher coroutine), so no
+ * GMS callback can ever reach the player on the wrong thread again.
  */
 class CastConnectionHandler(
     private val context: Context,
@@ -52,6 +62,18 @@ class CastConnectionHandler(
     private var routeSelector: MediaRouteSelector? = null
     private var remoteMediaClient: RemoteMediaClient? = null
     private var castSession: CastSession? = null
+
+    /** The player's application thread — created once; every player touch hops through it. */
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Runs [block] on the player's application thread. Safe from any GMS callback thread. */
+    private inline fun onPlayerThread(crossinline block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            block()
+        } else {
+            mainHandler.post { block() }
+        }
+    }
     
     private val _isCasting = MutableStateFlow(false)
     val isCasting: StateFlow<Boolean> = _isCasting.asStateFlow()
@@ -132,60 +154,65 @@ class CastConnectionHandler(
         if (queueItems.isEmpty()) return
         val currentItemId = mediaStatus.currentItemId
         val currentIndex = queueItems.indexOfFirst { it.itemId == currentItemId }
-        
+
         if (currentIndex < 0) return
-        
+
         // Get the mediaId from the current Cast item's custom data
         val currentQueueItem = queueItems[currentIndex]
         val customData = currentQueueItem.media?.customData
         val castMediaId = customData?.optString("mediaId")
-        
+
         Timber.d("Cast switched to item: index=$currentIndex, mediaId=$castMediaId, queueSize=${queueItems.size}")
-        
+
         if (castMediaId != null && castMediaId != currentMediaId) {
             currentMediaId = castMediaId
-            
+
             // Cancel any pending sync reset
             syncResetJob?.cancel()
-            
+
             // Set flag immediately to prevent reverse sync
             isSyncingFromCast = true
-            
-            // Find this song in the local player queue and switch to it
-            val player = musicService.player
-            val playerItemCount = player.mediaItemCount
-            
-            // Find the matching item in local player
-            for (i in 0 until playerItemCount) {
-                val mediaItem = player.getMediaItemAt(i)
-                if (mediaItem.mediaId == castMediaId) {
-                    Timber.d("Syncing local player to index $i (mediaId=$castMediaId)")
-                    
-                    // Ensure local player is paused before seeking
-                    player.pause()
-                    
-                    // Move local player to match Cast (just for metadata sync)
-                    player.seekTo(i, 0)
-                    
-                    // Make absolutely sure local player stays paused
-                    player.pause()
-                    
-                    // Extend queue if needed (in background)
-                    val itemsAhead = queueItems.size - 1 - currentIndex
-                    val itemsBehind = currentIndex
-                    
-                    if (itemsAhead < 2 || itemsBehind < 2) {
-                        scope.launch {
-                            val metadata = mediaItem.metadata
-                            if (metadata != null) {
-                                extendQueueIfNeeded(i, playerItemCount, queueItems)
+
+            // THREAD CONTRACT (registry row 195): this runs from a RemoteMediaClient callback,
+            // which GMS fires on its own executor thread. EVERY player touch must hop to the
+            // player's application thread — reading the queue, pausing and seeking included.
+            onPlayerThread {
+                // Find this song in the local player queue and switch to it
+                val player = musicService.player
+                val playerItemCount = player.mediaItemCount
+
+                // Find the matching item in local player
+                for (i in 0 until playerItemCount) {
+                    val mediaItem = player.getMediaItemAt(i)
+                    if (mediaItem.mediaId == castMediaId) {
+                        Timber.d("Syncing local player to index $i (mediaId=$castMediaId)")
+
+                        // Ensure local player is paused before seeking
+                        player.pause()
+
+                        // Move local player to match Cast (just for metadata sync)
+                        player.seekTo(i, 0)
+
+                        // Make absolutely sure local player stays paused
+                        player.pause()
+
+                        // Extend queue if needed (in background)
+                        val itemsAhead = queueItems.size - 1 - currentIndex
+                        val itemsBehind = currentIndex
+
+                        if (itemsAhead < 2 || itemsBehind < 2) {
+                            scope.launch {
+                                val metadata = mediaItem.metadata
+                                if (metadata != null) {
+                                    extendQueueIfNeeded(i, playerItemCount, queueItems)
+                                }
                             }
                         }
+                        break
                     }
-                    break
                 }
             }
-            
+
             // Reset flag after a short delay
             syncResetJob = scope.launch {
                 delay(300)
@@ -382,8 +409,10 @@ class CastConnectionHandler(
             // Capture Cast position before session ends
             val castPosition = remoteMediaClient?.approximateStreamPosition ?: _castPosition.value
             if (castPosition > 0) {
-                // Seek local player to Cast position so playback can continue from there
-                musicService.player.seekTo(castPosition)
+                // Seek local player to Cast position so playback can continue from there.
+                // THREAD CONTRACT (registry row 195): SessionManagerListener callbacks fire on a
+                // GMS executor thread — hop to the player's application thread before touching it.
+                onPlayerThread { musicService.player.seekTo(castPosition) }
                 Timber.d("Saved Cast position: $castPosition")
             }
         }
@@ -402,8 +431,10 @@ class CastConnectionHandler(
             
             stopPositionUpdates()
             
-            // Pause local playback when disconnecting from Cast
-            musicService.player.pause()
+            // Pause local playback when disconnecting from Cast.
+            // THREAD CONTRACT (registry row 195): this callback fires on a GMS executor thread —
+            // hop to the player's application thread.
+            onPlayerThread { musicService.player.pause() }
         }
         
         override fun onSessionResuming(session: CastSession, sessionId: String) {
@@ -752,7 +783,9 @@ class CastConnectionHandler(
         if (targetIndex == currentIndex) {
             // Already on this item - ensure local player is paused
             currentMediaId = mediaId
-            musicService.player.pause()
+            // THREAD CONTRACT (registry row 195): public entry point — hop to the player's
+            // application thread; on Main (every current caller) this runs inline, unchanged.
+            onPlayerThread { musicService.player.pause() }
             return true
         }
         
@@ -763,15 +796,20 @@ class CastConnectionHandler(
         // Set flag to prevent reverse sync loop
         isSyncingFromCast = true
         
-        // Update local player to match (for UI sync) - find the item in local queue
-        val player = musicService.player
-        for (i in 0 until player.mediaItemCount) {
-            if (player.getMediaItemAt(i).mediaId == mediaId) {
-                player.seekTo(i, 0)
-                break
+        // Update local player to match (for UI sync) - find the item in local queue.
+        // THREAD CONTRACT (registry row 195): every player touch hops to the player's
+        // application thread; the Boolean return only depends on the Cast status read above,
+        // so it stays valid whether this runs inline (Main) or deferred.
+        onPlayerThread {
+            val player = musicService.player
+            for (i in 0 until player.mediaItemCount) {
+                if (player.getMediaItemAt(i).mediaId == mediaId) {
+                    player.seekTo(i, 0)
+                    break
+                }
             }
+            player.pause()
         }
-        player.pause()
         
         // Navigate Cast
         client.queueJumpToItem(targetItem.itemId, org.json.JSONObject())
@@ -798,19 +836,23 @@ class CastConnectionHandler(
             if (currentIndex >= 0 && currentIndex < queueItems.size - 1) {
                 // There's a next item in Cast queue, use it
                 client.queueNext(org.json.JSONObject())
-                // Ensure local player stays paused
-                musicService.player.pause()
+                // Ensure local player stays paused. THREAD CONTRACT (registry row 195): hop to
+                // the player's application thread (inline on Main, deferred otherwise).
+                onPlayerThread { musicService.player.pause() }
                 return
             }
         }
         
-        // Fall back to loading from MusicService queue
-        val player = musicService.player
-        if (player.hasNextMediaItem()) {
-            // Pause first, then seek
-            player.pause()
-            player.seekToNextMediaItem()
-            // The player listener will handle loading the new media to Cast
+        // Fall back to loading from MusicService queue.
+        // THREAD CONTRACT (registry row 195): hop every player touch to the player's thread.
+        onPlayerThread {
+            val player = musicService.player
+            if (player.hasNextMediaItem()) {
+                // Pause first, then seek
+                player.pause()
+                player.seekToNextMediaItem()
+                // The player listener will handle loading the new media to Cast
+            }
         }
     }
     
@@ -826,18 +868,22 @@ class CastConnectionHandler(
             if (currentIndex > 0) {
                 // There's a previous item in Cast queue, use it
                 client.queuePrev(org.json.JSONObject())
-                // Ensure local player stays paused
-                musicService.player.pause()
+                // Ensure local player stays paused. THREAD CONTRACT (registry row 195): hop to
+                // the player's application thread (inline on Main, deferred otherwise).
+                onPlayerThread { musicService.player.pause() }
                 return
             }
         }
         
-        // Fall back to loading from MusicService queue
-        val player = musicService.player
-        if (player.hasPreviousMediaItem()) {
-            // Pause first, then seek
-            player.pause()
-            player.seekToPreviousMediaItem()
+        // Fall back to loading from MusicService queue.
+        // THREAD CONTRACT (registry row 195): hop every player touch to the player's thread.
+        onPlayerThread {
+            val player = musicService.player
+            if (player.hasPreviousMediaItem()) {
+                // Pause first, then seek
+                player.pause()
+                player.seekToPreviousMediaItem()
+            }
         }
     }
     
