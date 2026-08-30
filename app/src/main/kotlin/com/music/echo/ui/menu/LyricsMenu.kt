@@ -103,10 +103,13 @@ fun LyricsMenu(
     val openRouterModel by rememberPreference(OpenRouterModelKey, "google/gemini-2.5-flash-lite")
     val deeplFormality by rememberPreference(DeeplFormalityKey, "default")
 
-    val hasApiKey = if (aiProvider == "DeepL") deeplApiKey.isNotBlank() else openRouterApiKey.isNotBlank()
+    // Owner directive 2026-08-29 (registry #192): lyric translation must work WITHOUT any user API key —
+    // the keyless chain (Google Translate → SimpMusic → Aura Worker) covers it. The item used to hide
+    // behind `hasApiKey`, so a keyless install (the owner's) showed NO translate action at all in this
+    // menu: "never translates" partly because the entry point did not exist. DeepL is the one provider
+    // that cannot run keyless (it needs its own key) — the switch keeps that honest.
+    val canTranslateKeyless = aiProvider != "DeepL"
 
-    
-    
     val hasTranslations by LyricsTranslationHelper.hasActiveTranslations.collectAsState()
 
     var showEditDialog by rememberSaveable {
@@ -473,7 +476,7 @@ fun LyricsMenu(
             Material3MenuGroup(
                 items = buildList {
                     
-                    if (hasApiKey) {
+                    if (canTranslateKeyless || (aiProvider == "DeepL" && deeplApiKey.isNotBlank())) {
                         add(
                             Material3MenuItemData(
                                 title = { Text(stringResource(R.string.ai_lyrics_translation)) },

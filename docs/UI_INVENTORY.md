@@ -820,7 +820,7 @@ Se abre con el botón `more_horiz` del reproductor **solo cuando las letras est�
 | Editar | Letras > menú ⋯ > rejilla | `ui/menu/LyricsMenu.kt:401` | acción secundaria | rara | siempre |
 | Cargar de nuevo | Letras > menú ⋯ > rejilla | `ui/menu/LyricsMenu.kt:415` | acción secundaria | ocasional | siempre |
 | Buscar | Letras > menú ⋯ > rejilla | `ui/menu/LyricsMenu.kt:430` | navegación (diálogo) | ocasional | siempre |
-| **Traducción de letras con IA** *(fila + interruptor)* | Letras > menú ⋯ > grupo 1 | `ui/menu/LyricsMenu.kt:447` (interruptor `:471-488`) | conmutador | ocasional | **solo si hay clave API** (DeepL u OpenRouter según proveedor) |
+| **Traducción de letras con IA** *(fila + interruptor)* | Letras > menú ⋯ > grupo 1 | `ui/menu/LyricsMenu.kt:447` (interruptor `:471-488`) | conmutador | ocasional | **siempre salvo proveedor DeepL sin clave propia** (keyless: Google → SimpMusic → Worker; con clave: el proveedor configurado) |
 | Desfase de la letra *(+ valor «±NNN ms»)* | Letras > menú ⋯ > grupo 1 | `ui/menu/LyricsMenu.kt:496` (valor `:509`) | navegación (diálogo) | ocasional | siempre |
 | Romanizar la pista actual *(fila + interruptor)* | Letras > menú ⋯ > grupo 1 | `ui/menu/LyricsMenu.kt:519` (interruptor `:535-545`) | conmutador | ocasional | siempre |
 

@@ -690,9 +690,15 @@ fun Lyrics(
         ) {
             return@LaunchedEffect
         }
-        autoTranslatedSongs.add(songId)
+        // Mark the song as auto-attempted ONLY in the branches that actually launch a translation.
+        // Marking unconditionally here (the old code) poisoned the list in two ways: with a
+        // transient failure (no network for a moment, all keyless endpoints down) the song stayed
+        // blocked for the WHOLE session — one failure = "never translates" again until app restart;
+        // and with provider DeepL and no DeepL key, no attempt ever ran yet the song was still
+        // blocked from any future auto-translate.
         val effectiveApiKey = if (aiProvider == "DeepL") deeplApiKey else openRouterApiKey
         if (effectiveApiKey.isNotBlank()) {
+            autoTranslatedSongs.add(songId)
             LyricsTranslationHelper.translateLyrics(
                 lyrics = lines,
                 targetLanguage = effectiveTranslateTarget,
@@ -710,6 +716,7 @@ fun Lyrics(
                 database = database,
             )
         } else if (aiProvider != "DeepL") {
+            autoTranslatedSongs.add(songId)
             LyricsTranslationHelper.translateLyrics(
                 lyrics = lines,
                 targetLanguage = effectiveTranslateTarget,
@@ -725,6 +732,17 @@ fun Lyrics(
                 database = database,
                 keyless = true,
             )
+        }
+    }
+
+    // A failed auto-translate must not poison the whole session (registry #192 follow-up): the
+    // mark above exists to prevent duplicate in-flight attempts, not to remember failures. When
+    // the chain reports Error, un-mark the current song so the next trigger (reopening the lyrics
+    // view, a key change) retries instead of staying silent forever — "nunca traduce" was partly
+    // this: the first failure of the session blocked every later attempt for that song.
+    LaunchedEffect(translationStatus) {
+        if (translationStatus is LyricsTranslationHelper.TranslationStatus.Error) {
+            currentSong?.id?.let { autoTranslatedSongs.remove(it) }
         }
     }
 

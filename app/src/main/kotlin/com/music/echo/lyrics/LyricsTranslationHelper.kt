@@ -80,28 +80,23 @@ object LyricsTranslationHelper {
     private val _status = MutableStateFlow<TranslationStatus>(TranslationStatus.Idle)
     val status: StateFlow<TranslationStatus> = _status.asStateFlow()
 
-    // LAST-RESORT keyless step (no user API key): Pollinations' public OpenAI-compatible endpoint.
-    // There is NO embedded OpenRouter key in the app; this path sends no Authorization header.
-    //
-    // Only ONE model, not the old listOf("openai", "mistral", "llama", "deepseek"): probed live against
-    // https://text.pollinations.ai/models, the anonymous tier exposes exactly one model (`openai-fast`,
-    // aliased as `openai`); the other three return "Model not found" — they were three guaranteed failed
-    // round-trips pretending to be a fallback. Since the 2026-08-29 rebuild this is step 4 of 4: Google
-    // Translate (see the chain comment below) is the primary keyless translator.
-    private const val FREE_KEYLESS_BASE_URL = "https://text.pollinations.ai/openai"
-    private val FREE_KEYLESS_MODELS = listOf("openai")
+    // REMOVED 2026-08-29 (follow-up to registry #192): the Pollinations last-resort step. Probed
+    // live the same evening the rebuilt chain shipped: HTTP 402 "Payment Required" — the legacy
+    // anonymous text API is dead for good. Keeping it was a guaranteed wasted round-trip on every
+    // all-steps-fail translation (and three retries of it via the shared translate client), the
+    // exact #42 anti-pattern: an endpoint nobody probed, quietly burning the error budget. The
+    // keyless chain is Google → SimpMusic → Aura Worker, each probed live from this network.
 
     // FREE, reliable, keyless lyric translation — GOOGLE FIRST (owner directive 2026-08-29:
     // "quiero que las traducciones estén basadas en google translate"). The 2026-08-29 morning
     // probe found the classic gtx GET bot-blocked (Sorry HTML / 429 for both browser and okhttp
     // UAs) and Pollinations' legacy text API deprecated — the evening re-probe found TWO live
     // keyless Google paths (see GOOGLE_T_ENDPOINT_HOSTS / GOOGLE_GTX_POST_URL). Chain:
-    //   1. Google Translate (dict-chrome-ex GET × 3 hosts → gtx POST) — standard modes only.
+    //   1. Google Translate (dict-chrome-ex GET × 3 hosts, UA retry → gtx POST) — standard modes only.
     //   2. SimpMusic community translated API (api-lyrics.simpmusic.org/v1/translated/…) —
     //      keyless, human-made translations, but partial coverage (404 = nobody translated it yet).
     //   3. The owner's Aura Worker /ai (Llama 3.3 70B) — verified live, handles ALL modes
     //      including Romanized/Transcribed.
-    //   4. Pollinations legacy (last resort; often 402/429 — never the only hope again).
     private const val SIMPMUSIC_TRANSLATED_URL = "https://api-lyrics.simpmusic.org/v1/translated"
     private const val AURA_WORKER_AI_URL = "https://round-math-d64e.toberto4000.workers.dev/ai"
     private const val AURA_WORKER_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
@@ -124,6 +119,10 @@ object LyricsTranslationHelper {
         "https://translate.google.com",
     )
     private const val GOOGLE_GTX_POST_URL = "https://translate.googleapis.com/translate_a/single"
+    // The dict-chrome-ex endpoint needs no special UA (verified live with okhttp's own UA AND with
+    // no UA at all), but per-IP bot filters can tighten without notice; on a 429/Sorry answer each
+    // host gets ONE immediate retry with a plain browser UA before the path gives that host up.
+    private const val GOOGLE_BROWSER_UA = "Mozilla/5.0"
     // Keep each request well under URL/payload ceilings: a full lyric is ~1-3 KB, but batching by
     // lines bounds the worst case. 4000 chars matches MorpheApp's MAXIMUM_BATCH_CHARACTERS.
     private const val GOOGLE_BATCH_MAX_CHARS = 4000
@@ -182,23 +181,32 @@ object LyricsTranslationHelper {
     private fun googleTranslateBatch(batch: String, tl: String): List<String>? {
         // Path A: translate_a/t?client=dict-chrome-ex (GET). Verified: "a\nb\nc" in → one string
         // "a'\nb'\nc'" out (shape ["..."]); with sl=auto the shape is [["text","lang"]] instead.
+        // No UA is sent by default (OkHttp adds none), matching the verified-live behaviour; a
+        // 429/Sorry answer gets ONE retry per host with a plain browser UA (filters can tighten
+        // per-IP without notice — this is the "retry with UA alternativo" guard).
         for (host in GOOGLE_T_ENDPOINT_HOSTS) {
-            try {
-                val url = "$host/translate_a/t?client=dict-chrome-ex&sl=auto&tl=$tl&q=" +
-                    java.net.URLEncoder.encode(batch, "UTF-8")
-                val request = Request.Builder().url(url).get().build()
-                googleTranslateClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@use
-                    val body = response.body?.string() ?: return@use
-                    if (body.isBlank() || body.startsWith("<")) return@use
-                    parseGoogleTResponse(body)?.let { return it }
+            for (ua in listOf(null, GOOGLE_BROWSER_UA)) {
+                try {
+                    val url = "$host/translate_a/t?client=dict-chrome-ex&sl=auto&tl=$tl&q=" +
+                        java.net.URLEncoder.encode(batch, "UTF-8")
+                    val builder = Request.Builder().url(url).get()
+                    if (ua != null) builder.header("User-Agent", ua)
+                    googleTranslateClient.newCall(builder.build()).execute().use { response ->
+                        if (!response.isSuccessful) return@use
+                        val body = response.body?.string() ?: return@use
+                        if (body.isBlank() || body.startsWith("<")) return@use
+                        parseGoogleTResponse(body)?.let { return it }
+                    }
+                } catch (_: Exception) {
+                    // next UA / host
                 }
-            } catch (_: Exception) {
-                // next host
             }
         }
         // Path B: translate_a/single?client=gtx (POST form-urlencoded) — the GET variant of this
-        // endpoint is per-IP bot-blocked (429/Sorry HTML); the POST passes, per MorpheApp.
+        // endpoint is per-IP bot-blocked (429/Sorry HTML); the POST passed when the chain was
+        // rebuilt (MorpheApp pattern). If the POST is ALSO blocked from the current IP (it was
+        // 429 on the 2026-08-29 late-evening re-probe), the chain falls through to SimpMusic and
+        // the Aura Worker — never hangs, never shows a raw HTTP dump.
         try {
             val form = java.net.URLEncoder.encode(batch, "UTF-8")
             val body = "q=$form".toRequestBody(
@@ -206,7 +214,7 @@ object LyricsTranslationHelper {
             )
             val request = Request.Builder()
                 .url("$GOOGLE_GTX_POST_URL?client=gtx&sl=auto&dt=t&tl=$tl")
-                .header("User-Agent", "Mozilla/5.0")
+                .header("User-Agent", GOOGLE_BROWSER_UA)
                 .post(body)
                 .build()
             googleTranslateClient.newCall(request).execute().use { response ->
@@ -260,20 +268,28 @@ object LyricsTranslationHelper {
     }
 
     // Overall budget for the whole keyless path so the UI can never hang on "Translating" forever.
+    // 30 s is generous for the live-verified latencies (Google GET ~0.3-0.7 s; Worker ~1-2 s), and
+    // still bounded if an endpoint stalls. Each step below now has timeouts that add up UNDER this
+    // budget instead of theoretically exceeding it (the old config could spend 6×10 s in the
+    // Google step alone: 3 hosts × 10 s connect + 10 s read, then SimpMusic and the Worker on the
+    // same oversized client — the withTimeoutOrNull saved the UI, but every step after a stall
+    // arrived already cancelled, i.e. wasted).
     private const val KEYLESS_TRANSLATE_TIMEOUT_MS = 30_000L
 
-    // Short-timeout client for the keyless HTTP lookups (SimpMusic translated API); must be fast,
-    // never block the UI. Reused from the old Google path (whose endpoint is now bot-blocked).
+    // Fast client for the keyless Google/SimpMusic lookups: the live probes answer in well under
+    // a second; anything slower than this is a stall, not a slow translation, and the next host /
+    // step should get its turn inside the 30 s budget. 8 s keeps a batch-heavy worst case (a 4-batch
+    // lyric at the cap) comfortably inside the budget even if one batch has to retry.
     private val googleTranslateClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .writeTimeout(8, TimeUnit.SECONDS)
             .build()
     }
 
 
-    
+
     private val _hasActiveTranslations = MutableStateFlow(false)
     val hasActiveTranslations: StateFlow<Boolean> = _hasActiveTranslations.asStateFlow()
 
@@ -578,14 +594,20 @@ object LyricsTranslationHelper {
                     )
                 } else if (keyless) {
                     // FREE keyless path (owner directive 2026-08-29: GOOGLE FIRST). Verified live:
-                    //   1. Google Translate — dict-chrome-ex GET (3 hosts) then gtx POST; standard
-                    //      modes only (Romanized/Transcribed cannot machine-translate).
+                    //   1. Google Translate — dict-chrome-ex GET (3 hosts, UA retry) then gtx POST;
+                    //      standard modes only (Romanized/Transcribed cannot machine-translate).
                     //   2. SimpMusic community translated API (human translations, standard modes).
                     //   3. Aura Worker (Llama 3.3) — handles every mode.
-                    //   4. Pollinations — legacy last resort.
-                    Timber.d("Using FREE keyless translation (Google → SimpMusic → Aura Worker → Pollinations)")
+                    // Pollinations was step 4 until the same-day re-probe returned 402 Payment
+                    // Required (removed — a guaranteed dead round-trip, see #42).
+                    Timber.d("Using FREE keyless translation (Google → SimpMusic → Aura Worker)")
                     val standardTranslate = mode != "Romanized" && mode != "Transcribed"
-                    withTimeoutOrNull(KEYLESS_TRANSLATE_TIMEOUT_MS) {
+                    // Offline shows a CLEAR reason instead of burning three timeouts on a network
+                    // that cannot answer. Radio/captive-portal "connected" cases still run the
+                    // chain — the per-step timeouts bound them.
+                    if (!isOnline(context)) {
+                        Result.failure(Exception(context.getString(iad1tya.echo.music.R.string.error_no_internet)))
+                    } else withTimeoutOrNull(KEYLESS_TRANSLATE_TIMEOUT_MS) {
                         var freeResult: Result<List<String>> =
                             Result.failure(Exception("No free translation available"))
 
@@ -615,7 +637,7 @@ object LyricsTranslationHelper {
                             }
                         }
 
-                        // 2) Aura Worker (owner-hosted keyless LLM relay). Works for every mode.
+                        // 3) Aura Worker (owner-hosted keyless LLM relay). Works for every mode.
                         if (freeResult.isFailure) {
                             Timber.d("Falling back to Aura Worker translation")
                             freeResult = OpenRouterService.translate(
@@ -627,23 +649,22 @@ object LyricsTranslationHelper {
                                 mode = mode,
                             )
                         }
-
-                        // 3) Legacy Pollinations last resort (often 402/429 since its deprecation).
+                        // Every keyless step failed. The user-facing banner gets the clean,
+                        // translated "translation failed" message — the raw cause ("Max retries
+                        // exceeded", HTTP dumps) is developer noise shown in the user's face and
+                        // sometimes leaks English into a Spanish UI; the cause goes to the log
+                        // only (it carries no user data — statuses and retry counters).
                         if (freeResult.isFailure) {
-                            Timber.d("Falling back to legacy Pollinations cascade")
-                            for (freeModel in FREE_KEYLESS_MODELS) {
-                                freeResult = OpenRouterService.translate(
-                                    text = fullText,
-                                    targetLanguage = fullLanguageName,
-                                    apiKey = "",
-                                    baseUrl = FREE_KEYLESS_BASE_URL,
-                                    model = freeModel,
-                                    mode = mode,
-                                )
-                                if (freeResult.isSuccess) break
-                            }
+                            Timber.w(
+                                freeResult.exceptionOrNull(),
+                                "Keyless translation chain failed at every step (Google, SimpMusic, Aura Worker)",
+                            )
+                            Result.failure(
+                                Exception(context.getString(iad1tya.echo.music.R.string.ai_error_translation_failed)),
+                            )
+                        } else {
+                            freeResult
                         }
-                        freeResult
                     } ?: Result.failure(
                         Exception(context.getString(iad1tya.echo.music.R.string.ai_error_translation_failed)),
                     )
@@ -790,6 +811,20 @@ object LyricsTranslationHelper {
                 }
             }
         }
+    }
+
+    /**
+     * Cheap connectivity pre-check for the keyless chain (the same ConnectivityManager idiom as
+     * GenreCache). Read-only, no callback, no per-frame polling — runs once per translation.
+     */
+    private fun isOnline(context: Context): Boolean = try {
+        val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+            as? android.net.ConnectivityManager
+        cm?.activeNetwork != null
+    } catch (_: Exception) {
+        // Never let a pre-check block translation: on any failure assume online and let the
+        // chain's own timeouts handle it.
+        true
     }
 
     sealed class TranslationStatus {
