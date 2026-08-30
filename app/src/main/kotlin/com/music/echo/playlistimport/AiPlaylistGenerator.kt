@@ -1,5 +1,7 @@
 package iad1tya.echo.music.playlistimport
 
+import com.music.innertube.YouTube
+import com.music.innertube.models.SongItem
 import iad1tya.echo.music.api.AiPlaylistConstraints
 import iad1tya.echo.music.api.AiPlaylistService
 import iad1tya.echo.music.api.TrackQuery
@@ -7,6 +9,7 @@ import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.models.MediaMetadata
+import iad1tya.echo.music.models.toMediaMetadata
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDateTime
 
@@ -115,6 +118,24 @@ object AiPlaylistGenerator {
             aiName = spec.name
         }
 
+        // NON-AI SAFETY NET (owner directive 2026-08-29: "AI must never dead-end on an error").
+        // When the AI chain is unavailable (Aura Worker rate-limited, Pollinations gone, no user key)
+        // or its tracks didn't resolve, build the playlist from REAL YouTube Music search results for
+        // the user's description — the same approach InnerTune/OuterTune/Metrolist use for their
+        // auto-playlists (Innertube search/radio, no LLM). The user gets a playlist built from the
+        // prompt, honestly labeled "generated without AI" via [Result.generatedWithoutAi], instead
+        // of the old dead-end "No songs were found for that idea".
+        var generatedWithoutAi = false
+        if (ordered.isEmpty()) {
+            val fallback = withTimeoutOrNull(AI_BUDGET_MS) {
+                searchFallbackPlaylist(prompt, soloArtist, target)
+            }
+            if (fallback != null && fallback.isNotEmpty()) {
+                ordered = fallback
+                generatedWithoutAi = true
+            }
+        }
+
         if (ordered.isEmpty()) {
             return kotlin.Result.failure(EmptyResultException())
         }
@@ -148,9 +169,49 @@ object AiPlaylistGenerator {
                 name = name,
                 total = target,
                 resolved = ordered.size,
-                generatedWithoutAi = false,
+                generatedWithoutAi = generatedWithoutAi,
             ),
         )
+    }
+
+    /**
+     * The non-AI safety net behind the AI chain: REAL songs from YouTube Music search for the user's
+     * description, so "AI playlists" never dead-end on "servicio ocupado" (owner directive
+     * 2026-08-29). This is the no-LLM approach InnerTune/OuterTune/Metrolist use for auto playlists:
+     * the search itself IS the recommender.
+     *
+     * Query ladder: the raw prompt (truncated to YouTube's practical query length) → song filter,
+     * then progressively looser passes (no filter, video filter) → finally a top-up from YouTube
+     * MUSIC search filtered to the solo artist when the user asked for one. De-duplicated by video id;
+     * every result is a real, playable [SongItem] straight from the catalog the app already plays.
+     */
+    private suspend fun searchFallbackPlaylist(
+        prompt: String,
+        soloArtist: String?,
+        target: Int,
+    ): List<MediaMetadata> {
+        val seen = HashSet<String>()
+        val out = ArrayList<MediaMetadata>()
+        suspend fun absorb(items: List<SongItem>) {
+            for (item in items) {
+                if (out.size >= target) return
+                if (seen.add(item.id)) {
+                    if (soloArtist == null || item.artists.any { SongResolver.artistMatches(it.name, soloArtist) }) {
+                        out += item.toMediaMetadata()
+                    }
+                }
+            }
+        }
+        val query = prompt.trim().take(80)
+        if (query.isBlank()) return out
+
+        YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+            ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+        if (out.size < target) {
+            YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+        }
+        return out
     }
 
     private fun filterTracksForSoloArtist(
