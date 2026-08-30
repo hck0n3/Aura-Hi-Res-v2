@@ -14,6 +14,7 @@ import iad1tya.echo.music.di.DownloadCache
 import iad1tya.echo.music.di.PlayerCache
 import iad1tya.echo.music.extensions.filterExplicit
 import iad1tya.echo.music.extensions.filterVideoSongs
+import iad1tya.echo.music.playback.StreamCacheKeys
 import iad1tya.echo.music.utils.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -58,7 +59,15 @@ class CachePlaylistViewModel @Inject constructor(
                 val prefs = context.dataStore.data.first()
                 val hideExplicit = prefs[HideExplicitKey] ?: false
                 val hideVideoSongs = prefs[HideVideoSongsKey] ?: false
-                val cachedIds = playerCache.keys.toSet()
+                // LISTEN-CACHE KEYS (2026-08-29 audit): streamed bytes land under stable
+                // yt-stream-<videoId>-<itag> keys (StreamCacheKeys), NOT mediaId — looking up
+                // raw cache keys against Room song ids returned nothing, so "En caché" showed
+                // EMPTY while the listen-cache held gigabytes. Map every key to its song id:
+                // yt-stream-* parse to their videoId; non-googlevideo keys (Qobux/podcasts) ARE
+                // the mediaId already, so they pass through unchanged.
+                val cachedIds = playerCache.keys
+                    .mapNotNull { StreamCacheKeys.songIdOf(it) ?: it }
+                    .toSet()
                 val downloadedIds = downloadCache.keys.toSet()
                 val pureCacheIds = cachedIds.subtract(downloadedIds)
 
@@ -68,9 +77,13 @@ class CachePlaylistViewModel @Inject constructor(
                     emptyList()
                 }
 
-                val completeSongs = songs.filter {
-                    val contentLength = it.format?.contentLength
-                    contentLength != null && playerCache.isCached(it.song.id, 0, contentLength)
+                val completeSongs = songs.filter { song ->
+                    // A listened song is "in cache" when ANY of its yt-stream keys fully covers it
+                    // (the exact quality it was streamed in — contentLength of that span set).
+                    playerCache.keys.any { key ->
+                        StreamCacheKeys.belongsTo(key, song.song.id) &&
+                            song.format?.contentLength?.let { playerCache.isCached(key, 0, it) } == true
+                    }
                 }
 
                 if (completeSongs.isNotEmpty()) {
@@ -95,6 +108,12 @@ class CachePlaylistViewModel @Inject constructor(
     }
 
     fun removeSongFromCache(songId: String) {
-        playerCache.removeResource(songId)
+        // Purge BOTH key families: the stable yt-stream-<videoId>-<itag> listen keys (any cached
+        // quality of the song) and the legacy mediaId resource. Missing only the first family was
+        // the 2026-08-29 audit's placebo twin: the song vanished from the list but its bytes stayed
+        // on disk (registry row #36's lesson — remove the BYTES, not just the visibility).
+        playerCache.keys
+            .filter { StreamCacheKeys.belongsTo(it, songId) || it == songId }
+            .forEach { playerCache.removeResource(it) }
     }
 }

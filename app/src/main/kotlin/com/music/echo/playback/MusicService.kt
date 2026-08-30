@@ -868,6 +868,17 @@ class MusicService :
 
     /** "Send playback metrics to Google" mirror (default OFF, SimpMusic sendBackToGoogle default). */
     @Volatile private var sendPlaybackMetricsHint: Boolean = false
+
+    // ---- Send playback metrics to Google (SimpMusic v2.0.0 sendBackToGoogle parity) ----
+    // One metrics session per LISTEN: after the history threshold crosses we register the playback
+    // with YouTube (playback + atr + first watchtime windows, one shared cpn) and then keep sending
+    // follow-up watchtime windows as the listen progresses, closing with the "full" final ping.
+    // Mirrors SimpMusic's MediaServiceHandlerImpl: initPlayback on track start, updateWatchTime
+    // every ~20s of progress, updateWatchTimeFull at the end.
+    @Volatile private var metricsSession: PlaybackMetricsSession? = null
+    @Volatile private var metricsWatchTimeList: MutableList<Float>? = null
+    private var metricsSessionJob: kotlinx.coroutines.Job? = null
+    @Volatile private var metricsSessionMediaId: String? = null
     // High-Performance Mode master switch, mirrored for the player-thread hot paths (scheduleCrossfade) so
     // they read a @Volatile field instead of a blocking DataStore read on the transition callback thread.
     @Volatile private var highPerformanceModeHint: Boolean = false
@@ -7415,6 +7426,20 @@ class MusicService :
         CacheDataSource
             .Factory()
             .setCache(downloadCache)
+            // STREAMING NEVER WRITES TO downloadCache (listen-cache audit 2026-08-29): this OUTER
+            // layer is the DOWNLOADS cache — DownloadManager's offline cache. The morning commit
+            // (4fe7c7f) removed this null believing it disabled the listen-cache; it actually only
+            // protected downloadCache (the INNER playerCache factory never had a null, so the
+            // listen-cache already worked — registry row #28's ghost entries prove the lineage always
+            // wrote listen bytes). With the null gone, every listened byte was written TWICE
+            // (playerCache + downloadCache), the second copy unlimited and un-evictable
+            // (NoOpCacheEvictor), mixing stream spans with real downloads under the same mediaId —
+            // the container-mixing class the registry forbids reopening (#40/#57), plus "Descargada"
+            // ghosts via the fully-downloaded short-circuit. Restored: the outer layer READS
+            // downloadCache (a downloaded song plays offline, bytes already on disk) but never
+            // writes; the inner playerCache layer keeps the listen-cache WRITE under the stable
+            // yt-stream-<videoId>-<itag> key.
+            .setCacheWriteDataSinkFactory(null)
             .setUpstreamDataSourceFactory(
                 CacheDataSource
                     .Factory()
@@ -8798,30 +8823,116 @@ class MusicService :
             // User opt-in gate (SimpMusic sends the ping always-when-enabled; we keep their OFF
             // default). OFF = zero tracking traffic, exactly the pre-metrics behavior.
             if (!sendPlaybackMetricsHint) return
+            // One session per listen: a session already open for this same media id means the
+            // threshold fired twice (AnalyticsListener re-emits stats on pauses/seek windows).
+            if (metricsSessionMediaId == mediaItem.mediaId) return
+            metricsSessionMediaId = mediaItem.mediaId
+            metricsSessionJob?.cancel()
             scope.launch(Dispatchers.IO) {
                 // SEND METRICS TO GOOGLE (SimpMusic v2.0.0 sendBackToGoogle model): once a listen
-                // counts, send the full triple ping a real YT Music client sends — videostats
-                // playback + atr + the first watchtime heartbeat, all sharing ONE cpn. The old code
-                // sent only the playback URL; the atr/watchtime pair is what makes the session look
-                // complete to Google's server-side metrics.
+                // counts, run the FULL registration handshake a real YT Music client performs —
+                // videostats playback + first watchtime + atr + second watchtime, all sharing ONE
+                // cpn, each gated on the previous step answering 204. Then the follow-up loop
+                // below keeps the watchtime ladder alive for the rest of the listen.
                 val response = YTPlayerUtils.playerResponseForMetadata(mediaItem.mediaId, null)
                     .getOrNull()?.playbackTracking
-                val playbackUrlFromDb = database.format(mediaItem.mediaId).first()?.playbackUrl
 
-                if (response == null && playbackUrlFromDb == null) return@launch
+                if (response == null) return@launch
 
                 YouTube.registerPlaybackFull(
-                    // The pre-existing ping passed null playlistId (MediaMetadata carries none);
-                    // keeping null matches what this app has always sent.
-                    playlistId = null,
-                    videostatsPlaybackUrl = playbackUrlFromDb ?: response?.videostatsPlaybackUrl?.baseUrl,
-                    atrUrl = response?.atrUrl?.baseUrl,
-                    videostatsWatchtimeUrl = response?.videostatsWatchtimeUrl?.baseUrl,
-                ).onFailure {
-                    reportException(it)
+                    // A playlist context makes the ping match what the official client sends when
+                    // playing from a playlist; album/single/radio queues have no YT playlist id, and
+                    // MediaMetadata carries none — null matches what this app has always sent.
+                    playlistId = metricsPlaylistId(),
+                    videostatsPlaybackUrl = response.videostatsPlaybackUrl?.baseUrl,
+                    atrUrl = response.atrUrl?.baseUrl,
+                    videostatsWatchtimeUrl = response.videostatsWatchtimeUrl?.baseUrl,
+                ).onSuccess { session ->
+                    metricsSession = session
+                    // SimpMusic seeds its ladder with [0, 5.54, secondWatchTime] after initPlayback.
+                    metricsWatchTimeList = mutableListOf(0f, 5.54f, session.secondWindowEndSeconds)
+                    startMetricsHeartbeatLoop(mediaItem.mediaId)
+                }.onFailure {
+                    // Registration failures are expected on already-dead tracking URLs (they expire);
+                    // debug-level only, and NEVER log the URL itself (it carries the video id).
+                    Timber.tag(TAG).d(it, "Playback metrics registration failed")
+                    metricsSessionMediaId = null
                 }
             }
         }
+    }
+
+    /**
+     * The playlist context for the metrics ping, if the current queue is a real YouTube playlist.
+     * SimpMusic passes queueData.playlistId so its ping looks like the official client playing from
+     * a playlist. Our queue types that map 1:1 are the online playlist queue and the radio queue's
+     * endpoint playlist; anything else (album, local, search) has no YT playlist id → null, which is
+     * also what a client playing a bare track sends.
+     */
+    private fun metricsPlaylistId(): String? = when (val q = currentQueue) {
+        is iad1tya.echo.music.playback.queues.YouTubePlaylistQueue -> q.playlistId
+        is iad1tya.echo.music.playback.queues.YouTubeQueue -> q.endpoint.playlistId
+        else -> null
+    }.takeUnless { it.isNullOrBlank() }
+
+    /**
+     * Follow-up watchtime heartbeat loop (SimpMusic MediaServiceHandlerImpl.updateWatchTime): every
+     * ~20.23s of progress on the SAME track, send the next listen window; when the listen approaches
+     * the end of the track, send the FINAL full-length ping and stop. Same Main-thread polling
+     * pattern as startSponsorBlockWatcher (player field reads must stay on the player thread).
+     */
+    private fun startMetricsHeartbeatLoop(mediaId: String) {
+        metricsSessionJob?.cancel()
+        metricsSessionJob = scope.launch(Dispatchers.Main) {
+            while (isActive && metricsSessionMediaId == mediaId && metricsSession != null) {
+                kotlinx.coroutines.delay(1000)
+                val session = metricsSession ?: break
+                val ladder = metricsWatchTimeList ?: break
+                if (!player.isPlaying) continue
+
+                val positionSeconds = player.currentPosition / 1000f
+                val durationSeconds = player.duration / 1000f
+
+                // Wait until the playhead crossed the next ladder mark (SimpMusic fires when the
+                // progress enters [last, last + 1.2s]; a 1s poll covers that window).
+                val lastMark = ladder.last()
+                if (positionSeconds < lastMark) continue
+
+                // Only add a window if there is still room before the end (SimpMusic:
+                // second + 20.23 < duration — the last 20s belong to the final ping).
+                val nextMark = positionSeconds + 20.23f
+                if (durationSeconds > 0f && nextMark < durationSeconds) {
+                    ladder.add(nextMark)
+                    withContext(Dispatchers.IO) {
+                        YouTube.updateWatchTime(
+                            playlistId = metricsPlaylistId(),
+                            watchtimeUrl = session.watchtimeUrl,
+                            cpn = session.cpn,
+                            watchTimeList = ladder,
+                        ).onFailure { Timber.tag(TAG).d(it, "Watchtime update failed") }
+                    }
+                } else {
+                    // Final stretch of the track: send the full-length ping (st = et = len) and
+                    // close the session for this listen.
+                    withContext(Dispatchers.IO) {
+                        YouTube.updateWatchTimeFull(
+                            playlistId = metricsPlaylistId(),
+                            watchtimeUrl = session.watchtimeUrl,
+                            cpn = session.cpn,
+                        ).onFailure { Timber.tag(TAG).d(it, "Final watchtime failed") }
+                    }
+                    endMetricsSession()
+                    break
+                }
+            }
+        }
+    }
+
+    /** Clears the current metrics session (listen ended / skipped / toggle turned off mid-listen). */
+    private fun endMetricsSession() {
+        metricsSession = null
+        metricsWatchTimeList = null
+        metricsSessionMediaId = null
     }
 
     /**
