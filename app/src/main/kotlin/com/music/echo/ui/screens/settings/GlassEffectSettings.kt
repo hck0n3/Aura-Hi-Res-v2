@@ -82,6 +82,14 @@ fun GlassEffectSettings(
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     val context = LocalContext.current
+    // FORZABLE (owner directive 2026-08-29, S26 Ultra/One UI 8.5 report): the master switch must be
+    // TOGGLEABLE on any device regardless of the OEM customization layer. The previous behavior gated
+    // the switch itself behind isGlassEligible() (API/tier/TV/PerformanceMode), which on whole device
+    // families rendered the row disabled — indistinguishable from a placebo setting. The eligibility
+    // check now survives ONLY as the honest description of what the in-app pipeline guarantees; the
+    // USER decides whether the effect renders. This is safe because the renderer that actually runs
+    // is the haze shell glass (AuraGlass.kt — in-app RenderEffect blur, verified working on Samsung
+    // where WINDOW blur is a silent no-op: HALLAZGO-034, rows 160/166), not the window-blur path.
     val glassEligible = remember { isGlassEligible(context) }
 
     val (globalEnabled, onGlobalEnabledChange) = rememberPreference(
@@ -143,28 +151,28 @@ fun GlassEffectSettings(
     val (navBarEnabled, onNavBarEnabledChange) = rememberPreference(
         LiquidGlassNavBarEnabledKey, defaultValue = true
     )
-    // READ-ONLY. With "Interfaz nueva" on, the two per-component switches below have no renderer left:
-    //  · mini player — the classic `NewMiniPlayer` now pins its style to DEFAULT under the flag
-    //    (MiniPlayer.kt), so LIQUID_GLASS can never be the active style and this switch cannot matter;
-    //    in portrait the composable is not even reached (AuraMiniPlayer replaces it).
+    // READ-ONLY notes. With "Interfaz nueva" on, the two per-component switches below still have no
+    // CLASSIC renderer (see each bullet), so they stay hidden under the flag — but the screen itself is
+    // now reachable and meaningful in BOTH interfaces (owner directive 2026-08-29): the master switch
+    // governs the shell haze source (nav bar + mini pill + global top bar) under the new UI.
+    //  · mini player — the classic `NewMiniPlayer` pins its style to DEFAULT under the flag
+    //    (MiniPlayer.kt); in portrait the composable is not even reached (AuraMiniPlayer replaces it).
     //  · barra de navegación — `FloatingNavigationToolbar`, the sole reader of NAV_BAR, is only
-    //    composed on the `!newUiShell` branch (MainActivity.kt); the new shell draws AuraNavigationBar,
-    //    which samples no backdrop. Landscape uses the nav RAIL, so there is no orientation in which it
-    //    comes back either.
+    //    composed on the `!newUiShell` branch (MainActivity.kt); the new shell draws AuraNavigationBar.
+    //    Landscape uses the nav RAIL, so there is no orientation in which it comes back either.
     //
     // CORRECTION (the previous pass's comment here was FALSE). It claimed hiding the entry row made
     // this a "second line of defence for a deep link", which was wrong twice over: the entry row was
     // never the only door — the settings SEARCH indexed "Liquid Glass" straight to this screen's route
     // (SearchableSettings.kt), ungated, and the new Ajustes navigates whatever that index returns
     // (AuraSettingsScreen.kt) — and gating two of thirteen rows was never a defence for the other
-    // eleven, which stayed live-looking and inert. Both holes are closed now, and NOT here: the index
-    // entry is filtered by route and the DESTINATION itself bounces under the flag
-    // (NavigationBuilder.kt), so with the new UI on this composable is not reached at all.
+    // eleven, which stayed live-looking and inert.
     //
-    // The `!newUiEnabled` guards below therefore describe a state this screen can no longer be in. They
-    // are kept because they are the honest statement of which switches have a renderer, and because the
-    // route guard is one edit away from someone deleting it; they are not load-bearing and must not be
-    // described as if they were. Nothing is written or cleared, in either UI.
+    // 2026-08-29: the route bounce is GONE (NavigationBuilder.kt composes this screen in both
+    // interfaces) and the search index points at the real route again. The `!newUiEnabled` guards on
+    // the two per-component rows remain the honest statement of which CLASSIC switches have a
+    // renderer; the shell surfaces they would control under the new UI are governed by the master
+    // switch alone.
     val newUiEnabled = iad1tya.echo.music.ui.newui.rememberNewUiEnabled()
 
     var showVibrancyDialog by rememberSaveable { mutableStateOf(false) }
@@ -195,26 +203,29 @@ fun GlassEffectSettings(
                     icon = painterResource(R.drawable.check),
                     title = { Text(stringResource(R.string.liquid_glass_global_enabled)) },
                     description = {
+                        // Honest description, never a gate (owner directive 2026-08-29): eligible
+                        // devices keep the standard performance warning; anything else explains
+                        // that forcing is deliberate and which pipeline actually renders.
                         Text(
                             stringResource(
                                 if (glassEligible) {
                                     R.string.liquid_glass_performance_warning
                                 } else {
-                                    R.string.liquid_glass_unavailable
+                                    R.string.liquid_glass_forced_description
                                 }
                             )
                         )
                     },
-                    enabled = glassEligible,
+                    enabled = true,
                     trailingContent = {
                         Switch(
-                            checked = globalEnabled && glassEligible,
+                            checked = globalEnabled,
                             onCheckedChange = onGlobalEnabledChange,
-                            enabled = glassEligible,
+                            enabled = true,
                             thumbContent = {
                                 Icon(
                                     painter = painterResource(
-                                        id = if (globalEnabled && glassEligible) R.drawable.check else R.drawable.close
+                                        id = if (globalEnabled) R.drawable.check else R.drawable.close
                                     ),
                                     contentDescription = null,
                                     modifier = Modifier.size(SwitchDefaults.IconSize)
@@ -222,7 +233,7 @@ fun GlassEffectSettings(
                             }
                         )
                     },
-                    onClick = { if (glassEligible) onGlobalEnabledChange(!globalEnabled) }
+                    onClick = { onGlobalEnabledChange(!globalEnabled) }
                 )
             )
         )

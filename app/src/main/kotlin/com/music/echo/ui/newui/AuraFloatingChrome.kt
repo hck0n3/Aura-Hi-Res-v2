@@ -26,9 +26,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindowProvider
 import iad1tya.echo.music.constants.HighPerformanceModeKey
+import iad1tya.echo.music.constants.LiquidGlassGlobalEnabledKey
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceForm
 import iad1tya.echo.music.utils.DeviceTier
+import iad1tya.echo.music.utils.PrefsBridge
 import iad1tya.echo.music.utils.isWindowBlurSupported
 import iad1tya.echo.music.utils.rememberPreference
 
@@ -38,13 +40,27 @@ import iad1tya.echo.music.utils.rememberPreference
  * the framework does NOT blur (Samsung, HALLAZGO-034 H1) the same veil leaves sharp,
  * readable content around the plate: the "transparente sin blur" the owner reported. The
  * veil then goes nearly opaque so the plate reads as a surface, not a hole.
+ *
+ * `glassForced` (owner directive 2026-08-29): with the Liquid Glass master switch ON the
+ * owner ACCEPTS the sharp background — he asked for the translucent look on Samsung, not
+ * for the near-opaque veil — so the light 0.22 veil is kept even without window blur.
+ * Callers pass the switch state; the pure function stays testable.
  */
-fun auraFloatingScrimAlpha(windowBlurSupported: Boolean): Float =
-    if (windowBlurSupported) 0.22f else 0.88f
+fun auraFloatingScrimAlpha(windowBlurSupported: Boolean, glassForced: Boolean = false): Float =
+    if (windowBlurSupported || glassForced) 0.22f else 0.88f
 
 /** Dialog-window dim amount paired with [auraFloatingScrimAlpha] (HALLAZGO-034 H1). */
-fun auraDialogDimAmount(windowBlurSupported: Boolean): Float =
-    if (windowBlurSupported) 0.22f else 0.60f
+fun auraDialogDimAmount(windowBlurSupported: Boolean, glassForced: Boolean = false): Float =
+    if (windowBlurSupported || glassForced) 0.22f else 0.60f
+
+/**
+ * Non-composable read of the Liquid Glass master switch for the veil/dim functions above.
+ * PrefsBridge is a process-wide volatile snapshot — never a blocking DataStore read on the
+ * UI thread; before the first emission (cold start) it yields the safe default (false = the
+ * HALLAZGO-034 opaque veil), which is what shipped before this hook existed.
+ */
+private fun glassForcedPreference(): Boolean =
+    PrefsBridge.peek(LiquidGlassGlobalEnabledKey) ?: false
 
 /**
  * Shared floating chrome for New UI overlays (dialogs, sheets, menus).
@@ -99,7 +115,7 @@ fun AuraDialogWindowEffects(enabled: Boolean) {
             window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
             // HALLAZGO-034 H1: dim keyed on REAL blur support (not blurOk, which also folds
             // in highPerf/tier gates) — without blur the dim must nearly hide the background.
-            window.setDimAmount(auraDialogDimAmount(isWindowBlurSupported()))
+            window.setDimAmount(auraDialogDimAmount(isWindowBlurSupported(), glassForcedPreference()))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && blurOk) {
                 try {
                     window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
@@ -183,9 +199,11 @@ fun auraFloatingScrimColor(): Color {
     val skin = rememberAuraPanelSkin()
     return if (skin.enabled && skin.darkGround) {
         // HALLAZGO-034 H1: every sheet scrim funnels through here, so raising the veil when
-        // the framework cannot blur covers all sheets/menus in one place.
+        // the framework cannot blur covers all sheets/menus in one place. glassForced =
+        // the Liquid Glass master switch (owner directive 2026-08-29): with the effect ON
+        // the owner keeps the light veil on no-blur OEMs too.
         AuraPalette.Teal.copy(alpha = 0.10f).compositeOver(Color.Black)
-            .copy(alpha = auraFloatingScrimAlpha(isWindowBlurSupported()))
+            .copy(alpha = auraFloatingScrimAlpha(isWindowBlurSupported(), glassForcedPreference()))
     } else MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f)
 }
 

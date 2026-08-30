@@ -1316,39 +1316,37 @@ fun AppearanceSettings(
                 //
                 // Nothing is written or cleared in either interface: turn the beta off and the row, the
                 // screen and every stored value are back exactly as they were.
+                // Liquid Glass: the master gate for the shell glass (nav bar, mini pill and the
+                // global top bar under "Interfaz nueva") plus the classic shader surfaces. FORCED
+                // GOVERNOR (owner directive 2026-08-29): the row is always enabled and always
+                // navigates — the previous behavior (disabled on ineligible devices, bounced under
+                // the new UI) left the owner with a dead-looking toggle while the shell glass
+                // rendered unconditionally, i.e. the switch governed nothing. Now it does: the
+                // destination opens in BOTH interfaces and the master switch inside drives the
+                // haze source itself (MainActivity: shellHazeState exists only while the switch
+                // is on). The renderer keeps its own API-31 internal guard; on sub-31 devices
+                // the shell falls back to the opaque surfaces, never a hole.
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.palette),
                     title = { Text(stringResource(R.string.liquid_glass)) },
                     description = {
                         Text(
                             stringResource(
-                                when {
-                                    // Ineligibility wins, in BOTH interfaces. Ordering this the other
-                                    // way told an API-30 / LOW-tier / TV user that the shader "applies
-                                    // to the classic interface" — an invitation to go and turn the beta
-                                    // off for something that would not work there either.
-                                    !glassEligible -> R.string.liquid_glass_unavailable
-                                    newUiEnabled -> R.string.liquid_glass_classic_only_desc
-                                    else -> R.string.liquid_glass_settings_desc
+                                if (glassEligible) {
+                                    if (newUiEnabled) {
+                                        R.string.liquid_glass_classic_only_desc
+                                    } else {
+                                        R.string.liquid_glass_settings_desc
+                                    }
+                                } else {
+                                    R.string.liquid_glass_forced_description
                                 }
                             )
                         )
                     },
-                    enabled = glassEligible && !newUiEnabled,
-                    // The row is disabled, and the sentence above is the whole reason it is shown
-                    // disabled rather than hidden — so it is the one thing that must NOT inherit the
-                    // 38 % alpha a disabled row dims its content to (3.24:1 on the redesign's ground,
-                    // where body text needs 4.5:1). Undimmed it composites to 5.67:1; the title, the
-                    // icon and the chevron stay dimmed, so the row still reads as not-tappable.
-                    //
-                    // Gated on the flag, not passed as a constant `true`: with "Interfaz nueva" OFF
-                    // this is `false` and the ineligible-device row keeps exactly the classic
-                    // appearance it has today.
-                    keepDescriptionLegible = newUiEnabled,
+                    enabled = true,
                     onClick = {
-                        if (glassEligible && !newUiEnabled) {
-                            navController.navigate(LIQUID_GLASS_ROUTE)
-                        }
+                        navController.navigate(LIQUID_GLASS_ROUTE)
                     }
                 ),
                 Material3SettingsItem(

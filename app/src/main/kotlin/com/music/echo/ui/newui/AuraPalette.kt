@@ -20,6 +20,7 @@ import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.constants.AppThemePresetKey
 import iad1tya.echo.music.constants.DynamicThemeKey
 import iad1tya.echo.music.constants.PureBlackKey
+import iad1tya.echo.music.constants.LiquidGlassGlobalEnabledKey
 import iad1tya.echo.music.constants.SelectedThemeColorKey
 import iad1tya.echo.music.constants.ThumbnailCornerRadiusKey
 import iad1tya.echo.music.models.MediaMetadata
@@ -30,6 +31,7 @@ import iad1tya.echo.music.ui.theme.ThemePreset
 import iad1tya.echo.music.ui.theme.effectiveAuraGround
 import iad1tya.echo.music.ui.theme.ensureLegibleOn
 import iad1tya.echo.music.ui.theme.rememberCustomThemeRoles
+import iad1tya.echo.music.utils.PrefsBridge
 import iad1tya.echo.music.utils.isWindowBlurSupported
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
@@ -290,7 +292,7 @@ object AuraPalette {
      * Alpha is deliberately lower than the old 0.62 black fill — that read as a second, darker
      * tone. Text stays [OnGround] (already contrast-walked to ≥ 4.5:1 against [Ground]).
      *
-     * ## Opaque fallback (HALLAZGO-034)
+     * ## Opaque fallback (HALLAZGO-034) — now owner-overridable (2026-08-29)
      * The alpha only makes sense with real blur behind the window. Samsung disables window blur
      * at the framework level (`config_windowBlurEnabled=false`: `setBackgroundBlurRadius` /
      * `FLAG_BLUR_BEHIND` are silent no-ops there), so the 0.34 plate landed on a sharp,
@@ -299,12 +301,26 @@ object AuraPalette {
      * instead — an opaque tinted slab, same recipe as [FloatingFill]. Every frost consumer
      * ([AuraFloatingSurface], `auraFloatingContainerColor`, the direct readers) inherits the
      * fallback from this single getter.
+     *
+     * ## FORCED mode (owner directive 2026-08-29, S26 Ultra/One UI 8.5 report)
+     * "todo lo que tiene que ser translúcido no lo es, todo lo contrario, color sólido" — the
+     * owner wants the translucent look ON Samsung too, and the A1 shell glass proved the in-app
+     * pipeline (nav bar + mini pill) renders real translucency there. With the Liquid Glass
+     * master switch ON, a no-blur OEM keeps the TRUE translucent plate (alpha 0.34) instead of
+     * the opaque slab: the sharp content behind is the look the owner asked for, deliberately
+     * accepted legibility trade-off and all. With the switch OFF (or before the first DataStore
+     * emission — dialogs don't open in the first frame of a cold start), the HALLAZGO-034 opaque
+     * fallback stays exactly as it was.
      */
     val FrostFill: Color
         get() {
             val tinted = Teal.copy(alpha = 0.16f).compositeOver(Ground)
             val frost = tinted.copy(alpha = 0.34f)
-            return if (isWindowBlurSupported()) frost else frost.compositeOver(Ground)
+            if (isWindowBlurSupported()) return frost
+            // PrefsBridge is a process-wide volatile snapshot (never a blocking DataStore read in
+            // a color getter); null = cold-start pre-emission = the safe opaque fallback.
+            val glassForced = PrefsBridge.peek(LiquidGlassGlobalEnabledKey) ?: false
+            return if (glassForced) frost else frost.compositeOver(Ground)
         }
 
     /**

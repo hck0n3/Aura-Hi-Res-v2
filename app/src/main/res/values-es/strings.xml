@@ -365,7 +365,7 @@
     <string name="apple_music_inspired_desc_new_ui">Con la interfaz nueva, solo cambia la portada (más a pantalla). Los botones y controles no cambian. También elige qué reproductor clásico vuelve cuando apagues la beta</string>
     <string name="player_background_style_desc_new_ui">Con la interfaz nueva activada repinta el fondo del reproductor y de la cola. Lo que va encima —la portada, el título, los controles— mantiene el diseño nuevo. «Predeterminado» es el fondo ambiental. El minirreproductor tiene su propio estilo, en el grupo Minirreproductor</string>
     <string name="miniplayer_background_style_desc_new_ui">Con la interfaz nueva activada repinta el fondo de la píldora del minirreproductor, aparte del reproductor. Aquí «Liquid Glass» es una portada esmerilada fija, no el cristal en vivo de la interfaz clásica</string>
-    <string name="liquid_glass_classic_only_desc">Se aplica a la interfaz clásica: toma una muestra de la pantalla que hay detrás en cada fotograma, así que la interfaz nueva no lo usa. Para un aspecto esmerilado ahí, elige «Liquid Glass» en Fondo del reproductor</string>
+    <string name="liquid_glass_classic_only_desc">Enciende el cristal líquido: con la interfaz nueva esmerila la barra de navegación, el mini reproductor y la barra superior; con la clásica se aplica a la barra flotante y al mini reproductor</string>
     <string name="lyrics_swipe_to_change_song">Desliza para cambiar de canción</string>
     <string name="lyrics_swipe_to_change_song_desc">Desliza a la izquierda o a la derecha en la sección del artista y el nombre de la canción en las letras a pantalla completa para cambiar de canción</string>
     <string name="lyrics_thumbnail_play_pause">Mostrar reproducir/pausar en la miniatura</string>
@@ -418,6 +418,7 @@
     <string name="liquid_glass_nav_bar">Barra de navegación de cristal</string>
     <string name="liquid_glass_performance_warning">Renderizar el cristal líquido consume muchos recursos y puede reducir la fluidez y la batería en algunos dispositivos</string>
     <string name="liquid_glass_unavailable">No disponible en este dispositivo</string>
+    <string name="liquid_glass_forced_description">Forzado: el efecto se renderiza con el difuminado interno de la app, aunque la capa de personalización del fabricante desactive el difuminado del sistema. En dispositivos de gama muy baja puede costar fluidez y batería</string>
     <string name="color_picker_hex">Hex</string>
     <string name="show_audio_quality_badge">Mostrar insignia de calidad de audio</string>
     <string name="network_ip_version">Versión IP de la red</string>

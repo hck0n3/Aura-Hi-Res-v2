@@ -528,10 +528,12 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
     // Matching on title alone would have been a filter wider than the leak.
     //
     // The mini-player filter is GONE: its rows are live again on settings/appearance (see rule 2).
+    // The Liquid Glass route is NO LONGER filtered (owner directive 2026-08-29): the destination
+    // opens in both interfaces and its master switch governs the shell haze source, so the real
+    // settings/appearance/liquidglass route stays indexed. Only the dead theme string is dropped.
     return all.filterNot { (title, _, route) ->
-        route == LIQUID_GLASS_ROUTE ||
-            (route == THEME_ROUTE && title == followSystemThemeTitle)
-    } + Triple(liquidGlassTitle, "Apariencia", "settings/appearance")
+        route == THEME_ROUTE && title == followSystemThemeTitle
+    }
 }
 
 /**

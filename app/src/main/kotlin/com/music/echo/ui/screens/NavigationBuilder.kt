@@ -11,7 +11,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.navigation.NavGraphBuilder
@@ -389,29 +388,16 @@ fun NavGraphBuilder.navigationBuilder(
         ThemeScreen(navController)
     }
 
-    // Liquid Glass: the DESTINATION is closed while "Interfaz nueva" is on, not just its doors.
+    // Liquid Glass settings, reachable in BOTH interfaces.
     //
-    // Hiding the entry row (AppearanceSettings.kt) and dropping the index entry (SearchableSettings.kt)
-    // closes the two ways a user can reach it, but a route that still composes is a route a restored
-    // back stack, a future caller or a deep link can still land on -- and what it composes is ~11
-    // controls with no renderer behind them under this flag (the glass system's only two render sites
-    // are FloatingNavigationToolbar, composed on the !newUiShell branch only, and MiniPlayer.kt, pinned
-    // to DEFAULT under the flag). So the guard lives HERE, at the destination, where every path in has
-    // to pass through it.
-    //
-    // `rememberNewUiEnabled()` is seeded by a synchronous DataStore read (utils/DataStore.kt), so it is
-    // already the stored value on the FIRST composition -- the screen never flashes before the bounce.
-    // navigateUp() always has somewhere to go: this route is only ever entered by navigating from
-    // inside Ajustes, so it is never the start destination.
-    //
-    // The classic path is untouched: with the flag off the branch below composes GlassEffectSettings
-    // with the same two arguments as before.
+    // FORCED GOVERNOR (owner directive 2026-08-29): the previous new-UI bounce is GONE — the master
+    // switch inside drives the shell haze source (nav bar + mini pill + global top bar) when
+    // "Interfaz nueva" is on, and the classic shader surfaces (FloatingNavigationToolbar / classic
+    // MiniPlayer) when it is off, so the screen has a real renderer to configure either way. The
+    // per-component switches for mini/nav (classic-only render sites) stay hidden on the screen
+    // itself under the flag, which is where that truth belongs.
     composable(LIQUID_GLASS_ROUTE) {
-        if (iad1tya.echo.music.ui.newui.rememberNewUiEnabled()) {
-            LaunchedEffect(Unit) { navController.navigateUp() }
-        } else {
-            GlassEffectSettings(navController, scrollBehavior)
-        }
+        GlassEffectSettings(navController, scrollBehavior)
     }
 
     composable("settings/content") {

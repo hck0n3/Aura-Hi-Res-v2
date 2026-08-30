@@ -251,6 +251,7 @@ import iad1tya.echo.music.ui.newui.AuraNavigationBar
 import iad1tya.echo.music.ui.newui.AuraPaletteSync
 import iad1tya.echo.music.ui.newui.BottomSheetPlayerHost
 import iad1tya.echo.music.ui.newui.LocalAuraTopActions
+import iad1tya.echo.music.ui.newui.shellGlass
 import iad1tya.echo.music.ui.newui.shellHazeSource
 import iad1tya.echo.music.ui.newui.rememberNewUiEnabled
 import iad1tya.echo.music.ui.player.NowPlayingSidePanel
@@ -1529,11 +1530,17 @@ class MainActivity : ComponentActivity() {
                     null
                 }
 
-                // ── Liquid Glass (Beta) ── DEFAULT OFF. The stored master switch is AND-ed with the
-                // runtime eligibility gate (API 31+, raw tier MID/HIGH, not TV/car, Performance Mode
-                // off) so the effect can never render on excluded devices. Keyed on highPerfMode so
-                // toggling Performance Mode kills glass immediately without restart.
-                val glassEligible = remember(highPerfMode) { isGlassEligible(context) }
+                // ── Liquid Glass (Beta) ── DEFAULT OFF in the preference, but SEEDED ON for fresh
+                // installs. FORCED GOVERNOR (owner directive 2026-08-29, S26 Ultra/One UI 8.5): the
+                // stored master switch alone decides whether glass renders — the old AND with
+                // isGlassEligible() (API/tier/TV/PerformanceMode) disabled the effect on whole device
+                // families while the switch itself looked alive, which reads as a placebo. Only
+                // Performance Mode still vetoes at runtime: it is the app's OWN battery contract and
+                // the user flipped it deliberately; it is read reactively (keyed on highPerfMode) so
+                // toggling it flips glass instantly without a restart. The renderers keep their own
+                // API-31 internal guard (below it the effect is a no-op, never a crash), and haze's
+                // fallbackTint keeps sub-31 chrome legible.
+                val glassRuntimeAllowed = !highPerfMode
                 val (liquidGlassGlobalEnabled) = rememberPreference(LiquidGlassGlobalEnabledKey, defaultValue = false)
                 val (liquidGlassVibrancy) = rememberPreference(LiquidGlassVibrancyKey, defaultValue = 1f)
                 val (liquidGlassBlurRadius) = rememberPreference(LiquidGlassBlurRadiusKey, defaultValue = 8f)
@@ -1550,14 +1557,16 @@ class MainActivity : ComponentActivity() {
                 val (liquidGlassMiniPlayerEnabled) = rememberPreference(LiquidGlassMiniPlayerEnabledKey, defaultValue = true)
                 val (liquidGlassNavBarEnabled) = rememberPreference(LiquidGlassNavBarEnabledKey, defaultValue = true)
                 val glassEffectConfig = remember(
-                    liquidGlassGlobalEnabled, glassEligible, liquidGlassVibrancy, liquidGlassBlurRadius,
+                    liquidGlassGlobalEnabled, glassRuntimeAllowed, liquidGlassVibrancy, liquidGlassBlurRadius,
                     liquidGlassLensHeight, liquidGlassLensAmount, liquidGlassChromaticAberration,
                     liquidGlassDepthEffect, liquidGlassSurfaceTintColorInt,
                     liquidGlassSurfaceOpacity, liquidGlassTextColorInt, liquidGlassPlayerEnabled,
                     liquidGlassMiniPlayerEnabled, liquidGlassNavBarEnabled,
                 ) {
                     GlassEffectConfig(
-                        globalEnabled = liquidGlassGlobalEnabled && glassEligible,
+                        // FORCED (owner directive 2026-08-29): no isGlassEligible() AND here — the
+                        // switch is the governor. Only the app's own Performance Mode still vetoes.
+                        globalEnabled = liquidGlassGlobalEnabled && glassRuntimeAllowed,
                         vibrancy = liquidGlassVibrancy,
                         blurRadius = liquidGlassBlurRadius,
                         lensHeight = liquidGlassLensHeight,
@@ -1610,9 +1619,14 @@ class MainActivity : ComponentActivity() {
                         AuraPaletteSync()
                     }
 
-                    // SHELL GLASS (A1): the one haze source the shell chrome samples. Provided only
-                    // while the new UI is on — the classic shell keeps its own opaque surfaces.
-                    val shellHazeState = if (newUiShell) {
+                    // SHELL GLASS (A1): the one haze source the shell chrome samples — nav bar, mini
+                    // pill and (2026-08-29) the global top bar. Provided only while the new UI is on
+                    // AND the Liquid Glass master switch is on (owner directive: the toggle is the
+                    // governor — before this it rendered unconditionally while the switch in Tema
+                    // looked dead). OFF/null → every shellGlass surface composes its opaque ground
+                    // fallback, byte-identical to the pre-glass look. The classic shell keeps its
+                    // own opaque surfaces either way.
+                    val shellHazeState = if (newUiShell && glassEffectConfig.globalEnabled) {
                         remember { dev.chrisbanes.haze.HazeState() }
                     } else {
                         null
@@ -1637,6 +1651,10 @@ class MainActivity : ComponentActivity() {
                                 exit = fadeOut(animationSpec = tween(durationMillis = 200))
                             ) {
                                 Row {
+                                    // Resolved BEFORE the TopAppBar call (a `val` cannot live inside
+                                    // an argument list): the glass surface this bar wears, or null
+                                    // when the Liquid Glass switch is off / classic shell.
+                                    val topBarHazeState = iad1tya.echo.music.ui.newui.LocalShellHazeState.current
                                     TopAppBar(
                                         title = {
                                             if (navBackStackEntry?.destination?.route == Screens.Home.route) {
@@ -1741,15 +1759,50 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         scrollBehavior = topAppBarScrollBehavior,
-                                        colors = TopAppBarDefaults.topAppBarColors(
-                                            containerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
-                                            scrolledContainerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
-                                            titleContentColor = MaterialTheme.colorScheme.onSurface,
-                                            actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
+                                        // TOP BAR GLASS (owner directive 2026-08-29: "la barra
+                                        // superior donde aparecen los títulos al entrar a
+                                        // artistas/álbumes/playlists/canciones también la quiero
+                                        // translúcida con liquid glass"): same A1 recipe that the nav
+                                        // bar already uses — and the one verified working on Samsung,
+                                        // where window blur is a silent no-op (HALLAZGO-034). The
+                                        // scaffold body fills max size and draws UNDER this bar (see
+                                        // the content Row: innerPadding is not applied), so the
+                                        // hazeSource below the bar is real and the frost samples actual
+                                        // scrolling content — the same geometry the nav bar samples.
+                                        // shellGlass IS the surface (commit 0b1151e lesson): the
+                                        // containerColor must be transparent or it would cover the
+                                        // glass. No source (glass off, classic shell, sub-API-31,
+                                        // previews) → the exact solid colors that shipped before.
+                                        colors = if (topBarHazeState != null) {
+                                            TopAppBarDefaults.topAppBarColors(
+                                                containerColor = Color.Transparent,
+                                                scrolledContainerColor = Color.Transparent,
+                                                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                                actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        } else {
+                                            TopAppBarDefaults.topAppBarColors(
+                                                containerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
+                                                scrolledContainerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
+                                                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                                actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        },
                                         windowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Top),
                                         modifier = Modifier
+                                            // The glass surface itself, sampling the content that
+                                            // scrolls beneath the bar. Applied BEFORE the insets
+                                            // padding so the frost also covers the status-bar strip
+                                            // the bar reserves above the title.
+                                            .then(
+                                                if (topBarHazeState != null) {
+                                                    Modifier.shellGlass(topBarHazeState)
+                                                } else {
+                                                    Modifier
+                                                }
+                                            )
                                             .windowInsetsPadding(
                                             if (showRail) {
                                                 WindowInsets(left = NavigationBarHeight)
