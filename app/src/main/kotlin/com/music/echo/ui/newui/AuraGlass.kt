@@ -6,6 +6,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeProgressive
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
@@ -71,4 +72,34 @@ fun Modifier.shellGlass(state: HazeState?): Modifier {
     if (state == null) return this
     val style = shellGlassStyle()
     return hazeChild(state = state, style = style)
+}
+
+/**
+ * Detail-bar glass (title bars over scrolling content — registry row 196). Same haze recipe as the
+ * shell chrome, PLUS two safeguards the nav bar never needed:
+ *
+ * 1. PROGRESSIVE BLUR: the bar fades from blurred at its base to clear at its top, the iOS/Samsung
+ *    title-bar look. This is not cosmetic: on One UI 8.5 the owner saw "transparency without blur"
+ *    — the bar was sampling, but the 18dp uniform blur read as a flat tint over album-art colors.
+ *    The progressive gradient makes the blur VISIBLE and cuts the sampled area (upper rows barely
+ *    blur), which also lowers the per-frame sampling cost on the render thread.
+ * 2. Masked to the bar's own bounds: the detail bar sits INSIDE the haze-source Box, over content
+ *    that scrolls under it. Bounding the effect keeps the sampled layer allocation small and
+ *    bounded (the nav bar's cost, not "the whole screen every frame").
+ *
+ * Null-safe like [shellGlass]: no source → caller's opaque fallback.
+ */
+@Composable
+fun Modifier.detailShellGlass(state: HazeState?): Modifier {
+    if (state == null) return this
+    val style = shellGlassStyle()
+    return hazeChild(
+        state = state,
+        style = style,
+    ) {
+        progressive = HazeProgressive.verticalGradient(
+            startIntensity = 1f,
+            endIntensity = 0.55f,
+        )
+    }
 }

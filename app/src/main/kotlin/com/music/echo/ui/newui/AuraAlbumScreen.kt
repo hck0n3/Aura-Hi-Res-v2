@@ -1025,14 +1025,28 @@ internal fun AuraDetailTopBar(
     }
     val showChrome = inSelectMode || forceOpaque || (pinTitleOnScroll && scrolled)
 
+    // NATIVE-CRASH GUARD (registry row 196, owner log 2026-08-30: 4x CRASH_NATIVE sig-11 with
+    // 700-800MB RSS on One UI 8.5, "scroll down then enter an artist → app dies"): re-sampling the
+    // haze layer on EVERY frame of an ACTIVE fling on Samsung's RenderEffect path is the native
+    // memory bomb. Haze's own thermal guidance: sample only while the content is settled. So the
+    // glass samples ONLY when the scroll is idle: during the gesture/fling the plate freezes with
+    // the last sampled frame (visually identical — a frozen blur reads the same as a live one at
+    // fling speed) and the native cost of the gesture drops to zero. isScrollInProgress is a
+    // boolean state — the recomposition it triggers is per gesture, not per frame.
+    val scrollIdle by remember {
+        derivedStateOf { !listState.isScrollInProgress }
+    }
+    val glassActive = showChrome && scrollIdle
+
     // Glass for the detail title bar (owner directive 2026-08-29): the same haze recipe the shell's
     // nav bar/mini pill/global TopAppBar already use — the ONE glass technique verified translucent
     // on Samsung One UI 8.5 (in-app RenderEffect; window blur is the no-op that used to leave this
     // bar a solid plate on Galaxy). shellGlass IS the surface (0b1151e lesson): with a source the
     // plate must stay transparent or it would cover the frost. No source (glass toggle off, classic
     // shell, sub-API-31, previews) keeps the exact opaque Ground plate that shipped before, so the
-    // fallback is byte-identical. Glass only pays while the plate is visible (showChrome); while
-    // the hero is edge-to-edge the bar stays a transparent overlay, sampling nothing.
+    // fallback is byte-identical. Glass only pays while the plate is visible AND settled
+    // (glassActive); during an active scroll the frozen plate keeps the look without the native
+    // sampling cost. The 0.88 opaque plate still shows during the gesture (no flicker).
     val shellHazeState = LocalShellHazeState.current
     val plate by animateColorAsState(
         targetValue = if (showChrome) {
@@ -1049,8 +1063,12 @@ internal fun AuraDetailTopBar(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (showChrome && shellHazeState != null) {
-                    Modifier.shellGlass(shellHazeState)
+                if (glassActive && shellHazeState != null) {
+                    Modifier.detailShellGlass(shellHazeState)
+                } else if (showChrome && shellHazeState != null) {
+                    // Scrolling: frozen glass plate (the tint, without re-sampling) — keeps the
+                    // translucent look at gesture speed without the per-frame native cost.
+                    Modifier.background(AuraPalette.GroundRaised.copy(alpha = 0.72f))
                 } else {
                     Modifier
                 },

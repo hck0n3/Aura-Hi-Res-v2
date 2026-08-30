@@ -33,7 +33,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.ui.graphics.Color
 import iad1tya.echo.music.ui.newui.LocalShellHazeState
-import iad1tya.echo.music.ui.newui.shellGlass
+import iad1tya.echo.music.ui.newui.detailShellGlass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -201,7 +201,7 @@ fun ArtistAlbumsScreen(
             },
             modifier = Modifier.then(
                 if (classicBarHazeState != null) {
-                    Modifier.shellGlass(classicBarHazeState)
+                    Modifier.detailShellGlass(classicBarHazeState)
                 } else {
                     Modifier
                 },
