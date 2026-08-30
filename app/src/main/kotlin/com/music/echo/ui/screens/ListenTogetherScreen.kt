@@ -70,6 +70,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -371,6 +372,53 @@ fun ListenTogetherScreen(
                 onClick = { navController.navigate("settings/integrations/listen_together") }
             )
         }
+
+        // "How it Works" is a listed feature of this screen (UI_INVENTORY 14.1) — dropping it in
+        // the port would have been a silent loss (regla 5: ocultar también es perder). Restored,
+        // now through real string resources in the three locales instead of the old hardcoded
+        // English (the inventory itself flagged that as a defect).
+        if (!isInRoom) {
+            item {
+                AuraPanel(
+                    skin = skin,
+                    modifier = Modifier.fillMaxWidth(),
+                    classicShape = RoundedCornerShape(24.dp),
+                    classicColors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    ),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.listen_together_how_title),
+                            style = if (skin.enabled) AuraType.MenuGroupLabel else MaterialTheme.typography.titleLarge,
+                            fontWeight = if (skin.enabled) FontWeight.Normal else FontWeight.Bold,
+                            color = if (skin.enabled) skin.inkFaint else MaterialTheme.colorScheme.primary
+                        )
+
+                        InstructionStep(
+                            title = stringResource(R.string.listen_together_how_step1_title),
+                            description = stringResource(R.string.listen_together_how_step1_desc),
+                            skin = skin
+                        )
+                        InstructionStep(
+                            title = stringResource(R.string.listen_together_how_step2_title),
+                            description = stringResource(R.string.listen_together_how_step2_desc),
+                            skin = skin
+                        )
+                        InstructionStep(
+                            title = stringResource(R.string.listen_together_how_step3_title),
+                            description = stringResource(R.string.listen_together_how_step3_desc),
+                            skin = skin
+                        )
+                    }
+                }
+            }
+        }
     }
 
     if (shouldShowTopBar) {
@@ -419,6 +467,30 @@ fun ListenTogetherScreen(
 }
 
 /** The room waits for the slowest device; the banner names them (SimpMusic BufferBanner). */
+/** The "How it Works" rows — restored from the pre-port screen (UI_INVENTORY 14.1). */
+@Composable
+private fun InstructionStep(title: String, description: String, skin: AuraPanelSkin) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = title,
+            style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.titleMedium,
+            fontWeight = if (skin.enabled) FontWeight.SemiBold else FontWeight.Bold,
+            color = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = description,
+            style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodyMedium,
+            color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant,
+            // `RowSubtitle` carries its own 18 sp leading; the classic 20 sp override only applies to
+            // the `bodyMedium` it replaces.
+            lineHeight = if (skin.enabled) TextUnit.Unspecified else 20.sp
+        )
+    }
+}
+
 @Composable
 private fun BufferBarrierBanner(
     names: List<String>,

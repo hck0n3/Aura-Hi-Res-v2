@@ -725,4 +725,25 @@
     <string name="ytm_upload_never_completed">Aún no se ha sincronizado por completo</string>
     <string name="ytm_upload_requests_last_run">%1$d peticiones en la última tanda</string>
     <string name="ytm_upload_only_followed_note">Solo se suscriben en tu cuenta los artistas que tú seguiste — nunca los que simplemente tienen una canción en tu biblioteca.</string>
+    <string name="listen_together_waiting_everyone">Esperando a todos</string>
+    <string name="listen_together_waiting_for">Esperando a %1$s</string>
+    <string name="listen_together_buffer_resumes">La reproducción continúa cuando todos estén listos</string>
+    <string name="listen_together_hosted_by">%1$s controla la reproducción</string>
+    <string name="listen_together_just_asked">Acaba de pedir unirse</string>
+    <string name="listen_together_suggestion_by">Sugerida por %1$s</string>
+    <string name="listen_together_user_in_sync">En sincronía</string>
+    <string name="listen_together_user_disconnected">Desconectado</string>
+    <string name="listen_together_waiting_approval_desc">El anfitrión tiene que aceptarte. Puedes cancelar mientras esperas.</string>
+    <string name="listen_together_not_connected_hint">Conéctate primero a un servidor con el botón de arriba.</string>
+    <string name="cancel_join">Cancelar solicitud</string>
+    <string name="listen_together_default_server">Servidor por defecto (SimpMusic · Metrolist)</string>
+    <string name="listen_together_default_server_name">Servidor público por defecto</string>
+    <string name="listen_together_unblock">Desbloquear</string>
+    <string name="listen_together_how_title">Cómo funciona</string>
+    <string name="listen_together_how_step1_title">1. Crea una sala</string>
+    <string name="listen_together_how_step1_desc">Inicia una sesión y comparte el código único de la sala con tus amigos.</string>
+    <string name="listen_together_how_step2_title">2. Únete a un amigo</string>
+    <string name="listen_together_how_step2_desc">Escribe su código de sala para entrar en su sesión al instante.</string>
+    <string name="listen_together_how_step3_title">3. Sincroniza la reproducción</string>
+    <string name="listen_together_how_step3_desc">El anfitrión controla la música. ¡Todos escuchan en sincronía perfecta!</string>
 </resources>

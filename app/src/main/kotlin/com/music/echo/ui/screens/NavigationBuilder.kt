@@ -119,9 +119,8 @@ fun NavGraphBuilder.navigationBuilder(
         ListenTogetherScreen(navController, showTopBar = true)
     }
 
-    composable("listen_together/chat") {
-        CommentTogetherScreen(navController)
-    }
+    // "listen_together/chat" REMOVED with the SimpMusic port: the metroproto wire protocol has no
+    // chat message, so the old screen talked an extension only our own clients understood.
 
     composable("history") {
         HistoryScreen(navController)

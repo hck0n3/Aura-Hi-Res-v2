@@ -580,8 +580,12 @@ class MainActivity : ComponentActivity() {
         window.decorView.layoutDirection = View.LAYOUT_DIRECTION_LTR
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        
-        listenTogetherManager.initialize()
+        // The SimpMusic-port manager boots itself (settings mirrors live in its init); the old
+        // explicit initialize() no longer exists. Session resumption happens HERE (a persisted
+        // room token means the socket reopens on app start), and the playback bridge starts on
+        // the first setPlayerConnection (onServiceConnected) — the same seam upstream uses for
+        // its bridge.start().
+        listenTogetherManager.connectIfResumable()
 
         // App language (device/system locale by default) is applied for all API levels in attachBaseContext().
 

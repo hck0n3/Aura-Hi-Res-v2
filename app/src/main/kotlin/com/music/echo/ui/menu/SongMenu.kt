@@ -627,9 +627,11 @@ fun SongMenu(
                                     id = song.id,
                                     title = song.song.title,
                                     artist = orderedArtists.joinToString(", ") { it.name },
-                                    album = song.song.albumName,
+                                    // metroproto TrackInfo is non-null String — the old manager took
+                                    // String?, so every nullable field needs orEmpty() at the seam.
+                                    album = song.song.albumName.orEmpty(),
                                     duration = durationMs,
-                                    thumbnail = song.thumbnailUrl
+                                    thumbnail = song.thumbnailUrl.orEmpty()
                                 )
                                 listenTogetherManager.suggestTrack(trackInfo)
                                 onDismiss()

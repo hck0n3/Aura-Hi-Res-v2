@@ -625,8 +625,13 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.json)
+    // Listen Together (SimpMusic port): WebSocket transport + kotlinx-serialization-protobuf for
+    // the metroproto wire format (no protoc step — see listentogether/Protocol.kt).
+    implementation(libs.ktor.client.websockets)
+    implementation(libs.kotlinx.serialization.protobuf)
 
-    // Protobuf for message serialization (lite version for Android)
+    // Protobuf-javalite stays: other modules (innertube, PipePipeExtractor bridge) still read
+    // protobuf through it. The Listen Together port does NOT use it anymore.
     implementation(libs.protobuf.javalite)
     implementation(libs.protobuf.kotlin.lite)
 

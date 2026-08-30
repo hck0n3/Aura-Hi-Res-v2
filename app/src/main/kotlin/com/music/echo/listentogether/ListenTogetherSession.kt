@@ -121,6 +121,21 @@ class ListenTogetherSession(
 
     private var pump: Job? = null
 
+    /**
+     * A create/join that arrived with no live socket. The old client queued the very same thing as
+     * `PendingAction` — the invite deep link (`echomusic://listen?code=…`, handled in
+     * MainActivity before any screen exists) and the player dialog's Create/Join buttons (which
+     * do NOT gate on a live connection, UI_INVENTORY 5.2) both rely on this; dropping it would
+     * turn a cold-start invite into "Not connected" and a silent no-op respectively.
+     */
+    private var queuedRoomAction: QueuedRoomAction? = null
+
+    private sealed interface QueuedRoomAction {
+        data object Create : QueuedRoomAction
+
+        data class Join(val roomCode: String) : QueuedRoomAction
+    }
+
     /** Host-side conveniences from settings; both default off, matching the design's toggles. */
     var autoApproveJoins: Boolean = false
     var autoApproveSuggestions: Boolean = false
@@ -143,7 +158,13 @@ class ListenTogetherSession(
     fun createRoom(username: String) =
         launch {
             pendingUsername = username.trim()
-            client.send(MessageTypes.CREATE_ROOM, CreateRoomPayload(username = pendingUsername))
+            val sent = client.send(MessageTypes.CREATE_ROOM, CreateRoomPayload(username = pendingUsername))
+            if (!sent) {
+                // Same TOCTOU semantics the old client had (its "Upstream 5.2.81 fix"): queue the
+                // action, open the socket if it is down, and flush if it turned out to be up.
+                queuedRoomAction = QueuedRoomAction.Create
+                maybeOpenSocketAndFlush()
+            }
         }
 
     fun joinRoom(
@@ -155,12 +176,49 @@ class ListenTogetherSession(
         _state.update { it.copy(pendingJoinCode = code, error = null) }
         val sent = client.send(MessageTypes.JOIN_ROOM, JoinRoomPayload(roomCode = code, username = pendingUsername))
         if (!sent) {
-            _state.update { it.copy(pendingJoinCode = null, error = "Not connected") }
+            queuedRoomAction = QueuedRoomAction.Join(code)
+            maybeOpenSocketAndFlush()
         }
     }
 
+    /**
+     * The queued create/join lands here once the socket comes up (or right away, if the race in
+     * [maybeOpenSocketAndFlush] resolved while we were setting up). Exactly one attempt —
+     * `Connected` is not re-emitted for a resumed socket, and the deep link fires before the app
+     * has any UI, so there is nobody to re-ask.
+     */
+    private fun flushQueuedRoomAction() {
+        val action = queuedRoomAction ?: return
+        queuedRoomAction = null
+        launch {
+            when (action) {
+                is QueuedRoomAction.Create ->
+                    client.send(MessageTypes.CREATE_ROOM, CreateRoomPayload(username = pendingUsername))
+
+                is QueuedRoomAction.Join ->
+                    client.send(MessageTypes.JOIN_ROOM, JoinRoomPayload(roomCode = action.roomCode, username = pendingUsername))
+            }
+        }
+    }
+
+    private fun maybeOpenSocketAndFlush() {
+        if (client.isConnected) {
+            flushQueuedRoomAction()
+            return
+        }
+        if (_state.value.connection is ConnectionState.Connecting) {
+            return // The flush is already scheduled on the next Connected event.
+        }
+        connect()
+    }
+
     /** Gives up on a join that has not been answered. Local only — the server needs no message. */
-    fun cancelJoin() = _state.update { it.copy(pendingJoinCode = null) }
+    fun cancelJoin() {
+        // Also drops a queued join: "Cancelar solicitud" must cancel a cold-start invite that is
+        // still waiting for the socket, not just one waiting for the host.
+        queuedRoomAction = null
+        _state.update { it.copy(pendingJoinCode = null) }
+    }
 
     fun leaveRoom() =
         launch {
@@ -298,8 +356,10 @@ class ListenTogetherSession(
 
     private fun onEvent(event: ListenTogetherEvent) {
         when (event) {
-            is ListenTogetherEvent.Connected ->
+            is ListenTogetherEvent.Connected -> {
                 _state.update { it.copy(connection = ConnectionState.Connected(event.serverVersion)) }
+                flushQueuedRoomAction()
+            }
 
             is ListenTogetherEvent.ClockReady -> Unit
 

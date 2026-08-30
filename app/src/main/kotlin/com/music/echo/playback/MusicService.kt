@@ -2606,10 +2606,17 @@ class MusicService :
                     prefs[CrossfadeGaplessKey] ?: false
                 )
             },
-            listenTogetherManager.roomState
-        ) { (enabled, duration, gapless), roomState ->
-
-            Triple(enabled && roomState == null, duration, gapless)
+            // Crossfade overlaps two tracks for seconds, which drifts a room apart at every
+            // transition (SimpMusic suppresses it via `crossfadeSuppressed` on the player; this
+            // app keeps the same rule through the room state — the shared collector below just
+            // turns the user's crossfade OFF while a room is live, leaving their setting untouched).
+            // `.map { it.inRoom }` keeps the OLD nullability semantics: the new state object is
+            // never null, so a bare `roomState == null` here would read as ALWAYS false and the
+            // crossfade would stay on inside a room (a placebo — the exact "switch that does
+            // nothing" this registry forbids, filas 90/96).
+            listenTogetherManager.session.state.map { it.inRoom }
+        ) { (enabled, duration, gapless), inRoom ->
+            Triple(enabled && !inRoom, duration, gapless)
         }
             .distinctUntilChanged()
             .collect(scope) { (enabled, duration, gapless) ->

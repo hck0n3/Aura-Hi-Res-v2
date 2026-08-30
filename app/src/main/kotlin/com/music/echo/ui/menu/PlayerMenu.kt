@@ -89,7 +89,6 @@ import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.ExportingSongIdsKey
 import iad1tya.echo.music.constants.ListItemHeight
 import iad1tya.echo.music.listentogether.ConnectionState
-import iad1tya.echo.music.listentogether.ListenTogetherEvent
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.playback.AudioExportService
@@ -1097,9 +1096,11 @@ fun ListenTogetherDialog(
     
     val connectionState by listenTogetherManager.connectionState.collectAsState()
     val roomState by listenTogetherManager.roomState.collectAsState()
-    val userId by listenTogetherManager.userId.collectAsState()
     val pendingJoinRequests by listenTogetherManager.pendingJoinRequests.collectAsState()
     val pendingSuggestions by listenTogetherManager.pendingSuggestions.collectAsState()
+    // The SimpMusic state carries the identity inside it (selfUserId) — the old manager had a
+    // separate `userId` flow, which is gone.
+    val selfUserId = roomState?.selfUserId ?: ""
     
     
     var savedUsername by rememberPreference(iad1tya.echo.music.constants.ListenTogetherUsernameKey, "")
@@ -1120,6 +1121,7 @@ fun ListenTogetherDialog(
     val invalidRoomCodeText = stringResource(R.string.invalid_room_code)
     val joinRequestDeniedText = stringResource(R.string.join_request_denied)
     val connectionFailedText = stringResource(R.string.listen_together_connection_failed)
+    val kickedFromRoomText = stringResource(R.string.listen_together_kicked_from_room)
 
     
     if (selectedUserForMenu != null && selectedUsername != null) {
@@ -1314,61 +1316,51 @@ fun ListenTogetherDialog(
     }
 
     
+    // The old manager exposed a raw `events` flow (JoinRejected/RoomCreated/ConnectionError/...)
+    // that this dialog translated by hand. The SimpMusic session already does that translation —
+    // every outcome lands in `roomState.error` (bad code, host declined, server error, kicked) or
+    // in the room state itself (pendingJoinCode while the host decides, roomCode once created).
+    // This collector only mirrors the FORM-local bits: the same localized strings the old
+    // translation produced, and clearing the spinners once. Clipboard-on-create moved to the room
+    // card's copy buttons, where the user is actually looking.
     LaunchedEffect(listenTogetherManager) {
-        listenTogetherManager.events.collect { event ->
-            when (event) {
-                is ListenTogetherEvent.JoinRejected -> {
-                    val reason = event.reason
-                    joinErrorMessage = when {
-                        reason.isNullOrBlank() -> joinRequestDeniedText
-                        reason.contains("invalid", ignoreCase = true) == true -> invalidRoomCodeText
-                        else -> "$joinRequestDeniedText: $reason"
-                    }
-                    isJoiningRoom = false
-                    isCreatingRoom = false
+        listenTogetherManager.roomState.collect { room ->
+            val raw = room?.error
+            if (raw != null) {
+                joinErrorMessage = when {
+                    raw.contains("kicked", ignoreCase = true) -> kickedFromRoomText
+                    raw.contains("declined", ignoreCase = true) -> joinRequestDeniedText
+                    raw.contains("invalid", ignoreCase = true) -> invalidRoomCodeText
+                    raw.isBlank() -> connectionFailedText
+                    else -> raw
                 }
+                isJoiningRoom = false
+                isCreatingRoom = false
+                listenTogetherManager.clearError()
+            }
+            if (room?.roomCode != null) {
+                isCreatingRoom = false
+                isJoiningRoom = false
+            }
+        }
+    }
 
-                is ListenTogetherEvent.JoinApproved -> {
-                    isJoiningRoom = false
-                    joinErrorMessage = null
-                }
-
-                is ListenTogetherEvent.RoomCreated -> {
-                    isCreatingRoom = false
-                    val clipboard =
-                        context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    val clip = android.content.ClipData.newPlainText("ListenTogetherRoom", event.roomCode)
-                    clipboard.setPrimaryClip(clip)
-                }
-
-                is ListenTogetherEvent.ConnectionError -> {
-                    joinErrorMessage = connectionFailedText
-                    isJoiningRoom = false
-                    isCreatingRoom = false
-                }
-                is ListenTogetherEvent.ServerError -> {
-                    if (isJoiningRoom || isCreatingRoom) {
-                        joinErrorMessage = event.message.ifBlank { connectionFailedText }
-                        isJoiningRoom = false
-                        isCreatingRoom = false
-                    }
-                }
-                is ListenTogetherEvent.Disconnected -> {
-                    if (isJoiningRoom || isCreatingRoom) {
-                        joinErrorMessage = connectionFailedText
-                        isJoiningRoom = false
-                        isCreatingRoom = false
-                    }
-                }
-
-                else -> {  }
+    // A socket that dies mid-join never produces `roomState.error` — the session surfaces it as
+    // ConnectionState.Failed/Disconnected. Without this the join spinner would spin forever.
+    LaunchedEffect(connectionState) {
+        if (connectionState is ConnectionState.Failed || connectionState is ConnectionState.Disconnected) {
+            if (isJoiningRoom || isCreatingRoom) {
+                joinErrorMessage = connectionFailedText
+                isJoiningRoom = false
+                isCreatingRoom = false
             }
         }
     }
 
     
     val isInRoom = listenTogetherManager.isInRoom
-    val isHost = roomState?.hostId == userId
+    // hostId is gone with the old state object; the new one carries the flag directly.
+    val isHost = roomState?.isHost == true
     
     ListDialog(onDismiss = onDismiss) {
         
@@ -1402,16 +1394,20 @@ fun ListenTogetherDialog(
         
         
         item {
+            // The new ConnectionState is a sealed interface; the old enum's RECONNECTING maps to
+            // Connecting — the session reports Connecting while the client's automatic retry loop
+            // (token replay, doubling backoff) is between attempts, which is what "reconnecting"
+            // meant. Failed covers what ERROR meant (retry budget spent / server refused us).
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(16.dp),
                 color = when (connectionState) {
-                    ConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                    ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
-                    ConnectionState.ERROR -> MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
-                    ConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.surfaceVariant
+                    is ConnectionState.Connected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    ConnectionState.Connecting -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                    is ConnectionState.Failed -> MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                    ConnectionState.Disconnected -> MaterialTheme.colorScheme.surfaceVariant
                 }
             ) {
                 Column(
@@ -1427,10 +1423,10 @@ fun ListenTogetherDialog(
                                 .size(10.dp)
                                 .background(
                                     color = when (connectionState) {
-                                        ConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary
-                                        ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> MaterialTheme.colorScheme.secondary
-                                        ConnectionState.ERROR -> MaterialTheme.colorScheme.error
-                                        ConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.outline
+                                        is ConnectionState.Connected -> MaterialTheme.colorScheme.primary
+                                        ConnectionState.Connecting -> MaterialTheme.colorScheme.secondary
+                                        is ConnectionState.Failed -> MaterialTheme.colorScheme.error
+                                        ConnectionState.Disconnected -> MaterialTheme.colorScheme.outline
                                     },
                                     shape = RoundedCornerShape(50)
                                 )
@@ -1438,38 +1434,37 @@ fun ListenTogetherDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = when (connectionState) {
-                                ConnectionState.CONNECTED -> stringResource(R.string.listen_together_connected)
-                                ConnectionState.CONNECTING -> stringResource(R.string.listen_together_connecting)
-                                ConnectionState.RECONNECTING -> stringResource(R.string.listen_together_reconnecting)
-                                ConnectionState.ERROR -> stringResource(R.string.listen_together_error)
-                                ConnectionState.DISCONNECTED -> stringResource(R.string.listen_together_disconnected)
+                                is ConnectionState.Connected -> stringResource(R.string.listen_together_connected)
+                                ConnectionState.Connecting -> stringResource(R.string.listen_together_reconnecting)
+                                is ConnectionState.Failed -> stringResource(R.string.listen_together_error)
+                                ConnectionState.Disconnected -> stringResource(R.string.listen_together_disconnected)
                             },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = when (connectionState) {
-                                ConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary
-                                ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> MaterialTheme.colorScheme.secondary
-                                ConnectionState.ERROR -> MaterialTheme.colorScheme.error
-                                ConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.onSurfaceVariant
+                                is ConnectionState.Connected -> MaterialTheme.colorScheme.primary
+                                ConnectionState.Connecting -> MaterialTheme.colorScheme.secondary
+                                is ConnectionState.Failed -> MaterialTheme.colorScheme.error
+                                ConnectionState.Disconnected -> MaterialTheme.colorScheme.onSurfaceVariant
                             }
                         )
                     }
-                    
-                    if (connectionState == ConnectionState.CONNECTING || connectionState == ConnectionState.RECONNECTING) {
+
+                    if (connectionState is ConnectionState.Connecting) {
                         Spacer(modifier = Modifier.height(12.dp))
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth(),
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.height(12.dp))
-                    
+
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        if (connectionState == ConnectionState.DISCONNECTED || connectionState == ConnectionState.ERROR) {
+                        if (connectionState is ConnectionState.Disconnected || connectionState is ConnectionState.Failed) {
                             Button(
                                 onClick = { listenTogetherManager.connect() },
                                 modifier = Modifier.weight(1f),
@@ -1489,11 +1484,15 @@ fun ListenTogetherDialog(
                             ) {
                                 Text(stringResource(R.string.disconnect), fontWeight = FontWeight.SemiBold)
                             }
+                            // "Reconectar" is a listed control of this dialog (UI_INVENTORY 5.2):
+                            // it must survive the port. The new client never reconnects a live
+                            // socket, so this closes it WITHOUT clearing the session token and
+                            // lets connect() replay it — the room resumes instead of being lost.
                             FilledTonalButton(
                                 onClick = { listenTogetherManager.forceReconnect() },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("Reconectar", fontWeight = FontWeight.SemiBold)
+                                Text(stringResource(R.string.reconnect), fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -1503,7 +1502,7 @@ fun ListenTogetherDialog(
         
         item { Spacer(modifier = Modifier.height(12.dp)) }
         
-        if (connectionState == ConnectionState.CONNECTED && !isInRoom) {
+        if (connectionState is ConnectionState.Connected && !isInRoom) {
             item {
                 Text(
                     text = stringResource(R.string.listen_together_background_disconnect_note),
@@ -1541,8 +1540,9 @@ fun ListenTogetherDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
+                                // roomCode is String? in the new state — empty until a room exists.
                                 Text(
-                                    text = room.roomCode,
+                                    text = room.roomCode.orEmpty(),
                                     style = MaterialTheme.typography.headlineLarge,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold,
@@ -1610,7 +1610,7 @@ fun ListenTogetherDialog(
                 item { Spacer(modifier = Modifier.height(16.dp)) }
                 
                 
-                val connectedUsers = room.users.filter { it.isConnected }
+                val connectedUsers = room.members.filter { it.isConnected }
                 
                 item {
                     Column(
@@ -1638,7 +1638,7 @@ fun ListenTogetherDialog(
                                     modifier = Modifier
                                         .width(72.dp)
                                         .clickable(
-                                            enabled = isHost && user.userId != userId,
+                                            enabled = isHost && user.userId != selfUserId,
                                             onClick = {
                                                 selectedUserForMenu = user.userId
                                                 selectedUsername = user.username
@@ -1654,7 +1654,7 @@ fun ListenTogetherDialog(
                                             shape = RoundedCornerShape(50),
                                             color = if (user.isHost) {
                                                 MaterialTheme.colorScheme.primary
-                                            } else if (user.userId == userId) {
+                                            } else if (user.userId == selfUserId) {
                                                 MaterialTheme.colorScheme.secondary
                                             } else {
                                                 MaterialTheme.colorScheme.surfaceVariant
@@ -1670,7 +1670,7 @@ fun ListenTogetherDialog(
                                                     fontWeight = FontWeight.Bold,
                                                     color = if (user.isHost) {
                                                         MaterialTheme.colorScheme.onPrimary
-                                                    } else if (user.userId == userId) {
+                                                    } else if (user.userId == selfUserId) {
                                                         MaterialTheme.colorScheme.onSecondary
                                                     } else {
                                                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -1680,7 +1680,7 @@ fun ListenTogetherDialog(
                                         }
                                         
                                         
-                                        if (user.isHost || user.userId == userId) {
+                                        if (user.isHost || user.userId == selfUserId) {
                                             Surface(
                                                 modifier = Modifier
                                                     .align(Alignment.BottomEnd)
@@ -1712,7 +1712,7 @@ fun ListenTogetherDialog(
                                     Text(
                                         text = user.username,
                                         style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = if (user.userId == userId) FontWeight.Bold else FontWeight.Medium,
+                                        fontWeight = if (user.userId == selfUserId) FontWeight.Bold else FontWeight.Medium,
                                         color = if (user.isHost) {
                                             MaterialTheme.colorScheme.primary
                                         } else {
@@ -1730,7 +1730,7 @@ fun ListenTogetherDialog(
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                                         )
-                                    } else if (user.userId == userId) {
+                                    } else if (user.userId == selfUserId) {
                                         Text(
                                             text = stringResource(R.string.you_label),
                                             style = MaterialTheme.typography.labelSmall,
@@ -1871,7 +1871,7 @@ fun ListenTogetherDialog(
                                     )
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = suggestion.trackInfo.title,
+                                            text = suggestion.track.title,
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onSurface,

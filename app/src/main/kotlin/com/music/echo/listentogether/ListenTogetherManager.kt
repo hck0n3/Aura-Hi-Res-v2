@@ -124,6 +124,19 @@ class ListenTogetherManager @Inject constructor(
     fun connect() = session.connect()
 
     /**
+     * The manual "Reconectar" of the room dialog (UI_INVENTORY 5.2). Not the same as [connect]:
+     * the socket may be wedged-but-technically-alive (half-open TCP, stalled handshake), which
+     * [ListenTogetherSession.connect] cannot fix because the client's connect() ignores a
+     * connection it considers active. This closes the transport WITHOUT clearing the session
+     * token, so the next [connect] replays it and the room resumes — clearing the token here
+     * would turn a user-requested refresh into losing the room (registry row 144).
+     */
+    fun forceReconnect() {
+        client.dropSocketKeepToken()
+        session.connect()
+    }
+
+    /**
      * Called once from MainActivity.onCreate: opens the socket ONLY when a persisted session
      * token exists (the room is resumable). A cold start with no room stays quiet — upstream's
      * `createdAtStart` bridge is what handles the always-on part, and here the bridge starts on

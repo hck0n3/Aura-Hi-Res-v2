@@ -204,11 +204,36 @@ class ListenTogetherClient(
         Timber.tag(TAG).i("Disconnecting by request")
         sessionToken = null
         reconnectAttempts = 0
-        connectionJob?.cancel()
+        closeCurrentSocket(connectionJob)
         connectionJob = null
+    }
+
+    /**
+     * Closes the socket but keeps the session token, for a user-requested "Reconnect" on a
+     * connection that looks wedged. Cancelling the job skips [scheduleReconnect] (its
+     * CancellationException is rethrown, not swallowed), so no stale retry races the fresh
+     * [connect] that follows — that connect resets the attempt budget and opens a new socket,
+     * which replays the kept token as `reconnect` and the room resumes.
+     */
+    fun dropSocketKeepToken() {
+        Timber.tag(TAG).i("Dropping socket for a manual reconnect (token kept)")
+        closeCurrentSocket(connectionJob)
+        connectionJob = null
+    }
+
+    /**
+     * The reference is captured BEFORE the close is scheduled and nulled only under an identity
+     * guard: a `connect()` issued right after (the Reconnect button does exactly that) can
+     * already have published a NEW socket, and an unguarded `session?.close(); session = null`
+     * in a background coroutine would close that new socket instead — a connection that
+     * handshakes and then silently never sends again.
+     */
+    private fun closeCurrentSocket(job: Job?) {
+        val old = session
+        job?.cancel()
         launch {
-            runCatching { session?.close() }
-            session = null
+            runCatching { old?.close() }
+            if (session === old) session = null
         }
     }
 
@@ -280,8 +305,13 @@ class ListenTogetherClient(
                 pinger.cancel()
             }
         } finally {
-            handshake = null
-            session = null
+            // Identity guards, not bare assignments: a forceReconnect (dropSocketKeepToken) opens
+            // the NEXT socket while this finally can still be unwinding on another dispatcher
+            // thread, and an unconditional `session = null` / `handshake = null` here would wipe
+            // the new connection's references out from under it — the room would handshake, then
+            // silently lose the ability to send anything.
+            if (session === live) session = null
+            if (handshake === pending) handshake = null
             // NonCancellable because this runs on the disconnect() path too, where the job has
             // already been cancelled — and close() is itself a suspend call, so without this it
             // would abort immediately and the close frame would never be sent.

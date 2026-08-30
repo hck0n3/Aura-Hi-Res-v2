@@ -113,6 +113,13 @@ ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negoti
 ktor-client-encoding = { module = "io.ktor:ktor-client-encoding", version.ref = "ktor" }
 ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-client-logging = { module = "io.ktor:ktor-client-logging-jvm", version.ref = "ktor" }
+# Listen Together (SimpMusic port): the metroproto wire format is protobuf, encoded with
+# kotlinx-serialization-protobuf instead of protoc-generated classes (same bytes, no JVM-only
+# generated sources — the whole point of the upstream design).
+kotlinx-serialization-protobuf = { module = "org.jetbrains.kotlinx:kotlinx-serialization-protobuf", version = "1.9.0" }
+# The WebSocket transport of the room client. okhttp's WebSocket is what the old implementation
+# used; Ktor's is what upstream uses and keeps the client single-stack with the HTTP one.
+ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
 
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 

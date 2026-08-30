@@ -1308,4 +1308,25 @@
     <string name="spotify_import_failures_csv_migrar_hint">CSV ready. Open Migrate and import the file to retry unmatched tracks.</string>
     <string name="spotify_import_done_text_with_failures">%1$d of %2$d tracks imported · %3$d failed</string>
     <string name="spotify_import_retry_progress">Retrying failed matches</string>
+    <string name="listen_together_waiting_everyone">Waiting for everyone</string>
+    <string name="listen_together_waiting_for">Waiting for %1$s</string>
+    <string name="listen_together_buffer_resumes">Playback resumes when everyone is ready</string>
+    <string name="listen_together_hosted_by">%1$s is controlling playback</string>
+    <string name="listen_together_just_asked">Just asked to join</string>
+    <string name="listen_together_suggestion_by">Suggested by %1$s</string>
+    <string name="listen_together_user_in_sync">In sync</string>
+    <string name="listen_together_user_disconnected">Disconnected</string>
+    <string name="listen_together_waiting_approval_desc">The host has to let you in. You can cancel while you wait.</string>
+    <string name="listen_together_not_connected_hint">Connect to a server first from the button above.</string>
+    <string name="cancel_join">Cancel join</string>
+    <string name="listen_together_default_server">Default server (SimpMusic · Metrolist)</string>
+    <string name="listen_together_default_server_name">Default public server</string>
+    <string name="listen_together_unblock">Unblock</string>
+    <string name="listen_together_how_title">How it Works</string>
+    <string name="listen_together_how_step1_title">1. Create a Room</string>
+    <string name="listen_together_how_step1_desc">Start a session and share the unique room code with your friends.</string>
+    <string name="listen_together_how_step2_title">2. Join a Friend</string>
+    <string name="listen_together_how_step2_desc">Enter their room code to join their session instantly.</string>
+    <string name="listen_together_how_step3_title">3. Sync Playback</string>
+    <string name="listen_together_how_step3_desc">The host controls the music. Everyone listens in perfect sync!</string>
 </resources>

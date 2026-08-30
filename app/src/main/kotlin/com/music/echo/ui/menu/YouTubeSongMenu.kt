@@ -416,9 +416,10 @@ fun YouTubeSongMenu(
                                     id = song.id,
                                     title = song.title,
                                     artist = artists.joinToString(", ") { it.name },
-                                    album = song.album?.name,
+                                    // metroproto TrackInfo is non-null String — orEmpty() at the seam.
+                                    album = song.album?.name.orEmpty(),
                                     duration = durationMs,
-                                    thumbnail = song.thumbnail
+                                    thumbnail = song.thumbnail.orEmpty()
                                 )
                                 listenTogetherManager.suggestTrack(trackInfo)
                                 onDismiss()

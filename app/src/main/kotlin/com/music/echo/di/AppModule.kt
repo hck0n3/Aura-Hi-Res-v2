@@ -13,6 +13,9 @@ import iad1tya.echo.music.db.InternalDatabase
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.listentogether.ListenTogetherClient
 import iad1tya.echo.music.listentogether.ListenTogetherManager
+import iad1tya.echo.music.listentogether.ListenTogetherPlaybackBridge
+import iad1tya.echo.music.listentogether.ListenTogetherSession
+import iad1tya.echo.music.listentogether.SessionTokenStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -155,12 +158,51 @@ object AppModule {
     @Provides
     fun provideListenTogetherClient(
         @ApplicationContext context: Context,
-    ): ListenTogetherClient = ListenTogetherClient(context)
+    ): ListenTogetherClient {
+        // The URL is read PER CONNECTION ATTEMPT (upstream SimpMusic rule): changing the server in
+        // settings applies on the next connect, not on the next process restart. The supplier runs
+        // on the client's own dispatcher; PrefsBridge.peek answers the warm case with ZERO
+        // blocking, and the cold-start first connect falls back to one blocking read (the same
+        // trade getNonBlocking makes everywhere else).
+        val urlSupplier: () -> String = {
+            val stored = iad1tya.echo.music.utils.PrefsBridge.peek(
+                iad1tya.echo.music.constants.ListenTogetherServerUrlKey
+            )
+            stored?.takeIf { it.isNotBlank() } ?: ListenTogetherClient.DEFAULT_SERVER_URL
+        }
+        return ListenTogetherClient(
+            clientVersion = "AuraHiRes",
+            serverUrl = urlSupplier,
+        )
+    }
+
+    @Singleton
+    @Provides
+    fun provideSessionTokenStore(
+        @ApplicationContext context: Context,
+    ): SessionTokenStore = SessionTokenStore(context)
+
+    @Singleton
+    @Provides
+    fun provideListenTogetherSession(
+        client: ListenTogetherClient,
+        tokenStore: SessionTokenStore,
+    ): ListenTogetherSession = ListenTogetherSession(client, tokenStore)
+
+    @Singleton
+    @Provides
+    fun provideListenTogetherPlaybackBridge(
+        session: ListenTogetherSession,
+        tokenStore: SessionTokenStore,
+    ): ListenTogetherPlaybackBridge = ListenTogetherPlaybackBridge(session, tokenStore)
 
     @Singleton
     @Provides
     fun provideListenTogetherManager(
         @ApplicationContext context: Context,
         client: ListenTogetherClient,
-    ): ListenTogetherManager = ListenTogetherManager(client, context)
+        session: ListenTogetherSession,
+        bridge: ListenTogetherPlaybackBridge,
+        tokenStore: SessionTokenStore,
+    ): ListenTogetherManager = ListenTogetherManager(client, session, bridge, tokenStore, context)
 }

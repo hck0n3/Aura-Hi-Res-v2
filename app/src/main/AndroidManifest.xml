@@ -360,10 +360,9 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
-        <!-- Receiver for Listen Together notification actions (Approve/Reject) -->
-        <receiver
-            android:name=".listentogether.ListenTogetherActionReceiver"
-            android:exported="false" />
+        <!-- Listen Together notification-action receiver REMOVED with the SimpMusic port: upstream
+             has no room notifications (the room UI + the socket's own retry budget are the
+             surface), and the old receiver only existed to answer them. -->
 
         <receiver
             android:name="androidx.media3.session.MediaButtonReceiver"
