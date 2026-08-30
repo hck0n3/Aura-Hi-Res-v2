@@ -50,6 +50,7 @@ import iad1tya.echo.music.App
 import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
+import iad1tya.echo.music.playback.StreamCacheKeys
 import iad1tya.echo.music.R
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.constants.MaxImageCacheSizeKey
@@ -88,6 +89,7 @@ fun StorageSettings(
     val imageDiskCache = context.imageLoader.diskCache ?: return
     val playerCache = LocalPlayerConnection.current?.service?.playerCache ?: return
     val downloadCache = LocalPlayerConnection.current?.service?.downloadCache ?: return
+    val service = LocalPlayerConnection.current?.service
 
     val coroutineScope = rememberCoroutineScope()
     val songCacheString = stringResource(R.string.song_cache).lowercase()
@@ -204,6 +206,40 @@ fun StorageSettings(
             coroutineScope.launch(Dispatchers.IO) {
                 playerCache.keys.forEach { key ->
                     playerCache.removeResource(key)
+                }
+            }
+        } else if (maxSongCacheSize > 0) {
+            // APPLY THE NEW LIMIT HOT (Echo-Music parity gap closed, owner complaint "el tamaño
+            // máximo de caché no se aprovecha"): the SimpleCache singleton was built with the OLD
+            // evictor, so a freshly picked limit did nothing until the next process restart — the
+            // slider looked like a placebo. Trim to the new budget right here: LRU order is what
+            // LeastRecentlyUsedCacheEvictor would keep (a resource's last use = its newest span's
+            // timestamp). The currently playing song is never evicted (registry #35). Bounded
+            // one-pass, off-main.
+            val activeSongId = service?.currentMediaMetadata?.value?.id
+            coroutineScope.launch(Dispatchers.IO) {
+                tryOrNull {
+                    val budgetBytes = maxSongCacheSize * 1024L * 1024L
+                    if (playerCache.cacheSpace > budgetBytes) {
+                        // Never evict the song currently playing (registry row #35's rule: purging
+                        // the in-flight resource stutters playback mid-listen).
+                        val activeKey = activeSongId?.let { StreamCacheKeys.songIdOf(it) ?: it }
+                        // Oldest-touch first: a resource's last use is its newest span's timestamp.
+                        val touched = playerCache.keys
+                            .filter { it != activeKey }
+                            .mapNotNull { key ->
+                                playerCache.getCachedSpans(key)
+                                    .maxByOrNull { it.lastTouchTimestamp }
+                                    ?.let { span -> key to span.lastTouchTimestamp }
+                            }
+                        var running = playerCache.cacheSpace
+                        for ((key, _) in touched.sortedBy { it.second }) {
+                            if (running <= budgetBytes) break
+                            val size = tryOrNull { playerCache.getCachedSpans(key).sumOf { it.length } } ?: 0L
+                            playerCache.removeResource(key)
+                            running -= size
+                        }
+                    }
                 }
             }
         }
