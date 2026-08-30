@@ -110,6 +110,8 @@ import androidx.compose.runtime.mutableStateListOf
 import iad1tya.echo.music.utils.PlaybackLogManager
 import iad1tya.echo.music.ui.component.PlaybackLogsDialog
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.flow.map
+import iad1tya.echo.music.utils.dataStore
 import java.net.Proxy
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -147,6 +149,17 @@ fun ContentSettings(
     val (enableYouLyPlus, onEnableYouLyPlusChange) = rememberPreference(key = EnableYouLyPlusKey, defaultValue = true)
     val (enablePaxsenix, onEnablePaxsenixChange) = rememberPreference(key = EnablePaxsenixKey, defaultValue = true)
     val (enableUnison, onEnableUnisonChange) = rememberPreference(key = UnisonLyricsEnabledKey, defaultValue = true)
+    // SPOTIFY LYRICS (SimpMusic parity): opt-in, default OFF, login-gated.
+    val (enableSpotifyLyrics, onEnableSpotifyLyricsChange) = rememberPreference(
+        key = iad1tya.echo.music.constants.EnableSpotifyLyricsKey,
+        defaultValue = false,
+    )
+    // Live sp_dc session flag — the row stays dead (and the provider disabled) until the user logs
+    // into Spotify from Ajustes▸Cuenta▸Importar de Spotify.
+    val spotifySession by remember {
+        context.dataStore.data
+            .map { it[iad1tya.echo.music.constants.SpotifySpDcKey].orEmpty().isNotBlank() }
+    }.collectAsState(initial = false)
     val (lyricsProviderOrder, onLyricsProviderOrderChange) = rememberPreference(
         key = LyricsProviderOrderKey,
         defaultValue = "",
@@ -387,6 +400,8 @@ fun ContentSettings(
             "YouLyPlus".takeIf { enableYouLyPlus },
             "Paxsenix".takeIf { enablePaxsenix },
             "Unison".takeIf { enableUnison },
+            // Login-gated provider: only draggable when both the toggle and the sp_dc session exist.
+            "Spotify".takeIf { enableSpotifyLyrics && spotifySession },
         )
 
         
@@ -1095,6 +1110,33 @@ fun ContentSettings(
                     title = { Text(stringResource(R.string.lyrics_provider_priority)) },
                     description = { Text(stringResource(R.string.lyrics_provider_priority_desc)) },
                     onClick = { showProviderPriorityDialog = true },
+                ),
+                // SPOTIFY LYRICS (SimpMusic "Enable Spotify Lyrics" parity): opt-in and LOGIN-GATED —
+                // SimpMusic disables the row until the user is logged into Spotify, and so do we:
+                // the Spotify login lives in Ajustes▸Cuenta▸Importar de Spotify. color-lyrics needs
+                // a real sp_dc session token, so the toggle is dead until then (anti-placebo).
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.lyrics),
+                    title = { Text(stringResource(R.string.enable_spotify_lyrics)) },
+                    description = { Text(stringResource(R.string.enable_spotify_lyrics_desc)) },
+                    enabled = spotifySession,
+                    trailingContent = {
+                        Switch(
+                            checked = enableSpotifyLyrics,
+                            onCheckedChange = onEnableSpotifyLyricsChange,
+                            enabled = spotifySession,
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (enableSpotifyLyrics) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        )
+                    },
+                    onClick = { if (spotifySession) onEnableSpotifyLyricsChange(!enableSpotifyLyrics) }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.language_korean_latin),

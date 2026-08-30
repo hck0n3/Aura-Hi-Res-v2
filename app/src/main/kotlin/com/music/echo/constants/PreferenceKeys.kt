@@ -252,6 +252,12 @@ val SpotifyAccountNameKey = stringPreferencesKey("spotify_account_name")
 val SpotifyAccountAvatarUrlKey = stringPreferencesKey("spotify_account_avatar_url")
 val SpotifyAccessTokenKey = stringPreferencesKey("spotify_access_token")
 val SpotifyAccessTokenExpiresAtKey = longPreferencesKey("spotify_access_token_expires_at")
+// SPOTIFY LYRICS + CANVAS (SimpMusic parity). Both opt-in, default OFF — same default SimpMusic
+// ships — and both REQUIRE a logged-in sp_dc session (the providers/toggle gate on SpotifySpDcKey,
+// matching SimpMusic's isEnable = spotifyLoggedIn rows). Enabling either is an explicit choice that
+// tells Spotify's servers which tracks are being looked up.
+val EnableSpotifyLyricsKey = booleanPreferencesKey("enable_spotify_lyrics")
+val EnableSpotifyCanvasKey = booleanPreferencesKey("enable_spotify_canvas")
 val EnableLegacyIconKey = booleanPreferencesKey("enableLegacyIcon")
 val EnableHighRefreshRateKey = booleanPreferencesKey("enableHighRefreshRate")
 val DynamicThemeKey = booleanPreferencesKey("dynamicTheme")

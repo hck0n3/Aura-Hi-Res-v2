@@ -1678,6 +1678,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // token), so this changes nothing for users without a Qobuz account.
         runCatching { iad1tya.echo.music.qobuz.QobuzHiRes.attach(qobuzTokenStore) }
 
+        // Bind the Spotify lyrics/Canvas client to the app context (same attach pattern as above) so
+        // its static-object call sites (the lyrics provider, the player's canvas resolver) can read the
+        // sp_dc session without DI. Inert until the user turns the toggles on.
+        runCatching { iad1tya.echo.music.spotify.SpotifyMediaClient.attach(this) }
+
         // DIAGNOSTICS: keep the shared-log header's settings snapshot current, and write the per-launch
         // header once the first real values are in hand.
         //

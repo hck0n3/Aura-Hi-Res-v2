@@ -1404,3 +1404,47 @@ internal fun normalizeCanvasArtistName(raw: String): String {
 
     return first.replace(Regex("\\s+"), " ").trim()
 }
+
+/**
+ * SPOTIFY CANVAS resolver (SimpMusic LyricsCanvasRepositoryImpl.getCanvas parity): resolve the
+ * track through Spotify's searchTracks query and fetch its official Canvas — the short vertical
+ * video the Spotify app loops behind the player. Returns null (never throws) on no session, no
+ * match, or no canvas so the caller's existing Apple/Tidal chain takes over unchanged.
+ *
+ * Network cost is bounded: one search + one canvaz POST per track, ONLY while the user has the
+ * opt-in toggle on — and zero when there is no sp_dc session (the client short-circuits).
+ */
+internal suspend fun resolveSpotifyCanvas(
+    songTitle: String,
+    artistName: String,
+    durationSeconds: Int,
+): iad1tya.echo.music.canvas.CanvasArtwork? {
+    val personalToken = iad1tya.echo.music.spotify.SpotifyMediaClient.personalToken() ?: return null
+    val clientToken = iad1tya.echo.music.spotify.SpotifyMediaClient.clientToken() ?: return null
+
+    val query = "$songTitle $artistName".trim().ifBlank { return null }
+    val match = iad1tya.echo.music.spotify.SpotifyMediaClient.searchTrack(
+        query = query,
+        durationSeconds = durationSeconds.takeIf { it > 0 },
+        personalToken = personalToken,
+        clientToken = clientToken,
+    ) ?: return null
+
+    val canvas = iad1tya.echo.music.spotify.SpotifyMediaClient.getCanvas(
+        trackId = match.trackId,
+        personalToken = personalToken,
+        clientToken = clientToken,
+    ) ?: return null
+
+    // Only playable video canvases are useful here (SimpMusic: isVideo = url.contains(".mp4"));
+    // anything else (e.g. a still) is left to the existing providers.
+    if (!canvas.canvasUrl.contains(".mp4")) return null
+
+    return iad1tya.echo.music.canvas.CanvasArtwork(
+        name = songTitle,
+        artist = artistName,
+        animated = canvas.canvasUrl,
+        videoUrl = canvas.canvasUrl,
+        static = canvas.thumbUrl,
+    )
+}

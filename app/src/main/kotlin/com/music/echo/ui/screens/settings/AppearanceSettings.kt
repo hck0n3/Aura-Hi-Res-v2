@@ -119,6 +119,8 @@ import iad1tya.echo.music.ui.theme.PlayerSliderColors
 import iad1tya.echo.music.ui.theme.rememberNewUiForcesDarkTheme
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.dataStore
+import kotlinx.coroutines.flow.map
 import kotlin.math.roundToInt
 import iad1tya.echo.music.constants.LyricsClickKey
 import iad1tya.echo.music.constants.AppleMusicLyricsBlurKey
@@ -249,6 +251,11 @@ fun AppearanceSettings(
         AlbumCanvasEnabledKey,
         defaultValue = false
     )
+    // SPOTIFY CANVAS (SimpMusic parity): opt-in, default OFF, login-gated on the sp_dc session.
+    val (enableSpotifyCanvas, onEnableSpotifyCanvasChange) = rememberPreference(
+        iad1tya.echo.music.constants.EnableSpotifyCanvasKey,
+        defaultValue = false,
+    )
     val (gridItemSize, onGridItemSizeChange) = rememberEnumPreference(
         GridItemsSizeKey,
         defaultValue = GridItemSize.SMALL
@@ -256,6 +263,11 @@ fun AppearanceSettings(
 
     
     val context = activity as Context
+    // Live sp_dc session flag for the Spotify Canvas row — dead until the user logs into Spotify.
+    val spotifyCanvasSession by remember {
+        context.dataStore.data
+            .map { it[iad1tya.echo.music.constants.SpotifySpDcKey].orEmpty().isNotBlank() }
+    }.collectAsState(initial = false)
     val sharedPreferences = remember { context.getSharedPreferences("echomusic_settings", Context.MODE_PRIVATE) }
     val prefDensityScale = remember(sharedPreferences) {
         sharedPreferences.getFloat("density_scale_factor", 1.0f)
@@ -1516,6 +1528,33 @@ fun AppearanceSettings(
                         )
                     },
                     onClick = { onAlbumCanvasEnabledChange(!albumCanvasEnabled) }
+                ),
+                // SPOTIFY CANVAS (SimpMusic "Enable Canvas" parity): when ON (and logged into
+                // Spotify), the player's canvas slot prefers the OFFICIAL Spotify Canvas — the short
+                // vertical video the Spotify app loops behind its player — before the Apple/Tidal
+                // motion covers. Login-gated like SimpMusic's row: dead until an sp_dc session exists.
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.slow_motion_video),
+                    title = { Text(stringResource(R.string.enable_spotify_canvas)) },
+                    description = { Text(stringResource(R.string.enable_spotify_canvas_desc)) },
+                    enabled = spotifyCanvasSession,
+                    trailingContent = {
+                        Switch(
+                            checked = enableSpotifyCanvas,
+                            onCheckedChange = onEnableSpotifyCanvasChange,
+                            enabled = spotifyCanvasSession,
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (enableSpotifyCanvas) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        )
+                    },
+                    onClick = { if (spotifyCanvasSession) onEnableSpotifyCanvasChange(!enableSpotifyCanvas) }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.chat_msg),

@@ -13,6 +13,7 @@ object LyricsProviderRegistry {
         "SimpMusic"       to SimpMusicLyricsProvider,
         "LrcLib"          to LrcLibLyricsProvider,
         "Kugou"           to KuGouLyricsProvider,
+        "Spotify"         to SpotifyLyricsProvider,
         "YouTubeSubtitle" to YouTubeSubtitleLyricsProvider,
         "YouTubeMusic"    to YouTubeLyricsProvider,
         "Unison"          to UnisonLyricsProvider,
@@ -38,6 +39,11 @@ object LyricsProviderRegistry {
         "YouLyPlus",
         "SimpMusic",
         "Kugou",
+        // Spotify needs a logged-in sp_dc session and its search must resolve the track first, so
+        // it sits AFTER the anonymous providers — it only fires when those came back empty (or the
+        // user explicitly re-orders it). Kept ahead of the YouTube/last-resort tail because a
+        // Spotify hit is the highest-quality synced source when it exists.
+        "Spotify",
         "YouTubeSubtitle",
         "YouTubeMusic",
         // Paxsenix next-to-last: its public endpoint 403s / rate-limits often, so it is a
@@ -71,6 +77,7 @@ object LyricsProviderRegistry {
         "SimpMusic"       -> "SimpMusic"
         "LrcLib"          -> "LrcLib"
         "Kugou"           -> "KuGou"
+        "Spotify"         -> "Spotify"
         "YouTubeSubtitle" -> "Aura Hi-Res (subtítulos)"
         "YouTubeMusic"    -> "Aura Hi-Res"
         "Unison"          -> "Unison"

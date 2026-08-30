@@ -179,6 +179,10 @@
     <string name="proxy_username">Nombre de usuario proxy</string>
     <string name="proxy_password">Contraseña de proxy</string>
     <string name="enable_authentication">Habilitar autenticación</string>
+    <string name="enable_spotify_lyrics">Letras de Spotify</string>
+    <string name="enable_spotify_lyrics_desc">Usa las letras sincronizadas de Spotify cuando hay sesión iniciada (Ajustes ▸ Cuenta ▸ Importar de Spotify). Desactivado por defecto</string>
+    <string name="enable_spotify_canvas">Canvas de Spotify</string>
+    <string name="enable_spotify_canvas_desc">Muestra el Canvas oficial de Spotify (vídeo corto en bucle) como fondo del reproductor cuando hay sesión iniciada. Desactivado por defecto</string>
     <string name="lyrics_romanization_cyrillic">Cirílico</string>
     <string name="lyrics_romanize_title">Romanización</string>
     <string name="lyrics_romanization">Romanización de letras</string>

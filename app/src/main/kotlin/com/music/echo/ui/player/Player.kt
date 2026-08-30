@@ -692,6 +692,12 @@ fun BottomSheetPlayer(
 
     var canvasArtwork by remember(mediaMetadata?.id) { mutableStateOf<CanvasArtwork?>(null) }
     var canvasFetchInFlight by remember(mediaMetadata?.id) { mutableStateOf(false) }
+    // SPOTIFY CANVAS (SimpMusic parity): opt-in, default OFF, needs the logged-in sp_dc session.
+    // Read once per composition — the resolver below only spends a network call when it is ON.
+    val enableSpotifyCanvas by rememberPreference(
+        iad1tya.echo.music.constants.EnableSpotifyCanvasKey,
+        defaultValue = false
+    )
 
     LaunchedEffect(mediaMetadata?.id, playerBackground) {
         if (playerBackground != PlayerBackgroundStyle.APPLE_MUSIC || !enableCanvas) {
@@ -718,7 +724,16 @@ fun BottomSheetPlayer(
             val s = normalizeCanvasSongTitle(requestedTitle)
             val a = normalizeCanvasArtistName(requestedArtist)
 
-            val fetched = (if (requestedAlbum.isNotBlank()) {
+            // SPOTIFY CANVAS FIRST (SimpMusic's order): when the user turned the feature on AND has a
+            // Spotify session, the official Canvas (short vertical video) is the richest source — try
+            // it before the Apple/Tidal motion covers. Falls through to the existing chain on miss,
+            // so the feature only ever ADDS a source, never takes one away.
+            val spotifyCanvas = if (enableSpotifyCanvas) {
+                runCatching { resolveSpotifyCanvas(s, a, item.duration) }.getOrNull()
+            } else null
+
+            val fetched = spotifyCanvas
+                ?: (if (requestedAlbum.isNotBlank()) {
                     // Album-level lookups first (most motion art is album/track scoped). Tidal has the
                     // widest coverage of real video covers, so it's tried before Apple.
                     TidalCanvasProvider.getByAlbumArtist(album = requestedAlbum, artist = a)
