@@ -515,6 +515,10 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 dependencies {
     testImplementation(libs.junit)
+    // Real org.json for JVM unit tests: android.jar ships only a throwing stub ("not mocked"),
+    // which the Google-translation parsers' catch blocks silently swallowed as null (the spec
+    // test caught it). Test classpath ONLY — the app keeps the framework's org.json at runtime.
+    testImplementation("org.json:json:20240303")
 
     // Firebase - GMS flavor only (excluded from F-Droid / FOSS builds)
     "gmsImplementation"(platform("com.google.firebase:firebase-bom:34.15.0"))
