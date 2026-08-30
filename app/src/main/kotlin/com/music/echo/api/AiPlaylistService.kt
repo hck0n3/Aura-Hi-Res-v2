@@ -102,12 +102,13 @@ object AiPlaylistService {
         baseUrl: String,
         model: String,
         maxRetries: Int = 3,
+        excludeTitles: List<String> = emptyList(),
     ): Result<AiPlaylistSpec> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Prompt is empty"))
         }
 
-        val messages = toJsonArray(AiPlaylistPrompt.buildMessages(prompt, count))
+        val messages = toJsonArray(AiPlaylistPrompt.buildMessages(prompt, count, excludeTitles))
         // Scale the token budget with the requested count (~80 tok/track + overhead) so a 50-song
         // request isn't truncated mid-JSON (the old fixed 2048 cut off large playlists → fewer songs).
         val maxTokens = (count * 80 + 512).coerceIn(1024, 8192)

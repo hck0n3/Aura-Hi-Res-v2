@@ -82,7 +82,7 @@ object AiPlaylistGenerator {
             for (track in proposed) {
                 val resolveArtist = soloArtist?.takeIf { it.isNotBlank() } ?: track.artist
                 SongResolver.resolve(database, track.title, resolveArtist)?.let { mm ->
-                    if (acceptsResolved(mm, soloArtist)) resolvedSongs += mm
+                    if (acceptsResolvedSoloPrimary(mm, soloArtist)) resolvedSongs += mm
                 }
                 val resolvedCount = resolvedSongs.distinctBy { it.id }.size
                 onResolveProgress(resolvedCount.coerceAtMost(target), target)
@@ -92,28 +92,39 @@ object AiPlaylistGenerator {
             ordered = resolvedSongs.distinctBy { it.id }.take(target)
             // If padding still fell short, ask ONCE more for just the missing songs, excluding the ones
             // already chosen so the AI doesn't repeat them. Best-effort: silently skip on any failure.
+            // The exclusions travel as a structured list (AiPlaylistPrompt), NOT concatenated into the
+            // prompt: a literal "solo X. NO incluyas…: A, B, C" is not re-parseable by
+            // extractSoloArtist, so the solo lock silently died on this round (owner wants EXACTNESS).
+            // The top-up runs inside the SAME 60s AI budget as the first ask: the old unbounded second
+            // cascade (up to 60s MORE) could hold the modem twice as long for a playlist that was
+            // already usable (battery/heat rule). On timeout we keep the honest, shorter list.
             if (ordered.size < target) {
                 val missing = target - ordered.size
-                val exclude = ordered.joinToString(", ") { it.title }
-                val topUpPrompt = if (soloArtist != null) {
-                    "solo $soloArtist. NO incluyas ninguna de estas canciones ya elegidas: $exclude"
-                } else {
-                    "$prompt. NO incluyas ninguna de estas canciones ya elegidas: $exclude"
+                val exclude = ordered.map { it.title }
+                val extra = withTimeoutOrNull(AI_BUDGET_MS) {
+                    AiPlaylistService.generate(
+                        prompt = prompt,
+                        count = (missing * 3 + 1) / 2,
+                        provider = provider,
+                        apiKey = apiKey,
+                        baseUrl = baseUrl,
+                        model = model,
+                        excludeTitles = exclude,
+                    ).getOrNull()
                 }
-                AiPlaylistService.generate(topUpPrompt, (missing * 3 + 1) / 2, provider, apiKey, baseUrl, model)
-                    .getOrNull()?.let { extra ->
-                        val extraTracks = filterTracksForSoloArtist(extra.tracks, soloArtist)
-                        for (track in extraTracks) {
-                            val resolveArtist = soloArtist?.takeIf { it.isNotBlank() } ?: track.artist
-                            SongResolver.resolve(database, track.title, resolveArtist)?.let { mm ->
-                                if (acceptsResolved(mm, soloArtist)) resolvedSongs += mm
-                            }
-                            val resolvedCount = resolvedSongs.distinctBy { it.id }.size
-                            onResolveProgress(resolvedCount.coerceAtMost(target), target)
-                            if (resolvedCount >= target) break
+                extra?.let { spec ->
+                    val extraTracks = filterTracksForSoloArtist(spec.tracks, soloArtist)
+                    for (track in extraTracks) {
+                        val resolveArtist = soloArtist?.takeIf { it.isNotBlank() } ?: track.artist
+                        SongResolver.resolve(database, track.title, resolveArtist)?.let { mm ->
+                            if (acceptsResolvedSoloPrimary(mm, soloArtist)) resolvedSongs += mm
                         }
-                        ordered = resolvedSongs.distinctBy { it.id }.take(target)
+                        val resolvedCount = resolvedSongs.distinctBy { it.id }.size
+                        onResolveProgress(resolvedCount.coerceAtMost(target), target)
+                        if (resolvedCount >= target) break
                     }
+                    ordered = resolvedSongs.distinctBy { it.id }.take(target)
+                }
             }
             aiName = spec.name
         }
@@ -196,7 +207,7 @@ object AiPlaylistGenerator {
             for (item in items) {
                 if (out.size >= target) return
                 if (seen.add(item.id)) {
-                    if (soloArtist == null || item.artists.any { SongResolver.artistMatches(it.name, soloArtist) }) {
+                    if (soloPrimaryMatch(item.artists.map { it.name }, soloArtist)) {
                         out += item.toMediaMetadata()
                     }
                 }
@@ -222,8 +233,44 @@ object AiPlaylistGenerator {
         return tracks.filter { AiPlaylistConstraints.artistAllowed(it.artist, soloArtist) }
     }
 
-    private fun acceptsResolved(mm: MediaMetadata, soloArtist: String?): Boolean {
+    /**
+     * STRICTER solo-artist gate for the OWNER'S "no improvisation" directive: when the user asked for
+     * ONE artist, only that artist's PRIMARY credits are accepted.
+     *
+     * The pre-existing gate (this same check without the position rule) already dropped resolved
+     * songs whose credit list did not contain the requested artist at all. The gap left there: a
+     * song where the artist appears only as a DEEP featured credit ("Jhayco, Bad Bunny" — Bad Bunny
+     * last, a guest verse) satisfied `artists.any { … }` and entered a "solo Bad Bunny" playlist,
+     * contradicting the primary-credit promise both prompt layers make.
+     * [SongResolver.artistMatches] itself was already strict (normalized-name match with word
+     * boundaries — verified, no `contains` gap there): the hole was the POSITION of the credit,
+     * not the name comparison.
+     *
+     * Guest-position heuristic, honest about its limits: the requested artist must appear among the
+     * FIRST [MAX_PRIMARY_CREDITS] credits of the resolved song. YouTube Music lists the primary
+     * artist(s) first and features after; a primary credit is therefore near the front. An artist at
+     * position 4+ of 5 is a featuring, and "solo X" must not resolve to someone else's song with a
+     * X feature. Edge case kept true on purpose: when the credit list is SHORT (≤ [MAX_PRIMARY_CREDITS]
+     * + 1 artists, the common collaboration shape "A & B"), any position still matches — dropping a
+     * real "Bad Bunny & Jhayco" duet for ordering noise would sacrifice exactness the user can hear.
+     */
+    private fun acceptsResolvedSoloPrimary(mm: MediaMetadata, soloArtist: String?): Boolean =
+        soloPrimaryMatch(mm.artists.map { it.name }, soloArtist)
+
+    /** Credits searched for the primary artist before a credit is considered a "featuring" position. */
+    private const val MAX_PRIMARY_CREDITS = 2
+
+    /**
+     * Pure, unit-testable core of the strict solo-artist gate: true when [names] (the resolved song's
+     * credit list, in order) carries [soloArtist] as a PRIMARY credit. No Android/network types.
+     */
+    internal fun soloPrimaryMatch(names: List<String>, soloArtist: String?): Boolean {
         if (soloArtist.isNullOrBlank()) return true
-        return mm.artists.any { SongResolver.artistMatches(it.name, soloArtist) }
+        val primary = names.take(MAX_PRIMARY_CREDITS)
+        if (primary.any { SongResolver.artistMatches(it, soloArtist) }) return true
+        // Short collaboration shape ("A & B"): the requested artist as the second named credit is
+        // still a primary credit, not a guest feature.
+        return names.size <= MAX_PRIMARY_CREDITS + 1 &&
+            names.any { SongResolver.artistMatches(it, soloArtist) }
     }
 }

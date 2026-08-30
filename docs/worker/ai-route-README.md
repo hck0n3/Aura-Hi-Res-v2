@@ -10,6 +10,51 @@ respuesta en formato OpenAI: `{"choices":[{"message":{"content":"..."}}]}`.
 
 ---
 
+## ⚠️ 2026-08-30 — Refuerzo ANTI-INVENCION (directiva del dueño: "la IA FUNCIONA pero NO improvise")
+
+**Qué cambió** (solo el bloque de instrucciones; rate limit, modelos en cascada, reshape OpenAI y
+rutas `/verify`+`/demo` quedan IGUAL):
+
+1. Constantes nuevas arriba del handler `handleAi`:
+   - `AI_PLAYLIST_SYSTEM_MARKER = "Eres un ejecutor EXACTO de peticiones musicales"` — el texto
+     literal con el que arranca el system prompt del generador de listas de la app
+     (`AiPlaylistPrompt.buildMessages`).
+   - `AI_ANTI_HALLUCINATION_BOOST` — un system message adicional (en inglés, directo al modelo):
+     *"ANTI-HALLUCINATION ENFORCER (highest priority): ONLY include songs you are CERTAIN exist and
+     are REAL releases by the stated artist. NEVER invent or approximate titles. If unsure about a
+     song, SKIP it and suggest another well-known one. Prefer each artist's MOST POPULAR/streamed
+     tracks. Output ONLY from your certain knowledge. Do NOT pad the count with uncertain songs:
+     fewer correct tracks beat a full list of guesses."*
+2. Dentro de `handleAi`, antes de probar modelos:
+   ```js
+   const isPlaylistRequest = messages.some(
+     (m) => m && m.role === "system" && typeof m.content === "string" &&
+       m.content.includes(AI_PLAYLIST_SYSTEM_MARKER)
+   );
+   const effectiveMessages = isPlaylistRequest ? messages.concat(AI_ANTI_HALLUCINATION_BOOST) : messages;
+   ```
+   y `env.AI.run(model, { messages: effectiveMessages, … })` (antes recibía `messages` directo).
+
+**Por qué CONDICIONAL y no global:** la ruta `/ai` la comparten TRES clientes con sus propios system
+prompts — el generador de listas IA, el worker de "Recomendado para ti (IA)" y la **traducción de
+letras** (`LyricsTranslationHelper` → `OpenRouterService.translate`, filas 192/193 del registro de
+regresiones). Una regla "si dudas, omítela" inyectada en una petición de TRADUCCIÓN dejaría líneas
+sin traducir (el traductor exige devolver exactamente N líneas). El marker detecta la petición de
+playlist por el arranque literal de su prompt y solo entonces se añade el refuerzo. **Si un día se
+reformula el system prompt de `AiPlaylistPrompt`, hay que actualizar el marker en el Worker o el
+refuerzo deja de aplicar en silencio** (y SOLO eso: nada se rompe, vuelve al comportamiento actual).
+
+**Qué NO cambia:** `/verify`, `/demo`, el rate limit por IP/día (30), la cascada de modelos con
+failover 5028, el conteo de uso en KV, el reshape de respuesta. Las traducciones y recomendaciones
+pasan por el Worker exactamente igual que antes.
+
+**Cómo desplegarlo:** el archivo completo actualizado es `docs/worker/worker.js` — copiar el
+contenido entero en *Edit code* del dashboard (reemplaza todo) y **Deploy**. Verificar con el curl
+de abajo (sección b, paso 6): la respuesta de un prompt de playlist debe seguir siendo JSON de
+playlist; una petición tipo traducción (system prompt distinto) debe responder igual que antes.
+
+---
+
 ## (a) Código a añadir al Worker
 
 Añade este bloque al `fetch` existente (ANTES o DESPUÉS del routing de `/verify`//`/demo`, sin

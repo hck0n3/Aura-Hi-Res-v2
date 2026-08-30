@@ -14,6 +14,30 @@ const AI_MODELS = [
 ];
 const AI_DAILY_LIMIT = 30;
 
+// Refuerzo anti-invención SOLO para las peticiones de LISTAS IA de la app (Aura Hi-Res v2).
+// La ruta /ai la comparten TRES clientes con system prompts propios: listas IA, Recomendado IA y
+// TRADUCCIÓN DE LETRAS (LyricsTranslationHelper → OpenRouterService.translate, ver fila 192 del
+// registro de regresiones). Inyectar la regla de playlists en una traducción la corrompería
+// ("omítela si dudas" deja líneas sin traducir). Por eso el refuerzo es CONDICIONAL: se detecta la
+// petición de playlist por el system prompt EXACTO que AiPlaylistPrompt.buildMessages emite.
+// Marca de arranque del prompt de la app: "Eres un ejecutor EXACTO de peticiones musicales." — es
+// literal en el primer system message; ninguna traducción ni recomendación empieza así.
+const AI_PLAYLIST_SYSTEM_MARKER = "Eres un ejecutor EXACTO de peticiones musicales";
+// Refuerzo worker-side (el dueño pidió: la IA "NO improvise — que sea lo más exacta posible").
+// Llama 70B a veces INVENTA canciones; el resolver de la app las descarta y la lista sale corta.
+// Este empujón adicional tras los mensajes de la app reduce las propuestas inventadas en origen.
+const AI_ANTI_HALLUCINATION_BOOST = [
+  {
+    role: "system",
+    content:
+      "ANTI-HALLUCINATION ENFORCER (highest priority): ONLY include songs you are CERTAIN exist " +
+      "and are REAL releases by the stated artist. NEVER invent or approximate titles. If unsure " +
+      "about a song, SKIP it and suggest another well-known one. Prefer each artist's MOST " +
+      "POPULAR/streamed tracks. Output ONLY from your certain knowledge. Do NOT pad the count " +
+      "with uncertain songs: fewer correct tracks beat a full list of guesses.",
+  },
+];
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -69,11 +93,19 @@ async function handleAi(request, env) {
 
   // Prueba cada modelo en orden; usa el primero que responda. Un modelo deprecado (5028) o caído lanza
   // y se pasa al siguiente. Solo si TODOS fallan devolvemos 500 (y la app cae a su fallback keyless).
+  // ANTI-INVENCION (condicional): si la petición viene del generador de LISTAS IA de la app, se
+  // añade un system message extra que refuerza la regla "cero canciones inventadas". Solo para
+  // playlists — ver AI_PLAYLIST_SYSTEM_MARKER arriba (las traducciones pasan IGUAL que antes).
+  const isPlaylistRequest = messages.some(
+    (m) => m && m.role === "system" && typeof m.content === "string" &&
+      m.content.includes(AI_PLAYLIST_SYSTEM_MARKER)
+  );
+  const effectiveMessages = isPlaylistRequest ? messages.concat(AI_ANTI_HALLUCINATION_BOOST) : messages;
   let result = null;
   let lastErr = "no model available";
   for (const model of AI_MODELS) {
     try {
-      const r = await env.AI.run(model, { messages, max_tokens: body.max_tokens || 2048 });
+      const r = await env.AI.run(model, { messages: effectiveMessages, max_tokens: body.max_tokens || 2048 });
       if (r && typeof r.response === "string") { result = r; break; }
     } catch (e) {
       lastErr = (e && e.message) ? e.message : String(e);
