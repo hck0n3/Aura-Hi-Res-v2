@@ -1,5 +1,5 @@
 [versions]
-haze = "1.7.3"
+haze = "1.7.2"
 androidGradlePlugin = "9.2.0"
 kotlin = "2.4.0"
 compose = "1.11.0"
