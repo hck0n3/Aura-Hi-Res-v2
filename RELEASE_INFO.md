@@ -1,8 +1,13 @@
-# Aura Hi-Res v2.0.17 — traducción que funciona, glass en todas las barras y Escuchar Juntos renovado
+# Aura Hi-Res v2.0.18 — traducción que funciona, glass en todas las barras, caché que obedece al instante y Escuchar Juntos renovado
 
-BETA PRIVADA para el dueño (v2.0.17 / versionCode 976). Actualización directa sobre
+BETA PRIVADA para el dueño (v2.0.18 / versionCode 977). Actualización directa sobre
 cualquier versión de la identidad v2: mismo paquete (iad1tya.aura.music) y misma
 firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
+
+## Novedades sobre la BETA-023 (mismo día, noche del 30-08)
+
+- **El límite de caché obedece AL INSTANTE:** al elegir un tamaño máximo en Ajustes ▸ Almacenamiento, el caché se recorta a ese presupuesto en el mismo momento — lo más viejo se va primero, la canción sonando nunca se toca, sin reiniciar la app (antes el cambio solo aplicaba tras reiniciar: un control que parecía no hacer nada).
+- **Crash del «Iniciar sesión con Google» — causa encontrada con tu log:** era el conector de Cast (presente solo en la variante de la estable vieja) tocando el reproductor desde un hilo de Google. Esta beta no contiene ese camino del crash y además el conector quedó blindado para el futuro. Tu log de hoy corrió limpio: ningún error.
 
 ---
 
