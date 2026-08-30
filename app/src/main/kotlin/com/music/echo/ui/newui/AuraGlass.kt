@@ -2,7 +2,6 @@ package iad1tya.echo.music.ui.newui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,9 +54,27 @@ val LocalShellHazeState = staticCompositionLocalOf<HazeState?> { null }
  */
 val LocalShellScrollActive = staticCompositionLocalOf<() -> Boolean> { { false } }
 
-/** Publisher side of [LocalShellScrollActive]. */
+/**
+ * Publisher side of [LocalShellScrollActive].
+ *
+ * SYNCHRONOUS STATE (row 196, BETA-026 recurrence): the bus used to be pull-only
+ * (`isActive()` polled every 50ms by each chrome surface) and that window was MORTAL — a short
+ * flick produces 1–3 scroll frames, and ONE full-screen 18dp RenderEffect pass over the
+ * re-recorded NavHost source layer is enough to sig-11 the One UI 8.5 RenderThread. So the
+ * aggregated result now lives in ONE global [androidx.compose.runtime.MutableState]:
+ * [ScrollStateBusReporter] writes it during composition (reactively — see there) and every
+ * consumer — nav bar, mini pill, global top bar, and the haze SOURCE Box in MainActivity —
+ * reads it as ordinary Compose state. The drag-in edge propagates in the SAME frame, zero
+ * coroutines, zero polling.
+ *
+ * The provider set is still kept for registry/lifecycle bookkeeping (who is composed), but it
+ * is no longer the read path: [active] is.
+ */
 object ShellScrollBus {
     private val states = CopyOnWriteArraySet<() -> Boolean>()
+
+    /** The single source of truth: true while ANY composed screen scrollable is mid-gesture/fling. */
+    val active = androidx.compose.runtime.mutableStateOf(false)
 
     fun register(provider: () -> Boolean) {
         states.add(provider)
@@ -67,7 +84,24 @@ object ShellScrollBus {
         states.remove(provider)
     }
 
-    fun isActive(): Boolean = states.any { it() }
+    /**
+     * Aggregates one reporter's live read with every OTHER registered provider. Called from
+     * [ScrollStateBusReporter]'s composition — and reading the other providers' state-reading
+     * lambdas there subscribes that composition to THEIR scroll states too, which is what keeps
+     * the aggregate self-healing with zero polling: any other composed screen's scroll edge
+     * recomposes this trivial reporter and rewrites the one global state.
+     */
+    fun publish(scrolling: Boolean) {
+        active.value = scrolling || states.any { it() }
+    }
+
+    /** Legacy read kept for compatibility — the state IS the bus now. */
+    fun isActive(): Boolean = active.value
+
+    /** Re-aggregate from the providers that remain composed — called after one leaves composition. */
+    fun recompute() {
+        active.value = states.any { it() }
+    }
 }
 
 /**
@@ -135,11 +169,40 @@ fun Modifier.detailShellGlass(state: HazeState?): Modifier {
 
 /**
  * Publishes a scroll state to the [ShellScrollBus] while composed — screens put it next to their Lazy lists.
+ *
+ * SYNCHRONOUS WRITE (row 196, BETA-026 recurrence): the reporter no longer merely registers the
+ * lambda for a 50ms poll to find — it writes the aggregate DURING COMPOSITION. This works and is
+ * reactive because the call-sites pass lambdas that READ COMPOSE STATE (`{ listState.isScrollInProgress }`):
+ * calling `isScrolling()` in the body of this composable subscribes this composition to
+ * `isScrollInProgress`, so the moment the gesture starts, `isScrollInProgress` flips true, THIS
+ * composable recomposes (it is the only thing that does — the lambda is otherwise a cheap read),
+ * and [ShellScrollBus.active] is set true IN THE SAME FRAME the scroll does. Every consumer
+ * reading [ShellScrollBus.active] (nav bar, mini pill, global top bar, the haze source Box)
+ * recomposes in that same frame pass. The old 50ms poll needed 1–3 scroll frames to notice a
+ * flick — and ONE frame of an 18dp RenderEffect over the re-recorded NavHost layer is the sig-11.
  */
 @Composable
 fun ScrollStateBusReporter(isScrolling: () -> Boolean) {
-    DisposableEffect(isScrolling) {
+    // Read in the composition body: with a `{ listState.isScrollInProgress }` lambda this
+    // subscribes to the scroll state itself — the write below is not a one-shot, it re-runs on
+    // every gesture edge. Screen call-sites must keep passing state-reading lambdas (they all do).
+    val scrolling = isScrolling()
+    ShellScrollBus.publish(scrolling)
+    // Keyed on Unit, NOT on isScrolling: the call-sites pass a fresh lambda instance on every
+    // screen recomposition (the literal `{ listState.isScrollInProgress }` captures listState),
+    // so keying on the lambda would unregister/re-register the provider on EVERY screen
+    // recomposition — and the dispose-side recompute() below would briefly drop this provider
+    // from the aggregate MID-GESTURE, un-freezing the chrome while the source still mutates.
+    // Unit ties register/unregister to the reporter's real composition lifetime (enter/leave),
+    // which is the only moment the set's membership — and therefore the aggregate — truly changes.
+    DisposableEffect(Unit) {
         ShellScrollBus.register(isScrolling)
-        onDispose { ShellScrollBus.unregister(isScrolling) }
+        // Leaving composition: this reporter's provider must stop counting. Re-aggregate from
+        // the remaining registered providers — the ones still composed — so the bus never stays
+        // stuck true after the scrolling screen goes away (e.g. navigating away mid-fling).
+        onDispose {
+            ShellScrollBus.unregister(isScrolling)
+            ShellScrollBus.recompute()
+        }
     }
 }

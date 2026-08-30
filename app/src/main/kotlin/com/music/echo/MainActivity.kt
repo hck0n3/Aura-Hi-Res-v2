@@ -1673,18 +1673,14 @@ class MainActivity : ComponentActivity() {
                                     // screens it floats over (Home/Library/Search) scroll content
                                     // UNDER it without any gate — every one of their scroll frames
                                     // re-records the NavHost source layer this bar samples, the same
-                                    // native-cost pattern the nav bar gate (fix #1) freezes on. Same
-                                    // reader recipe as AuraShell's: a 50ms poll that only writes on
-                                    // EDGES, so an idle screen costs ~20 cheap reads/s and a whole
-                                    // scroll costs exactly two recompositions of this bar.
-                                    var shellScrollActive by remember { mutableStateOf(false) }
-                                    LaunchedEffect(Unit) {
-                                        while (true) {
-                                            val a = ShellScrollBus.isActive()
-                                            if (a != shellScrollActive) shellScrollActive = a
-                                            delay(50)
-                                        }
-                                    }
+                                    // native-cost pattern the nav bar gate (fix #1) freezes on.
+                                    // SYNCHRONOUS READ (BETA-026 recurrence — the 50ms poll was
+                                    // mortal): reads the ONE global MutableState the reporters
+                                    // write during composition — the drag-in edge reaches this bar
+                                    // in the SAME frame, zero coroutine, zero delay. The old poll
+                                    // could miss a whole short flick (1–3 frames), and one sampled
+                                    // frame over a re-recorded NavHost layer is the sig-11.
+                                    val shellScrollActive = ShellScrollBus.active.value
                                     TopAppBar(
                                         title = {
                                             if (navBackStackEntry?.destination?.route == Screens.Home.route) {
@@ -2111,7 +2107,32 @@ class MainActivity : ComponentActivity() {
                                         .width(sidePanelWidth),
                                 )
                             }
-                            Box(Modifier.weight(1f).shellHazeSource(shellHazeState)) {
+                            // HAZE SOURCE GATE (registry row 196, BETA-026 recurrence): this Box is
+                            // the haze SOURCE — the layer every shell hazeChild (nav bar, mini pill,
+                            // global top bar, detail bars) samples. During an active scroll it is
+                            // re-recorded at native resolution EVERY frame, and with the children
+                            // merely frozen the source kept paying that re-record cost anyway — the
+                            // crash persisted "apenas se desplaza UN POCO". So during the gesture the
+                            // Box is NOT the source: shellHazeSource unmounts in the same frame the
+                            // bus flips true (ShellScrollBus.active is read HERE, in composition —
+                            // it is a global MutableState, so this read is reactive and the Row
+                            // recomposes the moment the drag starts). The frozen children never
+                            // sample anything (they show the GroundRaised plate), so there is no
+                            // visual flash; when the scroll settles the source returns and glass
+                            // resumes. NOTE: this reads the state directly, not via
+                            // rememberShellScrollActive — the shell's helper is private to AuraShell.
+                            val hazeSourceGated = ShellScrollBus.active.value
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .then(
+                                        if (shellHazeState != null && !hazeSourceGated) {
+                                            Modifier.shellHazeSource(shellHazeState)
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
+                            ) {
 
                                 NavHost(
                                     navController = navController,

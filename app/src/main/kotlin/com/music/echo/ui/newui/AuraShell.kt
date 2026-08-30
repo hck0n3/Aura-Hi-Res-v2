@@ -89,7 +89,6 @@ import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import kotlin.math.exp
 import kotlin.math.roundToInt
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -306,27 +305,23 @@ fun AuraGlobalActions(
 // native crash (RSS 700-800MB in the owner's logs). While [ShellScrollBus.isActive] is true the chrome
 // FREEZES its haze sampling: the hazeChild unmounts and a flat tint — the SAME GroundRaised.copy(0.72f)
 // the detail bars use (AuraAlbumScreen) — keeps the look alive at zero native cost. When the scroll
-// settles (gesture OR fling) the state flips back to false and the glass returns. The bus is read as a
-// 50ms poll, NOT per frame: one coroutine per chrome surface, launched once, that only writes state on
-// EDGES (a != shellScrollActive), so an idle screen costs ~20 cheap reads/s and a whole scroll costs
-// exactly two recompositions (enter + exit) — the shell itself never scrolls, so its glass is only
-// expensive when a SCREEN below it does, which is exactly when this gate fires.
+// settles (gesture OR fling) the state flips back to false and the glass returns.
+//
+// SYNCHRONOUS READ (row 196, BETA-026 recurrence — the 50ms poll was mortal): this used to be a
+// 50ms polling coroutine, and that window was the bug: a short flick produces only 1–3 scroll frames,
+// so the poll could MISS the entire gesture — or catch its first frame and freeze one frame too late,
+// after the child had already sampled a full-screen re-recorded layer. The one native pass is enough.
+// [ShellScrollBus.active] is now a single global MutableState written BY THE REPORTERS during
+// composition (ScrollStateBusReporter reads `isScrolling()` in its body, which subscribes it to the
+// screens' `isScrollInProgress` — the drag-in edge flips the state in the SAME frame), so this reader
+// is just `ShellScrollBus.active.value`: a plain reactive read, zero coroutines, zero delay, and the
+// nav bar / pill recompose on the SAME frame the finger starts moving, before any child can sample.
 //
 // The CompositionLocal is deliberately NOT used here: the shell is composed by MainActivity OUTSIDE
 // the NavHost, so a provider set by a screen is not guaranteed to reach it — ShellScrollBus is the
 // global, source-of-truth registry both sides already share.
 @Composable
-private fun rememberShellScrollActive(): Boolean {
-    var shellScrollActive by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            val a = ShellScrollBus.isActive()
-            if (a != shellScrollActive) shellScrollActive = a
-            delay(50)
-        }
-    }
-    return shellScrollActive
-}
+private fun rememberShellScrollActive(): Boolean = ShellScrollBus.active.value
 
 @Composable
 fun AuraNavigationBar(
