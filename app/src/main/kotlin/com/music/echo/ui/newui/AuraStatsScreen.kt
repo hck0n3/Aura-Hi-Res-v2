@@ -136,6 +136,8 @@ fun AuraStatsScreen(
     )
 
     val listState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { listState.isScrollInProgress }
     // HALLAZGO-049: seeded with the now-playing cover so Estadísticas follows the artwork live
     // (owner: palette on ALL screens); falls back to the brand bloom when nothing plays. Dimmed
     // to Ajustes' .32 because this screen is dense with small type.

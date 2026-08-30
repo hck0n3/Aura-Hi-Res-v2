@@ -214,6 +214,8 @@ fun AuraArtistScreen(
     }
 
     val listState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { listState.isScrollInProgress }
     val bloom = rememberAuraBloom(mediaMetadata?.id)
 
     val insets = LocalPlayerAwareWindowInsets.current

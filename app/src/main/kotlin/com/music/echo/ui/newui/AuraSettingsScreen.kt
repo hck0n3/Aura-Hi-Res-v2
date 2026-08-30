@@ -314,6 +314,8 @@ fun AuraSettingsScreen(
         ?: remember { mutableStateOf(null) }
     val bloom = rememberAuraBloom(mediaMetadata?.id)
     val scrollState = rememberScrollState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { scrollState.isScrollInProgress }
 
     Box(
         Modifier

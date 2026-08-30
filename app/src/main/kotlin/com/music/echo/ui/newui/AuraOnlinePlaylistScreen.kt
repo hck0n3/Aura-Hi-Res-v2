@@ -161,6 +161,8 @@ fun AuraOnlinePlaylistScreen(
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
 
     val lazyListState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { lazyListState.isScrollInProgress }
     val snackbarHostState = remember { SnackbarHostState() }
 
     var isSearching by rememberSaveable { mutableStateOf(false) }

@@ -236,6 +236,8 @@ fun AuraHomeScreen(
 
     val pullRefreshState = rememberPullToRefreshState()
     val listState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { listState.isScrollInProgress }
     var randomSeed by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
     var forgottenExpanded by rememberSaveable { mutableStateOf(false) }
 

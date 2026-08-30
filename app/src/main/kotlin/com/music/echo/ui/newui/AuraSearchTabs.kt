@@ -21,8 +21,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
@@ -169,7 +171,12 @@ fun AuraExploreTab(
     val sections by viewModel.moodAndGenres.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
+    val listState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { listState.isScrollInProgress }
+
     LazyColumn(
+        state = listState,
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         modifier = Modifier.fillMaxSize(),
     ) {
@@ -315,6 +322,10 @@ fun AuraTrendingTab(
 
     val pullState = rememberPullToRefreshState()
 
+    val listState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { listState.isScrollInProgress }
+
     PullToRefreshBox(
         isRefreshing = isManualLoading,
         onRefresh = { viewModel.refresh(regionCode, force = true) },
@@ -328,6 +339,7 @@ fun AuraTrendingTab(
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(
+            state = listState,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -646,8 +658,12 @@ fun AuraNewAlbumsTab(
             val available = maxWidth - AuraSpacing.Gutter * 2
             val columns = max(2, ((available + spacing) / (minCard + spacing)).toInt())
             val cardWidth = (available - spacing * (columns - 1)) / columns
+            val listState = rememberLazyGridState()
+            // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+            ScrollStateBusReporter { listState.isScrollInProgress }
 
             LazyVerticalGrid(
+                state = listState,
                 columns = GridCells.Fixed(columns),
                 horizontalArrangement = Arrangement.spacedBy(spacing),
                 verticalArrangement = Arrangement.spacedBy(spacing),

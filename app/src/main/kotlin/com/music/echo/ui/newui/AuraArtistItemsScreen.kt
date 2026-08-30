@@ -92,6 +92,10 @@ fun AuraArtistItemsScreen(
     val asSongList = pageItems.firstOrNull() is SongItem &&
         pageItems.filterIsInstance<SongItem>().none { it.isVideoSong }
 
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    // Only ONE of the two states is attached to a list (asSongList picks), so report the active one.
+    ScrollStateBusReporter { if (asSongList) lazyListState.isScrollInProgress else lazyGridState.isScrollInProgress }
+
     val playSongFromPage: (SongItem) -> Unit = { song ->
         if (song.id == mediaMetadata?.id) {
             playerConnection.togglePlayPause()

@@ -74,6 +74,8 @@ fun AuraFavoriteAlbumsScreen(
     val albums by viewModel.albums.collectAsState()
     val bloom = rememberAuraBloom(mediaMetadata?.id)
     val gridState = rememberLazyGridState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { gridState.isScrollInProgress }
     val isTvOrCar = rememberIsTvOrCar()
     val bottomPad = LocalPlayerAwareWindowInsets.current
         .only(WindowInsetsSides.Bottom)
@@ -178,6 +180,8 @@ fun AuraArtistSectionGridScreen(
     val artistNameFilter = remember { ArtistSectionBuffer.artistNameFilter }
     var loadingMore by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { gridState.isScrollInProgress }
     val bottomPad = LocalPlayerAwareWindowInsets.current
         .only(WindowInsetsSides.Bottom)
         .asPaddingValues()

@@ -106,6 +106,8 @@ fun AuraOnlineSearchSuggestions(
     val viewState by viewModel.viewState.collectAsState()
 
     val lazyListState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { lazyListState.isScrollInProgress }
 
     // Hide the keyboard on a manual scroll (so the user can see more results), but NOT when the
     // offset shifts because new suggestions streamed in and reflowed the list — `isScrollInProgress`
@@ -443,6 +445,8 @@ fun AuraLocalSearchResults(
     val result by viewModel.result.collectAsState()
 
     val lazyListState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { lazyListState.isScrollInProgress }
 
     // See AuraOnlineSearchSuggestions above for why this is gated on isScrollInProgress: without it,
     // a content-driven reflow (local results arriving as the user types) could hide the keyboard too.

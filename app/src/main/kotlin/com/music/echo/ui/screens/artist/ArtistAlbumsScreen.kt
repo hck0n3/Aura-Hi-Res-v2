@@ -33,6 +33,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.ui.graphics.Color
 import iad1tya.echo.music.ui.newui.LocalShellHazeState
+import iad1tya.echo.music.ui.newui.ScrollStateBusReporter
 import iad1tya.echo.music.ui.newui.detailShellGlass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -91,6 +92,8 @@ fun ArtistAlbumsScreen(
 
     val coroutineScope = rememberCoroutineScope()
     val lazyGridState = rememberLazyGridState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { lazyGridState.isScrollInProgress }
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
 
     var inSelectMode by rememberSaveable { mutableStateOf(false) }

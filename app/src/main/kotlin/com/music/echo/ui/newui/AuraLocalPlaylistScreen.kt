@@ -477,6 +477,8 @@ fun AuraLocalPlaylistScreen(
     // ── Reordenar arrastrando ─────────────────────────────────────────────────────────────────────
 
     val lazyListState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { lazyListState.isScrollInProgress }
     var dragInfo by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     // Key-based index mapping instead of the classic "lazy index − headerItems" arithmetic: the number

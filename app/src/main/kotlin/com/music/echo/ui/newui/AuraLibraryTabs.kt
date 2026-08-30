@@ -401,8 +401,11 @@ fun AuraLibraryHub(
             )
         },
     ) {
+        val listState = rememberLazyListState()
+        // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+        ScrollStateBusReporter { listState.isScrollInProgress }
         LazyColumn(
-            state = rememberLazyListState(),
+            state = listState,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -677,6 +680,8 @@ fun AuraLibrarySongsTab(
     val shufflePlayedSet = rememberPlayedShuffleSet(libraryContextId)
 
     val listState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { listState.isScrollInProgress }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -894,9 +899,12 @@ fun AuraLibraryAlbumsTab(
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    val listState = rememberLazyGridState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { listState.isScrollInProgress }
 
     LazyVerticalGrid(
-        state = rememberLazyGridState(),
+        state = listState,
         columns = GridCells.Adaptive(minSize = gridCellSize),
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -1002,8 +1010,11 @@ fun AuraLibraryArtistsTab(
                 placeholder = stringResource(R.string.search_library),
             )
         }
+        val listState = rememberLazyGridState()
+        // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+        ScrollStateBusReporter { listState.isScrollInProgress }
         LazyVerticalGrid(
-        state = rememberLazyGridState(),
+        state = listState,
         columns = GridCells.Adaptive(minSize = gridCellSize),
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -1139,8 +1150,11 @@ fun AuraLibraryPlaylistsTab(
                 placeholder = stringResource(R.string.search_playlists),
             )
         }
+        val listState = rememberLazyGridState()
+        // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+        ScrollStateBusReporter { listState.isScrollInProgress }
         LazyVerticalGrid(
-        state = rememberLazyGridState(),
+        state = listState,
         columns = GridCells.Adaptive(minSize = gridCellSize),
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),

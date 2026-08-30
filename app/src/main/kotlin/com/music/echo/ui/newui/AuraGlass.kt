@@ -1,6 +1,7 @@
 package iad1tya.echo.music.ui.newui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -129,5 +130,16 @@ fun Modifier.detailShellGlass(state: HazeState?): Modifier {
             startIntensity = 1f,
             endIntensity = 0.55f,
         )
+    }
+}
+
+/**
+ * Publishes a scroll state to the [ShellScrollBus] while composed — screens put it next to their Lazy lists.
+ */
+@Composable
+fun ScrollStateBusReporter(isScrolling: () -> Boolean) {
+    DisposableEffect(isScrolling) {
+        ShellScrollBus.register(isScrolling)
+        onDispose { ShellScrollBus.unregister(isScrolling) }
     }
 }

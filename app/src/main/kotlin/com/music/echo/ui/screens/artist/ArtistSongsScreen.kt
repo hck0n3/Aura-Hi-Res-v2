@@ -22,6 +22,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.ui.graphics.Color
 import iad1tya.echo.music.ui.newui.LocalShellHazeState
+import iad1tya.echo.music.ui.newui.ScrollStateBusReporter
 import iad1tya.echo.music.ui.newui.detailShellGlass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -91,6 +92,8 @@ fun ArtistSongsScreen(
     val artist by viewModel.artist.collectAsState()
     val songs by viewModel.songs.collectAsState()
     val lazyListState = rememberLazyListState()
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { lazyListState.isScrollInProgress }
 
     // Enhanced Shuffle context for THIS artist: "AR:" + the LOCAL artist row id (ArtistEntity's primary
     // key — the same id the route was opened with), matching ArtistScreen's header shuffle so both share
