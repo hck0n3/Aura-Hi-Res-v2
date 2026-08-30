@@ -1024,9 +1024,19 @@ internal fun AuraDetailTopBar(
         }
     }
     val showChrome = inSelectMode || forceOpaque || (pinTitleOnScroll && scrolled)
+
+    // Glass for the detail title bar (owner directive 2026-08-29): the same haze recipe the shell's
+    // nav bar/mini pill/global TopAppBar already use — the ONE glass technique verified translucent
+    // on Samsung One UI 8.5 (in-app RenderEffect; window blur is the no-op that used to leave this
+    // bar a solid plate on Galaxy). shellGlass IS the surface (0b1151e lesson): with a source the
+    // plate must stay transparent or it would cover the frost. No source (glass toggle off, classic
+    // shell, sub-API-31, previews) keeps the exact opaque Ground plate that shipped before, so the
+    // fallback is byte-identical. Glass only pays while the plate is visible (showChrome); while
+    // the hero is edge-to-edge the bar stays a transparent overlay, sampling nothing.
+    val shellHazeState = LocalShellHazeState.current
     val plate by animateColorAsState(
         targetValue = if (showChrome) {
-            AuraPalette.Ground.copy(alpha = 0.88f)
+            if (shellHazeState != null) Color.Transparent else AuraPalette.Ground.copy(alpha = 0.88f)
         } else {
             Color.Transparent
         },
@@ -1038,6 +1048,13 @@ internal fun AuraDetailTopBar(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
+            .then(
+                if (showChrome && shellHazeState != null) {
+                    Modifier.shellGlass(shellHazeState)
+                } else {
+                    Modifier
+                },
+            )
             .background(plate)
             .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
             .padding(horizontal = 6.dp, vertical = 4.dp),

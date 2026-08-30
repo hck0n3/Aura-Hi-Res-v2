@@ -29,7 +29,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.ui.graphics.Color
+import iad1tya.echo.music.ui.newui.LocalShellHazeState
+import iad1tya.echo.music.ui.newui.shellGlass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -170,6 +174,9 @@ fun ArtistAlbumsScreen(
             }
         }
 
+        // Glass when the toggle is on (owner directive 2026-08-29): same recipe as the shell nav
+        // bar — verified translucent on Samsung One UI 8.5. No source → Material default solid.
+        val classicBarHazeState = LocalShellHazeState.current
         TopAppBar(
             title = { Text(artist?.artist?.name.orEmpty()) },
             navigationIcon = {
@@ -183,7 +190,22 @@ fun ArtistAlbumsScreen(
                     )
                 }
             },
-            scrollBehavior = scrollBehavior
+            scrollBehavior = scrollBehavior,
+            colors = if (classicBarHazeState != null) {
+                TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
+                )
+            } else {
+                TopAppBarDefaults.topAppBarColors()
+            },
+            modifier = Modifier.then(
+                if (classicBarHazeState != null) {
+                    Modifier.shellGlass(classicBarHazeState)
+                } else {
+                    Modifier
+                },
+            ),
         )
 
         SnackbarHost(
