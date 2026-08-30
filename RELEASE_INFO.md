@@ -1,12 +1,17 @@
-# Aura Hi-Res v2.0.18 — traducción que funciona, glass en todas las barras, caché que obedece al instante y Escuchar Juntos renovado
+# Aura Hi-Res v2.0.19 — traducción que funciona, glass sin crash y con desenfoque real, caché que obedece al instante
 
-BETA PRIVADA para el dueño (v2.0.18 / versionCode 977). Actualización directa sobre
+BETA PRIVADA para el dueño (v2.0.19 / versionCode 978). Actualización directa sobre
 cualquier versión de la identidad v2: mismo paquete (iad1tya.aura.music) y misma
 firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
-## Novedades sobre la BETA-023 (mismo día, noche del 30-08)
+## Novedades sobre la BETA-024 (mismo día, tarde)
 
-- **El límite de caché obedece AL INSTANTE:** al elegir un tamaño máximo en Ajustes ▸ Almacenamiento, el caché se recorta a ese presupuesto en el mismo momento — lo más viejo se va primero, la canción sonando nunca se toca, sin reiniciar la app (antes el cambio solo aplicaba tras reiniciar: un control que parecía no hacer nada).
+- **Se cerraba al entrar a un artista después de scrollear — ARREGLADO:** tu log mostró 4 cierres nativos (señal 11) con la memoria de video disparada: la barra de títulos nueva estaba re-muestreando el cristal en cada fotograma del scroll — en One UI 8.5 eso es una bomba nativa. Ahora el cristal solo muestrea cuando el scroll está QUIETO; mientras mueves la lista, la placa se congela con el mismo tono (idéntico a la vista) y el coste nativo cae a cero.
+- **El cristal ahora SÍ se ve desenfocado:** el desenfoque uniforme sobre la portada leía como "solo transparencia de color". La barra ahora usa desenfoque progresivo (borroso abajo, despejado arriba — el look de las barras de iOS/One UI), que se LEE como desenfoque real y reduce el área muestreada.
+
+## Novedades sobre la BETA-023 (mismo día, noche)
+
+- **El límite de caché obedece AL INSTANTE:** al elegir un tamaño máximo en Ajustes ▸ Almacenamiento, el caché se recorta a ese presupuesto en el mismo momento — lo más viejo se va primero, la canción sonando nunca se toca, sin reiniciar la app.
 - **Crash del «Iniciar sesión con Google» — causa encontrada con tu log:** era el conector de Cast (presente solo en la variante de la estable vieja) tocando el reproductor desde un hilo de Google. Esta beta no contiene ese camino del crash y además el conector quedó blindado para el futuro. Tu log de hoy corrió limpio: ningún error.
 
 ---
