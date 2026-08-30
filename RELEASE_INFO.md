@@ -1,60 +1,61 @@
-# Aura Hi-Res v2.0.16 — login al instante, reacción inmediata y reproductor más limpio
+# Aura Hi-Res v2.0.17 — traducción que funciona, glass en todas las barras y Escuchar Juntos renovado
 
-Versión estable que reúne todo lo probado en las betas v2.0.12, v2.0.13,
-v2.0.14, v2.0.15 y v2.0.16 más los cambios de esta ronda. Actualización directa sobre
-cualquier versión de la identidad v2 (desde la estable v2.0.11): mismo
-paquete (iad1tya.aura.music) y misma firma (CN=Aura Hi-Res v2), conserva tus
-datos, tu sesión y tus ajustes.
+BETA PRIVADA para el dueño (v2.0.17 / versionCode 976). Actualización directa sobre
+cualquier versión de la identidad v2: mismo paquete (iad1tya.aura.music) y misma
+firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 ---
 
-## Velocidad y fluidez
+## Traducción de letras (arreglado de raíz)
 
-- **Reacción instantánea al tocar:** la respuesta tras tocar cualquier cosa (cambiar de pestañas, expandir el reproductor, entrar a Ajustes, reaccionar tras iniciar sesión) ya no tiene la pausa de antes. La causa era una capa de seguridad que pagaba cifrado de hardware en el hilo principal y cientos de lecturas bloqueantes de ajustes en cada navegación; se optimizó sin tocar la seguridad ni la sesión cifrada.
-- **Fluidez a 120 Hz:** las animaciones se adaptan a la tasa de refresco del celular y se recuperan si el sistema las baja; el fondo del reproductor expandido ya no trabosa y su pulso se lee continuo, sin escalones.
-- **Tras iniciar sesión el inicio no se congela:** la recarga de la pantalla principal espera a que pase la tormenta de sincronización de la biblioteca.
+- **La traducción ahora sale:** el menú de letras muestra «Traducción de letras» SIEMPRE (antes el ítem ni aparecía si no tenías clave de IA — por eso «nunca traducía»). La cadena es Google Translate → letras humanas de SimpMusic → IA local del dueño; el eslabón muerto (Pollinations) se eliminó.
+- **Reintenta sola:** si una traducción falla por un instante sin red, reabrir la letra reintenta (antes un fallo bloqueaba esa canción toda la sesión). Sin conexión muestra «Sin conexión a internet» en segundos.
+- **Persistida:** la traducción se guarda por canción — no se vuelve a gastar datos.
 
-## Inicio de sesión
+## Liquid Glass forzado (Samsung One UI 8.5 / S26 Ultra)
 
-- **La app captura tu cuenta de inmediato:** al terminar de iniciar sesión, la app vuelve sola y empieza a cargar tu biblioteca, sin quedarse parada en la pantalla de Google.
-- **Ya no se queda en blanco tras aceptar la sesión:** en algunos teléfonos la última pantalla del inicio de sesión (blanca) se quedaba colgada y la app nunca volvía sola hasta que elegías tu cuenta con «Usar correo del teléfono». Ahora la app vigila la sesión por dentro: en cuanto tu cuenta queda registrada, vuelve a la interfaz y continúa con la carga de tu biblioteca aunque la pantalla blanca siga ahí; y si el traspaso a YouTube se atasca, la app lo relanza sola (lo mismo que hacía tu elección manual).
-- **Iniciar sesión con otra cuenta** ya logueada en el dispositivo ahora sí re-sincroniza la biblioteca a la cuenta nueva.
-- **Salir del WebView o matar la app durante la validación** ya no deja la biblioteca sin sincronizar: la sesión se completa igualmente y, si quedó a medias, el próximo arranque se auto-repara solo.
+- **El toggle de Liquid Glass manda de verdad:** ya no te lo bloquea la capa de Samsung; el interruptor de Ajustes ▸ Apariencia enciende el cristal sin importar la capa de personalización (solo el Modo de Rendimiento puede vetarlo, porque lo enciendes tú).
+- **La barra de títulos también es de cristal:** al entrar a un artista, álbum, playlist o canciones, la barra superior donde aparece el título ahora es translúcida con el mismo cristal que tu barra de navegación (antes quedaba de color sólido en los Galaxy).
+- En diálogos y menús desplegables, con el toggle encendido obtienes placas translúcidas reales (el desenfoque de ventana que Samsung desactiva no puede forzarse desde ninguna app — es un límite del sistema, documentado en el informe).
 
-## Ecualizador
+## Caché de escucha (estilo Spotify)
 
-- **Sin parpadeo al mover las bandas:** al arrastrar una banda solo se mueve esa barra; la interfaz ya no parpadea ni se mueve raro debajo del dedo. Los presets de fábrica y personalizados se seleccionan o deseleccionan correctamente al soltar.
+- **Lo que escuchas se guarda y SE VE:** cada canción reproducida queda en caché y aparece en la lista «En caché» de tu Biblioteca (estaba rota: guardaba pero la lista mostraba vacío).
+- **Sin duplicados peligrosos:** cada canción se escribe UNA sola vez en el caché correcto; antes se escribía dos veces y la copia extra llenaba el caché de descargas sin control.
+- **Quitar del caché borra de verdad** los bytes (antes solo desaparecía de la lista).
+- Portadas y Canvas ya tenían su caché propio (2 GB y 256 MB); ahora también se respetan tus límites.
 
-## Limpieza
+## Escuchar Juntos (reemplazo completo por el motor de SimpMusic)
 
-- **Arranque limpio:** se eliminó el sistema completo de avisos del creador (inbox remoto, caché local, punto rojo en el avatar, entrada Ajustes ▸ Avisos y su polling). Los diálogos propios de la app (términos y condiciones, bienvenida, fiabilidad en segundo plano, licencia/suscripción) siguen vivos.
+- **Motor nuevo de cero:** se eliminó el motor viejo y se portó el protocolo exacto de SimpMusic (metroproto), con su máquina de estados de sesión, su reloj de sincronización con el servidor y su puente de reproducción — byte-compatible con los servidores que usan SimpMusic y Metrolist.
+- **Sugerencias, aprobaciones y sala:** crea sala o únete con código (o enlace de invitación); los invitados pueden sugerir canciones y el anfitrión aprueba; indicador «Cargando…» por cada invitado mientras bufea.
+- **Reconexión sin perder la sala:** el botón «Reconectar» cierra el socket sin borrar tu sesión — si te vuelves a conectar, la sala sigue ahí. El crossfade se apaga solo dentro de una sala (antes la desincronizaba en cada transición).
+- **Nota honesta:** el chat de sala ya no existe — el protocolo de SimpMusic no tiene chat, y el viejo solo funcionaba entre dos teléfonos con esta misma app. Todo lo demás del diálogo está igual (25 funciones del inventario verificadas).
+- **Servidor configurable en Ajustes** (usa el de SimpMusic por defecto).
 
-## Reproductor
+## Nueva función: Enviar métricas de reproducción a Google
 
-- **El botón Cast responde al primer toque (interfaz nueva):** su zona táctil real era más grande que la caja donde vivía, y solo una franja central invisible respondía — por eso hacía falta tocarlo varias veces y un toque fallido podía colarse al gesto de la portada y cambiar la canción. Ahora todo el círculo responde al primer toque y los toques cerca del botón ya no cambian de pista.
-- **Cabecera más limpia (interfaz nueva):** solo queda el botón Cast en la esquina superior derecha; se eliminó el botón de tres puntos que estaba detrás. Los títulos de las canciones ya no corren por debajo del botón Cast. El menú del reproductor sigue disponible desde la cola («Más opciones» de la cabecera de la cola y botón more de la barra de cola) y el menú de la letra aparece con la letra abierta.
+- **Ajustes ▸ Scrobbling ▸ «Enviar métricas de reproducción a Google»** (apagado por defecto): al activarlo, la app envía a YouTube el mismo protocolo que el cliente oficial de YouTube Music — ayuda a que tu historial y recomendaciones se alimenten como si escucharas desde la app oficial. Puertos desde SimpMusic con su formato exacto (verificación 204 en cada paso, latidos de progreso, ping final).
 
-## Biblioteca y música local
+## Nueva función: Letras sincronizadas de Spotify + Canvas de Spotify
 
-- **Local visible en Biblioteca:** al abrir Biblioteca verás la tarjeta «Local» junto a «Podcasts», visible de inmediato; antes solo era alcanzable como el último chip de la fila.
-- **Auto-escaneo del dispositivo:** la primera vez que concedes el permiso de almacenamiento, el escaneo arranca solo, sin necesidad de un segundo toque.
+- **Letras de Spotify (Ajustes ▸ Contenido ▸ Letras):** la letra sincronizada oficial de Spotify, con colores línea a línea, como fuente adicional del reproductor.
+- **Canvas de Spotify (Ajustes ▸ Apariencia):** el video vertical oficial de Spotify como primera opción de portada animada; si la canción no tiene, cae a las que ya tenías (Apple/Tidal).
+- Ambos requieren iniciar sesión con Spotify (ver abajo).
 
-## Escuchar juntos
+## Inicio de sesión con Spotify (pantalla en blanco — arreglado)
 
-- **Indicador de carga por usuario:** en la sala, bajo el nombre de cada usuario aparece «Cargando…» mientras su teléfono está cargando la canción, para que sepas por qué todavía no suena a la vez.
+- **Causas encontradas y corregidas:** la ventana de login usaba el «disfraz» de navegador de sistema (Spotify le servía una página rota), limpiaba cookies a medias (carrera), y no reintentaba si la primera carga quedaba en blanco. Ahora usa el mismo disfraz de Chrome de escritorio que ya usaba para los tokens, limpia esperando a que termine, y si la página queda blanca reintenta una vez sola.
+- **Los toggles de letras/canvas de Spotify se activan solos** al iniciar sesión con tu cuenta. El motor de audio Hi-Res (Superpowered) funciona completo: esta beta firma con tu certificado real (CN=Aura Hi-Res v2), al contrario de las betas de debug de ayer.
 
-## Interfaz
+## Listas con IA (nunca más «servicio no disponible»)
 
-- **Renglones estilo Apple en las listas puras de canciones:** descargas (modo sin conexión), historial local y «Todas las canciones» del artista, con la misma estética que la lista Local. El historial remoto y demás listas de YouTube conservan su diseño clásico porque sus elementos pueden llevar portadas de vídeo.
-- **Modo sin conexión verificado:** el banner con el botón «Volver online» desactiva el modo desde la propia pantalla; la lista muestra solo canciones descargadas por completo.
+- Si la IA está ocupada o caída, la lista se construye de todos modos con resultados reales de búsqueda de YouTube Music a partir de tu descripción, avisando «Generada sin IA» — el mismo enfoque que InnerTune/OuterTune/Metrolist. Cuando la IA responde, la lista es la de IA como siempre.
 
-## Conocidos
+## Biblioteca (nueva apariencia)
 
-- Bajo saturación fuerte de YouTube (bot-check) alguna canción puede tardar o reintentarse; normalmente se resuelve sola en segundos.
-- Algunas canciones pueden arrancar cortadas de vez en cuando; si te pasa, prueba a desactivar «Saltar segmentos sin música» en Ajustes ▸ Reproductor y avísanos.
+- **Tiles «Descargado» y «En caché»** ahora aparecen en la Biblioteca nueva, respetando sus interruptores de Apariencia (antes solo existían en la pantalla clásica).
 
-## Cómo actualizar
+## Problema pendiente que NECESITA tu ayuda
 
-- Si tienes cualquier versión de la identidad v2 (estable v2.0.11 o betas v2.0.12 a v2.0.16): actualización directa; conserva tus datos, tu sesión y tus ajustes.
-- Si tienes una beta de desarrollo (terminación .dev): esta estable se instala AL LADO, no la pisa. Son apps distintas: aquí empiezas con datos frescos.
-- Si tenías la Aura antigua (iad1tya.echo.music): sigue intacta; esta v2 vive a su lado.
+- **Inicio de sesión con Google se cierra (crash):** el código del login está intacto desde la última versión que funcionaba; la causa más probable es una interacción con el glass nuevo. Para clavarla necesito el registro del teléfono: **Ajustes ▸ Registros** → comparte el archivo `app.log` justo después de que te pase el crash. Con ese log lo arreglamos en minutos.
