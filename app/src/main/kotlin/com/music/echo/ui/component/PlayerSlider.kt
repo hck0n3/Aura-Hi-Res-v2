@@ -71,44 +71,49 @@ fun PlayerProgressSlider(
     slimTrackGrowsOnDrag: Boolean = true,
     /** D3: fraction (0..1) of the timeline already buffered, drawn as a translucent inactive track. */
     bufferedFraction: Float? = null,
-    /** D3: fired once when the user STARTS dragging — the caller's haptic tick (LocalHapticFeedback). */
-    onScrubStart: (() -> Unit)? = null,
 ) {
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.DEFAULT)
     val squigglySlider by rememberPerfGatedBoolean(SquigglySliderKey, false)
 
-    // D3 scrub haptic: one tick when a drag gesture STARTS (rising edge), not per frame.
-    val scrubInteraction = remember { MutableInteractionSource() }
-    var scrubFired by remember { mutableStateOf(false) }
-    val isScrubbing by scrubInteraction.collectIsDraggedAsState()
-    LaunchedEffect(isScrubbing) {
-        if (isScrubbing && !scrubFired) {
-            scrubFired = true
-            onScrubStart?.invoke()
-        } else if (!isScrubbing) {
-            scrubFired = false
-        }
-    }
+    // AUDIT (explorer report) — two corrections to the first D3 pass:
+    // 1. NO dedicated scrub haptic: MainActivity's GLOBAL haptics layer (MainActivity.kt:819-843)
+    //    already fires CLOCK_TICK on every over-slop drag, throttled 100ms — a second tick here
+    //    double-buzzes. The scrub feel ships with zero new code.
+    // 2. The DEFAULT style keeps its NATIVE M3 track unless the caller actually reports a buffered
+    //    extent (newui passes it; the classic player doesn't) — a caller that doesn't know the
+    //    buffer renders byte-identical to before, so no style changes look on any device we
+    //    couldn't see. The shared interaction source stays for future use.
 
     when (sliderStyle) {
         SliderStyle.DEFAULT -> {
-            Slider(
-                value = value,
-                valueRange = valueRange,
-                onValueChange = { if (enabled) onValueChange(it) },
-                onValueChangeFinished = { if (enabled) onValueChangeFinished() },
-                enabled = enabled,
-                colors = colors,
-                interactionSource = scrubInteraction,
-                track = { sliderState ->
-                    BufferedSliderTrack(
-                        sliderState = sliderState,
-                        colors = colors,
-                        bufferedFraction = bufferedFraction,
-                    )
-                },
-                modifier = modifier,
-            )
+            if (bufferedFraction != null) {
+                Slider(
+                    value = value,
+                    valueRange = valueRange,
+                    onValueChange = { if (enabled) onValueChange(it) },
+                    onValueChangeFinished = { if (enabled) onValueChangeFinished() },
+                    enabled = enabled,
+                    colors = colors,
+                    track = { sliderState ->
+                        BufferedSliderTrack(
+                            sliderState = sliderState,
+                            colors = colors,
+                            bufferedFraction = bufferedFraction,
+                        )
+                    },
+                    modifier = modifier,
+                )
+            } else {
+                Slider(
+                    value = value,
+                    valueRange = valueRange,
+                    onValueChange = { if (enabled) onValueChange(it) },
+                    onValueChangeFinished = { if (enabled) onValueChangeFinished() },
+                    enabled = enabled,
+                    colors = colors,
+                    modifier = modifier,
+                )
+            }
         }
 
         SliderStyle.WAVY -> {

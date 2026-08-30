@@ -1323,8 +1323,6 @@ private fun AuraPlayerShape(
                     // that composable is the only place SliderStyleKey/SquigglySliderKey are read. There is
                     // no second timeline to keep in sync, so the setting cannot go quiet in one UI.
                     Spacer(Modifier.height(if (dense) 6.dp else 14.dp))
-                    // D3: haptic tick on scrub start (selection-grade, one per gesture).
-                    val scrubHaptics = androidx.compose.ui.platform.LocalHapticFeedback.current
                     PlayerProgressSlider(
                         // D-pad: Material's Slider shows no focus affordance on a remote, so without the
                         // ring a TV user cannot tell the timeline is selected. Same shape the classic
@@ -1348,16 +1346,13 @@ private fun AuraPlayerShape(
                         enabled = !isListenTogetherGuest,
                         colors = auraSliderColors(),
                         isPlaying = effectiveIsPlaying,
-                        // D3: buffered extent of the timeline (0 when unknown) + scrub-start haptic.
+                        // D3: buffered extent of the timeline (0 when unknown). The scrub haptic is
+                        // NOT wired here on purpose — MainActivity's global haptics layer already
+                        // ticks CLOCK_TICK on every drag (audit finding: no double-buzz).
                         bufferedFraction = if (duration > 0) {
                             (buffered.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                         } else {
                             null
-                        },
-                        onScrubStart = {
-                            scrubHaptics.performHapticFeedback(
-                                androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
-                            )
                         },
                     )
                     Row(
