@@ -151,12 +151,34 @@ fun Modifier.shellHazeSource(state: HazeState?): Modifier =
  * Applies the chrome glass to a surface (nav bar / mini pill), sampling whatever [shellHazeSource]
  * marked. Call from a @Composable (it reads [shellGlassStyle]). Null-safe: without a source the
  * caller keeps its own opaque ground, so previews and sub-API-31 devices render today's look.
+ *
+ * NO-FLICKER SCROLL CONTRACT (row 196, owner report 2026-08-31: "la barra y el mini PARPAJEAN y
+ * pierden el efecto"): the modifier must NEVER be conditionally swapped during a scroll — mounting
+ * and unmounting hazeChild mid-gesture is the flash (a different surface appears for a frame).
+ * Instead the SAME hazeChild stays composed and turns its sampling off in-place: [freezeGlass]
+ * sets `blurEnabled = false` on the identical node, so the film keeps its tint and dimensions and
+ * nothing appears or disappears. The anti-crash gate (no re-sample while the source mutates) is
+ * preserved exactly; the flicker is structurally gone.
  */
 @Composable
 fun Modifier.shellGlass(state: HazeState?): Modifier {
     if (state == null) return this
     val style = shellGlassStyle()
     return hazeChild(state = state, style = style)
+}
+
+/**
+ * The scroll-freeze companion to [shellGlass]: reads the shell scroll bus and, while a gesture or
+ * fling is active, disables the blur on the ALREADY-COMPOSED hazeChild node. Same surface, same
+ * tint — zero remount, zero flicker; real sampling returns when the scroll settles.
+ */
+@Composable
+fun Modifier.freezeGlass(state: HazeState?): Modifier {
+    if (state == null) return this
+    val scrolling = ShellScrollBus.active.value
+    return hazeChild(state = state) {
+        blurEnabled = !scrolling
+    }
 }
 
 /**

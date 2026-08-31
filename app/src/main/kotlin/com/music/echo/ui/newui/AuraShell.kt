@@ -381,50 +381,33 @@ fun AuraNavigationBar(
     // detail bars use, a substitute FOR the glass (never painted on top of it: hazeChild IS the
     // surface, lesson 0b1151e), not an extra layer. Idle → glass returns; the bar itself never
     // scrolls, so the expensive case for its sample is exactly the case this gate turns off.
-    // FROZEN-GLASS COVER (row 196 polish + row 197 technique, owner directive 2026-08-30): while
-    // scrolling, instead of the flat tint the bar shows the CURRENT COVER blurred (the mini
-    // player's technique — native Modifier.blur on a 128px bitmap, zero samplers added) under
-    // the 0.72 frost. Perceived as LIVE glass during the whole gesture; real haze sampling
-    // returns when the scroll settles. No cover (local track, none playing) keeps the flat tint.
-    val shellScrollActive = rememberShellScrollActive()
-    val frozenCover = rememberShellFrozenCover()
+    // NO-FLICKER CHROME GLASS (row 196, owner 2026-08-31: "cuando me desplazo la barra y el mini
+    // PARPAJEAN y pierden el efecto"): the previous conditional swap (glass ↔ flat tint ↔ cover)
+    // remounted a different surface mid-gesture — that remount IS the flash, and the covers read
+    // as "losing" the liquid glass. Now the bar composes freezeGlass ONCE: the hazeChild never
+    // unmounts; while any screen scrolls the SAME node turns its sampling off in-place
+    // (blurEnabled=false keeps the tint and dimensions). The anti-crash contract (no re-sample
+    // while the source mutates) is untouched. No source (glass OFF / classic / previews) keeps
+    // the byte-identical opaque Ground bar of the fallback.
     val navHazeState = LocalShellHazeState.current
-    val navBarModifier = if (navHazeState != null && !shellScrollActive) {
+    val navBarModifier = if (navHazeState != null) {
         modifier
             .fillMaxWidth()
-            .shellGlass(navHazeState)
-    } else if (navHazeState != null) {
-        // Scrolling: frozen cover-blur plate — the owner-validated look, never a flat tint when
-        // a cover exists (research verdict: the only blur that can live through gestures on One
-        // UI 8.5 without touching the native-crash pattern).
-        modifier
-            .fillMaxWidth()
-            .background(
-                if (frozenCover != null) Color.Transparent else AuraPalette.GroundRaised.copy(alpha = 0.72f),
-            )
+            .freezeGlass(navHazeState)
     } else {
         modifier
             .fillMaxWidth()
             .background(AuraPalette.Ground)
     }
-    // The frozen-scroll cover glass (rows 196/197): the bar's Column sits inside a Box whose
-    // first child is the blurred cover (matchParentSize — a BACKGROUND, not an extra row).
-    // Painted ONLY while a scroll is active AND a cover exists; the bar's background is
-    // transparent in that state so the cover+frost read as the whole surface. Idle → glass
-    // samples live; no cover → the flat tint background of the Column shows.
-    Box(
+    Column(
         modifier = navBarModifier,
     ) {
-        if (shellScrollActive && navHazeState != null && frozenCover != null) {
-            FrozenCoverGlass()
-        }
-        Column(modifier = Modifier.fillMaxWidth()) {
-            AuraDivider()
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(AuraNavBarHeight),
-            ) {
+        AuraDivider()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(AuraNavBarHeight),
+        ) {
                 AuraNavIndicator(width = pillWidth.asState(), offsetX = pillOffset.asState())
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -456,12 +439,11 @@ fun AuraNavigationBar(
                         },
                     )
                 }
-                }
             }
+        }
         // The bar's own ground continues under the gesture bar, so content scrolling past the last row
         // is covered by the bar itself rather than by a separate opaque rectangle.
         Spacer(Modifier.height(bottomInset))
-        }
     }
 }
 
@@ -784,17 +766,12 @@ fun AuraMiniPlayer(
         // drift=false/spin=false, the HALLAZGO-059 guardian), so there is nothing here to disable;
         // with the film frozen the idle-animated ground under the pill no longer re-blurs either.
         val shellScrollActive = rememberShellScrollActive()
-        // The frozen-scroll cover (rows 196/197): the pill's cover-blur surface while scrolling.
-        val frozenCoverUrl = rememberShellFrozenCover()
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                 .clip(AuraShapes.Card),
         ) {
-            if (shellScrollActive && pillHazeState != null && frozenCoverUrl != null) {
-                FrozenCoverGlass()
-            }
             AuraGroundLayer(
                 ground = ground,
                 recipe = pillRecipe,
@@ -821,18 +798,14 @@ fun AuraMiniPlayer(
                 // SCROLL FREEZE (row 196): mid-gesture the film is REPLACED by the frozen tint, not
                 // painted over — the swap is exclusive, the ground recipe underneath is unchanged.
                 .then(
-                    if (pillHazeState != null && !shellScrollActive) {
-                        Modifier.shellGlass(pillHazeState)
-                    } else if (pillHazeState != null) {
-                        // Scrolling: the frozen cover-blur (rows 196/197) when a cover exists —
-                        // the owner-validated look through the gesture, zero native cost; the
-                        // flat tint only as the no-cover fallback.
-                        if (frozenCoverUrl != null) {
-                            Modifier
-                            // Transparent here: the FrozenCoverGlass child below is the surface.
-                        } else {
-                            Modifier.background(AuraPalette.GroundRaised.copy(alpha = 0.72f))
-                        }
+                    if (pillHazeState != null) {
+                        // NO-FLICKER (row 196, owner 2026-08-31 "parpadean y pierden el efecto"):
+                        // the same freezeGlass contract as the nav bar — the hazeChild stays
+                        // composed for the whole session and only its SAMPLING turns off in-place
+                        // while a screen scrolls (blurEnabled=false, tint and shape intact). No
+                        // surface ever appears or disappears mid-gesture; the user's liquid
+                        // glass reads continuous. No source → SurfaceFill, byte-identical.
+                        Modifier.freezeGlass(pillHazeState)
                     } else {
                         Modifier.background(AuraPalette.SurfaceFill)
                     },
