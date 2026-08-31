@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
@@ -95,13 +96,34 @@ fun BottomSheetPage(
         modifier = modifier.fillMaxHeight(),
     ) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides premium) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 16.dp),
-            ) {
-                state.content(this)
+            // Cover-blur plate (registry row 197 extension, owner directive 2026-08-30: "la
+            // búsqueda dentro del reproductor también lo quiero"). This is the frost sheet the
+            // player's quick-search slides in through (bottomSheetPageState.show, AuraPlayer.kt)
+            // — the plate is the FIRST background layer of the WHOLE sliding panel, full-bleed
+            // edge to edge, above the flat containerColor it replaces and under all the content.
+            // Same layer order as BottomSheetMenu.kt: plate inside a Box that fills the sheet,
+            // content Column as the sizing sibling on top (the padding moves INSIDE the box so
+            // the blur has no flat 16dp frame around it). Composes NOTHING with the Liquid Glass
+            // switch OFF, no cover playing, local track or API < 31 — byte-identical sheet.
+            // Painted only — it consumes no input, so the search field's IME, the result lists'
+            // scroll and the drag-handle dismissal keep working exactly as today. The browse
+            // panes (artist/album/playlist) swap content INSIDE this same panel, so the whole
+            // search flow inherits the effect. The other tenant, ShowMediaInfo, paints its own
+            // opaque background over the full sheet and is unaffected; ShowOffsetDialog is
+            // translucency-family like the rest of the row-197 overlays. Classic (non-premium)
+            // never composes the plate.
+            Box(modifier = Modifier.fillMaxHeight()) {
+                if (premium) {
+                    AuraCoverBlurPlate(modifier = Modifier.matchParentSize())
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 16.dp),
+                ) {
+                    state.content(this)
+                }
             }
         }
     }
