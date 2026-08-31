@@ -74,8 +74,9 @@ class EqConstantsTest {
 
     @Test
     fun auraHiResCurveMatchesOwnerSpec() {
+        // Owner directive 2026-08-31: 31 +6, 62 +4, 125 +2, 250 0, 500 0, 1k 0, 2k +1, 4k +1, 8k +2, 16k +3.
         assertEquals(
-            listOf(6.0f, 4.0f, 1.0f, -1.0f, 0f, 0f, 1.0f, 0f, 1.0f, 2.0f),
+            listOf(6.0f, 4.0f, 2.0f, 0f, 0f, 0f, 1.0f, 1.0f, 2.0f, 3.0f),
             FactoryPreset.AURA_HI_RES.gains.toList()
         )
         assertEquals("Aura Hi-Res", FactoryPreset.AURA_HI_RES.displayName)
