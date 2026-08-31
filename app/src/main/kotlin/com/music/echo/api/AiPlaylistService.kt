@@ -2,6 +2,7 @@ package iad1tya.echo.music.api
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -10,6 +11,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * Sends an OpenAI-compatible chat completion to turn a natural-language prompt into a playlist.
@@ -37,10 +40,36 @@ import java.util.concurrent.TimeUnit
  */
 object AiPlaylistService {
 
+    /**
+     * BYO-key client — deliberately UNCHANGED (30/90/30): the user's own provider may be slow and
+     * that is their choice; row 198's invariant "the user-key request stays byte-identical" covers
+     * the body, and the timeouts follow the same principle.
+     */
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    /**
+     * KEYLESS client (Aura Worker + Pollinations), owner directive 2026-08-31: "AI answers are VERY
+     * slow". The old 90s readTimeout was sized for BYO providers, but the keyless chain has a 60s
+     * flow budget and a Worker that answers in ~17.5s for 12 tracks (live probe, row 198) — so a
+     * HUNG Worker call blocked a thread for up to 90s while the user stared at a spinner. This
+     * client hard-caps every keyless round trip at 45s end-to-end ([callTimeout] covers connect +
+     * write + the whole body): if the endpoint hasn't ANSWERED by then, the attempt fails and the
+     * caller falls to the instant, honest "Generada sin IA" fallback instead of waiting out a dead
+     * endpoint. 45 (not 30): the cap must cover a legit 50-track ask (~1.5s/track on the Worker) or
+     * it would kill REAL answers, trading precision for speed — the one trade this change must not
+     * make. The coroutine-level ask cap ([AiPlaylistGenerator.AI_ASK_CAP_MS]) can then be strictly
+     * tighter, because the HTTP call is CANCELABLE (enqueue + call.cancel) so the budget actually
+     * cuts a hung call, instead of waiting out the socket.
+     */
+    private val keylessClient = client.newBuilder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(45, TimeUnit.SECONDS)
         .build()
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
@@ -314,19 +343,35 @@ object AiPlaylistService {
                     builder.addHeader("Authorization", "Bearer ${apiKey.trim()}")
                 }
 
-                val response = client.newCall(builder.build()).execute()
-                val responseBody = response.body?.string()
+                // Keyless chain → tight keylessClient (see its doc); user key → the unchanged BYO client.
+                val okClient = if (apiKey.isNullOrBlank()) keylessClient else client
+                // ASYNC + CANCELABLE (owner directive 2026-08-31): the old execute() blocked its
+                // thread, so a coroutine timeout (withTimeoutOrNull) could NOT cut a hung call —
+                // the thread stayed blocked until the socket gave up. awaitCall (the repo's
+                // QobuzApi pattern) enqueues and cancels the HTTP call on coroutine cancellation,
+                // so the caller's ask cap fires when it says it does instead of "eventually".
+                // Everything needed (code, Retry-After, message, body) is read INSIDE the callback
+                // with response.use — no half-read body can leak if the budget dies mid-delivery.
+                val (code, retryAfter, httpMessage, body) = awaitCall(okClient, builder.build()) { resp ->
+                    HttpReply(
+                        code = resp.code,
+                        retryAfterSeconds = resp.header("Retry-After")?.toLongOrNull(),
+                        message = resp.message,
+                        body = resp.body?.string(),
+                    )
+                }
+                val responseBody: String? = body
 
-                if (!response.isSuccessful) {
+                if (code < 200 || code >= 300) {
                     // Retry rate-limits (429) and 408/425 too, not only 5xx. HTTP 429 is Pollinations'
                     // single most common failure; the old `>= 500` check treated it as a hard error and
                     // returned immediately with zero retries — the main cause of the "IA ocupada / no
                     // disponible" the user keeps seeing. Honor Retry-After when the server sends it
                     // (capped at 10s so a bad value can't hang the dialog), else jittered backoff.
-                    if (response.code == 429 || response.code == 408 || response.code == 425 || response.code >= 500) {
+                    if (code == 429 || code == 408 || code == 425 || code >= 500) {
                         attempt++
-                        lastError = "HTTP ${response.code}"
-                        val retryAfterMs = response.header("Retry-After")?.toLongOrNull()?.times(1000L)
+                        lastError = "HTTP $code"
+                        val retryAfterMs = retryAfter?.times(1000L)
                         val backoffMs = 1000L * attempt + (0L..500L).random()
                         delay((retryAfterMs ?: backoffMs).coerceAtMost(10_000L))
                         continue
@@ -334,7 +379,7 @@ object AiPlaylistService {
                     val errorMsg = runCatching {
                         JSONObject(responseBody ?: "").optJSONObject("error")?.optString("message")
                     }.getOrNull()?.takeIf { it.isNotBlank() }
-                        ?: "HTTP ${response.code}: ${response.message}"
+                        ?: "HTTP $code: $httpMessage"
                     return Result.failure(Exception(errorMsg))
                 }
 
@@ -381,6 +426,18 @@ object AiPlaylistService {
                 }
                 lastError = "Empty AI response"
             } catch (e: Exception) {
+                // Cancellation (the caller's ask cap/budget timeout, or the user closing the
+                // dialog) propagates NOW — swallowing it and looping would be a zombie coroutine.
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                // KEYLESS TIMEOUTS FAIL FAST (owner directive 2026-08-31: "AI answers are VERY
+                // slow" — the spinner case). A callTimeout/InterruptedIOException means the endpoint
+                // HUNG for the full keylessClient cap already; retrying it just doubles the spinner
+                // before the fallback. Fast HTTP failures (429/5xx) keep their retries — they answer
+                // in milliseconds. The USER-KEY path keeps the pre-existing retry-everything
+                // behavior (their provider, their rules).
+                if (apiKey.isNullOrBlank() && e is java.io.InterruptedIOException) {
+                    return Result.failure(e)
+                }
                 if (attempt == maxRetries - 1) {
                     return Result.failure(e)
                 }
@@ -390,5 +447,46 @@ object AiPlaylistService {
             delay(1000L * attempt)
         }
         return Result.failure(Exception(lastError ?: "Max retries exceeded"))
+    }
+
+    /** Everything [requestChatCompletion] needs from one HTTP reply; read while the response is open. */
+    private data class HttpReply(
+        val code: Int,
+        val retryAfterSeconds: Long?,
+        val message: String,
+        val body: String?,
+    )
+
+    /**
+     * Enqueues [request] on [client] and suspends until it answers — the repo's cancellable-call
+     * pattern (QobuzApi.awaitCall). Coroutine cancellation (the caller's ask cap/budget timeout,
+     * or the user closing the dialog) cancels the HTTP call for real, unlike the old blocking
+     * `execute()` that kept its thread hostage until the socket gave up. [transform] runs on
+     * OkHttp's dispatcher thread and consumes the response completely (response.use), so nothing
+     * half-read can leak if the budget dies mid-delivery.
+     */
+    private suspend fun <T> awaitCall(
+        client: OkHttpClient,
+        request: Request,
+        transform: (okhttp3.Response) -> T,
+    ): T = suspendCancellableCoroutine { cont ->
+        val call = client.newCall(request)
+        cont.invokeOnCancellation { runCatching { call.cancel() } }
+        call.enqueue(
+            object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+                    if (cont.isActive) cont.resumeWithException(e)
+                }
+
+                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                    val mapped = runCatching { response.use(transform) }
+                    if (!cont.isActive) return
+                    mapped.fold(
+                        onSuccess = { cont.resume(it) },
+                        onFailure = { cont.resumeWithException(it) },
+                    )
+                }
+            },
+        )
     }
 }

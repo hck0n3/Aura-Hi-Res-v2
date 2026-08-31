@@ -10,14 +10,20 @@ import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.toMediaMetadata
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Orchestrates the AI text-to-playlist flow: ask the AI for a track list ([AiPlaylistService]),
  * resolve each track against the catalog ([SongResolver], shared with the JR importer), then persist
- * a new local playlist in a single transaction. Network + DB, so no unit tests (manual APK testing,
- * like the rest of the project).
+ * a new local playlist in a single transaction. Network + DB, so the DB/network integration is
+ * manual-APK tested like the rest of the project — but the resolve orchestration itself
+ * ([resolveBounded]) is pure/injected and unit-tested (AiPlaylistResolveBoundedTest).
  *
  * Tracks that do not resolve (invented titles, no catalog match) are omitted. If the AI is
  * unavailable or every track misses, this returns [EmptyResultException] — it does NOT invent a
@@ -28,13 +34,66 @@ object AiPlaylistGenerator {
     private const val MAX_NAME_LENGTH = 40
 
     /**
-     * Hard ceiling on the whole AI phase (worst case ≈ worker + 4 models × 2 retries). Bounds the
-     * pathological all-timeouts case so the dialog can't spin for minutes holding the modem awake
-     * (battery/heat rule); on timeout we simply treat AI as unavailable and build the non-AI playlist.
+     * Hard ceiling on the whole AI phase. Bounds the pathological all-timeouts case so the dialog
+     * can't spin for minutes holding the modem awake (battery/heat rule); on timeout we simply
+     * treat AI as unavailable and build the non-AI playlist.
      *
      * Shared with [AiPlaylistPlaylistModifier], which bounds its own AI phase with the same budget.
+     * Owner directive 2026-08-31 ("AI answers are VERY slow"): this budget is now measured from the
+     * FIRST AI call of the whole flow — the ask, the resolve loop and the top-up all run inside the
+     * SAME [AI_BUDGET_MS] window, so the worst case is 60s once, never 60s per phase stacked.
      */
     internal const val AI_BUDGET_MS = 60_000L
+
+    /**
+     * Concurrent resolves against YouTube Music. The resolve loop used to walk the AI proposals
+     * one-by-one (each miss = a search round-trip ≈1s), which dominated the wait after the AI reply.
+     * 4 keeps the burst bounded (battery/heat rule) while cutting a 12-track resolve from ~12s to
+     * ~3s. Not higher: each resolve can fire up to 2 searches (song filter + video filter).
+     */
+    internal const val RESOLVE_CONCURRENCY = 4
+
+    /**
+     * Thin padding over the user's target (owner directive 2026-08-31: "AI answers are VERY slow").
+     * The old 1.5× pad made Llama 70B generate ~50% more tracks — more output tokens, directly more
+     * seconds on the slowest leg of the chain — to pre-absorb resolver misses that the row-198
+     * anti-hallucination prompt + soloPrimaryMatch filter no longer produce in bulk: post-198 the
+     * model returns fewer but REAL tracks, and the structured top-up exists for the rare shortfall.
+     * +2 absorbs the odd resolver miss without paying 50% more latency on every single request.
+     */
+    internal const val PAD_OVER_TARGET = 2
+
+    /**
+     * Per-ask cap for ONE Worker round trip, inside the shared [AI_BUDGET_MS] window. Live probe
+     * (2026-08-30, row 198): the Aura Worker answered 12 tracks in 17.5s ≈ fixed ~3s + ~1.2s/track.
+     * A FLAT cap cannot serve both a 10-track ask (~18s) and a 30-track ask (~40s): flat-30s would
+     * kill every 30-track playlist mid-JSON — a PRECISION regression the owner's directive forbids
+     * ("not one gram of precision"). So the keyless cap SCALES with the ask ([keylessAskCapMs]):
+     * base + per-track, clamped so at least [RESOLVE_RESERVE_MS] of the budget survives for the
+     * resolve phase. Without any cap, a hung Worker burned the 90s client readTimeout against a
+     * 60s budget: the user watched a dead spinner for the full minute. On cap the ask yields null
+     * and the instant, honest "Generada sin IA" fallback runs (owner directive 2026-08-31).
+     * The 50-track option exceeds the whole budget by physics (ask ~65s alone) — it failed under
+     * the old code too (60s window), now it just fails 15s sooner.
+     */
+    internal const val AI_ASK_CAP_MS = 45_000L
+
+    /** Fixed part of the keyless ask cap: Worker queue + KV + model load, measured ≈3s, padded. */
+    internal const val ASK_BASE_MS = 20_000L
+
+    /** Variable part: ~1.2s/track measured (17.5s for 12), padded to 1.5s/track. */
+    internal const val ASK_PER_TRACK_MS = 1_500L
+
+    /**
+     * Budget share the resolve phase may always rely on. A 4-lane resolve of ~36 proposals runs in
+     * ~9 waves ≈ 12s worst case; 15s leaves margin. The ask cap clamps to `AI_BUDGET_MS - this`.
+     */
+    internal const val RESOLVE_RESERVE_MS = 15_000L
+
+    /** Scaled per-ask cap for the KEYLESS chain — see [AI_ASK_CAP_MS] for the rationale. */
+    internal fun keylessAskCapMs(requestCount: Int): Long =
+        (ASK_BASE_MS + ASK_PER_TRACK_MS * requestCount)
+            .coerceAtMost(minOf(AI_ASK_CAP_MS, AI_BUDGET_MS - RESOLVE_RESERVE_MS))
 
     data class Result(
         val playlistId: String,
@@ -60,99 +119,110 @@ object AiPlaylistGenerator {
         val target = count
         val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
 
-        // Ask the AI (user key → Aura Worker → several free Pollinations models). getOrNull() so a total
-        // failure doesn't dead-end — we fall back to a non-AI playlist below instead of surfacing an error.
-        // Over-generate then take N: SongResolver silently drops tracks with no YouTube match, so asking
-        // for exactly N returns fewer than N. Pad the AI ask by ~1.5× (token budget scales with count).
-        val requestCount = (count * 3 + 1) / 2
-        // Bound the whole AI phase (AI_BUDGET_MS): on timeout, spec stays null and we fail below
-        // rather than inventing tracks from a generic YouTube search of the prompt.
-        val spec = withTimeoutOrNull(AI_BUDGET_MS) {
-            AiPlaylistService.generate(prompt, requestCount, provider, apiKey, baseUrl, model).getOrNull()
+        // ONE shared budget window for the WHOLE AI phase (ask + resolve + top-up), owner directive
+        // 2026-08-31 ("AI answers are VERY slow"). The old code opened a FRESH 60s window per phase,
+        // so ask + top-up could legally stack to ~120s while its own comment claimed "the SAME 60s
+        // budget" — the comment was a placebo. A single deadline makes the worst case 60s ONCE and
+        // gives every phase a real view of how much time is left. On timeout the AI flow yields
+        // nothing and the honest non-AI fallback runs — never a spinner watching a dead endpoint.
+        val aiOutcome = withTimeoutOrNull(AI_BUDGET_MS) {
+            aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
         }
-
-        var ordered: List<MediaMetadata> = emptyList()
-        var aiName: String? = null
-
-        if (spec != null) {
-            val proposed = filterTracksForSoloArtist(spec.tracks, soloArtist)
-            val resolvedSongs = ArrayList<MediaMetadata>(proposed.size)
-            // Short-circuit: stop resolving as soon as we have `target` distinct songs so we don't waste
-            // network calls resolving the rest of the padded list. Progress reflects the user's request.
-            for (track in proposed) {
-                val resolveArtist = soloArtist?.takeIf { it.isNotBlank() } ?: track.artist
-                SongResolver.resolve(database, track.title, resolveArtist)?.let { mm ->
-                    if (acceptsResolvedSoloPrimary(mm, soloArtist)) resolvedSongs += mm
-                }
-                val resolvedCount = resolvedSongs.distinctBy { it.id }.size
-                onResolveProgress(resolvedCount.coerceAtMost(target), target)
-                if (resolvedCount >= target) break
-            }
-
-            ordered = resolvedSongs.distinctBy { it.id }.take(target)
-            // If padding still fell short, ask ONCE more for just the missing songs, excluding the ones
-            // already chosen so the AI doesn't repeat them. Best-effort: silently skip on any failure.
-            // The exclusions travel as a structured list (AiPlaylistPrompt), NOT concatenated into the
-            // prompt: a literal "solo X. NO incluyas…: A, B, C" is not re-parseable by
-            // extractSoloArtist, so the solo lock silently died on this round (owner wants EXACTNESS).
-            // The top-up runs inside the SAME 60s AI budget as the first ask: the old unbounded second
-            // cascade (up to 60s MORE) could hold the modem twice as long for a playlist that was
-            // already usable (battery/heat rule). On timeout we keep the honest, shorter list.
-            if (ordered.size < target) {
-                val missing = target - ordered.size
-                val exclude = ordered.map { it.title }
-                val extra = withTimeoutOrNull(AI_BUDGET_MS) {
-                    AiPlaylistService.generate(
-                        prompt = prompt,
-                        count = (missing * 3 + 1) / 2,
-                        provider = provider,
-                        apiKey = apiKey,
-                        baseUrl = baseUrl,
-                        model = model,
-                        excludeTitles = exclude,
-                    ).getOrNull()
-                }
-                extra?.let { spec ->
-                    val extraTracks = filterTracksForSoloArtist(spec.tracks, soloArtist)
-                    for (track in extraTracks) {
-                        val resolveArtist = soloArtist?.takeIf { it.isNotBlank() } ?: track.artist
-                        SongResolver.resolve(database, track.title, resolveArtist)?.let { mm ->
-                            if (acceptsResolvedSoloPrimary(mm, soloArtist)) resolvedSongs += mm
-                        }
-                        val resolvedCount = resolvedSongs.distinctBy { it.id }.size
-                        onResolveProgress(resolvedCount.coerceAtMost(target), target)
-                        if (resolvedCount >= target) break
-                    }
-                    ordered = resolvedSongs.distinctBy { it.id }.take(target)
-                }
-            }
-            aiName = spec.name
-        }
+        if (aiOutcome != null) return aiOutcome
 
         // NON-AI SAFETY NET (owner directive 2026-08-29: "AI must never dead-end on an error").
-        // When the AI chain is unavailable (Aura Worker rate-limited, Pollinations gone, no user key)
-        // or its tracks didn't resolve, build the playlist from REAL YouTube Music search results for
-        // the user's description — the same approach InnerTune/OuterTune/Metrolist use for their
-        // auto-playlists (Innertube search/radio, no LLM). The user gets a playlist built from the
-        // prompt, honestly labeled "generated without AI" via [Result.generatedWithoutAi], instead
-        // of the old dead-end "No songs were found for that idea".
-        var generatedWithoutAi = false
-        if (ordered.isEmpty()) {
-            val fallback = withTimeoutOrNull(AI_BUDGET_MS) {
-                searchFallbackPlaylist(prompt, soloArtist, target)
+        // Reached when the budget expired, the AI chain is unavailable (Aura Worker rate-limited,
+        // Pollinations gone, no user key) or its tracks didn't resolve. Build the playlist from REAL
+        // YouTube Music search results for the user's description — the same approach
+        // InnerTune/OuterTune/Metrolist use for their auto-playlists (Innertune search/radio, no LLM)
+        // — honestly labeled "generated without AI" via [Result.generatedWithoutAi], instead of the
+        // old dead-end "No songs were found for that idea".
+        return generateWithoutAi(database, prompt, target, soloArtist)
+    }
+
+    /**
+     * The AI-backed path, in the caller's [AI_BUDGET_MS] window: ask → parallel resolve →
+     * conditional top-up. Returns null ONLY when nothing AI-usable survived; the caller then runs
+     * the honest non-AI fallback.
+     */
+    private suspend fun aiFlow(
+        database: MusicDatabase,
+        prompt: String,
+        target: Int,
+        soloArtist: String?,
+        provider: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        onResolveProgress: (done: Int, total: Int) -> Unit,
+    ): kotlin.Result<Result>? {
+        // Ask the AI (user key → Aura Worker → free Pollinations models). getOrNull() so a total
+        // failure doesn't dead-end — the caller falls back to a non-AI playlist, not an error.
+        // Thin pad (target + PAD_OVER_TARGET) instead of the old 1.5×: the row-198 anti-hallucination
+        // prompt returns fewer but REAL tracks, so a big pad only bought extra output tokens
+        // (≈ direct seconds on Llama 70B, the slowest leg) and made every answer slower for nothing.
+        // The rare shortfall is the structured top-up's job, below.
+        val requestCount = target + PAD_OVER_TARGET
+        // Ask cap, BY PATH: the KEYLESS chain (the owner's path) gets the scaled [keylessAskCapMs]
+        // — a hung Worker must fail fast into the instant non-AI fallback (2026-08-31: no dead
+        // spinners), but the cap must still cover a legit 30-track ask or it would trade precision
+        // for speed (see keylessAskCapMs). The USER KEY path keeps the full [AI_BUDGET_MS] window
+        // for the ask: their provider may be deliberately slow, and "user key = full control"
+        // (row 198 invariant) is not the place to harvest seconds.
+        val askCapMs = if (apiKey.isBlank()) keylessAskCapMs(requestCount) else AI_BUDGET_MS
+        val spec = withTimeoutOrNull(askCapMs) {
+            AiPlaylistService.generate(prompt, requestCount, provider, apiKey, baseUrl, model).getOrNull()
+        } ?: return null
+
+        val proposed = filterTracksForSoloArtist(spec.tracks, soloArtist)
+        val firstPass = resolveBounded(database, proposed, soloArtist, target, onResolveProgress)
+        var ordered = firstPass.distinctBy { it.id }.take(target)
+
+        // Top-up ONLY when the first pass fell short of the target. With the thin pad and the
+        // row-198 prompt the first pass reaches the target on most requests, so this second Worker
+        // hop (10-17s + its own resolve) is now the exception, not the rule. It still runs INSIDE
+        // the same budget window (the caller's single withTimeoutOrNull), never a second 60s.
+        // The exclusions travel as a structured list (AiPlaylistPrompt), NOT concatenated into the
+        // prompt: a literal "solo X. NO incluyas…: A, B, C" is not re-parseable by
+        // extractSoloArtist, so the solo lock silently died on this round (owner wants EXACTNESS).
+        if (ordered.size < target) {
+            val missing = target - ordered.size
+            val exclude = ordered.map { it.title }
+            // Same thin pad on the refill round: only what's missing plus the same cushion.
+            val extra = withTimeoutOrNull(askCapMs) {
+                AiPlaylistService.generate(
+                    prompt = prompt,
+                    count = missing + PAD_OVER_TARGET,
+                    provider = provider,
+                    apiKey = apiKey,
+                    baseUrl = baseUrl,
+                    model = model,
+                    excludeTitles = exclude,
+                ).getOrNull()
             }
-            if (fallback != null && fallback.isNotEmpty()) {
-                ordered = fallback
-                generatedWithoutAi = true
+            if (extra != null) {
+                val extraTracks = filterTracksForSoloArtist(extra.tracks, soloArtist)
+                // Progress offset: the second wave's callback counts only ITS OWN results; add the
+                // first pass's distinct count so the UI counter never runs BACKWARDS mid-refill.
+                val baseCount = ordered.distinctBy { it.id }.size
+                val secondPass = resolveBounded(
+                    database = database,
+                    proposed = extraTracks,
+                    soloArtist = soloArtist,
+                    target = missing,
+                    onResolveProgress = { done, _ ->
+                        onResolveProgress((baseCount + done).coerceAtMost(target), target)
+                    },
+                )
+                ordered = (firstPass + secondPass).distinctBy { it.id }.take(target)
             }
         }
 
-        if (ordered.isEmpty()) {
-            return kotlin.Result.failure(EmptyResultException())
-        }
+        if (ordered.isEmpty()) return null
 
-        // The AI proposes a short name; fall back to the user's prompt (also used for the non-AI playlist).
-        val name = (aiName ?: "").ifBlank { prompt }.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH)
+        // The AI proposes a short name; fall back to the user's prompt (also used for the non-AI
+        // playlist) when the model omitted or blanked it.
+        val name = spec.name.ifBlank { prompt }.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH)
         val playlist = PlaylistEntity(
             name = name,
             bookmarkedAt = LocalDateTime.now(),
@@ -180,7 +250,138 @@ object AiPlaylistGenerator {
                 name = name,
                 total = target,
                 resolved = ordered.size,
-                generatedWithoutAi = generatedWithoutAi,
+            ),
+        )
+    }
+
+    /**
+     * Bounded-concurrency resolve of the AI proposals. The old loop was strictly serial — 12 tracks
+     * ≈ 12 sequential YouTube searches ≈ 12s of spinner AFTER the AI reply, the second-slowest leg of
+     * the chain. With [RESOLVE_CONCURRENCY] lanes the same work lands in ~¼ of the wall time while
+     * the modem burst stays small (battery/heat rule).
+     *
+     * ORDER IS PRESERVED: results are collected by proposal index, so the playlist keeps the AI's
+     * ordering. Parallelism never changes WHICH songs resolve — [SongResolver.resolve] is a pure
+     * per-track lookup (local match first, then search), independent of the other tracks.
+     *
+     * Cancellation semantics are deliberately HONEST: no catch here. If the shared budget window
+     * dies mid-wave, the wave is cancelled, `withTimeoutOrNull` in the caller yields null, and the
+     * instant non-AI fallback runs — exactly what that fallback exists for. (Swallowing the
+     * cancellation to "save a partial list" would mean persisting inside a cancelled scope, which
+     * requires NonCancellable surgery for no real gain: the fallback already answers instantly.)
+     */
+    private suspend fun resolveBounded(
+        database: MusicDatabase,
+        proposed: List<TrackQuery>,
+        soloArtist: String?,
+        target: Int,
+        onResolveProgress: (done: Int, total: Int) -> Unit,
+    ): List<MediaMetadata> = resolveBoundedOrdered(
+        proposed = proposed,
+        resolveArtistFor = { track -> soloArtist?.takeIf { it.isNotBlank() } ?: track.artist },
+        resolveOne = { title, artist -> SongResolver.resolve(database, title, artist) },
+        accept = { mm -> acceptsResolvedSoloPrimary(mm, soloArtist) },
+        target = target,
+        concurrency = RESOLVE_CONCURRENCY,
+        onResolveProgress = onResolveProgress,
+    )
+
+    /**
+     * Pure orchestration core of [resolveBounded], with every effect injected (the project's
+     * [SongResolver.resolveOrdered] seam pattern) so the PARALLEL-RESOLVE CONTRACT is unit-tested
+     * (AiPlaylistResolveBoundedTest) instead of trusting "it compiles":
+     *  - order follows the AI's proposal order regardless of completion order;
+     *  - concurrency is bounded ([concurrency] lanes — battery/heat rule);
+     *  - soft short-circuit: once [target] results are accepted, waiting lanes skip their network hit
+     *    (the old serial loop's early break, preserved);
+     *  - the progress callback fires per completion, monotonically capped at [target].
+     *
+     * No cancellation swallowing: if the surrounding budget window dies, the wave is cancelled and
+     * the caller's withTimeoutOrNull yields null → honest non-AI fallback.
+     */
+    internal suspend fun resolveBoundedOrdered(
+        proposed: List<TrackQuery>,
+        resolveArtistFor: (TrackQuery) -> String,
+        resolveOne: suspend (title: String, artist: String) -> MediaMetadata?,
+        accept: (MediaMetadata) -> Boolean,
+        target: Int,
+        concurrency: Int = RESOLVE_CONCURRENCY,
+        onResolveProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): List<MediaMetadata> {
+        if (proposed.isEmpty() || target <= 0) return emptyList()
+        val semaphore = Semaphore(concurrency.coerceAtLeast(1))
+        val byIndex = ConcurrentHashMap<Int, MediaMetadata>()
+        // Distinct RESOLVED ids (not accepted entries): two different proposals can resolve to the
+        // same video — the old serial loop counted distinct ids, and so does the short-circuit.
+        val seenIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        coroutineScope {
+            proposed.forEachIndexed { index, track ->
+                launch {
+                    semaphore.withPermit {
+                        // Soft short-circuit (checked under the permit): enough DISTINCT results are
+                        // in → this lane skips its network hit. Checked AFTER acquiring so a wave
+                        // that already reached target does zero extra searches.
+                        if (seenIds.size >= target) return@withPermit
+                        val resolveArtist = resolveArtistFor(track)
+                        val resolved = resolveOne(track.title, resolveArtist)
+                        if (resolved != null && accept(resolved)) {
+                            byIndex[index] = resolved
+                            seenIds.add(resolved.id)
+                        }
+                        onResolveProgress(seenIds.size.coerceAtMost(target), target)
+                    }
+                }
+            }
+        }
+        return proposed.indices.mapNotNull { byIndex[it] }
+    }
+
+    /**
+     * The honest non-AI safety net, shared by the budget-expired and chain-unavailable paths: REAL
+     * songs from YouTube Music search for the user's description (searchFallbackPlaylist), labeled
+     * "generated without AI" via [Result.generatedWithoutAi].
+     */
+    private suspend fun generateWithoutAi(
+        database: MusicDatabase,
+        prompt: String,
+        target: Int,
+        soloArtist: String?,
+    ): kotlin.Result<Result> {
+        val fallback = withTimeoutOrNull(AI_BUDGET_MS) {
+            searchFallbackPlaylist(prompt, soloArtist, target)
+        }
+        if (fallback.isNullOrEmpty()) {
+            return kotlin.Result.failure(EmptyResultException())
+        }
+        val ordered = fallback
+        val name = prompt.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH)
+        val playlist = PlaylistEntity(
+            name = name,
+            bookmarkedAt = LocalDateTime.now(),
+            isEditable = true,
+            isLocal = true,
+        )
+        // Single transaction: create the playlist, persist songs, map them in order (atomic).
+        database.transaction {
+            insert(playlist)
+            ordered.forEachIndexed { index, metadata ->
+                insert(metadata)
+                insert(
+                    PlaylistSongMap(
+                        playlistId = playlist.id,
+                        songId = metadata.id,
+                        position = index,
+                    ),
+                )
+            }
+        }
+        return kotlin.Result.success(
+            Result(
+                playlistId = playlist.id,
+                name = name,
+                total = target,
+                resolved = ordered.size,
+                generatedWithoutAi = true,
             ),
         )
     }

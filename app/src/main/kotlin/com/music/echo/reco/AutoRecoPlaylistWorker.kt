@@ -165,7 +165,12 @@ class AutoRecoPlaylistWorker(
                 append(".")
             }
         }
-        val requestCount = (TARGET_SONGS * 3 + 1) / 2
+        // Thin pad (owner directive 2026-08-31, same rationale as AiPlaylistGenerator): the old 1.5×
+        // pad bought extra Worker output tokens (~seconds) to pre-absorb resolver misses that the
+        // row-198 prompt no longer produces in bulk. This worker has NO AI top-up — its refill is
+        // the local buildTasteFallback — so +2 absorbs the odd miss and the rest of the shortfall
+        // lands in that fallback, which runs after this AI phase and costs no extra Worker round trip.
+        val requestCount = TARGET_SONGS + AiPlaylistGenerator.PAD_OVER_TARGET
         val spec = withTimeoutOrNull(AiPlaylistGenerator.AI_BUDGET_MS) {
             AiPlaylistService.generate(
                 prompt = prompt,
