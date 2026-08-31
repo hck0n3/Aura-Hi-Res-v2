@@ -6,6 +6,7 @@ import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
@@ -24,12 +25,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.BasicAlertDialogOverride
+import androidx.compose.material3.BasicAlertDialogOverrideScope
+import androidx.compose.material3.ExperimentalMaterial3ComponentOverrideApi
+import androidx.compose.material3.LocalBasicAlertDialogOverride
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,11 +73,15 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import androidx.media3.common.PlaybackParameters
@@ -88,6 +100,7 @@ import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.ExportingSongIdsKey
 import iad1tya.echo.music.constants.ListItemHeight
+import iad1tya.echo.music.constants.LiquidGlassGlobalEnabledKey
 import iad1tya.echo.music.listentogether.ConnectionState
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.rememberResolvedAlbum
@@ -102,6 +115,7 @@ import iad1tya.echo.music.ui.component.NewActionGrid
 import iad1tya.echo.music.ui.component.VolumeSlider
 import iad1tya.echo.music.ui.utils.ExportFormat
 import iad1tya.echo.music.ui.utils.ExportFormatChooserDialog
+import iad1tya.echo.music.utils.PrefsBridge
 import iad1tya.echo.music.utils.isLocalMediaId
 import iad1tya.echo.music.utils.lookupExportedFileUri
 import iad1tya.echo.music.utils.rememberPreference
@@ -928,6 +942,27 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
     val skin = iad1tya.echo.music.ui.newui.rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
 
+    // Registry row 197 — the big-four cover-blur backdrop, AlertDialog edition. The stock
+    // AlertDialog has no background slot and its window layout is not ours, so the plate rides the
+    // public LocalBasicAlertDialogOverride seam: the window is re-laid out EXACTLY as the stock
+    // default does (see [MenuCoverBackdropOverride]) with the plate added as the FIRST layer,
+    // BEHIND the panel. The panel itself (scope.content: title, sliders, buttons, FrostFill tint)
+    // composes untouched above it — content and interaction identical.
+    //
+    // The provider is given ONLY when the plate would actually draw (the gates below mirror
+    // AuraCoverBlurPlate's own gates). Every other case — Liquid Glass OFF, cold start (peek null),
+    // no song, local track, API < 31, non-premium skin — composes the STOCK dialog path untouched:
+    // byte-identical, zero new code executed.
+    val plateMetadata by playerConnection.mediaMetadata.collectAsState()
+    val plateSongId = plateMetadata?.id
+    val plateActive = premium &&
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        PrefsBridge.peek(LiquidGlassGlobalEnabledKey) == true &&
+        plateSongId != null &&
+        plateMetadata?.thumbnailUrl
+            ?.takeIf { it.isNotEmpty() && !plateSongId.isLocalMediaId() } != null
+
+    val stockDialog: @Composable () -> Unit = {
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         onDismissRequest = onDismiss,
@@ -983,6 +1018,66 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
             }
         },
     )
+    }
+
+    if (plateActive) {
+        @OptIn(ExperimentalMaterial3ComponentOverrideApi::class)
+        CompositionLocalProvider(
+            LocalBasicAlertDialogOverride provides MenuCoverBackdropOverride,
+        ) {
+            stockDialog()
+        }
+    } else {
+        stockDialog()
+    }
+}
+
+/**
+ * The stock default window layout ([DefaultBasicAlertDialogOverride]), replicated so the plate can
+ * ride along: `Dialog(properties)` → `Box(modifier.sizeIn(280.dp, 560.dp) + paneTitle,
+ * propagateMinConstraints = true)` → content. The ONLY difference: [AuraCoverBlurPlate] is
+ * composed as the FIRST child of that Box, so it paints BEHIND the dialog panel (scope.content),
+ * matching the box-of-the-plate pattern the sheet menus use. The pane title is the SAME localized
+ * token the stock window uses (`m3c_dialog`, resolved through material3's library R — it is not in
+ * public.txt but the symbolic R of a direct dependency resolves), so TalkBack reads the same word
+ * as before in every locale.
+ */
+@OptIn(ExperimentalMaterial3ComponentOverrideApi::class)
+private object MenuCoverBackdropOverride : BasicAlertDialogOverride {
+    // Extension-receiver member: the stock AlertDialog hands the whole window over as
+    // `BasicAlertDialogOverrideScope` — the same seam DefaultBasicAlertDialogOverride implements.
+    @Composable
+    override fun BasicAlertDialogOverrideScope.BasicAlertDialog() {
+        val paneTitleText = stringResource(
+            androidx.compose.material3.R.string.m3c_dialog,
+        )
+        Dialog(
+            onDismissRequest = onDismissRequest,
+            properties = properties,
+        ) {
+            Box(
+                modifier = modifier
+                    .sizeIn(minWidth = 280.dp, maxWidth = 560.dp)
+                    .then(
+                        Modifier.semantics {
+                            paneTitle = paneTitleText
+                        },
+                    ),
+                propagateMinConstraints = true,
+            ) {
+                // The panel's own Surface clips itself to AlertDialogDefaults.shape (the stock
+                // dialog shape, CornerExtraLarge 28dp); the plate is a SIBLING, so it must clip
+                // itself to the SAME shape or its corners would poke out from behind the rounded
+                // panel as dark quarters.
+                iad1tya.echo.music.ui.newui.AuraCoverBlurPlate(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(AlertDialogDefaults.shape),
+                )
+                content()
+            }
+        }
+    }
 }
 
 @Composable
