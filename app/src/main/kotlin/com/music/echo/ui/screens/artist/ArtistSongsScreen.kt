@@ -225,9 +225,13 @@ fun ArtistSongsScreen(
                 }
             },
             colors = if (classicBarHazeState != null) {
+                // AUDIT P3: descendant of the source — the glass may be a silent no-op in haze
+                // 1.7.2, so the bars keep a visible surface: the plate color stays the FROST
+                // (GroundRaised translucent) instead of transparent. If the glass renders it
+                // sits above the frost; if not, the frost IS the bar — never a hole.
                 TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent,
+                    containerColor = AuraPalette.GroundRaised.copy(alpha = 0.72f),
+                    scrolledContainerColor = AuraPalette.GroundRaised.copy(alpha = 0.72f),
                 )
             } else {
                 TopAppBarDefaults.topAppBarColors()

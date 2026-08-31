@@ -542,7 +542,14 @@ private fun AuraFab(
         .clip(AuraShapes.Pill)
         .then(
             if (shellHazeState != null) {
+                // AUDIT 2026-08-31 (fix P3): these FABs live INSIDE the NavHost, i.e. DESCENDANTS
+                // of the haze source — in haze 1.7.2 the descendant filter is a silent no-op (the
+                // glass never draws) and the opaque plate was dropped when the glass arrived, so
+                // the owner saw naked glyphs floating in a hole. The plate now paints UNDER the
+                // glass: if the glass renders (non-descendant contexts) it covers the plate; if
+                // it's a no-op, the plate IS the button. Same material as the no-source fallback.
                 Modifier
+                    .background(AuraPalette.FloatingFill)
                     .shellGlass(shellHazeState)
             } else {
                 Modifier

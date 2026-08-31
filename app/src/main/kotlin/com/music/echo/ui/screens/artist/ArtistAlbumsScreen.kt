@@ -201,9 +201,11 @@ fun ArtistAlbumsScreen(
             },
             scrollBehavior = scrollBehavior,
             colors = if (classicBarHazeState != null) {
+                // AUDIT P3: descendant of the source — frost plate kept under the glass so the
+                // bar always has a surface (haze 1.7.2 descendant filter is a silent no-op).
                 TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent,
+                    containerColor = AuraPalette.GroundRaised.copy(alpha = 0.72f),
+                    scrolledContainerColor = AuraPalette.GroundRaised.copy(alpha = 0.72f),
                 )
             } else {
                 TopAppBarDefaults.topAppBarColors()

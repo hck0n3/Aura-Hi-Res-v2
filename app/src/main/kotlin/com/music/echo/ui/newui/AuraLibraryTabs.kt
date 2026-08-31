@@ -855,11 +855,10 @@ fun AuraLibrarySongsTab(
                     .clip(CircleShape)
                     .then(
                         if (shuffleTabHazeState != null) {
-                            // LIQUID GLASS REAL (owner's final direction + unified contract
-                            // 2026-08-31): same window, same source the nav bar samples —
-                            // ALWAYS LIVE like the chrome. The teal gradient plate remains the
-                            // no-source fallback.
-                            Modifier.shellGlass(shuffleTabHazeState)
+                            // AUDIT P3: plate under the glass — descendant no-op insurance.
+                            Modifier
+                                .background(AuraPalette.PlayButtonGradient)
+                                .shellGlass(shuffleTabHazeState)
                         } else {
                             Modifier.background(AuraPalette.PlayButtonGradient)
                         },

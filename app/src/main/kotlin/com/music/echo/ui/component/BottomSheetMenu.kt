@@ -145,8 +145,11 @@ fun BottomSheetMenu(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .shellGlass(shellHazeState)
+                            // AUDIT P4: clip BEFORE the glass — a clip AFTER the hazeChild is
+                            // interior (it trims the content, not the effect draw), leaving the
+                            // panel with square top corners over a rounded-content sheet.
                             .clip(AuraShapes.Sheet)
+                            .shellGlass(shellHazeState)
                             .imePadding()
                             .navigationBarsPadding(),
                     ) {

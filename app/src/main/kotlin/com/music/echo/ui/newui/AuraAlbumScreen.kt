@@ -1051,6 +1051,12 @@ internal fun AuraDetailTopBar(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
+            // AUDIT P3 (2026-08-31): the detail bar is a DESCENDANT of the haze source — in haze
+            // 1.7.2 the descendant filter is a silent no-op (nothing draws) and with the plate
+            // transparent the owner saw the title floating over raw content. The opaque plate
+            // now paints UNDER the glass: renders when the glass can't. showChrome gates it as
+            // before (transparent when the hero is edge-to-edge).
+            .background(plate)
             .then(
                 if (showChrome && shellHazeState != null) {
                     Modifier.detailShellGlass(shellHazeState)
@@ -1058,7 +1064,6 @@ internal fun AuraDetailTopBar(
                     Modifier
                 },
             )
-            .background(plate)
             .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {

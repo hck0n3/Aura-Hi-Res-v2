@@ -387,7 +387,8 @@ fun AuraNavigationBar(
     // came from the chrome (the stable ran it for weeks); it came from the detail bars, which are
     // gone from the sampling path, and haze 1.7.2 carries the Samsung shader fix. freezeGlass
     // remains available for Performance Mode (where sampling pauses in-place, never unmounts).
-    val shellScrollActive = rememberShellScrollActive()
+    // AUDIT P6: the dead rememberShellScrollActive() read is GONE — it subscribed the nav bar to
+    // every fling of every screen (a recomposition per gesture for a value nothing consumed).
     val inPerformanceMode = LocalGlassEffectConfig.current.globalEnabled.not()
     val navHazeState = LocalShellHazeState.current
     val navBarModifier = if (navHazeState != null) {
@@ -771,7 +772,7 @@ fun AuraMiniPlayer(
         // AuraGroundLayer behind branches the pill's own recipe CANNOT reach (auraPillRecipe pins
         // drift=false/spin=false, the HALLAZGO-059 guardian), so there is nothing here to disable;
         // with the film frozen the idle-animated ground under the pill no longer re-blurs either.
-        val shellScrollActive = rememberShellScrollActive()
+        // AUDIT P6: dead bus read removed — no consumer; it recomposed the pill per gesture.
         val inPerformanceMode = LocalGlassEffectConfig.current.globalEnabled.not()
         Box(
             modifier = Modifier
