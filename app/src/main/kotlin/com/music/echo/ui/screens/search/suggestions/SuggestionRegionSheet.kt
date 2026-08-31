@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.constants.SuggestionRegionSlugToName
-import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
 import iad1tya.echo.music.ui.newui.auraFloatingContainerColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
@@ -60,13 +59,6 @@ fun SuggestionRegionSheet(
     ) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides premium) {
         iad1tya.echo.music.ui.newui.AuraFrostWindowIfPremium()
-        // Cover-blur plate (registry row 197): first background layer of the sheet's panel,
-        // above the flat containerColor it replaces and under all the content. Composes NOTHING
-        // with the Liquid Glass switch OFF or no cover playing — byte-identical sheet.
-        Box {
-        if (premium) {
-            AuraCoverBlurPlate(modifier = Modifier.matchParentSize())
-        }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "Choose Suggestions Region",
@@ -171,9 +163,8 @@ fun SuggestionRegionSheet(
             }
         }
         }
-        }
     }
-
+    
     LaunchedEffect(searchQuery) {
         if (filteredRegions.isNotEmpty()) {
             listState.scrollToItem(0)

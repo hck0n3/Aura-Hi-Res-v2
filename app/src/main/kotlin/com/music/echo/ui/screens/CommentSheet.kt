@@ -47,7 +47,6 @@ import com.music.innertube.YouTube
 import com.music.innertube.models.comment.CommentRenderer
 import com.music.innertube.models.comment.CommentThreadRenderer
 import iad1tya.echo.music.R
-import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
 import iad1tya.echo.music.ui.newui.auraFloatingContainerColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
@@ -108,14 +107,6 @@ fun CommentSheet(
     ) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides premium) {
         iad1tya.echo.music.ui.newui.AuraFrostWindowIfPremium()
-        // Cover-blur plate (registry row 197): first background layer of the sheet's panel, above
-        // the flat containerColor it replaces and under all the content. Composes NOTHING with
-        // the Liquid Glass switch OFF or no cover playing — byte-identical sheet. Painted only —
-        // no input consumed, so the replies list-detail panes and every clickable keep working.
-        Box {
-        if (premium) {
-            AuraCoverBlurPlate(modifier = Modifier.matchParentSize())
-        }
         Column(modifier = Modifier.fillMaxHeight()) {
             
             Row(
@@ -247,7 +238,6 @@ fun CommentSheet(
                     )
                 }
             }
-        }
         }
         }
     }

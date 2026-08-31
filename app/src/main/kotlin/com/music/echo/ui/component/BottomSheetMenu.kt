@@ -37,7 +37,6 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
@@ -164,28 +163,12 @@ fun BottomSheetMenu(
         modifier = modifier.fillMaxHeight(),
     ) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides premium) {
-            // Cover-blur plate (registry row 197): first background layer of the sheet's panel,
-            // above the flat containerColor it replaces and under all the content. Composes
-            // NOTHING with the Liquid Glass switch OFF or no cover playing — byte-identical menu.
-            // This is THE menu sheet every MenuState.show() lands in (song/album/artist/playlist
-            // menus, the player menu, queue menus…), so the plate here covers the big four and
-            // every sibling menu in one seam. Painted only — it consumes no input, so the menu's
-            // own clickables and the IME keep working exactly as today.
-            //
-            // The Box is fillMaxHeight because the SHEET is fillMaxHeight (hardcoded above) while
-            // the menu Column only wraps its content: without it the plate would cover just the
-            // content's height and the blur would visibly cut off in the empty half of the panel.
-            Box(modifier = Modifier.fillMaxHeight()) {
-                if (premium) {
-                    AuraCoverBlurPlate(modifier = Modifier.matchParentSize())
-                }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                ) {
-                    state.content(this)
-                }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+            ) {
+                state.content(this)
             }
         }
     }

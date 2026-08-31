@@ -54,7 +54,6 @@ import iad1tya.echo.music.constants.ListItemHeight
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.ui.component.SongListItem
 import iad1tya.echo.music.ui.component.YouTubeListItem
-import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
 import iad1tya.echo.music.ui.newui.auraFloatingContainerColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
@@ -116,14 +115,6 @@ fun AddMusicSheet(
     ) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides premium) {
         iad1tya.echo.music.ui.newui.AuraFrostWindowIfPremium()
-        // Cover-blur plate (registry row 197): first background layer of the sheet's panel, above
-        // the flat containerColor it replaces and under all the content. Composes NOTHING with
-        // the Liquid Glass switch OFF or no cover playing — byte-identical sheet. Painted only —
-        // no input consumed, so the search field, previews and the IME keep working as today.
-        Box {
-        if (premium) {
-            AuraCoverBlurPlate(modifier = Modifier.matchParentSize())
-        }
         Column(modifier = Modifier.fillMaxHeight()) {
             Text(
                 text = stringResource(R.string.add_music),
@@ -303,7 +294,6 @@ fun AddMusicSheet(
                     )
                 }
             }
-        }
         }
         }
     }

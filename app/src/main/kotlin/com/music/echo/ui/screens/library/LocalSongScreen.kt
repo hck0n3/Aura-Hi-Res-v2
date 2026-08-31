@@ -128,7 +128,6 @@ import iad1tya.echo.music.ui.menu.SongMenu
 import iad1tya.echo.music.ui.newui.AuraAppleCoverDividerInset
 import iad1tya.echo.music.ui.newui.AuraAppleListRowFrame
 import iad1tya.echo.music.ui.newui.AuraCover
-import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.AuraIconButton
 import iad1tya.echo.music.ui.newui.AuraIcons
 import iad1tya.echo.music.ui.newui.AuraPalette
@@ -860,13 +859,6 @@ private fun LocalSongScanSheet(
     ) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides premium) {
         iad1tya.echo.music.ui.newui.AuraFrostWindowIfPremium()
-        // Cover-blur plate (registry row 197): first background layer of the sheet's panel,
-        // above the flat containerColor it replaces and under all the content. Composes NOTHING
-        // with the Liquid Glass switch OFF or no cover playing — byte-identical sheet.
-        Box {
-        if (premium) {
-            AuraCoverBlurPlate(modifier = Modifier.matchParentSize())
-        }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -1206,7 +1198,6 @@ private fun LocalSongScanSheet(
                     }
                 }
             }
-        }
         }
         }
     }

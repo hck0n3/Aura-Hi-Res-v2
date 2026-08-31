@@ -531,29 +531,33 @@ private fun AuraFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // LIQUID GLASS REAL (owner directive 2026-08-31, final direction): the FABs live INSIDE the
+    // shell window, so they can sample the SAME haze source the nav bar reads. freezeGlass is the
+    // no-flicker contract (row 196): the hazeChild stays composed and only turns its sampling
+    // off in-place while a screen scrolls. No source (glass OFF / classic / previews) → the
+    // opaque FloatingFill plate, hairline and glyph, byte-identical to before any of this.
+    val shellHazeState = LocalShellHazeState.current
     val base = modifier
         .height(52.dp)
         .clip(AuraShapes.Pill)
-        .background(AuraPalette.FloatingFill)
-        .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
+        .then(
+            if (shellHazeState != null) {
+                Modifier
+                    .freezeGlass(shellHazeState)
+            } else {
+                Modifier
+                    .background(AuraPalette.FloatingFill)
+                    .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
+            },
+        )
         .auraClickableInternal(onClick = onClick, contentDescription = contentDescription)
 
     if (label == null) {
         Box(base.size(52.dp), contentAlignment = Alignment.Center) {
-            // The mini player's cover-blur skin (owner directive 2026-08-30) — first child, under
-            // the glyph; returns without drawing anything while the Liquid Glass switch is OFF.
-            AuraFabCoverSkin(AuraShapes.Pill)
             AuraIconGlyph(icon, null, size = 22.dp, tint = AuraPalette.Teal)
         }
     } else {
-        // The extended pill: the skin layers UNDER the whole Row (the pill's own structure —
-        // ground layers first, content last), so the Row's spacing and glyph/label alignment stay
-        // byte-identical and the frost sits behind BOTH, not beside them. The Box takes the
-        // centering the Row used to own: before, the Row itself was the pill (height 52 dp) and
-        // centered its children; now the Row is a wrap-content child of the Box, so without
-        // contentAlignment it would sit at the Box's top-start corner instead of its middle.
         Box(base, contentAlignment = Alignment.Center) {
-            AuraFabCoverSkin(AuraShapes.Pill)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),

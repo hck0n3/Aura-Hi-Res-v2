@@ -47,7 +47,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import iad1tya.echo.music.R
-import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.AuraDialogWindowEffects
 import iad1tya.echo.music.ui.newui.AuraFloatingSurface
 import iad1tya.echo.music.ui.newui.AuraPalette
@@ -104,15 +103,6 @@ fun DefaultDialog(
             modifier = Modifier.padding(24.dp),
             shape = if (premium) AuraShapes.Card else AlertDialogDefaults.shape,
         ) {
-            // Cover-blur plate (registry row 197): FIRST background layer, under the frost tint
-            // above it. Composes NOTHING unless the Liquid Glass master switch is ON and a
-            // remote-cover track is playing — every other case stays byte-identical to today.
-            if (premium) {
-                AuraCoverBlurPlate(
-                    modifier = Modifier.matchParentSize(),
-                    stroke = AuraShapes.Card,
-                )
-            }
             Column(
                 horizontalAlignment = horizontalAlignment,
                 modifier = modifier.padding(24.dp)
@@ -254,13 +244,6 @@ fun ListDialog(
             modifier = Modifier.padding(24.dp),
             shape = if (premium) AuraShapes.Card else AlertDialogDefaults.shape,
         ) {
-            // Cover-blur plate (registry row 197) — same first-layer contract as DefaultDialog.
-            if (premium) {
-                AuraCoverBlurPlate(
-                    modifier = Modifier.matchParentSize(),
-                    stroke = AuraShapes.Card,
-                )
-            }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = modifier

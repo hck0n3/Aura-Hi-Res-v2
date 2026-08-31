@@ -33,7 +33,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import iad1tya.echo.music.BuildConfig
 import iad1tya.echo.music.R
-import iad1tya.echo.music.ui.newui.AuraCoverBlurPlate
 import iad1tya.echo.music.ui.newui.AuraDialogWindowEffects
 import iad1tya.echo.music.ui.newui.AuraFloatingSurface
 import iad1tya.echo.music.ui.newui.AuraPalette
@@ -161,12 +160,6 @@ fun WelcomeDialog(
                     .fillMaxWidth(),
                 shape = AuraShapes.Card,
             ) {
-                // Cover-blur plate (registry row 197): first background layer under the frost
-                // tint; composes nothing with the Liquid Glass switch OFF or no cover playing.
-                AuraCoverBlurPlate(
-                    modifier = Modifier.matchParentSize(),
-                    stroke = AuraShapes.Card,
-                )
                 WelcomeTourBody(
                     current = current,
                     page = page,
