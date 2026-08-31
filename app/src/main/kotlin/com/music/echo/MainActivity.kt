@@ -2107,20 +2107,18 @@ class MainActivity : ComponentActivity() {
                                         .width(sidePanelWidth),
                                 )
                             }
-                            // HAZE SOURCE GATE (registry row 196, BETA-026 recurrence): this Box is
-                            // the haze SOURCE — the layer every shell hazeChild (nav bar, mini pill,
-                            // global top bar, detail bars) samples. During an active scroll it is
-                            // re-recorded at native resolution EVERY frame, and with the children
-                            // merely frozen the source kept paying that re-record cost anyway — the
-                            // crash persisted "apenas se desplaza UN POCO". So during the gesture the
-                            // Box is NOT the source: shellHazeSource unmounts in the same frame the
-                            // bus flips true (ShellScrollBus.active is read HERE, in composition —
-                            // it is a global MutableState, so this read is reactive and the Row
-                            // recomposes the moment the drag starts). The frozen children never
-                            // sample anything (they show the GroundRaised plate), so there is no
-                            // visual flash; when the scroll settles the source returns and glass
-                            // resumes. NOTE: this reads the state directly, not via
-                            // rememberShellScrollActive — the shell's helper is private to AuraShell.
+                            // HAZE SOURCE GATE (registry row 196): this Box is the haze SOURCE —
+                            // the layer every shell hazeChild samples. During an active scroll it
+                            // is re-recorded at native resolution EVERY frame. The chrome's
+                            // always-on glass (owner directive 2026-08-31) samples through
+                            // scrolls — that is the SimpMusic production pattern and the stable
+                            // ran it for weeks — BUT the source still un-mounts during a gesture
+                            // so NOBODY samples the mutation window (the chrome shows its tint
+                            // through the gesture, per haze 1.7.2's blurEnabled path — see
+                            // AuraShell). The menu overlay (BottomSheetMenu's in-window path) is
+                            // a SIBLING reading this same state; while a menu is open its content
+                            // is still (no scroll under it), so the source stays mounted and the
+                            // menu samples the settled screen — real glass on One UI 8.5.
                             val hazeSourceGated = ShellScrollBus.active.value
                             Box(
                                 Modifier
