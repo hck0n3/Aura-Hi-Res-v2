@@ -74,6 +74,7 @@ import androidx.media3.common.Player
 import coil3.compose.AsyncImage
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.ui.component.LocalGlassEffectConfig
 import iad1tya.echo.music.constants.CropAlbumArtKey
 import iad1tya.echo.music.constants.MiniPlayerBackgroundStyleKey
 import iad1tya.echo.music.constants.MiniPlayerHeight
@@ -381,19 +382,24 @@ fun AuraNavigationBar(
     // detail bars use, a substitute FOR the glass (never painted on top of it: hazeChild IS the
     // surface, lesson 0b1151e), not an extra layer. Idle → glass returns; the bar itself never
     // scrolls, so the expensive case for its sample is exactly the case this gate turns off.
-    // NO-FLICKER CHROME GLASS (row 196, owner 2026-08-31: "cuando me desplazo la barra y el mini
-    // PARPAJEAN y pierden el efecto"): the previous conditional swap (glass ↔ flat tint ↔ cover)
-    // remounted a different surface mid-gesture — that remount IS the flash, and the covers read
-    // as "losing" the liquid glass. Now the bar composes freezeGlass ONCE: the hazeChild never
-    // unmounts; while any screen scrolls the SAME node turns its sampling off in-place
-    // (blurEnabled=false keeps the tint and dimensions). The anti-crash contract (no re-sample
-    // while the source mutates) is untouched. No source (glass OFF / classic / previews) keeps
-    // the byte-identical opaque Ground bar of the fallback.
+    // ALWAYS-SAMPLING CHROME (owner directive 2026-08-31: "si me desplazo se desactiva y eso no
+    // tiene que ser así"): shellGlass stays live through every scroll — the row-196 sig-11 never
+    // came from the chrome (the stable ran it for weeks); it came from the detail bars, which are
+    // gone from the sampling path, and haze 1.7.2 carries the Samsung shader fix. freezeGlass
+    // remains available for Performance Mode (where sampling pauses in-place, never unmounts).
+    val shellScrollActive = rememberShellScrollActive()
+    val inPerformanceMode = LocalGlassEffectConfig.current.globalEnabled.not()
     val navHazeState = LocalShellHazeState.current
     val navBarModifier = if (navHazeState != null) {
         modifier
             .fillMaxWidth()
-            .freezeGlass(navHazeState)
+            .then(
+                if (inPerformanceMode) {
+                    Modifier.freezeGlass(navHazeState)
+                } else {
+                    Modifier.shellGlass(navHazeState)
+                },
+            )
     } else {
         modifier
             .fillMaxWidth()
@@ -766,6 +772,7 @@ fun AuraMiniPlayer(
         // drift=false/spin=false, the HALLAZGO-059 guardian), so there is nothing here to disable;
         // with the film frozen the idle-animated ground under the pill no longer re-blurs either.
         val shellScrollActive = rememberShellScrollActive()
+        val inPerformanceMode = LocalGlassEffectConfig.current.globalEnabled.not()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -799,13 +806,14 @@ fun AuraMiniPlayer(
                 // painted over — the swap is exclusive, the ground recipe underneath is unchanged.
                 .then(
                     if (pillHazeState != null) {
-                        // NO-FLICKER (row 196, owner 2026-08-31 "parpadean y pierden el efecto"):
-                        // the same freezeGlass contract as the nav bar — the hazeChild stays
-                        // composed for the whole session and only its SAMPLING turns off in-place
-                        // while a screen scrolls (blurEnabled=false, tint and shape intact). No
-                        // surface ever appears or disappears mid-gesture; the user's liquid
-                        // glass reads continuous. No source → SurfaceFill, byte-identical.
-                        Modifier.freezeGlass(pillHazeState)
+                        // ALWAYS-SAMPLING chrome (owner 2026-08-31) — same contract as the nav
+                        // bar: live glass through scrolls; freezeGlass only under Performance
+                        // Mode. No source → SurfaceFill, byte-identical.
+                        if (inPerformanceMode) {
+                            Modifier.freezeGlass(pillHazeState)
+                        } else {
+                            Modifier.shellGlass(pillHazeState)
+                        }
                     } else {
                         Modifier.background(AuraPalette.SurfaceFill)
                     },

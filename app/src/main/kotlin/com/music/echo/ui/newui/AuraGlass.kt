@@ -127,16 +127,20 @@ object ShellScrollBus {
 }
 
 /**
- * The shell chrome's glass style: the render's frosted film — GroundRaised tinted at the render's
- * own SurfaceFill strength over a modest blur, with the design's hairline kept by the caller.
- * `fallbackTint` = the same opaque GroundRaised, so sub-API-31 devices see today's bar, not a hole.
+ * The shell chrome's glass style: the render's frosted film — GroundRaised tinted over a modest
+ * blur, with the design's hairline kept by the caller. `fallbackTint` = the same opaque
+ * GroundRaised, so sub-API-31 devices see today's bar, not a hole.
+ *
+ * The tint sits at 0.85 (owner directive 2026-08-31: "esa transparencia sea un poco más oscura de
+ * acuerdo la apariencia de la nueva interfaz") — darker than the 0.72 the chrome shipped since
+ * the first glass commit, matching the new UI's darker chrome language.
  */
 @Composable
 fun shellGlassStyle(): HazeStyle = HazeStyle(
     backgroundColor = AuraPalette.GroundRaised,
     blurRadius = 18.dp,
     noiseFactor = 0.12f,
-    tints = listOf(HazeTint(AuraPalette.GroundRaised.copy(alpha = 0.72f))),
+    tints = listOf(HazeTint(AuraPalette.GroundRaised.copy(alpha = 0.85f))),
     fallbackTint = HazeTint(AuraPalette.GroundRaised),
 )
 
@@ -148,17 +152,17 @@ fun Modifier.shellHazeSource(state: HazeState?): Modifier =
     if (state == null) this else haze(state)
 
 /**
- * Applies the chrome glass to a surface (nav bar / mini pill), sampling whatever [shellHazeSource]
- * marked. Call from a @Composable (it reads [shellGlassStyle]). Null-safe: without a source the
- * caller keeps its own opaque ground, so previews and sub-API-31 devices render today's look.
+ * The chrome's glass, ALWAYS SAMPLING (owner directive 2026-08-31: "si me desplazo se desactiva
+ * y eso no tiene que ser así" — the chrome must never lose its transparency during scrolls).
  *
- * NO-FLICKER SCROLL CONTRACT (row 196, owner report 2026-08-31: "la barra y el mini PARPAJEAN y
- * pierden el efecto"): the modifier must NEVER be conditionally swapped during a scroll — mounting
- * and unmounting hazeChild mid-gesture is the flash (a different surface appears for a frame).
- * Instead the SAME hazeChild stays composed and turns its sampling off in-place: [freezeGlass]
- * sets `blurEnabled = false` on the identical node, so the film keeps its tint and dimensions and
- * nothing appears or disappears. The anti-crash gate (no re-sample while the source mutates) is
- * preserved exactly; the flicker is structurally gone.
+ * EVIDENCE THIS IS SAFE NOW (row 196's history): the sig-11 never came from the chrome — the
+ * owner's stable vc975 ran nav bar + pill sampling through every scroll for WEEKS without a
+ * single native crash; the crashes arrived with the DETAIL bars (hazeChild DESCENDANTS of the
+ * source, haze#276's forbidden pattern) and died with them (row 196) + the 1.0.2→1.7.2 upgrade
+ * (the Samsung shader fix, #528). The freeze was defense-in-depth while the root cause was
+ * uncertain; with haze 1.7.2 this is exactly the pattern SimpMusic runs in production (its one
+ * persistent glass surface samples over scrolling lists). The scroll bus stays wired for
+ * Performance Mode (see [freezeGlass]) but the chrome no longer rides it.
  */
 @Composable
 fun Modifier.shellGlass(state: HazeState?): Modifier {
@@ -168,9 +172,9 @@ fun Modifier.shellGlass(state: HazeState?): Modifier {
 }
 
 /**
- * The scroll-freeze companion to [shellGlass]: reads the shell scroll bus and, while a gesture or
- * fling is active, disables the blur on the ALREADY-COMPOSED hazeChild node. Same surface, same
- * tint — zero remount, zero flicker; real sampling returns when the scroll settles.
+ * PERFORMANCE-MODE-ONLY variant: identical node to [shellGlass] but the blur turns off in-place
+ * while any screen scrolls AND the app is in Performance Mode (the owner accepted that trade
+ * there). NOT used by the default chrome anymore — kept wired to the bus for the perf toggle.
  */
 @Composable
 fun Modifier.freezeGlass(state: HazeState?): Modifier {
