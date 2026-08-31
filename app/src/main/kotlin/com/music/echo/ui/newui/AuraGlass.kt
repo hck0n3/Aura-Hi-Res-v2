@@ -295,11 +295,12 @@ private fun currentFabCoverUrl(): String? {
 internal val FabSkinBlur = 30.dp
 
 /**
- * The frost drawn OVER the blurred cover — the SAME `GroundRaised.copy(alpha = 0.72f)` plate the
- * shell chrome freezes to mid-scroll (registry row 196) and the detail bars wear. It is what
+ * The frost drawn OVER the blurred cover — the cover-blur family's tint (registry row 197), at the
+ * 0.60 translucency the owner asked for on 2026-08-30 ("le falta un plus de transparencia"). Same
+ * value [AuraCoverBlurPlate] defaults to, so the FABs and the menus stay one family. It is what
  * makes light ink on a bright sleeve legible: the blurred cover colours the skin, the tint holds
  * the contrast. */
-internal val FabSkinTint: Color get() = AuraPalette.GroundRaised.copy(alpha = 0.72f)
+internal val FabSkinTint: Color get() = AuraPalette.GroundRaised.copy(alpha = 0.60f)
 
 /**
  * Whether the skin is actually PAINTING right now — for call sites that must adapt INK to the new
@@ -339,8 +340,8 @@ fun fabBlurSkinOn(): Boolean = currentFabCoverUrl() != null
  *    SHARES the Coil memory-cache slot the pill and the bloom already fill — a resolved track
  *    costs NO extra decode), cropped to the button, blurred [FabSkinBlur] with the NATIVE
  *    `Modifier.blur` — the same blur the expanded player's covers use, on every OEM.
- * 3. The [FabSkinTint] frost — the same `GroundRaised.copy(0.72f)` plate the shell chrome freezes
- *    to mid-scroll, which holds light ink legible over a bright sleeve — plus the hairline above.
+ * 3. The [FabSkinTint] frost — the cover-blur family's `GroundRaised.copy(0.60f)` plate, which
+ *    holds light ink legible over a bright sleeve — plus the hairline above.
  *
  * The button keeps its own `clip(shape)` — it cuts the skin with it (no second clip, no double-cut
  * radius), its clickable, and its motion. `contentAlignment` and the sibling order are the caller's:

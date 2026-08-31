@@ -49,7 +49,9 @@ import iad1tya.echo.music.utils.isLocalMediaId
  *  · **Switch ON + playable cover** → the blurred cover is drawn under the caller's existing
  *    tint/texture, as the FIRST background layer. The tint is not removed: it still reads on top,
  *    which is what keeps text contrast where it is today (OnGround ≥ 4.5:1 was measured over
- *    Ground; the 0.72 scrim keeps the composited plate in that family).
+ *    Ground; at 0.60 the composited plate stays in that family even over a worst-case white
+ *    sleeve — ~4.55:1 — and real blurred covers sit well above it; the owner approved MORE
+ *    translucency than this on the mini pill, whose scrim is 0.45).
  *
  * ## Sizing
  * Sizing belongs to the HOST, not to the plate: pass `Modifier.matchParentSize()` inside the
@@ -66,7 +68,7 @@ import iad1tya.echo.music.utils.isLocalMediaId
 @Composable
 fun AuraCoverBlurPlate(
     modifier: Modifier = Modifier,
-    scrimAlpha: Float = 0.72f,
+    scrimAlpha: Float = 0.60f,
     /** When the plate fully replaces the flat base behind it, redraw the host's hairline on top. */
     stroke: Shape? = null,
 ) {
@@ -126,8 +128,9 @@ fun AuraCoverBlurPlate(
         // [AuraGroundLayer] uses for the pill (cover inside the blur, scrim outside it). Put
         // inside the blurred box the scrim's own edges would fade with the blur and the artwork
         // would bleed at the panel border. GroundRaised follows the AMOLED switch exactly like
-        // every other floating plate; 0.72 keeps OnGround text in the ≥ 4.5:1 family it was
-        // measured for.
+        // every other floating plate; 0.60 keeps OnGround text in the ≥ 4.5:1 family even over a
+        // worst-case white sleeve (~4.55:1) — the translucency the owner asked for on 2026-08-30,
+        // still above the mini pill's own 0.45 reference scrim.
         Box(
             modifier = Modifier
                 .matchParentSize()
