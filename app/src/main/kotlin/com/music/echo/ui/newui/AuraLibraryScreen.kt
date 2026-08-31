@@ -531,11 +531,11 @@ private fun AuraFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // LIQUID GLASS REAL (owner directive 2026-08-31, final direction): the FABs live INSIDE the
-    // shell window, so they can sample the SAME haze source the nav bar reads. freezeGlass is the
-    // no-flicker contract (row 196): the hazeChild stays composed and only turns its sampling
-    // off in-place while a screen scrolls. No source (glass OFF / classic / previews) → the
-    // opaque FloatingFill plate, hairline and glyph, byte-identical to before any of this.
+    // LIQUID GLASS REAL (owner directive 2026-08-31, UNIFIED CONTRACT): the FABs live INSIDE the
+    // shell window and sample the SAME haze source the nav bar reads — ALWAYS LIVE, like the
+    // chrome (the row-196 crash was the descendant pattern, gone; haze 1.7.2 carries the Samsung
+    // shader fix; SimpMusic production pattern). No source (glass OFF / classic / previews) →
+    // the opaque FloatingFill plate, hairline and glyph, byte-identical to before.
     val shellHazeState = LocalShellHazeState.current
     val base = modifier
         .height(52.dp)
@@ -543,7 +543,7 @@ private fun AuraFab(
         .then(
             if (shellHazeState != null) {
                 Modifier
-                    .freezeGlass(shellHazeState)
+                    .shellGlass(shellHazeState)
             } else {
                 Modifier
                     .background(AuraPalette.FloatingFill)

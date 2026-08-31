@@ -519,9 +519,9 @@ private fun AuraStatsShelf(
     )
 }
 
-/** The shuffle action: a teal glyph over liquid glass when the source exists (freezeGlass — the
- *  no-flicker row-196 contract: sampling turns off in-place while screens scroll), the SurfaceFill
- *  plate with hairline otherwise, byte-identical to the pre-glass look. */
+/** The shuffle action: a teal glyph over liquid glass when the source exists (ALWAYS LIVE — the
+ *  unified 2026-08-31 contract, same as the chrome), the SurfaceFill plate with hairline
+ *  otherwise, byte-identical to the pre-glass look. */
 @Composable
 private fun AuraStatsShuffleButton(
     contentDescription: String,
@@ -535,7 +535,7 @@ private fun AuraStatsShuffleButton(
             .clip(AuraShapes.Pill)
             .then(
                 if (shellHazeState != null) {
-                    Modifier.freezeGlass(shellHazeState)
+                    Modifier.shellGlass(shellHazeState)
                 } else {
                     Modifier
                         .background(AuraPalette.SurfaceFill)

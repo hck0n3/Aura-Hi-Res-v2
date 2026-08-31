@@ -1668,19 +1668,12 @@ class MainActivity : ComponentActivity() {
                                     // an argument list): the glass surface this bar wears, or null
                                     // when the Liquid Glass switch is off / classic shell.
                                     val topBarHazeState = iad1tya.echo.music.ui.newui.LocalShellHazeState.current
-                                    // SCROLL FREEZE (registry row 196, adversarial audit fix #3b):
-                                    // the global top bar is the THIRD persistent hazeChild, and the
-                                    // screens it floats over (Home/Library/Search) scroll content
-                                    // UNDER it without any gate — every one of their scroll frames
-                                    // re-records the NavHost source layer this bar samples, the same
-                                    // native-cost pattern the nav bar gate (fix #1) freezes on.
-                                    // SYNCHRONOUS READ (BETA-026 recurrence — the 50ms poll was
-                                    // mortal): reads the ONE global MutableState the reporters
-                                    // write during composition — the drag-in edge reaches this bar
-                                    // in the SAME frame, zero coroutine, zero delay. The old poll
-                                    // could miss a whole short flick (1–3 frames), and one sampled
-                                    // frame over a re-recorded NavHost layer is the sig-11.
-                                    val shellScrollActive = ShellScrollBus.active.value
+                                    // UNIFIED CONTRACT (2026-08-31): the global TopAppBar samples
+                                    // live whenever it is visible — same as the chrome. The
+                                    // ShellScrollBus stays wired for Performance Mode; this bar
+                                    // no longer freezes on gestures (the freeze was the visible
+                                    // "transparency turns off" the owner reported).
+                                    val shellScrollActive = false
                                     TopAppBar(
                                         title = {
                                             if (navBackStackEntry?.destination?.route == Screens.Home.route) {
@@ -2107,24 +2100,22 @@ class MainActivity : ComponentActivity() {
                                         .width(sidePanelWidth),
                                 )
                             }
-                            // HAZE SOURCE GATE (registry row 196): this Box is the haze SOURCE —
-                            // the layer every shell hazeChild samples. During an active scroll it
-                            // is re-recorded at native resolution EVERY frame. The chrome's
-                            // always-on glass (owner directive 2026-08-31) samples through
-                            // scrolls — that is the SimpMusic production pattern and the stable
-                            // ran it for weeks — BUT the source still un-mounts during a gesture
-                            // so NOBODY samples the mutation window (the chrome shows its tint
-                            // through the gesture, per haze 1.7.2's blurEnabled path — see
-                            // AuraShell). The menu overlay (BottomSheetMenu's in-window path) is
-                            // a SIBLING reading this same state; while a menu is open its content
-                            // is still (no scroll under it), so the source stays mounted and the
-                            // menu samples the settled screen — real glass on One UI 8.5.
-                            val hazeSourceGated = ShellScrollBus.active.value
+                            // HAZE SOURCE — NEVER UNMOUNTS while children live (unification
+                            // 2026-08-31, owner: "problemas de transparencia y lógica"): the
+                            // anti-crash evidence closed (row 196 + haze 1.7.2 Samsung shader
+                            // fix + the detail bars gone from the descendant path) — the crash
+                            // never came from the chrome sampling a live source (the stable ran
+                            // it for weeks; SimpMusic ships it in production). Unmounting the
+                            // source while the chrome's hazeChildren stayed composed left them
+                            // sampling NOTHING mid-gesture — the flat/wrong tint the owner read
+                            // as broken transparency. The source stays mounted for the whole
+                            // session; the ShellScrollBus stays wired for Performance Mode
+                            // (freezeGlass turns the CHILD's blur off in-place there).
                             Box(
                                 Modifier
                                     .weight(1f)
                                     .then(
-                                        if (shellHazeState != null && !hazeSourceGated) {
+                                        if (shellHazeState != null) {
                                             Modifier.shellHazeSource(shellHazeState)
                                         } else {
                                             Modifier

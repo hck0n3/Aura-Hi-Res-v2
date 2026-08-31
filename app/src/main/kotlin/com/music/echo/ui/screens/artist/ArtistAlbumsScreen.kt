@@ -180,15 +180,12 @@ fun ArtistAlbumsScreen(
             }
         }
 
-        // Glass when the toggle is on (owner directive 2026-08-29): same recipe as the shell nav
-        // bar — verified translucent on Samsung One UI 8.5. No source → Material default solid.
-        // NATIVE-CRASH GUARD (registry row 196, BETA-025 still crashed): sibling of the
-        // LazyVerticalGrid + scrollBehavior collapse — same sig-11 bomb as ArtistSongs. Gate the
-        // sampling to scroll-idle; the frozen tint carries the look during the gesture.
+        // Glass when the toggle is on (owner directive 2026-08-29 + UNIFICATION 2026-08-31):
+        // same recipe as the shell nav bar. UNIFIED CONTRACT: always sampling like the chrome —
+        // the source gate is gone, haze 1.7.2 carries the Samsung shader fix, and this bar reads
+        // the same single source the chrome does (SimpMusic production pattern). No source →
+        // Material default solid, byte-identical.
         val classicBarHazeState = LocalShellHazeState.current
-        val classicScrollIdle by remember {
-            derivedStateOf { !lazyGridState.isScrollInProgress }
-        }
         TopAppBar(
             title = { Text(artist?.artist?.name.orEmpty()) },
             navigationIcon = {
@@ -212,11 +209,8 @@ fun ArtistAlbumsScreen(
                 TopAppBarDefaults.topAppBarColors()
             },
             modifier = Modifier.then(
-                if (classicBarHazeState != null && classicScrollIdle) {
+                if (classicBarHazeState != null) {
                     Modifier.detailShellGlass(classicBarHazeState)
-                } else if (classicBarHazeState != null) {
-                    // Scrolling: the frozen translucent tint — keeps the look, stops the sampling.
-                    Modifier.background(AuraPalette.GroundRaised.copy(alpha = 0.72f))
                 } else {
                     Modifier
                 },

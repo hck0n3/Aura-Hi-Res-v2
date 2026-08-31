@@ -855,11 +855,11 @@ fun AuraLibrarySongsTab(
                     .clip(CircleShape)
                     .then(
                         if (shuffleTabHazeState != null) {
-                            // LIQUID GLASS REAL (owner's final direction 2026-08-31): same window,
-                            // same source the nav bar samples; freezeGlass keeps it composed and
-                            // turns sampling off in-place while screens scroll (row 196). The
-                            // teal gradient plate remains the no-source fallback.
-                            Modifier.freezeGlass(shuffleTabHazeState)
+                            // LIQUID GLASS REAL (owner's final direction + unified contract
+                            // 2026-08-31): same window, same source the nav bar samples —
+                            // ALWAYS LIVE like the chrome. The teal gradient plate remains the
+                            // no-source fallback.
+                            Modifier.shellGlass(shuffleTabHazeState)
                         } else {
                             Modifier.background(AuraPalette.PlayButtonGradient)
                         },
