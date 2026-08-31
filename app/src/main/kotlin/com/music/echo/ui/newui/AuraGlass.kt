@@ -22,6 +22,9 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.request.crossfade
+import iad1tya.echo.music.constants.LiquidGlassGlobalEnabledKey
+import iad1tya.echo.music.utils.PrefsBridge
+import iad1tya.echo.music.utils.isLocalMediaId
 import dev.chrisbanes.haze.HazeProgressive
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
@@ -184,6 +187,78 @@ fun Modifier.detailShellGlass(state: HazeState?): Modifier {
             endIntensity = 0.55f,
         )
     }
+}
+
+/**
+ * The FROZEN-GLASS COVER for the persistent chrome (nav bar + mini pill) while a scroll is in
+ * progress (registry rows 196/197, research verdict 2026-08-30: the ONLY blur that can live
+ * through a gesture on One UI 8.5 without touching the native-crash sampling pattern).
+ *
+ * While the shell scroll bus reports an active gesture/fling, the chrome used to swap its live
+ * hazeChild for a FLAT GroundRaised tint — the owner read that as "the blur disconnects when I
+ * scroll". This helper returns the cover URL of the CURRENT TRACK (same cache slot every
+ * cover-blur plate and the pill share) so the caller can paint it blurred with the native
+ * `Modifier.blur` under the same frost — the exact look the owner validated on the mini player,
+ * perceived as LIVE glass for the whole gesture. Real haze sampling returns when the scroll
+ * settles.
+ *
+ * Returns null in every case the cover-blur plates already gate out: Liquid Glass OFF, cold
+ * start, no song, local track, no thumbnail, API < 31. Null means "keep the flat tint" — the
+ * caller's existing fallback, byte-identical to before.
+ */
+@Composable
+fun rememberShellFrozenCover(): String? {
+    if (PrefsBridge.peek(LiquidGlassGlobalEnabledKey) != true) return null
+    val connection = LocalPlayerConnection.current ?: return null
+    val mediaMetadata by connection.mediaMetadata.collectAsState()
+    val id = mediaMetadata?.id ?: return null
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+    return mediaMetadata?.thumbnailUrl
+        ?.takeIf { it.isNotEmpty() && !id.isLocalMediaId() }
+}
+
+/**
+ * The frozen-scroll glass surface for the persistent chrome (nav bar + mini pill): paints
+ * [rememberShellFrozenCover]'s artwork blurred 30dp with the NATIVE Modifier.blur (a RenderEffect
+ * on this layer — never a sampler, never the window) under the 0.72 frost. The owner-validated
+ * mini-player look, perceived as LIVE glass through the whole gesture; real haze sampling returns
+ * when the scroll settles. Draw as a child INSIDE the frozen chrome container (matchParentSize) —
+ * the same layer order [AuraCoverBlurPlate] uses. Zero haze, zero per-frame work: one cached
+ * 128px decode per track.
+ */
+@Composable
+fun BoxScope.FrozenCoverGlass() {
+    val coverUrl = rememberShellFrozenCover() ?: return
+    val context = LocalContext.current
+    // Same request shape the pill/plates build: shared memory-cache key — a track already shown
+    // in the pill costs no extra decode here.
+    val request = remember(context, coverUrl) {
+        ImageRequest.Builder(context)
+            .data(coverUrl)
+            .size(128, 128)
+            .allowHardware(false)
+            .crossfade(false)
+            .build()
+    }
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .blur(30.dp),
+    ) {
+        AsyncImage(
+            model = request,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+    // The frost, a CRISP sibling over the blur — same layer order as the pill's ground
+    // (cover inside the blur, scrim outside it) so the edges read clean.
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .background(AuraPalette.GroundRaised.copy(alpha = 0.72f)),
+    )
 }
 
 /**
