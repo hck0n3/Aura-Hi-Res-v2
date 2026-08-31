@@ -177,11 +177,16 @@ fun StorageSettings(
         ),
         label = "imageCacheProgress",
     )
+    // UNLIMITED (-1, the default) must NEVER render as 0%: dividing the real usage by -1MB goes
+    // negative, coerceIn(0,1) clamps it, and the bar read "empty" while gigabytes sat on disk —
+    // the owner read that as "my app is not caching anything" (2026-08-31). With a numeric limit
+    // the bar stays the real percentage as before.
     val playerCacheProgress by animateFloatAsState(
-        targetValue = (playerCacheSize.toFloat() / (maxSongCacheSize * 1024 * 1024L)).coerceIn(
-            0f,
-            1f
-        ),
+        targetValue = if (maxSongCacheSize <= 0) {
+            0f
+        } else {
+            (playerCacheSize.toFloat() / (maxSongCacheSize * 1024 * 1024L)).coerceIn(0f, 1f)
+        },
         label = "playerCacheProgress",
     )
 
@@ -511,24 +516,34 @@ fun StorageSettings(
                                 steps = songCacheValues.size - 2,
                                 valueRange = 0f..(songCacheValues.size - 1).toFloat()
                             )
-                            LinearProgressIndicator(
-                                progress = { playerCacheProgress },
-                                modifier = Modifier.fillMaxWidth(),
-                                strokeCap = StrokeCap.Round
-                            )
-                            Spacer(modifier = Modifier.padding(2.dp))
-                            Text(
-                                text = if (maxSongCacheSize == -1) {
-                                    formatFileSize(playerCacheSize)
-                                } else {
-                                    "${formatFileSize(playerCacheSize)} / ${
+                            if (maxSongCacheSize == -1) {
+                                // Unlimited has no honest fill level: a percentage bar divided
+                                // against an infinite budget always read "0%" while gigabytes were
+                                // cached (owner complaint 2026-08-31: "no veo que guarde nada").
+                                // Show the REAL usage instead — same formatFileSize scale as the
+                                // rest of this screen.
+                                Text(
+                                    text = "${stringResource(R.string.unlimited)} · ${
+                                        formatFileSize(playerCacheSize)
+                                    }",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    progress = { playerCacheProgress },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    strokeCap = StrokeCap.Round
+                                )
+                                Spacer(modifier = Modifier.padding(2.dp))
+                                Text(
+                                    text = "${formatFileSize(playerCacheSize)} / ${
                                         formatFileSize(
                                             maxSongCacheSize * 1024 * 1024L
                                         )
-                                    }"
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
+                                    }",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
                         }
                     }
                 ),

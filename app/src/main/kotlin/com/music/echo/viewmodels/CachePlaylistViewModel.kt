@@ -77,18 +77,31 @@ class CachePlaylistViewModel @Inject constructor(
                     emptyList()
                 }
 
-                val completeSongs = songs.filter { song ->
-                    // A listened song is "in cache" when ANY of its yt-stream keys fully covers it
-                    // (the exact quality it was streamed in — contentLength of that span set).
-                    playerCache.keys.any { key ->
-                        StreamCacheKeys.belongsTo(key, song.song.id) &&
-                            song.format?.contentLength?.let { playerCache.isCached(key, 0, it) } == true
-                    }
+                // OWNER RULE (2026-08-31): "En caché" must list EVERY song whose listen-bytes are
+                // on disk. The ids in [songs] already come from the key set above (yt-stream-*
+                // keys parsed to their videoId; non-googlevideo keys ARE the mediaId), so presence
+                // is established. The OLD filter re-demanded format.contentLength, which is NULL
+                // for most YouTube streams, excluding the exact songs the owner listened to
+                // (bytes under yt-stream-*) while the list showed empty — "I don't see my app
+                // caching anything". Completeness (isCached over 0..contentLength) now only
+                // SORTS — fully cached first — and only when contentLength is known; it is NEVER
+                // an exclusion gate. One keys-snapshot per pass instead of one per song (the old
+                // filter re-copied the full key set for every song).
+                val playerKeys = playerCache.keys
+                val cachedEntries = songs.map { song ->
+                    val fullyCached = song.format?.contentLength?.let { length ->
+                        playerKeys.any { key ->
+                            (StreamCacheKeys.belongsTo(key, song.song.id) || key == song.song.id) &&
+                                playerCache.isCached(key, 0, length)
+                        }
+                    } == true
+                    song to fullyCached
                 }
 
-                if (completeSongs.isNotEmpty()) {
+                val cachedSongsNow = cachedEntries.map { it.first }
+                if (cachedSongsNow.isNotEmpty()) {
                     database.query {
-                        completeSongs.forEach {
+                        cachedSongsNow.forEach {
                             if (it.song.dateDownload == null) {
                                 update(it.song.copy(dateDownload = LocalDateTime.now()))
                             }
@@ -96,9 +109,13 @@ class CachePlaylistViewModel @Inject constructor(
                     }
                 }
 
-                _cachedSongs.value = completeSongs
-                    .filter { it.song.dateDownload != null }
-                    .sortedByDescending { it.song.dateDownload }
+                _cachedSongs.value = cachedEntries
+                    .filter { it.first.song.dateDownload != null }
+                    .sortedWith(
+                        compareByDescending<Pair<Song, Boolean>> { it.second }
+                            .thenByDescending { it.first.song.dateDownload }
+                    )
+                    .map { it.first }
                     .filterExplicit(hideExplicit)
                     .filterVideoSongs(hideVideoSongs)
 
