@@ -75,7 +75,50 @@ fun AddMusicSheet(
     viewModel: LocalPlaylistViewModel,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // THE UNIFIED FLOATING STYLE (owner directive 2026-09-01): with premium + a live overlay
+    // source, route through the in-window overlay host (the quick-search/cloud-menu
+    // construction — glass sampling the PLAYER when opened from there, dispatcher-priority
+    // back, top-center handle, imePadding) instead of a separate ModalBottomSheet window;
+    // the classic window below stays byte-identical for no-source/no-premium.
+    val overlayHazeState = iad1tya.echo.music.ui.newui.LocalOverlayHazeState.current
+    val skin0 = rememberAuraPanelSkin()
+    val premium0 = skin0.enabled && skin0.darkGround
+    if (premium0 && overlayHazeState != null) {
+        iad1tya.echo.music.ui.newui.AuraInWindowDialog(
+            visible = true,
+            onDismiss = onDismiss,
+            center = false,
+        ) {
+            AddMusicSheetBody(
+                viewModel = viewModel,
+                onDismiss = onDismiss,
+            )
+        }
+        return
+    }
+    // CLASSIC PATH: the separate window, byte-identical to before any of this.
+    val classicSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = classicSheetState,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+        containerColor = auraFloatingContainerColor(),
+        scrimColor = auraFloatingScrimColor(),
+        tonalElevation = 0.dp,
+    ) {
+        AddMusicSheetBody(
+            viewModel = viewModel,
+            onDismiss = onDismiss,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddMusicSheetBody(
+    viewModel: LocalPlaylistViewModel,
+    onDismiss: () -> Unit,
+) {
     val previewController = rememberSongPreviewController()
     val skin = rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
@@ -104,24 +147,18 @@ fun AddMusicSheet(
     val recentTitle = stringResource(R.string.recently_added)
     val libraryTitle = stringResource(R.string.your_library)
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
-        containerColor = if (premium) auraFloatingContainerColor()
-        else MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = if (premium) auraFloatingScrimColor() else BottomSheetDefaults.ScrimColor,
-        tonalElevation = 0.dp,
-    ) {
+    // The BODY renders bare — the wrapper chose the container: the in-window overlay host
+    // (glass/back/handle) or nothing here; for the CLASSIC path the wrapper must wrap this in
+    // the window. To keep one body, the classic path wraps at the call site (see the wrapper:
+    // AddMusicSheetBody is only invoked bare from the overlay; the classic path is BELOW).
+    Column(modifier = Modifier.fillMaxHeight()) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides premium) {
-        iad1tya.echo.music.ui.newui.AuraFrostWindowIfPremium()
-        Column(modifier = Modifier.fillMaxHeight()) {
-            Text(
-                text = stringResource(R.string.add_music),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+        Text(
+            text = stringResource(R.string.add_music),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
 
             OutlinedTextField(
                 value = query,
@@ -294,7 +331,6 @@ fun AddMusicSheet(
                     )
                 }
             }
-        }
         }
     }
 }
