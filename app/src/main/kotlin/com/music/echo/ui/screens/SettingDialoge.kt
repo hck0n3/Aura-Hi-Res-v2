@@ -99,6 +99,40 @@ fun SettingDialoge(
     val mutedColor = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
     val premium = skin.enabled && skin.darkGround
 
+    // THE UNIFIED FLOATING STYLE (owner directive 2026-09-01: the settings/cloud menu gets the
+    // quick-search construction — in-window glass sampling the player/shell behind it, instead
+    // of a separate window whose blur One UI 8.5 kills). No source / no premium → the classic
+    // Dialog window, byte-identical to before.
+    val overlayHazeState = iad1tya.echo.music.ui.newui.LocalOverlayHazeState.current
+    if (premium && overlayHazeState != null) {
+        iad1tya.echo.music.ui.newui.AuraInWindowDialog(
+            visible = true,
+            onDismiss = onDismissRequest,
+        ) {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val tight = maxHeight < 720.dp
+                SettingDialogeBody(
+                    isLoggedIn = isLoggedIn,
+                    accountName = accountName,
+                    accountEmail = accountEmail,
+                    accountImageUrl = accountImageUrl,
+                    primaryColor = primaryColor,
+                    mutedColor = mutedColor,
+                    titleStyle = premium || skin.enabled,
+                    useLoginForBrowse = useLoginForBrowse,
+                    onUseLoginForBrowseChange = onBrowseLoginChange,
+                    ytmSync = ytmSync,
+                    onYtmSyncChange = onYtmSyncChange,
+                    onDismissRequest = onDismissRequest,
+                    onNavigate = onNavigate,
+                    tight = tight,
+                    allowScroll = maxHeight < 560.dp,
+                )
+            }
+        }
+        return
+    }
+
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false),

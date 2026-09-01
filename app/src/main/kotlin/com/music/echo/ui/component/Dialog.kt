@@ -49,9 +49,11 @@ import androidx.compose.ui.window.DialogProperties
 import iad1tya.echo.music.R
 import iad1tya.echo.music.ui.newui.AuraDialogWindowEffects
 import iad1tya.echo.music.ui.newui.AuraFloatingSurface
+import iad1tya.echo.music.ui.newui.AuraInWindowDialog
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.AuraType
+import iad1tya.echo.music.ui.newui.LocalOverlayHazeState
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
@@ -94,6 +96,37 @@ fun DefaultDialog(
     val buttonTint = if (premium) AuraPalette.Teal
     else MaterialTheme.colorScheme.primary
 
+    // THE UNIFIED FLOATING STYLE (owner directive 2026-09-01: "ese mismo estilo que sale cuando
+    // toco el de búsqueda del reproductor... para que toda la apariencia tenga el mismo estilo"):
+    // with the premium skin + a live overlay haze source, dialogs render as IN-WINDOW floating
+    // cards — the quick-search/3-dot-menu construction (glass sampling the PLAYER when opened
+    // from the player via LocalOverlayHazeState, dispatcher-priority back, centered card, IME
+    // padding) — instead of a separate window whose blur One UI 8.5 kills. Every DefaultDialog
+    // consumer (AI playlist, create/import playlist, settings menu...) inherits in one place.
+    // No source / no premium → the exact Dialog+AuraFloatingSurface window that shipped before,
+    // byte-identical.
+    val overlayHazeState = LocalOverlayHazeState.current
+    if (premium && overlayHazeState != null) {
+        AuraInWindowDialog(
+            visible = true,
+            onDismiss = onDismiss,
+        ) {
+            DialogBody(
+                premium = premium,
+                icon = icon,
+                title = title,
+                buttons = buttons,
+                horizontalAlignment = horizontalAlignment,
+                buttonTint = buttonTint,
+                iconTint = iconTint,
+                titleTint = titleTint,
+                modifier = modifier,
+                content = content,
+            )
+        }
+        return
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -103,6 +136,36 @@ fun DefaultDialog(
             modifier = Modifier.padding(24.dp),
             shape = if (premium) AuraShapes.Card else AlertDialogDefaults.shape,
         ) {
+            DialogBody(
+                premium = premium,
+                icon = icon,
+                title = title,
+                buttons = buttons,
+                horizontalAlignment = horizontalAlignment,
+                buttonTint = buttonTint,
+                iconTint = iconTint,
+                titleTint = titleTint,
+                modifier = modifier,
+                content = content,
+            )
+        }
+    }
+}
+
+/** The dialog's visual body, shared by the in-window overlay path and the classic window path. */
+@Composable
+private fun DialogBody(
+    premium: Boolean,
+    modifier: Modifier = Modifier,
+    icon: (@Composable () -> Unit)? = null,
+    title: (@Composable () -> Unit)? = null,
+    buttons: (@Composable RowScope.() -> Unit)? = null,
+    horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    buttonTint: androidx.compose.ui.graphics.Color,
+    iconTint: androidx.compose.ui.graphics.Color,
+    titleTint: androidx.compose.ui.graphics.Color,
+    content: @Composable ColumnScope.() -> Unit,
+) {
             Column(
                 horizontalAlignment = horizontalAlignment,
                 modifier = modifier.padding(24.dp)
@@ -145,8 +208,6 @@ fun DefaultDialog(
                     }
                 }
             }
-        }
-    }
 }
 
 
