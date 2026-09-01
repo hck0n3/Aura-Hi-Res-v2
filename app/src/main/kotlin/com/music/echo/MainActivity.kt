@@ -1637,8 +1637,30 @@ class MainActivity : ComponentActivity() {
                     } else {
                         null
                     }
+                    // PLAYER-SHEET HAZE SOURCE (owner 2026-08-31: "la transparencia tiene que ver la
+                    // parte de atrás DEL REPRODUCTOR, no la de inicio"): created at SHELL level so
+                    // BOTH the player content (which marks itself as its source via
+                    // LocalPlayerSheetHazeState) and the overlay hosts (BottomSheetMenu/BottomSheetPage,
+                    // composed after the Scaffold) can see it. LocalOverlayHazeState resolves the
+                    // priority: player source when the player sheet is expanded, shell source for
+                    // menus over normal screens.
+                    val playerSheetHazeState = if (newUiShell && glassEffectConfig.globalEnabled) {
+                        remember { dev.chrisbanes.haze.HazeState() }
+                    } else {
+                        null
+                    }
                     androidx.compose.runtime.CompositionLocalProvider(
                         iad1tya.echo.music.ui.newui.LocalShellHazeState provides shellHazeState,
+                        iad1tya.echo.music.ui.newui.LocalPlayerSheetHazeState provides playerSheetHazeState,
+                        // DYNAMIC: the player's own source while its sheet is expanded (the menu
+                        // opens FROM the player → glass shows the player), the shell's NavHost
+                        // source otherwise (song menus over normal screens). isExpanded is a
+                        // reactive state — this flips in the same frame the sheet does.
+                        iad1tya.echo.music.ui.newui.LocalOverlayHazeState provides if (playerBottomSheetState.isExpanded) {
+                            playerSheetHazeState
+                        } else {
+                            shellHazeState
+                        },
                     ) {
 
                     Scaffold(
@@ -1877,6 +1899,9 @@ class MainActivity : ComponentActivity() {
                                 Box {
                                     // "Interfaz nueva" beta: falls back to the classic BottomSheetPlayer
                                     // whenever the flag is OFF or the new player is not built yet.
+                                    // The player-sheet haze source is created and provided at SHELL
+                                    // level (see LocalOverlayHazeState above) — the player content
+                                    // marks itself as that source inside AuraPlayer.
                                     BottomSheetPlayerHost(
                                         state = playerBottomSheetState,
                                         navController = navController,

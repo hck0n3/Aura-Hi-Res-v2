@@ -3,6 +3,7 @@ package iad1tya.echo.music.ui.newui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import dev.chrisbanes.haze.haze
 import android.content.res.Configuration
 import android.os.Build
 import android.widget.Toast
@@ -850,6 +851,24 @@ private fun AuraPlayerShape(
         },
     ) {
         // ── LOS TRES BLOQUES DEL REPRODUCTOR, DECLARADOS UNA SOLA VEZ ─────────────────────────────
+        // PLAYER-SHEET HAZE SOURCE (owner 2026-08-31: "la transparencia tiene que ver la parte de
+        // atrás DEL REPRODUCTOR"): this Box is what an overlay menu opened FROM the player must
+        // sample — not the NavHost under it (which left Home visible behind the glass: the "no
+        // lógica" the owner reported). Marked as a haze source when MainActivity provided
+        // LocalPlayerSheetHazeState; overlay hosts read it via LocalOverlayHazeState (player
+        // source first, shell source as the fallback for menus over normal screens).
+        val playerSheetHazeSource = LocalPlayerSheetHazeState.current
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (playerSheetHazeSource != null) {
+                        Modifier.haze(playerSheetHazeSource)
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
         // Cabecera, portada y controles are local content blocks, exactly as the classic player keeps
         // its `controlsContent` (Player.kt:1525). Every arrangement below CALLS them; none re-draws
         // them. That is what makes "el mismo reproductor, girado" true rather than a claim: there is no
@@ -1911,6 +1930,7 @@ private fun AuraPlayerShape(
                     }
                 },
             )
+        }
         }
     }
 }

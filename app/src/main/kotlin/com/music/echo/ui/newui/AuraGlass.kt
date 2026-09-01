@@ -65,6 +65,24 @@ import java.util.concurrent.CopyOnWriteArraySet
 val LocalShellHazeState = staticCompositionLocalOf<HazeState?> { null }
 
 /**
+ * THE PLAYER'S OWN HAZE SOURCE (owner directive 2026-08-31: "la transparencia tiene que ver la
+ * parte de atrás DEL REPRODUCTOR, no la de inicio — no tiene lógica"). The expanded player draws
+ * OVER the NavHost in its own sheet layer, so an overlay menu opened FROM the player must sample
+ * THE PLAYER, not the shell's NavHost source (which leaves Home visible behind the glass — the
+ * "no logic" the owner saw). MainActivity publishes this local when the player sheet is up;
+ * overlay hosts (menu, quick-search) read it with [LocalOverlayHazeState] — player source first,
+ * shell source as fallback for menus opened over normal screens.
+ */
+val LocalPlayerSheetHazeState = staticCompositionLocalOf<HazeState?> { null }
+
+/**
+ * What the floating overlay surfaces (menu, quick-search) should sample: the player's own source
+ * when it is expanded ([LocalPlayerSheetHazeState]), else the shell's NavHost source. Read this —
+ * never LocalShellHazeState directly — inside overlay hosts.
+ */
+val LocalOverlayHazeState = staticCompositionLocalOf<HazeState?> { null }
+
+/**
  * SHELL SCROLL BUS (registry row 196, adversarial audit fix #1): true while ANY scrollable of the
  * visible screen is in an active gesture/fling. The persistent chrome (nav bar, mini pill) reads
  * it and FREEZES its haze sampling while it is true — on One UI 8.5 the source layer (the whole

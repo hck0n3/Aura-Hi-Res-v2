@@ -53,7 +53,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
-import iad1tya.echo.music.ui.newui.LocalShellHazeState
+import iad1tya.echo.music.ui.newui.LocalOverlayHazeState
 import iad1tya.echo.music.ui.newui.auraFloatingContainerColor
 import iad1tya.echo.music.ui.newui.auraFloatingContentColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
@@ -105,18 +105,32 @@ fun BottomSheetMenu(
     val focusManager = LocalFocusManager.current
     val skin = rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
-    val shellHazeState = LocalShellHazeState.current
+    // LOGICAL TRANSPARENCY (owner 2026-08-31: "tiene que ver la parte de atrás DEL REPRODUCTOR,
+    // no la de inicio"): overlays sample the PLAYER's own source when opened from the player,
+    // the shell's NavHost source over normal screens — resolved by MainActivity.
+    val shellHazeState = LocalOverlayHazeState.current
 
     if (premium && shellHazeState != null) {
         // THE IN-WINDOW GLASS PATH (sí-o-sí): full-screen Box OVER the screen content, sibling
         // of the haze source; the panel itself is the hazeChild (shellGlass IS the surface — no
         // background under it) sliding up over the scrim.
         val visible = state.isVisible
-        // Manual back handling — ModalBottomSheet registered this for us; overlays must pay for
-        // it by hand (in-window pattern from the haze author's guidance, issue #685).
-        androidx.activity.compose.BackHandler(enabled = visible) {
-            focusManager.clearFocus()
-            state.dismiss()
+        // BACK FIX (owner 2026-08-31: "cuando hago hacia atrás no se ocultan"): the Compose
+        // BackHandler was losing the priority battle with the player sheet's own back handling.
+        // A callback registered DIRECTLY on the dispatcher is added AFTER everything else in
+        // composition → guaranteed top priority; this is exactly how ModalBottomSheet itself
+        // did it (and that always worked). Enabled only while visible; removed on dispose.
+        val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current
+            ?.onBackPressedDispatcher
+        androidx.compose.runtime.DisposableEffect(visible) {
+            val callback = object : androidx.activity.OnBackPressedCallback(visible) {
+                override fun handleOnBackPressed() {
+                    focusManager.clearFocus()
+                    state.dismiss()
+                }
+            }
+            backDispatcher?.addCallback(callback)
+            onDispose { callback.remove() }
         }
         androidx.compose.animation.AnimatedVisibility(
             visible = visible,
@@ -153,14 +167,23 @@ fun BottomSheetMenu(
                             .imePadding()
                             .navigationBarsPadding(),
                     ) {
-                        // Drag handle, same visual as the classic sheet.
+                        // Drag handle — TOP CENTER (owner 2026-08-31: "lo dejaste del lado derecho,
+                        // tiene que estar en la parte de arriba centrado"): a Column child wraps
+                        // its width to the content, so the handle sat at the start (right-edge
+                        // feel in RTL-free layouts was the Row below). fillMaxWidth centers it.
                         Box(
                             modifier = Modifier
-                                .padding(vertical = 12.dp)
-                                .size(width = 40.dp, height = 4.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(AuraPalette.OnGround.copy(alpha = 0.28f)),
-                        )
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 40.dp, height = 4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(AuraPalette.OnGround.copy(alpha = 0.28f)),
+                            )
+                        }
                         CompositionLocalProvider(LocalAuraFloatingChrome provides true) {
                             Column(
                                 modifier = Modifier

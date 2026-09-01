@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
-import iad1tya.echo.music.ui.newui.LocalShellHazeState
+import iad1tya.echo.music.ui.newui.LocalOverlayHazeState
 import iad1tya.echo.music.ui.newui.auraFloatingContainerColor
 import iad1tya.echo.music.ui.newui.auraFloatingContentColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
@@ -89,14 +89,25 @@ fun BottomSheetPage(
     val focusManager = LocalFocusManager.current
     val skin = rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
-    val shellHazeState = LocalShellHazeState.current
+    // LOGICAL TRANSPARENCY (owner 2026-08-31): sample the player when opened from the player.
+    val shellHazeState = LocalOverlayHazeState.current
 
     if (premium && shellHazeState != null) {
         // THE IN-WINDOW GLASS PATH — same construction as BottomSheetMenu's 3-dot overlay.
         val visible = state.isVisible
-        androidx.activity.compose.BackHandler(enabled = visible) {
-            focusManager.clearFocus()
-            state.dismiss()
+        // BACK FIX (owner 2026-08-31): direct dispatcher callback — top priority over the
+        // player sheet's back handling; same mechanism ModalBottomSheet used.
+        val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current
+            ?.onBackPressedDispatcher
+        androidx.compose.runtime.DisposableEffect(visible) {
+            val callback = object : androidx.activity.OnBackPressedCallback(visible) {
+                override fun handleOnBackPressed() {
+                    focusManager.clearFocus()
+                    state.dismiss()
+                }
+            }
+            backDispatcher?.addCallback(callback)
+            onDispose { callback.remove() }
         }
         androidx.compose.animation.AnimatedVisibility(
             visible = visible,
@@ -132,14 +143,20 @@ fun BottomSheetPage(
                             .imePadding()
                             .navigationBarsPadding(),
                     ) {
-                        // Drag handle — same visual as the menu overlay.
+                        // Drag handle — TOP CENTER (owner 2026-08-31): same fix as the menu.
                         Box(
                             modifier = Modifier
-                                .padding(vertical = 12.dp)
-                                .size(width = 32.dp, height = 4.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(AuraPalette.OnGround.copy(alpha = 0.28f)),
-                        )
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 32.dp, height = 4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(AuraPalette.OnGround.copy(alpha = 0.28f)),
+                            )
+                        }
                         CompositionLocalProvider(LocalAuraFloatingChrome provides true) {
                             Column(
                                 modifier = Modifier
