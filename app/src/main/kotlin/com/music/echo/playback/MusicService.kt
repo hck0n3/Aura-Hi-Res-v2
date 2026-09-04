@@ -2844,7 +2844,20 @@ class MusicService :
             effectiveTier == iad1tya.echo.music.utils.DeviceTier.ULTRA ||
             effectiveTier == iad1tya.echo.music.utils.DeviceTier.LOW ||
             isLowRamDevice
-        val maxBufferMs = if (useSmallBuffer) 60_000 else 120_000
+        // SIMPMUSIC BUFFER MODEL (owner report 2026-09-04: "solo cargan hasta la MITAD del buffer
+        // y no continúa hasta que la canción ya va por la mitad"). The old 50s-min/120s-max had
+        // a DEAD ZONE: ExoPlayer fills 120s (exactly half a typical song), STOPS loading while
+        // buffered ≥ 50s, and only resumes at ~80% of the track — decoded from the media3 1.10.1
+        // bytecode (shouldContinueLoading: Case B stop at max, Case A resume at min, hysteresis
+        // "unchanged" in between). It also left HALF a song in the listen-cache when the user
+        // skipped before the tail fetched. SimpMusic (the reference, CrossfadeExoPlayerAdapter
+        // :571-578) uses min = max = DEFAULT_*_BUFFER_MS * 4 = 200s: with min == max the dead
+        // zone cannot exist — the moment the buffer drains below 200s (seconds after playback
+        // starts) loading resumes, so any normal song completes on disk within moments and the
+        // listen-cache gets the WHOLE track. Aura keeps its device tiers: 200s on standard
+        // devices, 120s on small-buffer ones (perf-mode/ULTRA/LOW/lowRAM) so low-RAM hardware
+        // never risks OOM — the dead zone dies in both tiers because min == max.
+        val maxBufferMs = if (useSmallBuffer) 120_000 else 200_000
         val targetBufferBytes = if (useSmallBuffer) 32 * 1024 * 1024 else 64 * 1024 * 1024
         // Music-VIDEO quality adapts to the device so switching to video never overwhelms a weak TV box / low-end
         // phone. This caps ONLY the video track the ABR selects (audio is untouched, and it's a no-op for
@@ -2867,14 +2880,15 @@ class MusicService :
             .setLoadControl(
                 DefaultLoadControl.Builder()
                     .setBufferDurationsMs(
-                        DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-                        // 120s max buffer: enough lead to ride out short connectivity drops without
-                        // the runaway RAM of the old 600s (10-min) value. The previous 600s combined with
-                        // a hard 32MB byte cap + prioritizeTimeOverSizeThresholds(false) starved the TIME
-                        // buffer for hi-res/FLAC (32MB << 50s of FLAC), so ExoPlayer reported "buffer full"
-                        // with an empty time buffer -> repeated STATE_BUFFERING micro-stalls (the audible
-                        // "trabones"/cuts on playback and at the crossfade swap, which the secondary player
-                        // inherited). Reconciled below. (High-Performance Mode uses 60s.)
+                        // min == max (SimpMusic model, see the buffer-model note above): no dead
+                        // zone, loading resumes the instant the buffer drains below the cap.
+                        maxBufferMs,
+                        // 200s max buffer (SimpMusic model): enough lead to ride out connectivity
+                        // drops AND complete normal songs on disk so the listen-cache gets the
+                        // whole track. The byte cap + prioritizeTimeOverSizeThresholds(true) below
+                        // still guard hi-res/FLAC RAM; small-buffer devices get 120s. (The old
+                        // 600s + 32MB + prioritize(false) micro-stall bug is documented below in
+                        // the targetBufferBytes note and stays fixed.)
                         maxBufferMs,
                         // Songs must start as soon as the first packets arrive. 2.5–4s was a video-merge
                         // cushion that made every skip feel late. Keep a short start gate; rebuffer still
