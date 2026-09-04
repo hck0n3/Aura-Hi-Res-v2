@@ -125,7 +125,20 @@ fun AuraInWindowDialog(
                         .clip(if (center) AuraShapes.Card else AuraShapes.Sheet)
                         .then(
                             if (overlayHazeState != null) {
-                                Modifier.shellGlass(overlayHazeState)
+                                // PLATE UNDER THE GLASS (row 197/204 pattern, owner report
+                                // 2026-09-04: "crear lista no funciona"). Every DefaultDialog
+                                // caller (create/import playlist, AI playlist, ~44 more) is composed
+                                // INSIDE the NavHost — a DESCENDANT of the shell haze source — and
+                                // in haze 1.7.2 the descendant filter is a SILENT no-op: the glass
+                                // paints nothing, and a glass-only panel left the dialog as floating
+                                // glyphs over the scrim ("the dialog doesn't open"). The plate
+                                // paints under the glass exactly like AuraFab does: when the glass
+                                // renders (sibling callers like the cloud menu) it covers the
+                                // plate; when it's a no-op, the plate IS the panel. Same material
+                                // as the no-source fallback — no hole by construction.
+                                Modifier
+                                    .background(AuraPalette.FloatingFill)
+                                    .shellGlass(overlayHazeState)
                             } else {
                                 // No source: the premium frost family — translucent, never hard.
                                 Modifier.background(auraFloatingContainerColor())
