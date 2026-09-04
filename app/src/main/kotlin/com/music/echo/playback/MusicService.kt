@@ -7426,24 +7426,44 @@ class MusicService :
      * STABLE CACHE KEY for googlevideo streams (owner directive 2026-08-29: every listened song
      * must be cached to save data). googlevideo rotates URL query params (ip, expire, signature) on
      * every resolve, so caching by URL would store the SAME bytes once per resolve and never hit.
-     * The stable identity is the videoId (param `id=`) + itag (`itag=`) — both survive rotation.
+     * The stable identity is the videoId + itag (`itag=` — stable and quality-distinct).
      * Non-googlevideo hosts (Qobuz FLAC, Saavn, podcasts, local URIs) fall back to the default
      * cache key (their URLs are stable, so URL-keying is correct for them).
+     *
+     * STABLE IDENTITY FIX (owner report 2026-09-04, "every replay re-downloads the song"):
+     * the `id=` query param of a googlevideo URL is NOT the videoId — it is an opaque
+     * `o-XXXX` STREAM identifier that ROTATES on every resolve (verified live: same video,
+     * two resolves 2s apart → two different `id=` values). Keying on it made every replay
+     * after a restart resolve a NEW url → probe a key that does not exist → re-download the
+     * whole stream while the previous copy sat orphaned forever (write-without-read). The
+     * real videoId is available as `dataSpec.key` — the mediaId placed by
+     * `MediaItemExt.setCustomCacheKey(song.id)` and preserved by `dataSpec.withUri(...)` in
+     * the resolver. The itag stays from the URL (stable AND quality-distinct: 251 opus,
+     * 140 aac, 137 video never collide). Video-mode deliberately passes key=null
+     * (VideoModeCoordinator) — it falls back to the old behavior, unchanged.
      */
     private val stableStreamCacheKeyFactory =
         androidx.media3.datasource.cache.CacheKeyFactory { dataSpec ->
             val uri = dataSpec.uri
             if (uri.host?.endsWith("googlevideo.com") == true) {
-                val videoId = uri.getQueryParameter("id")
+                val mediaId = dataSpec.key
                 val itag = uri.getQueryParameter("itag")
-                if (!videoId.isNullOrBlank()) {
+                if (!mediaId.isNullOrBlank()) {
                     buildString {
                         append("yt-stream-")
-                        append(videoId)
+                        append(mediaId)
                         if (!itag.isNullOrBlank()) append("-").append(itag)
                     }
+                } else if (uri.getQueryParameter("id").isNullOrBlank()) {
+                    uri.toString()
                 } else {
-                    dataSpec.key ?: uri.toString()
+                    // No custom key (video-mode): keep the legacy rotating behavior rather than
+                    // inventing a key that could collide with the extractor's downloadCache reads.
+                    buildString {
+                        append("yt-stream-")
+                        append(uri.getQueryParameter("id"))
+                        if (!itag.isNullOrBlank()) append("-").append(itag)
+                    }
                 }
             } else {
                 dataSpec.key ?: uri.toString()
@@ -7748,7 +7768,24 @@ class MusicService :
                 val isLosslessCache = dbFormat.codecs == "flac"
                 val isSaavnCache = dbFormat.codecs == "mp4a.40.2" || dbFormat.mimeType.contains("mp4", ignoreCase = true)
 
-                val cacheMatchesTarget = when (lockedQuality) {
+                // REPLAY LOCK (owner report 2026-09-04): with a global LOSSLESS/SAAVN quality,
+                // YouTube only ever DELIVERS opus, so every quiet replay of an already-listened
+                // song compared "wanted lossless" vs "delivered opus" → mismatch → purge ALL the
+                // song's cached bytes → full re-download. On every replay. The replay of a song
+                // whose bytes are already on disk must target the container that IS on disk —
+                // only the SONG CURRENTLY PLAYING re-checks against the global quality (its
+                // container was chosen a moment ago, a quality switch there is a real user action).
+                // The playing song keeps `lockedQuality = cachedQuality` (delivered, above); a
+                // replay without cached bytes falls to the global target as before.
+                val replayHasCachedBytes = StreamCacheKeys.keysOf(playerCache.keys, mediaId).isNotEmpty() ||
+                    playerCache.keys.any { it.startsWith("yt-stream-$mediaId-") }
+                val effectiveTarget = when {
+                    isCurrentlyPlaying -> lockedQuality
+                    replayHasCachedBytes && cachedQuality != null -> cachedQuality
+                    else -> lockedQuality
+                }
+
+                val cacheMatchesTarget = when (effectiveTarget) {
                     iad1tya.echo.music.constants.AudioQuality.LOSSLESS -> isLosslessCache
                     iad1tya.echo.music.constants.AudioQuality.SAAVN -> isSaavnCache
                     iad1tya.echo.music.constants.AudioQuality.OPUS -> !isLosslessCache && !isSaavnCache
@@ -7800,11 +7837,17 @@ class MusicService :
                 // fresh URL we are about to serve and check only that one. If no fresh URL exists
                 // there is nothing to serve anyway (the block below needs it to return).
                 val freshUrlEntry = songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }
+                // STABLE IDENTITY FIX (2026-09-04): the probe key must be the one the WRITER used —
+                // yt-stream-<mediaId>-<itag>. The old probe derived the `id=` param of the live URL,
+                // which is the ROTATING o-XXXX stream id: intra-session it matched (same URL), but it
+                // probed a key no writer would ever use after the factory fix. Same identity in writer
+                // and reader or the hit test lies again.
                 val audioCacheKey = freshUrlEntry?.url?.let { url ->
                     val uri = url.toUri()
                     if (uri.host?.endsWith("googlevideo.com") == true) {
-                        val vid = uri.getQueryParameter("id")
-                        if (!vid.isNullOrBlank()) StreamCacheKeys.build(vid, uri.getQueryParameter("itag")) else null
+                        uri.getQueryParameter("itag")?.let { itag ->
+                            StreamCacheKeys.build(mediaId, itag)
+                        }
                     } else {
                         null
                     }

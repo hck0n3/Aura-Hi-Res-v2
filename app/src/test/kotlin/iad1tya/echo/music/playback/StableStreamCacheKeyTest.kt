@@ -10,6 +10,13 @@ import org.junit.Test
  * save data). The production factory reads android.net.Uri (not testable on plain JVM), so this
  * test pins the KEY RULE itself with a pure query-param parser mirroring Uri.getQueryParameter
  * semantics. If the production key format ever changes, this mirror must change with it.
+ *
+ * STABLE IDENTITY FIX (2026-09-04): these tests use REALISTIC googlevideo URLs — the `id=`
+ * param is an opaque o-XXXX STREAM identifier that ROTATES on every resolve (verified live:
+ * same video, two resolves 2s apart, different `id=`). The stable identity is the mediaId
+ * (dataSpec.key, = the videoId placed by MediaItemExt.setCustomCacheKey) + the `itag` param
+ * (stable and quality-distinct). The pre-fix tests used fabricated URLs where `id=` held the
+ * videoId — they pinned the false premise that made every replay re-download (row 206).
  */
 class StableStreamCacheKeyTest {
 
@@ -31,34 +38,39 @@ class StableStreamCacheKeyTest {
         }
         val isGoogleVideo = host.endsWith("googlevideo.com")
         if (!isGoogleVideo) return specKey ?: url
-        val videoId = queryParam(url, "id")
         val itag = queryParam(url, "itag")
-        return if (!videoId.isNullOrBlank()) {
-            buildString {
+        val urlStreamId = queryParam(url, "id")
+        return when {
+            !specKey.isNullOrBlank() -> buildString {
                 append("yt-stream-")
-                append(videoId)
+                append(specKey)
                 if (!itag.isNullOrBlank()) append("-").append(itag)
             }
-        } else {
-            specKey ?: url
+            urlStreamId.isNullOrBlank() -> url
+            else -> buildString {
+                append("yt-stream-")
+                append(urlStreamId)
+                if (!itag.isNullOrBlank()) append("-").append(itag)
+            }
         }
     }
 
     @Test
     fun rotatedUrlsForSameSongCollapseToSameKey() {
-        val resolve1 = "https://rr3---sn-x.googlevideo.com/videoplayback?c=ANDROID_VR&expire=111&id=abcVIDEO123&itag=251&ip=1.2.3.4&signature=SIGAAA"
-        val resolve2 = "https://rr5---sn-y.googlevideo.com/videoplayback?c=ANDROID_VR&expire=222&id=abcVIDEO123&itag=251&ip=5.6.7.8&signature=SIGBBB"
-        assertEquals("yt-stream-abcVIDEO123-251", keyOf(resolve1))
-        assertEquals("yt-stream-abcVIDEO123-251", keyOf(resolve2))
-        assertEquals(keyOf(resolve1), keyOf(resolve2))
+        // REALISTIC rotation: same videoId (specKey = mediaId), the `id=` o-XXXX changes.
+        val resolve1 = "https://rr3---sn-x.googlevideo.com/videoplayback?c=ANDROID_VR&expire=111&id=o-AEPtfEexF9dDFZivvNUG0c62&itag=251&ip=1.2.3.4&signature=SIGAAA"
+        val resolve2 = "https://rr5---sn-y.googlevideo.com/videoplayback?c=ANDROID_VR&expire=222&id=o-AJs0tH3Yu5T8J7I_II7b-Cs&itag=251&ip=5.6.7.8&signature=SIGBBB"
+        assertEquals("yt-stream-abcVIDEO123-251", keyOf(resolve1, specKey = "abcVIDEO123"))
+        assertEquals("yt-stream-abcVIDEO123-251", keyOf(resolve2, specKey = "abcVIDEO123"))
+        assertEquals(keyOf(resolve1, specKey = "abcVIDEO123"), keyOf(resolve2, specKey = "abcVIDEO123"))
     }
 
     @Test
     fun differentItagsGetDistinctKeys() {
-        val opus = "https://x.googlevideo.com/videoplayback?id=abcVIDEO123&itag=251"
-        val aac = "https://x.googlevideo.com/videoplayback?id=abcVIDEO123&itag=140"
-        assertEquals("yt-stream-abcVIDEO123-251", keyOf(opus))
-        assertEquals("yt-stream-abcVIDEO123-140", keyOf(aac))
+        val opus = "https://x.googlevideo.com/videoplayback?id=o-ROT1&itag=251"
+        val aac = "https://x.googlevideo.com/videoplayback?id=o-ROT2&itag=140"
+        assertEquals("yt-stream-abcVIDEO123-251", keyOf(opus, specKey = "abcVIDEO123"))
+        assertEquals("yt-stream-abcVIDEO123-140", keyOf(aac, specKey = "abcVIDEO123"))
     }
 
     @Test
@@ -69,6 +81,14 @@ class StableStreamCacheKeyTest {
     }
 
     @Test
+    fun videoModeWithoutSpecKeyKeepsLegacyRotatingKey() {
+        // Video-mode deliberately passes key=null (VideoModeCoordinator): no custom key → the
+        // legacy o-XXXX-based key, so video replay-cache behavior is unchanged by the fix.
+        val noKey = "https://x.googlevideo.com/videoplayback?id=o-ROTATING&itag=137"
+        assertEquals("yt-stream-o-ROTATING-137", keyOf(noKey))
+    }
+
+    @Test
     fun googleVideoWithoutIdFallsBackToUrlKey() {
         val weird = "https://x.googlevideo.com/videoplayback?itag=251"
         assertEquals(weird, keyOf(weird))
@@ -76,8 +96,8 @@ class StableStreamCacheKeyTest {
 
     @Test
     fun differentSongsNeverShareAKey() {
-        val a = "https://x.googlevideo.com/videoplayback?id=videoAAA&itag=251"
-        val b = "https://x.googlevideo.com/videoplayback?id=videoBBB&itag=251"
-        assert(keyOf(a) != keyOf(b))
+        val a = "https://x.googlevideo.com/videoplayback?id=o-ROT&itag=251"
+        val b = "https://x.googlevideo.com/videoplayback?id=o-ROT&itag=251"
+        assert(keyOf(a, specKey = "videoAAA") != keyOf(b, specKey = "videoBBB"))
     }
 }
