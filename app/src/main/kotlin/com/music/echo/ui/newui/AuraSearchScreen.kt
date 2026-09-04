@@ -46,6 +46,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -534,6 +540,11 @@ internal fun rememberAuraVoiceSearch(
 
     var listening by remember { mutableStateOf(false) }
     var liveText by remember { mutableStateOf("") }
+    // Voice level 0..1 for the pulsing bars (owner directive 2026-09-04: "la animación del
+    // micrófono quiero que se reproduzca mientras está reconociendo la voz — algo más
+    // NOTABLE"). onRmsChanged feeds it live: the bars dance with the user's ACTUAL voice,
+    // not a fake loop.
+    var voiceLevel by remember { mutableStateOf(0f) }
     // Owner report (BETA-038, 2026-09-04): "no hay una animación para identificar que se está
     // usando". Even with the manifest query fixed, the listening dialog only appeared once the
     // OS recognizer SERVICE accepted the bind — a Samsung service that stalls leaves the tap
@@ -565,7 +576,12 @@ internal fun rememberAuraVoiceSearch(
                 }
 
                 override fun onBeginningOfSpeech() = Unit
-                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onRmsChanged(rmsdB: Float) {
+                    // Feed the pulsing bars: recognizer RMS arrives in dBFS (typically -2..-12
+                    // while speaking, near -40 in silence). Map to 0..1 with a floor so silence
+                    // still shows a calm idle pulse instead of dead bars.
+                    voiceLevel = ((rmsdB + 24f) / 24f).coerceIn(0.06f, 1f)
+                }
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
                 override fun onEndOfSpeech() = Unit
 
@@ -733,16 +749,14 @@ internal fun rememberAuraVoiceSearch(
             horizontalAlignment = Alignment.Start,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(
-                    color = AuraPalette.Teal,
-                    trackColor = AuraPalette.TrackEmpty,
-                    strokeWidth = 2.dp,
-                    modifier = Modifier.width(22.dp),
-                )
+                // Pulsing voice bars (owner directive 2026-09-04: "algo más NOTABLE"): 5 bars
+                // that dance with the user's ACTUAL voice level (onRmsChanged → voiceLevel),
+                // with an infinite idle pulse so even silence shows a living animation.
+                VoicePulseBars(level = voiceLevel, active = listening || opening)
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text(
-                        // Single label for both phases (opening → listening): the spinner
+                        // Single label for both phases (opening → listening): the bars
                         // dialog is the animation the owner asked for — it appears the instant
                         // the mic is touched and stays until a result, an error or the cancel.
                         text = stringResource(R.string.listening),
@@ -764,6 +778,48 @@ internal fun rememberAuraVoiceSearch(
 
     return {
         launch()
+    }
+}
+
+/**
+ * Five rounded bars pulsing at staggered phases, scaled by the live voice [level] (0..1).
+ * While [active] with no voice signal (opening, or a silent room) an infinite sine idle keeps
+ * them visibly alive — the mic can never again look dead while the recognizer runs.
+ */
+@Composable
+private fun VoicePulseBars(level: Float, active: Boolean) {
+    val time by rememberInfiniteTransition(label = "voicePulse")
+        .animateFloat(
+            initialValue = 0f,
+            targetValue = 2f * Math.PI.toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(1400, easing = androidx.compose.animation.core.LinearEasing),
+                repeatMode = androidx.compose.animation.core.RepeatMode.Restart,
+            ),
+            label = "voicePulsePhase",
+        )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier.width(34.dp),
+    ) {
+        val baseHeights = listOf(10f, 18f, 26f, 18f, 10f)
+        val phases = listOf(0f, 0.8f, 1.6f, 2.4f, 3.2f)
+        baseHeights.forEachIndexed { i, base ->
+            // Idle sine wave (always alive) + the live voice level on top; the voice dominates
+            // whenever there is signal, the idle keeps motion in silence.
+            val idle = (0.35f + 0.35f * kotlin.math.sin((time + phases[i]).toDouble()).toFloat())
+            val height = (base * (idle * 0.5f + level * 0.9f)).coerceIn(6f, 34f)
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(height.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(
+                        if (level > 0.35f) AuraPalette.Teal else AuraPalette.OnGroundMuted
+                    ),
+            )
+        }
     }
 }
 
