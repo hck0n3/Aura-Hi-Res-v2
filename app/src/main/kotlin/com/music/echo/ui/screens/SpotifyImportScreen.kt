@@ -54,6 +54,7 @@ import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.resetAuthWebViewSession
+import timber.log.Timber
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.flow.first
@@ -566,16 +567,24 @@ private fun SpotifyLoginSheet(
 
                             override fun onPageFinished(view: WebView, url: String?) {
                                 captureCookies(url)
-                                // Blank-page rescue (rows 189/190 lesson applied to Spotify): if the
-                                // SPA finished but produced no login UI, the jar is still empty —
-                                // reload once so a hung first render gets a fresh attempt. Bounded to
-                                // a single retry per URL to never loop.
-                                if (!captured && url != null && url.contains("accounts.spotify.com") &&
-                                    view.title.isNullOrBlank()
-                                ) {
-                                    if (lastRescuedUrl != url) {
-                                        lastRescuedUrl = url
-                                        view.postDelayed({ if (!captured) view.reload() }, 1500L)
+                                // Blank-page rescue (rows 189/190 lesson applied to Spotify). The
+                                // login page is a client-hydration SPA: the server HTML already
+                                // carries a <title> (verified live) but paints NOTHING until the
+                                // Next.js chunks run — so the old `title.isNullOrBlank()` probe
+                                // never fired and a failed hydration left the sheet black forever
+                                // (owner report 2026-09-04: "se queda en negro la pantalla").
+                                // Probe the DOM instead: the hydrated login ALWAYS renders form
+                                // controls. Bounded to one retry per URL to never loop.
+                                if (!captured && url != null && url.contains("accounts.spotify.com")) {
+                                    view.evaluateJavascript(
+                                        "(document.querySelector('input,button,form,#__next div') != null) ? 1 : 0"
+                                    ) { hydrated ->
+                                        val contentReady = hydrated?.trim() == "1"
+                                        if (!contentReady && lastRescuedUrl != url) {
+                                            lastRescuedUrl = url
+                                            Timber.w("Spotify login SPA finished without hydrated UI, reloading once")
+                                            view.postDelayed({ if (!captured) view.reload() }, 1500L)
+                                        }
                                     }
                                 }
                             }

@@ -64,3 +64,18 @@ fun shouldRecoverLibrarySyncOnStart(loggedIn: Boolean, lastLikedSyncTimeMs: Long
  */
 fun shouldRescueHandshake(googleCookie: String?, youTubeCookie: String?): Boolean =
     !isLoggedCookie(youTubeCookie) && isLoggedCookie(googleCookie)
+
+/**
+ * Owner report 2026-09-04 ("parpadea entre blanco y el contenido… imposible iniciar sesión"):
+ * the #190 SAFETY note above only holds when the jar was CLEAN when the screen opened. A
+ * back-out mid-login, a crash, or a previous beta's abandoned attempt can leave a .google.com
+ * SAPISID in the jar with no .youtube.com one — and the rescue then fires every 4s × 3 per
+ * visit, wiping the half-typed password form each time (the flicker). The screen now clears
+ * the jar on open AND arms the rescue only on sessions minted AFTER the screen opened:
+ * [shouldRescueHandshake] stays the pure session-state rule; this gate adds the temporal one.
+ */
+fun shouldRescueHandshakeArmed(
+    mintedAfterOpen: Boolean,
+    googleCookie: String?,
+    youTubeCookie: String?,
+): Boolean = mintedAfterOpen && shouldRescueHandshake(googleCookie, youTubeCookie)

@@ -108,6 +108,26 @@ class LoginCompletionTest {
     }
 
     @Test
+    fun `an armed rescue still fires for a session minted after the screen opened`() {
+        // 2026-09-04 flicker fix: once the watcher has SEEN the jar without a Google session,
+        // any .google.com SAPISID is provably fresh — the #190 rescue keeps working for it.
+        val googleCookie = "SAPISID=xyz; HSID=g1; SSID=g2"
+        assertTrue(shouldRescueHandshakeArmed(mintedAfterOpen = true, googleCookie, null))
+        assertTrue(shouldRescueHandshakeArmed(mintedAfterOpen = true, googleCookie, "VISITOR_INFO1_LIVE=abc"))
+    }
+
+    @Test
+    fun `a residue google session never arms the rescue while the jar has not been seen clean`() {
+        // The owner's flicker: a stale .google.com SAPISID from an abandoned attempt sat in the
+        // jar when the screen opened, and the rescue reloaded the handshake every 4s — wiping
+        // the half-typed password each time. Until the jar is seen clean, no reload, ever.
+        val residueCookie = "SAPISID=stale; HSID=g1; SSID=g2"
+        assertFalse(shouldRescueHandshakeArmed(mintedAfterOpen = false, residueCookie, null))
+        assertFalse(shouldRescueHandshakeArmed(mintedAfterOpen = false, residueCookie, ""))
+        assertFalse(shouldRescueHandshakeArmed(mintedAfterOpen = false, residueCookie, "VISITOR_INFO1_LIVE=abc"))
+    }
+
+    @Test
     fun `google and other origins are not the login target`() {
         assertFalse(isLoginTargetUrl(null))
         assertFalse(isLoginTargetUrl(""))

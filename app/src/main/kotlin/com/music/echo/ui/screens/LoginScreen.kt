@@ -66,6 +66,8 @@ import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.reportException
 import iad1tya.echo.music.utils.shouldCompleteLogin
 import iad1tya.echo.music.utils.shouldRescueHandshake
+import iad1tya.echo.music.utils.shouldRescueHandshakeArmed
+import iad1tya.echo.music.utils.resetAuthWebViewSession
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -390,9 +392,23 @@ fun LoginScreen(
                         "Android",
                     )
                     webViewRef = this
-                    // Full YouTube handshake URL, not a bare continue (#182 — see
-                    // youTubeServiceLoginUrl).
-                    loadUrl(youTubeServiceLoginUrl())
+                    // Owner report 2026-09-04 (flicker blanco↔contenido making login impossible):
+                    // the screen used to load the handshake over whatever jar the previous visit
+                    // left behind. A stale .google.com SAPISID with no .youtube.com one made the
+                    // #190 rescue reload the handshake every 4s — wiping the half-typed password
+                    // form each time. Clear the jar BEFORE the first load (same pattern the
+                    // Spotify login already uses; storage stays — Google's continuity signals
+                    // keep CAPTCHAs away, only cookies reset) and load only when it is clean.
+                    resetAuthWebViewSession(
+                        context = webViewContext,
+                        webView = this,
+                        clearCookies = true,
+                        clearStorage = false,
+                    ) {
+                        // Full YouTube handshake URL, not a bare continue (#182 — see
+                        // youTubeServiceLoginUrl).
+                        loadUrl(youTubeServiceLoginUrl())
+                    }
                 }
             },
         )
@@ -414,6 +430,12 @@ fun LoginScreen(
     LaunchedEffect(Unit) {
         var rescueCount = 0
         var googleSessionSince = 0L
+        // Owner report 2026-09-04: the rescue must only act on a session minted AFTER this
+        // screen opened. The jar is cleared on open (see the WebView factory), but the clear
+        // completes asynchronously — so "armed" means we have SEEN the jar without a Google
+        // session at least once. Until then a residue cookie can only age out silently, never
+        // trigger a reload; once armed, any .google.com SAPISID is provably fresh (#190 + flicker).
+        var rescueArmed = false
         while (true) {
             delay(JAR_WATCH_INTERVAL_MS)
             if (hasCompletedLoginState.value) break
@@ -427,7 +449,8 @@ fun LoginScreen(
             val googleCookie = runCatching {
                 CookieManager.getInstance().getCookie("https://accounts.google.com")
             }.getOrNull()
-            if (shouldRescueHandshake(googleCookie, youTubeCookie)) {
+            if (!isLoggedCookie(googleCookie)) rescueArmed = true
+            if (shouldRescueHandshakeArmed(rescueArmed, googleCookie, youTubeCookie)) {
                 val now = SystemClock.elapsedRealtime()
                 if (googleSessionSince == 0L) {
                     googleSessionSince = now
