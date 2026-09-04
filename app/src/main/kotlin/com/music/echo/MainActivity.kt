@@ -2267,13 +2267,23 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    BottomSheetMenu(
-                        state = LocalMenuState.current,
+                    // Z-ORDER (owner report 2026-09-04: "no puedo reproducir nada desde la búsqueda
+                    // del reproductor, no me sale el submenú"): both hosts are in-window overlays in
+                    // this same Box, and Compose draws later siblings on top. The page used to be
+                    // composed AFTER the menu, so a menu opened from INSIDE the quick-search page
+                    // (song tap → openSongActions → menuState.show) was composed but buried under
+                    // the page's identical bottom panel and full-size tap barrier — invisible, and
+                    // every tap landed on the page (dismissing the search) instead of the menu.
+                    // Online songs only play from that menu, so nothing played. The menu now
+                    // composes LAST = on top: a menu opened while the page is visible covers it,
+                    // exactly like the ModalBottomSheet era when both were separate windows.
+                    BottomSheetPage(
+                        state = LocalBottomSheetPageState.current,
                         modifier = Modifier.align(Alignment.BottomCenter)
                     )
 
-                    BottomSheetPage(
-                        state = LocalBottomSheetPageState.current,
+                    BottomSheetMenu(
+                        state = LocalMenuState.current,
                         modifier = Modifier.align(Alignment.BottomCenter)
                     )
 

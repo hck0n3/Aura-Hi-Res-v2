@@ -2006,7 +2006,13 @@ fun BottomSheetPlayer(
                                     mediaMetadata = mediaMetadata,
                                     navController = navController,
                                     playerBottomSheetState = state,
-                                    onShowDetailsDialog = { mediaMetadata.id.let { bottomSheetPageState.show { ShowMediaInfo(it) } } },
+                                    onShowDetailsDialog = {
+                                        mediaMetadata.id.let {
+                                            // Dismiss before opening the page (z-order fix 2026-09-04).
+                                            menuState.dismiss()
+                                            bottomSheetPageState.show { ShowMediaInfo(it) }
+                                        }
+                                    },
                                     onDismiss = menuState::dismiss,
                                 )
                             }

@@ -347,6 +347,9 @@ fun AuraQueue(
                 playerBottomSheetState = playerBottomSheetState,
                 onShowDetailsDialog = {
                     mediaMetadata?.id?.let {
+                        // Dismiss before opening the page (z-order fix 2026-09-04): the menu
+                        // composes on top of the page, so it must be gone for the info to show.
+                        menuState.dismiss()
                         bottomSheetPageState.show { ShowMediaInfo(it) }
                     }
                 },
@@ -1468,7 +1471,11 @@ private fun AuraAutomixRow(
                     navController = navController,
                     playerBottomSheetState = playerBottomSheetState,
                     onShowDetailsDialog = {
-                        item.mediaId.let { bottomSheetPageState.show { ShowMediaInfo(it) } }
+                        item.mediaId.let {
+                            // Dismiss before opening the page (z-order fix 2026-09-04).
+                            menuState.dismiss()
+                            bottomSheetPageState.show { ShowMediaInfo(it) }
+                        }
                     },
                     onDismiss = menuState::dismiss,
                 )

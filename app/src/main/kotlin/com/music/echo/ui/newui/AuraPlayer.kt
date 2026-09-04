@@ -1923,7 +1923,14 @@ private fun AuraPlayerShape(
                             navController = navController,
                             playerBottomSheetState = state,
                             onShowDetailsDialog = {
-                                mediaMetadata?.id?.let { id -> bottomSheetPageState.show { ShowMediaInfo(id) } }
+                                mediaMetadata?.id?.let { id ->
+                                    // Dismiss the menu BEFORE opening the page: with the menu
+                                    // composing on top of the page (z-order fix 2026-09-04), leaving
+                                    // it open would keep the menu's panel over the info page during
+                                    // its fade-out — the info page must land on top.
+                                    menuState.dismiss()
+                                    bottomSheetPageState.show { ShowMediaInfo(id) }
+                                }
                             },
                             onDismiss = menuState::dismiss,
                         )
