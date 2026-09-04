@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -92,7 +93,9 @@ import java.net.URLEncoder
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * # Buscar — "Interfaz nueva"
@@ -531,6 +534,12 @@ internal fun rememberAuraVoiceSearch(
 
     var listening by remember { mutableStateOf(false) }
     var liveText by remember { mutableStateOf("") }
+    // Owner report (BETA-038, 2026-09-04): "no hay una animación para identificar que se está
+    // usando". Even with the manifest query fixed, the listening dialog only appeared once the
+    // OS recognizer SERVICE accepted the bind — a Samsung service that stalls leaves the tap
+    // looking dead. "opening" is set the INSTANT the mic is tapped and drives the button's
+    // animated state: instant, unconditional, independent of permissions/services/binds.
+    var opening by remember { mutableStateOf(false) }
     val recognizer = remember {
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
             SpeechRecognizer.createSpeechRecognizer(context)
@@ -543,10 +552,18 @@ internal fun rememberAuraVoiceSearch(
     val startDirect = {
         val speech = recognizer
         if (speech == null) {
+            opening = false
             Toast.makeText(context, R.string.voice_search_unavailable, Toast.LENGTH_SHORT).show()
         } else {
             speech.setRecognitionListener(object : android.speech.RecognitionListener {
-                override fun onReadyForSpeech(params: android.os.Bundle?) = Unit
+                override fun onReadyForSpeech(params: android.os.Bundle?) {
+                    // The service accepted the session: the "opening" spinner hands off to the
+                    // live-listening dialog. If the service never gets here, opening keeps the
+                    // button alive and the 6s watchdog (below) tells the user what happened.
+                    opening = false
+                    listening = true
+                }
+
                 override fun onBeginningOfSpeech() = Unit
                 override fun onRmsChanged(rmsdB: Float) = Unit
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
@@ -554,6 +571,7 @@ internal fun rememberAuraVoiceSearch(
 
                 override fun onError(error: Int) {
                     listening = false
+                    opening = false
                     liveText = ""
                     // ERROR_CLIENT also covers a failed service BIND (Samsung's recognizer
                     // dying mid-connection), not only the user closing the listening dialog —
@@ -592,17 +610,31 @@ internal fun rememberAuraVoiceSearch(
                 override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
             })
             liveText = ""
+            // The dialog shows from this line — the instant the tap reached startListening —
+            // not from the service's first callback. If the bind itself throws (broken Samsung
+            // service), fall to the OS dialog instead of a dead silent button.
             listening = true
-            speech.startListening(
-                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(
-                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                    )
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                },
-            )
+            try {
+                speech.startListening(
+                    Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(
+                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                        )
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    },
+                )
+            } catch (e: Exception) {
+                Timber.w(e, "VoiceSearch: startListening threw, falling back to OS dialog")
+                listening = false
+                try {
+                    intentLauncher.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH))
+                } catch (_: ActivityNotFoundException) {
+                    Toast.makeText(context, R.string.voice_search_unavailable, Toast.LENGTH_SHORT)
+                        .show()
+                }
+            }
         }
     }
 
@@ -612,6 +644,7 @@ internal fun rememberAuraVoiceSearch(
         if (granted) {
             startDirect()
         } else {
+            opening = false
             Toast.makeText(context, R.string.voice_search_unavailable, Toast.LENGTH_SHORT).show()
         }
     }
@@ -624,14 +657,59 @@ internal fun rememberAuraVoiceSearch(
         ) {
             startDirect()
         } else {
+            opening = true
             permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
         }
     }
 
-    if (listening) {
+    // The unconditional tap feedback: opening is set HERE, the instant the mic is touched —
+    // before any permission prompt, before any service bind. A stalled Samsung service can
+    // no longer make the tap look dead.
+    val launch = {
+        if (recognizer != null) {
+            opening = true
+            startDirect()
+        } else {
+            // No in-process recognizer visible to us: hand off to the OS dialog if any app can
+            // handle it (still better than a silent nothing), opening stays as the feedback
+            // until the result comes back.
+            opening = true
+            try {
+                intentLauncher.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH))
+                // The OS dialog is its own feedback; ours must not linger under it.
+                opening = false
+            } catch (e: android.content.ActivityNotFoundException) {
+                opening = false
+                Toast.makeText(context, R.string.voice_search_unavailable, Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+    }
+
+    // 6s watchdog: if the recognizer service accepted neither the session (onReadyForSpeech)
+    // nor an error by then, the bind is stalled — say so instead of an eternally spinning
+    // button. Numbers only in the log (no user data).
+    LaunchedEffect(opening) {
+        if (!opening) return@LaunchedEffect
+        withTimeoutOrNull(6_000L) {
+            snapshotFlow { opening }.first { !it }
+        } ?: run {
+            if (opening) {
+                opening = false
+                listening = false
+                recognizer?.cancel()
+                Timber.w("VoiceSearch: recognizer bind stalled >6s, cancelled")
+                Toast.makeText(context, R.string.voice_search_unavailable, Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+    }
+
+    if (listening || opening) {
         DefaultDialog(
             onDismiss = {
                 listening = false
+                opening = false
                 liveText = ""
                 recognizer?.cancel()
             },
@@ -645,6 +723,7 @@ internal fun rememberAuraVoiceSearch(
             buttons = {
                 TextButton(onClick = {
                     listening = false
+                    opening = false
                     liveText = ""
                     recognizer?.cancel()
                 }) {
@@ -663,6 +742,9 @@ internal fun rememberAuraVoiceSearch(
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text(
+                        // Single label for both phases (opening → listening): the spinner
+                        // dialog is the animation the owner asked for — it appears the instant
+                        // the mic is touched and stays until a result, an error or the cancel.
                         text = stringResource(R.string.listening),
                         style = AuraType.RowSubtitle,
                         color = AuraPalette.OnGroundMuted,
@@ -681,28 +763,7 @@ internal fun rememberAuraVoiceSearch(
     }
 
     return {
-        if (recognizer != null) {
-            requestDirect()
-        } else {
-            try {
-                intentLauncher.launch(
-                    Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(
-                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                        )
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                        putExtra(
-                            RecognizerIntent.EXTRA_PROMPT,
-                            context.getString(R.string.voice_search),
-                        )
-                    },
-                )
-            } catch (_: ActivityNotFoundException) {
-                Toast.makeText(context, R.string.voice_search_unavailable, Toast.LENGTH_SHORT)
-                    .show()
-            }
-        }
+        launch()
     }
 }
 
