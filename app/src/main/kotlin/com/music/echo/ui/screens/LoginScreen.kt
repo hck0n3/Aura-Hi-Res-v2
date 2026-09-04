@@ -8,7 +8,6 @@ import android.content.Context
 import android.net.Uri
 import android.os.SystemClock
 import android.webkit.CookieManager
-import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -383,20 +382,13 @@ fun LoginScreen(
                         builtInZoomControls = true
                         displayZoomControls = false
                     }
-                    addJavascriptInterface(object {
-                        @JavascriptInterface
-                        fun onRetrieveVisitorData(newVisitorData: String?) {
-                            if (newVisitorData != null) {
-                                visitorData = newVisitorData
-                            }
-                        }
-                        @JavascriptInterface
-                        fun onRetrieveDataSyncId(newDataSyncId: String?) {
-                            if (newDataSyncId != null) {
-                                dataSyncId = newDataSyncId.substringBefore("||")
-                            }
-                        }
-                    }, "Android")
+                    addJavascriptInterface(
+                        LoginSessionBridge(
+                            onVisitorData = { if (it != null) visitorData = it },
+                            onDataSyncId = { if (it != null) dataSyncId = it.substringBefore("||") },
+                        ),
+                        "Android",
+                    )
                     webViewRef = this
                     // Full YouTube handshake URL, not a bare continue (#182 — see
                     // youTubeServiceLoginUrl).

@@ -8,8 +8,11 @@
 package iad1tya.echo.music.spotify
 
 import iad1tya.echo.music.spotify.models.SpotifyInternalToken
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.net.HttpURLConnection
@@ -40,6 +43,10 @@ object SpotifyAuth {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
     const val LOGIN_URL = "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F"
+
+    /** Gist retries + in-memory secret cache (see [fetchNuance]). */
+    private const val NUANCE_MAX_RETRIES = 3
+    private const val NUANCE_CACHE_MS = 48L * 60 * 60 * 1000 // 48h; the secret itself rotates on a Spotify-side schedule of months
 
     private val json = Json {
         isLenient = true
@@ -113,9 +120,23 @@ object SpotifyAuth {
             httpGet(tokenUrl, headers)
         }
 
-        val token = json.decodeFromString<SpotifyInternalToken>(body)
+        val token = try {
+            json.decodeFromString<SpotifyInternalToken>(body)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            // A malformed body from the token endpoint can only mean the TOTP/secret pair was
+            // rejected — the cached secret may be stale (audit FASE 3 #1).
+            invalidateNuanceCache()
+            throw e
+        }
 
         if (token.accessToken.isBlank() || (!allowAnonymous && token.isAnonymous)) {
+            // The mint REJECTED our TOTP: either the sp_dc cookie is dead (the usual cause) or
+            // Spotify rotated the secret while our 48h cache was fresh (rare — the gist history
+            // shows zero rotations in 6.5 months). Drop the cache so the NEXT attempt re-fetches
+            // a fresh secret instead of replaying a dead one until the TTL expires: that restores
+            // the pre-cache self-healing (audit FASE 3 #1) at the cost of one extra gist fetch.
+            invalidateNuanceCache()
             throw Spotify.SpotifyException(
                 401,
                 "Received anonymous token — sp_dc cookie is invalid or expired",
@@ -125,7 +146,67 @@ object SpotifyAuth {
         return token
     }
 
-    private suspend fun fetchNuance(): Nuance = withContext(Dispatchers.IO) {
+    /**
+     * Fetches the TOTP secret ("nuance") from the community Gist, with resilience (owner directive
+     * 2026-09-03: "login con Spotify se cierra o no funciona").
+     *
+     * The Gist is the single point of failure for EVERY Spotify login: it is a third-party GitHub
+     * gist that can rate-limit, lag or disappear transiently — and a login attempt used to die on
+     * the FIRST blip (one attempt, no fallback). Now:
+     *  - retries up to [NUANCE_MAX_RETRIES] with short backoff (GitHub rate-limits are often a
+     *    30-second blip, not an outage);
+     *  - on success the parsed secret is cached in memory for [NUANCE_CACHE_MS]: the secret rotates
+     *    on a Spotify-side schedule of months, so a cached copy stays valid far longer than any
+     *    login session, and a later Gist failure falls back to the cached copy instead of killing
+     *    the login. The cache is process-memory only (never persisted — no extra secret at rest).
+     */
+    private suspend fun fetchNuance(): Nuance {
+        // Fresh cache → use it without touching the network (the TTL bounds staleness; the secret's
+        // own rotation cadence is months, so 48h is far inside its validity window).
+        // SINGLE @Volatile Pair (audit FASE 3 #3): two separate volatiles allowed a torn write
+        // (old secret + fresh timestamp) under a mid-rotation race; one atomic reference makes the
+        // cache update all-or-nothing.
+        cachedNuance?.let { (nuance, atMs) ->
+            if (System.currentTimeMillis() - atMs < NUANCE_CACHE_MS) return nuance
+        }
+        // Bound the whole retry loop (audit FASE 3 #2): 3 attempts × (15s connect + 15s read)
+        // + backoffs could hang the login spinner for ~50-95s on a dead gist; 30s caps the wait
+        // while still covering the normal 1-2s fetch with generous margin.
+        val fresh = withTimeoutOrNull(30_000L) {
+            var lastError: Exception? = null
+            repeat(NUANCE_MAX_RETRIES) { attempt ->
+                try {
+                    val nuance = fetchNuanceOnce()
+                    cachedNuance = nuance to System.currentTimeMillis()
+                    return@withTimeoutOrNull nuance
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    lastError = e
+                    if (attempt < NUANCE_MAX_RETRIES - 1) delay(1_500L * (attempt + 1))
+                }
+            }
+            null
+        }
+        if (fresh != null) return fresh
+        // All attempts failed (or timed out) — the login can still work if a PREVIOUS attempt in
+        // this process cached a usable secret (the Gist failing now says nothing about the
+        // secret's validity: it was minted when the gist was last updated).
+        cachedNuance?.let { (nuance, _) -> return nuance }
+        throw Spotify.SpotifyException(
+            503,
+            "Failed to fetch TOTP secret from gist after $NUANCE_MAX_RETRIES attempts (capped at 30s)",
+        )
+    }
+
+    /** One atomic cache slot: (secret, cachedAtMs) — see [fetchNuance] for why it is a single field. */
+    @Volatile private var cachedNuance: Pair<Nuance, Long>? = null
+
+    /** Drops the cached secret — called when the token mint REJECTS our TOTP (see [requestToken]). */
+    private fun invalidateNuanceCache() {
+        cachedNuance = null
+    }
+
+    private suspend fun fetchNuanceOnce(): Nuance = withContext(Dispatchers.IO) {
         val body = try {
             httpGet(NUANCE_GIST_URL, emptyMap())
         } catch (e: Exception) {

@@ -525,12 +525,13 @@ dependencies {
     "gmsImplementation"("com.google.firebase:firebase-analytics")
     "gmsImplementation"("com.google.firebase:firebase-crashlytics")
 
-    // Google Drive Sync - GMS flavor only
-    "gmsImplementation"(libs.play.services.auth)
-    "gmsImplementation"(libs.google.api.client.android)
-    "gmsImplementation"(libs.google.api.services.drive) {
-        exclude(group = "org.apache.httpcomponents")
-    }
+    // REMOVED 2026-09-04 (FASE 3 login audit): play-services-auth + google-api-client-android +
+    // google-api-services-drive were declared here with ZERO call sites — the residue of a "Drive
+    // Sync" that was never implemented (no GoogleSignIn / com.google.api / drive usage anywhere in
+    // app/src). They only bloated the gms APK (~3-5 MB) and misled anyone looking for a "Google
+    // sign-in SDK" that does not exist: the app's Google login is the YouTube Music WebView
+    // (LoginScreen.kt), which needs none of these. If Drive Sync is ever actually built, restore
+    // the dependencies in the same commit as the code that uses them.
 
     
     implementation(libs.haze)

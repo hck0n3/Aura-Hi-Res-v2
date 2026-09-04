@@ -15,6 +15,9 @@
 -keepclassmembers class iad1tya.echo.music.utils.potoken.PoTokenWebView {
     @android.webkit.JavascriptInterface public *;
 }
+-keepclassmembers class iad1tya.echo.music.ui.screens.LoginSessionBridge {
+    @android.webkit.JavascriptInterface public *;
+}
 
 # Keep streaming utility classes
 -keep class iad1tya.echo.music.utils.cipher.** { *; }
