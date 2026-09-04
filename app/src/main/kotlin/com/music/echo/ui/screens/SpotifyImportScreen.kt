@@ -534,12 +534,20 @@ private fun SpotifyLoginSheet(
                         settings.setSupportZoom(true)
                         settings.builtInZoomControls = true
                         settings.displayZoomControls = false
-                        // Desktop UA (login white-screen fix, owner report 2026-08-29): without this
-                        // accounts.spotify.com serves its SPA to a system WebView UA ("; wv") and the
-                        // page can hang on a blank shell — the same failure mode the YouTube login had
-                        // (registry rows 189/190). SpotifyAuth.USER_AGENT is the Chrome/Windows UA the
-                        // app already uses for token requests; the login page now sees the same client.
-                        settings.userAgentString = SpotifyAuth.USER_AGENT
+                        // Desktop UA — RETIRED (audit 2026-09-04, owner report: "el login de Spotify
+                        // SIGUE sin mostrar nada"): the frozen Chrome/Windows UA was adopted for a
+                        // failure mode that does NOT reproduce today (curl: the "; wv" UA receives
+                        // the same HTML, same buildId, same chunks), and it is the only substantive
+                        // difference with the Google login that DOES load on the same device. The
+                        // WebView presented UA=Windows while its Sec-CH client hints said Android —
+                        // a contradictory fingerprint in front of Spotify's Signal Sciences WAF,
+                        // the top suspect for a silently challenged/blocked response. Use the REAL
+                        // WebView identity (the default UA of this very WebView) minus the "; wv"
+                        // token, and let the instrumentation below leave the true cause in app.log
+                        // if the sheet still fails.
+                        settings.userAgentString =
+                            settings.userAgentString.replace("; wv", "")
+
                         webViewClient = object : WebViewClient() {
                             private fun captureCookies(url: String?): Boolean {
                                 if (captured) return true
@@ -548,6 +556,7 @@ private fun SpotifyLoginSheet(
                                 if (spDc.isBlank()) return false
                                 captured = true
                                 cookieManager.flush()
+                                Timber.i("SpotifyLogin: sp_dc captured, finishing")
                                 onCookiesCaptured(spDc, cookies["sp_key"].orEmpty())
                                 return true
                             }
@@ -555,37 +564,115 @@ private fun SpotifyLoginSheet(
                             override fun shouldOverrideUrlLoading(
                                 view: WebView,
                                 request: WebResourceRequest,
-                            ): Boolean = captureCookies(request.url?.toString())
+                            ): Boolean {
+                                // PASSIVE capture (audit 2026-09-04): returning true here means
+                                // "the app handles this URL" and the WebView never navigates. The
+                                // pre-login flow has no sp_dc, so the old code returned false and
+                                // navigation worked — but a stale sp_dc left over from a failed
+                                // wipe would return true and silently BLOCK the login page itself
+                                // (sheet closes instantly). Capture is passive: onPageStarted /
+                                // onPageFinished observe cookies, they never veto navigation.
+                                captureCookies(request.url?.toString())
+                                return false
+                            }
 
                             override fun onPageStarted(
                                 view: WebView,
                                 url: String?,
                                 favicon: android.graphics.Bitmap?,
                             ) {
+                                Timber.i("SpotifyLogin: page started")
                                 captureCookies(url)
                             }
 
                             override fun onPageFinished(view: WebView, url: String?) {
                                 captureCookies(url)
-                                // Blank-page rescue (rows 189/190 lesson applied to Spotify). The
-                                // login page is a client-hydration SPA: the server HTML already
-                                // carries a <title> (verified live) but paints NOTHING until the
-                                // Next.js chunks run — so the old `title.isNullOrBlank()` probe
-                                // never fired and a failed hydration left the sheet black forever
-                                // (owner report 2026-09-04: "se queda en negro la pantalla").
-                                // Probe the DOM instead: the hydrated login ALWAYS renders form
-                                // controls. Bounded to one retry per URL to never loop.
+                                // Live-DOM probe (rows 189/190 lesson). The server HTML of the
+                                // Spotify login paints the form WITHOUT any JS (SSR — verified
+                                // live: input#username, login-button and form all outside
+                                // <noscript>), so "did the page paint" can NOT be tested by looking
+                                // for form controls — the previous probe was a structural no-op
+                                // that always said "hydrated". The anchor that DOES distinguish a
+                                // live page from a JS-crashed one: #__next childElementCount —
+                                // SSR leaves > 0; a hydration crash that unmounts React leaves 0;
+                                // a page that never finished loading never reaches this probe at
+                                // all (onPageFinished does not fire). One retry per URL.
                                 if (!captured && url != null && url.contains("accounts.spotify.com")) {
                                     view.evaluateJavascript(
-                                        "(document.querySelector('input,button,form,#__next div') != null) ? 1 : 0"
-                                    ) { hydrated ->
-                                        val contentReady = hydrated?.trim() == "1"
-                                        if (!contentReady && lastRescuedUrl != url) {
+                                        "(document.getElementById('__next') ? document.getElementById('__next').childElementCount : -1)"
+                                    ) { children ->
+                                        val live = children?.trim()?.toIntOrNull() ?: -1
+                                        if (live <= 0 && lastRescuedUrl != url) {
                                             lastRescuedUrl = url
-                                            Timber.w("Spotify login SPA finished without hydrated UI, reloading once")
+                                            Timber.w("SpotifyLogin: login DOM empty after load (next children=$live), reloading once")
                                             view.postDelayed({ if (!captured) view.reload() }, 1500L)
                                         }
                                     }
+                                }
+                            }
+
+                            override fun onReceivedError(
+                                view: WebView,
+                                request: WebResourceRequest,
+                                error: android.webkit.WebResourceError,
+                            ) {
+                                // Main-frame errors only (subresource noise is huge), code +
+                                // description without the URL — the URL can carry user data.
+                                if (request.isForMainFrame) {
+                                    Timber.e("SpotifyLogin: main-frame error ${error.errorCode}: ${error.description}")
+                                }
+                                super.onReceivedError(view, request, error)
+                            }
+
+                            override fun onReceivedHttpError(
+                                view: WebView,
+                                request: WebResourceRequest,
+                                errorResponse: android.webkit.WebResourceResponse,
+                            ) {
+                                if (request.isForMainFrame) {
+                                    val host = request.url?.host ?: "unknown"
+                                    Timber.e("SpotifyLogin: HTTP ${errorResponse.statusCode} on $host")
+                                }
+                                super.onReceivedHttpError(view, request, errorResponse)
+                            }
+
+                            override fun onTooManyRedirects(
+                                view: WebView,
+                                cancelMsg: android.os.Message?,
+                                continueMsg: android.os.Message?,
+                            ) {
+                                Timber.e("SpotifyLogin: too many redirects")
+                                super.onTooManyRedirects(view, cancelMsg, continueMsg)
+                            }
+
+                            override fun onRenderProcessGone(
+                                view: WebView,
+                                detail: android.webkit.RenderProcessGoneDetail,
+                            ): Boolean {
+                                // targetSdk 36: without this override a dead renderer KILLS THE APP.
+                                // Log, drop the WebView and close the sheet — never crash the app
+                                // over a login page.
+                                Timber.e("SpotifyLogin: renderer gone (crashed=${detail.didCrash()}), closing sheet")
+                                view.post { onDismiss() }
+                                return true
+                            }
+                        }
+                        webChromeClient = object : android.webkit.WebChromeClient() {
+                            override fun onConsoleMessage(msg: android.webkit.ConsoleMessage): Boolean {
+                                // A hydration crash of the login SPA shows up HERE (uncaught
+                                // exceptions surface as console errors), never in the WebViewClient.
+                                val text = msg.message()
+                                if (text.length > 220) {
+                                    Timber.w("SpotifyLogin console[${msg.messageLevel()}]: ${text.substring(0, 220)}…")
+                                } else {
+                                    Timber.w("SpotifyLogin console[${msg.messageLevel()}]: $text")
+                                }
+                                return true
+                            }
+
+                            override fun onProgressChanged(view: WebView, newProgress: Int) {
+                                if (newProgress in listOf(25, 50, 100)) {
+                                    Timber.i("SpotifyLogin: progress $newProgress%")
                                 }
                             }
                         }
@@ -599,6 +686,7 @@ private fun SpotifyLoginSheet(
                             webView = this,
                             clearCookies = true,
                         ) {
+                            Timber.i("SpotifyLogin: cleanup delivered, loading login URL")
                             loadUrl(SpotifyAuth.LOGIN_URL)
                         }
                     }

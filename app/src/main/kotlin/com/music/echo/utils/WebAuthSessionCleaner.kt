@@ -78,12 +78,25 @@ fun resetAuthWebViewSession(
     // that drops the cookie callbacks (they are async and unguaranteed) leaves the WebView stuck
     // on its background color forever — the owner's "pantalla en negro". 3s is far above the
     // normal milliseconds-scale completion; the worst case is loading over a half-cleaned jar.
+    // RACE FIX (audit 2026-09-04): if the cookie callbacks are merely SLOW (>3s), the fallback
+    // fires, loadUrl starts, and the LATE removeAllCookies callback would then wipe the jar MID
+    //-LOAD — taking the sso csrf token the navigation just minted. The CAS inside the callback
+    // now bails when delivery already happened: a late callback only finishes its own remove,
+    // it never wipes a jar the login is already running on.
     val ready = java.util.concurrent.atomic.AtomicBoolean(false)
     fun fireOnce() {
         if (ready.compareAndSet(false, true)) onReady()
     }
     cookieManager.removeSessionCookies {
+        if (ready.get()) {
+            timber.log.Timber.i("WebAuthSessionCleaner: late session-cookie callback after delivery, skipping jar wipe")
+            return@removeSessionCookies
+        }
         cookieManager.removeAllCookies {
+            if (ready.get()) {
+                timber.log.Timber.i("WebAuthSessionCleaner: late all-cookie callback after delivery, skipping jar wipe")
+                return@removeAllCookies
+            }
             cookieManager.flush()
             cookieManager.setAcceptCookie(true)
             cookieManager.setAcceptThirdPartyCookies(webView, true)
