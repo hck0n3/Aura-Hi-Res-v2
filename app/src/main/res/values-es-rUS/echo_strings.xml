@@ -542,6 +542,7 @@
     <string name="ai_provider_help">Obtener claves API</string>
     <string name="ai_provider_openrouter_help">Visita openrouter.ai para modelos gratuitos y de pago</string>
     <string name="ai_provider_openai_help">Visita platform.openai.com/api-keys</string>
+    <string name="ai_provider_groq_help">Gratis y rápido: 1) Crea tu cuenta en console.groq.com 2) API Keys → Create API Key 3) Pégala abajo. 1000 solicitudes al día, sin tarjeta</string>
     <string name="ai_provider_claude_help">Visita console.anthropic.com/settings/keys</string>
     <string name="ai_provider_gemini_help">Visita aistudio.google.com/apikey</string>
     <string name="ai_provider_perplexity_help">Visita perplexity.ai/settings/api</string>

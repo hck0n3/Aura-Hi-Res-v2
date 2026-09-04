@@ -156,7 +156,7 @@ object AiPlaylistGenerator {
         model: String,
         onResolveProgress: (done: Int, total: Int) -> Unit,
     ): kotlin.Result<Result>? {
-        // Ask the AI (user key → Aura Worker → free Pollinations models). getOrNull() so a total
+        // Ask the AI (user key → Aura Worker). getOrNull() so a total
         // failure doesn't dead-end — the caller falls back to a non-AI playlist, not an error.
         // Thin pad (target + PAD_OVER_TARGET) instead of the old 1.5×: the row-198 anti-hallucination
         // prompt returns fewer but REAL tracks, so a big pad only bought extra output tokens
@@ -354,7 +354,13 @@ object AiPlaylistGenerator {
             return kotlin.Result.failure(EmptyResultException())
         }
         val ordered = fallback
-        val name = prompt.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH)
+        // PERSISTENT honest label (owner directive 2026-09-03: "cuando las crea no se basa en lo que
+        // pido"): the old name-only flow labeled nothing in the library — the "(sin IA)" playlist looked
+        // exactly like a curated one, which is precisely why un-curated results read as "the AI ignored
+        // me". Truncate the PROMPT to MAX_NAME_LENGTH minus the label's 9 chars so "(sin IA)" always
+        // survives the cut (adversarial audit finding #4: appending first and then taking 40 dropped
+        // the label exactly on long prompts — the case where the fallback is most likely).
+        val name = (prompt.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH - 9) + " (sin IA)")
         val playlist = PlaylistEntity(
             name = name,
             bookmarkedAt = LocalDateTime.now(),

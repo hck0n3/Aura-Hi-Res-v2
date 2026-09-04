@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit
  * [LastFmTasteWorker]'s scheduling shape (daily, network required, schedule-always / gate-in-doWork).
  *
  * The AI ask goes through the exact same keyless chain as "Lista AI" ([AiPlaylistService]: user key →
- * Aura Worker /ai → Pollinations), bounded by [AiPlaylistGenerator.AI_BUDGET_MS] so a stuck cascade can
+ * Aura Worker /ai), bounded by [AiPlaylistGenerator.AI_BUDGET_MS] so a stuck cascade can
  * never hold the modem for minutes (battery/heat rule). If the whole chain fails — or nothing resolves —
  * we fall back to YouTube related/radio from taste seeds (same spirit as [AiPlaylistGenerator]'s non-AI
  * path) so the shelf still rotates; only if THAT also fails do we keep the last good playlist.

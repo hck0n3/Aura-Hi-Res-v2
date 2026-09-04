@@ -26,13 +26,19 @@ import kotlin.coroutines.resumeWithException
  *    Worker `/ai` route (Workers AI relay, no Authorization header). Treated as a PROBE: anything
  *    that is NOT a usable OpenAI-shape completion (HTTP 4xx incl. a not-yet-deployed 404, or a 200
  *    whose body has no choices[0].message.content — e.g. {"status":"invalid"}) is a FAST FAILURE
- *    and falls through to Pollinations immediately. Only a genuine 5xx (a deployed Worker hiccup)
- *    is retried. So an undeployed Worker costs ~one quick 404, never wasted retries; once the owner
- *    deploys /ai it becomes the reliable primary automatically, with no further app change.
- * 3. POLLINATIONS — public keyless endpoint text.pollinations.ai. It intermittently returns empty
- *    content or rate-limits, so it gets a bounded retry (POLLINATIONS_MAX_RETRIES) with short backoff
- *    before the chain gives up.
- * If every keyless endpoint fails, [AiServiceUnavailableException] is returned so the UI can show
+ *    and the chain ends there. Only a genuine 5xx (a deployed Worker hiccup) is retried. So an
+ *    undeployed Worker costs ~one quick 404, never wasted retries.
+ *
+ * REMOVED 2026-09-04 (owner directive: fast + reliable free AI): Pollinations text.pollinations.ai
+ * was the third keyless rung for YEARS, but a live probe on 2026-09-04 returned 402 "Payment
+ * Required" with a deprecation notice for EVERY real playlist request (the legacy /openai route no
+ * longer serves anonymous traffic for non-trivial asks; the same class of death as row 193's
+ * translation chain). Each Worker failure was followed by 1-2 guaranteed-dead round trips (1.5-28s
+ * burned before the honest fallback), making the AI take LONGER to give up while looking like it
+ * had redundancy. Same lesson as row 42: a keyless endpoint must be re-probed live before trusting
+ * it, and a dead rung must be cut, not retried. Real keyless redundancy now needs a second LIVE
+ * provider; until the owner deploys one, Worker-only is the honest chain.
+ * If the keyless endpoint fails, [AiServiceUnavailableException] is returned so the UI can show
  * a friendly "try again" message instead of asking for an API key.
  *
  * DeepL (not a chat API) and Claude (different `/v1/messages` schema) are intentionally unsupported
@@ -52,7 +58,7 @@ object AiPlaylistService {
         .build()
 
     /**
-     * KEYLESS client (Aura Worker + Pollinations), owner directive 2026-08-31: "AI answers are VERY
+     * KEYLESS client (Aura Worker), owner directive 2026-08-31: "AI answers are VERY
      * slow". The old 90s readTimeout was sized for BYO providers, but the keyless chain has a 60s
      * flow budget and a Worker that answers in ~17.5s for 12 tracks (live probe, row 198) — so a
      * HUNG Worker call blocked a thread for up to 90s while the user stared at a spinner. This
@@ -84,34 +90,8 @@ object AiPlaylistService {
     /** Suggested model for the Worker; the Worker may ignore/override it server-side. */
     private const val AURA_WORKER_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 
-    /** Public keyless OpenAI-compatible endpoint, used when the Aura Worker is unavailable. */
-    private const val POLLINATIONS_URL = "https://text.pollinations.ai/openai"
-
-    /**
-     * The FREE Pollinations models, tried IN ORDER until one returns a usable playlist. If every model fails
-     * the keyless chain gives up and the caller builds a non-AI playlist from search/radio, so this never
-     * dead-ends either way.
-     *
-     * This list used to read `listOf("openai", "mistral", "llama", "deepseek")`, which was a FICTION. Probed
-     * live against https://text.pollinations.ai/models: the anonymous (keyless) tier exposes exactly ONE
-     * model — `openai-fast` (GPT-OSS 20B), whose aliases include `openai`. The other three answered
-     * `{"error":"Model not found: <name>. This is our legacy API ..."}`. So the "cascade" was one model tried
-     * four times under three names that do not exist: three guaranteed round-trips burning the 60s budget and
-     * making the AI take LONGER to fail, while looking like redundancy it never had.
-     *
-     * Keep it honest: list only what actually answers. Real redundancy needs a SECOND PROVIDER (the Aura
-     * Worker above), not more names for the same one.
-     */
-    private val POLLINATIONS_MODELS = listOf("openai")
-
     /** Modest per-endpoint retries for the keyless chain so the chained worst case stays bounded. */
     private const val KEYLESS_MAX_RETRIES = 2
-
-    /**
-     * Per-MODEL retries for Pollinations. Kept small (2) because we now try several models in turn, so
-     * total worst-case = models × retries — still bounded, to respect the battery/heat budget.
-     */
-    private const val POLLINATIONS_MAX_RETRIES = 2
 
     class UnsupportedProviderException(val providerName: String) :
         Exception("Provider not supported for AI playlists: $providerName")
@@ -160,8 +140,8 @@ object AiPlaylistService {
 
     /**
      * Asks the AI how to EDIT an existing playlist: which positions to remove and which tracks to add.
-     * Runs the exact same provider chain as [generate] (user key → Aura Worker → free Pollinations
-     * models, with the same 429/408/425/5xx + Retry-After retries), so the modify feature inherits the
+     * Runs the exact same provider chain as [generate] (user key → Aura Worker, with the same
+     * 429/408/425/5xx + Retry-After retries), so the modify feature inherits the
      * "never says IA ocupada for a transient blip" behavior for free.
      *
      * [currentTracks] is the playlist in display order. Only positional indices cross the wire — see
@@ -216,9 +196,9 @@ object AiPlaylistService {
 
     /**
      * THE provider chain, shared by [generate] and [modify] so the two can never drift apart:
-     * user key → Aura Worker probe → free Pollinations models. [parse] turns a successful completion's
-     * text into the caller's result type; everything else (ordering, retries, fast-fail rules) is
-     * identical for both features.
+     * user key → Aura Worker probe. [parse] turns a successful completion's text into the caller's
+     * result type; everything else (ordering, retries, fast-fail rules) is identical for both
+     * features.
      */
     private suspend fun <T> runChain(
         messages: JSONArray,
@@ -232,6 +212,9 @@ object AiPlaylistService {
         parse: (String) -> Result<T>,
     ): Result<T> {
         // 1. User key override: their provider/baseUrl/model, exactly the pre-existing behavior.
+        //    Groq lands here too: it is OpenAI-compatible, so "Groq" + its baseUrl + a gpt-oss model
+        //    needs NO dedicated code path — the BYO request carries it byte-identically (row 198's
+        //    "user key = full control" invariant).
         if (apiKey.isNotBlank()) {
             if (provider in UNSUPPORTED_PROVIDERS) {
                 return Result.failure(UnsupportedProviderException(provider))
@@ -250,7 +233,11 @@ object AiPlaylistService {
 
         // 2. Aura Worker (keyless primary). Probe-style: only a 5xx from a deployed Worker is retried;
         // a 4xx (incl. the current not-yet-deployed 404) or a 200 with no usable content fast-fails
-        // so we fall through to Pollinations without burning retries on a route that isn't serving.
+        // and the chain ENDS (Pollinations, the old third rung, was cut on 2026-09-04 — see the header).
+        // The result is WRAPPED in AiServiceUnavailableException on failure so the "Editar con IA"
+        // dialog keeps its friendly "service busy" message + its "open AI settings" button (the
+        // contract the header above still promises). Generate/AutoReco are unaffected: both consume
+        // with getOrNull() and fall to their non-AI fallbacks exactly as before.
         val workerResult = requestChatCompletion(
             url = AURA_WORKER_URL,
             apiKey = null,
@@ -262,31 +249,10 @@ object AiPlaylistService {
             maxRetries = KEYLESS_MAX_RETRIES,
             retryEmptyContent = false,
         )
-        if (workerResult.isSuccess) return workerResult
-
-        // 3. Pollinations fallback (keyless) — try SEVERAL free models in turn until one returns a
-        // usable playlist. A busy/rate-limited/empty model just advances to the next; only if EVERY
-        // model fails does the keyless chain give up. For generation the caller (AiPlaylistGenerator)
-        // then builds a non-AI playlist from search/radio, so the feature never dead-ends on
-        // "servicio no disponible"; for modification the caller no-ops instead (never guesses an edit).
-        var lastFailure: Throwable? = null
-        for (pollModel in POLLINATIONS_MODELS) {
-            val r = requestChatCompletion(
-                url = POLLINATIONS_URL,
-                apiKey = null,
-                model = pollModel,
-                messages = messages,
-                maxTokens = maxTokens,
-                temperature = temperature,
-                parse = parse,
-                maxRetries = POLLINATIONS_MAX_RETRIES,
-                retryEmptyContent = true,
-            )
-            if (r.isSuccess) return r
-            lastFailure = r.exceptionOrNull()
-        }
-
-        return Result.failure(AiServiceUnavailableException(lastFailure))
+        return workerResult.fold(
+            onSuccess = { Result.success(it) },
+            onFailure = { Result.failure(AiServiceUnavailableException(it)) },
+        )
     }
 
     /**
@@ -296,7 +262,8 @@ object AiPlaylistService {
      * [retryEmptyContent] controls how a "reachable but useless" reply is treated (a 200 with an
      * empty body, or a 200 whose choices[0].message.content is missing/blank — e.g. an undeployed
      * Worker stub like {"status":"invalid"}):
-     *  - true  (Pollinations): keep retrying up to [maxRetries], it flakes transiently.
+     *  - true (keyless empty-content retries): keep retrying up to [maxRetries]. (Was sized for
+     *    Pollinations; now only the Worker's transient blips use it.)
      *  - false (Aura Worker probe): fast-fail immediately so the chain falls through without wasting
      *    retries on a route that isn't actually serving completions.
      * A genuine 5xx is retried regardless of this flag, since it signals a deployed-but-hiccuping
@@ -319,11 +286,11 @@ object AiPlaylistService {
             // Generate uses ~0.25 so the model sticks to the brief; modify stays a bit freer.
             put("temperature", temperature)
             put("max_tokens", maxTokens)
-            // Keyless fallbacks (Pollinations "openai", some Workers AI models) route to REASONING models
-            // that otherwise burn the whole token budget on hidden reasoning and return null content
-            // (finish_reason "length") → "servicio ocupado". "low" makes them emit the JSON in ~5s.
-            // KEYLESS CHAIN ONLY (apiKey null/blank): some BYO-key providers hard-reject unknown
-            // fields, so the user-key request body stays byte-identical to the pre-existing one.
+            // Keyless requests can burn the whole token budget on hidden reasoning and return null
+            // content (finish_reason "length") → "servicio ocupado". "low" makes them emit the
+            // JSON in ~5s. KEYLESS CHAIN ONLY (apiKey null/blank): some BYO-key providers
+            // hard-reject unknown fields, so the user-key request body stays byte-identical to
+            // the pre-existing one.
             if (apiKey.isNullOrBlank()) {
                 put("reasoning_effort", "low")
             }
@@ -363,7 +330,7 @@ object AiPlaylistService {
                 val responseBody: String? = body
 
                 if (code < 200 || code >= 300) {
-                    // Retry rate-limits (429) and 408/425 too, not only 5xx. HTTP 429 is Pollinations'
+                    // Retry rate-limits (429) and 408/425 too, not only 5xx. HTTP 429 is the Worker's
                     // single most common failure; the old `>= 500` check treated it as a hard error and
                     // returned immediately with zero retries — the main cause of the "IA ocupada / no
                     // disponible" the user keeps seeing. Honor Retry-After when the server sends it
@@ -420,7 +387,7 @@ object AiPlaylistService {
 
                 // Reachable but no usable content. For the Worker probe (retryEmptyContent=false)
                 // this means "not really serving completions" (e.g. an undeployed {"status":"invalid"}
-                // stub) → fail fast and fall through to Pollinations instead of retrying a dead route.
+                // stub) → fail fast so the chain ends cleanly instead of retrying a dead route.
                 if (!retryEmptyContent) {
                     return Result.failure(Exception("Empty AI response"))
                 }

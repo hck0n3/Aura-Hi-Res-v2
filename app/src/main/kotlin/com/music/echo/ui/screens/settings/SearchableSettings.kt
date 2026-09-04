@@ -340,6 +340,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.lyrics_romanize_title), "Romanización", "settings/content/romanization"),
             // --- Traduccion de letras IA (settings/ai) : 28 ---
             Triple(stringResource(R.string.ai_provider_openrouter_help), "Traducción de letras IA", "settings/ai"),
+            Triple(stringResource(R.string.ai_provider_groq_help), "Traducción de letras IA", "settings/ai"),
             Triple(stringResource(R.string.ai_provider_openai_help), "Traducción de letras IA", "settings/ai"),
             Triple(stringResource(R.string.ai_provider_perplexity_help), "Traducción de letras IA", "settings/ai"),
             Triple(stringResource(R.string.ai_provider_gemini_help), "Traducción de letras IA", "settings/ai"),

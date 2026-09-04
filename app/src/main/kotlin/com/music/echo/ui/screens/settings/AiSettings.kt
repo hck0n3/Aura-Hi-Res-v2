@@ -80,6 +80,7 @@ fun AiSettings(
 
     val aiProviders = mapOf(
         "OpenRouter" to "https://openrouter.ai/api/v1/chat/completions",
+        "Groq" to "https://api.groq.com/openai/v1/chat/completions",
         "OpenAI" to "https://api.openai.com/v1/chat/completions",
         "Perplexity" to "https://api.perplexity.ai/chat/completions",
         "Gemini" to "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
@@ -92,6 +93,7 @@ fun AiSettings(
 
     val providerHelpText = mapOf(
         "OpenRouter" to stringResource(R.string.ai_provider_openrouter_help),
+        "Groq" to stringResource(R.string.ai_provider_groq_help),
         "OpenAI" to stringResource(R.string.ai_provider_openai_help),
         "Perplexity" to stringResource(R.string.ai_provider_perplexity_help),
         "Gemini" to stringResource(R.string.ai_provider_gemini_help),
@@ -110,6 +112,15 @@ fun AiSettings(
             "deepseek/deepseek-v3.1-terminus:exacto",
             "openai/gpt-4o-mini",
             "google/gemini-3-flash-preview"
+        ),
+        "Groq" to listOf(
+            // Groq free tier, live-probed against console.groq.com on 2026-09-04. Only the gpt-oss
+            // models are listed: they sit in the PRODUCTION table (500-1000 tok/s, ~2-4s per playlist,
+            // no training on your data). The qwen 3.6/3.8 entries are in Groq's "Preview models"
+            // table, which "may be discontinued at short notice" — a silent model_not_found someday
+            // is exactly the row-42 class of failure, so they stay out (adversarial audit finding #6).
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b"
         ),
         "OpenAI" to listOf(
             "gpt-4o-mini",

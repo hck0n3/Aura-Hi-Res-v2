@@ -865,6 +865,7 @@
     <string name="ai_provider_openrouter_help">Visit openrouter.ai for free and paid models</string>
     <string name="ai_provider_mistral_help">Visit console.mistral.ai/api-keys</string>
     <string name="ai_provider_openai_help">Visit platform.openai.com/api-keys</string>
+    <string name="ai_provider_groq_help">Free and fast: 1) Sign up at console.groq.com 2) API Keys → Create API Key 3) Paste it below. 1000 requests/day, no card needed</string>
     <string name="ai_provider_claude_help">Visit console.anthropic.com/settings/keys</string>
     <string name="ai_provider_gemini_help">Visit aistudio.google.com/apikey</string>
     <string name="ai_provider_perplexity_help">Visit perplexity.ai/settings/api</string>
