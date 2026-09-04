@@ -1330,7 +1330,23 @@ class SpotifyImportRepository @Inject constructor(
         data class Failure(val reason: SpotifyImportFailureReason) : ItemMatchOutcome()
     }
 
+    /**
+     * Screen-side entry point for the full-screen Spotify login (2026-09-04): the login is now a
+     * NavHost screen with no ViewModel of its own, so it reaches this @Singleton repository the
+     * same way LoginScreen reaches MusicDatabase (EntryPoint.get(context) + applicationScope).
+     */
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface SpotifyImportRepositoryEntryPoint {
+        fun spotifyImportRepository(): SpotifyImportRepository
+    }
+
     companion object {
+        fun get(context: android.content.Context): SpotifyImportRepository =
+            dagger.hilt.android.EntryPointAccessors
+                .fromApplication(context.applicationContext, SpotifyImportRepositoryEntryPoint::class.java)
+                .spotifyImportRepository()
+
         // YouTube matching runs one search per track. A big library (4000+ liked songs) at high
         // concurrency trips YouTube's IP rate-limiter, which also throttles live-playback stream
         // resolution (the song-change "hangs for minutes" bug). We keep a moderate ceiling AND back

@@ -539,6 +539,13 @@ fun NavGraphBuilder.navigationBuilder(
         LoginScreen(navController)
     }
 
+    // Spotify login — full-screen structural clone of the Google login (2026-09-04: the
+    // ModalBottomSheet variant never rendered on the owner's S26 Ultra — see the header
+    // of SpotifyLoginScreen.kt and registry row 207/209).
+    composable("spotify_login") {
+        SpotifyLoginScreen(navController)
+    }
+
     composable("onboarding_artists") {
         OnboardingArtistsScreen(navController)
     }

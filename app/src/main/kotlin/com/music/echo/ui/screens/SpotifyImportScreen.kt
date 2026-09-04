@@ -72,7 +72,6 @@ fun SpotifyImportScreen(
     val skin = rememberAuraPanelSkin()
     val ground = if (skin.enabled && skin.darkGround) AuraPalette.Ground else MaterialTheme.colorScheme.background
 
-    var showSpotifyLogin by remember { mutableStateOf(false) }
     var showSpotifySources by remember { mutableStateOf(false) }
     var showAddByLinkDialog by remember { mutableStateOf(false) }
     var linkInput by remember { mutableStateOf("") }
@@ -83,6 +82,14 @@ fun SpotifyImportScreen(
     val (autoSyncCsv, setAutoSyncCsv) = rememberPreference(SpotifyAutoSyncSourceIdsKey, "")
     val autoSyncIds = remember(autoSyncCsv) {
         autoSyncCsv.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+    }
+
+    // Full-screen login (2026-09-04): the login is a NavHost screen now — coming back from it
+    // must refresh the session state (the ViewModel is scoped to this screen's backStackEntry,
+    // so its init does not re-run on return; restoreSession is idempotent).
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        spotifyImportViewModel.restoreSession()
+        onPauseOrDispose { }
     }
     fun freqLabel(days: Int) = when (days) {
         1 -> "Diaria"
@@ -163,7 +170,7 @@ fun SpotifyImportScreen(
                             description = { Text(stringResource(R.string.spotify_not_connected)) },
                             icon = painterResource(R.drawable.ic_spotify),
                             enabled = state.progress == null && !state.isLoading,
-                            onClick = { showSpotifyLogin = true }
+                            onClick = { navController.navigate("spotify_login") }
                         ),
                         // A PUBLIC playlist link needs no login — offer the paste-link path here too, so
                         // it matches the About promise and works straight from a logged-out state.
@@ -268,16 +275,6 @@ fun SpotifyImportScreen(
                 }
             }
         }
-    }
-
-    if (showSpotifyLogin) {
-        SpotifyLoginSheet(
-            onDismiss = { showSpotifyLogin = false },
-            onCookiesCaptured = { spDc, spKey ->
-                showSpotifyLogin = false
-                spotifyImportViewModel.connectWithCookies(spDc = spDc, spKey = spKey)
-            },
-        )
     }
 
     if (showAddByLinkDialog) {
@@ -469,274 +466,6 @@ fun SpotifyImportScreen(
             }
         }
     }
-}
-
-@Composable
-private fun SpotifyLoginSheet(
-    onDismiss: () -> Unit,
-    onCookiesCaptured: (spDc: String, spKey: String) -> Unit,
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var webView by remember { mutableStateOf<WebView?>(null) }
-    var captured by remember { mutableStateOf(false) }
-    // Last URL the blank-page rescue already reloaded — bounds the rescue to one retry per URL.
-    var lastRescuedUrl by remember { mutableStateOf<String?>(null) }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            webView?.stopLoading()
-            webView?.loadUrl("about:blank")
-            webView?.destroy()
-            webView = null
-        }
-    }
-
-    ModalBottomSheet(
-        modifier = Modifier.fillMaxHeight(),
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.spotify_login_title),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = stringResource(R.string.spotify_waiting_for_login),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(MaterialTheme.shapes.large),
-                factory = { context ->
-                    WebView(context).apply {
-                        val cookieManager = CookieManager.getInstance()
-                        cookieManager.setAcceptCookie(true)
-                        cookieManager.setAcceptThirdPartyCookies(this, true)
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        // Hardening: only loads the remote Spotify login page — deny local file/content access.
-                        settings.allowFileAccess = false
-                        settings.allowContentAccess = false
-                        settings.setSupportZoom(true)
-                        settings.builtInZoomControls = true
-                        settings.displayZoomControls = false
-                        // Desktop UA — RETIRED (audit 2026-09-04, owner report: "el login de Spotify
-                        // SIGUE sin mostrar nada"): the frozen Chrome/Windows UA was adopted for a
-                        // failure mode that does NOT reproduce today (curl: the "; wv" UA receives
-                        // the same HTML, same buildId, same chunks), and it is the only substantive
-                        // difference with the Google login that DOES load on the same device. The
-                        // WebView presented UA=Windows while its Sec-CH client hints said Android —
-                        // a contradictory fingerprint in front of Spotify's Signal Sciences WAF,
-                        // the top suspect for a silently challenged/blocked response. Use the REAL
-                        // WebView identity (the default UA of this very WebView) minus the "; wv"
-                        // token, and let the instrumentation below leave the true cause in app.log
-                        // if the sheet still fails.
-                        settings.userAgentString =
-                            settings.userAgentString.replace("; wv", "")
-
-                        webViewClient = object : WebViewClient() {
-                            private fun captureCookies(url: String?): Boolean {
-                                if (captured) return true
-                                val cookies = readSpotifyCookies(cookieManager, url)
-                                val spDc = cookies["sp_dc"].orEmpty()
-                                if (spDc.isBlank()) return false
-                                captured = true
-                                cookieManager.flush()
-                                Timber.i("SpotifyLogin: sp_dc captured, finishing")
-                                onCookiesCaptured(spDc, cookies["sp_key"].orEmpty())
-                                return true
-                            }
-
-                            override fun shouldOverrideUrlLoading(
-                                view: WebView,
-                                request: WebResourceRequest,
-                            ): Boolean {
-                                // PASSIVE capture (audit 2026-09-04): returning true here means
-                                // "the app handles this URL" and the WebView never navigates. The
-                                // pre-login flow has no sp_dc, so the old code returned false and
-                                // navigation worked — but a stale sp_dc left over from a failed
-                                // wipe would return true and silently BLOCK the login page itself
-                                // (sheet closes instantly). Capture is passive: onPageStarted /
-                                // onPageFinished observe cookies, they never veto navigation.
-                                captureCookies(request.url?.toString())
-                                return false
-                            }
-
-                            override fun onPageStarted(
-                                view: WebView,
-                                url: String?,
-                                favicon: android.graphics.Bitmap?,
-                            ) {
-                                Timber.i("SpotifyLogin: page started")
-                                captureCookies(url)
-                            }
-
-                            override fun onPageFinished(view: WebView, url: String?) {
-                                captureCookies(url)
-                                // Live-DOM probe (rows 189/190 lesson). The server HTML of the
-                                // Spotify login paints the form WITHOUT any JS (SSR — verified
-                                // live: input#username, login-button and form all outside
-                                // <noscript>), so "did the page paint" can NOT be tested by looking
-                                // for form controls — the previous probe was a structural no-op
-                                // that always said "hydrated". The anchor that DOES distinguish a
-                                // live page from a JS-crashed one: #__next childElementCount —
-                                // SSR leaves > 0; a hydration crash that unmounts React leaves 0;
-                                // a page that never finished loading never reaches this probe at
-                                // all (onPageFinished does not fire). One retry per URL.
-                                if (!captured && url != null && url.contains("accounts.spotify.com")) {
-                                    view.evaluateJavascript(
-                                        "(document.getElementById('__next') ? document.getElementById('__next').childElementCount : -1)"
-                                    ) { children ->
-                                        val live = children?.trim()?.toIntOrNull() ?: -1
-                                        if (live <= 0 && lastRescuedUrl != url) {
-                                            lastRescuedUrl = url
-                                            Timber.w("SpotifyLogin: login DOM empty after load (next children=$live), reloading once")
-                                            view.postDelayed({ if (!captured) view.reload() }, 1500L)
-                                        }
-                                    }
-                                }
-                            }
-
-                            override fun onReceivedError(
-                                view: WebView,
-                                request: WebResourceRequest,
-                                error: android.webkit.WebResourceError,
-                            ) {
-                                // Main-frame errors only (subresource noise is huge), code +
-                                // description without the URL — the URL can carry user data.
-                                if (request.isForMainFrame) {
-                                    Timber.e("SpotifyLogin: main-frame error ${error.errorCode}: ${error.description}")
-                                }
-                                super.onReceivedError(view, request, error)
-                            }
-
-                            override fun onReceivedHttpError(
-                                view: WebView,
-                                request: WebResourceRequest,
-                                errorResponse: android.webkit.WebResourceResponse,
-                            ) {
-                                if (request.isForMainFrame) {
-                                    val host = request.url?.host ?: "unknown"
-                                    Timber.e("SpotifyLogin: HTTP ${errorResponse.statusCode} on $host")
-                                }
-                                super.onReceivedHttpError(view, request, errorResponse)
-                            }
-
-                            override fun onTooManyRedirects(
-                                view: WebView,
-                                cancelMsg: android.os.Message?,
-                                continueMsg: android.os.Message?,
-                            ) {
-                                Timber.e("SpotifyLogin: too many redirects")
-                                super.onTooManyRedirects(view, cancelMsg, continueMsg)
-                            }
-
-                            override fun onRenderProcessGone(
-                                view: WebView,
-                                detail: android.webkit.RenderProcessGoneDetail,
-                            ): Boolean {
-                                // targetSdk 36: without this override a dead renderer KILLS THE APP.
-                                // Log, drop the WebView and close the sheet — never crash the app
-                                // over a login page.
-                                Timber.e("SpotifyLogin: renderer gone (crashed=${detail.didCrash()}), closing sheet")
-                                view.post { onDismiss() }
-                                return true
-                            }
-                        }
-                        webChromeClient = object : android.webkit.WebChromeClient() {
-                            override fun onConsoleMessage(msg: android.webkit.ConsoleMessage): Boolean {
-                                // A hydration crash of the login SPA shows up HERE (uncaught
-                                // exceptions surface as console errors), never in the WebViewClient.
-                                val text = msg.message()
-                                if (text.length > 220) {
-                                    Timber.w("SpotifyLogin console[${msg.messageLevel()}]: ${text.substring(0, 220)}…")
-                                } else {
-                                    Timber.w("SpotifyLogin console[${msg.messageLevel()}]: $text")
-                                }
-                                return true
-                            }
-
-                            override fun onProgressChanged(view: WebView, newProgress: Int) {
-                                if (newProgress in listOf(25, 50, 100)) {
-                                    Timber.i("SpotifyLogin: progress $newProgress%")
-                                }
-                            }
-                        }
-                        webView = this
-                        // Awaited cookie cleanup (login white-screen fix): removeAllCookies is async;
-                        // loading the login URL in parallel raced the cleanup and could wipe the
-                        // session mid-handshake. resetAuthWebViewSession already encapsulates the
-                        // correct await-and-flush sequence — reuse it instead of duplicating it.
-                        resetAuthWebViewSession(
-                            context = context,
-                            webView = this,
-                            clearCookies = true,
-                        ) {
-                            Timber.i("SpotifyLogin: cleanup delivered, loading login URL")
-                            loadUrl(SpotifyAuth.LOGIN_URL)
-                        }
-                    }
-                },
-                update = { view ->
-                    webView = view
-                },
-            )
-        }
-    }
-}
-
-private fun readSpotifyCookies(
-    cookieManager: CookieManager,
-    currentUrl: String?,
-): Map<String, String> {
-    val urls = linkedSetOf(
-        "https://open.spotify.com",
-        "https://accounts.spotify.com",
-        "https://spotify.com",
-    )
-    currentUrl?.toSpotifyCookieOrigin()?.let(urls::add)
-    val cookies = linkedMapOf<String, String>()
-    cookieManager.flush()
-    urls.forEach { url ->
-        cookieManager.getCookie(url)
-            ?.split(";")
-            ?.map(String::trim)
-            ?.filter(String::isNotBlank)
-            ?.forEach { part ->
-                val separator = part.indexOf('=')
-                if (separator <= 0) return@forEach
-                val key = part.substring(0, separator).trim()
-                val value = part.substring(separator + 1).trim()
-                if (key.isNotBlank()) {
-                    cookies[key] = value
-                }
-            }
-    }
-    return cookies
-}
-
-private fun String.toSpotifyCookieOrigin(): String? {
-    val uri = runCatching { Uri.parse(this) }.getOrNull() ?: return null
-    val host = uri.host?.lowercase() ?: return null
-    if (host != "spotify.com" && !host.endsWith(".spotify.com")) return null
-    val scheme = uri.scheme
-        ?.takeIf { it.equals("https", ignoreCase = true) || it.equals("http", ignoreCase = true) }
-        ?: "https"
-    return "$scheme://$host"
 }
 
 @Composable
