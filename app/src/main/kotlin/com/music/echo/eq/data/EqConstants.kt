@@ -92,12 +92,13 @@ enum class FactoryPreset(val displayName: String, val description: String, val g
 
     AR_SOUND_V2("AR-SOUND V2", "Evolución de la firma del dueño: bajo y sub-bajo con más cuerpo, medios bajos limpios y agudos con más aire.", floatArrayOf(9.0f, 6.0f, 1.0f, -1.0f, -2.0f, 0f, 1.0f, 0f, 2.0f, 3.0f)),
 
-    // Owner directive 2026-08-31: the headphone house curve is REPLACED by an exact 10-band spec —
-    // 31 Hz +6, 62 +4, 125 +2, 250 0, 500 0, 1k 0, 2k +1, 4k +1, 8k +2, 16k +3. Same entry, same
-    // name: only the gains change (was 6,4,1,-1,0,0,1,0,1,2 — row 163, 2026-08-26). Fresh installs
-    // seed this curve via migrateAudioDefaultsV2 (App.kt); existing installs get it by tapping the
-    // "Aura Hi-Res" chip once, same accepted scope as row 163.
-    AURA_HI_RES("Aura Hi-Res", "La firma de la casa: graves con cuerpo, medios limpios y agudos con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(6.0f, 4.0f, 2.0f, 0f, 0f, 0f, 1.0f, 1.0f, 2.0f, 3.0f))
+    // Owner directive 2026-08-31 (updated 2026-09-04): the headphone house curve is REPLACED by an
+    // exact 10-band spec — 31 Hz +5, 62 +4, 125 +2, 250 0, 500 0, 1k +1, 2k 0, 4k +1, 8k +2,
+    // 16k +3. Same entry, same name: only the gains change (was the 2026-08-31 spec
+    // 6,4,2,0,0,0,1,1,2,3 — row 163/199 lineage; the original row-163 seed was 6,4,1,-1,0,0,1,0,1,2).
+    // Fresh installs seed this curve via migrateAudioDefaultsV2 (App.kt); existing installs get
+    // it by tapping the "Aura Hi-Res" chip once, same accepted scope as rows 163/199.
+    AURA_HI_RES("Aura Hi-Res", "La firma de la casa: graves con cuerpo, medios limpios y agudos con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(5.0f, 4.0f, 2.0f, 0f, 0f, 1.0f, 0f, 1.0f, 2.0f, 3.0f))
 }
 
 /** Per-band tolerance (dB) used to decide whether the live gains still "are" a factory preset. */
