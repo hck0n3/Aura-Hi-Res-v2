@@ -3,14 +3,20 @@
 // AÑADIDO: binding Workers AI "AI" para la ruta /ai (AI Playlists sin clave).
 const GUMROAD_VERIFY = "https://api.gumroad.com/v2/licenses/verify";
 const INACTIVITY_MS = 2 * 24 * 60 * 60 * 1000; // auto-release after 2 days idle
-// Lista de modelos en orden de preferencia. Se prueba de arriba abajo y se usa el PRIMERO que responda:
-// así, si Cloudflare deprecia uno (error 5028), el Worker cae solo al siguiente sin tocar nada.
+// Lista de modelos en orden de CALIDAD, no de disponibilidad a secas (reporte del dueño
+// 2026-09-04: "la IA crea las playlists más RÁPIDO pero NADA QUE VER con lo que pido").
+// Probes en vivo con el payload exacto de la app: cuando el 70B intermite (capacidad de
+// Workers AI), el eslabón 2 era llama-3.2-3b — un modelo diminuto que IGNORA instrucciones
+// complejas e INVENTA parejas título↔artista ("Ave Maria" de Einaudi, "Ondine" de Debussy...),
+// respondiendo en 6-12s en vez de 17-25s: exactamente "más rápido pero nada que ver". El 3B
+// queda FUERA de la cascada; si el 70B falla se cae a modelos que sí sostienen el contrato
+// anti-invención (fila 198): scout-17b (multimodal, instrucciones complejas) → mistral-24b →
+// 8b-fast como ÚLTIMO recurso. Se sigue usando el primero que RESPONDA.
 const AI_MODELS = [
   "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-  "@cf/meta/llama-3.2-3b-instruct",
-  "@cf/meta/llama-3.1-8b-instruct-fast",
-  "@cf/mistralai/mistral-small-3.1-24b-instruct",
   "@cf/meta/llama-4-scout-17b-16e-instruct",
+  "@cf/mistralai/mistral-small-3.1-24b-instruct",
+  "@cf/meta/llama-3.1-8b-instruct-fast",
 ];
 const AI_DAILY_LIMIT = 30;
 
@@ -102,11 +108,12 @@ async function handleAi(request, env) {
   );
   const effectiveMessages = isPlaylistRequest ? messages.concat(AI_ANTI_HALLUCINATION_BOOST) : messages;
   let result = null;
+  let usedModel = null;
   let lastErr = "no model available";
   for (const model of AI_MODELS) {
     try {
       const r = await env.AI.run(model, { messages: effectiveMessages, max_tokens: body.max_tokens || 2048 });
-      if (r && typeof r.response === "string") { result = r; break; }
+      if (r && typeof r.response === "string") { result = r; usedModel = model; break; }
     } catch (e) {
       lastErr = (e && e.message) ? e.message : String(e);
     }
@@ -114,7 +121,11 @@ async function handleAi(request, env) {
   if (!result) return json({ error: { message: "Workers AI error: " + lastErr } }, 500);
 
   await env.LICENSES.put(rlKey, String(used + 1), { expirationTtl: 172800 });
-  return json({ choices: [{ message: { role: "assistant", content: result.response || "" } }] });
+  // "model" expone QUÉ eslabón respondió: la cascada conmuta en silencio y desde fuera era
+  // imposible distinguir un 70B correcto de un relleno inventando canciones (2026-09-04 — el
+  // diagnóstico requirió inferir por velocidad/estilo). La app ignora el campo (solo Lee el
+  // choices[].message.content), así que es aditivo y retrocompatible.
+  return json({ model: usedModel, choices: [{ message: { role: "assistant", content: result.response || "" } }] });
 }
 
 async function handleDemo(request, env) {

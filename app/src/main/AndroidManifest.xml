@@ -51,6 +51,13 @@
             <action android:name="android.intent.action.SENDTO" />
             <data android:scheme="mailto" />
         </intent>
+        <!-- Voice search (owner report 2026-09-04: "el botón de voz no hace ninguna animación"):
+             with targetSdk 36, SpeechRecognizer.isRecognitionAvailable() needs this query entry to
+             SEE the on-device recognition services (Samsung's, Google's). Without it the in-process
+             recognizer route is unreachable and the mic falls to a feedback-less fallback. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
     </queries>
     <!-- HALLAZGO-023 (resuelto 2026-08-25): LTR-only es una decisión de producto DELIBERADA, no un
          olvido. La app no trae traducciones RTL y sus pantallas no están probadas bajo espejado;

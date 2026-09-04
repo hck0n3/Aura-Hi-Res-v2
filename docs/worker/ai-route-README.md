@@ -10,6 +10,38 @@ respuesta en formato OpenAI: `{"choices":[{"message":{"content":"..."}}]}`.
 
 ---
 
+## ⚠️ 2026-09-04 — Cascada REORDENADA por calidad + 3B FUERA (reporte del dueño: "más rápido pero NADA QUE VER")
+
+**Qué cambió** (rate limit, refuerzo anti-invención condicional, reshape OpenAI y rutas
+`/verify`+`/demo` quedan IGUAL):
+
+1. `AI_MODELS` reordenado por CALIDAD y sin el 3B:
+   ```js
+   const AI_MODELS = [
+     "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+     "@cf/meta/llama-4-scout-17b-16e-instruct",
+     "@cf/mistralai/mistral-small-3.1-24b-instruct",
+     "@cf/meta/llama-3.1-8b-instruct-fast",
+   ];
+   ```
+2. La respuesta ahora incluye `"model"` con el eslabón que respondió (aditivo; la app solo lee
+   `choices[].message.content`).
+
+**Por qué:** probes en vivo (2026-09-04, payload exacto de la app) mostraron que cuando el 70B
+intermite, el Worker conmutaba en silencio a `llama-3.2-3b-instruct` — un modelo diminuto que ignora
+instrucciones complejas e inventa parejas título↔artista ("Ave Maria" de Einaudi, "Ondine" de
+Debussy), respondiendo en 6-12s en vez de 17-25s. Ese failover es literalmente el síntoma "crea las
+listas más rápido pero nada que ver con lo que pido". El 70B correcto cumplía el contrato de las
+filas 198/200; el 3B lo violaba. Con el 3B fuera, un fallo del 70B cae a modelos que sí sostienen
+el contrato.
+
+**Cómo desplegarlo:** el archivo completo actualizado es `docs/worker/worker.js` — copiar el
+contenido entero en *Edit code* del dashboard (reemplaza todo) y **Deploy**. Verificar con el curl
+de la sección (b) paso 6: la respuesta debe traer `"model":"@cf/meta/llama-3.3-70b-instruct-fp8-fast"`
+(la mayoría de las veces) y el JSON de playlist correcto.
+
+---
+
 ## ⚠️ 2026-08-30 — Refuerzo ANTI-INVENCION (directiva del dueño: "la IA FUNCIONA pero NO improvise")
 
 **Qué cambió** (solo el bloque de instrucciones; rate limit, modelos en cascada, reshape OpenAI y

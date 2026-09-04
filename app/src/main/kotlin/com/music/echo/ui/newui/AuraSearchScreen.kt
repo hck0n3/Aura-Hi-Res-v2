@@ -195,6 +195,17 @@ fun AuraSearchScreen(
         if (searchActive) runCatching { focusRequester.requestFocus() }
     }
 
+    // Owner directive 2026-09-04: tapping the Buscar tab of the bottom bar must land with the
+    // keyboard OPEN and ready to type. Reuses the already-proven false→true path (the one the
+    // magnifier tap takes) instead of seeding searchActive=true: the initial composition runs
+    // before the FocusRequester is attached on the first frame, so seeding true would have the
+    // requestFocus silently swallowed — no keyboard (the classic screen's never-worked focus all
+    // over again, see the header note). This also re-arms on every tab re-entry (restoreState),
+    // which is exactly "every time I land on Buscar, keyboard ready".
+    LaunchedEffect(Unit) {
+        searchActive = true
+    }
+
     // HALLAZGO-049: seeded with the now-playing cover so Buscar follows the artwork live (owner:
     // palette on ALL screens); falls back to the brand bloom when nothing plays. The render dims
     // the bloom on the denser screens.
