@@ -50,4 +50,37 @@ class StreamCacheKeysTest {
         assertFalse(StreamCacheKeys.belongsTo("yt-stream-otherVideo-140", "dQw4w9WgXcQ"))
         assertFalse(StreamCacheKeys.belongsTo("dQw4w9WgXcQ", "dQw4w9WgXcQ")) // not a stream key
     }
+
+    // --- keysOf: the purge side of the stable-key design (ghost-bytes fix 2026-09-03). The
+    // listen bytes live under yt-stream-* keys, so a purge that only removeResource(mediaId)
+    // left them orphaned — keysOf is what every purge site must consult. ---
+
+    @Test
+    fun `keysOf returns every quality of the song and nothing else`() {
+        val keys = setOf(
+            "yt-stream-dQw4w9WgXcQ-140", // audio opus
+            "yt-stream-dQw4w9WgXcQ-774", // audio lossless
+            "yt-stream-dQw4w9WgXcQ-137", // VIDEO itag — same song, video bytes
+            "yt-stream-otherVideo-140",
+            "dQw4w9WgXcQ", // a mediaId key (podcast/Qobuz-style)
+        )
+        assertEquals(
+            setOf("yt-stream-dQw4w9WgXcQ-140", "yt-stream-dQw4w9WgXcQ-774", "yt-stream-dQw4w9WgXcQ-137"),
+            StreamCacheKeys.keysOf(keys, "dQw4w9WgXcQ"),
+        )
+    }
+
+    @Test
+    fun `keysOf is empty when the song has no stream keys`() {
+        assertTrue(StreamCacheKeys.keysOf(setOf("yt-stream-other-140", "someMediaId"), "dQw4w9WgXcQ").isEmpty())
+    }
+
+    @Test
+    fun `keysOf handles blank songId and dashed videoIds`() {
+        assertTrue(StreamCacheKeys.keysOf(setOf("yt-stream-x-1"), "").isEmpty())
+        assertEquals(
+            setOf("yt-stream-ab-cd-140", "yt-stream-ab-cd-137"),
+            StreamCacheKeys.keysOf(setOf("yt-stream-ab-cd-140", "yt-stream-ab-cd-137"), "ab-cd"),
+        )
+    }
 }

@@ -42,4 +42,15 @@ object StreamCacheKeys {
 
     /** True when [key] is a listen-cache key belonging to [songId] (any cached quality). */
     fun belongsTo(key: String, songId: String): Boolean = songIdOf(key) == songId
+
+    /**
+     * ALL listen-cache keys of [songId], as present in [keys] (a live snapshot such as
+     * `playerCache.keys`). This is the purge side of the 2026-08-29 stable-key design: the bytes of a
+     * streamed song live under `yt-stream-<videoId>-<itag>`, NOT under the mediaId — so every purge
+     * that removed `removeResource(mediaId)` left the real bytes orphaned on disk (invisible to the
+     * app, never served again, only collectable by the LRU evictor or a full cache wipe). Callers that
+     * need to drop a song's listen bytes must drop EVERY key returned here.
+     */
+    fun keysOf(keys: Set<String>, songId: String): Set<String> =
+        if (songId.isBlank()) emptySet() else keys.filterTo(mutableSetOf()) { belongsTo(it, songId) }
 }

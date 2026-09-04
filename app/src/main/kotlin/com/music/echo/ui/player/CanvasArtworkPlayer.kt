@@ -55,8 +55,12 @@ private const val CANVAS_PLAYER_SETTLE_DELAY_MS = 300L
  * disk cache every song in an album re-downloaded the identical video from the network (wasting
  * mobile data). With this cache a repeated URL is served from disk instead of being re-fetched.
  *
- * It lives in [Context.getCacheDir] (OS-evictable) with a 256 MB LRU cap, and is a process-wide
- * singleton so it never collides with the audio @PlayerCache / @DownloadCache directories.
+ * Lives in [Context.getFilesDir] (owner directive 2026-09-03: keep everything the app downloads
+ * for playback out of cacheDir — the OS may erase cacheDir whenever storage runs low, which made
+ * the animated covers silently vanish and re-download; filesDir survives like the song cache),
+ * with a 256 MB LRU cap, and is a process-wide singleton so it never collides with the audio
+ * @PlayerCache / @DownloadCache directories. Migration is not needed: cacheDir contents are
+ * disposable by contract, and a fresh cache simply re-downloads on first use.
  */
 object CanvasVideoCache {
     private const val MAX_BYTES = 256L * 1024 * 1024 // 256 MB LRU cap
@@ -65,7 +69,7 @@ object CanvasVideoCache {
     @Synchronized
     fun get(context: Context): SimpleCache {
         return cache ?: SimpleCache(
-            context.applicationContext.cacheDir.resolve("canvas_video"),
+            context.applicationContext.filesDir.resolve("canvas_video"),
             LeastRecentlyUsedCacheEvictor(MAX_BYTES),
             StandaloneDatabaseProvider(context.applicationContext),
         ).also { cache = it }

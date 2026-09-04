@@ -7075,18 +7075,30 @@ class MusicService :
     private fun performAggressiveCacheClear(mediaId: String) {
         Timber.tag(TAG).d("Performing aggressive cache clear for $mediaId")
 
-        
+
         songUrlCache.remove(mediaId)
 
-        
+
         try {
             playerCache.removeResource(mediaId)
+            // GHOST-BYTES FIX (owner directive 2026-09-03, Spotify-like cache): the streamed bytes of a
+            // song live under StreamCacheKeys ("yt-stream-<videoId>-<itag>"), NOT under the mediaId.
+            // removeResource(mediaId) removed a key that streaming never writes — the real bytes
+            // stayed orphaned on disk, still counted by the storage bar but never served again, and
+            // the NEXT play of the song re-downloaded everything (the "cada canción consume datos
+            // otra vez" report). Drop the song's actual listen-cache keys too. Same class as the
+            // "En caché" audit (2026-08-29): every consumer must agree with StreamCacheKeys or the
+            // listen-cache becomes invisible.
+            StreamCacheKeys.keysOf(playerCache.keys, mediaId).forEach { key ->
+                runCatching { playerCache.removeResource(key) }
+                    .onFailure { Timber.tag(TAG).d(it, "ghost-purge: removeResource($key) failed (non-fatal)") }
+            }
             Timber.tag(TAG).d("Cleared player cache for $mediaId")
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to clear player cache for $mediaId")
         }
 
-        
+
         try {
             YTPlayerUtils.forceRefreshForVideo(mediaId)
             Timber.tag(TAG).d("Cleared decryption caches for $mediaId")
@@ -7746,6 +7758,17 @@ class MusicService :
                     shouldBypassCache = true
                     Timber.tag(TAG).i("Quality changed to $lockedQuality for $mediaId. Clearing playerCache to prevent container mismatch.")
                     playerCache.removeResource(mediaId)
+                    // GHOST-BYTES FIX 2026-09-03: the listen bytes live under yt-stream-* keys, not
+                    // mediaId — purge those too or the old-container bytes stay orphaned on disk while
+                    // the next open re-downloads the whole song (data waste + phantom storage usage).
+                    // NOTE (audit FASE 2-A #4, deliberate): keysOf covers the song's VIDEO bytes too
+                    // (same songId) — a quality change/corruption of the AUDIO also drops the cached
+                    // video, which will re-download on next view. Coherent with "one song = its keys"
+                    // and with clearSongCache's explicit refetch intent; documented so a future reader
+                    // doesn't mistake it for an oversight.
+                    StreamCacheKeys.keysOf(playerCache.keys, mediaId).forEach { key ->
+                        runCatching { playerCache.removeResource(key) }
+                    }
                 }
             }
 
@@ -7768,8 +7791,28 @@ class MusicService :
                     return@Factory dataSpec
                 }
 
-                if (playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
-                    songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+                // HONEST AUDIO CACHE HIT (adversarial audit FASE 2-A #1): the old isCached(mediaId)
+                // never hit because streamed bytes live under yt-stream-* keys; the first fix
+                // (any key of the song) over-counted VIDEO keys — video itags (137/136/muxed 22)
+                // also land in playerCache now, and dbFormat only reflects the last AUDIO delivery,
+                // so a video-only cache counted as an audio hit (StreamHealth lied, and a stale
+                // URL could be returned without re-resolve). Derive the EXACT audio key from the
+                // fresh URL we are about to serve and check only that one. If no fresh URL exists
+                // there is nothing to serve anyway (the block below needs it to return).
+                val freshUrlEntry = songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }
+                val audioCacheKey = freshUrlEntry?.url?.let { url ->
+                    val uri = url.toUri()
+                    if (uri.host?.endsWith("googlevideo.com") == true) {
+                        val vid = uri.getQueryParameter("id")
+                        if (!vid.isNullOrBlank()) StreamCacheKeys.build(vid, uri.getQueryParameter("itag")) else null
+                    } else {
+                        null
+                    }
+                }
+                if (playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH) ||
+                    (audioCacheKey != null && playerCache.isCached(audioCacheKey, dataSpec.position, CHUNK_LENGTH))
+                ) {
+                    freshUrlEntry?.let {
                         scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
                         StreamHealth.cacheHit()
                         refreshUrlIfNearExpiry(mediaId, it)
@@ -7886,6 +7929,12 @@ class MusicService :
                     if (isFinalLossless != cacheIsLossless || isFinalSaavn != cacheIsSaavn) {
                         Timber.tag(TAG).w("Format fallback detected AFTER fetch. Clearing playerCache to prevent mismatch crash.")
                         playerCache.removeResource(mediaId)
+                        // GHOST-BYTES FIX 2026-09-03: same as the pre-fetch guard above — the real
+                        // listen bytes sit under yt-stream-* keys; purge them or the stale-container
+                        // bytes remain orphaned on disk AND the re-open re-downloads everything.
+                        StreamCacheKeys.keysOf(playerCache.keys, mediaId).forEach { key ->
+                            runCatching { playerCache.removeResource(key) }
+                        }
 
                         // Don't throw when this is the FIRST open of a fresh period (position 0). There the
                         // extractor has not been sniffed yet, so it re-sniffs these very bytes and handles
@@ -8050,13 +8099,37 @@ class MusicService :
         ResolvingDataSource.Factory(
             DefaultDataSource.Factory(
                 this,
-                createCacheDataSource().apply {
-                    setUpstreamDataSourceFactory(
-                        ChunkingDataSourceFactory(
-                            androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(videoOkHttpClient),
-                        ),
-                    )
-                },
+                // VIDEO LISTEN-CACHE (owner directive 2026-09-03, Spotify-like cache): the old chain
+                // called createCacheDataSource().apply { setUpstreamDataSourceFactory(...) }, which
+                // REPLACED the outer factory's upstream and silently removed the inner playerCache
+                // WRITE layer from the path — every video-mode view re-downloaded the full video
+                // from the network (the largest data-burn gap left in the app: videos are 10-50×
+                // the bytes of audio). This is now the SAME two-layer chain the audio path uses:
+                // downloadCache for READ ONLY (a downloaded companion video serves offline via the
+                // resolver's id::video short-circuit below), then playerCache with the STABLE
+                // yt-stream-<videoId>-<videoItag> keys — video itags (137/136/247/…) never collide
+                // with audio itags (249/250/251/774/…), so one song's audio and video bytes sit side
+                // by side under distinguishable keys and both honor the user's MaxSongCacheSize.
+                CacheDataSource
+                    .Factory()
+                    .setCache(downloadCache)
+                    .setCacheWriteDataSinkFactory(null)
+                    // Adversarial audit FASE 2-A #3: the audio chain ends with FLAG_IGNORE_CACHE_ON_ERROR
+                    // and the OLD video chain inherited it from createCacheDataSource(); the first
+                    // rewrite dropped it — a CacheException (inconsistent spans, disk full while
+                    // writing) would have KILLED video playback instead of bypassing to network.
+                    .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+                    .setUpstreamDataSourceFactory(
+                        CacheDataSource
+                            .Factory()
+                            .setCache(playerCache)
+                            .setCacheKeyFactory(stableStreamCacheKeyFactory)
+                            .setUpstreamDataSourceFactory(
+                                ChunkingDataSourceFactory(
+                                    androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(videoOkHttpClient),
+                                ),
+                            ),
+                    ),
             ),
         ) { dataSpec ->
             songIdFromOfflineVideoCacheUri(dataSpec.uri.toString())?.let { songId ->
@@ -8227,7 +8300,9 @@ class MusicService :
         try {
             pre = createExoPlayer(isSecondary = true)
             pre.addListener(instantVideoPlayerListener)
-            pre.setMediaItem(item.buildUpon().setUri(url).build())
+            // setCustomCacheKey(null): audit FASE 2-B #1 — the pre-player's video item must not
+            // inherit the audio item's downloadCache key (same fix as swapToVideo/prebuild).
+            pre.setMediaItem(item.buildUpon().setUri(url).setCustomCacheKey(null).build())
             // Keyframe-aligned seeks for the whole pre-prepare life (mirrors swapToVideo's CLOSEST_SYNC swap
             // seek); restored to DEFAULT right after the publish seek in tryInstantVideoSwap.
             pre.setSeekParameters(androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC)
@@ -9424,6 +9499,13 @@ class MusicService :
         scope.launch(Dispatchers.IO) {
             runCatching { playerCache.removeResource(songId) }
                 .onFailure { Timber.tag(TAG).d(it, "clearSongCache: playerCache removal failed (non-fatal)") }
+            // GHOST-BYTES FIX 2026-09-03: "volver a obtener" must also drop the REAL listen bytes
+            // (yt-stream-* keys), or the old stream would still sit on disk while the refetch
+            // re-downloads — the user asked for a fresh stream, not for a second copy.
+            StreamCacheKeys.keysOf(playerCache.keys, songId).forEach { key ->
+                runCatching { playerCache.removeResource(key) }
+                    .onFailure { Timber.tag(TAG).d(it, "clearSongCache: yt-stream removal failed (non-fatal)") }
+            }
         }
         Timber.tag(TAG).i("clearSongCache: dropped cached stream URL + bytes for $songId")
     }

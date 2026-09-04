@@ -227,11 +227,20 @@ fun StorageSettings(
                     val budgetBytes = maxSongCacheSize * 1024L * 1024L
                     if (playerCache.cacheSpace > budgetBytes) {
                         // Never evict the song currently playing (registry row #35's rule: purging
-                        // the in-flight resource stutters playback mid-listen).
-                        val activeKey = activeSongId?.let { StreamCacheKeys.songIdOf(it) ?: it }
+                        // the in-flight resource stutters playback mid-listen). The active song's
+                        // bytes live under MULTIPLE keys — every yt-stream-<videoId>-<itag> of it
+                        // (audio qualities AND video itags) plus its plain mediaId — so protect
+                        // them ALL: matching only one key left the others evictable mid-listen
+                        // (adversarial audit FASE 2-B #2).
+                        val activeKeys = buildSet {
+                            activeSongId?.let { id ->
+                                add(id)
+                                addAll(StreamCacheKeys.keysOf(playerCache.keys, id))
+                            }
+                        }
                         // Oldest-touch first: a resource's last use is its newest span's timestamp.
                         val touched = playerCache.keys
-                            .filter { it != activeKey }
+                            .filter { it !in activeKeys }
                             .mapNotNull { key ->
                                 playerCache.getCachedSpans(key)
                                     .maxByOrNull { it.lastTouchTimestamp }

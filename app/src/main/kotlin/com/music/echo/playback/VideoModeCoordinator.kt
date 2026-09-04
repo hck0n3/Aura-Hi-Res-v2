@@ -453,6 +453,15 @@ class VideoModeCoordinator(private val service: MusicService) {
         // REAL metadata object instead, so every real field stays intact.
         val videoItem = item.buildUpon()
             .setUri(url)
+            // Adversarial audit FASE 2-B #1: buildUpon() KEEPS the audio item's customCacheKey
+            // (songId) — the video DataSpec then consulted downloadCache under the AUDIO's key,
+            // and a (partially) downloaded AUDIO could serve its bytes to the VIDEO extractor
+            // (container mismatch / black video, seek-position dependent). Null the key: with no
+            // key the outer layer falls back to the rotating googlevideo URL (never hits), and
+            // the inner layer's stableStreamCacheKeyFactory derives yt-stream-<id>-<videoItag>
+            // from the URL itself. The offline companion path is unaffected (the resolver
+            // rewrites key+uri to id::video before any cache layer runs).
+            .setCustomCacheKey(null)
             .setTag(
                 if (isMuxed) item.metadata?.copy(videoSwapNonce = System.nanoTime()) ?: item.localConfiguration?.tag
                 else item.localConfiguration?.tag
@@ -609,7 +618,12 @@ class VideoModeCoordinator(private val service: MusicService) {
                     videoModeItems[nextId] = VideoTrackState(resolved, origUri, muxed)
                     if (origUri != resolved) {
                         // Replace ONLY the upcoming (non-current) item → no STATE_BUFFERING on the running track.
-                        service.player.replaceMediaItem(idx, item.buildUpon().setUri(resolved).build())
+                        // setCustomCacheKey(null): same audit FASE 2-B #1 as swapToVideo — the video must
+                        // never inherit the audio item's downloadCache key.
+                        service.player.replaceMediaItem(
+                            idx,
+                            item.buildUpon().setUri(resolved).setCustomCacheKey(null).build(),
+                        )
                     }
                 }
             } finally {
