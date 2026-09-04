@@ -48,8 +48,15 @@ object CrossfadePlanning {
     const val TAIL_HINT_MAX_FRACTION_NUM = 2L
     const val TAIL_HINT_MAX_FRACTION_DEN = 5L
 
-    /** Extra window past the fade duration where the quiet tier is allowed to fire. */
-    const val QUIET_TIER_EXTRA_WINDOW_MS = 4_000L
+    /** Extra window past the fade duration where the quiet tier is allowed to fire.
+     * OWNER DIRECTIVE 2026-09-04 ("los adioses de las canciones no se cortan"): was 4_000L — the
+     * quiet tier (−25 dBFS, ≥2.5s) could fire up to fade+4s (~9s with the 5s house fade) before
+     * the real end, burying a soft-but-audible outro (piano/reverb decay) under the outgoing
+     * ramp + the incoming track rising. Now 0: the quiet tier may only fire INSIDE the fade
+     * window itself — the outro plays at full level until the normal blend point. The tier
+     * still exists for its real purpose (digital-silence endings starting the fade early),
+     * it just can no longer jump the gun on audible endings. */
+    const val QUIET_TIER_EXTRA_WINDOW_MS = 0L
 
     /** Floor for any scheduled tail recheck (also the recheck granularity of the READY-wait). */
     const val MIN_RECHECK_DELAY_MS = 250L

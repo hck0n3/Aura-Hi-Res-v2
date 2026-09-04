@@ -154,13 +154,16 @@ class CrossfadePlanningTest {
     // ── region 5: tail tiers ────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `fire window is the fade plus 4 seconds`() {
-        assertEquals(9_000L, CrossfadePlanning.tailFireWindowMs(fade))
+    fun `fire window is the fade itself — the quiet tier never jumps the gun on audible endings`() {
+        // OWNER DIRECTIVE 2026-09-04 ("los adioses no se cortan"): was fade+4s (~9s with the 5s
+        // house fade) — a soft-but-audible outro (piano/reverb) got buried under the ramp up to
+        // 9s before the real end. Now the quiet tier may only fire INSIDE the fade window.
+        assertEquals(5_000L, CrossfadePlanning.tailFireWindowMs(fade))
     }
 
     @Test
-    fun `silence near the end fires anywhere in the window`() {
-        // 240s song at 236s → remaining 4s < 9s window → fire even with a short silence run.
+    fun `silence near the end fires inside the fade window`() {
+        // 240s song at 236s → remaining 4s < 5s window → fire even with a short silence run.
         val d = CrossfadePlanning.tailTierDecision(
             silentNow = true, isPlaying = true, durationMs = 240_000L,
             currentPositionMs = 236_000L, silenceDurationMs = 3_500L, crossfadeDurationMs = fade
@@ -216,22 +219,22 @@ class CrossfadePlanningTest {
 
     @Test
     fun `quiet tier inside the fire window fires - the audible segue`() {
-        // remaining 8s < 9s window → the mastered fade-out gets the blend.
+        // remaining 4s < 5s window → the mastered fade-out gets the blend.
         val d = CrossfadePlanning.tailTierDecision(
             silentNow = false, isPlaying = true, durationMs = 240_000L,
-            currentPositionMs = 232_000L, silenceDurationMs = 2_500L, crossfadeDurationMs = fade
+            currentPositionMs = 236_000L, silenceDurationMs = 2_500L, crossfadeDurationMs = fade
         )
         assertEquals(TailDecision.Fire, d)
     }
 
     @Test
     fun `quiet tier far from the end defers to a recheck at the window edge`() {
-        // remaining 200s, window 9s → recheck in 191s.
+        // remaining 200s, window 5s → recheck in 195s.
         val d = CrossfadePlanning.tailTierDecision(
             silentNow = false, isPlaying = true, durationMs = 240_000L,
             currentPositionMs = 40_000L, silenceDurationMs = 2_500L, crossfadeDurationMs = fade
         )
-        assertEquals(TailDecision.Recheck(191_000L), d)
+        assertEquals(TailDecision.Recheck(195_000L), d)
     }
 
     @Test
@@ -239,7 +242,7 @@ class CrossfadePlanningTest {
         // remaining = window + 100 → raw delay 100 → floor 250.
         val d = CrossfadePlanning.tailTierDecision(
             silentNow = false, isPlaying = true, durationMs = 240_000L,
-            currentPositionMs = 240_000L - 9_100L, silenceDurationMs = 2_500L, crossfadeDurationMs = fade
+            currentPositionMs = 240_000L - 5_100L, silenceDurationMs = 2_500L, crossfadeDurationMs = fade
         )
         assertEquals(TailDecision.Recheck(250L), d)
     }
