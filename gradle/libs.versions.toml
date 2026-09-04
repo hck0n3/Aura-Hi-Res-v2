@@ -43,9 +43,8 @@ lottie = "6.7.1"
 work = "2.10.2"
 coreSplashscreen = "1.2.0"
 ffmpegKit = "6.0-2"
-playServicesAuth = "21.3.0"
-googleApiClient = "2.9.0"
-googleDriveApi = "v3-rev20260428-2.0.0"
+# Removed 2026-09-04 (FASE 3 audit #5): playServicesAuth/googleApiClient/googleDriveApi versions
+# and their library aliases — zero consumers since the dead Drive Sync dependencies left app/build.gradle.kts.
 
 
 [libraries]
@@ -144,10 +143,6 @@ lottie-compose = { module = "com.airbnb.android:lottie-compose", version.ref = "
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 ffmpeg-kit-full = { module = "com.arthenica:ffmpeg-kit-full", version.ref = "ffmpegKit" }
-play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "playServicesAuth" }
-google-api-client-android = { module = "com.google.api-client:google-api-client-android", version.ref = "googleApiClient" }
-google-api-services-drive = { module = "com.google.apis:google-api-services-drive", version.ref = "googleDriveApi" }
-
 
 [plugins]
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
