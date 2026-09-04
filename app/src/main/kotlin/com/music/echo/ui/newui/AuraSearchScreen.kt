@@ -87,6 +87,7 @@ import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
+import timber.log.Timber
 import java.net.URLEncoder
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
@@ -554,7 +555,15 @@ internal fun rememberAuraVoiceSearch(
                 override fun onError(error: Int) {
                     listening = false
                     liveText = ""
-                    if (error == SpeechRecognizer.ERROR_CLIENT) return
+                    // ERROR_CLIENT also covers a failed service BIND (Samsung's recognizer
+                    // dying mid-connection), not only the user closing the listening dialog —
+                    // keep it silent for the user but leave the code in app.log so a device
+                    // report can tell the two apart (numbers only, no user data).
+                    if (error == SpeechRecognizer.ERROR_CLIENT) {
+                        Timber.w("VoiceSearch: recognizer error ERROR_CLIENT (bind or user-cancel)")
+                        return
+                    }
+                    Timber.w("VoiceSearch: recognizer error %d", error)
                     Toast.makeText(context, R.string.voice_search_unavailable, Toast.LENGTH_SHORT)
                         .show()
                 }
