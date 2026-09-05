@@ -85,6 +85,10 @@ fun DefaultDialog(
     title: (@Composable () -> Unit)? = null,
     buttons: (@Composable RowScope.() -> Unit)? = null,
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    // OWNER REPORT (2026-09-04): the AI playlist generating dialog must not die on an outside
+    // tap — passed through to the in-window host (the classic window branch already guards in
+    // its own close handlers).
+    dismissOnOutsideTap: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val skin = rememberAuraPanelSkin()
@@ -110,6 +114,7 @@ fun DefaultDialog(
         AuraInWindowDialog(
             visible = true,
             onDismiss = onDismiss,
+            dismissOnOutsideTap = dismissOnOutsideTap,
         ) {
             DialogBody(
                 premium = premium,

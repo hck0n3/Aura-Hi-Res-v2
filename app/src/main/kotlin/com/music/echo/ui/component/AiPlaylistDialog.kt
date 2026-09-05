@@ -95,21 +95,31 @@ fun AiPlaylistDialog(
     }
 
     val busy = state is AiPlaylistUiState.Generating || state is AiPlaylistUiState.Resolving
+    // OWNER REPORT (2026-09-04): "después de Generar, si toco la ventana flotante SE CIERRA y
+    // eso es un error — no se tiene que cerrar a menos que yo la cierre". While the generation
+    // runs the dialog is NOT closable by outside tap (dismissOnOutsideTap = !busy) and Cancel
+    // becomes the explicit way out — enabled during busy with a REAL network cancellation
+    // (viewModel.reset() cancels the OkHttp call in flight; the classic-window branch already
+    // had this guard, the in-window glass branch ran a stale closure and died silently).
     val close = {
         if (!busy) {
             viewModel.reset()
             onDismiss()
         }
     }
+    val cancel = {
+        viewModel.reset()
+        onDismiss()
+    }
 
     DefaultDialog(
         onDismiss = close,
+        dismissOnOutsideTap = !busy,
         icon = { Icon(painterResource(R.drawable.auto_awesome), contentDescription = null) },
         title = { Text(stringResource(R.string.ai_playlist_title)) },
         buttons = {
             TextButton(
-                onClick = close,
-                enabled = !busy,
+                onClick = cancel,
             ) {
                 Text(stringResource(android.R.string.cancel))
             }

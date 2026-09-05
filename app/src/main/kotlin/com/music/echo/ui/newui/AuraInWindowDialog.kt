@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,12 +57,24 @@ fun AuraInWindowDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     center: Boolean = true,
+    // OWNER REPORT (2026-09-04): tapping the scrim while the AI playlist was generating closed
+    // the dialog and silently killed the generation. Hosts that must NOT dismiss on outside tap
+    // while busy (AiPlaylistDialog) pass false here.
+    dismissOnOutsideTap: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
     val overlayHazeState = LocalOverlayHazeState.current
     val skin = rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
+
+    // STALE-CLOSURE FIX (audit 2026-09-04): the scrim's pointerInput(Unit) and the back callback
+    // captured the onDismiss lambda of the composition where they STARTED (dialog opening,
+    // busy == false). A recomposition (busy → true) never restarted them, so a tap during the
+    // generation ran the OLD lambda and closed + reset the dialog — the owner's report. The
+    // rememberUpdatedState pair below keeps both entry points executing the CURRENT lambdas.
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
+    val currentDismissOnOutsideTap by rememberUpdatedState(dismissOnOutsideTap)
 
     if (!premium) return
 
@@ -71,7 +85,7 @@ fun AuraInWindowDialog(
         val callback = object : OnBackPressedCallback(visible) {
             override fun handleOnBackPressed() {
                 focusManager.clearFocus()
-                onDismiss()
+                currentOnDismiss()
             }
         }
         backDispatcher?.addCallback(callback)
@@ -89,7 +103,10 @@ fun AuraInWindowDialog(
                 .fillMaxSize()
                 .background(auraFloatingScrimColor())
                 .pointerInput(Unit) {
-                    detectTapGestures { focusManager.clearFocus(); onDismiss() }
+                    detectTapGestures {
+                        focusManager.clearFocus()
+                        if (currentDismissOnOutsideTap) currentOnDismiss()
+                    }
                 },
         ) {
             AnimatedVisibility(
