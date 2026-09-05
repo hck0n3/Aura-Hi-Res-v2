@@ -652,15 +652,9 @@ fun AuraPlayerMenu(
                         },
                     )
                 }
-                AuraMenuRow(
-                    icon = AuraIcons.Equalizer,
-                    label = "Sonido",
-                    onClick = {
-                        playerBottomSheetState.collapseSoft()
-                        navController.navigate("settings/sound")
-                        onDismiss()
-                    },
-                )
+                // AUDIT FIX (2026-09-04): this was a DUPLICATE "Sonido" row (the fixed section
+                // above already navigates to settings/sound) with its icon swapped with the
+                // Equalizer's — removed; the fixed row keeps Volume + "Sonido".
                 AuraMenuRow(
                     icon = AuraIcons.Volume,
                     label = stringResource(R.string.audio_devices),
