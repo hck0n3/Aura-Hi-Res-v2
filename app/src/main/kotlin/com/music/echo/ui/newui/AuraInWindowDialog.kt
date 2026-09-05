@@ -23,8 +23,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import timber.log.Timber
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,6 +79,18 @@ fun AuraInWindowDialog(
     val currentDismissOnOutsideTap by rememberUpdatedState(dismissOnOutsideTap)
 
     if (!premium) return
+
+    // REMOTE DIAGNOSIS (2026-09-04, the "phantom dialog" report): a device app.log must be able
+    // to answer "did the in-window dialog actually compose?" — the phantom case was an open but
+    // unreadable panel. Facts only, no user data (regla 4).
+    LaunchedEffect(visible, overlayHazeState != null, center) {
+        if (visible) {
+            Timber.i(
+                "InWindowDialog: composed visible, source=%s, center=%s, plate=double",
+                if (overlayHazeState != null) "haze" else "none", center,
+            )
+        }
+    }
 
     // Back: dispatcher-registered callback — top priority while visible.
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current
@@ -151,9 +165,18 @@ fun AuraInWindowDialog(
                                 // glyphs over the scrim ("the dialog doesn't open"). The plate
                                 // paints under the glass exactly like AuraFab does: when the glass
                                 // renders (sibling callers like the cloud menu) it covers the
-                                // plate; when it's a no-op, the plate IS the panel. Same material
-                                // as the no-source fallback — no hole by construction.
+                                // plate; when it's a no-op, the plate IS the panel.
+                                //
+                                // CONTRAST STEP (2026-09-04, the "phantom dialog" report): a single
+                                // FloatingFill over the Library ground was near-invisible on the
+                                // S26 Ultra — the owner tapped the FAB, the dialog DID open, he
+                                // saw "nothing", tapped again (no recomposition — the state was
+                                // already true) and concluded the button was dead; the dialog then
+                                // resurfaced after navigating away and back, reading as "touching
+                                // EQ opened create-playlist". Double-composite the plate so a
+                                // floating dialog reads clearly ABOVE any screen ground.
                                 Modifier
+                                    .background(AuraPalette.FloatingFill)
                                     .background(AuraPalette.FloatingFill)
                                     .shellGlass(overlayHazeState)
                             } else {
