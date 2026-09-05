@@ -643,7 +643,11 @@ internal fun rememberAuraVoiceSearch(
                 )
             } catch (e: Exception) {
                 Timber.w(e, "VoiceSearch: startListening threw, falling back to OS dialog")
+                // AUDIT FIX (2026-09-04): reset opening too — leaving it true kept our dialog
+                // pulsing UNDER the OS dialog until the 6s watchdog killed it with a confusing
+                // "unavailable" toast even when the OS dialog had worked.
                 listening = false
+                opening = false
                 try {
                     intentLauncher.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH))
                 } catch (_: ActivityNotFoundException) {
@@ -681,10 +685,16 @@ internal fun rememberAuraVoiceSearch(
     // The unconditional tap feedback: opening is set HERE, the instant the mic is touched —
     // before any permission prompt, before any service bind. A stalled Samsung service can
     // no longer make the tap look dead.
+    // AUDIT FIX (2026-09-04): this must go through requestDirect() — NOT startDirect(). The
+    // e2185bb fix called startDirect directly, which left requestDirect/permissionLauncher as
+    // DEAD CODE: a FIRST-TIME user (no RECORD_AUDIO yet) tapped the mic, startListening failed
+    // with ERROR_INSUFFICIENT_PERMISSIONS and the OS permission prompt NEVER appeared — voice
+    // search broken for every new user (invisible to the owner, whose permission is granted).
+    // requestDirect already sets opening=true before launching the permission flow, so the
+    // instant feedback is preserved.
     val launch = {
         if (recognizer != null) {
-            opening = true
-            startDirect()
+            requestDirect()
         } else {
             // No in-process recognizer visible to us: hand off to the OS dialog if any app can
             // handle it (still better than a silent nothing), opening stays as the feedback
