@@ -7841,9 +7841,24 @@ class MusicService :
                 // replay without cached bytes falls to the global target as before.
                 val replayHasCachedBytes = StreamCacheKeys.keysOf(playerCache.keys, mediaId).isNotEmpty() ||
                     playerCache.keys.any { it.startsWith("yt-stream-$mediaId-") }
+                // RESTART SURVIVAL (audit 2026-09-04, the gap that made the replay lock a
+                // placebo after every restart): `cachedQuality` comes from songUrlCache —
+                // MEMORY ONLY (URL persistence is deliberately off, the SimpMusic model), so
+                // after a restart it is null for everything and the replay fell to the GLOBAL
+                // quality → mismatch vs the persisted opus → purge + full re-download of the
+                // already-cached song. The persisted record of the delivered container is
+                // dbFormat itself — the SAME source the guard compares against — so deriving
+                // the replay target from it can never self-deceive: a cache written as opus
+                // replays as opus.
+                val replayTarget = when {
+                    cachedQuality != null -> cachedQuality
+                    isLosslessCache -> iad1tya.echo.music.constants.AudioQuality.LOSSLESS
+                    isSaavnCache -> iad1tya.echo.music.constants.AudioQuality.SAAVN
+                    else -> iad1tya.echo.music.constants.AudioQuality.OPUS
+                }
                 val effectiveTarget = when {
                     isCurrentlyPlaying -> lockedQuality
-                    replayHasCachedBytes && cachedQuality != null -> cachedQuality
+                    replayHasCachedBytes -> replayTarget
                     else -> lockedQuality
                 }
 
