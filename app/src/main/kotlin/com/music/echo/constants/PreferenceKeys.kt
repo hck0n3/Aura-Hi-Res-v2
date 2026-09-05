@@ -459,6 +459,14 @@ val LocalAudioArtApicV1AppliedKey = booleanPreferencesKey("local_audio_art_apic_
  */
 val LocalAudioArtApicV2AppliedKey = booleanPreferencesKey("local_audio_art_apic_v2_applied")
 
+/**
+ * One-shot purge of the LEGACY listen-cache keys (`yt-stream-o-XXXX-<itag>`, the rotating
+ * stream-id format of every beta before 2026-09-04's stable-videoId key). Those orphans are
+ * invisible to the "En caché" list, un-evictable under the default unlimited setting, and were
+ * re-created on every listen. A real videoId is EXACTLY 11 chars; the o-XXXX ids are ~26.
+ */
+val StreamCacheOrphanPurgeAppliedKey = booleanPreferencesKey("stream_cache_orphan_purge_applied")
+
 val PauseListenHistoryKey = booleanPreferencesKey("pauseListenHistory")
 val PauseSearchHistoryKey = booleanPreferencesKey("pauseSearchHistory")
 val DisableScreenshotKey = booleanPreferencesKey("disableScreenshot")

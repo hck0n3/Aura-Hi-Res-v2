@@ -262,6 +262,28 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         applicationScope.launch(Dispatchers.IO) {
             runCatching { downloadUtilLazy.get() }
             runCatching { eqProfileRepository.get() }
+            // ONE-SHOT ORPHAN PURGE (2026-09-04): every beta before the stable-videoId cache key
+            // wrote listen bytes under `yt-stream-o-XXXX-<itag>` with the ROTATING stream id —
+            // unreachable forever (the reader now keys on the real videoId), invisible to the
+            // "En caché" list and un-evictable under the default unlimited setting. A real
+            // videoId is EXACTLY 11 chars; the o-XXXX ids are ~26. One pass, one flag, never again.
+            runCatching {
+                if (dataStore.data.first()[iad1tya.echo.music.constants.StreamCacheOrphanPurgeAppliedKey] != true) {
+                    val downloadUtil = downloadUtilLazy.get()
+                    val orphans = downloadUtil.playerCache.keys.filter { key ->
+                        key.startsWith("yt-stream-") &&
+                            iad1tya.echo.music.playback.StreamCacheKeys.songIdOf(key)?.length != 11
+                    }
+                    if (orphans.isNotEmpty()) {
+                        orphans.forEach { runCatching { downloadUtil.playerCache.removeResource(it) } }
+                        android.util.Log.i(
+                            "App",
+                            "StreamCache orphan purge: removed ${orphans.size} legacy yt-stream-o-* keys",
+                        )
+                    }
+                    dataStore.edit { it[iad1tya.echo.music.constants.StreamCacheOrphanPurgeAppliedKey] = true }
+                }
+            }
         }
 
         // Preload the native Superpowered bridge off the main thread so the later CustomEqualizerAudioProcessor
