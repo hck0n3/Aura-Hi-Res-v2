@@ -511,6 +511,7 @@
     <string name="spotify_add_by_link_hint">Paste a Spotify playlist link, URI (spotify:playlist:…) or ID.</string>
     <string name="spotify_add_by_link_action">Add</string>
     <string name="spotify_invalid_playlist_link">That doesn\'t look like a Spotify playlist link</string>
+    <string name="spotify_login_failed">The cookie was accepted but the session could not be validated. Check the value and try again.</string>
     <string name="spotify_connect">Connect Spotify</string>
     <string name="spotify_refresh">Refresh Spotify library</string>
     <string name="spotify_select_sources">Select Spotify playlists</string>
@@ -752,6 +753,12 @@
     <string name="migrate_error_deezer_profile">I couldn\'t read that Deezer profile. Check that it is public and try again.</string>
     <string name="migrate_error_artists">I couldn\'t add the artists.</string>
     <string name="login_use_phone_account">Use phone account</string>
+    <string name="login_manual_cookie">Manual cookie</string>
+    <string name="login_manual_cookie_title">Paste YouTube cookie</string>
+    <string name="login_manual_cookie_body">Open music.youtube.com in your browser, then DevTools ▸ Application ▸ Cookies ▸ https://music.youtube.com. Copy the full Cookie header value and paste it here. This bypasses the web sign-in entirely (last-resort path ported from SimpMusic).</string>
+    <string name="login_manual_cookie_apply">Apply</string>
+    <string name="spotify_manual_cookie_body">Open open.spotify.com in your browser, then DevTools ▸ Application ▸ Cookies ▸ https://open.spotify.com. Copy the full Cookie header value (including sp_dc and sp_key) and paste it here. This bypasses the web sign-in entirely (last-resort path ported from SimpMusic).</string>
+    <string name="spotify_manual_cookie_no_spdc">No sp_dc found in the cookie string. Make sure you copied the full Cookie header (not just one value).</string>
     <!-- Qobuz hi-res (owner's own subscription) -->
     <string name="qobuz_title">Qobuz</string>
     <string name="qobuz_intro">Stream in Qobuz quality (Hi-Res FLAC) with YOUR own Qobuz subscription. Sign in with your account or paste your token. Nothing is stored on any server but your own device.</string>

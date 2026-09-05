@@ -12,12 +12,15 @@ import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import android.widget.Toast
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -75,6 +79,7 @@ fun SpotifyLoginScreen(navController: NavController) {
     var captured by remember { mutableStateOf(false) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var lastRescuedUrl by remember { mutableStateOf<String?>(null) }
+    var showManualCookieDialog by remember { mutableStateOf(false) }
 
     fun captureCookies() {
         if (captured) return
@@ -121,6 +126,14 @@ fun SpotifyLoginScreen(navController: NavController) {
                     Icon(painterResource(R.drawable.arrow_back), contentDescription = null)
                 }
             },
+            actions = {
+                IconButton(onClick = { showManualCookieDialog = true }) {
+                    Icon(
+                        painterResource(R.drawable.content_copy),
+                        contentDescription = stringResource(R.string.login_manual_cookie),
+                    )
+                }
+            },
         )
         Text(
             text = stringResource(R.string.spotify_waiting_for_login),
@@ -131,6 +144,38 @@ fun SpotifyLoginScreen(navController: NavController) {
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp),
         )
+
+        if (showManualCookieDialog) {
+            val scope = rememberCoroutineScope()
+            SpotifyManualCookieDialog(
+                onDismiss = { showManualCookieDialog = false },
+                onSubmit = { spDc, spKey ->
+                    if (spDc.isNotBlank()) {
+                        scope.launch {
+                            runCatching {
+                                SpotifyImportRepository
+                                    .get(context).connectWithCookies(spDc, spKey)
+                            }.onSuccess {
+                                showManualCookieDialog = false
+                                if (navController.currentDestination?.route == "spotify_login") {
+                                    navController.navigateUp()
+                                }
+                            }.onFailure {
+                                android.widget.Toast.makeText(
+                                    context, R.string.spotify_login_failed,
+                                    android.widget.Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                        }
+                    } else {
+                        android.widget.Toast.makeText(
+                            context, R.string.spotify_manual_cookie_no_spdc,
+                            android.widget.Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                },
+            )
+        }
 
         AndroidView(
             modifier = Modifier
@@ -286,4 +331,63 @@ private fun readSpotifyLoginCookies(cookieManager: CookieManager): Map<String, S
             }
     }
     return cookies
+}
+
+/**
+ * BETA-043: last-resort "manual cookie" login for Spotify, ported from SimpMusic's
+ * `DevLogInBottomSheet`. Bypasses the WebView entirely — the owner opens open.spotify.com
+ * in their browser, copies the full Cookie header, and pastes it here. The cookie is parsed
+ * the same way `captureCookies` would, so the rest of the pipeline (latch, persistence via
+ * SpotifyImportRepository) is unchanged.
+ */
+@Composable
+private fun SpotifyManualCookieDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (spDc: String, spKey: String) -> Unit,
+) {
+    var cookieText by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.login_manual_cookie_title)) },
+        text = {
+            Column {
+                Text(
+                    stringResource(R.string.spotify_manual_cookie_body),
+                    color = AuraPalette.OnGroundMuted,
+                )
+                androidx.compose.foundation.layout.Spacer(Modifier.height(10.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = cookieText,
+                    onValueChange = { cookieText = it },
+                    placeholder = { Text("sp_dc=xxxxxxxxxx; sp_key=yyyyyy; ...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    maxLines = 6,
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    val spDc = cookieText.split(";")
+                        .map { it.trim() }
+                        .firstOrNull { it.startsWith("sp_dc=") }
+                        ?.removePrefix("sp_dc=").orEmpty()
+                    val spKey = cookieText.split(";")
+                        .map { it.trim() }
+                        .firstOrNull { it.startsWith("sp_key=") }
+                        ?.removePrefix("sp_key=").orEmpty()
+                    onSubmit(spDc, spKey)
+                },
+                enabled = cookieText.contains("sp_dc="),
+            ) {
+                Text(stringResource(R.string.login_manual_cookie_apply))
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        },
+    )
 }

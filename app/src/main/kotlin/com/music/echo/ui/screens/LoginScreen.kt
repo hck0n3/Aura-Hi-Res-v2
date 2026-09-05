@@ -15,9 +15,11 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -216,6 +218,7 @@ fun LoginScreen(
     val innerTubeCookieState = rememberPreference(InnerTubeCookieKey, "")
     val hasCompletedLoginState = remember { mutableStateOf(false) }
     val skin = rememberAuraPanelSkin()
+    var showManualCookieDialog by remember { mutableStateOf(false) }
 
     // Held in state so the account-picker callback can reload it. The WebView loads the full
     // handshake ServiceLogin URL (#182); the picker only PRE-FILLS the email so the user skips
@@ -324,6 +327,12 @@ fun LoginScreen(
                         color = AuraPalette.Teal,
                     )
                 }
+                androidx.compose.material3.TextButton(onClick = { showManualCookieDialog = true }) {
+                    Text(
+                        stringResource(R.string.login_manual_cookie),
+                        color = AuraPalette.Teal,
+                    )
+                }
             }
         } else {
             TopAppBar(
@@ -342,6 +351,25 @@ fun LoginScreen(
                 actions = {
                     androidx.compose.material3.TextButton(onClick = { launchAccountPicker() }) {
                         Text(stringResource(R.string.login_use_phone_account))
+                    }
+                    androidx.compose.material3.TextButton(onClick = { showManualCookieDialog = true }) {
+                        Text(stringResource(R.string.login_manual_cookie))
+                    }
+                },
+            )
+        }
+
+        if (showManualCookieDialog) {
+            ManualCookieDialog(
+                onDismiss = { showManualCookieDialog = false },
+                onSubmit = { cookieValue ->
+                    // Reuse the same completion path as the WebView capture. shouldCompleteLogin
+                    // only accepts strings containing the YouTube session markers (SAPISID,
+                    // HSID, SSID...), so a stray paste is rejected and the dialog stays open
+                    // with the text intact for the user to fix it.
+                    tryCompleteLoginWithCookie(cookieValue)
+                    if (hasCompletedLoginState.value) {
+                        showManualCookieDialog = false
                     }
                 },
             )
@@ -511,4 +539,55 @@ fun LoginScreen(
     BackHandler(enabled = webViewRef?.canGoBack() == true) {
         webViewRef?.goBack()
     }
+}
+
+/**
+ * BETA-043: last-resort "manual cookie" login, ported from SimpMusic's
+ * `DevLogInBottomSheet` (commit maxrave-dev/SimpMusic). Bypasses the WebView entirely —
+ * the owner pastes the YouTube `Cookie` header they exported from their browser's
+ * DevTools (Application ▸ Cookies ▸ https://music.youtube.com). The string is fed to the
+ * same `tryCompleteLoginWithCookie` helper the WebView capture uses, so the rest of the
+ * pipeline (InnerTubeCookieKey persistence + `completeLogin` validation) is unchanged.
+ * Values only, no user data, regola 4 AGENTS — the owner is in control of the input.
+ */
+@Composable
+private fun ManualCookieDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit,
+) {
+    var value by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.login_manual_cookie_title)) },
+        text = {
+            Column {
+                Text(
+                    stringResource(R.string.login_manual_cookie_body),
+                    color = AuraPalette.OnGroundMuted,
+                )
+                androidx.compose.foundation.layout.Spacer(Modifier.height(10.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it },
+                    placeholder = { Text("VISITOR_INFO1_LIVE=...; SID=...; HSID=...; SSID=...; APISID=...; SAPISID=...; LOGIN_INFO=...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    maxLines = 6,
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = { onSubmit(value) },
+                enabled = value.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.login_manual_cookie_apply))
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        },
+    )
 }
