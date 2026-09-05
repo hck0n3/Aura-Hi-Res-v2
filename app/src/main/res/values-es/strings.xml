@@ -690,6 +690,13 @@
     <string name="migrate_error_deezer_profile">No pude leer ese perfil de Deezer. Comprueba que sea público e inténtalo de nuevo.</string>
     <string name="migrate_error_artists">No pude añadir los artistas.</string>
     <string name="login_use_phone_account">Usar cuenta del teléfono</string>
+    <string name="login_manual_cookie">Cookie manual</string>
+    <string name="login_manual_cookie_title">Pegar cookie de YouTube</string>
+    <string name="login_manual_cookie_body">Abre music.youtube.com en tu navegador, luego DevTools ▸ Application ▸ Cookies ▸ https://music.youtube.com. Copia el valor completo de la cookie y pégalo aquí. Esto salta el inicio de sesión web por completo (vía de respaldo portada de SimpMusic).</string>
+    <string name="login_manual_cookie_apply">Aplicar</string>
+    <string name="spotify_manual_cookie_body">Abre open.spotify.com en tu navegador, luego DevTools ▸ Application ▸ Cookies ▸ https://open.spotify.com. Copia el valor completo de la cookie (incluye sp_dc y sp_key) y pégalo aquí. Esto salta el inicio de sesión web por completo (vía de respaldo portada de SimpMusic).</string>
+    <string name="spotify_manual_cookie_no_spdc">No se encontró sp_dc en el texto. Asegúrate de copiar TODA la cookie (no solo un valor).</string>
+    <string name="spotify_login_failed">La cookie fue aceptada pero la sesión no pudo validarse. Revisa el valor e inténtalo de nuevo.</string>
     <!-- Qobuz hi-res (suscripción propia del dueño) -->
     <string name="qobuz_title">Qobuz</string>
     <string name="qobuz_intro">Reproduce en calidad Qobuz (FLAC Hi-Res) con TU propia suscripción de Qobuz. Inicia sesión con tu cuenta o pega tu token. Nada se guarda en ningún servidor, solo en tu dispositivo.</string>
