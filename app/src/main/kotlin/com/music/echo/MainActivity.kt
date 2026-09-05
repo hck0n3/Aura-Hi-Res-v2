@@ -2402,14 +2402,16 @@ class MainActivity : ComponentActivity() {
                     if (showWelcomeDialog) {
                         WelcomeDialog(
                             onDismissRequest = {
-                                val wasFirstRun = lastOpenedVersionCode == -1
                                 showWelcomeDialog = false
                                 setLastOpenedVersionCode(BuildConfig.VERSION_CODE)
-                                // First run only: send the user to the artist-onboarding screen so the
-                                // home can be seeded by their taste (independent of signing in).
-                                if (wasFirstRun && !onboardingArtistsDone) {
-                                    navController.navigate("onboarding_artists")
-                                }
+                                // OWNER REPORT (2026-09-05: "cuando ya llego al final ME PIDE
+                                // HACER TODOS LOS PASOS POR SEGUNDA VEZ"): with the
+                                // "tutorial de último" flow, the onboarding has ALWAYS already
+                                // run by the time the tour closes (the tour fires on arrival
+                                // at home). If the user skipped or didn't finish the artist
+                                // step, that was his choice — re-navigating him into the whole
+                                // onboarding again was the second-pass bug. The navigation
+                                // from tour-close is retired entirely.
                             }
                         )
                     }

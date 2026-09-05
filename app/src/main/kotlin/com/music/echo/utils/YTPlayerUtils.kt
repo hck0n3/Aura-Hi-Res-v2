@@ -113,22 +113,18 @@ object YTPlayerUtils {
     // enabled as the PRIMARY URL source; Qobuz (LOSSLESS) and Saavn (SAAVN) are not, and are disabled.
     private const val NON_SIMPMUSIC_PROVIDERS_ENABLED = false
 
-    // SIMPMUSIC selection order: StreamRepositoryImpl.getStream picks the exact itag when its NewPipe
-    // URL exists, else ANY usable audio format. This is the fixed preference for that "any audio"
-    // fallback — opus first (the quality this app targets), then aac, then vorbis. The muxed MP4
-    // progressives (22, 18) are the EMERGENCY tail: when YouTube bot-limits the extraction it hands
-    // over only itag 18, and a playing low-quality stream beats a perfect silent one — the pipe is
-    // proven end-to-end and format quality is recovered separately.
-    // The Premium/high twins lead the list, matching SimpMusic v2.0.0's ITAG table (core commit
-    // "split high audio into opus and aac"): 774 = Opus 256k, 141 = AAC 256k. When the chosen
-    // format is missing from the extraction, the twin of the SAME tier degrades first (774→141,
-    // SimpMusic's highQualityTwinOf) before dropping a quality tier to 251 (160k). YouTube hands an
-    // entitled account only ONE of the two families, so 141-present-without-774 is the Premium AAC
-    // case where 141 is the correct same-tier pick. The local fork evidence (NewPipe.kt) is that
-    // anonymous ANDROID_VR already carries audio 250/251/774 while 141 only appears with the
-    // cookie's supplementary WEB_REMIX call — so this order changes anonymous resolves too (774
-    // when present) and stays invisible when it is not: firstNotNullOfOrNull just skips ahead.
-    private val AUDIO_ITAG_PREFERENCE = listOf(774, 141, 251, 250, 249, 140, 171, 139, 22, 18)
+    // OPUS-ONLY STREAMING (owner directive 2026-09-05, Echo-Music reference — EchoMusicApp/
+    // Echo-Music plays YouTube as Opus-only): the whole Opus family leads — 774 (Opus 256k
+    // premium), 251 (160k), 250 (70k), 249 (50k), 139 (mobile Opus) — and NO AAC/other codec
+    // sits between them. The old order interleaved 141 (AAC 256k) between 774 and 251, so a
+    // track without the premium itag silently played AAC; with this order it degrades inside
+    // the Opus family first. AAC (141/140) stays AFTER every Opus option as the cross-family
+    // fallback for videos that simply ship no Opus rendition, vorbis (171) after it, and the
+    // muxed MP4 progressives (22, 18) keep their emergency-tail role (bot-limited extractions
+    // sometimes hand over ONLY itag 18 — a playing low-quality stream beats a perfect silent
+    // one). This changes selection only; resolution, cache keys (itag-keyed) and quality
+    // mapping are untouched.
+    private val AUDIO_ITAG_PREFERENCE = listOf(774, 251, 250, 249, 139, 141, 140, 171, 22, 18)
 
     // The signature timestamp (sts) is a per-PLAYER-VERSION constant — identical for every video until
     // YouTube rotates player.js (rare, ~weekly). Recomputing it for every song runs NewPipe's JS engine

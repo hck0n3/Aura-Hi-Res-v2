@@ -11,18 +11,22 @@ import org.junit.Test
  * production list is ever reordered or an itag dropped, updating this mirror is mandatory — the
  * assertion failure is the reminder.
  *
- * Order contract (SimpMusic v2.0.0 ITAG parity, "split high audio into opus and aac"):
- * 1. Premium/high twins first: 774 (Opus 256k) with same-tier twin fallback 141 (AAC 256k) —
- *    YouTube hands an entitled account only ONE family, so the twin of the requested tier degrades
- *    BEFORE dropping to a lower tier.
- * 2. Then the anonymous ladder exactly as before: 251 (Opus 160k) → 250 → 249 → 140 (AAC 128k)
- *    → 171 (Vorbis) → 139 → 22 → 18 (emergency muxed tail).
- * 3. No duplicates, all entries positive — a duplicate would silently change first-match semantics.
+ * Order contract (owner directive 2026-09-05, Echo-Music reference — OPUS-ONLY streaming):
+ * 1. The ENTIRE Opus family leads, in descending quality: 774 (Opus 256k premium) → 251 (160k)
+ *    → 250 (70k) → 249 (50k) → 139 (mobile Opus). No AAC/other codec may sit between Opus
+ *    options — the old order interleaved 141 (AAC 256k) between 774 and 251, so a track without
+ *    the premium itag silently played AAC.
+ * 2. AAC (141, 140) comes AFTER every Opus option as the cross-family fallback for videos that
+ *    ship no Opus rendition at all, then Vorbis (171).
+ * 3. The muxed MP4 progressives (22, 18) keep their emergency-tail role (bot-limited
+ *    extractions sometimes hand over ONLY itag 18 — a playing low-quality stream beats a
+ *    perfect silent one).
+ * 4. No duplicates, all entries positive — a duplicate would silently change first-match semantics.
  */
 class AudioItagPreferenceSpecTest {
 
     // Mirror of YTPlayerUtils.AUDIO_ITAG_PREFERENCE. Keep in sync with production.
-    private val audioItagPreference = listOf(774, 141, 251, 250, 249, 140, 171, 139, 22, 18)
+    private val audioItagPreference = listOf(774, 251, 250, 249, 139, 141, 140, 171, 22, 18)
 
     private fun pickFirstAvailable(available: Set<Int>): Int? =
         audioItagPreference.firstOrNull { it in available }
@@ -34,16 +38,28 @@ class AudioItagPreferenceSpecTest {
     }
 
     @Test
-    fun premiumAac141IsTheSameTierTwinBeforeDroppingTo251() {
-        // Entitled account served the AAC family: 774 absent, 141 present with the 160k ladder.
-        // Same-tier twin (141) must be picked before the lower Opus tier (251).
-        assertEquals(141, pickFirstAvailable(setOf(141, 251, 250, 249, 140)))
+    fun opusOnly_251BeatsAac141WhenNo774() {
+        // OPUS-ONLY contract: the 160k Opus must beat the 256k AAC when the premium Opus is
+        // absent — the whole family degrades internally before crossing to AAC.
+        assertEquals(251, pickFirstAvailable(setOf(141, 251, 250, 249, 140)))
     }
 
     @Test
-    fun anonymousExtractionPicks251WhenNo774No141() {
+    fun opusOnly_mobile139BeatsAac140() {
+        // Even the lowest mobile Opus wins over AAC 128k — the family is a wall.
+        assertEquals(139, pickFirstAvailable(setOf(139, 140, 171)))
+    }
+
+    @Test
+    fun aacIsTheCrossFamilyFallbackWhenNoOpusExists() {
+        // A video shipping only AAC renditions still plays — AAC after the Opus family.
+        assertEquals(141, pickFirstAvailable(setOf(141, 140, 22, 18)))
+        assertEquals(140, pickFirstAvailable(setOf(140, 22, 18)))
+    }
+
+    @Test
+    fun anonymousExtractionPicks251WhenNo774() {
         // Anonymous ANDROID_VR evidence (NewPipe.kt): audio 250/251 (+774 on some tracks).
-        // With 774 absent this must behave exactly like the previous ladder.
         assertEquals(251, pickFirstAvailable(setOf(251, 250, 249, 140)))
     }
 
@@ -67,14 +83,11 @@ class AudioItagPreferenceSpecTest {
     }
 
     @Test
-    fun previousAnonymousOrderIsUnchangedBehindTheTwins() {
-        // The pre-774 ladder was (251, 250, 249, 141, 140, 171, 139, 22, 18). Per NewPipe.kt the
-        // fork evidence, 141 only appears with the cookie's supplementary WEB_REMIX call — anonymous
-        // extraction never carries it. So for every itag an anonymous resolve can see, the new
-        // ladder must keep the exact legacy relative order: 141's hoisting to twin position is
-        // invisible to anonymous picks by construction.
-        val legacyAnonymousReachable = listOf(251, 250, 249, 140, 171, 139, 22, 18)
-        val newAnonymousReachable = audioItagPreference.filter { it != 774 && it != 141 }
-        assertEquals(legacyAnonymousReachable, newAnonymousReachable)
+    fun entireOpusFamilyPrecedesEveryNonOpusEntry() {
+        // The OPUS-ONLY wall, structurally: every Opus itag must precede every non-Opus itag.
+        val opusFamily = setOf(774, 251, 250, 249, 139)
+        val opusIdx = audioItagPreference.withIndex().filter { it.value in opusFamily }.map { it.index }
+        val nonOpusIdx = audioItagPreference.withIndex().filter { it.value !in opusFamily }.map { it.index }
+        assertTrue("An Opus itag sits after a non-Opus itag", opusIdx.max() < nonOpusIdx.min())
     }
 }

@@ -2141,7 +2141,17 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             " perm.notif=" + (androidx.core.content.ContextCompat.checkSelfPermission(
                 this, android.Manifest.permission.POST_NOTIFICATIONS
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED) +
-            " speech=" + android.speech.SpeechRecognizer.isRecognitionAvailable(this)
+            " speech=" + android.speech.SpeechRecognizer.isRecognitionAvailable(this) +
+            // BETA-043: dataSaver is the #1 video-mystery suspect (the owner asked "no sé cómo
+            // comprobar si está funcionando el ahorro de datos" the same day video "broke" — if
+            // he turned it ON to test it, it filters video songs from every queue and the chip
+            // vanishes: reads exactly as "ya no reproduce los videos"). Same one-shot DataStore
+            // first() read the other seeds here use; App.onCreate already tolerates it.
+            " dataSaver=" + runCatching {
+                kotlinx.coroutines.runBlocking {
+                    dataStore.data.first()[iad1tya.echo.music.constants.DataSaverEnabledKey] ?: false
+                }
+            }.getOrDefault(false)
         Timber.tag("BootDiag").i(msg)
     }
 }
