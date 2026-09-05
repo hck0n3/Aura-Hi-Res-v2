@@ -136,6 +136,12 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         com.music.jiosaavn.DeviceRouter.init(this)
         Timber.d("Device ID: ${com.music.jiosaavn.DeviceRouter.getDeviceId()} | Assigned JioSaavn Server: ${com.music.jiosaavn.DeviceRouter.getCurrentServer()}")
 
+        // BETA-042 BOOT DIAGNOSTICS (owner reports 2026-09-05: Spotify/micro/cache keep
+        // "siguiend igual" after BETA-041). One snapshot at every cold start so the app.log
+        // the owner shares already has the version, permissions and capabilities the first
+        // reply needs. Values only, no user data, regola 4 AGENTS.
+        logBootDiagnostics()
+
         // NOTE: do NOT add a destructive deleteDatabase("song.db") on startup. The Room schema has
         // complete migration coverage (see MusicDatabase), so wiping the DB only erases the user's
         // history/stats/playlists/downloads. The old one-time `cleared_db_v5` wipe was removed.
@@ -2117,5 +2123,25 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             }
             Timber.d("forgetAccount: Logout process complete")
         }
+    }
+
+    /**
+     * BETA-042: one snapshot at every cold start so the app.log the owner shares already
+     * has the version, permissions and capabilities the first reply needs. Values only —
+     * no user data (regola 4 AGENTS).
+     */
+    private fun logBootDiagnostics() {
+        val msg = "BootDiag v=" + BuildConfig.VERSION_NAME +
+            " code=" + BuildConfig.VERSION_CODE +
+            " flavor=" + BuildConfig.FLAVOR +
+            " build=" + BuildConfig.BUILD_TYPE +
+            " perm.audio=" + (androidx.core.content.ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.RECORD_AUDIO
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED) +
+            " perm.notif=" + (androidx.core.content.ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED) +
+            " speech=" + android.speech.SpeechRecognizer.isRecognitionAvailable(this)
+        Timber.tag("BootDiag").i(msg)
     }
 }
