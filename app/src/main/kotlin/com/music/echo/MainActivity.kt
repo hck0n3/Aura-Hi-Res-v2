@@ -1308,6 +1308,8 @@ class MainActivity : ComponentActivity() {
 
                 val (lastOpenedVersionCode, setLastOpenedVersionCode) = rememberPreference(iad1tya.echo.music.constants.LastOpenedVersionCodeKey, -1)
                 var showWelcomeDialog by remember { mutableStateOf(false) }
+                // The welcome tour pending its "de ÚLTIMO" moment (fires on arrival at home).
+                var pendingWelcomeTour by remember { mutableStateOf(false) }
                 val onboardingArtistsDone by rememberPreference(iad1tya.echo.music.constants.OnboardingArtistsDoneKey, false)
 
                 val (batteryReliabilityPromptShown, setBatteryReliabilityPromptShown) =
@@ -1321,29 +1323,59 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(lastOpenedVersionCode) {
                     if (lastOpenedVersionCode == -1) {
-                        showWelcomeDialog = true
+                        // OWNER DIRECTIVE (2026-09-04): "el tutorial de nueva apariencia aparezca
+                        // de ÚLTIMO". The welcome tour used to fire FIRST, before the whole
+                        // onboarding (artists → genres → Spotify → YouTube). It now runs LAST:
+                        // first-run sends the user straight into onboarding and arms a pending
+                        // flag; the tour fires when the user finally reaches home (see the
+                        // backstack observer below) — from "Comenzar a usar Aura", "Comenzar" or
+                        // skipping every step. Reinstallations with the onboarding already done
+                        // keep the old behavior (the tour is the only thing left to show).
+                        if (onboardingArtistsDone) {
+                            showWelcomeDialog = true
+                        } else {
+                            pendingWelcomeTour = true
+                            navController.navigate("onboarding_artists")
+                        }
                     } else if (lastOpenedVersionCode < BuildConfig.VERSION_CODE) {
                         // Silently advance the version code on update without interrupting the user.
                         setLastOpenedVersionCode(BuildConfig.VERSION_CODE)
                     }
                 }
 
+                // The "tutorial de último" trigger: any arrival at home with the tour pending
+                // fires it exactly once (welcomeWillShow keeps suppressing the battery/update
+                // prompts until LastOpenedVersionCodeKey is written on tour close).
+                val currentRouteForTour by navController.currentBackStackEntryAsState()
+                LaunchedEffect(currentRouteForTour?.destination?.route, pendingWelcomeTour) {
+                    if (pendingWelcomeTour && currentRouteForTour?.destination?.route == "home") {
+                        pendingWelcomeTour = false
+                        showWelcomeDialog = true
+                    }
+                }
+
                 LaunchedEffect(Unit) {
                     // Generic prompt is one-shot (BatteryReliabilityPromptShownKey). NEW OEM kills
-                    // (ScreenOffCPU / OneKeyClean) or system battery-saver ON must re-prompt even after
-                    // that first dismiss — HyperOS China keeps killing despite exemption alone.
+                    // (ScreenOffCPU / OneKeyClean) must re-prompt — HyperOS China keeps killing
+                    // despite exemption alone — but rate-limited to once a week so it never
+                    // becomes the nag the owner reported.
                     kotlinx.coroutines.delay(1500)
                     if (welcomeWillShow || showWelcomeDialog) return@LaunchedEffect
                     val threatTs = withContext(Dispatchers.IO) {
                         iad1tya.echo.music.utils.ExitReasonReporter
                             .latestOemPlaybackThreatTimestamp(this@MainActivity)
                     }
-                    val powerSave = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)
-                        ?.isPowerSaveMode == true
                     val notExempt = !iad1tya.echo.music.utils.BackgroundReliability
                         .isIgnoringBatteryOptimizations(this@MainActivity)
+                    val oemPromptDue = threatTs > oemKillPromptTs &&
+                        System.currentTimeMillis() - oemKillPromptTs > 7 * 24 * 60 * 60 * 1000L
                     when {
-                        threatTs > oemKillPromptTs || powerSave -> {
+                        // OWNER DIRECTIVE (2026-09-04): "el aviso de optimización de batería solo
+                        // aparezca UNA VEZ después del primer inicio y luego no vuelva a molestar".
+                        // System power-save is no longer a modal trigger (the advice already lives
+                        // in the welcome tour copy and Ajustes ▸ Contenido); the OEM-kill re-prompt
+                        // keeps its safety function but never more than once a week.
+                        oemPromptDue -> {
                             batteryReliabilityOemEvidence = true
                             showBatteryReliabilityDialog = true
                         }
