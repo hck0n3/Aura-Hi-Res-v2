@@ -375,6 +375,19 @@ fun LoginScreen(
                             // run on every page.
                             tryCompleteLoginFromPage(url)
                         }
+
+                        // PARITY BLINDAGE (audit 2026-09-05): targetSdk 36 — without this
+                        // override a dead renderer KILLS THE APP. SpotifyLoginScreen already
+                        // has it; the Google login is the last visible WebView without it.
+                        // Log (INFO → app.log) and leave the screen — never crash over a login.
+                        override fun onRenderProcessGone(
+                            view: WebView,
+                            detail: android.webkit.RenderProcessGoneDetail,
+                        ): Boolean {
+                            Timber.e("Login: WebView renderer gone (crashed=${detail.didCrash()}), leaving screen")
+                            view.post { navController.navigateUp() }
+                            return true
+                        }
                     }
                     settings.apply {
                         javaScriptEnabled = true
@@ -457,11 +470,16 @@ fun LoginScreen(
                 } else if (now - googleSessionSince >= HANDSHAKE_RESCUE_GRACE_MS) {
                     if (rescueCount < MAX_HANDSHAKE_RESCUES) {
                         rescueCount++
-                        Timber.d("Login: Google session minted but YouTube leg never arrived, re-loading the handshake (rescue $rescueCount/$MAX_HANDSHAKE_RESCUES, #190)")
+                        // INFO, not DEBUG (audit 2026-09-05): the rescue RELOADS the page — what
+                        // the owner sees as "parpadea como loco y desaparece la página". AppLogger
+                        // only persists INFO+, so at debug level the flicker left NO trace in the
+                        // shared app.log and the cause was indistinguishable from a server-side
+                        // redirect loop. This is the single most valuable line for remote diagnosis.
+                        Timber.i("Login: handshake rescue reloading the page (#190 flicker trace, rescue $rescueCount/$MAX_HANDSHAKE_RESCUES)")
                         webViewRef?.loadUrl(youTubeServiceLoginUrl())
                         googleSessionSince = 0L
                     } else {
-                        Timber.d("Login: rescue budget exhausted, leaving the screen to the owner (#190)")
+                        Timber.i("Login: rescue budget exhausted, leaving the screen to the owner (#190)")
                         break
                     }
                 }
