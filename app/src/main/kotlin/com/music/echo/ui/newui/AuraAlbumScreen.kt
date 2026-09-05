@@ -81,6 +81,9 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
+import com.music.innertube.models.WatchEndpoint
+import iad1tya.echo.music.models.toMediaMetadata
+import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.AlbumCanvasEnabledKey
 import iad1tya.echo.music.constants.DataSaverEnabledKey
@@ -466,6 +469,7 @@ fun AuraAlbumScreen(
                         titleRes = R.string.more_to_listen,
                         items = releases,
                         navController = navController,
+                        playerConnection = playerConnection,
                         haptic = haptic,
                         menuState = menuState,
                         coroutineScope = coroutineScope,
@@ -483,6 +487,7 @@ fun AuraAlbumScreen(
                         titleRes = R.string.more_from_artist,
                         items = fromArtist,
                         navController = navController,
+                        playerConnection = playerConnection,
                         haptic = haptic,
                         menuState = menuState,
                         coroutineScope = coroutineScope,
@@ -500,6 +505,7 @@ fun AuraAlbumScreen(
                         titleRes = R.string.album_you_might_also_like,
                         items = related,
                         navController = navController,
+                        playerConnection = playerConnection,
                         haptic = haptic,
                         menuState = menuState,
                         coroutineScope = coroutineScope,
@@ -516,6 +522,7 @@ fun AuraAlbumScreen(
                         titleRes = R.string.appears_on,
                         items = featuredOn,
                         navController = navController,
+                        playerConnection = playerConnection,
                         haptic = haptic,
                         menuState = menuState,
                         coroutineScope = coroutineScope,
@@ -1096,6 +1103,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraAlbumRelatedShelf
     titleRes: Int,
     items: List<YTItem>,
     navController: NavController,
+    playerConnection: iad1tya.echo.music.playback.PlayerConnection,
     haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
     menuState: iad1tya.echo.music.ui.component.MenuState,
     coroutineScope: kotlinx.coroutines.CoroutineScope,
@@ -1125,7 +1133,16 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraAlbumRelatedShelf
                             is AlbumItem -> navController.navigate("album/${item.id}")
                             is ArtistItem -> navController.navigate("artist/${item.id}")
                             is PlaylistItem -> navController.navigate("online_playlist/${item.id}")
-                            is SongItem -> Unit
+                            // AUDIT FIX (2026-09-04): was `Unit` — a SONG card in the related
+                            // shelves ("Más para escuchar" / "Aparece en") did nothing on tap
+                            // (only long-press worked). Play it immediately, the same pattern
+                            // the Home recommendation cards already use.
+                            is SongItem -> playerConnection.playQueue(
+                                YouTubeQueue(
+                                    item.endpoint ?: WatchEndpoint(videoId = item.id),
+                                    item.toMediaMetadata(),
+                                ),
+                            )
                         }
                     },
                     onLongClick = {
