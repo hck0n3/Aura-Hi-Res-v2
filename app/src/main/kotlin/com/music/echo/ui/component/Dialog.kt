@@ -89,6 +89,8 @@ fun DefaultDialog(
     // tap — passed through to the in-window host (the classic window branch already guards in
     // its own close handlers).
     dismissOnOutsideTap: Boolean = true,
+    // Dialogs opened FROM another dialog window must stay windows (see the routing note below).
+    forceWindow: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val skin = rememberAuraPanelSkin()
@@ -109,8 +111,14 @@ fun DefaultDialog(
     // consumer (AI playlist, create/import playlist, settings menu...) inherits in one place.
     // No source / no premium → the exact Dialog+AuraFloatingSurface window that shipped before,
     // byte-identical.
+    // forceWindow (owner report 2026-09-05: "abre pero la abre ATRÁS del reproductor"): a dialog
+    // OPENED FROM INSIDE another dialog window (AddToPlaylistDialog's "Crear lista" is the known
+    // case) must NOT become an in-window overlay — the overlay composes inside the NavHost,
+    // UNDER the expanded player sheet, and the owner sees "nothing happens" until he backs out.
+    // Children of dialog WINDOWS stay dialog WINDOWS: they layer above everything, like the
+    // parent that opened them.
     val overlayHazeState = LocalOverlayHazeState.current
-    if (premium && overlayHazeState != null) {
+    if (premium && overlayHazeState != null && !forceWindow) {
         AuraInWindowDialog(
             visible = true,
             onDismiss = onDismiss,
@@ -370,6 +378,8 @@ fun TextFieldDialog(
     onDismiss: () -> Unit,
     autoDismiss: Boolean = true,
     extraContent: (@Composable () -> Unit)? = null,
+    // Children of dialog WINDOWS stay windows (the "Crear lista" behind the player report).
+    forceWindow: Boolean = false,
 ) {
     val legacyFieldState = remember { mutableStateOf(initialTextFieldValue) }
 
@@ -385,6 +395,7 @@ fun TextFieldDialog(
     DefaultDialog(
         onDismiss = onDismiss,
         modifier = modifier,
+        forceWindow = forceWindow,
         icon = icon,
         title = title,
         buttons = {

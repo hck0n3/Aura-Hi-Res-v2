@@ -75,6 +75,11 @@ fun CreatePlaylistDialog(
         title = { Text(text = stringResource(R.string.create_playlist)) },
         initialTextFieldValue = TextFieldValue(initialTextFieldValue ?: ""),
         onDismiss = onDismiss,
+        // forceWindow: this dialog is often opened FROM a dialog window (the AddToPlaylistDialog
+        // "Crear lista" row under the player) — as an in-window overlay it composed UNDER the
+        // expanded player sheet ("abre pero la abre ATRÁS del reproductor", owner report
+        // 2026-09-05). As a window it layers above everything, like its parent.
+        forceWindow = true,
         onDone = { playlistName ->
             coroutineScope.launch(Dispatchers.IO) {
                 val wantsRemote = autoSync || (syncedPlaylist && isSignedIn)

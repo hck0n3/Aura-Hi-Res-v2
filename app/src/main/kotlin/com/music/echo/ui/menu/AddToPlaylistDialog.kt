@@ -280,6 +280,8 @@ fun AddToPlaylistDialog(
     
         if (showDuplicateDialog) {
             DefaultDialog(
+                // Child of a dialog window — stays a window (above the expanded player).
+                forceWindow = true,
                 title = { Text(stringResource(R.string.duplicates)) },
                 buttons = {
                     TextButton(
