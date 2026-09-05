@@ -2264,7 +2264,14 @@ class MusicService :
             appContext = applicationContext
         }
         scope.launch {
-            dataStore.data.map { it[EnableLastFMScrobblingKey] ?: false }.distinctUntilChanged().collect {
+            // DATA SAVER (super-audit 2026-09-04): the switch promises "desactiva scrobbling" —
+            // Last.fm submissions are background network (2 requests per song + now-playing),
+            // gated exactly like ListenBrainz below (the user's key stays persisted).
+            dataStore.data.map {
+                val lastfm = it[EnableLastFMScrobblingKey] ?: false
+                val dataSaver = it[iad1tya.echo.music.constants.DataSaverEnabledKey] ?: false
+                if (dataSaver) false else lastfm
+            }.distinctUntilChanged().collect {
                 scrobbleManager?.enableScrobbling = it
             }
         }
@@ -2601,7 +2608,14 @@ class MusicService :
                 Triple(
                     // High-Performance Mode disables crossfade: it runs a SECOND ExoPlayer (double decode) per
                     // transition — the biggest CPU/RAM cost left on weak/TV/car devices. Transitions become hard cuts.
-                    (prefs[CrossfadeEnabledKey] ?: false) && !(prefs[iad1tya.echo.music.constants.HighPerformanceModeKey] ?: false),
+                    // DATA SAVER (super-audit 2026-09-04): the crossfade preload resolves + buffers the
+                    // NEXT song ~15s early even under Data Saver — the largest invisible spender while
+                    // the switch promises "desactiva precarga". Under Data Saver the crossfade keeps its
+                    // UX (the swap still blends what already sounds) but the collector stops arming the
+                    // preload job, exactly like preloadUpcomingItems does.
+                    (prefs[CrossfadeEnabledKey] ?: false) &&
+                        !(prefs[iad1tya.echo.music.constants.HighPerformanceModeKey] ?: false) &&
+                        !(prefs[iad1tya.echo.music.constants.DataSaverEnabledKey] ?: false),
                     prefs[CrossfadeDurationKey] ?: 5f,
                     prefs[CrossfadeGaplessKey] ?: false
                 )

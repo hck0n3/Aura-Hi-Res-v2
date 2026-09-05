@@ -671,6 +671,9 @@ fun Lyrics(
 
     // Default path: auto-translate to Español Latinoamérica (or the user's target) without asking.
     val autoTranslatedSongs = remember { mutableStateListOf<String>() }
+    // DATA SAVER (super-audit 2026-09-04): the automatic translation is background network the
+    // "ahorro de datos" switch promises to keep off — the manual translate button stays.
+    val dataSaverOn by rememberPreference(iad1tya.echo.music.constants.DataSaverEnabledKey, false)
     LaunchedEffect(
         showLyrics,
         lines.size,
@@ -678,10 +681,12 @@ fun Lyrics(
         autoTranslateLyrics,
         hasActiveTranslations,
         effectiveTranslateTarget,
+        dataSaverOn,
     ) {
         val songId = currentSong?.id ?: return@LaunchedEffect
         if (!autoTranslateLyrics ||
             !showLyrics ||
+            dataSaverOn ||
             lines.isEmpty() ||
             hasActiveTranslations ||
             songId in autoTranslatedSongs ||
