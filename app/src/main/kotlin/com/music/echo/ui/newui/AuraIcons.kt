@@ -343,7 +343,9 @@ object AuraIcons {
         }
     }
 
-    /** `#i-cog` — "Ajustes"; also the Privacidad group icon. */
+    /** `#i-cog` — "Ajustes"; also the Privacidad group icon. GEAR (owner directive 2026-09-05:
+     * the nav-bar Ajustes cell must read unmistakably as "settings"): the old sun/burst glyph
+     * could be mistaken for brightness — a proper cog with teeth is the universal settings icon. */
     val Settings: ImageVector by lazy {
         ImageVector.Builder(
             name = "Settings",
@@ -359,23 +361,26 @@ object AuraIcons {
                 strokeLineCap = StrokeCap.Butt,
                 strokeLineJoin = StrokeJoin.Miter,
             ) {
-                circle(12f, 12f, 3f)
+                // The gear body: a 12-point rounded path approximating a classic cog.
+                moveTo(12f, 3.2f)
+                lineTo(13.5f, 5.1f); lineTo(15.8f, 4.2f); lineTo(16.3f, 6.6f)
+                lineTo(18.7f, 7.1f); lineTo(17.8f, 9.4f); lineTo(19.7f, 10.9f)
+                lineTo(18.1f, 12.6f); lineTo(19.2f, 14.8f); lineTo(16.9f, 15.5f)
+                lineTo(16.7f, 17.9f); lineTo(14.3f, 17.6f); lineTo(12.9f, 19.6f)
+                lineTo(11f, 18.2f); lineTo(8.9f, 19.1f); lineTo(8f, 16.9f)
+                lineTo(5.6f, 16.6f); lineTo(5.9f, 14.2f); lineTo(3.8f, 12.9f)
+                lineTo(5.2f, 11f); lineTo(4.3f, 8.9f); lineTo(6.5f, 8f)
+                lineTo(6.8f, 5.6f); lineTo(9.2f, 5.9f); lineTo(10.5f, 3.8f)
+                close()
             }
             path(
                 fill = null,
                 stroke = SolidColor(Color.Black),
                 strokeLineWidth = 1.9f,
-                strokeLineCap = StrokeCap.Round,
+                strokeLineCap = StrokeCap.Butt,
                 strokeLineJoin = StrokeJoin.Miter,
             ) {
-                moveTo(12f, 3f); verticalLineToRelative(2.2f)
-                moveTo(12f, 18.8f); verticalLineTo(21f)
-                moveTo(21f, 12f); horizontalLineToRelative(-2.2f)
-                moveTo(5.2f, 12f); horizontalLineTo(3f)
-                moveTo(18.4f, 5.6f); lineToRelative(-1.6f, 1.6f)
-                moveTo(7.2f, 16.8f); lineToRelative(-1.6f, 1.6f)
-                moveTo(18.4f, 18.4f); lineToRelative(-1.6f, -1.6f)
-                moveTo(7.2f, 7.2f); lineTo(5.6f, 5.6f)
+                circle(12f, 12f, 3.6f)
             }
         }.build()
     }
