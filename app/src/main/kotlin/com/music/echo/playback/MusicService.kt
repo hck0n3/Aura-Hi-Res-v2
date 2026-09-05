@@ -945,6 +945,9 @@ class MusicService :
     // the last song. Empty for a directly-started radio (YouTubeQueue) or a single track → falls back to last-song
     // seeding (unchanged). Reassigned on every playQueue, so a fresh finite queue overwrites any prior pool.
     @Volatile private var radioSeedPool: List<iad1tya.echo.music.models.MediaMetadata> = emptyList()
+    // Entropy source for the infinite-queue seed variety (2026-09-04): a single Random shared by
+    // the seed shuffles — no per-frame work, consulted only at seed time.
+    private val randomSeedSource = kotlin.random.Random(System.currentTimeMillis())
 
     // Genre-aware continuation — the CONTEXT PROFILE of the finite collection in [radioSeedPool] (its
     // artists + real genre mix + weak language hint). Built LAZILY (off the player thread, runCatching)
@@ -3830,15 +3833,31 @@ class MusicService :
                         }
                     }
                     if (offContext.isNotEmpty()) {
-                        Timber.tag(TAG).i(
-                            "CTX_SINK appendSeed: sank %d/%d off-context candidates to the tail",
-                            offContext.size, items.size,
-                        )
+                        // OWNER DIRECTIVE (2026-09-04): "la cola infinita mete una canción que nada
+                        // que ver". The old SINK-never-drop sent known-off-context candidates to the
+                        // batch tail — but the queue consumes the WHOLE batch, so the intruder
+                        // played anyway (the owner heard it, skipped it, "y luego sigue bien").
+                        // With ≥10 in-context survivors (the threshold the original design
+                        // documented), KNOWN-off-context candidates are now DROPPED — unknowns
+                        // stay untouched (#39/#41) and never-silence holds: below the threshold
+                        // the sink keeps its old job, and callers fall through to the next source
+                        // when a batch comes back empty.
+                        if (inContext.size >= 10) {
+                            Timber.tag(TAG).i(
+                                "CTX_SINK appendSeed: dropped %d/%d off-context candidates (%d in-context survivors)",
+                                offContext.size, items.size, inContext.size,
+                            )
+                            inContext to offContext.mapNotNullTo(HashSet()) { it.mediaId }
+                        } else {
+                            Timber.tag(TAG).i(
+                                "CTX_SINK appendSeed: sank %d/%d off-context candidates to the tail (only %d in-context)",
+                                offContext.size, items.size, inContext.size,
+                            )
+                            (inContext + offContext) to offContext.mapNotNullTo(HashSet()) { it.mediaId }
+                        }
+                    } else {
+                        inContext to emptySet<String>()
                     }
-                    // The ids travel WITH the order: tail position alone was not enough, because the
-                    // exploration quota downstream promotes a fresh artist to the front and an
-                    // off-context candidate is fresh almost by definition — the sink was being undone.
-                    (inContext + offContext) to offContext.mapNotNullTo(HashSet()) { it.mediaId }
                 } else items to emptySet<String>()
                 val toAppend = laneOrdered.first.orderedByTaste(laneOrdered.second)
                 if (toAppend.isEmpty()) return false
@@ -4031,18 +4050,33 @@ class MusicService :
                         clusters.values
                             .sortedByDescending { it.size }
                             .mapNotNull { tracks ->
-                                tracks.maxByOrNull { mm ->
+                                // Variety between sessions (2026-09-04): the cluster representative
+                                // comes from the TOP-2 taste tracks, picked at random — the dominant
+                                // lane keeps its strongest material in play, but not the SAME id
+                                // every single session.
+                                val top = tracks.sortedByDescending { mm ->
                                     if (profile == null) 0.0 else profile.scoreNames(mm.artists.map { it.name }, mm.title)
-                                }?.ytId()
+                                }.take(2)
+                                top.randomOrNull(randomSeedSource)?.ytId()
                             }
                     }.getOrDefault(emptyList()) else emptyList()
                 // Seeds (up to 4 distinct ids) that capture the RANGE: the current/last song first ("more like
                 // what just played"), then one representative per context GENRE CLUSTER (largest share first),
                 // then one per DISTINCT ARTIST (recent-first, taste-ranked), then more distinct recent TRACKS
                 // (so a SINGLE-ARTIST ALBUM still multi-seeds across its range).
+                // OWNER DIRECTIVE (2026-09-04): "si vuelvo a poner la misma lista y termina la cola
+                // infinita, DEBE SER DIFERENTE a la que ya generó — si no se pierde la experiencia".
+                // The old selection was fully DETERMINISTIC (maxByOrNull taste → the same 4 seeds →
+                // the same YouTube RDAMVM mixes → the same queue every session). Entropy is added
+                // WITHOUT touching the dominant lane: within each cluster the representative comes
+                // from the TOP-2 taste (random), and the cluster ORDER is shuffled — same fetches
+                // (≤4), same genre coverage, a different window into YouTube's mix every time.
                 val perArtistIds = ranked.mapNotNull { it.ytId() }
                 val poolIds = contextPool.mapNotNull { it.ytId() }
-                val seeds = (listOfNotNull(seedVideoId) + clusterReps + perArtistIds + poolIds).distinct().take(4)
+                val clusterRepsShuffled = clusterReps.shuffled(randomSeedSource)
+                val seeds = (listOfNotNull(seedVideoId) + clusterRepsShuffled + perArtistIds + poolIds)
+                    .distinct()
+                    .take(4)
                 if (seeds.size < 2) return@runCatching false // truly one usable track → let tryRadio do last-song
                 // Fetch each seed's radio page, off the player thread. With an ACTIVE profile the per-seed
                 // cap grows 12 → 16 (headroom so the context steering in orderedByTaste has material to
