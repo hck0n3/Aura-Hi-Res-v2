@@ -7731,7 +7731,15 @@ class MusicService :
         return ResolvingDataSource.Factory(
             DefaultDataSource.Factory(this, createCacheDataSource())
         ) { dataSpec ->
-            val mediaId = dataSpec.key ?: error("No media id")
+            // VIDEO CACHE KEY normalization (2026-09-05, the "No media id" crash): video items
+            // carry a DEDICATED customCacheKey "yt-video-<videoId>" (stable per-video cache —
+            // see maybePrepareInstantVideoSwap). The resolver's identity is the videoId itself:
+            // the song's URL cache, bypass sets and quality guards all key on the plain id, so
+            // the prefix is stripped HERE before anything else looks at it. The DataSpec keeps
+            // the full yt-video- key for the CacheDataSource layer (that is the point — video
+            // bytes cached under their own key), only the RESOLUTION identity is normalized.
+            val mediaId = (dataSpec.key ?: error("No media id"))
+                .removePrefix("yt-video-")
             if (mediaId.isLocalMediaId()) return@Factory dataSpec
             // Podcast episodes (and any direct-URL media) are already a playable audio stream — play
             // the URL straight through instead of resolving it through YouTube.
@@ -8420,9 +8428,23 @@ class MusicService :
         try {
             pre = createExoPlayer(isSecondary = true)
             pre.addListener(instantVideoPlayerListener)
-            // setCustomCacheKey(null): audit FASE 2-B #1 — the pre-player's video item must not
-            // inherit the audio item's downloadCache key (same fix as swapToVideo/prebuild).
-            pre.setMediaItem(item.buildUpon().setUri(url).setCustomCacheKey(null).build())
+            // VIDEO CACHE KEY (owner report 2026-09-05 + log: "Instant-video pre-player error —
+            // IllegalStateException: No media id"): the pre-player's video item used
+            // setCustomCacheKey(null) to keep it away from the audio downloadCache key, but the
+            // ResolvingDataSource identity is dataSpec.key itself — a null key crashed the load
+            // with "No media id" on the owner's S26 (log 13:40:51), killing the instant video
+            // pre-player on every prepare. A DEDICATED video cache key fixes both defects at
+            // once: (a) the resolver keeps its media id (no crash), (b) the video bytes land in
+            // playerCache under a STABLE per-video key instead of the rotating o-XXXX url id
+            // (which the 2026-09-04 audit found was a write-only ghost cache — every view
+            // re-downloaded the whole video). Format: yt-video-<videoId> — video items are
+            // video-only itags (137 etc.), never colliding with audio's yt-stream-<id>-<itag>.
+            pre.setMediaItem(
+                item.buildUpon()
+                    .setUri(url)
+                    .setCustomCacheKey("yt-video-$id")
+                    .build(),
+            )
             // Keyframe-aligned seeks for the whole pre-prepare life (mirrors swapToVideo's CLOSEST_SYNC swap
             // seek); restored to DEFAULT right after the publish seek in tryInstantVideoSwap.
             pre.setSeekParameters(androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC)

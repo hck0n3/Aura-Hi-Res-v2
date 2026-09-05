@@ -453,15 +453,17 @@ class VideoModeCoordinator(private val service: MusicService) {
         // REAL metadata object instead, so every real field stays intact.
         val videoItem = item.buildUpon()
             .setUri(url)
-            // Adversarial audit FASE 2-B #1: buildUpon() KEEPS the audio item's customCacheKey
-            // (songId) — the video DataSpec then consulted downloadCache under the AUDIO's key,
-            // and a (partially) downloaded AUDIO could serve its bytes to the VIDEO extractor
-            // (container mismatch / black video, seek-position dependent). Null the key: with no
-            // key the outer layer falls back to the rotating googlevideo URL (never hits), and
-            // the inner layer's stableStreamCacheKeyFactory derives yt-stream-<id>-<videoItag>
-            // from the URL itself. The offline companion path is unaffected (the resolver
-            // rewrites key+uri to id::video before any cache layer runs).
-            .setCustomCacheKey(null)
+            // VIDEO CACHE KEY (2026-09-05, the "No media id" crash from the owner's log): the
+            // old setCustomCacheKey(null) kept the video out of the audio's downloadCache key
+            // (audit FASE 2-B #1) but ALSO killed the resolver's identity — dataSpec.key was
+            // null and the load crashed with IllegalStateException: No media id, which is what
+            // broke video mode on the S26 (log 13:40/15:06 "Instant-video pre-player error").
+            // The dedicated "yt-video-<videoId>" key keeps the bytes OUT of the audio key
+            // (different namespace) while giving the resolver a stable id (the resolver strips
+            // the prefix — see createDataSourceFactory) AND making the video cache actually
+            // readable on replay (the 2026-09-04 audit found the old rotating-URL keys were a
+            // write-only ghost: every view re-downloaded the whole video).
+            .setCustomCacheKey("yt-video-${item.mediaId}")
             .setTag(
                 if (isMuxed) item.metadata?.copy(videoSwapNonce = System.nanoTime()) ?: item.localConfiguration?.tag
                 else item.localConfiguration?.tag
@@ -618,11 +620,12 @@ class VideoModeCoordinator(private val service: MusicService) {
                     videoModeItems[nextId] = VideoTrackState(resolved, origUri, muxed)
                     if (origUri != resolved) {
                         // Replace ONLY the upcoming (non-current) item → no STATE_BUFFERING on the running track.
-                        // setCustomCacheKey(null): same audit FASE 2-B #1 as swapToVideo — the video must
-                        // never inherit the audio item's downloadCache key.
+                        // Dedicated yt-video-<id> key (2026-09-05 "No media id" crash + ghost video
+                        // cache — same cure as swapToVideo: stable identity for the resolver, video
+                        // bytes under their own readable cache key, never the audio downloadCache one).
                         service.player.replaceMediaItem(
                             idx,
-                            item.buildUpon().setUri(resolved).setCustomCacheKey(null).build(),
+                            item.buildUpon().setUri(resolved).setCustomCacheKey("yt-video-$nextId").build(),
                         )
                     }
                 }
