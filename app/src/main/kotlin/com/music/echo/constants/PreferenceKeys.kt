@@ -198,12 +198,13 @@ val Defaults0132GaplessOffAppliedKey = booleanPreferencesKey("defaults_0_6_132_g
 /** 0.6.136 one-time repair of the legacy seeded accent (0xFF36C5E0) that made the app look like the user
  *  had picked a custom colour, hiding the dynamic-theme switch and every palette selection. */
 val ThemeAccentRepairV1AppliedKey = booleanPreferencesKey("theme_accent_repair_v1_applied")
-// One-time (V2, FRESH key): re-apply ALL audio defaults — EQ "Aura Hi-Res" house curve (owner request
-// 2026-08-26; the seed used to be Audiophile) + preamp +2 dB (the owner's final pick of 2026-08-26;
-// the seed used to be +3, and the V4 migration below lowers installs still on +3), crossfade 9s
-// equal-power, Safe Volume OFF — for EVERYONE, including
+// One-time (V2, FRESH key): re-apply ALL audio defaults — EQ house curve + preamp, crossfade 5s
+// equal-power, Safe Volume ON — for EVERYONE, including
 // users whose per-feature flags were already set by the brief 0.6.75/0.6.76 builds (so the settings
-// actually land on this update).
+// actually land on this update). The seeded curve follows the owner's latest directive: 2026-09-05
+// seeds "Aura Hi-Res v2" + preamp +2.3 dB; until 2026-09-04 it was "Aura Hi-Res" (+2 dB, owner pick
+// of 2026-08-26; the seed used to be Audiophile at +3, and the V4 migration lowered installs still
+// on +3 — the V5 migration below now raises installs still on +2 to +2.3).
 val AudioDefaultsV2AppliedKey = booleanPreferencesKey("audio_defaults_v2_applied")
 // One-time (FRESH key, HALLAZGO-046, owner request): raise the EQ preamp default from 0.0 to +3.0 dB
 // for everyone still on the seeded default. Runs AFTER migrateAudioDefaultsV2 so the seed it bumps
@@ -213,6 +214,12 @@ val EqPreampDefault3DbAppliedKey = booleanPreferencesKey("eq_preamp_default_3db_
 // the owner tested +3 and wants the stock experience at +2. Runs AFTER migrateEqPreampDefaultV3;
 // users who chose their own preamp (anything != +3.0) keep it.
 val EqPreampDefault2DbAppliedKey = booleanPreferencesKey("eq_preamp_default_2db_applied")
+// One-time (FRESH key, owner request 2026-09-05 — Aura Hi-Res v2 directive): raise the EQ preamp
+// default from +2.0 to +2.3 dB. Runs AFTER migrateEqPreampDefaultV4; users who chose their own
+// preamp (anything != +2.0) keep it. The migrateAudioDefaultsV2 seed writes +2.3 directly on fresh
+// installs, so on those devices this migration only ever stamps its flag (the stored value already
+// matches).
+val EqPreampDefault23DbAppliedKey = booleanPreferencesKey("eq_preamp_default_23db_applied")
 // One-time: force infinite playback (auto-radio at end of album/playlist/queue) ON for EVERYONE — the owner
 // wants endless playback always active. Fresh key so it re-applies even for users who had it toggled off.
 val InfinitePlaybackForcedOnKey = booleanPreferencesKey("infinite_playback_forced_on_v1")

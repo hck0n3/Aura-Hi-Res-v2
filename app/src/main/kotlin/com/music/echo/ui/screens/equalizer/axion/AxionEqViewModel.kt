@@ -178,10 +178,10 @@ class AxionEqViewModel @Inject constructor(
     private val _bandTypes = MutableStateFlow(IntArray(n) { prefs.getInt("type24_$it", 0) })
     val bandTypes = _bandTypes.asStateFlow()
 
-    // Fallback 2f = the current default (HALLAZGO-046 shipped +3; the owner lowered the stock
-    // preamp to +2 on 2026-08-26). Migrations write the value explicitly; this only matters
-    // before they run.
-    private val _preamp = MutableStateFlow(prefs.getFloat("preampDb", 2f))
+    // Fallback 2.3f = the current default (HALLAZGO-046 shipped +3; the owner lowered it to +2 on
+    // 2026-08-26, then raised it to +2.3 on 2026-09-05 with the Aura Hi-Res v2 directive).
+    // Migrations write the value explicitly; this only matters before they run.
+    private val _preamp = MutableStateFlow(prefs.getFloat("preampDb", 2.3f))
     val preamp = _preamp.asStateFlow()
 
     // EQ editing mode: GRAPHIC (10-band, EqConstants.BAND_COUNT, default) vs PARAMETRIC (5–8 free PEQ bands). Both curves are

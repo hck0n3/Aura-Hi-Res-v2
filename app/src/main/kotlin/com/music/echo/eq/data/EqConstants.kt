@@ -98,7 +98,18 @@ enum class FactoryPreset(val displayName: String, val description: String, val g
     // 6,4,2,0,0,0,1,1,2,3 — row 163/199 lineage; the original row-163 seed was 6,4,1,-1,0,0,1,0,1,2).
     // Fresh installs seed this curve via migrateAudioDefaultsV2 (App.kt); existing installs get
     // it by tapping the "Aura Hi-Res" chip once, same accepted scope as rows 163/199.
-    AURA_HI_RES("Aura Hi-Res", "La firma de la casa: graves con cuerpo, medios limpios y agudos con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(5.0f, 4.0f, 2.0f, 0f, 0f, 1.0f, 0f, 1.0f, 2.0f, 3.0f))
+    AURA_HI_RES("Aura Hi-Res", "La firma de la casa: graves con cuerpo, medios limpios y agudos con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(5.0f, 4.0f, 2.0f, 0f, 0f, 1.0f, 0f, 1.0f, 2.0f, 3.0f)),
+
+    // Owner directive 2026-09-05: NEW house profile "Aura Hi-Res v2" — 31 Hz +4, 62 +4, 125 +2, 250 +1,
+    // 500 +1, 1k +1, 2k +1, 4k +1, 8k +2, 16k +3 — with the global EQ preamp default raised to +2.3 dB.
+    // Deliberately an ADDITION, not an edit: the AURA_HI_RES curve above is frozen by the owner's
+    // 2026-09-04 spec (registry row 201, EqConstantsTest.auraHiResCurveMatchesOwnerSpec). This entry
+    // inherits the default-seed role: migrateAudioDefaultsV2 (App.kt) now seeds THIS curve on fresh
+    // installs; existing installs keep their tuned EQ untouched (the seed only runs behind the
+    // AudioDefaultsV2AppliedKey gate). Verified band-by-band: no other factory preset is within the
+    // 0.5 dB match tolerance of this curve (closest is OLIVE_WELTI, off by 1.0 dB at 62 Hz), so its
+    // chip selects uniquely — and being the LAST enum entry it can never steal another preset's match.
+    AURA_HI_RES_V2("Aura Hi-Res v2", "La firma de la casa, evolución 2026: graves firmes, medios presentes y agudos con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(4.0f, 4.0f, 2.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 3.0f))
 }
 
 /** Per-band tolerance (dB) used to decide whether the live gains still "are" a factory preset. */

@@ -577,6 +577,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // +2 dB pick (2026-08-26). MUST run after migrateEqPreampDefaultV3 so a bump V3 just
         // applied is settled on +2 in the same launch.
         migrateEqPreampDefaultV4(settings)
+        // SEPARATE (same EQ side effects): raises the +2.0 dB preamp default to the owner's
+        // 2026-09-05 pick of +2.3 dB (Aura Hi-Res v2 directive). MUST run after
+        // migrateEqPreampDefaultV4 so the V4 chain settling an install on +2.0 continues on
+        // to +2.3 in the same launch.
+        migrateEqPreampDefaultV5(settings)
 
         // Establish, at most ONCE per install, where this data came from — and clean up after a
         // platform restore before anything is allowed to act on the restored rows. Must run before
@@ -1052,11 +1057,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
     }
 
     /**
-     * One-time (V2): force the requested AUDIO DEFAULTS for EVERYONE on this update — EQ ON + "Aura Hi-Res"
-     * house preset (owner request 2026-08-26: the default signature from the very first launch; the seed used
-     * to be "Audiophile") + preamp +2.0 dB (the owner's final pick of 2026-08-26; it used to be +3.0 — the V4
-     * migration below lowers installs the old +3 seed/V3 bump already landed on), crossfade 9 s equal-power
-     * ("transición suave"), and Safe Volume ON. Gated by
+     * One-time (V2): force the requested AUDIO DEFAULTS for EVERYONE on this update — EQ ON + house
+     * preset + preamp, crossfade 5 s equal-power ("transición suave"), and Safe Volume ON. The seeded
+     * house curve follows the owner's latest directive: 2026-09-05 seeds "Aura Hi-Res v2"
+     * ([iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V2]) + preamp +2.3 dB; until 2026-09-04 the
+     * seed was "Aura Hi-Res" (+2.0 dB, owner pick of 2026-08-26; before that "Audiophile"). Gated by
      * a FRESH key ([AudioDefaultsV2AppliedKey]) so it re-applies even for users whose per-feature flags were
      * already set by the brief 0.6.75/0.6.76 builds (a single EqAudiophileDefault boolean could only ever
      * apply ONCE per install, so bumping the version alone did NOT re-apply it — this new-key block fixes that).
@@ -1089,9 +1094,12 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             if (hasExistingPrefs || hasExistingProfiles) {
                 return@runCatching true
             }
-            // Owner request 2026-08-26: fresh installs boot with the "Aura Hi-Res" house curve active
-            // (matches FactoryPreset.AURA_HI_RES exactly, so its chip shows selected in the EQ grid).
-            val gains = iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES.gains
+            // Owner request 2026-09-05 (Aura Hi-Res v2 directive): fresh installs boot with the NEW
+            // "Aura Hi-Res v2" house curve active (matches FactoryPreset.AURA_HI_RES_V2 exactly, so its
+            // chip shows selected in the EQ grid). The 2026-08-26..09-04 seed was AURA_HI_RES; existing
+            // installs are protected by the AudioDefaultsV2AppliedKey gate above, which returns before
+            // this line for them, so only a device with NO EQ state at all lands here.
+            val gains = iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V2.gains
             val bands = iad1tya.echo.music.ui.screens.equalizer.axion.buildEqBands(gains, IntArray(gains.size))
             val profile = iad1tya.echo.music.eq.data.SavedEQProfile(
                 id = "echo_tuning",
@@ -1099,7 +1107,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 deviceModel = "Equalizer",
                 bands = bands,
                 autoBands = emptyList(),
-                preamp = 2.0,
+                preamp = 2.3,
                 isCustom = false,
                 isActive = true,
             )
@@ -1107,10 +1115,10 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             eqRepo.saveProfile(profile)
             eqRepo.setUnsavedProfile(profile)
             eqRepo.setActiveProfile(profile.id)
-            // EQ-screen UI mirror so the enabled toggle / sliders / preamp reflect the seeded Aura Hi-Res tuning.
+            // EQ-screen UI mirror so the enabled toggle / sliders / preamp reflect the seeded Aura Hi-Res v2 tuning.
             val ed = eqPrefs.edit()
             ed.putBoolean("enabled", true)
-            ed.putFloat("preampDb", 2.0f)
+            ed.putFloat("preampDb", 2.3f)
             gains.forEachIndexed { i, g -> ed.putFloat("band24_$i", g) }
             ed.apply()
             true
@@ -1194,6 +1202,43 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         }.onFailure { reportException(it) }.getOrDefault(false)
         if (applied) {
             dataStore.edit { it[iad1tya.echo.music.constants.EqPreampDefault2DbAppliedKey] = true }
+        }
+    }
+
+    /**
+     * One-time (V5, owner request 2026-09-05 — Aura Hi-Res v2 directive): raise the EQ preamp default
+     * from +2.0 to +2.3 dB. Runs AFTER [migrateEqPreampDefaultV4] so the V3→V4 chain that settles an
+     * install on +2.0 continues on to +2.3 in the same launch (all writers agree on +2.3 — ordering
+     * cannot undo it). "Exactly +2.0" is treated as "still on the old default", the same convention the
+     * V3/V4 migrations used for 0.0/+3.0; users who chose any other preamp keep it. Writes BOTH the DSP
+     * source of truth (the profile repo — MusicService.currentEqPreampDb prefers the profile over the
+     * mirror) AND the `echo_eq_prefs` mirror the EQ screen reads, mirroring V3/V4. Two-phase like V3/V4:
+     * the flag is only stamped on success, and while NO EQ state exists yet it retries instead of
+     * stamping.
+     */
+    private suspend fun migrateEqPreampDefaultV5(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.EqPreampDefault23DbAppliedKey] == true) return
+        val applied = runCatching {
+            val eqPrefs = applicationContext.getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
+            val eqRepo = eqProfileRepository.get()
+            val hasAnyEqState = eqPrefs.contains("enabled") || eqPrefs.contains("preampDb") ||
+                eqPrefs.all.keys.any { it.startsWith("band") } ||
+                runCatching { eqRepo.getAllProfiles().isNotEmpty() }.getOrDefault(false)
+            if (!hasAnyEqState) return@runCatching false
+            val storedPreamp = eqPrefs.getFloat("preampDb", Float.NaN)
+            if (!(storedPreamp.isNaN() || storedPreamp == 2.0f)) return@runCatching true
+            val effective = eqRepo.unsavedProfile.value ?: eqRepo.activeProfile.value
+            if (effective != null && effective.preamp == 2.0) {
+                val raised = effective.copy(preamp = 2.3)
+                eqRepo.saveProfile(raised)
+                eqRepo.setUnsavedProfile(raised)
+                eqRepo.setActiveProfile(raised.id)
+            }
+            eqPrefs.edit().putFloat("preampDb", 2.3f).apply()
+            true
+        }.onFailure { reportException(it) }.getOrDefault(false)
+        if (applied) {
+            dataStore.edit { it[iad1tya.echo.music.constants.EqPreampDefault23DbAppliedKey] = true }
         }
     }
 

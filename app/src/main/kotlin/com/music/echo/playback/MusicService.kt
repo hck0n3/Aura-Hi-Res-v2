@@ -7711,11 +7711,11 @@ class MusicService :
         videoCoordinator.enterVideoModeIfNeeded(forceFromUserTap)
 
     private fun currentEqPreampDb(): Double {
-        // Fallback 2f = the current default (HALLAZGO-046 shipped +3; the owner lowered the stock
-        // preamp to +2 on 2026-08-26). Migrations write the value explicitly; this only matters
-        // before they run.
+        // Fallback 2.3f = the current default (HALLAZGO-046 shipped +3; the owner lowered it to +2
+        // on 2026-08-26, then raised it to +2.3 on 2026-09-05 with the Aura Hi-Res v2 directive).
+        // Migrations write the value explicitly; this only matters before they run.
         val prefsPreamp = getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
-            .getFloat("preampDb", 2f).toDouble()
+            .getFloat("preampDb", 2.3f).toDouble()
         if (!::eqProfileRepository.isInitialized) return prefsPreamp
         val profile = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value
         return profile?.preamp ?: prefsPreamp

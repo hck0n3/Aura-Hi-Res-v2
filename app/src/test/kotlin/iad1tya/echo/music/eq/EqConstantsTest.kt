@@ -83,6 +83,17 @@ class EqConstantsTest {
     }
 
     @Test
+    fun auraHiResV2CurveMatchesOwnerSpec() {
+        // Owner directive 2026-09-05: 31 +4, 62 +4, 125 +2, 250 +1, 500 +1, 1k +1, 2k +1, 4k +1,
+        // 8k +2, 16k +3 — the NEW house profile, seeded by migrateAudioDefaultsV2 on fresh installs.
+        assertEquals(
+            listOf(4.0f, 4.0f, 2.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 3.0f),
+            FactoryPreset.AURA_HI_RES_V2.gains.toList()
+        )
+        assertEquals("Aura Hi-Res v2", FactoryPreset.AURA_HI_RES_V2.displayName)
+    }
+
+    @Test
     fun everyPresetGainStaysWithinRange() {
         FactoryPreset.entries.forEach { preset ->
             preset.gains.forEach { gain ->
