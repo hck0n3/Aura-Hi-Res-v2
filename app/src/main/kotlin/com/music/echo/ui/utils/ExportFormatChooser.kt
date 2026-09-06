@@ -110,6 +110,12 @@ fun ExportFormatChooserDialog(
 
     DefaultDialog(
         onDismiss = onDismiss,
+        // forceWindow (owner report 2026-09-05: "el botón de descargas tengo que MINIMIZAR el
+        // reproductor para ver las opciones"): this chooser is opened from the EXPANDED player's
+        // quick actions — as an in-window overlay it composed UNDER the player sheet and the
+        // owner had to collapse the player to see it. Children of the player stay WINDOWS:
+        // always on top, like every dialog the player opens.
+        forceWindow = true,
         title = {
             Text(
                 text = stringResource(

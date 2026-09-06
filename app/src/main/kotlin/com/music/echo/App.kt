@@ -988,6 +988,16 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             p[iad1tya.echo.music.constants.Defaults0127AppliedKey] = true
         }
 
+        // OWNER DIRECTIVE (2026-09-05): "APARTE LA DURACIÓN DEL DESVANECIMIENTO LA QUIERO EN 8
+        // SEGUNDOS POR DEFECTO EN LA TRANSICIÓN DEL AUDIO" — 8 s crossfade duration, applied ONCE
+        // for everyone on this update (the same "sí o sí" contract as Defaults0127 above; the
+        // owner can still change it in Ajustes afterwards and that choice wins forever). Placed
+        // AFTER Defaults0127 so it has the final word on this update; curve 4 stays untouched.
+        if (settings[iad1tya.echo.music.constants.CrossfadeDefault8AppliedKey] != true) {
+            p[iad1tya.echo.music.constants.CrossfadeDurationKey] = 8f
+            p[iad1tya.echo.music.constants.CrossfadeDefault8AppliedKey] = true
+        }
+
         // Owner order (0.6.127): HIGH-tier (gama alta) glass-eligible devices get Liquid Glass ON — the
         // global "Activar Liquid Glass" switch AND the mini-player background — once per install.
         // isGlassEligible already encodes the hard safety gates (API 31+, not TV/car, Performance Mode

@@ -149,6 +149,9 @@ val PlaybackDefaultsV5AppliedKey = booleanPreferencesKey("playback_defaults_v5_a
 // V5/AudioDefaultsV2 flags already landed the old 13s default; only moves users still on that 13s default.
 val CrossfadeDefault9AppliedKey = booleanPreferencesKey("crossfade_default_9_applied")
 
+/** Owner directive 2026-09-05: crossfade duration default 8 s ("la quiero en 8 segundos por defecto"). */
+val CrossfadeDefault8AppliedKey = booleanPreferencesKey("crossfade_default_8_applied")
+
 // Owner order (0.6.127): FORCED once on update (fresh key — a set flag or versionCode bump alone never
 // re-runs a one-time migration): transition 5s + curve 7 "Respiro profundo", SponsorBlock ON, and
 // prevent-duplicate-tracks-in-queue ON. The user's later choices win forever after.
