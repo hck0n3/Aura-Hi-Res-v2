@@ -99,16 +99,23 @@ private const val JAR_WATCH_INTERVAL_MS = 500L
  * finish minting the YouTube session before the app re-loads the handshake itself — the same
  * passive fast-forward the account picker triggers manually, which the owner confirmed works
  * on the S26 Ultra.
+ * OWNER REPORT (2026-09-05: "parpadea como loco, desaparece la página y aparece sucesivamente"):
+ * 4s was too eager — on a slow S26 chain the rescue fired WHILE the page was still settling
+ * (visually: load → vanish → load → vanish). 8s gives the full chain (post-password redirects
+ * can legitimately take 5-6s on mobile) time to finish on its own; only a genuinely stuck
+ * chain gets rescued, and the user is far less likely to be mid-typing when it fires.
  */
-private const val HANDSHAKE_RESCUE_GRACE_MS = 4000L
+private const val HANDSHAKE_RESCUE_GRACE_MS = 8000L
 
 /**
  * Registry #190: total rescue attempts per screen visit. Each rescue re-loads the handshake
  * URL; if Google keeps failing to carry the session over to YouTube the loop stops instead
  * of reloading forever (the owner can still use the account picker, which forces the same
  * passive flow from a trusted chooser).
+ * 2026-09-05: 3 → 2 — the third reload never cured anything the second didn't, and each
+ * extra reload multiplies the flicker the owner reported.
  */
-private const val MAX_HANDSHAKE_RESCUES = 3
+private const val MAX_HANDSHAKE_RESCUES = 2
 
 /**
  * Registry #182: the sign-in entry point. InnerTune — the reference implementation this flow

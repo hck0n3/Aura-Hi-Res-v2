@@ -658,6 +658,14 @@ internal fun rememberAuraVoiceSearch(
         }
     }
 
+    // OWNER REPORT (2026-09-05, from the shared log: "recognizer error 7" + RECORD_AUDIO not
+    // granted): a plain toast on denial is invisible to a normal user — the mic then reads as
+    // "no disponible" forever with no way forward. On denial we now show an explicit dialog
+    // with a one-tap deep link to the app's system permission settings (APPLICATION_DETAILS
+    // SETTINGS). If the system prompt was permanently dismissed ("don't ask again"), this is
+    // the ONLY path to the toggle — and it must be visible.
+    var showMicPermissionDialog by remember { mutableStateOf(false) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -665,7 +673,39 @@ internal fun rememberAuraVoiceSearch(
             startDirect()
         } else {
             opening = false
-            Toast.makeText(context, R.string.voice_search_unavailable, Toast.LENGTH_SHORT).show()
+            showMicPermissionDialog = true
+        }
+    }
+
+    if (showMicPermissionDialog) {
+        iad1tya.echo.music.ui.component.DefaultDialog(
+            onDismiss = { showMicPermissionDialog = false },
+            icon = { Icon(painterResource(R.drawable.mic), contentDescription = null) },
+            title = { Text(stringResource(R.string.mic_permission_needed_title)) },
+            buttons = {
+                TextButton(onClick = {
+                    showMicPermissionDialog = false
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.fromParts("package", context.packageName, null),
+                            ),
+                        )
+                    }
+                }) {
+                    Text(stringResource(R.string.mic_permission_open_settings))
+                }
+                TextButton(onClick = { showMicPermissionDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        ) {
+            Text(
+                stringResource(R.string.mic_permission_needed_body),
+                style = AuraType.RowSubtitle,
+                color = AuraPalette.OnGroundMuted,
+            )
         }
     }
 

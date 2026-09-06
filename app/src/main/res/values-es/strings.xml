@@ -697,6 +697,9 @@
     <string name="spotify_manual_cookie_body">Abre open.spotify.com en tu navegador, luego DevTools ▸ Application ▸ Cookies ▸ https://open.spotify.com. Copia el valor completo de la cookie (incluye sp_dc y sp_key) y pégalo aquí. Esto salta el inicio de sesión web por completo (vía de respaldo portada de SimpMusic).</string>
     <string name="spotify_manual_cookie_no_spdc">No se encontró sp_dc en el texto. Asegúrate de copiar TODA la cookie (no solo un valor).</string>
     <string name="spotify_login_failed">La cookie fue aceptada pero la sesión no pudo validarse. Revisa el valor e inténtalo de nuevo.</string>
+    <string name="mic_permission_needed_title">Necesita el micrófono</string>
+    <string name="mic_permission_needed_body">La búsqueda por voz necesita el permiso de micrófono. Android lo bloqueó para Aura — puedes activarlo ahora mismo en los ajustes de la app (Permisos ▸ Micrófono). Toca "Abrir ajustes", activa Micrófono y vuelve.</string>
+    <string name="mic_permission_open_settings">Abrir ajustes</string>
     <!-- Qobuz hi-res (suscripción propia del dueño) -->
     <string name="qobuz_title">Qobuz</string>
     <string name="qobuz_intro">Reproduce en calidad Qobuz (FLAC Hi-Res) con TU propia suscripción de Qobuz. Inicia sesión con tu cuenta o pega tu token. Nada se guarda en ningún servidor, solo en tu dispositivo.</string>

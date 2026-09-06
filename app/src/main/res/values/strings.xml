@@ -512,6 +512,9 @@
     <string name="spotify_add_by_link_action">Add</string>
     <string name="spotify_invalid_playlist_link">That doesn\'t look like a Spotify playlist link</string>
     <string name="spotify_login_failed">The cookie was accepted but the session could not be validated. Check the value and try again.</string>
+    <string name="mic_permission_needed_title">Microphone needed</string>
+    <string name="mic_permission_needed_body">Voice search needs the microphone permission. Android blocked it for Aura — you can enable it right now in the app settings (Permissions ▸ Microphone). Tap "Open settings" below, activate Microphone, and come back.</string>
+    <string name="mic_permission_open_settings">Open settings</string>
     <string name="spotify_connect">Connect Spotify</string>
     <string name="spotify_refresh">Refresh Spotify library</string>
     <string name="spotify_select_sources">Select Spotify playlists</string>
