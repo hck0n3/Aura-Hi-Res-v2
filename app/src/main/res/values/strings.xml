@@ -512,6 +512,11 @@
     <string name="spotify_add_by_link_action">Add</string>
     <string name="spotify_invalid_playlist_link">That doesn\'t look like a Spotify playlist link</string>
     <string name="spotify_login_failed">The cookie was accepted but the session could not be validated. Check the value and try again.</string>
+    <string name="spotify_connecting_web">Connecting to Spotify…</string>
+    <string name="spotify_login_unrenderable_title">The Spotify page couldn\'t be displayed</string>
+    <string name="spotify_login_unrenderable_body">It loaded fully but the screen couldn\'t draw it — a Samsung WebView quirk. You can retry, open it in your phone\'s browser, or paste your Spotify cookie.</string>
+    <string name="spotify_login_retry">Retry</string>
+    <string name="spotify_login_open_in_browser">Open in browser</string>
     <string name="mic_permission_needed_title">Microphone needed</string>
     <string name="mic_permission_needed_body">Voice search needs the microphone permission. Android blocked it for Aura — you can enable it right now in the app settings (Permissions ▸ Microphone). Tap "Open settings" below, activate Microphone, and come back.</string>
     <string name="mic_permission_open_settings">Open settings</string>

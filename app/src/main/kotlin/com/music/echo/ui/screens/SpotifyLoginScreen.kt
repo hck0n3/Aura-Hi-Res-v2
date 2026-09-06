@@ -11,6 +11,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import android.widget.Toast
+import iad1tya.echo.music.ui.newui.AuraType
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,6 +82,13 @@ fun SpotifyLoginScreen(navController: NavController) {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var lastRescuedUrl by remember { mutableStateOf<String?>(null) }
     var showManualCookieDialog by remember { mutableStateOf(false) }
+    // LAYER 1/2 (owner log analysis 2026-09-05: page loads to 100%, JS runs, the form IS in the
+    // server HTML — yet the owner sees black). The placeholder covers the dark pre-paint (a
+    // WebView without its own background + the app's dark theme = black indistinguishable from
+    // "nothing happens"); loginBroken arms the escape panel when the live-DOM watcher confirms
+    // the page truly has nothing visible after a reload.
+    var showLoadingPlaceholder by remember { mutableStateOf(true) }
+    var loginBroken by remember { mutableStateOf(false) }
 
     fun captureCookies() {
         if (captured) return
@@ -177,7 +186,10 @@ fun SpotifyLoginScreen(navController: NavController) {
             )
         }
 
-        AndroidView(
+        // LAYER 1/2 surface: the WebView plus (over it) the loading placeholder and — only when
+        // the live-DOM watcher confirms a truly dead page after one reload — the escape panel
+        // with the three exits a normal user needs (retry / system browser / manual cookie).
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxSize()
@@ -186,9 +198,19 @@ fun SpotifyLoginScreen(navController: NavController) {
                         WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
                     ),
                 ),
+        ) {
+        AndroidView(
+            modifier = Modifier
+                .fillMaxSize(),
             factory = { webViewContext ->
                 WebView(webViewContext).apply {
                     webViewRef = this
+                    // LAYER 1 (2026-09-05 diagnosis): a WebView without its own background is
+                    // algorithmic-darkening prey on One UI (light parent theme + targetSdk 36),
+                    // and the dark pre-paint over the app's near-black ground read as "no
+                    // muestra nada". Chrome paints WHITE before content — a future render wedge
+                    // now shows as a WHITE hole (visible, reportable) instead of black silence.
+                    setBackgroundColor(android.graphics.Color.WHITE)
                     settings.apply {
                         javaScriptEnabled = true
                         // The Spotify SPA uses localStorage; the Google login does not.
@@ -215,24 +237,77 @@ fun SpotifyLoginScreen(navController: NavController) {
                         }
 
                         override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-                            Timber.i("SpotifyLogin: page started")
+                            Timber.i("SpotifyLogin: page started (webview ${view.width}x${view.height})")
+                            // LAYER 1: the placeholder owns the visual until the page commits a
+                            // real paint — the owner never again stares at featureless dark.
+                            showLoadingPlaceholder = true
+                            loginBroken = false
                             captureCookies()
                         }
 
                         override fun onPageFinished(view: WebView, url: String?) {
                             captureCookies()
-                            // Live-DOM probe (c28fd7c): the SSR paints the form without JS, so
-                            // "is the page alive" = #__next childElementCount > 0. One retry per URL.
+                            // LAYER 1: first commit → hand the surface to the page.
+                            showLoadingPlaceholder = false
+                            // LAYER 2 — LIVE-DOM WATCHER (3 snapshots at +1.5s/+3s/+4.5s).
+                            // The c28fd7c probe only asked "does #__next exist" and only logged
+                            // failures — the owner's log showed a 100% load with ZERO probe
+                            // trace, so the DOM state was unobservable. This watcher reports
+                            // REAL VISIBILITY: the login control's rect + computed style + body
+                            // background + viewport. Colors/ints only (regla 4 AGENTS).
+                            // Decision rules: photo 1 always logged (the shared app.log finally
+                            // shows the truth); a second photo with no visible control (or an
+                            // off-screen/zero rect) reloads ONCE (a fresh compositor frame is
+                            // the wedge treatment); a third equally-empty photo arms the
+                            // escape panel (retry / system browser / manual cookie).
                             if (!captured && url != null && url.contains("accounts.spotify.com")) {
-                                view.evaluateJavascript(
-                                    "(document.getElementById('__next') ? document.getElementById('__next').childElementCount : -1)"
-                                ) { children ->
-                                    val live = children?.trim()?.toIntOrNull() ?: -1
-                                    if (live <= 0 && lastRescuedUrl != url) {
-                                        lastRescuedUrl = url
-                                        Timber.w("SpotifyLogin: login DOM empty after load (next children=$live), reloading once")
-                                        view.postDelayed({ if (!captured) view.reload() }, 1500L)
-                                    }
+                                val js = """
+                                    (function(){
+                                        var e = document.querySelector('[data-testid="login-username"],[data-testid="login-button"]');
+                                        var el;
+                                        if (!e) { el = 'none'; }
+                                        else {
+                                            var r = e.getBoundingClientRect(); var c = getComputedStyle(e);
+                                            el = [Math.round(r.x),Math.round(r.y),Math.round(r.width),Math.round(r.height)].join(',') + ' ' + c.display + '/' + c.visibility + '/' + c.opacity;
+                                        }
+                                        return JSON.stringify({
+                                            next: document.getElementById('__next') ? document.getElementById('__next').childElementCount : -1,
+                                            el: el,
+                                            bg: getComputedStyle(document.body).backgroundColor,
+                                            vp: window.innerWidth + 'x' + window.innerHeight
+                                        });
+                                    })()
+                                """.trimIndent()
+                                var photos = 0
+                                listOf(1500L, 3000L, 4500L).forEachIndexed { i, delayMs ->
+                                    view.postDelayed({
+                                        if (captured || url != lastRescuedUrl && i > 0) return@postDelayed
+                                        view.evaluateJavascript(js) { raw ->
+                                            if (captured) return@evaluateJavascript
+                                            photos++
+                                            val json = raw?.trim()?.removeSurrounding("\"")?.replace("\\\"", "\"") ?: "null"
+                                            Timber.i("SpotifyLogin: dom-photo $photos $json")
+                                            val visible = json.contains("login-username") || json.contains("login-button")
+                                            val noneOrBroken = json.contains("\"el\":\"none\"") ||
+                                                Regex("\"el\":\"-?\\d+,-?\\d+,0,0").containsMatchIn(json) ||
+                                                json.contains("\"el\":null")
+                                            when {
+                                                visible && !noneOrBroken -> {
+                                                    // Real, sized, on-screen controls: the page lives.
+                                                    loginBroken = false
+                                                }
+                                                photos == 2 && lastRescuedUrl != url -> {
+                                                    lastRescuedUrl = url
+                                                    Timber.w("SpotifyLogin: photo 2 shows no visible login UI, reloading once (compositor-wedge treatment)")
+                                                    view.postDelayed({ if (!captured) view.reload() }, 400L)
+                                                }
+                                                photos >= 3 -> {
+                                                    Timber.w("SpotifyLogin: login page still shows nothing after reload — arming the escape panel")
+                                                    loginBroken = true
+                                                }
+                                            }
+                                        }
+                                    }, delayMs)
                                 }
                             }
                         }
@@ -305,6 +380,76 @@ fun SpotifyLoginScreen(navController: NavController) {
                 }
             },
         )
+
+            // LAYER 1: loading placeholder — owns the visual until the first real paint.
+            if (showLoadingPlaceholder && !loginBroken) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = AuraPalette.Teal,
+                        trackColor = AuraPalette.TrackEmpty,
+                    )
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(14.dp))
+                    Text(
+                        stringResource(R.string.spotify_connecting_web),
+                        style = AuraType.RowSubtitle,
+                        color = AuraPalette.OnGroundMuted,
+                    )
+                }
+            }
+
+            // LAYER 2/3: escape panel — only after the watcher confirmed a dead page post-reload.
+            if (loginBroken) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                ) {
+                    Text(
+                        stringResource(R.string.spotify_login_unrenderable_title),
+                        style = AuraType.RowTitle,
+                        color = AuraPalette.OnGround,
+                    )
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.spotify_login_unrenderable_body),
+                        style = AuraType.RowSubtitle,
+                        color = AuraPalette.OnGroundMuted,
+                    )
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(16.dp))
+                    androidx.compose.material3.TextButton(onClick = {
+                        loginBroken = false
+                        showLoadingPlaceholder = true
+                        webViewRef?.reload()
+                    }) {
+                        Text(stringResource(R.string.spotify_login_retry))
+                    }
+                    androidx.compose.material3.TextButton(onClick = {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(SpotifyAuth.LOGIN_URL),
+                                ),
+                            )
+                        }.onFailure {
+                            android.widget.Toast.makeText(
+                                context, R.string.spotify_login_failed,
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }) {
+                        Text(stringResource(R.string.spotify_login_open_in_browser))
+                    }
+                    androidx.compose.material3.TextButton(onClick = { showManualCookieDialog = true }) {
+                        Text(stringResource(R.string.login_manual_cookie))
+                    }
+                }
+            }
+        }
     }
 }
 
