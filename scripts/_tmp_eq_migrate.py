@@ -6,7 +6,7 @@ start = t.find("    private suspend fun migrateAudioDefaultsV2")
 end = t.find("    private fun applyInfinitePlaybackOn", start)
 assert start != -1 and end != -1, (start, end)
 
-new_fn = r'''    private suspend fun migrateAudioDefaultsV2(settings: androidx.datastore.preferences.core.Preferences) {
+new_fn = r"""    private suspend fun migrateAudioDefaultsV2(settings: androidx.datastore.preferences.core.Preferences) {
         if (settings[iad1tya.echo.music.constants.AudioDefaultsV2AppliedKey] == true) return
         // Playback prefs (best-effort): crossfade aligned with 0.6.127, Safe Volume ON.
         runCatching {
@@ -66,7 +66,7 @@ new_fn = r'''    private suspend fun migrateAudioDefaultsV2(settings: androidx.d
         }
     }
 
-'''
+"""
 
 p.write_text(t[:start] + new_fn + t[end:], encoding="utf-8")
 print("OK", end - start, "->", len(new_fn))

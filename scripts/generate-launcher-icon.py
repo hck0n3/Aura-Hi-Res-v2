@@ -1,4 +1,5 @@
 """Generate Android launcher icons from the owner-supplied Aura A+play design."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -28,8 +29,18 @@ def crop_icon(img: Image.Image) -> Image.Image:
     px = img.load()
     step_x = max(1, w // 200)
     step_y = max(1, h // 200)
-    xs = [x for x in range(0, w, step_x) for y in range(0, h, step_y) if not is_canvas(px[x, y])]
-    ys = [y for x in range(0, w, step_x) for y in range(0, h, step_y) if not is_canvas(px[x, y])]
+    xs = [
+        x
+        for x in range(0, w, step_x)
+        for y in range(0, h, step_y)
+        if not is_canvas(px[x, y])
+    ]
+    ys = [
+        y
+        for x in range(0, w, step_x)
+        for y in range(0, h, step_y)
+        if not is_canvas(px[x, y])
+    ]
     min_x, max_x = max(0, min(xs) - 2), min(w - 1, max(xs) + 2)
     min_y, max_y = max(0, min(ys) - 2), min(h - 1, max(ys) + 2)
     min_x2, min_y2, max_x2, max_y2 = w, h, 0, 0
@@ -43,7 +54,9 @@ def crop_icon(img: Image.Image) -> Image.Image:
     cropped = img.crop((min_x2, min_y2, max_x2 + 1, max_y2 + 1)).convert("RGBA")
     side = max(cropped.size)
     sq = Image.new("RGBA", (side, side), BASE)
-    sq.paste(cropped, ((side - cropped.size[0]) // 2, (side - cropped.size[1]) // 2), cropped)
+    sq.paste(
+        cropped, ((side - cropped.size[0]) // 2, (side - cropped.size[1]) // 2), cropped
+    )
     return sq
 
 
@@ -82,7 +95,12 @@ def make_monochrome(master: Image.Image, canvas: int = 1080) -> Image.Image:
             if a < 8:
                 continue
             brightness = (r + g + b) / 3
-            if brightness > 55 or g > 90 or b > 120 or (r > 200 and g > 200 and b > 200):
+            if (
+                brightness > 55
+                or g > 90
+                or b > 120
+                or (r > 200 and g > 200 and b > 200)
+            ):
                 strength = min(255, int((brightness - 40) * 2.2))
                 if r > 220 and g > 220 and b > 220:
                     strength = 255

@@ -2,13 +2,13 @@
 import argparse
 import gzip
 import logging
+import math
 import os
 import re
 import sys
 import tempfile
 import urllib.request
 import xml.etree.ElementTree as ET
-import math
 
 
 def parse_length(value):

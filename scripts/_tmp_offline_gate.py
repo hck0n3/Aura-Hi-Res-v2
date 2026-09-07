@@ -1,6 +1,8 @@
 from pathlib import Path
 
-p = Path(r"d:/7-8-26/AURA HI-RES/app/src/main/kotlin/com/music/echo/playback/MusicService.kt")
+p = Path(
+    r"d:/7-8-26/AURA HI-RES/app/src/main/kotlin/com/music/echo/playback/MusicService.kt"
+)
 t = p.read_text(encoding="utf-8")
 
 if "import iad1tya.echo.music.constants.OfflineModeKey" not in t:
@@ -52,8 +54,7 @@ insert = (
     "                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,\n"
     "                )\n"
     "            }\n"
-    "\n"
-    + marker
+    "\n" + marker
 )
 if "Strict offline: ONLY a full downloadCache" not in t:
     if marker in t:
@@ -64,7 +65,9 @@ if "Strict offline: ONLY a full downloadCache" not in t:
 else:
     print("resolve gate already")
 
-old_radio = "    fun startRadioSeamlessly() {\n\n        if (!playerInitialized.value) {"
+old_radio = (
+    "    fun startRadioSeamlessly() {\n\n        if (!playerInitialized.value) {"
+)
 new_radio = (
     "    fun startRadioSeamlessly() {\n"
     "        // Offline mode: never seed radio / related / YouTube next — that is network by definition.\n"

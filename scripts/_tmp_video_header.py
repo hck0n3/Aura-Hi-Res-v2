@@ -1,5 +1,8 @@
 from pathlib import Path
-p = Path(r"d:\7-8-26\AURA HI-RES\app\src\main\kotlin\com\music\echo\ui\newui\AuraOnlinePlaylistScreen.kt")
+
+p = Path(
+    r"d:\7-8-26\AURA HI-RES\app\src\main\kotlin\com\music\echo\ui\newui\AuraOnlinePlaylistScreen.kt"
+)
 t = p.read_text(encoding="utf-8")
 if "import androidx.compose.ui.draw.clip" not in t:
     t = t.replace(
@@ -9,7 +12,7 @@ if "import androidx.compose.ui.draw.clip" not in t:
     )
 needle = (
     "                if (hasExplicitContent) {\n"
-    "                    append(\" • \")\n"
+    '                    append(" • ")\n'
     "                    append(stringResource(R.string.explicit))\n"
     "                }\n"
     "            },\n"
@@ -23,11 +26,11 @@ needle = (
 )
 insert = (
     "                if (hasExplicitContent) {\n"
-    "                    append(\" • \")\n"
+    '                    append(" • ")\n'
     "                    append(stringResource(R.string.explicit))\n"
     "                }\n"
     "                if (videoPlaylist) {\n"
-    "                    append(\" • \")\n"
+    '                    append(" • ")\n'
     "                    append(auraTypeLabel(AuraContentKind.Video))\n"
     "                }\n"
     "            },\n"
@@ -54,7 +57,7 @@ insert = (
     "                    tint = AuraPalette.Teal,\n"
     "                )\n"
     "                Text(\n"
-    "                    text = \"Lista de vídeos\",\n"
+    '                    text = "Lista de vídeos",\n'
     "                    style = AuraType.QualityBadge,\n"
     "                    color = AuraPalette.Teal,\n"
     "                    maxLines = 1,\n"

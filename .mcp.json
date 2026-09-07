@@ -1,0 +1,14 @@
+{
+  "server": "android",
+  "commands": [
+    "list_devices",
+    "ui_tree",
+    "screenshot",
+    "gradle_build",
+    "logcat",
+    "input_text",
+    "tap",
+    "swipe",
+    "press_key"
+  ]
+}

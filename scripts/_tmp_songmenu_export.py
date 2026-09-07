@@ -6,7 +6,7 @@ needle = "    val isGuest = listenTogetherManager?.isInRoom == true && !listenTo
 if needle not in text:
     raise SystemExit("needle not found")
 
-insert = r'''    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
+insert = r"""    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
 
     if (exportedVideoActionsOnly) {
         Column(
@@ -86,7 +86,7 @@ insert = r'''    val isGuest = listenTogetherManager?.isInRoom == true && !liste
         return
     }
 
-    LazyColumn('''
+    LazyColumn("""
 
 text = text.replace(needle, insert, 1)
 p.write_text(text, encoding="utf-8", newline="\n")

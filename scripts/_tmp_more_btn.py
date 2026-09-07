@@ -1,5 +1,8 @@
 from pathlib import Path
-p = Path(r"d:\7-8-26\AURA HI-RES\app\src\main\kotlin\com\music\echo\ui\newui\AuraOnlinePlaylistScreen.kt")
+
+p = Path(
+    r"d:\7-8-26\AURA HI-RES\app\src\main\kotlin\com\music\echo\ui\newui\AuraOnlinePlaylistScreen.kt"
+)
 text = p.read_text(encoding="utf-8")
 # Remove FIRST More block (top row) only — between Play weight and Spacer(12)
 marker = "modifier = Modifier.weight(1f).tvFocusable(isTvOrCar, scaleFocused = 1f),\n            )\n            AuraHeaderCircleButton(\n                icon = AuraIcons.More,"
@@ -8,7 +11,9 @@ print("first more after play", idx)
 if idx < 0:
     raise SystemExit("pattern not found")
 # Find the end of this More button (closing of circle button + before Spacer)
-start = text.find("            AuraHeaderCircleButton(\n                icon = AuraIcons.More,", idx)
+start = text.find(
+    "            AuraHeaderCircleButton(\n                icon = AuraIcons.More,", idx
+)
 # Only remove if this is before secondary comment
 sec = text.find("// Guardar", start)
 end = text.find("\n        )\n\n        Spacer(modifier.height(12.dp))", start)
@@ -21,13 +26,14 @@ if start < 0 or end < 0 or start > sec:
 chunk = text[start:sec]
 # Remove entire AuraHeaderCircleButton for More in chunk
 import re
+
 chunk2, n = re.subn(
     r"\n            AuraHeaderCircleButton\(\n                icon = AuraIcons\.More,\n(?:.*\n)*?                modifier = Modifier\.tvFocusable\(isTvOrCar, scaleFocused = 1f\),\n            \)",
     "",
     chunk,
     count=1,
 )
-print("removed", n, "len delta", len(chunk)-len(chunk2))
+print("removed", n, "len delta", len(chunk) - len(chunk2))
 text = text[:start] + chunk2 + text[sec:]
 # Ensure secondary has More after Search
 if text.count("icon = AuraIcons.More") < 1:
