@@ -1739,7 +1739,7 @@ class MainActivity : ComponentActivity() {
                                                                 fontWeight = FontWeight.Light
                                                             )
                                                         ) {
-                                                            append("AURA ")
+                                                            append(stringResource(R.string.app_name_aura) + " ")
                                                         }
                                                         withStyle(
                                                             SpanStyle(
@@ -1747,7 +1747,7 @@ class MainActivity : ComponentActivity() {
                                                                 fontWeight = FontWeight.SemiBold
                                                             )
                                                         ) {
-                                                            append("HI-RES")
+                                                            append(stringResource(R.string.app_name_hi_res))
                                                         }
                                                     },
                                                     // Relative letter spacing (em) so it scales with the
@@ -1825,7 +1825,7 @@ class MainActivity : ComponentActivity() {
                                                  } else {
                                                      Icon(
                                                          painter = painterResource(R.drawable.settings),
-                                                         contentDescription = stringResource(R.string.account),
+                                                         contentDescription = stringResource(R.string.settings),
                                                          modifier = Modifier.size(24.dp)
                                                      )
                                                  }

@@ -797,4 +797,6 @@
     <!-- Genre learning over mobile data (GenreCache enrichment gate) -->
     <string name="genre_enrich_on_mobile">Learn genres on mobile data</string>
     <string name="genre_enrich_on_mobile_desc">Uses mobile data to learn your artists\' genres — tiny lookups, only when needed. Off = Wi-Fi only.</string>
+    <string name="app_name_aura">Aura</string>
+    <string name="app_name_hi_res">Hi-Res</string>
 </resources>
