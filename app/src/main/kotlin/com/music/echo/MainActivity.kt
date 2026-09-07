@@ -117,7 +117,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDown
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -2060,6 +2060,11 @@ class MainActivity : ComponentActivity() {
                                             Modifier
                                                 .graphicsLayer {
                                                     alpha = playerBottomSheetState.progress.coerceIn(0f, 1f)
+                                                }
+                                                .pointerInput(playerBottomSheetState.progress) {
+                                                    if (playerBottomSheetState.progress <= 0f) {
+                                                        awaitPointerEventScope { awaitPointerEvent() }
+                                                    }
                                                 }
                                                 // While the sheet is fully collapsed (alpha == 0) the persistent
                                                 // side panel is the now-playing surface, so this redundant bottom
