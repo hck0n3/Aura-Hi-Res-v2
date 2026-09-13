@@ -12,6 +12,10 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 - **Portada tamaño TIDAL:** en el reproductor abierto la portada ahora ocupa casi todo el ancho (margen fino de 20 dp, antes 32 dp), con la sombra suave de tarjeta y tu radio de esquinas de siempre.
 
+## Simetría de portadas
+
+- **Todas las portadas de discos, canciones, EP, singles, playlists y podcasts tienen la misma altura que las miniaturas de video:** en las filas de Inicio, Novedades y Artista, y en las listas. Videos y portadas quedan alineados a la misma línea.
+
 ## Barra de navegación
 
 - **Se quitó «Configuración» de la barra de abajo:** Ajustes queda solo en el engranaje de arriba a la derecha, que ahora tiene un ícono nuevo más limpio y profesional.

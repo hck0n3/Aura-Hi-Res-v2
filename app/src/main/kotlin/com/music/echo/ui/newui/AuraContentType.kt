@@ -94,44 +94,56 @@ fun auraTypeIcon(kind: AuraContentKind): ImageVector = when (kind) {
     AuraContentKind.Podcast -> AuraIcons.Radio
 }
 
+/**
+ * SYMMETRY RULE (owner directive 2026-09-13: "todas las portadas de discos y canciones del mismo tamaño de
+ * altura de las miniaturas de los videos, para que haya simetría de diseño"). The 16:9 video card is the
+ * reference: every square cover takes EXACTLY the video's height — on shelves (268 dp wide → ~151 dp tall)
+ * and in list rows (96 dp wide → 54 dp tall) — so a video shelf and an album shelf, or a video row and a
+ * song row, line up on the same baseline. Width = height × ratio, never a free-standing number.
+ */
+private const val VIDEO_RATIO = 16f / 9f
+private val VIDEO_SHELF_WIDTH = 268.dp
+private val VIDEO_ROW_WIDTH = 96.dp
+private val COVER_SHELF_HEIGHT: Dp = VIDEO_SHELF_WIDTH / VIDEO_RATIO
+private val COVER_ROW_HEIGHT: Dp = VIDEO_ROW_WIDTH / VIDEO_RATIO
+
 fun auraTypeVisual(kind: AuraContentKind): AuraTypeVisual {
     val label = auraTypeLabel(kind)
     val icon = auraTypeIcon(kind)
     return when (kind) {
-        // YTM hero landscape — wide enough that one card dominates the shelf.
+        // YTM hero landscape — wide enough that one card dominates the shelf. The height reference.
         AuraContentKind.Video -> AuraTypeVisual(
-            kind, label, icon, AuraShapes.Card, 16f / 9f,
-            shelfWidth = 268.dp, rowWidth = 96.dp, badgeShowsLabel = true,
+            kind, label, icon, AuraShapes.Card, VIDEO_RATIO,
+            shelfWidth = VIDEO_SHELF_WIDTH, rowWidth = VIDEO_ROW_WIDTH, badgeShowsLabel = true,
         )
-        // Apple Music track tiles stay compact.
         AuraContentKind.Song -> AuraTypeVisual(
             kind, label, icon, AuraShapes.Artwork, 1f,
-            shelfWidth = 118.dp, rowWidth = 52.dp,
+            shelfWidth = COVER_SHELF_HEIGHT, rowWidth = COVER_ROW_HEIGHT,
         )
-        // Apple album — the editorial size of a modern Music.app shelf.
         AuraContentKind.Album -> AuraTypeVisual(
             kind, label, icon, AuraShapes.Artwork, 1f,
-            shelfWidth = 156.dp, rowWidth = 56.dp,
+            shelfWidth = COVER_SHELF_HEIGHT, rowWidth = COVER_ROW_HEIGHT,
         )
         AuraContentKind.Ep -> AuraTypeVisual(
             kind, label, icon, AuraShapes.Artwork, 1f,
-            shelfWidth = 156.dp, rowWidth = 56.dp, badgeShowsLabel = true,
+            shelfWidth = COVER_SHELF_HEIGHT, rowWidth = COVER_ROW_HEIGHT, badgeShowsLabel = true,
         )
         AuraContentKind.Single -> AuraTypeVisual(
             kind, label, icon, AuraShapes.Artwork, 1f,
-            shelfWidth = 156.dp, rowWidth = 56.dp, badgeShowsLabel = true,
+            shelfWidth = COVER_SHELF_HEIGHT, rowWidth = COVER_ROW_HEIGHT, badgeShowsLabel = true,
         )
         AuraContentKind.Playlist -> AuraTypeVisual(
             kind, label, icon, AuraShapes.Artwork, 1f,
-            shelfWidth = 156.dp, rowWidth = 56.dp,
+            shelfWidth = COVER_SHELF_HEIGHT, rowWidth = COVER_ROW_HEIGHT,
         )
+        // Artists are portraits in a circle, not covers — the directive is about disc/song covers.
         AuraContentKind.Artist -> AuraTypeVisual(
             kind, label, icon, CircleShape, 1f,
             shelfWidth = 132.dp, rowWidth = 52.dp,
         )
         AuraContentKind.Podcast -> AuraTypeVisual(
             kind, label, icon, AuraShapes.Card, 1f,
-            shelfWidth = 148.dp, rowWidth = 54.dp, badgeShowsLabel = true,
+            shelfWidth = COVER_SHELF_HEIGHT, rowWidth = COVER_ROW_HEIGHT, badgeShowsLabel = true,
         )
     }
 }
