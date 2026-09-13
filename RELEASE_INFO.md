@@ -31,6 +31,10 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 - **Tocar un resultado de búsqueda reproduce ESE resultado:** antes, al tocarlo, la app repetía la búsqueda y si YouTube devolvía otra lista empezaba por el primer resultado, no por el que elegiste.
 
+## Estabilidad
+
+- **Cierre por memoria llena (tu reporte del 10-09) — ARREGLADO:** la radio automática podía saltar más de 50 canciones seguidas en segundos cuando YouTube no marcaba su tipo, y cada salto lanzaba precargas en paralelo hasta agotar la memoria. Ahora salta como máximo 3 seguidas y reproduce la siguiente.
+
 ## Música ↔ video como YouTube Music
 
 - **El modo Video es una preferencia que se queda:** si eliges Video, una canción sin video suena con su portada y la siguiente que sí tiene video vuelve sola a video. Solo se apaga cuando cambias tú a Canción.

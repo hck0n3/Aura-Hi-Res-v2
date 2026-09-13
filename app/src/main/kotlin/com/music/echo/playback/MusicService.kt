@@ -5356,6 +5356,9 @@ class MusicService :
         timelineVersion++
     }
 
+    /** Consecutive automatic-radio NO_MUSIC skips; see the skip-storm guard in [onMediaItemTransition]. */
+    private var consecutiveNoMusicSkips = 0
+
     override fun onMediaItemTransition(
         mediaItem: MediaItem?,
         reason: Int,
@@ -5400,20 +5403,28 @@ class MusicService :
         run {
             val autoMeta = player.currentMetadata
             val autoRadio = (currentQueue as? YouTubeQueue)?.automaticRadio == true
+            // SKIP-STORM GUARD (owner crash report 2026-09-10 18:10, OutOfMemoryError): a radio batch
+            // hydrated without musicVideoType made this rule skip 50+ tracks in ~4 s — every skip is a
+            // transition that fires preload, video prefetch, lyrics and loudness work, and the pile of
+            // concurrent PipePipe JSON parses exhausted the 512 MB heap. A null type is "unknown", not
+            // proof of a non-music upload: after MAX_CONSECUTIVE_NO_MUSIC_SKIPS in a row, play the track.
             if (
                 autoRadio &&
                 autoMeta != null &&
                 autoMeta.musicVideoType == null &&
                 !autoMeta.id.isLocalMediaId() &&
-                mediaItem != null
+                mediaItem != null &&
+                consecutiveNoMusicSkips < MAX_CONSECUTIVE_NO_MUSIC_SKIPS
             ) {
                 Timber.tag(TAG).i("NO_MUSIC skip automatic-radio id=${autoMeta.id.take(11)}")
                 val next = player.nextMediaItemIndex
                 if (next != C.INDEX_UNSET) {
+                    consecutiveNoMusicSkips++
                     player.seekTo(next, 0)
                     return
                 }
             }
+            if (mediaItem != null) consecutiveNoMusicSkips = 0
         }
         // A per-track Opus override (refetchCurrentInOpus) only applies to the track it was set for; drop it
         // once a genuinely different (non-null) track becomes current so a later track isn't forced to Opus.
@@ -10958,6 +10969,9 @@ class MusicService :
         // the unqualified uses inside this class keep compiling unchanged.
         const val ERROR_CODE_NO_STREAM = PlaybackErrorClassifier.ERROR_CODE_NO_STREAM
         const val CHUNK_LENGTH = 512 * 1024L
+
+        /** Cap for back-to-back automatic-radio NO_MUSIC skips before a track is simply played. */
+        const val MAX_CONSECUTIVE_NO_MUSIC_SKIPS = 3
 
         /** YouTube progressive formats that carry audio inside the video file (no separate audio merge). */
         val MUXED_VIDEO_ITAGS = setOf(17, 18, 22, 36, 37, 38, 43, 44, 45, 46, 59, 78)
