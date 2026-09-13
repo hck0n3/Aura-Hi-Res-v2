@@ -20,6 +20,7 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 ## Caché de escucha
 
+- **El caché de canciones por fin GUARDA lo que escuchas (arreglado de raíz):** el descargador por partes le decía al reproductor «tamaño desconocido», y con eso el reproductor no escribía NI UN BYTE en el caché — por eso en Ajustes ▸ Almacenamiento el caché de canciones salía vacío aunque estuviera en ilimitado. Ahora informa el tamaño real (mismo modelo que SimpMusic) y el caché se llena mientras suena (verificado en tu S26: 4 KB → 8 MB en 45 s).
 - **Una canción ya escuchada completa se reproduce desde el caché sin volver a descargarla:** ni siquiera consulta a YouTube; empieza al instante y sin gastar datos.
 
 ## Música ↔ video como YouTube Music

@@ -60,8 +60,31 @@ class ChunkingDataSource(
 
         openNextChunk()
 
+        // LISTEN-CACHE ROOT CAUSE (owner report 2026-09-13: "tamaño máximo de caché de canciones en
+        // ilimitado y no aparece que tenga guardado nada" — files/exoplayer was 4 KB on his S26).
+        // The player opens streams with length UNSET and FLAG_DONT_CACHE_IF_LENGTH_UNKNOWN
+        // (ProgressiveMediaPeriod). This source used to echo that UNSET back, so the TeeDataSource in
+        // CacheDataSource handed CacheDataSink an unknown length → the sink skipped the write → not
+        // one streamed byte ever reached playerCache. The first chunk's `Content-Range: bytes a-b/TOTAL`
+        // carries the real size: report it, and the cache writes (and the 416 end-probe disappears).
+        if (bytesToRead == C.LENGTH_UNSET.toLong()) {
+            totalLengthFromContentRange()?.let { total ->
+                bytesToRead = (total - dataSpec.position).coerceAtLeast(0L)
+            }
+        }
+
         return bytesToRead
     }
+
+    /** TOTAL from the upstream's `Content-Range: bytes a-b/TOTAL` header, or null when absent/unknown. */
+    private fun totalLengthFromContentRange(): Long? {
+        val header = upstream.responseHeaders.entries
+            .firstOrNull { it.key.equals("Content-Range", ignoreCase = true) }
+            ?.value?.firstOrNull() ?: return null
+        return header.substringAfterLast('/', "").trim().toLongOrNull()?.takeIf { it > 0 }
+    }
+
+    override fun getResponseHeaders(): Map<String, List<String>> = upstream.responseHeaders
 
     private fun openNextChunk() {
         val currentDataSpec = this.dataSpec ?: throw IOException("DataSpec is null")
