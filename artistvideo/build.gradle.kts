@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "iad1tya.echo.music.artistvideo"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26

@@ -194,7 +194,7 @@ when {
 
 android {
     namespace = "iad1tya.echo.music"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "27.0.12077973"
 
     externalNativeBuild {
@@ -606,7 +606,7 @@ dependencies {
     implementation(project(":migration"))
     // Tidal OAuth tokens at rest (bridge TidalTokenStore). MUST stay on the exact same version the
     // :migration module uses, or two Tink stacks end up on the classpath.
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
     implementation(project(":kugou"))
     implementation(project(":lrclib"))
     implementation(project(":betterlyrics"))
@@ -641,7 +641,7 @@ dependencies {
     // Reliable cold app-restart (used after Google login) — replaces the flaky AlarmManager relaunch.
     implementation("com.jakewharton:process-phoenix:3.0.0")
     // In-app browser (Chrome Custom Tabs) for the in-app Gumroad checkout (no leaving the app).
-    implementation("androidx.browser:browser:1.9.0")
+    implementation("androidx.browser:browser:1.10.0")
     implementation(libs.smoothCorner)
     implementation(libs.lottie.compose)
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
