@@ -90,7 +90,20 @@ jobs:
         SUPERPOWERED_LICENSE_KEY: ${{ secrets.SUPERPOWERED_LICENSE_KEY }}
       run: |
         ./gradlew --stop || true
-        ./gradlew clean assembleUniversalGmsDebug --no-daemon --no-build-cache --console=plain
+        set -o pipefail
+        ./gradlew clean assembleUniversalGmsDebug --no-daemon --no-build-cache --console=plain 2>&1 | tee codeql-build.log
+
+    # Build logs need a signed-in session to read, annotations do not. When the traced build fails,
+    # publish the Gradle failure summary and the log tail as annotations so the cause is readable.
+    - name: Report manual build failure
+      if: failure() && matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        [ -f codeql-build.log ] || exit 0
+        WHY=$(grep -E "What went wrong|^e: |Exception|error:" -A8 codeql-build.log | head -80 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+        echo "::error title=CodeQL Gradle failure::${WHY}"
+        TAIL=$(tail -60 codeql-build.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+        echo "::error title=CodeQL Gradle log tail::${TAIL}"
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
