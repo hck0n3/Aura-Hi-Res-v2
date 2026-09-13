@@ -16,6 +16,8 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 - **Todas las portadas de discos, canciones, EP, singles, playlists y podcasts tienen la misma altura que las miniaturas de video:** en las filas de Inicio, Novedades y Artista, y en las listas. Videos y portadas quedan alineados a la misma línea.
 
+- **Botón Música/Video legible en modo video:** en modo video el botón para volver a música se veía como un parche blanco (texto blanco sobre el color de acento claro). Ahora usa el color de contraste del acento y siempre se lee.
+
 ## Barra de navegación
 
 - **Se quitó «Configuración» de la barra de abajo:** Ajustes queda solo en el engranaje de arriba a la derecha, que ahora tiene un ícono nuevo más limpio y profesional.
@@ -42,6 +44,12 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 ## Android Auto
 
 - **Tocar un resultado de búsqueda reproduce ESE resultado:** antes, al tocarlo, la app repetía la búsqueda y si YouTube devolvía otra lista empezaba por el primer resultado, no por el que elegiste.
+
+## Cola infinita inteligente
+
+- **Ya no improvisa:** se quitó la cuota que metía a propósito artistas fuera de tus gustos en la cola automática.
+- **Siempre anclada a lo que elegiste:** si empezaste desde una canción, cada nueva tanda sale de ESA canción (antes salía de la última que sonó, que ya era de la radio, y se iba desviando).
+- **Estudia el álbum o la playlist completa:** las semillas salen de todo el contenido (hasta 5, antes 4) y la canción que suena solo cuenta si pertenece a tu lista.
 
 ## Estabilidad
 

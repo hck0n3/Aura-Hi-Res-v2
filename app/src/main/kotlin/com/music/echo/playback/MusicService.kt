@@ -945,6 +945,16 @@ class MusicService :
     // the last song. Empty for a directly-started radio (YouTubeQueue) or a single track → falls back to last-song
     // seeding (unchanged). Reassigned on every playQueue, so a fresh finite queue overwrites any prior pool.
     @Volatile private var radioSeedPool: List<iad1tya.echo.music.models.MediaMetadata> = emptyList()
+
+    /**
+     * CONTENT ANCHOR for a radio the user started from ONE song (a YouTubeQueue tap or a 1-track single) —
+     * owner directive 2026-09-13: "que la cola infinita no cambie ni improvise, siempre basada en el
+     * contenido escuchado". Re-seeds used to start from the song PLAYING at re-seed time, which by then is
+     * itself a radio pick, so every re-seed drifted from the previous drift. Seeding from the song the user
+     * CHOSE keeps the whole endless session on that song's content. Null for collections (their anchor is
+     * [radioSeedPool]) and for external queues until they re-anchor.
+     */
+    @Volatile private var radioAnchorId: String? = null
     // Entropy source for the infinite-queue seed variety (2026-09-04): a single Random shared by
     // the seed shuffles — no per-frame work, consulted only at seed time.
     private val randomSeedSource = kotlin.random.Random(System.currentTimeMillis())
@@ -3470,6 +3480,14 @@ class MusicService :
             // fresh pool on the first re-seed (startRadioSeamlessly); steering stays off until then.
             contextProfile = null
             contextSteerActive = false
+            // Content anchor for a one-song start (see [radioAnchorId]): the song now current IS the one the
+            // user started from. Collections (pool > 1) anchor on the pool instead.
+            radioAnchorId = if (radioSeedPool.size <= 1) {
+                player.currentMediaItem?.mediaId
+                    ?.takeIf { !it.isLocalMediaId() && !it.startsWith("http", ignoreCase = true) }
+            } else {
+                null
+            }
             // #34 — starting an explicit COLLECTION (playlist/album/list) supersedes any lingering Home-mood
             // bias: a stale mood chip must NOT hijack the infinite continuation of a playlist ("nada que ver").
             // A mood the user taps AFTER this (setActiveMood, no playQueue) survives, so the deliberate-mood
@@ -3897,22 +3915,30 @@ class MusicService :
             // track, from its resolved YouTube match). No seed id → nothing to seed from → let a later source /
             // the replay last-resort handle it.
             suspend fun tryRadio(): Boolean = runCatching {
-                val seed = seedVideoId ?: return@runCatching false
                 // Genre-aware continuation: an automatic last-song seed still continues the finished context,
                 // so steer its batches toward the context profile (no-op while the profile is null/inactive).
                 contextSteerActive = true
-                val radioQueue = YouTubeQueue(endpoint = WatchEndpoint(videoId = seed), automaticRadio = true)
-                val initialStatus = withContext(Dispatchers.IO) {
-                    radioQueue.getInitialStatus()
-                        .filterExplicit(dataStore.get(HideExplicitKey, false))
-                        .filterVideoSongs(dataStore.get(HideVideoSongsKey, false) || dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false))
-                        .filterNonMusicForAutoQueue()
+                // ANCHORED SEEDING (owner directive 2026-09-13): the song the user started from comes first, so
+                // a re-seed continues THAT song's content instead of the drift of the last radio pick. Only when
+                // the anchor's radio has nothing unheard left does the last song seed, as before.
+                val seeds = listOfNotNull(radioAnchorId, seedVideoId).distinct()
+                if (seeds.isEmpty()) return@runCatching false
+                for (seed in seeds) {
+                    val radioQueue = YouTubeQueue(endpoint = WatchEndpoint(videoId = seed), automaticRadio = true)
+                    val initialStatus = withContext(Dispatchers.IO) {
+                        radioQueue.getInitialStatus()
+                            .filterExplicit(dataStore.get(HideExplicitKey, false))
+                            .filterVideoSongs(dataStore.get(HideVideoSongsKey, false) || dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false))
+                            .filterNonMusicForAutoQueue()
+                    }
+                    if (initialStatus.title != null) queueTitle = initialStatus.title
+                    val items = initialStatus.items.filter { it.mediaId != seed && it.mediaId != currentMediaId }
+                    if (appendSeed(items)) {
+                        currentQueue = radioQueue
+                        return@runCatching true
+                    }
                 }
-                if (initialStatus.title != null) queueTitle = initialStatus.title
-                val items = initialStatus.items.filter { it.mediaId != seed && it.mediaId != currentMediaId }
-                val ok = appendSeed(items)
-                if (ok) currentQueue = radioQueue
-                ok
+                false
             }.getOrDefault(false)
 
             // Source 2 — "related" songs of the last song (a different YT endpoint; recovers when radio is empty).
@@ -4017,7 +4043,16 @@ class MusicService :
                 val contextIds = radioSeedPool.mapTo(HashSet()) { it.id }
                 val anchoredTail = if (steerActive) tailPool.filter { it.id in contextIds } else tailPool
                 // Recent-first so the DISTINCT-artist reps come from the END of what was playing, not the start.
-                val contextPool = anchoredTail.ifEmpty { radioSeedPool }.asReversed()
+                // WHOLE-CONTENT STUDY (owner directive 2026-09-13: "que estudie el contenido total de lo que
+                // estoy escuchando"): the anchored tail leads (what JUST played), then EVERY other track of the
+                // collection follows, so the seed set can reach the album/playlist's full artist range instead
+                // of only the last 25 positions.
+                val tailIds = anchoredTail.mapTo(HashSet()) { it.id }
+                val contextPool = if (anchoredTail.isEmpty()) {
+                    radioSeedPool.asReversed()
+                } else {
+                    anchoredTail.asReversed() + radioSeedPool.filter { it.id !in tailIds }.asReversed()
+                }
                 // Distinct primary artist → one representative track (recent-first order).
                 val byArtist = LinkedHashMap<String, iad1tya.echo.music.models.MediaMetadata>()
                 contextPool.forEach { mm ->
@@ -4074,9 +4109,12 @@ class MusicService :
                 val perArtistIds = ranked.mapNotNull { it.ytId() }
                 val poolIds = contextPool.mapNotNull { it.ytId() }
                 val clusterRepsShuffled = clusterReps.shuffled(randomSeedSource)
-                val seeds = (listOfNotNull(seedVideoId) + clusterRepsShuffled + perArtistIds + poolIds)
+                // The PLAYING song leads the seed set only while it belongs to the collection — once the radio is
+                // playing its own picks, seeding from one of them is exactly the compounding drift this avoids.
+                // Up to 5 seeds (was 4) so a varied collection is represented across more of its range.
+                val seeds = (listOfNotNull(seedVideoId?.takeIf { it in contextIds }) + clusterRepsShuffled + perArtistIds + poolIds)
                     .distinct()
-                    .take(4)
+                    .take(5)
                 if (seeds.size < 2) return@runCatching false // truly one usable track → let tryRadio do last-song
                 // Fetch each seed's radio page, off the player thread. With an ACTIVE profile the per-seed
                 // cap grows 12 → 16 (headroom so the context steering in orderedByTaste has material to
@@ -4558,12 +4596,12 @@ class MusicService :
                 ctxProfile.coverage, ctxProfile.knownArtists, ctxProfile.genreShare.size, ctxGenres.size,
             )
         }
+        // NO IMPROVISATION (owner directive 2026-09-13: "que la cola infinita no cambie ni improvise"): the
+        // exploration quota — which lifted an artist outside the taste profile into roughly every 15th slot —
+        // is no longer applied to automatic continuations. The batch keeps its content-faithful order
+        // (relatedness backbone + taste/context steer); only the artist-spacing pass runs.
         val unheard = RadioQueueShaping.spacedByArtist(
-            RadioQueueShaping.withExplorationQuota(
-                keyed.filterNot { it.third }.sortedBy { it.second }.map { it.first },
-                p,
-                explorationBlocked,
-            ),
+            keyed.filterNot { it.third }.sortedBy { it.second }.map { it.first },
         )
         // No fresh candidates left? Fall back to the ordered already-heard tail rather than dead-ending.
         val heardTail = keyed.filter { it.third }.sortedBy { it.second }.map { it.first }
@@ -5269,6 +5307,7 @@ class MusicService :
         // refills the pool from the real timeline. Until then tryContextRadio bails on the empty pool and
         // the continuation degrades to last-song seeding — related to the CAR's song, which is honest.
         radioSeedPool = emptyList()
+        radioAnchorId = null
         contextProfile = null
         contextSteerActive = false
     }

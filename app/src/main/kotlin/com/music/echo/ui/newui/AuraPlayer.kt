@@ -1319,16 +1319,21 @@ private fun AuraPlayerShape(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
+                                        // Owner report 2026-09-13: "en modo video, para cambiar a música solo
+                                        // se ve un parche blanco". The ON state painted a hard-coded WHITE
+                                        // glyph + label on the cover-driven accent, which is often a light
+                                        // colour — white on near-white. OnAccent is the accent's own
+                                        // contrast ink (the play button uses it), so the label always reads.
                                         AuraIconGlyph(
                                             icon = if (videoMode) AuraIcons.Music else AuraIcons.Video,
                                             contentDescription = null,
                                             size = 14.dp,
-                                            tint = if (videoMode) Color.White else AuraPalette.OnGroundFaint
+                                            tint = if (videoMode) AuraPalette.OnAccent else AuraPalette.OnGroundFaint
                                         )
                                         Text(
                                             text = stringResource(if (videoMode) R.string.music else R.string.video).uppercase(),
                                             style = AuraType.Timecode.copy(fontWeight = FontWeight.SemiBold),
-                                            color = if (videoMode) Color.White else AuraPalette.OnGroundFaint
+                                            color = if (videoMode) AuraPalette.OnAccent else AuraPalette.OnGroundFaint
                                         )
                                     }
                                 }
