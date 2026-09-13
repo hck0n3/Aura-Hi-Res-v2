@@ -346,6 +346,10 @@ object AuraIcons {
     /** `#i-cog` — "Ajustes"; also the Privacidad group icon. GEAR (owner directive 2026-09-05:
      * the nav-bar Ajustes cell must read unmistakably as "settings"): the old sun/burst glyph
      * could be mistaken for brightness — a proper cog with teeth is the universal settings icon. */
+    // PRO GEAR (owner directive 2026-09-13: "cambia el ícono que se vea más pro"): the jagged
+    // 24-point polygon read as a hand-drawn burst. This is the gearshape language of iOS / One UI —
+    // eight even, flat-topped teeth on a true circle, every join and cap rounded, with a clean hub —
+    // generated from exact trigonometry so each tooth is identical.
     val Settings: ImageVector by lazy {
         ImageVector.Builder(
             name = "Settings",
@@ -357,30 +361,40 @@ object AuraIcons {
             path(
                 fill = null,
                 stroke = SolidColor(Color.Black),
-                strokeLineWidth = 1.9f,
-                strokeLineCap = StrokeCap.Butt,
-                strokeLineJoin = StrokeJoin.Miter,
+                strokeLineWidth = 1.7f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
             ) {
-                // The gear body: a 12-point rounded path approximating a classic cog.
-                moveTo(12f, 3.2f)
-                lineTo(13.5f, 5.1f); lineTo(15.8f, 4.2f); lineTo(16.3f, 6.6f)
-                lineTo(18.7f, 7.1f); lineTo(17.8f, 9.4f); lineTo(19.7f, 10.9f)
-                lineTo(18.1f, 12.6f); lineTo(19.2f, 14.8f); lineTo(16.9f, 15.5f)
-                lineTo(16.7f, 17.9f); lineTo(14.3f, 17.6f); lineTo(12.9f, 19.6f)
-                lineTo(11f, 18.2f); lineTo(8.9f, 19.1f); lineTo(8f, 16.9f)
-                lineTo(5.6f, 16.6f); lineTo(5.9f, 14.2f); lineTo(3.8f, 12.9f)
-                lineTo(5.2f, 11f); lineTo(4.3f, 8.9f); lineTo(6.5f, 8f)
-                lineTo(6.8f, 5.6f); lineTo(9.2f, 5.9f); lineTo(10.5f, 3.8f)
+                val teeth = 8
+                val outer = 9.3f
+                val inner = 7.1f
+                val step = 360.0 / teeth
+                fun point(radius: Float, degrees: Double): Pair<Float, Float> {
+                    val radians = Math.toRadians(degrees - 90.0)
+                    return (12f + radius * kotlin.math.cos(radians).toFloat()) to
+                        (12f + radius * kotlin.math.sin(radians).toFloat())
+                }
+                for (i in 0 until teeth) {
+                    val center = i * step
+                    val (baseInX, baseInY) = point(inner, center - 13.5)
+                    val (tipInX, tipInY) = point(outer, center - 8.5)
+                    val (tipOutX, tipOutY) = point(outer, center + 8.5)
+                    val (baseOutX, baseOutY) = point(inner, center + 13.5)
+                    if (i == 0) moveTo(baseInX, baseInY) else lineTo(baseInX, baseInY)
+                    lineTo(tipInX, tipInY)
+                    lineTo(tipOutX, tipOutY)
+                    lineTo(baseOutX, baseOutY)
+                }
                 close()
             }
             path(
                 fill = null,
                 stroke = SolidColor(Color.Black),
-                strokeLineWidth = 1.9f,
-                strokeLineCap = StrokeCap.Butt,
-                strokeLineJoin = StrokeJoin.Miter,
+                strokeLineWidth = 1.7f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
             ) {
-                circle(12f, 12f, 3.6f)
+                circle(12f, 12f, 3.1f)
             }
         }.build()
     }

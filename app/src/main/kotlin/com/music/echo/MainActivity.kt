@@ -1990,14 +1990,11 @@ class MainActivity : ComponentActivity() {
                                                 },
                                                 onItemClick = onNavItemClick,
                                                 bottomInset = bottomInset,
-                                                // AUDIT FIX (2026-09-04): the fourth Ajustes cell was
-                                                // DEAD CODE — the parameter existed (and the welcome tour
-                                                // promises "Inicio · Buscar · Biblioteca · Ajustes") but no
-                                                // call site ever passed it, so Settings was only reachable
-                                                // through the account sheet / player menu. Wire it now.
-                                                onSettingsClick = { navController.navigateAsTab("settings") },
-                                                settingsSelected = currentRoute == "settings" ||
-                                                    currentRoute?.startsWith("settings/") == true,
+                                                // Owner directive 2026-09-13: NO Ajustes cell in the bottom bar
+                                                // ("no me gusta el que está en la barra de abajo, elimínalo y
+                                                // solo deja el de arriba"). Settings stays one tap away through
+                                                // the top-right cog (account sheet → Ajustes) and the player
+                                                // menu; onSettingsClick is deliberately not passed.
                                                 modifier = Modifier
                                                     .align(Alignment.BottomCenter)
                                                     .fillMaxWidth(),

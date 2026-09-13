@@ -76,7 +76,7 @@ fun WelcomeDialog(
             WelcomeTourPage(
                 iconRes = R.drawable.home_outlined,
                 title = "Dónde está todo",
-                body = "Barra inferior: Inicio · Buscar · Biblioteca · Ajustes. Arriba a la derecha: " +
+                body = "Barra inferior: Inicio · Buscar · Biblioteca. Arriba a la derecha (engranaje, Ajustes): " +
                     "cuenta (avatar), historial y atajos. El mini-reproductor flota encima de la barra.",
             ),
             WelcomeTourPage(
