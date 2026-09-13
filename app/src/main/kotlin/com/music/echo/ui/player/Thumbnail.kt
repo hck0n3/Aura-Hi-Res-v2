@@ -197,6 +197,12 @@ private val WIDE_MAX_THUMBNAIL_SIZE = 420.dp
  */
 private val OPAQUE_DARK_COVER_INSET = 8.dp
 
+/**
+ * Side margin of the new player's cover — TIDAL's now-playing proportions (owner directive 2026-09-13):
+ * a near edge-to-edge square with a thin margin, instead of the classic 32 dp inset.
+ */
+private val TIDAL_COVER_SIDE_PADDING = 20.dp
+
 /** Elevation of the artwork card on an [ThumbnailHost.OPAQUE_DARK] host. */
 private val OPAQUE_DARK_COVER_ELEVATION = 16.dp
 
@@ -615,6 +621,13 @@ fun Thumbnail(
                         calculateThumbnailDimensions(
                             containerWidth = maxWidth,
                             containerHeight = maxHeight,
+                            // TIDAL-SIZED COVER (owner directive 2026-09-13): the new player's cover
+                            // runs almost edge to edge like TIDAL's now-playing screen. Classic keeps 32 dp.
+                            horizontalPadding = if (host == ThumbnailHost.OPAQUE_DARK && !appleMusicCoverStyle) {
+                                TIDAL_COVER_SIDE_PADDING
+                            } else {
+                                PlayerHorizontalPadding
+                            },
                             cornerRadius = thumbnailCornerRadius.dp,
                             isLandscape = isLandscape,
                             // The slot's OWN HEIGHT is a cap for every host.
@@ -931,7 +944,13 @@ private fun ThumbnailItem(
                         .fillMaxSize()
                 }
             )
-            .padding(horizontal = if (appleMusicCoverStyle) 4.dp else PlayerHorizontalPadding)
+            .padding(
+                horizontal = when {
+                    appleMusicCoverStyle -> 4.dp
+                    isOpaqueDark -> TIDAL_COVER_SIDE_PADDING
+                    else -> PlayerHorizontalPadding
+                },
+            )
             .graphicsLayer {
                 // Apple-Music style: the further a cover is from the viewport center, the more it shrinks and
                 // fades — so as songs change (grid scrolls the new cover to center) the artwork zooms in +

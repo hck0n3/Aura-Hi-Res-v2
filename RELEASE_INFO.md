@@ -8,6 +8,10 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 - **Todas las ventanas flotantes, submenús, hojas inferiores y desplegables usan ahora la misma placa del menú «Aura Hi-Res Player»:** fondo sólido elevado, sin agujeros transparentes. En los Galaxy ya no se ven transparentes.
 
+## Reproductor
+
+- **Portada tamaño TIDAL:** en el reproductor abierto la portada ahora ocupa casi todo el ancho (margen fino de 20 dp, antes 32 dp), con la sombra suave de tarjeta y tu radio de esquinas de siempre.
+
 ## Barra de navegación
 
 - **Se quitó «Configuración» de la barra de abajo:** Ajustes queda solo en el engranaje de arriba a la derecha, que ahora tiene un ícono nuevo más limpio y profesional.
