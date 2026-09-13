@@ -534,7 +534,8 @@ private fun RowScope.AuraNavItem(
                 role = Role.Tab,
                 onClick = onClick,
             )
-            .semantics { selected = selected } .padding(vertical = 8.dp),
+            .semantics { this.selected = selected }
+            .padding(vertical = 8.dp),
     ) {
         AuraIconGlyph(
             icon = icon,

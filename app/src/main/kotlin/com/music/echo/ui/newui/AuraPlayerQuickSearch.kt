@@ -264,7 +264,8 @@ fun AuraPlayerQuickSearchContent(
                         query = TextFieldValue("")
                         onlineResultsViewModel.clearCommitted()
                     },
-                    onVoice = voice,
+                    onVoice = voice.launch,
+                    voiceActive = voice.active,
                     focusRequester = focusRequester,
                     onFieldTap = {},
                     showSource = !offlineMode,

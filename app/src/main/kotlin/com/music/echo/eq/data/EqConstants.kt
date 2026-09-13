@@ -100,17 +100,23 @@ enum class FactoryPreset(val displayName: String, val description: String, val g
     // it by tapping the "Aura Hi-Res" chip once, same accepted scope as rows 163/199.
     AURA_HI_RES("Aura Hi-Res", "La firma de la casa: graves con cuerpo, medios limpios y agudos con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(5.0f, 4.0f, 2.0f, 0f, 0f, 1.0f, 0f, 1.0f, 2.0f, 3.0f)),
 
-    // Owner directive 2026-09-05: NEW house profile "Aura Hi-Res v2" — 31 Hz +4, 62 +4, 125 +2, 250 +1,
-    // 500 +1, 1k +1, 2k +1, 4k +1, 8k +2, 16k +3 — with the global EQ preamp default raised to +2.3 dB.
+    // Owner directive 2026-09-13: the "Aura Hi-Res v2" curve is REPLACED by 31 Hz +3, 62 +4, 125 +1,
+    // 250 -1, 500 0, 1k 0, 2k +1, 4k +2, 8k +3, 16k +2 (was the 2026-09-05 spec 4,4,2,1,1,1,1,1,2,3).
+    // Existing installs whose live EQ still sits on the OLD v2 curve are moved to the new one by
+    // migrateAuraHiResV2CurveV2 (App.kt); a user-tuned EQ is never touched.
+    // Owner directive 2026-09-05: NEW house profile "Aura Hi-Res v2" — with the global EQ preamp default raised to +2.3 dB.
     // Deliberately an ADDITION, not an edit: the AURA_HI_RES curve above is frozen by the owner's
     // 2026-09-04 spec (registry row 201, EqConstantsTest.auraHiResCurveMatchesOwnerSpec). This entry
     // inherits the default-seed role: migrateAudioDefaultsV2 (App.kt) now seeds THIS curve on fresh
     // installs; existing installs keep their tuned EQ untouched (the seed only runs behind the
-    // AudioDefaultsV2AppliedKey gate). Verified band-by-band: no other factory preset is within the
-    // 0.5 dB match tolerance of this curve (closest is OLIVE_WELTI, off by 1.0 dB at 62 Hz), so its
-    // chip selects uniquely — and being the LAST enum entry it can never steal another preset's match.
-    AURA_HI_RES_V2("Aura Hi-Res v2", "La firma de la casa, evolución 2026: graves firmes, medios presentes y agudos con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(4.0f, 4.0f, 2.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 3.0f))
+    // AudioDefaultsV2AppliedKey gate). Verified band-by-band (2026-09-13 curve): no other factory
+    // preset is within the 0.5 dB match tolerance (closest are off by 2.0 dB), so its chip selects
+    // uniquely — and being the LAST enum entry it can never steal another preset's match.
+    AURA_HI_RES_V2("Aura Hi-Res v2", "La firma de la casa, evolución 2026: sub-bajo y bajo con pegada, medios despejados y agudos brillantes con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(3.0f, 4.0f, 1.0f, -1.0f, 0f, 0f, 1.0f, 2.0f, 3.0f, 2.0f))
 }
+
+/** The 2026-09-05 "Aura Hi-Res v2" curve, kept only so the 2026-09-13 migration can recognise it. */
+val AURA_HI_RES_V2_PREVIOUS_GAINS = floatArrayOf(4.0f, 4.0f, 2.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 3.0f)
 
 /** Per-band tolerance (dB) used to decide whether the live gains still "are" a factory preset. */
 const val FACTORY_PRESET_MATCH_TOLERANCE_DB = 0.5f

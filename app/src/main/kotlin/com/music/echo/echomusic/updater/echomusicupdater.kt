@@ -789,9 +789,22 @@ suspend fun checkForUpdate(
     }
     withContext(Dispatchers.IO) {
         try {
-            val url = URL("https://api.github.com/repos/hck0n3/Aura-Hi-Res-v2/releases/latest")
-            val json = url.openStream().bufferedReader().use { it.readText() }
-            val targetRelease = JSONObject(json)
+            // BETA CHANNEL (owner directive 2026-09-13: "publicas la beta privada para yo probar… que
+            // salga a través del actualizador"). The "Recibir versiones beta" switch existed in prefs
+            // but nothing read it: `releases/latest` excludes prereleases, so a beta could only be
+            // installed by hand. With the switch ON the check also considers prereleases and offers
+            // the NEWEST release of all; OFF keeps the stable-only path byte-identical.
+            val latestStable = runCatching {
+                JSONObject(
+                    URL("https://api.github.com/repos/hck0n3/Aura-Hi-Res-v2/releases/latest")
+                        .openStream().bufferedReader().use { it.readText() }
+                )
+            }
+            val targetRelease = if (getBetaUpdatesSetting(context)) {
+                newestReleaseIncludingBetas() ?: latestStable.getOrThrow()
+            } else {
+                latestStable.getOrThrow()
+            }
             
             val currentVersion = BuildConfig.VERSION_NAME
             val targetTagName = targetRelease.getString("tag_name")
@@ -921,6 +934,36 @@ suspend fun checkForUpdate(
         }
     }
 }
+/**
+ * Newest non-draft release that ships an installable APK, prereleases included, or null when the list
+ * cannot be read. Ordered with [UpdateApkFiles.isNewerRelease] — the same rule the offer itself uses, so
+ * a stable `v2.0.40` correctly outranks its own `v2.0.40-beta1`.
+ */
+private fun newestReleaseIncludingBetas(): JSONObject? = runCatching {
+    val releases = JSONArray(
+        URL("https://api.github.com/repos/hck0n3/Aura-Hi-Res-v2/releases?per_page=30")
+            .openStream().bufferedReader().use { it.readText() }
+    )
+    var best: JSONObject? = null
+    for (i in 0 until releases.length()) {
+        val release = releases.getJSONObject(i)
+        if (release.optBoolean("draft", false)) continue
+        val assets = release.optJSONArray("assets") ?: continue
+        val hasApk = (0 until assets.length()).any { j ->
+            val name = assets.getJSONObject(j).optString("name")
+            name.endsWith(".apk", ignoreCase = true) && !name.lowercase().contains("debug")
+        }
+        if (!hasApk) continue
+        val current = best
+        if (current == null ||
+            UpdateApkFiles.isNewerRelease(release.getString("tag_name"), current.getString("tag_name"))
+        ) {
+            best = release
+        }
+    }
+    best
+}.getOrNull()
+
 /** Semver-ish numeric compare: "6.3" vs "5.10" → handles each dotted part numerically. */
 fun compareVersions(a: String, b: String): Int {
     val pa = a.split(".").map { it.trim().toIntOrNull() ?: 0 }

@@ -189,6 +189,35 @@ fun UpdateSettings(
                         saveUpdateNotificationsSetting(context, updateNotificationsEnabled)
                     }
                 ),
+                // Beta channel (owner directive 2026-09-13): the preference existed but had no switch
+                // and no reader. ON → the updater also offers prereleases (private betas).
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.bug_report),
+                    title = { Text("Recibir versiones beta") },
+                    description = { Text("El actualizador también ofrece las betas privadas (pueden tener fallos)") },
+                    trailingContent = {
+                        Switch(
+                            checked = betaUpdatesEnabled,
+                            onCheckedChange = { enabled ->
+                                betaUpdatesEnabled = enabled
+                                saveBetaUpdatesSetting(context, enabled)
+                            },
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (betaUpdatesEnabled) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        )
+                    },
+                    onClick = {
+                        betaUpdatesEnabled = !betaUpdatesEnabled
+                        saveBetaUpdatesSetting(context, betaUpdatesEnabled)
+                    }
+                ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.delete),
                     title = { Text(stringResource(R.string.clear_downloaded_updates)) },

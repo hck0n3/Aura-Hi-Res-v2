@@ -1233,3 +1233,6 @@ val MiniPlayerGlowDefaultV1AppliedKey = booleanPreferencesKey("miniplayer_glow_d
 val MiniPlayerClassicGlassDefaultV1AppliedKey =
     booleanPreferencesKey("miniplayer_classic_glass_default_v1_applied")
 val NewUiLaunchDefaultV1AppliedKey = booleanPreferencesKey("new_ui_launch_default_v1_applied")
+
+/** One-shot: moves an EQ still on the 2026-09-05 "Aura Hi-Res v2" curve to the 2026-09-13 curve. */
+val AuraHiResV2Curve20260913AppliedKey = booleanPreferencesKey("aura_hires_v2_curve_20260913_applied")

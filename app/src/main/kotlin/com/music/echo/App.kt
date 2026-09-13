@@ -582,6 +582,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // migrateEqPreampDefaultV4 so the V4 chain settling an install on +2.0 continues on
         // to +2.3 in the same launch.
         migrateEqPreampDefaultV5(settings)
+        // SEPARATE (same EQ side effects): owner directive 2026-09-13 replaces the "Aura Hi-Res v2"
+        // curve. MUST run after the V2 seed so a fresh install's seeded curve is already the new one.
+        migrateAuraHiResV2CurveV2(settings)
 
         // Establish, at most ONCE per install, where this data came from — and clean up after a
         // platform restore before anything is allowed to act on the restored rows. Must run before
@@ -1239,6 +1242,49 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         }.onFailure { reportException(it) }.getOrDefault(false)
         if (applied) {
             dataStore.edit { it[iad1tya.echo.music.constants.EqPreampDefault23DbAppliedKey] = true }
+        }
+    }
+
+    /**
+     * One-time (owner directive 2026-09-13): the "Aura Hi-Res v2" house curve changed. Anyone whose live
+     * EQ is STILL exactly the previous v2 curve (the seed or a tap on its chip) moves to the new curve, in
+     * BOTH the DSP source of truth (profile repo) and the `echo_eq_prefs` mirror the EQ screen reads. Any
+     * other EQ — a user-tuned curve, another preset — is left untouched. Two-phase like V3..V5: the flag
+     * is only stamped on success, and while no EQ state exists yet it retries instead of stamping.
+     */
+    private suspend fun migrateAuraHiResV2CurveV2(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.AuraHiResV2Curve20260913AppliedKey] == true) return
+        val applied = runCatching {
+            val eqPrefs = applicationContext.getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
+            val eqRepo = eqProfileRepository.get()
+            val hasAnyEqState = eqPrefs.contains("enabled") || eqPrefs.contains("preampDb") ||
+                eqPrefs.all.keys.any { it.startsWith("band") } ||
+                runCatching { eqRepo.getAllProfiles().isNotEmpty() }.getOrDefault(false)
+            if (!hasAnyEqState) return@runCatching false
+            val previous = iad1tya.echo.music.eq.data.AURA_HI_RES_V2_PREVIOUS_GAINS
+            val current = iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V2.gains
+            fun isPrevious(gains: List<Float>) = gains.size == previous.size &&
+                gains.indices.all { kotlin.math.abs(gains[it] - previous[it]) < 0.05f }
+
+            val effective = eqRepo.unsavedProfile.value ?: eqRepo.activeProfile.value
+            if (effective != null && isPrevious(effective.bands.map { it.gain.toFloat() })) {
+                val moved = effective.copy(
+                    bands = effective.bands.mapIndexed { i, band -> band.copy(gain = current[i].toDouble()) },
+                )
+                eqRepo.saveProfile(moved)
+                eqRepo.setUnsavedProfile(moved)
+                eqRepo.setActiveProfile(moved.id)
+            }
+            val mirrored = previous.indices.map { eqPrefs.getFloat("band24_$it", Float.NaN) }
+            if (isPrevious(mirrored)) {
+                val ed = eqPrefs.edit()
+                current.forEachIndexed { i, g -> ed.putFloat("band24_$i", g) }
+                ed.apply()
+            }
+            true
+        }.onFailure { reportException(it) }.getOrDefault(false)
+        if (applied) {
+            dataStore.edit { it[iad1tya.echo.music.constants.AuraHiResV2Curve20260913AppliedKey] = true }
         }
     }
 

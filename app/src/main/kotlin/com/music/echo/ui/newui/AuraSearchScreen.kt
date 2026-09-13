@@ -286,7 +286,8 @@ fun AuraSearchScreen(
                     if (!offlineMode) closePanel()
                 },
                 onClear = { query = TextFieldValue("") },
-                onVoice = voice,
+                onVoice = voice.launch,
+                voiceActive = voice.active,
                 offlineMode = offlineMode,
                 sourceIsLocal = effectiveSource == SearchSource.LOCAL,
                 onToggleSource = {
@@ -410,6 +411,8 @@ internal fun AuraSearchInputBar(
     focusRequester: FocusRequester,
     onFieldTap: () -> Unit,
     modifier: Modifier = Modifier,
+    /** True while voice search is opening or listening — pulses the mic. */
+    voiceActive: Boolean = false,
     /** The results bar has no source picker — its route is online by definition. */
     showSource: Boolean = true,
     offlineMode: Boolean = false,
@@ -480,12 +483,29 @@ internal fun AuraSearchInputBar(
             )
         }
 
+        // Owner report 2026-09-13: "cuando utilizo la búsqueda por voz el micrófono no se anima y no
+        // está indicando que lo estoy escuchando". The mic itself now pulses in Teal for as long as
+        // the recognizer is opening or listening — feedback that lives ON the tapped control.
+        val micScale = if (voiceActive) {
+            rememberInfiniteTransition(label = "micListening").animateFloat(
+                initialValue = 1f,
+                targetValue = 1.3f,
+                animationSpec = infiniteRepeatable(tween(520), RepeatMode.Reverse),
+                label = "micListeningScale",
+            ).value
+        } else {
+            1f
+        }
         AuraIconButton(
             icon = AuraIcons.Mic,
             contentDescription = stringResource(R.string.voice_search),
             onClick = onVoice,
             size = 18.dp,
-            tint = AuraPalette.OnGroundMuted,
+            tint = if (voiceActive) AuraPalette.Teal else AuraPalette.OnGroundMuted,
+            modifier = Modifier.graphicsLayer {
+                scaleX = micScale
+                scaleY = micScale
+            },
         )
 
         if (showSource) {
@@ -523,11 +543,14 @@ internal fun AuraSearchInputBar(
  *
  * The dialog is emitted from here so both the Buscar bar and the results bar get it from one place.
  */
+/** What a search bar needs from voice search: the tap action and whether it is live right now. */
+internal class AuraVoiceSearch(val launch: () -> Unit, val active: Boolean)
+
 @Composable
 internal fun rememberAuraVoiceSearch(
     onPartial: ((String) -> Unit)? = null,
     onResult: (String) -> Unit,
-): () -> Unit {
+): AuraVoiceSearch {
     val context = LocalContext.current
 
     val intentLauncher = rememberLauncherForActivityResult(
@@ -681,6 +704,8 @@ internal fun rememberAuraVoiceSearch(
 
     if (showMicPermissionDialog) {
         iad1tya.echo.music.ui.component.DefaultDialog(
+            // Same layering reason as the listening dialog below.
+            forceWindow = true,
             onDismiss = { showMicPermissionDialog = false },
             icon = { Icon(painterResource(R.drawable.mic), contentDescription = null) },
             title = { Text(stringResource(R.string.mic_permission_needed_title)) },
@@ -775,6 +800,11 @@ internal fun rememberAuraVoiceSearch(
 
     if (listening || opening) {
         DefaultDialog(
+            // ROOT CAUSE of the 2026-09-13 report ("el micrófono no se anima"): the in-window
+            // overlay is emitted from rememberAuraVoiceSearch, which every caller runs BEFORE its
+            // own opaque screen Box — so the listening card composed UNDER the screen and was never
+            // seen. A real dialog window always layers above the screen (and the player sheet).
+            forceWindow = true,
             onDismiss = {
                 listening = false
                 opening = false
@@ -828,9 +858,7 @@ internal fun rememberAuraVoiceSearch(
         }
     }
 
-    return {
-        launch()
-    }
+    return AuraVoiceSearch(launch = { launch() }, active = listening || opening)
 }
 
 /**

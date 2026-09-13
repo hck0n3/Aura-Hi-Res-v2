@@ -312,16 +312,16 @@ object AuraPalette {
      * emission — dialogs don't open in the first frame of a cold start), the HALLAZGO-034 opaque
      * fallback stays exactly as it was.
      */
+    //
+    // ## THE ACCOUNT-MENU PLATE, EVERYWHERE (owner directive 2026-09-13)
+    // "todo el estilo de las transparencias de las ventanas flotantes sea como el [menú de cuenta]…
+    // la que tenemos actualmente me sale transparente en los Galaxy y no me gusta". The account
+    // flyout (SettingDialoge → AuraInWindowDialog) paints [FloatingFill] under its glass — a solid
+    // raised plate that reads as a surface on ANY device. Every frost consumer (dialog windows,
+    // bottom sheets, menus, dropdowns) now returns that same plate, so no floating surface can
+    // read as a see-through hole on a no-blur OEM, glass switch or not.
     val FrostFill: Color
-        get() {
-            val tinted = Teal.copy(alpha = 0.16f).compositeOver(Ground)
-            val frost = tinted.copy(alpha = 0.34f)
-            if (isWindowBlurSupported()) return frost
-            // PrefsBridge is a process-wide volatile snapshot (never a blocking DataStore read in
-            // a color getter); null = cold-start pre-emission = the safe opaque fallback.
-            val glassForced = PrefsBridge.peek(LiquidGlassGlobalEnabledKey) ?: false
-            return if (glassForced) frost else frost.compositeOver(Ground)
-        }
+        get() = FloatingFill
 
     /**
      * Card / chip hairline: `rgba(255,255,255,.10)`, or the user's Bordes colour.

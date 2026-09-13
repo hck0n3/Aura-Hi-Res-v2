@@ -54,6 +54,17 @@ class VideoModeCoordinator(private val service: MusicService) {
      */
     private var speculativeVideoPrefetches = 0
 
+    /**
+     * YouTube Music's Song/Video switch is a PREFERENCE, not a per-track state (owner directive
+     * 2026-09-13: "la lógica entre cambiar de música a video y viceversa, igual que YouTube Music").
+     * Once the user picks Video it sticks: a track with no video plays as audio with its cover, and
+     * the next track that HAS a video comes back in video automatically. Only an explicit switch back
+     * to Song ([exitVideoMode]) clears it. Before, the first audio-only track disarmed video mode for
+     * good and every later video played as audio.
+     */
+    @Volatile
+    internal var stickyVideoPreferred = false
+
     internal val preloadedVideoOriginalUris = mutableMapOf<String, String>()
 
     // Ids whose cached/resolved video URL is a MUXED stream (audio embedded in the video file):
@@ -146,6 +157,7 @@ class VideoModeCoordinator(private val service: MusicService) {
         }
         service.userExplicitlyExitedVideo = false
         service.userHasUsedVideo = true
+        stickyVideoPreferred = true
         service.player.currentMediaItem?.mediaId?.let { service.resetRetryCount(it) }
         service.videoSwapMeasureStart()
         val gen = videoSwapGeneration.incrementAndGet()
@@ -728,6 +740,7 @@ class VideoModeCoordinator(private val service: MusicService) {
     fun exitVideoMode() {
         if (!service._videoMode.value && service.videoModeMediaId == null && videoModeItems.isEmpty()) return
         service.userExplicitlyExitedVideo = true
+        stickyVideoPreferred = false
         videoSwapGeneration.incrementAndGet()
         videoStuckRecoveryJob?.cancel()
         service.teardownInstantVideoSwap("exit video mode")

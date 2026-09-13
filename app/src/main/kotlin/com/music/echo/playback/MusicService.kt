@@ -5462,9 +5462,13 @@ class MusicService :
             // always honour: it is a fresh, deliberate user action so clear the flag first.
             // SEEK within the same queue = might be the internal seekTo from exitVideoMode → respect
             // userExplicitlyExitedVideo so the toggle is not overridden.
+            // STICKY PREFERENCE (YouTube Music model, 2026-09-13): if the user chose Video and an
+            // audio-only track dropped the player to audio, the next track WITH a video returns to
+            // video on ANY transition — auto-advance included. Cleared only by an explicit exit.
             mediaItem != null && trackChanged &&
             (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED ||
-                (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK && !userExplicitlyExitedVideo)) &&
+                (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK && !userExplicitlyExitedVideo) ||
+                (videoCoordinator.stickyVideoPreferred && !userExplicitlyExitedVideo)) &&
             (player.currentMetadata?.isVideoSong == true || videoCoordinator.exportedMuxedVideoUri(mediaItem.mediaId) != null) &&
             !(iad1tya.echo.music.utils.PerformanceMode.isOn(this) &&
                 !iad1tya.echo.music.utils.DeviceForm.isTvOrCar(this))
@@ -7504,6 +7508,34 @@ class MusicService :
      * 140 aac, 137 video never collide). Video-mode deliberately passes key=null
      * (VideoModeCoordinator) — it falls back to the old behavior, unchanged.
      */
+    /**
+     * A URI that makes [stableStreamCacheKeyFactory] derive the key of a song whose listen bytes are
+     * COMPLETE in [playerCache], or null when no complete copy exists. The URI is never fetched: with
+     * every byte cached (and the content length recorded) CacheDataSource serves the whole stream
+     * from disk and never opens the upstream.
+     *  · googlevideo streams live under `yt-stream-<id>-<itag>` → a googlevideo-host URI carrying
+     *    that itag (the persisted [preferredItag] first, so the container the DB describes wins);
+     *  · Qobuz / Saavn / other hosts are keyed by the mediaId itself → any non-googlevideo URI.
+     */
+    private fun fullyCachedListenUri(mediaId: String, preferredItag: Int?): android.net.Uri? {
+        fun complete(key: String): Boolean {
+            val length = androidx.media3.datasource.cache.ContentMetadata
+                .getContentLength(playerCache.getContentMetadata(key))
+            return length > 0 && playerCache.isCached(key, 0, length)
+        }
+        val streamKeys = StreamCacheKeys.keysOf(playerCache.keys, mediaId)
+        val preferredKey = preferredItag?.let { StreamCacheKeys.build(mediaId, it.toString()) }
+        val completeKey = preferredKey?.takeIf { it in streamKeys && complete(it) }
+            ?: streamKeys.firstOrNull { complete(it) }
+        if (completeKey != null) {
+            val itag = completeKey.substringAfterLast('-').takeIf { it.toIntOrNull() != null }
+                ?: return null
+            return "https://listen-cache.googlevideo.com/videoplayback?itag=$itag".toUri()
+        }
+        if (complete(mediaId)) return "https://listen-cache.aura.invalid/$mediaId".toUri()
+        return null
+    }
+
     private val stableStreamCacheKeyFactory =
         androidx.media3.datasource.cache.CacheKeyFactory { dataSpec ->
             val uri = dataSpec.uri
@@ -7813,6 +7845,28 @@ class MusicService :
             val dbFormatReadStartMs = android.os.SystemClock.elapsedRealtime()
             val dbFormat = runBlocking(Dispatchers.IO) { database.format(mediaId).firstOrNull() }
             val dbFormatReadMs = android.os.SystemClock.elapsedRealtime() - dbFormatReadStartMs
+
+            // FULL LISTEN-CACHE REPLAY (owner report 2026-09-13: "si pongo una canción, cambio a otra y
+            // vuelvo a poner la que ya escuché, la vuelve a descargar"). Every cache-hit branch below
+            // still needed a LIVE songUrlCache entry; without one (expired URL, Qobuz/Saavn short TTL,
+            // restart) the song was re-RESOLVED, and a nondeterministic LOSSLESS lookup landing on a
+            // different container purged the cached bytes → full re-download. A song whose bytes are
+            // COMPLETE on disk needs no network at all: serve it straight from playerCache under the
+            // exact key its writer used. Skipped for an explicit refetch (quality bypass / forced
+            // Opus), for video items, and when downloadCache holds any span of this id (the outer
+            // download layer must never mix its bytes with listen bytes).
+            if (!shouldBypassCache &&
+                forceOpusForMediaId != mediaId &&
+                dataSpec.key?.startsWith("yt-video-") != true &&
+                downloadCache.getCachedSpans(mediaId).isEmpty()
+            ) {
+                fullyCachedListenUri(mediaId, dbFormat?.itag)?.let { cachedUri ->
+                    Timber.tag(TAG).i("LISTEN-CACHE full replay for $mediaId — no resolve, no network")
+                    scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                    StreamHealth.cacheHit()
+                    return@Factory dataSpec.withUri(cachedUri)
+                }
+            }
 
             // refetchCurrentInOpus() forces this track to Opus, overriding both the global quality and the
             // "locked" quality of the currently-playing track (below).
