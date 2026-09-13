@@ -1236,3 +1236,12 @@ val NewUiLaunchDefaultV1AppliedKey = booleanPreferencesKey("new_ui_launch_defaul
 
 /** One-shot: moves an EQ still on the 2026-09-05 "Aura Hi-Res v2" curve to the 2026-09-13 curve. */
 val AuraHiResV2Curve20260913AppliedKey = booleanPreferencesKey("aura_hires_v2_curve_20260913_applied")
+
+/** Mastering: gentle 2:1 glue compressor before the limiter. Default OFF (user opt-in). */
+val GlueCompressorEnabledKey = booleanPreferencesKey("mastering_glue_compressor_enabled")
+
+/** Mastering: TPDF dither + noise shaping on the 16-bit output. Default ON (inaudible, cleaner quiet passages). */
+val OutputDitherEnabledKey = booleanPreferencesKey("mastering_output_dither_enabled")
+
+/** Mastering: -5 dB sub-bass shelf while the PHONE SPEAKER is the output route. Default OFF (user opt-in). */
+val SpeakerBassProtectEnabledKey = booleanPreferencesKey("mastering_speaker_bass_protect_enabled")

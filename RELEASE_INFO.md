@@ -45,6 +45,14 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 - **Tocar un resultado de búsqueda reproduce ESE resultado:** antes, al tocarlo, la app repetía la búsqueda y si YouTube devolvía otra lista empezaba por el primer resultado, no por el que elegiste.
 
+## Masterización (Ajustes ▸ Sonido ▸ Masterización — todo se activa y desactiva a tu gusto)
+
+- **Compresor suave (pegamento):** compresión 2:1 muy sutil justo antes del limitador; une la mezcla sin subir el volumen. Apagado por defecto.
+- **Dither de salida:** dither triangular con modelado de ruido al convertir el audio a 16 bits (tu S26 sale en 16 bits): pasajes suaves más limpios. Encendido por defecto.
+- **Proteger el altavoz del teléfono:** baja el sub-grave solo cuando suena por el altavoz; al conectar audífonos o Bluetooth se quita solo. Apagado por defecto.
+- **El limitador ahora también protege las pistas mono** (antes solo actuaba en estéreo).
+- Ya tenías y siguen igual: limitador de picos, crossfeed y ancho estéreo (en Audio espacial del ecualizador), filtros shelf/campana con Q por banda y pre-ganancia.
+
 ## Calidad de audio
 
 - **Verificado en tu S26: siempre Opus a la máxima calidad sin Premium (itag 251, ~160 kbps).** Las 264 canciones registradas en tu app y todo tu caché son Opus 251.

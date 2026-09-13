@@ -121,6 +121,69 @@ fun SoundSettings(
             ),
         )
 
+        Spacer(Modifier.height(20.dp))
+
+        // ── Masterización (owner directive 2026-09-13): every stage is a user toggle ──
+        val (glueCompressor, onGlueCompressorChange) = rememberPreference(
+            iad1tya.echo.music.constants.GlueCompressorEnabledKey, defaultValue = false
+        )
+        val (outputDither, onOutputDitherChange) = rememberPreference(
+            iad1tya.echo.music.constants.OutputDitherEnabledKey, defaultValue = true
+        )
+        val (speakerBassProtect, onSpeakerBassProtectChange) = rememberPreference(
+            iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey, defaultValue = false
+        )
+        Material3SettingsGroup(
+            title = "Masterización",
+            items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.volume_up),
+                    title = { Text("Compresor suave (pegamento)") },
+                    description = {
+                        Text("Compresión 2:1 muy sutil antes del limitador: une la mezcla y da pegada sin subir el volumen.")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = glueCompressor,
+                            onCheckedChange = onGlueCompressorChange,
+                            thumbContent = thumb(glueCompressor),
+                        )
+                    },
+                    onClick = { onGlueCompressorChange(!glueCompressor) },
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.music_note),
+                    title = { Text("Dither de salida") },
+                    description = {
+                        Text("Dither triangular con modelado de ruido al convertir a 16 bits: pasajes suaves y colas de reverb más limpios.")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = outputDither,
+                            onCheckedChange = onOutputDitherChange,
+                            thumbContent = thumb(outputDither),
+                        )
+                    },
+                    onClick = { onOutputDitherChange(!outputDither) },
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.volume_up),
+                    title = { Text("Proteger el altavoz del teléfono") },
+                    description = {
+                        Text("Atenúa el sub-grave (≈31 Hz) solo cuando suena por el altavoz del teléfono. Con audífonos o Bluetooth no cambia nada.")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = speakerBassProtect,
+                            onCheckedChange = onSpeakerBassProtectChange,
+                            thumbContent = thumb(speakerBassProtect),
+                        )
+                    },
+                    onClick = { onSpeakerBassProtectChange(!speakerBassProtect) },
+                ),
+            ),
+        )
+
         Spacer(Modifier.height(27.dp))
     }
 }

@@ -18,6 +18,7 @@
 #include "SuperpoweredLimiter.h"
 #include "SuperpoweredSpatializer.h"
 #include "SuperpoweredReverb.h"
+#include "SuperpoweredCompressor.h"
 #else
 #define HAS_SUPERPOWERED 0
 #endif
@@ -169,6 +170,13 @@ struct EqSnapshot {
     float inputVolume = 1.0f;
     float crossfeedAmt = 0.32f;
     float speakerWidth = 1.0f;
+    /// MASTERING stage (owner directive 2026-09-13), each one a user toggle:
+    ///  - compressorEnabled: gentle 2:1 "glue" compression after the EQ, before the limiter.
+    ///  - ditherEnabled: TPDF dither + first-order noise shaping on the float -> 16-bit output.
+    ///  - speakerBassProtect: sub-bass low shelf, set by Kotlin only while the phone speaker is the route.
+    bool compressorEnabled = false;
+    bool ditherEnabled = false;
+    bool speakerBassProtect = false;
     /// Bumped by writers ONLY when a band actually changed (setEqBand / disableAllBands). Lets the audio
     /// thread skip re-writing all 64 filters for a publication that only moved a scalar — most importantly
     /// the per-track Safe Volume update, which must not touch EQ coefficients at all.
@@ -193,6 +201,12 @@ public:
     Superpowered::Spatializer* spatRearL = nullptr;
     Superpowered::Spatializer* spatRearR = nullptr;
     Superpowered::Reverb* spatialRoom = nullptr;
+
+    // MASTERING stage objects + audio-thread-private dither state.
+    Superpowered::Compressor* glueCompressor = nullptr;
+    Superpowered::Filter* speakerBassShelf = nullptr;
+    float ditherErr[2] = {0.0f, 0.0f};
+    uint32_t ditherSeed = 0x9E3779B9u;
 
     float spInL[MAX_AUDIO_FRAMES];
     float spInR[MAX_AUDIO_FRAMES];
@@ -254,6 +268,9 @@ public:
     float activeInputVolume = 1.0f;
     float activeCrossfeedAmt = 0.32f;
     float activeSpeakerWidth = 1.0f;
+    bool activeCompressorEnabled = false;
+    bool activeDitherEnabled = false;
+    bool activeSpeakerBassProtect = false;
     /// bandsRevision of the snapshot whose band parameters are currently loaded into the filter objects.
     uint32_t appliedBandsRevision = 0;
 
@@ -360,6 +377,9 @@ public:
         activeInputVolume = s.inputVolume;
         activeCrossfeedAmt = s.crossfeedAmt;
         activeSpeakerWidth = s.speakerWidth;
+        activeCompressorEnabled = s.compressorEnabled;
+        activeDitherEnabled = s.ditherEnabled;
+        activeSpeakerBassProtect = s.speakerBassProtect;
         applySpatializerProperties();
 
         // Filter objects are touched ONLY when a band genuinely changed. A publication caused purely by
@@ -564,6 +584,29 @@ public:
         spatialRoom->mix = 0.0f;
         memset(spDelayL, 0, sizeof(spDelayL));
         memset(spDelayR, 0, sizeof(spDelayR));
+
+        // GLUE COMPRESSOR — deliberately gentle: the goal is cohesion on 160 kbps Opus, not loudness.
+        // 2:1 (the SDK rounds to 1.5/2/3/4/5/10), -12 dB threshold, 10 ms attack keeps transients,
+        // 200 ms release avoids pumping; no makeup gain so the limiter headroom is unchanged.
+        glueCompressor = new Superpowered::Compressor(samplerate);
+        glueCompressor->ratio = 2.0f;
+        glueCompressor->thresholdDb = -12.0f;
+        glueCompressor->attackSec = 0.010f;
+        glueCompressor->releaseSec = 0.200f;
+        glueCompressor->inputGainDb = 0.0f;
+        glueCompressor->outputGainDb = 0.0f;
+        glueCompressor->wet = 1.0f;
+        glueCompressor->hpCutOffHz = 1.0f;
+        glueCompressor->enabled = true;
+
+        // SPEAKER SUB-BASS PROTECTION — a phone speaker cannot reproduce ~31 Hz; boosting it only
+        // excurses the membrane. A -5 dB low shelf at 55 Hz takes the sub-bass out of the speaker path
+        // while leaving the audible bass untouched.
+        speakerBassShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
+        speakerBassShelf->frequency = 55.0f;
+        speakerBassShelf->slope = 0.7f;
+        speakerBassShelf->decibel = -5.0f;
+        speakerBassShelf->enabled = true;
     }
 
     ~SuperpoweredProcessor() {
@@ -585,6 +628,8 @@ public:
         if (spatRearL) { delete spatRearL; spatRearL = nullptr; }
         if (spatRearR) { delete spatRearR; spatRearR = nullptr; }
         if (spatialRoom) { delete spatialRoom; spatialRoom = nullptr; }
+        if (glueCompressor) { delete glueCompressor; glueCompressor = nullptr; }
+        if (speakerBassShelf) { delete speakerBassShelf; speakerBassShelf = nullptr; }
     }
 };
 #endif
@@ -785,6 +830,19 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setSpatial(JNIEnv
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setMasteringOptions(JNIEnv *env, jobject thiz, jlong ptr, jboolean compressor, jboolean dither, jboolean speakerBassProtect) {
+#if HAS_SUPERPOWERED
+    auto* processor = reinterpret_cast<SuperpoweredProcessor*>(ptr);
+    if (!processor) return;
+    std::lock_guard<std::mutex> lock(processor->writerMutex);
+    processor->staging.compressorEnabled = (compressor == JNI_TRUE);
+    processor->staging.ditherEnabled = (dither == JNI_TRUE);
+    processor->staging.speakerBassProtect = (speakerBassProtect == JNI_TRUE);
+    processor->publishIfNotBatchingLocked();
+#endif
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_disableAllBands(JNIEnv *env, jobject thiz, jlong ptr) {
 #if HAS_SUPERPOWERED
     auto* processor = reinterpret_cast<SuperpoweredProcessor*>(ptr);
@@ -858,7 +916,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
     bool runChain = runEq ||
         (processor && (processor->activeSafeVolumeEnabled || processor->safeVolumeGainCurrent != 1.0f)) ||
         runSpatial ||
-        (processor && processor->activeTidalSimulationEnabled);
+        (processor && processor->activeTidalSimulationEnabled) ||
+        (processor && (processor->activeCompressorEnabled || processor->activeSpeakerBassProtect));
     if (runChain && workBuffer && processor) {
         // NO LOCK HERE. Parameters were taken in above via consumeAndApplySnapshot, which is wait-free
         // and delivers a complete set or nothing at all. Everything read below is either that applied
@@ -1005,8 +1064,34 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
 
         // Limiter (peak safety) — runs for EQ OR Safe Volume. Stereo only (Superpowered Limiter is stereo);
         // mono relies on the soft-clip knee below, which runs for every channel count.
+        // SPEAKER SUB-BASS PROTECTION (user toggle; Kotlin arms it only while the phone speaker plays).
+        if (processor->activeSpeakerBassProtect && processor->speakerBassShelf) {
+            if (channels == 1) processor->speakerBassShelf->processMono(workBuffer, workBuffer, num_frames);
+            else processor->speakerBassShelf->process(workBuffer, workBuffer, num_frames);
+        }
+
+        // GLUE COMPRESSOR (user toggle) — after EQ/spatial, immediately before the limiter.
+        // The SDK compressor is stereo-interleaved only.
+        if (processor->activeCompressorEnabled && processor->glueCompressor && channels == 2) {
+            processor->glueCompressor->process(workBuffer, workBuffer, num_frames);
+        }
+
         if (processor->limiter && processor->limiter->enabled && channels == 2) {
             processor->limiter->process(workBuffer, workBuffer, num_frames);
+        } else if (processor->limiter && processor->limiter->enabled && channels == 1 &&
+                   requiredSize * 2 <= MAX_BUFFER_SIZE) {
+            // MONO LIMITING (2026-09-13): the SDK limiter is stereo-only, so mono tracks used to reach the
+            // output with nothing but the tanh knee below. Run the mono signal as a dual-mono pair through
+            // the same limiter (deEsserBuffer is free scratch at this point) and take one channel back.
+            float* scratch = processor->deEsserBuffer;
+            for (int i = 0; i < num_frames; ++i) {
+                scratch[i * 2] = workBuffer[i];
+                scratch[i * 2 + 1] = workBuffer[i];
+            }
+            processor->limiter->process(scratch, scratch, num_frames);
+            for (int i = 0; i < num_frames; ++i) {
+                workBuffer[i] = scratch[i * 2];
+            }
         }
 
         // Soft-clip final safety net (rarely fires now that the limiter threshold is -3 dB).
@@ -1022,7 +1107,32 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
 
     if (encoding != 4 && workBuffer) {
         short* outShort = (short*)output;
-        Superpowered::FloatToShortInt(workBuffer, outShort, num_frames, channels);
+        if (runChain && processor && processor->activeDitherEnabled) {
+            // DITHER (user toggle, 2026-09-13): the 32-bit float DSP result is requantized to 16-bit here.
+            // Plain truncation turns the quantization error into signal-correlated distortion on quiet
+            // passages and reverb tails. TPDF dither (difference of two uniform randoms, +-1 LSB) decorrelates
+            // it, and first-order error feedback pushes the remaining noise toward high frequencies where
+            // the ear is least sensitive. Only when the chain actually processed — an untouched 16-bit
+            // input round-trips exactly and needs no dither.
+            const int total = num_frames * channels;
+            uint32_t seed = processor->ditherSeed;
+            for (int i = 0; i < total; ++i) {
+                const int ch = (channels == 2) ? (i & 1) : 0;
+                seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
+                const float r1 = (float)(seed & 0xFFFF) / 65535.0f;
+                seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
+                const float r2 = (float)(seed & 0xFFFF) / 65535.0f;
+                const float shaped = workBuffer[i] * 32767.0f - processor->ditherErr[ch];
+                float q = std::round(shaped + (r1 - r2));
+                if (q > 32767.0f) q = 32767.0f;
+                else if (q < -32768.0f) q = -32768.0f;
+                processor->ditherErr[ch] = q - shaped;
+                outShort[i] = (short)q;
+            }
+            processor->ditherSeed = seed;
+        } else {
+            Superpowered::FloatToShortInt(workBuffer, outShort, num_frames, channels);
+        }
     }
 #else
     void* input = env->GetDirectBufferAddress(input_buffer);

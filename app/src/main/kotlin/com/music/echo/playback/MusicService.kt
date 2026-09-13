@@ -773,6 +773,10 @@ class MusicService :
     @Volatile private var spatialEnabledHint: Boolean = false
     @Volatile private var spatialProfileNameHint: String = SpatialAudioProfile.WIDE_SURROUND.name
     @Volatile private var tidalEnabledHint: Boolean = true
+    // Mastering toggles (owner directive 2026-09-13). Defaults mirror the preference keys.
+    @Volatile private var glueCompressorHint: Boolean = false
+    @Volatile private var outputDitherHint: Boolean = true
+    @Volatile private var speakerBassProtectHint: Boolean = false
     // The offload request CURRENTLY PUBLISHED to the players (not merely the gate's latest verdict — an
     // approved enable can be waiting for a track boundary; see publishOffloadDecision). Read by
     // onPlaybackParametersChanged, which only re-publishes the speed requirement while offload is live.
@@ -1634,12 +1638,14 @@ class MusicService :
             }
             applyEqForCurrentOutput()
             applySpatialFromPrefs()
+            applyMasteringFromPrefs()
         }
 
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
             super.onAudioDevicesRemoved(removedDevices)
             applyEqForCurrentOutput()
             applySpatialFromPrefs()
+            applyMasteringFromPrefs()
         }
     }
 
@@ -1864,6 +1870,19 @@ class MusicService :
 
     private fun applyTidalFromPrefs() {
         playerEqProcessors.values.forEach { it.applyTidalSimulation(tidalEnabledHint) }
+    }
+
+    /**
+     * Pushes the mastering toggles to every player processor. Sub-bass protection is resolved against the
+     * LIVE route here: armed only while the phone's own speaker plays, never on headphones, Bluetooth or a
+     * bypass route. Re-run from the audio-device callback so plugging headphones in lifts it immediately.
+     */
+    private fun applyMasteringFromPrefs() {
+        val onPhoneSpeaker = speakerBassProtectHint &&
+            SpatialAudioProfile.detectOutputKind(this) == SpatialOutputKind.SPEAKER
+        playerEqProcessors.values.forEach {
+            it.applyMastering(glueCompressorHint, outputDitherHint, onPhoneSpeaker)
+        }
     }
 
     override fun onCreate() {
@@ -2475,6 +2494,22 @@ class MusicService :
                 }
         }
 
+        // MASTERING toggles (glue compressor / output dither / phone-speaker sub-bass protection).
+        scope.launch {
+            combine(
+                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: false },
+                dataStore.data.map { it[iad1tya.echo.music.constants.OutputDitherEnabledKey] ?: true },
+                dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false },
+            ) { compressor, dither, speaker -> Triple(compressor, dither, speaker) }
+                .distinctUntilChanged()
+                .collect { (compressor, dither, speaker) ->
+                    glueCompressorHint = compressor
+                    outputDitherHint = dither
+                    speakerBassProtectHint = speaker
+                    applyMasteringFromPrefs()
+                }
+        }
+
         // NOTE (0.6.145): two collectors used to sit here, feeding AudioEnhanceProcessor.enabled and
         // JrDspAudioProcessor.config from DataStore. Both target classes are inert stubs — isActive()
         // returns false and NEITHER is ever inserted into any AudioProcessorChain (see
@@ -2568,10 +2603,14 @@ class MusicService :
                 eqProfileRepository.activeProfile,
                 eqProfileRepository.unsavedProfile,
             ) { active, unsaved -> (unsaved ?: active) != null }.distinctUntilChanged(),
+            // The mastering compressor and speaker protection process PCM too: while either is ON, offload
+            // must be refused or its switch would be a placebo on the offloaded (still encoded) stream.
             combine(
                 dataStore.data.map { it[SpatialAudioEnabledKey] ?: false }.distinctUntilChanged(),
-                dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged()
-            ) { spatial, tidal -> spatial || tidal },
+                dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged(),
+                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: false }.distinctUntilChanged(),
+                dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false }.distinctUntilChanged(),
+            ) { spatial, tidal, compressor, speaker -> spatial || tidal || compressor || speaker },
         ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, spatialOrTidal ->
             AudioOffloadGate.allowOffload(
                 AudioOffloadGate.Inputs(
@@ -2952,6 +2991,7 @@ class MusicService :
         playerLimiterProcessors[player] = limiterProcessor
         applySpatialFromPrefs()
         applyTidalFromPrefs()
+        applyMasteringFromPrefs()
 
         player.apply {
                 setOffloadEnabled(audioOffloadHint)

@@ -140,6 +140,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     private external fun setSafeVolume(ptr: Long, enabled: Boolean, gainLinear: Float)
     private external fun setTidalSimulationEnabled(ptr: Long, enabled: Boolean)
     private external fun setSpatial(ptr: Long, enabled: Boolean, algorithm: Int, params: FloatArray)
+    private external fun setMasteringOptions(ptr: Long, compressor: Boolean, dither: Boolean, speakerBassProtect: Boolean)
     private external fun disableAllBands(ptr: Long)
     private external fun setEqBand(ptr: Long, index: Int, frequency: Float, gainDb: Float, q: Float, filterType: Int)
 
@@ -200,6 +201,28 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             val ptr = nativePtr
             if (isInitialized && ptr != 0L) {
                 setTidalSimulationEnabled(ptr, enabled)
+            }
+        }
+    }
+
+    // MASTERING stage (owner directive 2026-09-13) — every stage is a user toggle. Kept so onConfigure can
+    // restore it when the native processor is re-created on a sample-rate change.
+    private var masteringCompressor = false
+    private var masteringDither = false
+    private var masteringSpeakerBassProtect = false
+
+    /**
+     * Glue compressor, 16-bit output dither and phone-speaker sub-bass protection. [speakerBassProtect] must
+     * already be resolved against the live output route by the caller (true only while the phone speaker plays).
+     */
+    fun applyMastering(compressor: Boolean, dither: Boolean, speakerBassProtect: Boolean) {
+        synchronized(eqApplyLock) {
+            masteringCompressor = compressor
+            masteringDither = dither
+            masteringSpeakerBassProtect = speakerBassProtect
+            val ptr = nativePtr
+            if (isInitialized && ptr != 0L) {
+                setMasteringOptions(ptr, compressor, dither, speakerBassProtect)
             }
         }
     }
@@ -407,6 +430,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             }
             if (isInitialized && restorePtr != 0L) {
                 setSpatial(restorePtr, spatialEnabled, spatialAlgorithm, spatialParams)
+                setMasteringOptions(restorePtr, masteringCompressor, masteringDither, masteringSpeakerBassProtect)
             }
         }
 
