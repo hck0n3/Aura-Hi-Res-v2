@@ -124,7 +124,11 @@ object YTPlayerUtils {
     // sometimes hand over ONLY itag 18 — a playing low-quality stream beats a perfect silent
     // one). This changes selection only; resolution, cache keys (itag-keyed) and quality
     // mapping are untouched.
-    private val AUDIO_ITAG_PREFERENCE = listOf(774, 251, 250, 249, 139, 141, 140, 171, 22, 18)
+    // CORRECTION (2026-09-13 audit, verified against YouTube's format table): itag 139 is NOT Opus — it is
+    // AAC-HE 48 kbps in audio/mp4. Placed before 141/140 it made a track whose Opus URL was missing fall to
+    // 48 kbps AAC instead of 128 kbps AAC (140). The Opus family (774/251/250/249) still leads; the AAC
+    // fallback now degrades from highest to lowest bitrate.
+    private val AUDIO_ITAG_PREFERENCE = listOf(774, 251, 250, 249, 141, 140, 139, 171, 22, 18)
 
     // The signature timestamp (sts) is a per-PLAYER-VERSION constant — identical for every video until
     // YouTube rotates player.js (rare, ~weekly). Recomputing it for every song runs NewPipe's JS engine

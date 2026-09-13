@@ -45,6 +45,11 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 - **Tocar un resultado de búsqueda reproduce ESE resultado:** antes, al tocarlo, la app repetía la búsqueda y si YouTube devolvía otra lista empezaba por el primer resultado, no por el que elegiste.
 
+## Calidad de audio
+
+- **Verificado en tu S26: siempre Opus a la máxima calidad sin Premium (itag 251, ~160 kbps).** Las 264 canciones registradas en tu app y todo tu caché son Opus 251.
+- **Respaldo corregido:** si una canción no trae su enlace Opus, la app ya no baja a AAC de 48 kbps (itag 139, mal etiquetado como Opus): usa primero el AAC de 128 kbps.
+
 ## Cola infinita inteligente
 
 - **Ya no improvisa:** se quitó la cuota que metía a propósito artistas fuera de tus gustos en la cola automática.
