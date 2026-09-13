@@ -2668,7 +2668,7 @@ class MusicService :
                     (prefs[CrossfadeEnabledKey] ?: false) &&
                         !(prefs[iad1tya.echo.music.constants.HighPerformanceModeKey] ?: false) &&
                         !(prefs[iad1tya.echo.music.constants.DataSaverEnabledKey] ?: false),
-                    prefs[CrossfadeDurationKey] ?: 5f,
+                    prefs[CrossfadeDurationKey] ?: 8f,
                     prefs[CrossfadeGaplessKey] ?: false
                 )
             },
@@ -7869,7 +7869,7 @@ class MusicService :
         // on 2026-08-26, then raised it to +2.3 on 2026-09-05 with the Aura Hi-Res v2 directive).
         // Migrations write the value explicitly; this only matters before they run.
         val prefsPreamp = getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
-            .getFloat("preampDb", 2.3f).toDouble()
+            .getFloat("preampDb", 2.2f).toDouble()
         if (!::eqProfileRepository.isInitialized) return prefsPreamp
         val profile = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value
         return profile?.preamp ?: prefsPreamp

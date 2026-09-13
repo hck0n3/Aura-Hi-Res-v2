@@ -26,20 +26,35 @@ import javax.inject.Inject
  * Pure mapping: per-band dB gains + band types → ParametricEQ bands.
  * Gain is stored directly in dB (matches the desktop engine; no scaling).
  */
-fun buildEqBands(gainsDb: FloatArray, types: IntArray): List<ParametricEQBand> =
+fun buildEqBands(gainsDb: FloatArray, types: IntArray, qs: FloatArray? = null): List<ParametricEQBand> =
     EqConstants.FREQUENCIES.mapIndexed { i, freq ->
         ParametricEQBand(
             frequency = freq,
             gain = gainsDb.getOrElse(i) { 0f }.toDouble(),
-            q = EqConstants.Q,
-            filterType = when (i) {
-                0 -> FilterType.LSC
-                EqConstants.BAND_COUNT - 1 -> FilterType.HSC
-                else -> FilterType.PK
-            },
+            // MANUAL GRAPHIC EQ (owner directive 2026-09-13): per-band Q when the user set one; the historic
+            // fixed Q otherwise, so an untouched band sounds exactly as before.
+            q = qs?.getOrNull(i)?.toDouble()?.coerceIn(PeqConstants.Q_MIN, PeqConstants.Q_MAX) ?: EqConstants.Q,
+            filterType = graphicFilterType(i, types.getOrElse(i) { GRAPHIC_TYPE_AUTO }),
             enabled = true,
         )
     }
+
+/** Graphic band filter-type codes. AUTO keeps the positional shelf/peak/shelf layout the EQ always had. */
+const val GRAPHIC_TYPE_AUTO = 0
+const val GRAPHIC_TYPE_PEAK = 1
+const val GRAPHIC_TYPE_LOW_SHELF = 2
+const val GRAPHIC_TYPE_HIGH_SHELF = 3
+
+fun graphicFilterType(index: Int, code: Int): FilterType = when (code) {
+    GRAPHIC_TYPE_PEAK -> FilterType.PK
+    GRAPHIC_TYPE_LOW_SHELF -> FilterType.LSC
+    GRAPHIC_TYPE_HIGH_SHELF -> FilterType.HSC
+    else -> when (index) {
+        0 -> FilterType.LSC
+        EqConstants.BAND_COUNT - 1 -> FilterType.HSC
+        else -> FilterType.PK
+    }
+}
 
 /**
  * Parametric (PEQ) constraints. The 5–8 PEQ bands are fully user-defined (free frequency / Q / gain),
@@ -47,7 +62,9 @@ fun buildEqBands(gainsDb: FloatArray, types: IntArray): List<ParametricEQBand> =
  */
 object PeqConstants {
     const val MIN_BANDS = 5
-    const val MAX_BANDS = 10
+    // Owner directive 2026-09-13 ("lo más manual posible"): up to 16 free bands. The native engine
+    // allocates 64 filter slots (SuperpoweredBridge NUM_EQ_FILTERS), shared with the Auto-EQ stage.
+    const val MAX_BANDS = 16
     const val FREQ_MIN = 20.0
     const val FREQ_MAX = 20000.0
     const val Q_MIN = 0.3
@@ -178,10 +195,41 @@ class AxionEqViewModel @Inject constructor(
     private val _bandTypes = MutableStateFlow(IntArray(n) { prefs.getInt("type24_$it", 0) })
     val bandTypes = _bandTypes.asStateFlow()
 
+    // MANUAL GRAPHIC EQ (owner directive 2026-09-13: "todos los parámetros lo más manual posible").
+    // New keys on purpose: the legacy type24_* array was never read by buildEqBands (every band was
+    // positional), so honouring it now would silently turn the first/last shelves into peaks for anyone
+    // with a stale value. gtype_* defaults to AUTO (= that same positional layout) and gq_* to the
+    // historic Q, so an untouched EQ is bit-identical to before.
+    private val _graphicTypes = MutableStateFlow(IntArray(n) { prefs.getInt("gtype_$it", GRAPHIC_TYPE_AUTO) })
+    val graphicTypes = _graphicTypes.asStateFlow()
+    private val _graphicQs = MutableStateFlow(FloatArray(n) { prefs.getFloat("gq_$it", EqConstants.Q.toFloat()) })
+    val graphicQs = _graphicQs.asStateFlow()
+
+    /** Live Q edit for a graphic band (persisted on commit, like gains). */
+    fun setGraphicBandQLive(index: Int, q: Float) {
+        if (index !in 0 until n) return
+        val arr = _graphicQs.value.copyOf()
+        arr[index] = q.coerceIn(PeqConstants.Q_MIN.toFloat(), PeqConstants.Q_MAX.toFloat())
+        _graphicQs.value = arr
+        _isDirty.value = true
+        if (_enabled.value) equalizerService.applyProfile(liveProfile())
+    }
+
+    /** Filter type for a graphic band: AUTO / PEAK / LOW_SHELF / HIGH_SHELF. Persists + applies. */
+    fun setGraphicBandType(index: Int, code: Int) {
+        if (index !in 0 until n) return
+        val arr = _graphicTypes.value.copyOf()
+        arr[index] = code.coerceIn(GRAPHIC_TYPE_AUTO, GRAPHIC_TYPE_HIGH_SHELF)
+        _graphicTypes.value = arr
+        prefs.edit().putInt("gtype_$index", arr[index]).apply()
+        _isDirty.value = true
+        commit()
+    }
+
     // Fallback 2.3f = the current default (HALLAZGO-046 shipped +3; the owner lowered it to +2 on
     // 2026-08-26, then raised it to +2.3 on 2026-09-05 with the Aura Hi-Res v2 directive).
     // Migrations write the value explicitly; this only matters before they run.
-    private val _preamp = MutableStateFlow(prefs.getFloat("preampDb", 2.3f))
+    private val _preamp = MutableStateFlow(prefs.getFloat("preampDb", 2.2f))
     val preamp = _preamp.asStateFlow()
 
     // EQ editing mode: GRAPHIC (10-band, EqConstants.BAND_COUNT, default) vs PARAMETRIC (5–8 free PEQ bands). Both curves are
@@ -448,8 +496,17 @@ class AxionEqViewModel @Inject constructor(
 
     fun reset() {
         _preamp.value = 0f
+        // A full reset also returns every graphic band to its default Q and positional filter type.
+        _graphicQs.value = FloatArray(n) { EqConstants.Q.toFloat() }
+        _graphicTypes.value = IntArray(n) { GRAPHIC_TYPE_AUTO }
         prefs.edit()
             .putFloat("preampDb", 0f)
+            .apply {
+                for (i in 0 until n) {
+                    putFloat("gq_$i", EqConstants.Q.toFloat())
+                    putInt("gtype_$i", GRAPHIC_TYPE_AUTO)
+                }
+            }
             .apply()
         setBandsGains(FloatArray(n) { 0f })
     }
@@ -608,7 +665,7 @@ class AxionEqViewModel @Inject constructor(
      * [ParametricEQBand]s consumed by the SAME engine path (CustomEqualizerAudioProcessor.createFilters).
      */
     private fun allBands(): List<ParametricEQBand> = when (_eqMode.value) {
-        EqMode.GRAPHIC -> buildEqBands(_bandGains.value, _bandTypes.value)
+        EqMode.GRAPHIC -> buildEqBands(_bandGains.value, _graphicTypes.value, _graphicQs.value)
         EqMode.PARAMETRIC -> _peqBands.value.filter { it.enabled }
     }
 
@@ -617,6 +674,8 @@ class AxionEqViewModel @Inject constructor(
         val editor = prefs.edit()
         _bandGains.value.forEachIndexed { i, f -> editor.putFloat("band24_$i", f) }
         _bandTypes.value.forEachIndexed { i, t -> editor.putInt("type24_$i", t) }
+        _graphicTypes.value.forEachIndexed { i, t -> editor.putInt("gtype_$i", t) }
+        _graphicQs.value.forEachIndexed { i, q -> editor.putFloat("gq_$i", q) }
         editor.putFloat("preampDb", _preamp.value)
         editor.apply()
         // PEQ curve is persisted independently of the graphic bands so neither overwrites the other.

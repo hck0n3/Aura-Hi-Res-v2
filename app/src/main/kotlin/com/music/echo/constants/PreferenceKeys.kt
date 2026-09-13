@@ -1237,6 +1237,9 @@ val NewUiLaunchDefaultV1AppliedKey = booleanPreferencesKey("new_ui_launch_defaul
 /** One-shot: moves an EQ still on the 2026-09-05 "Aura Hi-Res v2" curve to the 2026-09-13 curve. */
 val AuraHiResV2Curve20260913AppliedKey = booleanPreferencesKey("aura_hires_v2_curve_20260913_applied")
 
+/** One-shot (owner directive 2026-09-13): crossfade 8 s + EQ preamp +2.2 dB for everyone on this update. */
+val AudioDefaults20260913AppliedKey = booleanPreferencesKey("audio_defaults_20260913_applied")
+
 /** Mastering: gentle 2:1 glue compressor before the limiter. Default OFF (user opt-in). */
 val GlueCompressorEnabledKey = booleanPreferencesKey("mastering_glue_compressor_enabled")
 

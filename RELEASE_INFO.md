@@ -53,6 +53,23 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 - **El limitador ahora también protege las pistas mono** (antes solo actuaba en estéreo).
 - Ya tenías y siguen igual: limitador de picos, crossfeed y ancho estéreo (en Audio espacial del ecualizador), filtros shelf/campana con Q por banda y pre-ganancia.
 
+## Valores por defecto de audio (se aplican a todos una vez con esta actualización)
+
+- **Duración de la transición (crossfade): 8 segundos.** Además se corrigió que las instalaciones nuevas quedaban en 5 s.
+- **Preamp del ecualizador: +2.2 dB.**
+- Después puedes cambiar ambos cuando quieras; tu elección se respeta.
+
+## Ecualizador 100 % manual
+
+- **Modo barras:** nuevo panel «Ajuste manual por banda»: eliges la banda y ajustas su ganancia en pasos de 0.1 dB, su ancho (Q de 0.3 a 10) y su tipo de filtro (Auto, Campana, Graves, Agudos). Si no tocas nada, suena igual que antes.
+- **Modo paramétrico:** hasta 16 bandas libres (antes 10), cada una con frecuencia, Q, ganancia y tipo.
+
+## Ahorro de datos (verificado y completado)
+
+- **Ahora sí baja el audio:** con Ahorro de datos activado se usa el Opus de ~70 kbps en vez del de 160 kbps (antes el audio no ahorraba nada). Al apagarlo vuelve a máxima calidad.
+- **Portadas más livianas:** con Ahorro de datos, la portada del reproductor se descarga a 544 px en vez de 1200 px.
+- Ya funcionaba: oculta videos y portadas animadas, no precarga canciones (ni la del crossfade), no busca letras solo, pausa Last.fm/ListenBrainz y limita el video a 360p con datos móviles.
+
 ## Calidad de audio
 
 - **Verificado en tu S26: siempre Opus a la máxima calidad sin Premium (itag 251, ~160 kbps).** Las 264 canciones registradas en tu app y todo tu caché son Opus 251.

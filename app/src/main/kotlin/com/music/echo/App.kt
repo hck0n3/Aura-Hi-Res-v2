@@ -585,6 +585,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // SEPARATE (same EQ side effects): owner directive 2026-09-13 replaces the "Aura Hi-Res v2"
         // curve. MUST run after the V2 seed so a fresh install's seeded curve is already the new one.
         migrateAuraHiResV2CurveV2(settings)
+        // SEPARATE, LAST of the audio defaults: owner directive 2026-09-13 forces crossfade 8 s + preamp
+        // +2.2 dB once for everyone, after every older writer so none of them can undo it.
+        migrateAudioDefaults20260913(settings)
 
         // Establish, at most ONCE per install, where this data came from — and clean up after a
         // platform restore before anything is allowed to act on the restored rows. Must run before
@@ -1081,7 +1084,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 p[iad1tya.echo.music.constants.CrossfadeEnabledKey] = true
                 // Aligned with the CrossfadeRespiro5 forced default (owner order, 0.6.127): this block
                 // runs AFTER batch A on fresh installs, so mismatched values here would silently undo it.
-                p[iad1tya.echo.music.constants.CrossfadeDurationKey] = 5f
+                // 8 s (owner directive 2026-09-05, re-affirmed 2026-09-13): this seed runs AFTER the batch
+                // that writes CrossfadeDefault8, so its old 5 s silently put every fresh install back on 5 s.
+                p[iad1tya.echo.music.constants.CrossfadeDurationKey] = 8f
                 p[iad1tya.echo.music.constants.CrossfadeCurveKey] = 4
                 p[iad1tya.echo.music.constants.SafeVolumeEnabledKey] = true
             }
@@ -1110,7 +1115,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 deviceModel = "Equalizer",
                 bands = bands,
                 autoBands = emptyList(),
-                preamp = 2.3,
+                preamp = 2.2,
                 isCustom = false,
                 isActive = true,
             )
@@ -1121,7 +1126,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             // EQ-screen UI mirror so the enabled toggle / sliders / preamp reflect the seeded Aura Hi-Res v2 tuning.
             val ed = eqPrefs.edit()
             ed.putBoolean("enabled", true)
-            ed.putFloat("preampDb", 2.3f)
+            ed.putFloat("preampDb", 2.2f)
             gains.forEachIndexed { i, g -> ed.putFloat("band24_$i", g) }
             ed.apply()
             true
@@ -1242,6 +1247,36 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         }.onFailure { reportException(it) }.getOrDefault(false)
         if (applied) {
             dataStore.edit { it[iad1tya.echo.music.constants.EqPreampDefault23DbAppliedKey] = true }
+        }
+    }
+
+    /**
+     * One-time (owner directive 2026-09-13: "la duración de transición por defecto sí o sí a 8 segundos y el
+     * preamp en +2.2 dB, a todo el que le llegue esta actualización"). Forces BOTH for everyone once — the
+     * same "sí o sí" contract as Defaults0127 / CrossfadeDefault8 — writing the preamp into the DSP source of
+     * truth (profile repo) and the `echo_eq_prefs` mirror. The user can change either afterwards and that
+     * choice then stands. Two-phase: the flag is stamped only when the write succeeded.
+     */
+    private suspend fun migrateAudioDefaults20260913(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.AudioDefaults20260913AppliedKey] == true) return
+        val crossfadeOk = runCatching {
+            dataStore.edit { it[iad1tya.echo.music.constants.CrossfadeDurationKey] = 8f }
+        }.onFailure { reportException(it) }.isSuccess
+        val preampOk = runCatching {
+            val eqPrefs = applicationContext.getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
+            eqPrefs.edit().putFloat("preampDb", 2.2f).apply()
+            val eqRepo = eqProfileRepository.get()
+            val effective = eqRepo.unsavedProfile.value ?: eqRepo.activeProfile.value
+            if (effective != null && effective.preamp != 2.2) {
+                val updated = effective.copy(preamp = 2.2)
+                eqRepo.saveProfile(updated)
+                eqRepo.setUnsavedProfile(updated)
+                eqRepo.setActiveProfile(updated.id)
+            }
+            true
+        }.onFailure { reportException(it) }.getOrDefault(false)
+        if (crossfadeOk && preampOk) {
+            dataStore.edit { it[iad1tya.echo.music.constants.AudioDefaults20260913AppliedKey] = true }
         }
     }
 
@@ -1828,7 +1863,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 .map {
                     iad1tya.echo.music.utils.DiagnosticHeader.Settings(
                         crossfadeEnabled = it[iad1tya.echo.music.constants.CrossfadeEnabledKey] ?: true,
-                        crossfadeSeconds = it[iad1tya.echo.music.constants.CrossfadeDurationKey] ?: 5f,
+                        crossfadeSeconds = it[iad1tya.echo.music.constants.CrossfadeDurationKey] ?: 8f,
                         enhancedShuffle = it[iad1tya.echo.music.constants.EnhancedShuffleKey] ?: false,
                         safeVolume = it[iad1tya.echo.music.constants.SafeVolumeEnabledKey] ?: false,
                         audioOffload = it[iad1tya.echo.music.constants.AudioOffload] ?: false,

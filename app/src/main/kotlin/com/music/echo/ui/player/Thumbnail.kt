@@ -919,6 +919,7 @@ private fun ThumbnailItem(
     // remembered for CLASSIC hosts too (composable call order must not depend on the host) but nothing ever
     // starts it there, so it stays at 1f and the classic layer maths is term-for-term what it was.
     val coverSettle = remember(item.mediaId) { Animatable(1f) }
+    val dataSaverForCover by rememberPreference(iad1tya.echo.music.constants.DataSaverEnabledKey, false)
     // Settle snap (0.965→1) on every track change stacked with Coil decode and read as cover flicker.
     // Keep the Animatable for call-order stability; do not animate it.
     LaunchedEffect(item.mediaId, isCurrentItem, isOpaqueDark, highPerfMode, suppressCoverSettle) {
@@ -1074,8 +1075,11 @@ private fun ThumbnailItem(
                 val isVideoCover = item.metadata?.isVideoSong == true ||
                     (item.mediaId == currentMediaId && currentIsVideoSong)
 
+                // DATA SAVER (audit 2026-09-13): a 1200 px cover is several times the bytes of a 544 px
+                // one; with the switch ON the player requests the smaller rendition.
+                val coverPx = if (dataSaverForCover) 544 else 1200
                 ThumbnailImage(
-                    artworkUri = artworkUriToUse?.resize(1200, 1200),
+                    artworkUri = artworkUriToUse?.resize(coverPx, coverPx),
                     cropArtwork = cropAlbumArt || isVideoCover,
                     backdrop = artworkBackdrop
                 )

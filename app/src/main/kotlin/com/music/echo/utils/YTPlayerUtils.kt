@@ -1717,6 +1717,21 @@ object YTPlayerUtils {
             return smallest
         }
 
+        // DATA SAVER (audit 2026-09-13): the switch forced the OPUS tier but the selection below still took
+        // the highest-bitrate Opus (itag 251, ~160 kbps), so audio saved nothing at all. With Data Saver ON,
+        // take the ~70 kbps Opus rendition (itag 250) when the track ships it, else the lowest-bitrate Opus
+        // at or above ~48 kbps. OFF → the full-quality pick below, unchanged.
+        val dataSaverOn = PrefsBridge.peek(iad1tya.echo.music.constants.DataSaverEnabledKey) == true
+        if (dataSaverOn) {
+            val opus = audioPool?.filter { it.mimeType.startsWith("audio/webm") }.orEmpty()
+            val saver = opus.firstOrNull { it.itag == 250 }
+                ?: opus.filter { it.bitrate >= 48_000 }.minByOrNull { it.bitrate }
+            if (saver != null) {
+                Timber.tag(logTag).d("Data Saver: selected ${saver.mimeType}, bitrate: ${saver.bitrate}")
+                return saver
+            }
+        }
+
         val format = audioPool
             ?.maxByOrNull {
                 var score = it.bitrate.toFloat()

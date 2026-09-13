@@ -3,6 +3,9 @@ package iad1tya.echo.music.eq
 import iad1tya.echo.music.eq.data.EqConstants
 import iad1tya.echo.music.eq.data.FilterType
 import iad1tya.echo.music.ui.screens.equalizer.axion.buildEqBands
+import iad1tya.echo.music.ui.screens.equalizer.axion.GRAPHIC_TYPE_AUTO
+import iad1tya.echo.music.ui.screens.equalizer.axion.GRAPHIC_TYPE_PEAK
+import iad1tya.echo.music.ui.screens.equalizer.axion.GRAPHIC_TYPE_HIGH_SHELF
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -43,13 +46,31 @@ class AxionEqProfileTest {
     @Test
     fun edgeBandsAreShelvesAndTheRestArePeaks() {
         val gains = FloatArray(EqConstants.BAND_COUNT) { 1f }
-        // Deliberately non-zero and "wrong": the types array must NOT influence the outcome.
-        val types = IntArray(EqConstants.BAND_COUNT) { 2 }
+        // AUTO (the default for every band) keeps the historic positional layout.
+        val types = IntArray(EqConstants.BAND_COUNT) { GRAPHIC_TYPE_AUTO }
         val bands = buildEqBands(gains, types)
 
         assertEquals(FilterType.LSC, bands.first().filterType)
         assertEquals(FilterType.HSC, bands.last().filterType)
         bands.subList(1, bands.size - 1).forEach { assertEquals(FilterType.PK, it.filterType) }
+        bands.forEach { assertEquals(EqConstants.Q, it.q, 0.0001) }
+    }
+
+    @Test
+    fun manualGraphicTypeAndQAreHonoured() {
+        // Owner directive 2026-09-13: every graphic band parameter is manual — an explicit type and Q win.
+        val gains = FloatArray(EqConstants.BAND_COUNT) { 1f }
+        val types = IntArray(EqConstants.BAND_COUNT) { GRAPHIC_TYPE_AUTO }.also {
+            it[0] = GRAPHIC_TYPE_PEAK
+            it[3] = GRAPHIC_TYPE_HIGH_SHELF
+        }
+        val qs = FloatArray(EqConstants.BAND_COUNT) { EqConstants.Q.toFloat() }.also { it[3] = 0.7f }
+        val bands = buildEqBands(gains, types, qs)
+
+        assertEquals(FilterType.PK, bands[0].filterType)
+        assertEquals(FilterType.HSC, bands[3].filterType)
+        assertEquals(0.7, bands[3].q, 0.0001)
+        assertEquals(FilterType.HSC, bands.last().filterType) // untouched AUTO band stays positional
     }
 
     @Test

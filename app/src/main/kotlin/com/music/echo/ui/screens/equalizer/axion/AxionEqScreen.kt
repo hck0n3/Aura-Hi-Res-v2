@@ -938,6 +938,10 @@ private fun ColumnScope.EqMainContent(
         EqMode.GRAPHIC -> BandEqCard(
             skin = skin,
             bandGains = bandGains,
+            bandQs = viewModel.graphicQs.collectAsState().value,
+            bandTypes = viewModel.graphicTypes.collectAsState().value,
+            onBandQChange = { i, q -> viewModel.setGraphicBandQLive(i, q) },
+            onBandTypeChange = { i, t -> viewModel.setGraphicBandType(i, t) },
             enabled = graphicEnabled,
             onBandChange = { i, v -> viewModel.setBandGainLive(i, v) },
             onBandCommit = { viewModel.commit() },
@@ -1592,6 +1596,10 @@ private fun FactoryPresetGrid(
 private fun BandEqCard(
     skin: AuraPanelSkin,
     bandGains: FloatArray,
+    bandQs: FloatArray,
+    bandTypes: IntArray,
+    onBandQChange: (Int, Float) -> Unit,
+    onBandTypeChange: (Int, Int) -> Unit,
     enabled: Boolean,
     onBandChange: (Int, Float) -> Unit,
     onBandCommit: () -> Unit,
@@ -1656,6 +1664,105 @@ private fun BandEqCard(
                 }
             }
         }
+        // ── MANUAL PER-BAND PANEL (owner directive 2026-09-13: "todos los parámetros lo más manual posible")
+        // Pick a band, then set its gain in 0.1 dB steps, its Q (bandwidth) and its filter type.
+        var selectedBand by remember { mutableStateOf(0) }
+        val bandCountForPanel = EqConstants.BAND_COUNT
+        val sel = selectedBand.coerceIn(0, bandCountForPanel - 1)
+        val selGain = bandGains.getOrElse(sel) { 0f }
+        val selQ = bandQs.getOrElse(sel) { EqConstants.Q.toFloat() }
+        val selType = bandTypes.getOrElse(sel) { GRAPHIC_TYPE_AUTO }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.extraLarge)
+                .background(plate)
+                .then(if (skin.enabled) Modifier.border(1.dp, line, MaterialTheme.shapes.extraLarge) else Modifier)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Ajuste manual por banda", style = MaterialTheme.typography.titleSmall)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                for (b in 0 until bandCountForPanel) {
+                    FilterChip(
+                        selected = sel == b,
+                        onClick = { selectedBand = b },
+                        enabled = enabled,
+                        label = { Text(EqConstants.FREQUENCY_LABELS[b]) },
+                    )
+                }
+            }
+            Text(
+                text = "${EqConstants.FREQUENCY_LABELS[sel]} · ${"%+.1f".format(selGain)} dB · Q ${"%.2f".format(selQ)}",
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Text("Ganancia", style = MaterialTheme.typography.labelSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { onBandChange(sel, selGain - 0.1f); onBandCommit() },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) { Text("−0.1 dB") }
+                OutlinedButton(
+                    onClick = { onBandChange(sel, 0f); onBandCommit() },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) { Text("0 dB") }
+                OutlinedButton(
+                    onClick = { onBandChange(sel, selGain + 0.1f); onBandCommit() },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) { Text("+0.1 dB") }
+            }
+            Text("Ancho de banda (Q)", style = MaterialTheme.typography.labelSmall)
+            Slider(
+                value = selQ,
+                onValueChange = { onBandQChange(sel, it) },
+                onValueChangeFinished = onBandCommit,
+                valueRange = PeqConstants.Q_MIN.toFloat()..PeqConstants.Q_MAX.toFloat(),
+                enabled = enabled,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { onBandQChange(sel, selQ - 0.05f); onBandCommit() },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Q −0.05") }
+                OutlinedButton(
+                    onClick = { onBandQChange(sel, EqConstants.Q.toFloat()); onBandCommit() },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Q 1.41") }
+                OutlinedButton(
+                    onClick = { onBandQChange(sel, selQ + 0.05f); onBandCommit() },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Q +0.05") }
+            }
+            Text("Tipo de filtro", style = MaterialTheme.typography.labelSmall)
+            val typeOptions = listOf(
+                GRAPHIC_TYPE_AUTO to "Auto",
+                GRAPHIC_TYPE_PEAK to "Campana",
+                GRAPHIC_TYPE_LOW_SHELF to "Graves",
+                GRAPHIC_TYPE_HIGH_SHELF to "Agudos",
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                typeOptions.forEachIndexed { i, (code, label) ->
+                    SegmentedButton(
+                        selected = selType == code,
+                        onClick = { if (enabled) onBandTypeChange(sel, code) },
+                        enabled = enabled,
+                        shape = SegmentedButtonDefaults.itemShape(index = i, count = typeOptions.size),
+                    ) { Text(label, maxLines = 1) }
+                }
+            }
+        }
+
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             OutlinedButton(onClick = onReset, enabled = enabled) {
                 Icon(Icons.Rounded.Replay, contentDescription = null)
