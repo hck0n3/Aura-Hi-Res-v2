@@ -22,6 +22,14 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 - **El caché de canciones por fin GUARDA lo que escuchas (arreglado de raíz):** el descargador por partes le decía al reproductor «tamaño desconocido», y con eso el reproductor no escribía NI UN BYTE en el caché — por eso en Ajustes ▸ Almacenamiento el caché de canciones salía vacío aunque estuviera en ilimitado. Ahora informa el tamaño real (mismo modelo que SimpMusic) y el caché se llena mientras suena (verificado en tu S26: 4 KB → 8 MB en 45 s).
 - **Una canción ya escuchada completa se reproduce desde el caché sin volver a descargarla:** ni siquiera consulta a YouTube; empieza al instante y sin gastar datos.
+- **Sin internet también suena:** una canción completa en caché se reproduce sin conexión (incluso con Modo sin conexión activado), igual que una descargada.
+- **La precarga ya no gasta datos en canciones que ya tienes en caché:** la app no vuelve a pedir su enlace a YouTube.
+- **La barra de progreso se ve cargada al 100 %** cuando la canción está completa en caché o descargada.
+- **Los videos también primero desde el caché:** un video que ya viste completo se reproduce desde el disco sin volver a pedirlo a YouTube (también sin internet). Las portadas ya se servían primero desde su caché de 2 GB.
+
+## Android Auto
+
+- **Tocar un resultado de búsqueda reproduce ESE resultado:** antes, al tocarlo, la app repetía la búsqueda y si YouTube devolvía otra lista empezaba por el primer resultado, no por el que elegiste.
 
 ## Música ↔ video como YouTube Music
 

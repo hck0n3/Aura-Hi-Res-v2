@@ -301,6 +301,24 @@ class VideoModeCoordinator(private val service: MusicService) {
             muxedFlagForId = id in newPipeMuxedVideoIds,
             offlineCacheUri = offlineVideoCacheUri(id),
         )
+        // CACHE-FIRST VIDEO (owner directive 2026-09-13): a video already COMPLETE in the listen cache
+        // plays from disk — no PipePipe/InnerTube resolve, no network, works offline — whenever this
+        // call would show video at all. Downloads, exports and podcast videos keep their own branches.
+        val wouldShowVideo = snapshot.videoModeOn || armModeWhenReady || forceExplicit
+        if (wouldShowVideo &&
+            snapshot.podcastVideoUrl.isNullOrEmpty() &&
+            snapshot.exportedVideoUri.isNullOrEmpty() &&
+            !snapshot.videoDownloaded &&
+            !snapshot.isHttpOrLocalId
+        ) {
+            service.fullyCachedVideoUri(id)?.let { (diskUrl, muxed) ->
+                Timber.tag(MusicService.TAG).i("Video mode: served from listen cache (no resolve)")
+                if (muxed) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
+                if (armModeWhenReady) service._videoMode.value = true
+                swapToVideo(id, diskUrl, isMuxed = muxed)
+                return
+            }
+        }
         when (val action = VideoModePlanning.decideApply(snapshot)) {
             VideoModePlanning.ApplyAction.NoOp -> return
             VideoModePlanning.ApplyAction.DisarmKeepAudio -> {

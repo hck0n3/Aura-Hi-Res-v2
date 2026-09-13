@@ -7517,6 +7517,38 @@ class MusicService :
      *    that itag (the persisted [preferredItag] first, so the container the DB describes wins);
      *  · Qobuz / Saavn / other hosts are keyed by the mediaId itself → any non-googlevideo URI.
      */
+    /**
+     * True when every byte of [mediaId]'s audio is on disk — a complete download or a complete
+     * listen-cache copy — so it plays with zero network. Cheap metadata lookups; call off the UI
+     * frame loop (the player reads it once per track to paint the scrubber fully loaded).
+     */
+    fun isSongFullyCached(mediaId: String): Boolean = runCatching {
+        val downloadedLength = androidx.media3.datasource.cache.ContentMetadata
+            .getContentLength(downloadCache.getContentMetadata(mediaId))
+        (downloadedLength > 0 && downloadCache.isCached(mediaId, 0, downloadedLength)) ||
+            fullyCachedListenUri(mediaId, null) != null
+    }.getOrDefault(false)
+
+    /**
+     * CACHE-FIRST VIDEO (owner directive 2026-09-13: "aunque haya internet, primero ve si lo tiene en
+     * caché… a menos que no lo tenga guardado"). A video whose bytes are COMPLETE in playerCache under
+     * `yt-stream-yt-video-<id>-<itag>` (the key swapToVideo's `yt-video-<id>` custom key produces) needs
+     * no URL resolve: returns a googlevideo-host URI carrying that itag — never fetched, the cache serves
+     * every byte — plus whether that itag is a MUXED (audio-embedded) format. Null when not fully cached.
+     */
+    internal fun fullyCachedVideoUri(songId: String): Pair<String, Boolean>? = runCatching {
+        val prefix = "yt-stream-yt-video-$songId-"
+        val completeKey = playerCache.keys.firstOrNull { key ->
+            key.startsWith(prefix) && key.removePrefix(prefix).toIntOrNull() != null && run {
+                val length = androidx.media3.datasource.cache.ContentMetadata
+                    .getContentLength(playerCache.getContentMetadata(key))
+                length > 0 && playerCache.isCached(key, 0, length)
+            }
+        } ?: return@runCatching null
+        val itag = completeKey.removePrefix(prefix).toInt()
+        "https://listen-cache.googlevideo.com/videoplayback?itag=$itag" to (itag in MUXED_VIDEO_ITAGS)
+    }.getOrNull()
+
     private fun fullyCachedListenUri(mediaId: String, preferredItag: Int?): android.net.Uri? {
         fun complete(key: String): Boolean {
             val length = androidx.media3.datasource.cache.ContentMetadata
@@ -7828,15 +7860,7 @@ class MusicService :
                 return@Factory dataSpec.withUri(exportedUri.toUri())
             }
 
-            // Strict offline: ONLY a full downloadCache hit OR a valid exported URI may play.
-            // playerCache / songUrlCache / YT resolve all need the network — refuse them while OfflineModeKey is ON.
-            if (dataStore.get(OfflineModeKey, false)) {
-                throw PlaybackException(
-                    getString(R.string.error_offline_not_downloaded),
-                    null,
-                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-                )
-            }
+            val offlineModeOn = dataStore.get(OfflineModeKey, false)
 
             // Read Room NOW — BEFORE serving any playerCache/songUrlCache hit — for the container-mismatch guard
             // below, which decides whether the CACHED BYTES may be served or must be bypassed+refetched.
@@ -7862,10 +7886,24 @@ class MusicService :
             ) {
                 fullyCachedListenUri(mediaId, dbFormat?.itag)?.let { cachedUri ->
                     Timber.tag(TAG).i("LISTEN-CACHE full replay for $mediaId — no resolve, no network")
-                    scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                    // Offline (owner directive 2026-09-13: "si está en caché pueda reproducirla sin
+                    // internet"): a complete listen-cache copy is as playable offline as a download,
+                    // so it is served even with Modo sin conexión ON — with the offline metadata path.
+                    scope.launch(Dispatchers.IO) { recoverSong(mediaId, isOfflinePlayback = offlineModeOn) }
                     StreamHealth.cacheHit()
                     return@Factory dataSpec.withUri(cachedUri)
                 }
+            }
+
+            // Strict offline: ONLY a full downloadCache hit, a valid exported URI or a COMPLETE listen-cache
+            // copy (served just above) may play. A partial cache / songUrlCache / YT resolve all need the
+            // network — refuse them while OfflineModeKey is ON.
+            if (offlineModeOn) {
+                throw PlaybackException(
+                    getString(R.string.error_offline_not_downloaded),
+                    null,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                )
             }
 
             // refetchCurrentInOpus() forces this track to Opus, overriding both the global quality and the
@@ -10921,6 +10959,9 @@ class MusicService :
         const val ERROR_CODE_NO_STREAM = PlaybackErrorClassifier.ERROR_CODE_NO_STREAM
         const val CHUNK_LENGTH = 512 * 1024L
 
+        /** YouTube progressive formats that carry audio inside the video file (no separate audio merge). */
+        val MUXED_VIDEO_ITAGS = setOf(17, 18, 22, 36, 37, 38, 43, 44, 45, 46, 59, 78)
+
         // REFRESH-AHEAD window (SimpMusic-model port): a cached stream URL with less than this much
         // life left triggers a background renewal on its next cache hit (refreshUrlIfNearExpiry), so
         // a long-queued track never starts on a URL about to die mid-song.
@@ -11046,7 +11087,10 @@ class MusicService :
                 lyricsEnabled = preloadLyrics,
                 urlOnly = urlOnlyPreload,
                 isLocalMediaId = { it.isLocalMediaId() },
-                isFullyDownloaded = { downloadCache.isCached(it, 0, 1) },
+                // DATA SAVER (2026-09-13): a song COMPLETE in the listen cache replays from disk with no
+                // resolve (see fullyCachedListenUri), so pre-resolving its URL is pure wasted data. This is
+                // safe against the planItems NOTE: that ghost-cache path is only reached by PARTIAL copies.
+                isFullyDownloaded = { downloadCache.isCached(it, 0, 1) || fullyCachedListenUri(it, null) != null },
                 // HALLAZGO-042: same expiry semantics as the ResolvingDataSource above — it only
                 // serves entries with expiresAt in the future. containsKey (the old check) let an
                 // EXPIRED entry suppress the preload while playback still had to re-resolve, so

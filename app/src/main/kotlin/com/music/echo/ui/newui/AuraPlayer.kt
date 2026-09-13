@@ -500,6 +500,20 @@ private fun AuraPlayerShape(
             }
         }
     }
+    // Owner directive 2026-09-13: "si ya está en caché la canción completa, que la barra muestre que
+    // está cargada en su totalidad". ExoPlayer's bufferedPosition only covers what it loaded into
+    // memory; a song whose bytes are all on disk (download or listen cache) is fully available, so the
+    // scrubber paints it 100 % loaded. Checked once per track, off the main thread.
+    var songFullyCached by remember { mutableStateOf(false) }
+    LaunchedEffect(mediaMetadata?.id) {
+        val id = mediaMetadata?.id
+        songFullyCached = false
+        if (id != null) {
+            songFullyCached = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                playerConnection.service.isSongFullyCached(id)
+            }
+        }
+    }
     LaunchedEffect(playbackState, mediaMetadata?.id) {
         if (!isCasting) {
             position = playerConnection.player.currentPosition
@@ -1368,7 +1382,9 @@ private fun AuraPlayerShape(
                         // D3: buffered extent of the timeline (0 when unknown). The scrub haptic is
                         // NOT wired here on purpose — MainActivity's global haptics layer already
                         // ticks CLOCK_TICK on every drag (audit finding: no double-buzz).
-                        bufferedFraction = if (duration > 0) {
+                        bufferedFraction = if (songFullyCached && !isCasting) {
+                            1f
+                        } else if (duration > 0) {
                             (buffered.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                         } else {
                             null

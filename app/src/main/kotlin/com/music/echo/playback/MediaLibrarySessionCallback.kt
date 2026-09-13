@@ -666,12 +666,29 @@ constructor(
                         reportException(e)
                     }
                     
+                    // OWNER REPORT (2026-09-13, Android Auto): "cuando selecciono uno de los resultados
+                    // reproduce lo que él quiere y no lo que toco". The tap RE-RUNS the search above, and
+                    // YouTube does not return the same list twice — when the tapped song was missing from
+                    // the second run, indexOfFirst gave -1 and the queue started at result #0, a song the
+                    // user never picked. The tapped id is the one fact the car sent us: look it up (it was
+                    // written to Room when the results were served; YouTube.queue as a last resort) and
+                    // make it the start of the queue, keeping the other results after it.
+                    if (searchResults.none { it.id == songId }) {
+                        val tapped = database.song(songId).first() ?: runCatching {
+                            YouTube.queue(listOf(songId)).getOrNull()?.firstOrNull()?.let { item ->
+                                database.query { insert(item.toMediaMetadata()) }
+                                database.song(songId).first()
+                            }
+                        }.getOrNull()
+                        if (tapped != null) searchResults.add(0, tapped)
+                    }
+
                     if (searchResults.isEmpty()) {
                         return@future defaultResult
                     }
-                    
+
                     val targetIndex = searchResults.indexOfFirst { it.id == songId }
-                    
+
                     MediaItemsWithStartPosition(
                         searchResults.map { it.toMediaItem() },
                         if (targetIndex >= 0) targetIndex else 0,
