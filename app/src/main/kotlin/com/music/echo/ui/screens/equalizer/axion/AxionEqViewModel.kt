@@ -695,6 +695,37 @@ class AxionEqViewModel @Inject constructor(
         _verification.value = null
     }
 
+    private var audibleDemoJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Audible proof that the engine shapes the sound: for 5 s a deliberately extreme curve (bass -9 dB,
+     * treble +9 dB, preamp -6 dB — a small-radio sound) runs, then the user's own tuning (or EQ off) returns.
+     * Nothing is saved.
+     */
+    fun playAudibleDemo() {
+        audibleDemoJob?.cancel()
+        audibleDemoJob = viewModelScope.launch {
+            val demo = SavedEQProfile(
+                id = "audible_demo",
+                name = "Prueba audible",
+                deviceModel = "Equalizer",
+                bands = listOf(
+                    ParametricEQBand(frequency = 150.0, gain = -9.0, q = EqConstants.Q, filterType = FilterType.LSC, enabled = true),
+                    ParametricEQBand(frequency = 2500.0, gain = 9.0, q = EqConstants.Q, filterType = FilterType.HSC, enabled = true),
+                ),
+                preamp = -6.0,
+                isCustom = false,
+                isActive = false,
+            )
+            equalizerService.applyProfile(demo)
+            try {
+                kotlinx.coroutines.delay(5_000)
+            } finally {
+                if (_enabled.value) equalizerService.applyProfile(liveProfile()) else equalizerService.disable()
+            }
+        }
+    }
+
     /**
      * A/B listening: while [bypass] is true the DSP runs without the EQ (bands and preamp); releasing
      * re-applies the current tuning. Nothing is persisted and the EQ switch is untouched.

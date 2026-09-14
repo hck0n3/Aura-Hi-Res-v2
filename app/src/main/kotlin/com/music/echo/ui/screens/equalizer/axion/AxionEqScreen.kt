@@ -960,6 +960,7 @@ private fun ColumnScope.EqMainContent(
             onBandQChange = { i, q -> viewModel.setGraphicBandQLive(i, q) },
             onBandTypeChange = { i, t -> viewModel.setGraphicBandType(i, t) },
             onBypassPreview = { viewModel.previewBypass(it) },
+            onAudibleDemo = { viewModel.playAudibleDemo() },
             enabled = graphicEnabled,
             onBandChange = { i, v -> viewModel.setBandGainLive(i, v) },
             onBandCommit = { viewModel.commit() },
@@ -1622,6 +1623,7 @@ private fun BandEqCard(
     onBandQChange: (Int, Float) -> Unit,
     onBandTypeChange: (Int, Int) -> Unit,
     onBypassPreview: (Boolean) -> Unit = {},
+    onAudibleDemo: () -> Unit = {},
     enabled: Boolean,
     onBandChange: (Int, Float) -> Unit,
     onBandCommit: () -> Unit,
@@ -1772,6 +1774,11 @@ private fun BandEqCard(
                         })
                     },
             ) { Text("Mantén presionado para escuchar sin EQ") }
+            // Guaranteed-audible check: an extreme curve for 5 s, then back to the user's tuning.
+            OutlinedButton(
+                onClick = onAudibleDemo,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Prueba audible (5 s): graves −9 · agudos +9") }
             Text("Ancho de banda (Q)", style = MaterialTheme.typography.labelSmall)
             Slider(
                 value = selQ,
