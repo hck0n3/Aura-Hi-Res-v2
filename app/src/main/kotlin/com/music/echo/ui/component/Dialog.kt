@@ -92,6 +92,9 @@ fun DefaultDialog(
     dismissOnOutsideTap: Boolean = true,
     // Dialogs opened FROM another dialog window must stay windows (see the routing note below).
     forceWindow: Boolean = false,
+    // Glass host only: slide up from the bottom like the menus (owner 2026-09-14, create playlist
+    // in the player) instead of a centred card.
+    bottomPanel: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val skin = rememberAuraPanelSkin()
@@ -126,7 +129,9 @@ fun DefaultDialog(
         AuraInWindowDialog(
             visible = true,
             onDismiss = onDismiss,
+            center = !bottomPanel,
             dismissOnOutsideTap = dismissOnOutsideTap,
+            fullHeight = false,
         ) {
             DialogBody(
                 premium = premium,
@@ -318,7 +323,8 @@ fun ListDialog(
     // GLASS PORTAL (2026-09-14): "Añadir a lista" and every other list dialog get the mini player's
     // glass through the activity-level host; its children (Crear lista) port above it.
     if (premium && LocalOverlayHazeState.current != null && iad1tya.echo.music.ui.newui.auraOverlayHostAvailable()) {
-        AuraInWindowDialog(visible = true, onDismiss = onDismiss) {
+        // From the bottom, like the menus (owner 2026-09-14: "Añadir a lista" in the player).
+        AuraInWindowDialog(visible = true, onDismiss = onDismiss, center = false, fullHeight = false) {
             MaterialTheme(colorScheme = listScheme) {
                 CompositionLocalProvider(LocalContentColor provides AuraPalette.OnGround) {
                     LazyColumn(
@@ -407,6 +413,7 @@ fun TextFieldDialog(
     extraContent: (@Composable () -> Unit)? = null,
     // Children of dialog WINDOWS stay windows (the "Crear lista" behind the player report).
     forceWindow: Boolean = false,
+    bottomPanel: Boolean = false,
 ) {
     val legacyFieldState = remember { mutableStateOf(initialTextFieldValue) }
     // New UI: the same rounded outlined field as every other floating window (AI playlist, add to
@@ -431,6 +438,7 @@ fun TextFieldDialog(
         onDismiss = onDismiss,
         modifier = modifier,
         forceWindow = forceWindow,
+        bottomPanel = bottomPanel,
         icon = icon,
         title = title,
         buttons = {

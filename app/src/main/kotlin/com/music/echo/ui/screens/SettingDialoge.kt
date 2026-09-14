@@ -105,9 +105,13 @@ fun SettingDialoge(
     // Dialog window, byte-identical to before.
     val overlayHazeState = iad1tya.echo.music.ui.newui.LocalOverlayHazeState.current
     if (premium && overlayHazeState != null) {
+        // Same shape as every other menu (owner 2026-09-14: "ese menú no sale igual que los demás"):
+        // a bottom glass panel with the drag handle, like the player's "…" and Biblioteca's "+".
         iad1tya.echo.music.ui.newui.AuraInWindowDialog(
             visible = true,
             onDismiss = onDismissRequest,
+            center = false,
+            fullHeight = false,
         ) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val tight = maxHeight < 720.dp
@@ -127,6 +131,7 @@ fun SettingDialoge(
                     onNavigate = onNavigate,
                     tight = tight,
                     allowScroll = maxHeight < 560.dp,
+                    panelStyle = true,
                 )
             }
         }
@@ -204,6 +209,8 @@ private fun SettingDialogeBody(
     onNavigate: (String) -> Unit,
     tight: Boolean,
     allowScroll: Boolean,
+    // Bottom glass panel (like the "…" menu): no centred title + close button, the handle closes it.
+    panelStyle: Boolean = false,
 ) {
     val context = LocalContext.current
     val vPad = if (tight) 8.dp else 16.dp
@@ -217,7 +224,15 @@ private fun SettingDialogeBody(
             .padding(vertical = vPad, horizontal = hPad),
         verticalArrangement = Arrangement.spacedBy(gap),
     ) {
-        Row(
+        if (panelStyle && !isLoggedIn) {
+            Text(
+                text = "Aura Hi-Res Player",
+                style = AuraType.RowTitle,
+                color = primaryColor,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+        if (!panelStyle) Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
