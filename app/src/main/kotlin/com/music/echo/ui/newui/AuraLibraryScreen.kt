@@ -286,45 +286,54 @@ fun AuraLibraryScreen(navController: NavController) {
                             MiniPlayerBottomSpacing + MiniPlayerHeight + 16.dp,
                     ),
             ) {
-                Column(
-                    modifier = Modifier.align(Alignment.BottomEnd),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalAlignment = Alignment.End,
-                ) {
-                    if (aiPlaylistEnabled) {
-                        AuraFab(
-                            icon = AuraIcons.Radio,
-                            label = null,
-                            contentDescription = stringResource(R.string.ai_playlist_title),
-                            onClick = { showAiPlaylistDialog = true },
-                        )
-                    }
+                // ONE round "+" button (owner 2026-09-14: the three always-open pills covered the shelf
+                // and the section title). Every action lives in the same floating Aura menu it opens.
+                Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                     AuraFab(
                         icon = AuraIcons.Plus,
-                        label = stringResource(R.string.create_playlist),
+                        label = null,
                         contentDescription = stringResource(R.string.create_playlist),
-                        onClick = { showCreatePlaylistDialog = true },
+                        onClick = { showImportMenu = true },
                     )
-                    Box {
-                        AuraFab(
-                            icon = AuraIcons.Download,
-                            label = stringResource(R.string.import_playlist),
-                            contentDescription = stringResource(R.string.import_playlist),
-                            onClick = { showImportMenu = true },
-                        )
-                        DropdownMenu(
-                            expanded = showImportMenu,
-                            onDismissRequest = { showImportMenu = false },
-                            shape = AuraShapes.Card,
-                            // Same floating plate as the other Aura dropdowns (FrostFill), not a solid card.
-                            containerColor = AuraPalette.FrostFill,
-                            border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
-                        ) {
+                    DropdownMenu(
+                        expanded = showImportMenu,
+                        onDismissRequest = { showImportMenu = false },
+                        shape = AuraShapes.Card,
+                        // Same floating plate as the other Aura dropdowns (FrostFill), not a solid card.
+                        containerColor = AuraPalette.FrostFill,
+                        border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
+                    ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.create_playlist), color = AuraPalette.OnGround) },
+                                leadingIcon = { AuraIconGlyph(AuraIcons.Plus, null, size = 20.dp, tint = AuraPalette.Teal) },
+                                onClick = {
+                                    showImportMenu = false
+                                    showCreatePlaylistDialog = true
+                                },
+                            )
+                            if (aiPlaylistEnabled) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.ai_playlist_title), color = AuraPalette.OnGround) },
+                                    leadingIcon = { AuraIconGlyph(AuraIcons.Radio, null, size = 20.dp, tint = AuraPalette.Teal) },
+                                    onClick = {
+                                        showImportMenu = false
+                                        showAiPlaylistDialog = true
+                                    },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = {
                                     Text(
                                         stringResource(R.string.import_from_spotify),
                                         color = AuraPalette.OnGround,
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_spotify),
+                                        contentDescription = null,
+                                        tint = AuraPalette.Teal,
+                                        modifier = Modifier.size(20.dp),
                                     )
                                 },
                                 onClick = {
@@ -339,6 +348,7 @@ fun AuraLibraryScreen(navController: NavController) {
                                         color = AuraPalette.OnGround,
                                     )
                                 },
+                                leadingIcon = { AuraIconGlyph(AuraIcons.Video, null, size = 20.dp, tint = AuraPalette.Teal) },
                                 onClick = {
                                     showImportMenu = false
                                     showYoutubeImportDialog = true
@@ -351,12 +361,12 @@ fun AuraLibraryScreen(navController: NavController) {
                                         color = AuraPalette.OnGround,
                                     )
                                 },
+                                leadingIcon = { AuraIconGlyph(AuraIcons.Export, null, size = 20.dp, tint = AuraPalette.Teal) },
                                 onClick = {
                                     showImportMenu = false
                                     navController.navigate("migration")
                                 },
                             )
-                        }
                     }
                 }
             }

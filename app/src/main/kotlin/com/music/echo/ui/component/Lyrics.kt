@@ -2488,7 +2488,8 @@ fun Lyrics(
             ) {
                 Card(
                     shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    // New UI: the same floating plate as every other window (mini-player material).
+                    colors = CardDefaults.cardColors(containerColor = iad1tya.echo.music.ui.newui.auraFloatingContainerColor()),
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                     modifier = Modifier
                         .fillMaxWidth()

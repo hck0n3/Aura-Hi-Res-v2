@@ -697,8 +697,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
 
         // UseLoginForBrowse ON at cold start + signed in: run the same full sync path as manual
         // "Sincronizar todo" (includes LibraryUploadSync when includeUpload=true).
+        // OWNER REPORT 2026-09-14 ("cada vez que entro a la app está sincronizando"): this ran the
+        // whole library pull on EVERY cold start, ignoring the cadence the user picked. It now goes
+        // through tryAutoSync, which honours that cadence (and "off").
         if (YouTube.useLoginForBrowse && !settings[InnerTubeCookieKey].isNullOrBlank()) {
-            syncUtils.performFullSync()
+            syncUtils.tryAutoSync()
         }
 
         // HALLAZGO-061: stuck-state recovery. Signed-in cookie but the liked-songs sync stamp was

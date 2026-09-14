@@ -214,7 +214,7 @@ fun AutoEqScreen(navController: NavController) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedButton(
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 enabled = !refreshing && !loading,
                 onClick = { scope.launch { load(forceRefresh = true) } },
             ) {

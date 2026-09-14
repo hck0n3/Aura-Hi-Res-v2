@@ -220,7 +220,7 @@ fun SuggestionsTabContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(16.dp))
-                            OutlinedButton(onClick = { viewModel.refresh(regionCode, force = true) }) {
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = { viewModel.refresh(regionCode, force = true) }) {
                                 Text("Actualizar")
                             }
                         }

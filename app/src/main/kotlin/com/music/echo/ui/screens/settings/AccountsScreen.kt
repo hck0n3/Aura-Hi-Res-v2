@@ -186,7 +186,7 @@ fun AccountsScreen(
                             )
                         },
                         trailingContent = {
-                            OutlinedButton(
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = {
                                     if (ytLoggedIn) showYtLogoutDialog = true
                                     else navController.navigate("login")
@@ -241,7 +241,7 @@ fun AccountsScreen(
                             )
                         },
                         trailingContent = {
-                            OutlinedButton(
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = {
                                     if (spotifyLoggedIn) showSpotifyLogoutDialog = true
                                     else navController.navigate("settings/spotify_import")
@@ -282,7 +282,7 @@ fun AccountsScreen(
                             )
                         },
                         trailingContent = {
-                            OutlinedButton(
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = {
                                     if (lastFmLoggedIn) showLastFmLogoutDialog = true
                                     else navController.navigate("settings/lastfm")
@@ -324,7 +324,7 @@ fun AccountsScreen(
                             )
                         },
                         trailingContent = {
-                            OutlinedButton(
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = { navController.navigate("settings/qobuz") },
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -369,7 +369,7 @@ fun AccountsScreen(
                             )
                         },
                         trailingContent = {
-                            OutlinedButton(
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = { navController.navigate("settings/lastfm") },
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainer,

@@ -437,6 +437,8 @@
     <string name="audio_quality_title">Calidad de audio</string>
     <string name="battery_content_desc">Nivel de batería</string>
     <string name="done">Listo</string>
+    <string name="audio_device_connected">Conectado</string>
+    <string name="audio_device_available">Disponible</string>
     <string name="audio_devices">Dispositivos de audio</string>
     <string name="bluetooth_headphones">Auriculares Bluetooth</string>
     <string name="license">GNU General Public License v3.0</string>

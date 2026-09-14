@@ -601,7 +601,7 @@ private fun ListeningState(
             color = if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary
         )
 
-        OutlinedButton(
+        iad1tya.echo.music.ui.component.AuraOutlinedButton(
             onClick = onCancel,
             shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.outlinedShape,
         ) {
@@ -914,7 +914,7 @@ private fun SuccessState(
                     Text(stringResource(R.string.re_listen))
                 }
 
-                OutlinedButton(
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     onClick = onClose,
                     modifier = Modifier.fillMaxWidth(),
                     shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.outlinedShape,

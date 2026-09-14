@@ -2,9 +2,14 @@ package iad1tya.echo.music.ui.component
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CardElevation
@@ -39,7 +44,9 @@ private fun auraPremium(): Boolean = rememberAuraPanelSkin().let { it.enabled &&
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun auraTopBarColors(): TopAppBarColors = TopAppBarDefaults.topAppBarColors(
-    containerColor = Color.Transparent,
+    // Opaque ground, not transparent: no call site passes a scroll behavior, so a transparent pinned
+    // bar let the scrolled content run under the title (seen on the equalizer, 2026-09-14).
+    containerColor = AuraPalette.Ground.copy(alpha = 0.94f),
     scrolledContainerColor = AuraPalette.GroundRaised,
     navigationIconContentColor = AuraPalette.OnGround,
     titleContentColor = AuraPalette.OnGround,
@@ -97,6 +104,52 @@ fun AuraCenterAlignedTopAppBar(
         windowInsets = windowInsets,
         colors = if (premium) auraTopBarColors() else colors,
         scrollBehavior = scrollBehavior,
+    )
+}
+
+/**
+ * Outlined action button with Material's parameters. New UI: one pill for every secondary action
+ * (the equalizer mixed medium-rounded boxes and pills of random widths, 2026-09-14) — soft surface
+ * fill, hairline, Aura ink. New UI off: the exact Material OutlinedButton.
+ */
+@Composable
+fun AuraOutlinedButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: Shape = ButtonDefaults.outlinedShape,
+    colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
+    border: BorderStroke? = ButtonDefaults.outlinedButtonBorder(enabled),
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    content: @Composable RowScope.() -> Unit,
+) {
+    if (!auraPremium()) {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = enabled,
+            shape = shape,
+            colors = colors,
+            border = border,
+            contentPadding = contentPadding,
+            content = content,
+        )
+        return
+    }
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 44.dp),
+        enabled = enabled,
+        shape = AuraShapes.Pill,
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = AuraPalette.SurfaceFill,
+            contentColor = AuraPalette.OnGround,
+            disabledContainerColor = Color.Transparent,
+            disabledContentColor = AuraPalette.OnGroundDisabled,
+        ),
+        border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
+        contentPadding = contentPadding,
+        content = content,
     )
 }
 

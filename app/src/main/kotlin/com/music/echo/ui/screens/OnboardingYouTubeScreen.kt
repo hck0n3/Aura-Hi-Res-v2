@@ -54,7 +54,7 @@ fun OnboardingYouTubeScreen(
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text("Sincronizar YouTube Music") }
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     onClick = {
                         navController.navigate(Screens.Home.route) {
                             popUpTo("onboarding_artists") { inclusive = true }

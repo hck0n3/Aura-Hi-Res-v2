@@ -50,7 +50,7 @@ fun OnboardingSpotifyScreen(
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text("Conectar Spotify y elegir qué migrar") }
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     // Forward only — keep onboarding_spotify on the back stack so the user CAN go back
                     // (system back) if they want, but the flow only moves forward by tapping here.
                     onClick = { navController.navigate("onboarding_youtube") },

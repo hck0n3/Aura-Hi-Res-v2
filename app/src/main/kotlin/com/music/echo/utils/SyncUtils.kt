@@ -18,6 +18,7 @@ import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.constants.LastFMUseSendLikes
 import iad1tya.echo.music.constants.LastFullSyncKey
 import iad1tya.echo.music.constants.SuppressedPlaylistIdsKey
+import iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey
 import iad1tya.echo.music.constants.YtmLastSyncKey
 import iad1tya.echo.music.constants.SYNC_COOLDOWN
 import iad1tya.echo.music.db.MusicDatabase
@@ -194,6 +195,8 @@ class SyncUtils @Inject constructor(
         // a down-only run does not cover a deliberate upload request (see shouldStartFullSync).
         private const val OP_FULL_SYNC_DOWN = "FullSyncDown"
         private const val OP_FULL_SYNC_UPLOAD = "FullSyncUpload"
+        /** Upper bound of local-only library songs pushed to the account in one sync pass. */
+        private const val MAX_LIBRARY_PUSH_PER_RUN = 50
         private const val OP_LIKED_SONGS = "LikedSongs"
         private const val OP_LIBRARY_SONGS = "LibrarySongs"
         private const val OP_UPLOADED_SONGS = "UploadedSongs"
@@ -714,13 +717,20 @@ class SyncUtils @Inject constructor(
                 return@launch
             }
 
+            // OWNER REPORT 2026-09-14: the chosen cadence ("todos los días") was ignored here — every
+            // Home/Library open past a 30-min cooldown re-ran the whole library pull. The cadence the
+            // user picked is the cooldown now; "off" means no automatic pull on app open either.
+            val freqDays = context.dataStore.get(YtmAutoSyncFreqDaysKey, YtmAutoSyncWorker.DEFAULT_FREQ_DAYS)
+            if (freqDays <= 0) return@launch
+            val cooldownSeconds = maxOf(SYNC_COOLDOWN, freqDays * 24L * 60 * 60)
+
             val lastSync = context.dataStore.get(LastFullSyncKey, 0L)
             val currentTime = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
             // A NEGATIVE elapsed means the wall clock was rolled back past the stored lastSync;
             // without the lower bound that would keep auto-sync blocked indefinitely (elapsed stays
             // < cooldown until the clock catches up). Treat clock drift as an expired cooldown.
             val elapsed = currentTime - lastSync
-            if (lastSync > 0 && elapsed in 0 until SYNC_COOLDOWN) {
+            if (lastSync > 0 && elapsed in 0 until cooldownSeconds) {
                 return@launch
             }
 
@@ -1193,7 +1203,18 @@ class SyncUtils @Inject constructor(
                     // `likedDate` — so reconciling against it silently un-liked thousands of favorites
                     // (4000 -> 1700). Push local-only library adds UP to the account instead, exactly like
                     // the liked-songs and liked-albums syncs already do.
-                    localSongs.filterNot { it.id in remoteIds || it.song.isLocal }.forEach { song ->
+                    // OWNER REPORT 2026-09-14 ("sincronizando nunca termina"): the walk is capped at 50
+                    // pages, so on a big library every song past the cap looked "local-only" and was
+                    // pushed up ONE REQUEST EACH on every app open — thousands of silent calls, the sync
+                    // never finished. Push only when the remote list is complete, and at most a batch.
+                    val remoteComplete = page.continuation == null
+                    if (!remoteComplete) {
+                        Timber.d("Library songs: remote list incomplete, skipping push-up of local-only songs")
+                    }
+                    localSongs
+                        .filterNot { !remoteComplete || it.id in remoteIds || it.song.isLocal }
+                        .take(MAX_LIBRARY_PUSH_PER_RUN)
+                        .forEach { song ->
                         try {
                             if (song.song.inLibrary != null) {
                                 withRetry {

@@ -930,13 +930,13 @@ private fun ColumnScope.EqMainContent(
                 Text("Quitar Auto-EQ")
             }
         }
-        OutlinedButton(
+        iad1tya.echo.music.ui.component.AuraOutlinedButton(
             onClick = onAutoEqClick,
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
         ) { Text("Cambiar Auto-EQ (por auricular)") }
     } else {
-        OutlinedButton(
+        iad1tya.echo.music.ui.component.AuraOutlinedButton(
             onClick = onAutoEqClick,
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
@@ -986,7 +986,7 @@ private fun ColumnScope.EqMainContent(
         enter = expandVertically() + fadeIn(),
         exit = shrinkVertically() + fadeOut(),
     ) {
-        OutlinedButton(
+        iad1tya.echo.music.ui.component.AuraOutlinedButton(
             onClick = onSaveClick,
             shape = MaterialTheme.shapes.medium,
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
@@ -1019,12 +1019,12 @@ private fun ColumnScope.EqMainContent(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        OutlinedButton(
+        iad1tya.echo.music.ui.component.AuraOutlinedButton(
             onClick = { exportLauncher.launch("aura-eq-perfiles.json") },
             modifier = Modifier.weight(1f),
             shape = MaterialTheme.shapes.medium,
         ) { Text("Exportar perfiles") }
-        OutlinedButton(
+        iad1tya.echo.music.ui.component.AuraOutlinedButton(
             onClick = { importLauncher.launch(arrayOf("application/json")) },
             modifier = Modifier.weight(1f),
             shape = MaterialTheme.shapes.medium,
@@ -1032,7 +1032,7 @@ private fun ColumnScope.EqMainContent(
     }
 
     // Assign EQ profiles to output devices (phone / Bluetooth), applied automatically on connect.
-    OutlinedButton(
+    iad1tya.echo.music.ui.component.AuraOutlinedButton(
         onClick = onDeviceClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -1262,7 +1262,7 @@ private fun DeviceEqDialog(
                             color = ink,
                         )
                         Box {
-                            OutlinedButton(
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = { expanded = true },
                                 enabled = customProfiles.isNotEmpty(),
                                 modifier = Modifier.fillMaxWidth(),
@@ -1513,9 +1513,14 @@ private fun FactoryPresetGrid(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
-            text = "PREAJUSTES AUDIÓFILOS",
-            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold),
-            color = accent,
+            // Same group label as every other section on this screen and in Settings (Material3SettingsGroup).
+            text = if (skin.enabled) "Preajustes audiófilos" else "PREAJUSTES AUDIÓFILOS",
+            style = if (skin.enabled) {
+                iad1tya.echo.music.ui.newui.AuraType.MenuGroupLabel
+            } else {
+                MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+            },
+            color = if (skin.enabled) inkMuted else accent,
             modifier = Modifier.padding(start = 4.dp, top = 8.dp),
         )
         FlowRow(
@@ -1730,7 +1735,7 @@ private fun BandEqCard(
                 // Coarse ±1 dB steps are audible at once; ±0.1 dB is for fine trimming.
                 // Audible steps: ±1 dB is subtle on a phone, ±3 dB is clearly heard.
                 listOf(-3f to "−3", -1f to "−1", 0f to "0", 1f to "+1", 3f to "+3").forEach { (step, label) ->
-                    OutlinedButton(
+                    iad1tya.echo.music.ui.component.AuraOutlinedButton(
                         onClick = {
                             onBandChange(sel, if (step == 0f) 0f else selGain + step)
                             onBandCommit()
@@ -1757,7 +1762,7 @@ private fun BandEqCard(
                 )
             }
             // A/B: hold to hear the song without the EQ, release to hear your tuning again.
-            OutlinedButton(
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 onClick = {},
                 enabled = enabled,
                 modifier = Modifier
@@ -1775,7 +1780,7 @@ private fun BandEqCard(
                     },
             ) { Text("Mantén presionado para escuchar sin EQ") }
             // Guaranteed-audible check: an extreme curve for 5 s, then back to the user's tuning.
-            OutlinedButton(
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 onClick = onAudibleDemo,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Prueba audible (5 s): graves −9 · agudos +9") }
@@ -1788,17 +1793,17 @@ private fun BandEqCard(
                 enabled = enabled,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     onClick = { onBandQChange(sel, selQ - 0.05f); onBandCommit() },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                 ) { Text("Q −0.05") }
-                OutlinedButton(
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     onClick = { onBandQChange(sel, EqConstants.Q.toFloat()); onBandCommit() },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                 ) { Text("Q 1.41") }
-                OutlinedButton(
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     onClick = { onBandQChange(sel, selQ + 0.05f); onBandCommit() },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
@@ -1824,7 +1829,7 @@ private fun BandEqCard(
         }
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            OutlinedButton(onClick = onReset, enabled = enabled) {
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = onReset, enabled = enabled) {
                 Icon(Icons.Rounded.Replay, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.eq_reset))
@@ -2173,7 +2178,7 @@ private fun PeqGraphEditor(
 
         // ── Add a band  |  reset the whole PEQ to flat defaults ──────────────────────────────────
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 onClick = onAddBand,
                 enabled = enabled && bands.size < PeqConstants.MAX_BANDS,
                 modifier = Modifier.weight(1f),
@@ -2183,7 +2188,7 @@ private fun PeqGraphEditor(
                 Spacer(Modifier.width(8.dp))
                 Text("Añadir banda")
             }
-            OutlinedButton(
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 onClick = onReset,
                 enabled = enabled,
                 modifier = Modifier.weight(1f),
@@ -2447,6 +2452,7 @@ private fun CustomPresetRow(
     onApplyProfile: (SavedEQProfile) -> Unit,
     onEditClick: () -> Unit,
 ) {
+    val skin = rememberAuraPanelSkin()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2455,8 +2461,9 @@ private fun CustomPresetRow(
         ) {
             Text(
                 text = stringResource(R.string.eq_label_custom),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
+                // New UI: the same group label as the other sections of this screen.
+                style = if (skin.enabled) iad1tya.echo.music.ui.newui.AuraType.MenuGroupLabel else MaterialTheme.typography.titleSmall,
+                color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 4.dp),
             )
             if (enabled) {
@@ -2548,7 +2555,7 @@ private fun SavePresetDialog(
                 TextButton(onClick = onDismiss, shape = actionShape) {
                     Text(text = stringResource(R.string.cancel))
                 }
-                OutlinedButton(
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     onClick = { if (name.isNotBlank()) onSave(name) },
                     enabled = name.isNotBlank(),
                     shape = actionShape,
@@ -2654,7 +2661,7 @@ private fun ManagePresetsDialog(
                     Text(text = stringResource(R.string.cancel))
                 }
                 if (selectedIds.isNotEmpty()) {
-                    OutlinedButton(
+                    iad1tya.echo.music.ui.component.AuraOutlinedButton(
                         onClick = { onDeleteSelected(selectedIds.toList()) },
                         shape = actionShape,
                         colors = ButtonDefaults.outlinedButtonColors(

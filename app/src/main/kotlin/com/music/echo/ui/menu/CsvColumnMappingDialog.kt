@@ -178,7 +178,7 @@ fun CsvColumnMappingDialog(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                OutlinedButton(onClick = onDismiss) {
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = onDismiss) {
                     Text(stringResource(R.string.cancel))
                 }
                 Button(
@@ -234,7 +234,7 @@ private fun ColumnSelector(
                         Text(stringResource(R.string.none), style = MaterialTheme.typography.labelSmall)
                     }
                 } else {
-                    OutlinedButton(
+                    iad1tya.echo.music.ui.component.AuraOutlinedButton(
                         onClick = { onSelected(-1) },
                         modifier = Modifier.height(36.dp),
                     ) {
@@ -255,7 +255,7 @@ private fun ColumnSelector(
                         )
                     }
                 } else {
-                    OutlinedButton(
+                    iad1tya.echo.music.ui.component.AuraOutlinedButton(
                         onClick = { onSelected(index) },
                         modifier = Modifier.height(36.dp),
                     ) {

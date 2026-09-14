@@ -1035,7 +1035,9 @@ private fun AudioDeviceRow(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                val statusText = if (isActiveDevice) "Connected" else "Available"
+                val statusText = stringResource(
+                    if (isActiveDevice) R.string.audio_device_connected else R.string.audio_device_available,
+                )
                 
                 Row(
                     modifier = Modifier

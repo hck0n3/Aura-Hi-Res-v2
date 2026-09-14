@@ -140,6 +140,11 @@ fun AiPlaylistDialog(
             enabled = !busy,
             minLines = 2,
             maxLines = 4,
+            colors = if (iad1tya.echo.music.ui.newui.rememberAuraPanelSkin().let { it.enabled && it.darkGround }) {
+                iad1tya.echo.music.ui.newui.auraFloatingTextFieldColors()
+            } else {
+                androidx.compose.material3.OutlinedTextFieldDefaults.colors()
+            },
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(16.dp))

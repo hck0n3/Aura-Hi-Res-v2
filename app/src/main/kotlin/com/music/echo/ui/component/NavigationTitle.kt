@@ -77,7 +77,7 @@ fun NavigationTitle(
         }
 
         onPlayAllClick?.let { playAllClick ->
-            OutlinedButton(
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 onClick = playAllClick,
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),

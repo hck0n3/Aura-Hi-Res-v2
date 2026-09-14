@@ -60,7 +60,7 @@ fun BackgroundReliabilityDialog(
                             "Activa estas dos cosas (vale para Xiaomi, Samsung, Oppo, Vivo, Motorola, etc.):"
                     },
                 )
-                OutlinedButton(
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     onClick = onOpenAutostart,
                     modifier = Modifier.fillMaxWidth(),
                 ) {

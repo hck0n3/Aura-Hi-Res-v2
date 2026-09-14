@@ -347,7 +347,7 @@ fun LastFMSettingsScreen(
                     },
                     trailingContent = {
                         if (isLoggedIn) {
-                            OutlinedButton(onClick = {
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = {
                                 lastfmSession = ""
                                 lastfmUsername = ""
                                 // HALLAZGO-020 (FASE 22): also invalidate the session on Last.fm's
@@ -357,7 +357,7 @@ fun LastFMSettingsScreen(
                                 Text(stringResource(R.string.action_logout))
                             }
                         } else {
-                            OutlinedButton(onClick = { showLoginDialog = true }) {
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = { showLoginDialog = true }) {
                                 Text(stringResource(R.string.action_login))
                             }
                         }

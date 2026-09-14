@@ -123,7 +123,7 @@ fun AccountSettingsScreen(
                             }
                         },
                         trailingContent = if (isLoggedIn) ({
-                            OutlinedButton(
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(
 
 
 

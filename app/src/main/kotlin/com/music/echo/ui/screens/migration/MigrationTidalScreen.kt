@@ -162,7 +162,7 @@ fun MigrationTidalScreen(navController: NavController) {
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = { openExternal(context, "https://developer.tidal.com/dashboard") },
                                 modifier = Modifier.weight(1f),
                             ) { Text(stringResource(R.string.migrate_tidal_open_dashboard)) }

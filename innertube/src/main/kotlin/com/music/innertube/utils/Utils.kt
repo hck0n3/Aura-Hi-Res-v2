@@ -123,7 +123,9 @@ suspend fun Result<PlaylistPage>.completedStreaming(
     PlaylistPage(
         playlist = page.playlist,
         songs = songs,
-        songsContinuation = null,
+        // Non-null = the walk stopped early (request cap, failed page, loop guard): [songs] is NOT the
+        // whole remote list, so callers must not treat "missing remotely" as "not on the account".
+        songsContinuation = continuation,
         continuation = page.continuation
     )
 }
@@ -166,7 +168,8 @@ suspend fun Result<LibraryPage>.completedStreaming(
     }
     LibraryPage(
         items = items,
-        continuation = null
+        // Non-null = incomplete walk, same contract as the playlist twin above.
+        continuation = continuation
     )
 }
 

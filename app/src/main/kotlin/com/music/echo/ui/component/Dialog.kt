@@ -382,6 +382,14 @@ fun TextFieldDialog(
     forceWindow: Boolean = false,
 ) {
     val legacyFieldState = remember { mutableStateOf(initialTextFieldValue) }
+    // New UI: the same rounded outlined field as every other floating window (AI playlist, add to
+    // playlist, save preset) instead of the underline TextField.
+    val fieldSkin = rememberAuraPanelSkin()
+    val fieldColors = if (fieldSkin.enabled && fieldSkin.darkGround) {
+        iad1tya.echo.music.ui.newui.auraFloatingTextFieldColors()
+    } else {
+        OutlinedTextFieldDefaults.colors()
+    }
 
     val focusRequester = remember { FocusRequester() }
 
@@ -430,13 +438,13 @@ fun TextFieldDialog(
         ) {
             if (textFields != null) {
                 textFields.forEachIndexed { index, (label, value) ->
-                    TextField(
+                    androidx.compose.material3.OutlinedTextField(
                         value = value,
                         onValueChange = { onTextFieldsChange?.invoke(index, it) },
                         placeholder = { Text(label) },
                         singleLine = singleLine,
                         maxLines = maxLines,
-                        colors = OutlinedTextFieldDefaults.colors(),
+                        colors = fieldColors,
                         keyboardOptions = KeyboardOptions(
                             imeAction = if (singleLine) ImeAction.Done else ImeAction.None,
                             keyboardType = keyboardType
@@ -456,13 +464,13 @@ fun TextFieldDialog(
                     )
                 }
             } else {
-                TextField(
+                androidx.compose.material3.OutlinedTextField(
                     value = legacyFieldState.value,
                     onValueChange = { legacyFieldState.value = it },
                     placeholder = placeholder,
                     singleLine = singleLine,
                     maxLines = maxLines,
-                    colors = OutlinedTextFieldDefaults.colors(),
+                    colors = fieldColors,
                     keyboardOptions = KeyboardOptions(
                         imeAction = if (singleLine) ImeAction.Done else ImeAction.None,
                         keyboardType = keyboardType

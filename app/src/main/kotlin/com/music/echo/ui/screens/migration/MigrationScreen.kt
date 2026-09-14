@@ -511,7 +511,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.confirmContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
+                    iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
                         Text(stringResource(android.R.string.cancel))
                     }
                     Button(onClick = onContinue, modifier = Modifier.weight(1f)) {
@@ -651,7 +651,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.doneContent(
     }
     if (state.importFailures.isNotEmpty()) {
         item {
-            OutlinedButton(
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 onClick = onSaveFailuresCsv,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                 shape = RoundedCornerShape(16.dp),
@@ -670,7 +670,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.doneContent(
     }
     if (state.localPlaylistId != null) {
         item {
-            OutlinedButton(
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 onClick = onOpenLibrary,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                 shape = RoundedCornerShape(16.dp),

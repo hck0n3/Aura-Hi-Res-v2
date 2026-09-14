@@ -340,7 +340,7 @@ private fun LoginCard(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedButton(
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 onClick = onLoginPassword,
                 enabled = !loading && email.isNotBlank() && password.isNotBlank(),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),

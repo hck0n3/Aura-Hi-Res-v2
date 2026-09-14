@@ -279,7 +279,14 @@ object AuraPalette {
      *
      * A `Color` is an inline value class, so this getter allocates nothing on the heap.
      */
-    val FloatingFill: Color get() = SurfaceFill.compositeOver(GroundRaised)
+    //
+    // ## THE MINI-PLAYER PLATE (owner directive 2026-09-14)
+    // "el estilo aura es el estilo que tiene el mini reproductor". Measured on the owner's phone the
+    // mini pill reads #0A0F19 (its GroundRaised glass) while every dialog, menu and sheet read
+    // #191E28 — the full 7 % film made them a lighter, greyer panel. The plate is now the pill's own
+    // material: GroundRaised with a whisper of film, still opaque (legibility above covers holds) and
+    // still separated from the screen by the [SurfaceLine] hairline every floating surface draws.
+    val FloatingFill: Color get() = Color.White.copy(alpha = 0.025f).compositeOver(GroundRaised)
 
     /**
      * Frosted overlay plate (dialogs / sheets / menus).
