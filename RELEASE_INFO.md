@@ -6,6 +6,7 @@ firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
 
 ## Nuevo en beta2 (corregido a partir del registro de tu teléfono)
 
+- **Arreglado el cierre al tocar «Ya me suscribí» (y en cualquier pantalla con campo de texto):** la actualización de librerías de beta1 mezcló versiones de Compose incompatibles. Se volvió al conjunto probado.
 - **Enlace de canción rechazado por YouTube (403):** antes la app lo reintentaba unas 55 veces durante más de 4 minutos y la canción acababa en error. Ahora pide un enlace nuevo al instante (máximo 3 intentos por canción).
 - **Tus listas guardadas vuelven a cargar en Inicio y Cuenta:** YouTube Music cambió el formato de esa página y la app no la reconocía.
 
