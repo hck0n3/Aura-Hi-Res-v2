@@ -8838,7 +8838,7 @@ class MusicService :
         val default = DefaultMediaSourceFactory(
             createDataSourceFactory(),
             androidx.media3.extractor.DefaultExtractorsFactory()
-        )
+        ).setLoadErrorHandlingPolicy(StreamLoadErrorPolicy())
         val videoFactory = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(videoDataSourceFactory)
         return object : androidx.media3.exoplayer.source.MediaSource.Factory {
             override fun getSupportedTypes(): IntArray = default.supportedTypes

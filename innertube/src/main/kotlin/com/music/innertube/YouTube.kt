@@ -847,24 +847,45 @@ object YouTube {
             // documents that the payload shelf "isn't always the FIRST section" — a leading header, chip
             // row or promo section is normal YouTube behaviour, and taking [0] blindly would see no
             // grid/shelf and report the library as EMPTY.
-            val contents = sectionList?.contents
-                ?.firstOrNull { it.gridRenderer != null || it.musicShelfRenderer != null }
+            // The data renderer may also be nested one level down inside an itemSectionRenderer —
+            // the current FEmusic_liked_playlists layout, which threw "No content found" on every load.
+            val contents = sectionList?.contents?.firstOrNull { section ->
+                section.gridRenderer != null || section.musicShelfRenderer != null ||
+                    section.musicPlaylistShelfRenderer != null ||
+                    section.itemSectionRenderer?.contents.orEmpty().any { child ->
+                        child.gridRenderer != null || child.musicShelfRenderer != null ||
+                            child.musicPlaylistShelfRenderer != null
+                    }
+            }
+            val nested = contents?.itemSectionRenderer?.contents.orEmpty()
+            val gridRenderer = contents?.gridRenderer ?: nested.firstNotNullOfOrNull { it.gridRenderer }
+            val musicShelfRenderer = contents?.musicShelfRenderer
+                ?: nested.firstNotNullOfOrNull { it.musicShelfRenderer }
+            val playlistShelfRenderer = contents?.musicPlaylistShelfRenderer
+                ?: nested.firstNotNullOfOrNull { it.musicPlaylistShelfRenderer }
 
             when {
-                contents?.gridRenderer != null -> LibraryPage(
-                    items = contents.gridRenderer.items
+                gridRenderer != null -> LibraryPage(
+                    items = gridRenderer.items
                         .mapNotNull(GridRenderer.Item::musicTwoRowItemRenderer)
                         .mapNotNull { LibraryPage.fromMusicTwoRowItemRenderer(it) },
-                    continuation = contents.gridRenderer.continuations?.getContinuation()
+                    continuation = gridRenderer.continuations?.getContinuation()
                 )
 
-                contents?.musicShelfRenderer != null -> LibraryPage(
+                musicShelfRenderer != null -> LibraryPage(
                     // A shelf with no rows is a genuinely empty library section (e.g. the account
                     // has no uploads), not a failure.
-                    items = contents.musicShelfRenderer.contents.orEmpty()
+                    items = musicShelfRenderer.contents.orEmpty()
                         .mapNotNull(MusicShelfRenderer.Content::musicResponsiveListItemRenderer)
                         .mapNotNull { LibraryPage.fromMusicResponsiveListItemRenderer(it) },
-                    continuation = contents.musicShelfRenderer.continuations?.getContinuation()
+                    continuation = musicShelfRenderer.continuations?.getContinuation()
+                )
+
+                playlistShelfRenderer != null -> LibraryPage(
+                    items = playlistShelfRenderer.contents
+                        .mapNotNull(MusicShelfRenderer.Content::musicResponsiveListItemRenderer)
+                        .mapNotNull { LibraryPage.fromMusicResponsiveListItemRenderer(it) },
+                    continuation = playlistShelfRenderer.continuations?.getContinuation()
                 )
 
                 // Empty ONLY when the response positively says "there is nothing here": a section list that

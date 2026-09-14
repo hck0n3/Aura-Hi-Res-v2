@@ -58,5 +58,10 @@ data class ItemSectionRenderer(
     @Serializable
     data class Content(
         val musicResponsiveListItemRenderer: MusicResponsiveListItemRenderer?,
+        // YouTube Music now nests library grids/shelves (e.g. FEmusic_liked_playlists) inside an
+        // itemSectionRenderer instead of placing them directly in the section list.
+        val gridRenderer: GridRenderer? = null,
+        val musicShelfRenderer: MusicShelfRenderer? = null,
+        val musicPlaylistShelfRenderer: MusicPlaylistShelfRenderer? = null,
     )
 }
