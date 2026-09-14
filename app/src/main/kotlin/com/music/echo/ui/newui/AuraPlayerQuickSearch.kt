@@ -31,6 +31,10 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -90,6 +94,14 @@ fun AuraPlayerQuickSearchContent(
     val playerConnection = LocalPlayerConnection.current ?: return
     val menuState = LocalMenuState.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    // Owner 2026-09-13: touching a suggestion or a result hides the keyboard so the content is visible.
+    // Observed on the Initial pass without consuming, so the row still receives its own tap/scroll.
+    val hideKeyboardOnTouch = Modifier.pointerInput(keyboardController) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            keyboardController?.hide()
+        }
+    }
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
@@ -284,7 +296,8 @@ fun AuraPlayerQuickSearchContent(
                             onDismiss = onDismiss,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f),
+                                .weight(1f)
+                                .then(hideKeyboardOnTouch),
                         )
                     }
 
@@ -316,7 +329,8 @@ fun AuraPlayerQuickSearchContent(
                                 onItemMenu = openYtMenu,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(1f),
+                                    .weight(1f)
+                                .then(hideKeyboardOnTouch),
                             )
                         } else {
                             PlayerOnlineSuggestionPanel(
@@ -340,7 +354,8 @@ fun AuraPlayerQuickSearchContent(
                                 onItemMenu = openYtMenu,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(1f),
+                                    .weight(1f)
+                                .then(hideKeyboardOnTouch),
                             )
                         }
                     }
@@ -373,7 +388,8 @@ fun AuraPlayerQuickSearchContent(
                     onItemMenu = openYtMenu,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .weight(1f)
+                                .then(hideKeyboardOnTouch),
                 )
             }
         }

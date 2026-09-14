@@ -1703,7 +1703,8 @@ private fun AuraPlayerShape(
                         icon = AuraIcons.Search,
                         contentDescription = stringResource(R.string.search),
                         onClick = {
-                            bottomSheetPageState.show {
+                            // Full screen (owner 2026-09-13): more room for results with the keyboard up.
+                            bottomSheetPageState.show(fullScreen = true) {
                                 AuraPlayerQuickSearchContent(
                                     navController = navController,
                                     onDismiss = bottomSheetPageState::dismiss,

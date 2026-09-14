@@ -1,5 +1,9 @@
 package iad1tya.echo.music.ui.component
 
+import androidx.compose.ui.graphics.RectangleShape
+
+import androidx.compose.foundation.layout.statusBarsPadding
+
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -56,8 +60,11 @@ class BottomSheetPageState(
 ) {
     var isVisible by mutableStateOf(isVisible)
     var content by mutableStateOf(content)
+    /** Full-screen page (the player's quick search) instead of the 85 % floating sheet. */
+    var fullScreen by mutableStateOf(false)
 
-    fun show(content: @Composable ColumnScope.() -> Unit) {
+    fun show(fullScreen: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+        this.fullScreen = fullScreen
         isVisible = true
         this.content = content
     }
@@ -131,15 +138,16 @@ fun BottomSheetPage(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .fillMaxHeight(fraction = 0.85f),
+                        .fillMaxHeight(fraction = if (state.fullScreen) 1f else 0.85f),
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             // AUDIT P4: clip BEFORE the glass (an interior clip leaves the
                             // effect drawing with square corners over a rounded-content panel).
-                            .clip(AuraShapes.Sheet)
+                            .clip(if (state.fullScreen) RectangleShape else AuraShapes.Sheet)
                             .shellGlass(shellHazeState)
+                            .then(if (state.fullScreen) Modifier.statusBarsPadding() else Modifier)
                             .imePadding()
                             .navigationBarsPadding(),
                     ) {
