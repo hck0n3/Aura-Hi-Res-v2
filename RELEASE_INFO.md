@@ -1,102 +1,72 @@
-# Aura Hi-Res v2.0.40-beta2 — sin esperas de 4 minutos ante enlaces caducados y listas guardadas que vuelven a cargar
+# Aura Hi-Res v2.0.40 — ventanas de vidrio, sincronización que termina, ecualizador exacto y Cast
 
-BETA PRIVADA para el dueño (v2.0.40-beta2 / versionCode 1000). Actualización directa sobre
-cualquier versión de la identidad v2: mismo paquete (iad1tya.aura.music) y misma
-firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
+Versión estable (v2.0.40 / versionCode 1001). Actualización directa sobre cualquier versión de la
+identidad v2: mismo paquete (iad1tya.aura.music) y misma firma (CN=Aura Hi-Res v2), conserva tus datos,
+tu sesión y tus ajustes. Incluye Cast para enviar la música a tu TV o altavoz.
 
-## Nuevo en beta2 (corregido a partir del registro de tu teléfono)
+## Sincronización de tu biblioteca
 
-- **Arreglado el cierre al tocar «Ya me suscribí» (y en cualquier pantalla con campo de texto):** la actualización de librerías de beta1 mezcló versiones de Compose incompatibles. Se volvió al conjunto probado.
-- **Enlace de canción rechazado por YouTube (403):** antes la app lo reintentaba unas 55 veces durante más de 4 minutos y la canción acababa en error. Ahora pide un enlace nuevo al instante (máximo 3 intentos por canción).
-- **Tus listas guardadas vuelven a cargar en Inicio y Cuenta:** YouTube Music cambió el formato de esa página y la app no la reconocía.
+- **La sincronización ya termina:** en bibliotecas grandes, cada vez que abrías la app se quedaba «Sincronizando tu biblioteca…» sin fin, porque intentaba volver a subir miles de canciones una por una. Ahora solo sube lo que de verdad falta y en tandas pequeñas.
+- **Respeta la frecuencia que elegiste:** si pusiste «todos los días», sincroniza como mucho una vez al día al abrir la app (antes lo hacía cada 30 minutos y en cada arranque). Con la sincronización automática apagada, ya no sincroniza sola.
 
-## Incluido desde beta1
+## Ventanas flotantes con el vidrio del mini reproductor
 
-## Ventanas flotantes con el estilo del menú de cuenta
-
-- **Todas las ventanas flotantes, submenús, hojas inferiores y desplegables usan ahora la misma placa del menú «Aura Hi-Res Player»:** fondo sólido elevado, sin agujeros transparentes. En los Galaxy ya no se ven transparentes.
+- **Todas las ventanas, menús y hojas usan el mismo vidrio del mini reproductor:** desenfoque real de lo que hay detrás, el mismo tono, borde fino y esquinas.
+- **Siguen el color de la portada:** el vidrio toma el tono de lo que suena, igual que el resto de la app.
+- **Menú del avatar, «Agregar a la lista», salida de audio y el botón «+» de Biblioteca salen desde abajo** como el menú «…» del reproductor.
+- **«Crear lista» sale flotante y centrada,** también encima de «Agregar a la lista».
+- **Con el teclado abierto las ventanas ya no se estiran hasta abajo:** conservan su tamaño y suben por encima del teclado.
+- **Biblioteca: un solo botón «+»** que ya no tapa tus listas, con un menú donde cada opción tiene su icono (crear lista, lista con IA, importar desde Spotify o YouTube Music, migrar).
+- **Botones, barras superiores y tarjetas con el mismo estilo en todas las pantallas;** los títulos ya no se enciman con el contenido al desplazarte.
 
 ## Reproductor
 
-- **Portada tamaño TIDAL:** en el reproductor abierto la portada ahora ocupa casi todo el ancho (margen fino de 20 dp, antes 32 dp), con la sombra suave de tarjeta y tu radio de esquinas de siempre.
+- **Estilo TIDAL:** portada grande de 336 dp en todos los estilos de portada, botón de «me gusta» junto al título, estado del motor (EQ · volumen seguro) entre los tiempos y botones inferiores redondos translúcidos.
+- **Búsqueda rápida a pantalla completa:** el teclado se oculta al tocar un resultado o al buscar, para ver mejor.
+- **Artistas:** las portadas de discos y canciones tienen la misma altura que las miniaturas de video.
+- **Cast:** envía la reproducción a tu Chromecast, TV o altavoz compatible desde el botón de transmitir.
 
-## Simetría de portadas
+## Compartir y abrir enlaces
 
-- **Todas las portadas de discos, canciones, EP, singles, playlists y podcasts tienen la misma altura que las miniaturas de video:** en las filas de Inicio, Novedades y Artista, y en las listas. Videos y portadas quedan alineados a la misma línea.
+- **Compartir con song.link:** el enlace abre la canción en Spotify, Apple Music o la plataforma que use quien lo recibe (se puede apagar en Ajustes ▸ Contenido).
+- **Abre enlaces de otras plataformas:** canciones, álbumes y listas de Spotify, Apple Music, Deezer, TIDAL, SoundCloud, Amazon Music y song.link se reconocen y se reproducen en Aura.
+- **Enlaces de YouTube Music como propios:** la primera vez la app te ofrece abrirlos siempre con Aura.
 
-- **Botón Música/Video legible en modo video:** en modo video el botón para volver a música se veía como un parche blanco (texto blanco sobre el color de acento claro). Ahora usa el color de contraste del acento y siempre se lee.
+## Cuentas
 
-## Barra de navegación
+- **Inicio de sesión de YouTube y Spotify rehecho:** se abre en su propia ventana con la página completa visible y una barra superior ordenada; la sesión se guarda y se mantiene conectada.
 
-- **Se quitó «Configuración» de la barra de abajo:** Ajustes queda solo en el engranaje de arriba a la derecha, que ahora tiene un ícono nuevo más limpio y profesional.
+## Ecualizador y sonido
 
-## Búsqueda por voz
+- **Las bandas suenan exactamente como la curva dibujada:** filtros propios de alta precisión (campana, graves, agudos, paso bajo y paso alto) con Q por banda; el tipo de filtro se aplica al instante.
+- **Verificación dentro del motor:** mide la ganancia real en cada frecuencia y el margen con ruido rosa, y lo compara con la curva.
+- **Prueba audible de 5 segundos y «mantén presionado para escuchar sin EQ»** para comparar al momento.
+- **Headroom automático y ancho estéreo** en Masterización; limitador de picos a −0.3 dBFS.
+- **Protección del altavoz del teléfono activada por defecto:** baja el sub-grave solo cuando suena por el altavoz.
+- **Perfil «Aura Hi-Res v2» actualizado:** 31 Hz +3, 62 Hz +4, 125 Hz +1, 250 Hz −1, 500 Hz 0, 1k 0, 2k +1, 4k +2, 8k +3, 16k +2. Si lo habías ajustado a mano, no se toca.
+- **Compresor suave y dither de salida** con modelado de ruido, en Ajustes ▸ Sonido ▸ Masterización.
+- **Ecualizador 100 % manual:** ajuste por banda (ganancia, Q y tipo) y modo paramétrico de hasta 16 bandas.
 
-- **El micrófono se anima mientras te escucha:** late en color de acento desde que lo tocas hasta que termina de reconocer.
-- **La ventana «Escuchando…» ya se ve:** antes se abría detrás de la pantalla de búsqueda; ahora aparece siempre encima (también desde el reproductor).
+## Reproducción y datos
 
-## Ecualizador
-
-- **Perfil «Aura Hi-Res v2» actualizado:** 31 Hz +3, 62 Hz +4, 125 Hz +1, 250 Hz −1, 500 Hz 0, 1k 0, 2k +1, 4k +2, 8k +3, 16k +2.
-- Si tu ecualizador estaba en el v2 anterior, pasa solo al nuevo; si lo habías ajustado a mano, no se toca.
-
-## Caché de escucha
-
-- **El caché de canciones por fin GUARDA lo que escuchas (arreglado de raíz):** el descargador por partes le decía al reproductor «tamaño desconocido», y con eso el reproductor no escribía NI UN BYTE en el caché — por eso en Ajustes ▸ Almacenamiento el caché de canciones salía vacío aunque estuviera en ilimitado. Ahora informa el tamaño real (mismo modelo que SimpMusic) y el caché se llena mientras suena (verificado en tu S26: 4 KB → 8 MB en 45 s).
-- **Una canción ya escuchada completa se reproduce desde el caché sin volver a descargarla:** ni siquiera consulta a YouTube; empieza al instante y sin gastar datos.
-- **Sin internet también suena:** una canción completa en caché se reproduce sin conexión (incluso con Modo sin conexión activado), igual que una descargada.
-- **La precarga ya no gasta datos en canciones que ya tienes en caché:** la app no vuelve a pedir su enlace a YouTube.
-- **La barra de progreso se ve cargada al 100 %** cuando la canción está completa en caché o descargada.
-- **Los videos también primero desde el caché:** un video que ya viste completo se reproduce desde el disco sin volver a pedirlo a YouTube (también sin internet). Las portadas ya se servían primero desde su caché de 2 GB.
-
-## Android Auto
-
-- **Tocar un resultado de búsqueda reproduce ESE resultado:** antes, al tocarlo, la app repetía la búsqueda y si YouTube devolvía otra lista empezaba por el primer resultado, no por el que elegiste.
-
-## Masterización (Ajustes ▸ Sonido ▸ Masterización — todo se activa y desactiva a tu gusto)
-
-- **Compresor suave (pegamento):** compresión 2:1 muy sutil justo antes del limitador; une la mezcla sin subir el volumen. Apagado por defecto.
-- **Dither de salida:** dither triangular con modelado de ruido al convertir el audio a 16 bits (tu S26 sale en 16 bits): pasajes suaves más limpios. Encendido por defecto.
-- **Proteger el altavoz del teléfono:** baja el sub-grave solo cuando suena por el altavoz; al conectar audífonos o Bluetooth se quita solo. Apagado por defecto.
-- **El limitador ahora también protege las pistas mono** (antes solo actuaba en estéreo).
-- Ya tenías y siguen igual: limitador de picos, crossfeed y ancho estéreo (en Audio espacial del ecualizador), filtros shelf/campana con Q por banda y pre-ganancia.
-
-## Valores por defecto de audio (se aplican a todos una vez con esta actualización)
-
-- **Duración de la transición (crossfade): 8 segundos.** Además se corrigió que las instalaciones nuevas quedaban en 5 s.
-- **Preamp del ecualizador: +2.2 dB.**
-- Después puedes cambiar ambos cuando quieras; tu elección se respeta.
-
-## Ecualizador 100 % manual
-
-- **Modo barras:** nuevo panel «Ajuste manual por banda»: eliges la banda y ajustas su ganancia en pasos de 0.1 dB, su ancho (Q de 0.3 a 10) y su tipo de filtro (Auto, Campana, Graves, Agudos). Si no tocas nada, suena igual que antes.
-- **Modo paramétrico:** hasta 16 bandas libres (antes 10), cada una con frecuencia, Q, ganancia y tipo.
-
-## Ahorro de datos (verificado y completado)
-
-- **Ahora sí baja el audio:** con Ahorro de datos activado se usa el Opus de ~70 kbps en vez del de 160 kbps (antes el audio no ahorraba nada). Al apagarlo vuelve a máxima calidad.
-- **Portadas más livianas:** con Ahorro de datos, la portada del reproductor se descarga a 544 px en vez de 1200 px.
-- Ya funcionaba: oculta videos y portadas animadas, no precarga canciones (ni la del crossfade), no busca letras solo, pausa Last.fm/ListenBrainz y limita el video a 360p con datos móviles.
-
-## Calidad de audio
-
-- **Verificado en tu S26: siempre Opus a la máxima calidad sin Premium (itag 251, ~160 kbps).** Las 264 canciones registradas en tu app y todo tu caché son Opus 251.
-- **Respaldo corregido:** si una canción no trae su enlace Opus, la app ya no baja a AAC de 48 kbps (itag 139, mal etiquetado como Opus): usa primero el AAC de 128 kbps.
-
-## Cola infinita inteligente
-
-- **Ya no improvisa:** se quitó la cuota que metía a propósito artistas fuera de tus gustos en la cola automática.
-- **Siempre anclada a lo que elegiste:** si empezaste desde una canción, cada nueva tanda sale de ESA canción (antes salía de la última que sonó, que ya era de la radio, y se iba desviando).
-- **Estudia el álbum o la playlist completa:** las semillas salen de todo el contenido (hasta 5, antes 4) y la canción que suena solo cuenta si pertenece a tu lista.
+- **Enlace caducado (403):** la canción pide un enlace nuevo al instante en lugar de reintentar durante minutos.
+- **Tus listas guardadas vuelven a cargar en Inicio y Cuenta.**
+- **El caché de canciones guarda lo que escuchas:** una canción completa se reproduce desde el caché al instante, sin gastar datos y sin internet.
+- **Ahorro de datos real:** audio Opus de ~70 kbps y portadas más livianas mientras está activo.
+- **Calidad máxima sin Premium:** Opus ~160 kbps; si falta, AAC de 128 kbps.
+- **Cola infinita anclada a lo que elegiste,** sin artistas fuera de tus gustos.
+- **Transición (crossfade) de 8 s y preamp del ecualizador +2.2 dB por defecto;** tu elección se respeta.
+- **Android Auto:** tocar un resultado de búsqueda reproduce ese resultado.
 
 ## Estabilidad
 
-- **Cierre por memoria llena (tu reporte del 10-09) — ARREGLADO:** la radio automática podía saltar más de 50 canciones seguidas en segundos cuando YouTube no marcaba su tipo, y cada salto lanzaba precargas en paralelo hasta agotar la memoria. Ahora salta como máximo 3 seguidas y reproduce la siguiente.
+- **Arreglado el cierre al tocar «Ya me suscribí»** y en pantallas con campo de texto.
+- **Arreglado el cierre por memoria llena** cuando la radio saltaba muchas canciones seguidas.
+- **Audio que ya no se queda en silencio** con el nuevo motor de filtros.
 
-## Música ↔ video como YouTube Music
+## Interfaz
 
-- **El modo Video es una preferencia que se queda:** si eliges Video, una canción sin video suena con su portada y la siguiente que sí tiene video vuelve sola a video. Solo se apaga cuando cambias tú a Canción.
-
-## Actualizador
-
-- **Nuevo interruptor «Recibir versiones beta» en Ajustes ▸ Actualizaciones:** actívalo para que el actualizador te ofrezca las betas privadas (como esta). Apagado, solo recibes versiones estables como hasta ahora.
+- **Ajustes en el engranaje de arriba** con ícono nuevo; la barra de abajo queda para navegar.
+- **Micrófono animado y ventana «Escuchando…» siempre visible** en la búsqueda por voz.
+- **Modo Video que se queda** como en YouTube Music.
+- **Interruptor «Recibir versiones beta»** en Ajustes ▸ Actualizaciones.
