@@ -928,7 +928,7 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
     val skin = iad1tya.echo.music.ui.newui.rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
 
-    AlertDialog(
+    iad1tya.echo.music.ui.component.AuraAlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         onDismissRequest = onDismiss,
         containerColor = if (premium) iad1tya.echo.music.ui.newui.AuraPalette.FrostFill

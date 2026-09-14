@@ -217,7 +217,7 @@ fun ContentSettings(
         var tempProxyPassword by rememberSaveable { mutableStateOf(proxyPassword) }
         var authEnabled by rememberSaveable { mutableStateOf(proxyUsername.isNotBlank() || proxyPassword.isNotBlank()) }
 
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showProxyConfigurationDialog = false },
             title = {
                 Text(stringResource(R.string.config_proxy))
@@ -436,7 +436,8 @@ fun ContentSettings(
                     .padding(horizontal = 24.dp)
                     .widthIn(max = 360.dp),
                 shape = cardShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = iad1tya.echo.music.ui.newui.auraFloatingContainerColor(),
+                contentColor = iad1tya.echo.music.ui.newui.auraFloatingContentColor(),
                 tonalElevation = 8.dp,
             ) {
                 Column(
@@ -563,7 +564,7 @@ fun ContentSettings(
     if (showTopLengthDialog) {
         var tempLength by rememberSaveable { mutableFloatStateOf(lengthTop.toFloat()) }
 
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showTopLengthDialog = false },
             title = { Text(stringResource(R.string.top_length)) },
             text = {

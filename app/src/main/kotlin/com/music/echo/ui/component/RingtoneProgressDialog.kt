@@ -26,7 +26,7 @@ fun RingtoneProgressDialog(
 ) {
     if (!isVisible) return
 
-    AlertDialog(
+    iad1tya.echo.music.ui.component.AuraAlertDialog(
         onDismissRequest = {
             if (isComplete) onDismiss()
         },

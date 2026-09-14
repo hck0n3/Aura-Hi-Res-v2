@@ -569,7 +569,7 @@ private fun ManualCookieDialog(
     onSubmit: (String) -> Unit,
 ) {
     var value by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
-    androidx.compose.material3.AlertDialog(
+    iad1tya.echo.music.ui.component.AuraAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.login_manual_cookie_title)) },
         text = {

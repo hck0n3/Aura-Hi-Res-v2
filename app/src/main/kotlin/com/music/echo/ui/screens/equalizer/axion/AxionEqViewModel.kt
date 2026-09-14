@@ -223,6 +223,8 @@ class AxionEqViewModel @Inject constructor(
         _graphicTypes.value = arr
         prefs.edit().putInt("gtype_$index", arr[index]).apply()
         _isDirty.value = true
+        // Apply at once like gain and Q do; commit() only re-applies later through the repository collector.
+        if (_enabled.value) equalizerService.applyProfile(liveProfile())
         commit()
     }
 

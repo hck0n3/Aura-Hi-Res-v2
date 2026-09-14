@@ -1155,7 +1155,8 @@ private fun EqOverlayDialog(
                     .padding(horizontal = 24.dp)
                     .widthIn(max = 320.dp),
                 shape = AbsoluteSmoothCornerShape(30.dp, 60),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = iad1tya.echo.music.ui.newui.auraFloatingContainerColor(),
+                contentColor = iad1tya.echo.music.ui.newui.auraFloatingContentColor(),
                 tonalElevation = 8.dp,
             ) {
                 Box(modifier = Modifier.padding(18.dp)) {

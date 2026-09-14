@@ -476,7 +476,7 @@ private fun SelectiveExportDialog(
     onDismiss: () -> Unit,
     onExport: () -> Unit,
 ) {
-    androidx.compose.material3.AlertDialog(
+    iad1tya.echo.music.ui.component.AuraAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Migración selectiva") },
         text = {

@@ -96,7 +96,7 @@ fun CommentSheet(
         }
     }
 
-    ModalBottomSheet(
+    iad1tya.echo.music.ui.component.AuraModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         dragHandle = { BottomSheetDefaults.DragHandle() },

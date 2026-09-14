@@ -180,7 +180,7 @@ fun AiSettings(
     var showCustomModelInput by rememberSaveable { mutableStateOf(false) }
 
     if (showProviderHelpDialog) {
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showProviderHelpDialog = false },
             confirmButton = {
                 TextButton(onClick = { showProviderHelpDialog = false }) {
@@ -206,7 +206,7 @@ fun AiSettings(
     }
 
     if (showTranslateModeHelpDialog) {
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showTranslateModeHelpDialog = false },
             confirmButton = {
                 TextButton(onClick = { showTranslateModeHelpDialog = false }) {

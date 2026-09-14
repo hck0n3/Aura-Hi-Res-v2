@@ -112,7 +112,7 @@ fun AiModifyPlaylistDialog(
         }
     }
 
-    AlertDialog(
+    iad1tya.echo.music.ui.component.AuraAlertDialog(
         onDismissRequest = close,
         icon = { Icon(painterResource(R.drawable.auto_awesome), contentDescription = null) },
         title = { Text(stringResource(R.string.ai_modify_playlist_title)) },

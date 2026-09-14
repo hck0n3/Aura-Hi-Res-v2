@@ -84,7 +84,7 @@ fun RingtoneTrimmerDialog(
         }
     }
 
-    AlertDialog(
+    iad1tya.echo.music.ui.component.AuraAlertDialog(
         onDismissRequest = {
             exoPlayer.stop()
             onDismiss()

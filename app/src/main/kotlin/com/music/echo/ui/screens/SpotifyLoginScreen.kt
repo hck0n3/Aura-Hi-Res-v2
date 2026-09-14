@@ -510,7 +510,7 @@ private fun SpotifyManualCookieDialog(
     onSubmit: (spDc: String, spKey: String) -> Unit,
 ) {
     var cookieText by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
-    androidx.compose.material3.AlertDialog(
+    iad1tya.echo.music.ui.component.AuraAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.login_manual_cookie_title)) },
         text = {

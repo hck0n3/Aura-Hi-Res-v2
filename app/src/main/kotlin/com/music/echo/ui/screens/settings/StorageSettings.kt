@@ -353,7 +353,7 @@ fun StorageSettings(
 
     
     if (showCacheWarningDialog) {
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showCacheWarningDialog = false },
             title = { Text(stringResource(R.string.cache_size_warning_title)) },
             text = {

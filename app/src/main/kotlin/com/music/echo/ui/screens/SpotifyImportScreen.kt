@@ -278,7 +278,7 @@ fun SpotifyImportScreen(
     }
 
     if (showAddByLinkDialog) {
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showAddByLinkDialog = false },
             title = { Text(stringResource(R.string.spotify_add_by_link)) },
             text = {
@@ -327,7 +327,7 @@ fun SpotifyImportScreen(
 
     if (showScheduleFreqDialog) {
         val options = listOf(0 to "Desactivada", 1 to "Diaria", 7 to "Semanal")
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showScheduleFreqDialog = false },
             title = { Text("Frecuencia de sincronización") },
             text = {
@@ -479,7 +479,7 @@ private fun SpotifySourcePickerSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    iad1tya.echo.music.ui.component.AuraModalBottomSheet(
         modifier = Modifier.fillMaxHeight(0.92f),
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -572,7 +572,7 @@ private fun SpotifyScheduledSourcesSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    iad1tya.echo.music.ui.component.AuraModalBottomSheet(
         modifier = Modifier.fillMaxHeight(0.92f),
         onDismissRequest = onDismiss,
         sheetState = sheetState,

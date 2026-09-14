@@ -753,7 +753,7 @@ fun Lyrics(
 
     if (showTranslatePrompt) {
         val promptSongId = currentSong?.id
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = {
                 showTranslatePrompt = false
                 promptSongId?.let { if (it !in answeredTranslateSongs) answeredTranslateSongs.add(it) }
@@ -2289,13 +2289,14 @@ fun Lyrics(
         BasicAlertDialog(onDismissRequest = {  }) {
             Card( 
                 shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                // Aura floating plate (same as every other dialog in the new UI).
+                colors = CardDefaults.cardColors(containerColor = iad1tya.echo.music.ui.newui.auraFloatingContainerColor()),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
                 Box(modifier = Modifier.padding(32.dp)) {
                     Text(
                         text = stringResource(R.string.generating_image) + "\n" + stringResource(R.string.please_wait),
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = iad1tya.echo.music.ui.newui.auraFloatingContentColor()
                     )
                 }
             }
@@ -2309,7 +2310,8 @@ fun Lyrics(
                 shape = MaterialTheme.shapes.medium,
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = iad1tya.echo.music.ui.newui.auraFloatingContainerColor(),
+                    contentColor = iad1tya.echo.music.ui.newui.auraFloatingContentColor(),
                 ),
                 modifier = Modifier
                     .padding(16.dp)

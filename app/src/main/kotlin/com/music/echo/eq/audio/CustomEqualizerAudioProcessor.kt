@@ -295,7 +295,11 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             // NOTE: shelf/peak filters at 0 dB gain are unity, so skipping them is bit-identical in the
             // steady state; the win is fewer active filters (less CPU, no numeric noise from no-op biquads).
             fun bandActive(b: iad1tya.echo.music.eq.data.ParametricEQBand): Boolean =
-                b.enabled && kotlin.math.abs(b.gain) >= 0.05
+                b.enabled && (
+                    // Low/high-pass filters ignore gain: they cut whatever their gain field says.
+                    b.filterType == FilterType.LPQ || b.filterType == FilterType.HPQ ||
+                        kotlin.math.abs(b.gain) >= 0.05
+                    )
 
             // ATOMICITY (P48 — now fully solved). This used to be a sequence of independent JNI calls, each
             // taking and releasing the native lock, so the audio thread could run a block MID-re-apply; the
@@ -322,6 +326,8 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
                         val typeCode = when (band.filterType) {
                             FilterType.LSC -> 1  // low shelf
                             FilterType.HSC -> 2  // high shelf
+                            FilterType.LPQ -> 3  // resonant low-pass
+                            FilterType.HPQ -> 4  // resonant high-pass
                             else -> 0            // peak / parametric
                         }
                         setEqBand(ptr, index, band.frequency.toFloat(), band.gain.toFloat(), band.q.toFloat(), typeCode)

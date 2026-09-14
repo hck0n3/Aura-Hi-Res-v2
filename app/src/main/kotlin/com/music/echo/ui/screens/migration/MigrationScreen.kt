@@ -200,7 +200,7 @@ fun MigrationScreen(
     }
 
     if (showDeezerDialog) {
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showDeezerDialog = false },
             title = { Text(stringResource(R.string.migrate_deezer_title)) },
             text = {

@@ -32,7 +32,7 @@ fun BackgroundReliabilityDialog(
     onDismiss: () -> Unit,
     oemKillEvidence: Boolean = false,
 ) {
-    AlertDialog(
+    iad1tya.echo.music.ui.component.AuraAlertDialog(
         onDismissRequest = onDismiss,
         icon = {
             Icon(painterResource(R.drawable.battery_charging), contentDescription = null)

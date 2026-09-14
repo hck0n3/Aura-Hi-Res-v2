@@ -64,7 +64,7 @@ fun ActivityHistoryBottomSheet(
     val skin = rememberAuraPanelSkin()
     val auraDark = skin.enabled && skin.darkGround
 
-    ModalBottomSheet(
+    iad1tya.echo.music.ui.component.AuraModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         dragHandle = { BottomSheetDefaults.DragHandle() },

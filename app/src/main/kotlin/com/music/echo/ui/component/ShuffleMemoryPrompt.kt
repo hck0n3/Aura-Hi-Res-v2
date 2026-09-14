@@ -60,7 +60,7 @@ fun rememberShuffleMemoryPrompt(
     val currentOnShuffle by rememberUpdatedState(onShuffle)
 
     if (showDialog) {
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showDialog = false },
             title = { Text(stringResource(R.string.shuffle_memory_title)) },
             text = {

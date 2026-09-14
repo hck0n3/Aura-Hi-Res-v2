@@ -848,7 +848,7 @@ private fun LocalSongScanSheet(
     val skin = rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
 
-    ModalBottomSheet(
+    iad1tya.echo.music.ui.component.AuraModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = if (premium) auraFloatingContainerColor()

@@ -24,7 +24,7 @@ import iad1tya.echo.music.R
 @Composable
 fun OpenLinksDefaultPrompt(onDone: () -> Unit) {
     val context = LocalContext.current
-    AlertDialog(
+    iad1tya.echo.music.ui.component.AuraAlertDialog(
         onDismissRequest = onDone,
         title = { Text(stringResource(R.string.open_links_prompt_title)) },
         text = { Text(stringResource(R.string.open_links_prompt_body)) },

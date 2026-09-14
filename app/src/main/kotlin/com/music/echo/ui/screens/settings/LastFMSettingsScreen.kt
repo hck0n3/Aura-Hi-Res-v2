@@ -155,7 +155,7 @@ fun LastFMSettingsScreen(
         var tempUsername by rememberSaveable { mutableStateOf("") }
         var tempPassword by rememberSaveable { mutableStateOf("") }
 
-        AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             properties = DialogProperties(usePlatformDefaultWidth = false),
             onDismissRequest = {
                 if (!isLoggingIn) {

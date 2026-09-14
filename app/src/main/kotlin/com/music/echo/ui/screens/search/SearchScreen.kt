@@ -339,7 +339,7 @@ fun SearchScreen(
     }
 
     if (voiceListening) {
-        androidx.compose.material3.AlertDialog(
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { voiceListening = false; speechRecognizer?.cancel() },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {

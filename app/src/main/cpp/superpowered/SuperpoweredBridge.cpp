@@ -134,6 +134,7 @@ struct BandParams {
     float decibel = 0.0f;
     float octave = 2.0f;
     float slope = 0.6f;
+    float resonance = 0.1f; // resonant low/high-pass only: Superpowered resonance = Q / 10
     Superpowered::Filter::FilterType type = Superpowered::Filter::Parametric;
     bool enabled = false;
 };
@@ -401,6 +402,8 @@ public:
             // equivalent to the previous behaviour and leaves no room for doubt.
             if (b.type == Superpowered::Filter::LowShelf || b.type == Superpowered::Filter::HighShelf) {
                 f->slope = b.slope;
+            } else if (b.type == Superpowered::Filter::Resonant_Lowpass || b.type == Superpowered::Filter::Resonant_Highpass) {
+                f->resonance = b.resonance;
             } else {
                 f->octave = b.octave;
             }
@@ -692,7 +695,14 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setEqBand(JNIEnv 
         // Shelves (SDK LowShelf/HighShelf) hold their gain out to DC / Nyquist instead of rolling off like a
         // peak — the correct choice for the lowest/highest graphic-EQ bands (fixes the "edges roll off oddly"
         // and makes the audio match the shelf curve drawn in the UI).
-        if (filterType == 1 || filterType == 2) {
+        if (filterType == 3 || filterType == 4) {
+            // LPQ / HPQ from AutoEQ or imported parametric profiles. They used to fall through to the
+            // parametric branch, so a low-pass cut sounded like a bell boost of 0 dB (i.e. nothing).
+            b.type = filterType == 3 ? Superpowered::Filter::Resonant_Lowpass : Superpowered::Filter::Resonant_Highpass;
+            float resonance = Q / 10.0f; // SDK: resonance = Q / 10, limit 0.01..1
+            if (!(resonance >= 0.01f)) resonance = 0.01f; else if (resonance > 1.0f) resonance = 1.0f;
+            b.resonance = resonance;
+        } else if (filterType == 1 || filterType == 2) {
             b.type = filterType == 1 ? Superpowered::Filter::LowShelf : Superpowered::Filter::HighShelf;
             // Shelves honour the band's Q too (the manual graphic EQ exposes it): slope scales with Q
             // around the historic 0.6 at the default Q 1.414, so an untouched band sounds exactly as

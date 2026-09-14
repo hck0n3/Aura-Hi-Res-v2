@@ -98,7 +98,7 @@ fun AddMusicSheet(
     }
     // CLASSIC PATH: the separate window, byte-identical to before any of this.
     val classicSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    iad1tya.echo.music.ui.component.AuraModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = classicSheetState,
         dragHandle = { BottomSheetDefaults.DragHandle() },
