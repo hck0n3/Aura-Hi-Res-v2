@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,13 +32,17 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.ExportedSongIdsKey
+import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.constants.SongSortType
+import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.ui.component.EmptyPlaceholder
@@ -48,10 +53,18 @@ import iad1tya.echo.music.ui.newui.AuraAppleListRowFrame
 import iad1tya.echo.music.ui.newui.AuraSongRow
 import iad1tya.echo.music.ui.newui.auraAppleDurationLabel
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.viewmodels.CachePlaylistViewModel
+import kotlinx.coroutines.flow.flowOf
 
 /**
- * Offline body: shown instead of network feeds when [OfflineModeKey] is ON. Lists ONLY fully
- * downloaded songs. Disable toggle lives ON THIS SCREEN (owner request) — not only in Settings.
+ * Offline body: shown instead of network feeds when [OfflineModeKey] is ON. Disable toggle lives ON
+ * THIS SCREEN (owner request) — not only in Settings.
+ *
+ * OWNER DIRECTIVE 2026-09-14 ("el modo sin conexión puede reproducir lo que está en caché, lo
+ * descargado y lo exportado a video y a MP3"): it lists EVERYTHING offline playback can serve —
+ * downloads, songs whose listen-cache copy is COMPLETE, exported MP3s and exported videos. The
+ * player already plays all four with no network (MusicService's download / exported-URI / full
+ * listen-cache branches); before, this screen only listed downloads, so the rest was unreachable.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -72,7 +85,32 @@ fun DownloadedOnlyView(
         .downloadedSongs(SongSortType.CREATE_DATE, descending = true)
         .collectAsState(initial = emptyList())
 
+    // Complete listen-cache copies only: a partial one cannot play without the network.
+    val cacheViewModel: CachePlaylistViewModel = hiltViewModel()
+    val cachedSongs by cacheViewModel.fullyCachedSongs.collectAsState()
+
+    val (exportedSongIdsRaw) = rememberPreference(ExportedSongIdsKey, "")
+    val (exportedVideoIdsRaw) = rememberPreference(ExportedVideoIdsKey, "")
+    val exportedSongIds = remember(exportedSongIdsRaw) { exportedSongIdsRaw.split(",").filter { it.isNotBlank() } }
+    val exportedVideoIds = remember(exportedVideoIdsRaw) { exportedVideoIdsRaw.split(",").filter { it.isNotBlank() } }
+    val exportedSongs by remember(exportedSongIds) {
+        if (exportedSongIds.isEmpty()) flowOf(emptyList()) else database.getSongsByIdsFlow(exportedSongIds)
+    }.collectAsState(initial = emptyList())
+    val exportedVideosRaw by remember(exportedVideoIds) {
+        if (exportedVideoIds.isEmpty()) flowOf(emptyList()) else database.getSongsByIdsFlow(exportedVideoIds)
+    }.collectAsState(initial = emptyList())
+    // Exported videos open in video (the export has no audio-only rendition), same as Biblioteca's list.
+    val exportedVideos = remember(exportedVideosRaw) {
+        exportedVideosRaw.map { song -> if (song.song.isVideo) song else song.copy(song = song.song.copy(isVideo = true)) }
+    }
+
     val downloadsTitle = stringResource(R.string.downloaded_songs)
+    val cachedTitle = stringResource(R.string.cached_playlist)
+    val exportedTitle = stringResource(R.string.action_exported)
+    val exportedVideosTitle = stringResource(R.string.exported_videos_playlist)
+
+    val nothingOffline = downloadedSongs.isEmpty() && cachedSongs.isEmpty() &&
+        exportedSongs.isEmpty() && exportedVideos.isEmpty()
 
     LazyColumn(
         state = rememberLazyListState(),
@@ -85,24 +123,34 @@ fun DownloadedOnlyView(
             )
         }
 
-        if (downloadedSongs.isEmpty()) {
+        if (nothingOffline) {
             item(key = "offline_empty") {
                 EmptyPlaceholder(
                     icon = R.drawable.download,
-                    text = stringResource(R.string.offline_empty_downloads),
+                    text = stringResource(R.string.offline_empty_all),
                 )
             }
-        } else {
+        }
+
+        // One section per offline source; a tap plays that section as the queue.
+        fun section(sectionKey: String, title: String, songs: List<Song>) {
+            if (songs.isEmpty()) return
+            item(key = "header_$sectionKey") {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+                )
+            }
             itemsIndexed(
-                items = downloadedSongs,
-                key = { _, song -> song.id },
+                items = songs,
+                key = { _, song -> "${sectionKey}_${song.id}" },
             ) { index, song ->
-                // Apple-style renglones (owner request): the offline body is a PURE song list — no
-                // video covers anywhere in it — so it gets the same row design as Local and the
-                // library lists. Same frame + hairline divider + trailing duration LocalSongScreen
-                // uses, and likewise unconditional: this view renders inside BOTH shells.
+                // Apple-style renglones (owner request): the offline body is a PURE song list, with the
+                // same row design as Local and the library lists, inside BOTH shells.
                 AuraAppleListRowFrame(
-                    showDivider = index < downloadedSongs.lastIndex,
+                    showDivider = index < songs.lastIndex,
                     dividerInset = AuraAppleCoverDividerInset,
                     modifier = Modifier.animateItem(),
                 ) {
@@ -125,8 +173,8 @@ fun DownloadedOnlyView(
                             } else {
                                 playerConnection.playQueue(
                                     ListQueue(
-                                        title = downloadsTitle,
-                                        items = downloadedSongs.map { it.toMediaItem() },
+                                        title = title,
+                                        items = songs.map { it.toMediaItem() },
                                         startIndex = index,
                                     )
                                 )
@@ -155,6 +203,11 @@ fun DownloadedOnlyView(
                 }
             }
         }
+
+        section("downloaded", downloadsTitle, downloadedSongs)
+        section("cached", cachedTitle, cachedSongs)
+        section("exported", exportedTitle, exportedSongs)
+        section("exported_videos", exportedVideosTitle, exportedVideos)
     }
 }
 

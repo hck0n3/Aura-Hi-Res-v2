@@ -501,6 +501,7 @@
     <string name="done">Done</string>
     <string name="audio_device_connected">Connected</string>
     <string name="audio_device_available">Available</string>
+    <string name="offline_empty_all">Nothing to play offline yet. Downloaded songs, songs fully saved in the cache and your exported MP3s and videos will appear here.</string>
     <string name="audio_devices">Audio devices</string>
     <string name="bluetooth_headphones">Bluetooth headphones</string>
     <string name="license">GNU General Public License v3.0</string>

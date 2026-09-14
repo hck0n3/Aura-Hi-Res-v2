@@ -440,6 +440,7 @@
     <string name="done">Listo</string>
     <string name="audio_device_connected">Conectado</string>
     <string name="audio_device_available">Disponible</string>
+    <string name="offline_empty_all">Todavía no hay nada para escuchar sin conexión. Aquí aparecerán tus descargas, las canciones guardadas completas en la caché y tus MP3 y videos exportados.</string>
     <string name="audio_devices">Dispositivos de audio</string>
     <string name="bluetooth_headphones">Auriculares Bluetooth</string>
     <string name="license">GNU General Public License v3.0</string>

@@ -38,6 +38,23 @@ class CachePlaylistViewModel @Inject constructor(
     private val _cachedSongs = MutableStateFlow<List<Song>>(emptyList())
     val cachedSongs: StateFlow<List<Song>> = _cachedSongs
 
+    /**
+     * Songs whose listen-cache copy is COMPLETE — exactly what offline mode can play (owner directive
+     * 2026-09-14: "el modo sin conexión puede reproducir lo que está en caché"). Same completeness test
+     * as MusicService.fullyCachedListenUri: the cache's own content length, all bytes present.
+     * [cachedSongs] also lists partial copies, which would fail with no network.
+     */
+    private val _fullyCachedSongs = MutableStateFlow<List<Song>>(emptyList())
+    val fullyCachedSongs: StateFlow<List<Song>> = _fullyCachedSongs
+
+    private fun isListenCopyComplete(keys: Set<String>, songId: String): Boolean =
+        keys.any { key ->
+            (StreamCacheKeys.belongsTo(key, songId) || key == songId) &&
+                androidx.media3.datasource.cache.ContentMetadata
+                    .getContentLength(playerCache.getContentMetadata(key))
+                    .let { length -> length > 0 && playerCache.isCached(key, 0, length) }
+        }
+
     init {
         // Run off the main thread: the DataStore reads and SimpleCache key-scans below
         // must not block the UI thread. Tied to viewModelScope so it is cancelled when the
@@ -52,8 +69,12 @@ class CachePlaylistViewModel @Inject constructor(
         // subscribes only while the cache screen/menu is actually composed — and resumes on demand.
         viewModelScope.launch(Dispatchers.IO) {
             while (true) {
-                if (_cachedSongs.subscriptionCount.value == 0) {
-                    _cachedSongs.subscriptionCount.first { it > 0 }
+                val subscribers = kotlinx.coroutines.flow.combine(
+                    _cachedSongs.subscriptionCount,
+                    _fullyCachedSongs.subscriptionCount,
+                ) { cached, full -> cached + full }
+                if (subscribers.first() == 0) {
+                    subscribers.first { it > 0 }
                 }
                 // Non-blocking suspend read of the latest preferences (no runBlocking on any thread).
                 val prefs = context.dataStore.data.first()
@@ -97,6 +118,11 @@ class CachePlaylistViewModel @Inject constructor(
                     } == true
                     song to fullyCached
                 }
+
+                _fullyCachedSongs.value = songs
+                    .filter { song -> isListenCopyComplete(playerKeys, song.song.id) }
+                    .filterExplicit(hideExplicit)
+                    .filterVideoSongs(hideVideoSongs)
 
                 val cachedSongsNow = cachedEntries.map { it.first }
                 if (cachedSongsNow.isNotEmpty()) {

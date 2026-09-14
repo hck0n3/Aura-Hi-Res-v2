@@ -29,6 +29,14 @@ tu sesión y tus ajustes. Incluye Cast para enviar la música a tu TV o altavoz.
 - **Nuevo modelo gratuito más preciso** para crear listas sin clave propia: respeta mejor el género, la época y los artistas pedidos.
 - **Más tiempo para que la IA responda** antes de recurrir a una lista hecha sin IA.
 
+## Modo sin conexión
+
+- **Reproduce todo lo que ya tienes en el teléfono:** además de las descargas, ahora aparecen y suenan sin internet las canciones guardadas completas en la caché, tus MP3 exportados y tus videos exportados.
+
+## Reproducción
+
+- **Compatibilidad con el nuevo reproductor de YouTube:** algunas canciones fallaban porque YouTube cambió su reproductor; la app ya lo reconoce (se aplica también sin actualizar).
+
 ## Servicios
 
 - **Se quitaron JioSaavn, Qobuz y Echo Canvas:** ya no aparecen en Estado de servicios ni en Cuentas. La música se sirve del catálogo principal y las portadas animadas de Apple Music y TIDAL Canvas.
