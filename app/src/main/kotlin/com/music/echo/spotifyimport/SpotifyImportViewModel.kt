@@ -33,6 +33,14 @@ class SpotifyImportViewModel @Inject constructor(
 
     init {
         restoreSession()
+        // Login/logout can happen in SpotifyLoginActivity or another screen: re-read the session when the
+        // stored cookie changes (the first emission is the value restoreSession() just read).
+        viewModelScope.launch {
+            var first = true
+            repository.sessionCookieChanges.collect {
+                if (first) first = false else restoreSession()
+            }
+        }
         // Mirror the background import's progress/summary/error so the screen stays in sync even if it
         // was closed and reopened while the import keeps running in the manager.
         viewModelScope.launch {

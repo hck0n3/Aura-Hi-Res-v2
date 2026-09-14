@@ -1179,7 +1179,12 @@ private fun AuraPlayerShape(
                         )
                         .padding(horizontal = AuraSpacing.Gutter, vertical = 0.dp),
                 ) {
-                    Spacer(Modifier.height(if (dense) 6.dp else 14.dp))
+                    // 14 → 8 dp: the height goes to the TIDAL-sized cover above.
+                    Spacer(Modifier.height(if (dense) 6.dp else 8.dp))
+                    // TIDAL-STYLE TITLE ROW (owner 2026-09-13): title and artist left-aligned, the like
+                    // heart on the right — where TIDAL puts "Agregar a Mi colección".
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = meta.title,
                         style = AuraType.PlayerTitle,
@@ -1292,6 +1297,17 @@ private fun AuraPlayerShape(
                                     },
                                 ),
                         )
+                    }
+                    }
+                    val titleRowLiked = currentSong?.song?.liked == true
+                    AuraIconButton(
+                        icon = if (titleRowLiked) AuraIcons.HeartFilled else AuraIcons.Heart,
+                        contentDescription = stringResource(R.string.action_like),
+                        onClick = playerConnection::toggleLike,
+                        size = if (dense) 24.dp else 26.dp,
+                        tint = if (titleRowLiked) transportAccent else AuraPalette.OnGround.copy(alpha = 0.85f),
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                    )
                     }
 
                     // ── Datos técnicos: FLAC · 24 BIT · 96 kHz ────────────────────────────────────
@@ -1414,8 +1430,9 @@ private fun AuraPlayerShape(
                 Spacer(Modifier.height(if (dense) 6.dp else 12.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth(),
+                    // TIDAL-STYLE TRANSPORT: shuffle · previous · play · next · repeat spread edge to edge.
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.Gutter),
                 ) {
                     AuraIconButton(
                         icon = AuraIcons.Shuffle,
@@ -1443,9 +1460,8 @@ private fun AuraPlayerShape(
                         tint = AuraPalette.OnGround.copy(alpha = 0.9f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
-                    Spacer(Modifier.width(6.dp))
                     AuraPlayButton(
-                        diameter = if (dense) 58.dp else 70.dp,
+                        diameter = if (dense) 58.dp else 74.dp,
                         // TV / coche: this is where the D-pad lands when the player opens. The latch is
                         // set from the button's OWN focus event rather than from a live `hasFocus`, so a
                         // user who D-pads away inside the retry window is not yanked back (the classic
@@ -1477,7 +1493,6 @@ private fun AuraPlayerShape(
                         fill = playButtonFill,
                         ink = playButtonInk,
                     )
-                    Spacer(Modifier.width(6.dp))
                     AuraIconButton(
                         icon = AuraIcons.SkipNext,
                         contentDescription = stringResource(R.string.next),
@@ -1530,14 +1545,6 @@ private fun AuraPlayerShape(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    AuraIconButton(
-                        icon = if (liked) AuraIcons.HeartFilled else AuraIcons.Heart,
-                        contentDescription = stringResource(R.string.action_like),
-                        onClick = playerConnection::toggleLike,
-                        size = quickAccessGlyph,
-                        tint = if (liked) transportAccent else AuraPalette.OnGround.copy(alpha = 0.7f),
-                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
-                    )
                     // "No me gusta" — the SAME call the menu row makes, and the same live flow behind it.
                     //
                     // ACTIVE STATE: [AuraIcons] pairs `Heart` with a filled `HeartFilled`, but `ThumbDown`
@@ -1882,7 +1889,7 @@ private fun AuraPlayerShape(
                     artworkContent(Modifier.weight(1f).fillMaxWidth())
                     controlsContent(false)
                     // ── Barra de estado del motor ─────────────────────────────────────────────────
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(2.dp))
                     AuraEngineStatusBar()
                 }
             }

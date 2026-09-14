@@ -614,7 +614,8 @@ fun AuraArtistScreen(
                             )
                         }
                         item(key = "aura_artist_local_albums_row") {
-                            val albumW = AuraAlbumShelfWidth
+                            // Same scale as the artist's video cards, like the online album shelves below.
+                            val albumW = AuraAlbumShelfWidth * 1.2f
                             AuraDoubleRowShelf(
                                 rowHeight = auraShelfCardStackHeight(albumW),
                                 modifier = Modifier.animateItem(),
@@ -860,7 +861,10 @@ fun AuraArtistScreen(
                                 } else {
                                 // Keep scale in ONE place: rowHeight must use the same scaled width as
                                 // AuraTypedYtCoverCard, or the year under the cover is clipped (owner report).
-                                val albumCardScale = 1.05f
+                                // Same scale as the artist's 16:9 video cards (1.2f above): a square cover
+                                // is sized off the video card's height, so both shelves line up (owner
+                                // directive 2026-09-13: disc/song covers as tall as the video thumbnails).
+                                val albumCardScale = 1.2f
                                 val cardW = AuraAlbumShelfWidth * albumCardScale
                                 // Albums / EPs / Singles / playlists: two sideways rows (Apple + YTM).
                                 AuraDoubleRowShelf(

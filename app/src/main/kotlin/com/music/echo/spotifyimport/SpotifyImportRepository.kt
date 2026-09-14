@@ -107,6 +107,22 @@ class SpotifyImportRepository @Inject constructor(
                 )
         }
 
+    /**
+     * The stored `sp_dc` session cookie, emitting only when it changes. The login now runs in its own
+     * window (SpotifyLoginActivity), so screens that restored the session once at start-up must react
+     * to a login or logout that happened elsewhere.
+     */
+    val sessionCookieChanges: kotlinx.coroutines.flow.Flow<String> = kotlinx.coroutines.flow.flow {
+        var last: String? = null
+        context.dataStore.data.collect { prefs ->
+            val spDc = prefs[SpotifySpDcKey].orEmpty()
+            if (spDc != last) {
+                last = spDc
+                emit(spDc)
+            }
+        }
+    }
+
     suspend fun connectWithCookies(
         spDc: String,
         spKey: String,
@@ -795,6 +811,37 @@ class SpotifyImportRepository @Inject constructor(
         return MatchResult.Success(
             MatchedTrack(index = index, metadata = bestCandidate.toMediaMetadata()),
         )
+    }
+
+    /**
+     * Finds the YouTube Music song for each track described by an external link (Spotify, Deezer, Apple
+     * Music, Tidal…), with the same scored matching the Spotify import uses. Order is kept; a track with no
+     * trustworthy match is null. At most [limit] tracks are matched.
+     */
+    suspend fun matchExternalTracks(tracks: List<SpotifyTrack>, limit: Int = 100): List<MediaMetadata?> =
+        coroutineScope {
+            val semaphore = Semaphore(MAX_CONCURRENT_MATCHES)
+            tracks.take(limit).mapIndexed { index, track ->
+                async {
+                    semaphore.withPermit {
+                        val result = try {
+                            matchTrack(track, index)
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (error: Throwable) {
+                            reportException(error)
+                            null
+                        }
+                        (result as? MatchResult.Success)?.matched?.metadata
+                    }
+                }
+            }.awaitAll()
+        }
+
+    /** Makes sure a Spotify token exists for reading public albums/playlists: the session one, else anonymous. */
+    suspend fun ensureSpotifyReadToken(): Boolean {
+        if (restoreSession().isAuthenticated) return true
+        return refreshAnonymousToken().isSuccess
     }
 
     private fun SpotifyTrack.toFailureUi(reason: SpotifyImportFailureReason): SpotifyImportFailureUi =

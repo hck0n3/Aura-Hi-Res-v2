@@ -598,7 +598,7 @@ fun SongMenu(
                                 val intent = Intent().apply {
                                     action = Intent.ACTION_SEND
                                     type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, ShareLinks.song(song.id))
+                                    putExtra(Intent.EXTRA_TEXT, ShareLinks.songShareText(song.id, song.song.title, song.artists.map { it.name }))
                                 }
                                 context.startActivity(Intent.createChooser(intent, null))
                             }

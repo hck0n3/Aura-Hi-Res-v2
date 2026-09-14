@@ -498,6 +498,14 @@
     <string name="voice_search_unavailable">Reconocimiento de voz no disponible en este dispositivo</string>
     <string name="open_links_title">Abrir enlaces</string>
     <string name="open_links_summary">Establece Aura como predeterminada para abrir enlaces de YouTube Music</string>
+    <string name="share_song_link_title">Compartir con song.link</string>
+    <string name="share_song_link_summary">La canción compartida se abre en Spotify, Apple Music, Deezer o donde la escuche quien la recibe</string>
+    <string name="open_links_prompt_title">Abrir enlaces de música con Aura</string>
+    <string name="open_links_prompt_body">Aura puede abrir enlaces de YouTube Music, Spotify, Apple Music, Deezer, Tidal, SoundCloud y song.link. Android pide permitirlo una vez: toca «Permitir», activa «Abrir enlaces compatibles» y agrega todos los enlaces.</string>
+    <string name="open_links_prompt_allow">Permitir</string>
+    <string name="open_links_prompt_later">Más tarde</string>
+    <string name="external_link_searching">Buscándolo en YouTube Music…</string>
+    <string name="external_link_not_found">No se encontró en YouTube Music</string>
 
     <!-- Lista AI por texto -->
     <string name="ai_playlist_title">Lista AI</string>

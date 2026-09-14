@@ -1702,22 +1702,27 @@ private fun BandEqCard(
                 style = MaterialTheme.typography.labelLarge,
             )
             Text("Ganancia", style = MaterialTheme.typography.labelSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { onBandChange(sel, selGain - 0.1f); onBandCommit() },
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                ) { Text("−0.1 dB") }
-                OutlinedButton(
-                    onClick = { onBandChange(sel, 0f); onBandCommit() },
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                ) { Text("0 dB") }
-                OutlinedButton(
-                    onClick = { onBandChange(sel, selGain + 0.1f); onBandCommit() },
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                ) { Text("+0.1 dB") }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Coarse ±1 dB steps are audible at once; ±0.1 dB is for fine trimming.
+                listOf(-1f to "−1", -0.1f to "−0.1", 0f to "0", 0.1f to "+0.1", 1f to "+1").forEach { (step, label) ->
+                    OutlinedButton(
+                        onClick = {
+                            onBandChange(sel, if (step == 0f) 0f else selGain + step)
+                            onBandCommit()
+                        },
+                        enabled = enabled,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 2.dp),
+                        modifier = Modifier.weight(1f),
+                    ) { Text(label, maxLines = 1) }
+                }
+            }
+            if (kotlin.math.abs(selGain) < 0.05f) {
+                // A 0 dB band is bypassed by the engine, so Q and filter type cannot be heard on it.
+                Text(
+                    "Esta banda está en 0 dB: súbela o bájala para oír los cambios de Q y tipo.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Text("Ancho de banda (Q)", style = MaterialTheme.typography.labelSmall)
             Slider(

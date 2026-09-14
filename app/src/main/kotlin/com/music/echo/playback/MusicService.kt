@@ -9915,7 +9915,14 @@ class MusicService :
 
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, ShareLinks.song(songId))
+            putExtra(
+                Intent.EXTRA_TEXT,
+                ShareLinks.songShareText(
+                    songId,
+                    currentMediaMetadata.value?.title ?: songData.song.title,
+                    currentMediaMetadata.value?.artists?.map { it.name } ?: songData.artists.map { it.name },
+                ),
+            )
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         startActivity(Intent.createChooser(shareIntent, null).apply {

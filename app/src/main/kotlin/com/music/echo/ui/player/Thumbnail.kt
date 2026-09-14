@@ -201,7 +201,7 @@ private val OPAQUE_DARK_COVER_INSET = 8.dp
  * Side margin of the new player's cover — TIDAL's now-playing proportions (owner directive 2026-09-13):
  * a near edge-to-edge square with a thin margin, instead of the classic 32 dp inset.
  */
-private val TIDAL_COVER_SIDE_PADDING = 20.dp
+private val TIDAL_COVER_SIDE_PADDING = 24.dp
 
 /** Elevation of the artwork card on an [ThumbnailHost.OPAQUE_DARK] host. */
 private val OPAQUE_DARK_COVER_ELEVATION = 16.dp
@@ -656,13 +656,10 @@ fun Thumbnail(
                             // what it was and the classic player is untouched. `maxHeight` is Dp.Infinity
                             // if a caller is ever unbounded, and `coerceAtMost(Dp.Infinity)` is a no-op.
                             maxThumbnailSize = run {
-                                val slotCap = if (host == ThumbnailHost.OPAQUE_DARK && !appleMusicCoverStyle) {
-                                    // Card look keeps breathing room for elevation. Apple Music cover
-                                    // style in New UI fills the slot (cover-only effect, no button change).
-                                    (maxHeight - OPAQUE_DARK_COVER_INSET * 2).coerceAtLeast(0.dp)
-                                } else {
-                                    maxHeight
-                                }
+                                // TIDAL-SIZED COVER (owner 2026-09-13, measured on the Galaxy: 320 dp vs
+                                // TIDAL's ~352 dp): the new player's cover uses the slot's full height —
+                                // the 8 dp elevation inset was what kept it height-capped below TIDAL's size.
+                                val slotCap = maxHeight
                                 // #50 unchanged: on a wide screen the 420 dp ceiling still applies — it is
                                 // now simply the SMALLER of the two caps, because a 420 dp square in a
                                 // 300 dp-tall slot letterboxes exactly the same way.

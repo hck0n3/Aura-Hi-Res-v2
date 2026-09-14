@@ -2332,7 +2332,7 @@ fun Lyrics(
                                     action = Intent.ACTION_SEND
                                     type = "text/plain"
                                     val songLink =
-                                        ShareLinks.song(mediaMetadata?.id)
+                                        if (ShareLinks.useSongLink()) ShareLinks.songLink(mediaMetadata?.id) else ShareLinks.song(mediaMetadata?.id)
                                     
                                     putExtra(
                                         Intent.EXTRA_TEXT,

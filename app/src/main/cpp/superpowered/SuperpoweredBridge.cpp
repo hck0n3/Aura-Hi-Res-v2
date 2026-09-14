@@ -692,12 +692,14 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setEqBand(JNIEnv 
         // Shelves (SDK LowShelf/HighShelf) hold their gain out to DC / Nyquist instead of rolling off like a
         // peak — the correct choice for the lowest/highest graphic-EQ bands (fixes the "edges roll off oddly"
         // and makes the audio match the shelf curve drawn in the UI).
-        if (filterType == 1) {
-            b.type = Superpowered::Filter::LowShelf;
-            b.slope = 0.6f;
-        } else if (filterType == 2) {
-            b.type = Superpowered::Filter::HighShelf;
-            b.slope = 0.6f;
+        if (filterType == 1 || filterType == 2) {
+            b.type = filterType == 1 ? Superpowered::Filter::LowShelf : Superpowered::Filter::HighShelf;
+            // Shelves honour the band's Q too (the manual graphic EQ exposes it): slope scales with Q
+            // around the historic 0.6 at the default Q 1.414, so an untouched band sounds exactly as
+            // before; a lower Q is a gentler shelf, a higher Q a steeper one. SDK limit: 0.001..1.
+            float slope = 0.6f * (Q / 1.414f);
+            if (!(slope >= 0.05f)) slope = 0.05f; else if (slope > 1.0f) slope = 1.0f;
+            b.slope = slope;
         } else {
             b.type = Superpowered::Filter::Parametric;
             // Convert Q -> octave BANDWIDTH (the SDK's Parametric width unit). Q and octave are different

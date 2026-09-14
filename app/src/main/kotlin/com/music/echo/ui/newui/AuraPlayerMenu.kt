@@ -726,7 +726,7 @@ fun AuraPlayerMenu(
                             val intent = Intent().apply {
                                 action = Intent.ACTION_SEND
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, ShareLinks.song(mediaMetadata.id))
+                                putExtra(Intent.EXTRA_TEXT, ShareLinks.songShareText(mediaMetadata.id, mediaMetadata.title, mediaMetadata.artists.map { it.name }))
                             }
                             context.startActivity(Intent.createChooser(intent, null))
                             onDismiss()

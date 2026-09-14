@@ -1320,6 +1320,21 @@ class MainActivity : ComponentActivity() {
                 var batteryReliabilityOemEvidence by remember { mutableStateOf(false) }
                 // Tutorials / Welcome only show on FIRST RUN EVER (lastOpenedVersionCode == -1), NEVER on app updates.
                 val welcomeWillShow = lastOpenedVersionCode == -1
+                // One-shot "open music links with Aura" prompt — after the first-run welcome/onboarding, and
+                // only while Android has not already given Aura the YouTube Music links.
+                val (openLinksPromptShown, setOpenLinksPromptShown) =
+                    rememberPreference(iad1tya.echo.music.constants.OpenLinksPromptShownKey, false)
+                var showOpenLinksPrompt by remember { mutableStateOf(false) }
+                LaunchedEffect(welcomeWillShow, showWelcomeDialog, openLinksPromptShown) {
+                    if (openLinksPromptShown || welcomeWillShow || showWelcomeDialog) return@LaunchedEffect
+                    delay(4000)
+                    if (showBatteryReliabilityDialog) return@LaunchedEffect
+                    if (iad1tya.echo.music.ui.screens.isAuraOpeningMusicLinks(this@MainActivity)) {
+                        setOpenLinksPromptShown(true)
+                    } else {
+                        showOpenLinksPrompt = true
+                    }
+                }
 
                 LaunchedEffect(lastOpenedVersionCode) {
                     if (lastOpenedVersionCode == -1) {
@@ -2182,7 +2197,10 @@ class MainActivity : ComponentActivity() {
                                 Modifier
                                     .weight(1f)
                                     .then(
-                                        if (shellHazeState != null) {
+                                        // WebView login screens are left out of the haze source: the
+                                        // recorded layer never shows the WebView's own drawing, so the
+                                        // YouTube and Spotify logins rendered as an empty page.
+                                        if (shellHazeState != null && currentRoute != "login" && currentRoute != "spotify_login") {
                                             Modifier.shellHazeSource(shellHazeState)
                                         } else {
                                             Modifier
@@ -2418,6 +2436,13 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    if (showOpenLinksPrompt) {
+                        iad1tya.echo.music.ui.screens.OpenLinksDefaultPrompt(onDone = {
+                            showOpenLinksPrompt = false
+                            setOpenLinksPromptShown(true)
+                        })
+                    }
+
                     if (showBatteryReliabilityDialog) {
                         iad1tya.echo.music.ui.screens.BackgroundReliabilityDialog(
                             oemKillEvidence = batteryReliabilityOemEvidence,
@@ -2454,6 +2479,83 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     } // SHELL GLASS (A1): close of the CompositionLocalProvider(LocalShellHazeState)
+                }
+            }
+        }
+    }
+
+    /**
+     * Opens a music link from another platform: the song plays, an album opens its YouTube Music page
+     * (or plays as a queue when YouTube Music has no matching album), a playlist plays as a queue.
+     */
+    private fun openExternalMusicLink(
+        link: android.net.Uri,
+        navController: NavHostController,
+        playVideo: (String, String?) -> Unit,
+    ) {
+        android.widget.Toast.makeText(this, R.string.external_link_searching, android.widget.Toast.LENGTH_SHORT).show()
+        lifecycle.coroutineScope.launch(Dispatchers.IO) {
+            val resolved = iad1tya.echo.music.utils.ExternalMusicLinks.resolve(this@MainActivity, link)
+            val repository = iad1tya.echo.music.spotifyimport.SpotifyImportRepository.get(this@MainActivity)
+            suspend fun notFound(query: String?) = withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(this@MainActivity, R.string.external_link_not_found, android.widget.Toast.LENGTH_LONG).show()
+                if (!query.isNullOrBlank()) runCatching { navController.navigate("search/${URLEncoder.encode(query, "UTF-8")}") }
+            }
+            suspend fun findAlbum(query: String, title: String): com.music.innertube.models.AlbumItem? =
+                YouTube.search(query, YouTube.SearchFilter.FILTER_ALBUM).getOrNull()?.items
+                    ?.filterIsInstance<com.music.innertube.models.AlbumItem>()
+                    ?.let { albums ->
+                        val wanted = title.lowercase().substringBefore(" (").trim()
+                        albums.firstOrNull { it.title.lowercase().contains(wanted) || wanted.contains(it.title.lowercase()) }
+                    }
+            suspend fun playTracks(title: String, tracks: List<iad1tya.echo.music.spotify.models.SpotifyTrack>) {
+                val matched = repository.matchExternalTracks(tracks).filterNotNull()
+                if (matched.isEmpty()) {
+                    notFound(title)
+                } else {
+                    withContext(Dispatchers.Main) {
+                        playerConnection?.playQueue(ListQueue(title = title, items = matched.map { it.toMediaItem() }))
+                    }
+                }
+            }
+            when (resolved) {
+                null -> notFound(null)
+                is iad1tya.echo.music.utils.ExternalMusicLinks.Resolved.Tracks -> when (resolved.kind) {
+                    iad1tya.echo.music.utils.ExternalMusicLinks.Kind.TRACK -> {
+                        val song = repository.matchExternalTracks(resolved.tracks, limit = 1).firstOrNull()
+                        if (song != null) {
+                            withContext(Dispatchers.Main) { playVideo(song.id, null) }
+                        } else {
+                            notFound("${resolved.title} ${resolved.artist}".trim())
+                        }
+                    }
+                    iad1tya.echo.music.utils.ExternalMusicLinks.Kind.ALBUM -> {
+                        val album = findAlbum("${resolved.artist} ${resolved.title}".trim(), resolved.title)
+                        if (album != null) {
+                            withContext(Dispatchers.Main) { navController.navigate("album/${album.browseId}") }
+                        } else {
+                            playTracks(resolved.title, resolved.tracks)
+                        }
+                    }
+                    iad1tya.echo.music.utils.ExternalMusicLinks.Kind.PLAYLIST -> playTracks(resolved.title, resolved.tracks)
+                }
+                is iad1tya.echo.music.utils.ExternalMusicLinks.Resolved.Query -> when (resolved.kind) {
+                    iad1tya.echo.music.utils.ExternalMusicLinks.Kind.TRACK -> {
+                        val song = YouTube.search(resolved.text, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                            ?.items?.filterIsInstance<SongItem>()?.firstOrNull()
+                        if (song != null) withContext(Dispatchers.Main) { playVideo(song.id, null) } else notFound(resolved.text)
+                    }
+                    iad1tya.echo.music.utils.ExternalMusicLinks.Kind.ALBUM -> {
+                        val album = findAlbum(resolved.text, resolved.text)
+                        if (album != null) {
+                            withContext(Dispatchers.Main) { navController.navigate("album/${album.browseId}") }
+                        } else {
+                            notFound(resolved.text)
+                        }
+                    }
+                    iad1tya.echo.music.utils.ExternalMusicLinks.Kind.PLAYLIST -> withContext(Dispatchers.Main) {
+                        runCatching { navController.navigate("search/${URLEncoder.encode(resolved.text, "UTF-8")}") }
+                    }
                 }
             }
         }
@@ -2669,6 +2771,18 @@ class MainActivity : ComponentActivity() {
         // Real YT/YTM ids are always [A-Za-z0-9_-]+.
         fun isRouteSafeId(id: String): Boolean = id.isNotEmpty() && id.all {
             it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '-' || it == '_'
+        }
+
+        // song.link/y/<videoId> is the link Aura itself shares: it IS a YouTube id, play it straight away.
+        iad1tya.echo.music.utils.ExternalMusicLinks.songLinkVideoId(uri)?.let { videoId ->
+            playVideo(videoId, null)
+            return
+        }
+        // Links from other music platforms (Spotify, Apple Music, Deezer, Tidal, SoundCloud, Amazon Music…):
+        // read the song / album / playlist from the platform and find it on YouTube Music.
+        if (iad1tya.echo.music.utils.ExternalMusicLinks.isExternalMusicLink(uri)) {
+            openExternalMusicLink(uri, navController, ::playVideo)
+            return
         }
 
         when (val path = uri.pathSegments.firstOrNull()) {

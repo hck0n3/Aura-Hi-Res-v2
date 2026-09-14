@@ -536,14 +536,29 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable("login") {
-        LoginScreen(navController)
+        // Own plain window (YouTubeLoginActivity) — the in-app login page rendered blank on the owner's Galaxy.
+        val context = androidx.compose.ui.platform.LocalContext.current
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            context.startActivity(
+                android.content.Intent(context, iad1tya.echo.music.ui.screens.YouTubeLoginActivity::class.java),
+            )
+            navController.navigateUp()
+        }
     }
 
     // Spotify login — full-screen structural clone of the Google login (2026-09-04: the
     // ModalBottomSheet variant never rendered on the owner's S26 Ultra — see the header
     // of SpotifyLoginScreen.kt and registry row 207/209).
     composable("spotify_login") {
-        SpotifyLoginScreen(navController)
+        // The login runs in its own plain window (SpotifyLoginActivity): inside the app window the page
+        // loaded but was never seen on the owner's Galaxy. This route only opens it and steps back.
+        val context = androidx.compose.ui.platform.LocalContext.current
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            context.startActivity(
+                android.content.Intent(context, iad1tya.echo.music.spotify.SpotifyLoginActivity::class.java),
+            )
+            navController.navigateUp()
+        }
     }
 
     composable("onboarding_artists") {

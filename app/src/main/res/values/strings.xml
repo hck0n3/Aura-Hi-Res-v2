@@ -564,6 +564,14 @@
     <string name="voice_search_unavailable">Voice recognition not available on this device</string>
     <string name="open_links_title">Open links</string>
     <string name="open_links_summary">Set Aura as default to open YouTube Music links</string>
+    <string name="share_song_link_title">Share with song.link</string>
+    <string name="share_song_link_summary">A shared song opens in Spotify, Apple Music, Deezer or wherever the person listens</string>
+    <string name="open_links_prompt_title">Open music links with Aura</string>
+    <string name="open_links_prompt_body">Aura can open YouTube Music, Spotify, Apple Music, Deezer, Tidal, SoundCloud and song.link links. Android asks you to allow it once: tap "Allow", then turn on "Open supported links" and add every link.</string>
+    <string name="open_links_prompt_allow">Allow</string>
+    <string name="open_links_prompt_later">Later</string>
+    <string name="external_link_searching">Finding it on YouTube Music…</string>
+    <string name="external_link_not_found">Could not find it on YouTube Music</string>
 
     <!-- AI text-to-playlist -->
     <string name="ai_playlist_title">AI Playlist</string>

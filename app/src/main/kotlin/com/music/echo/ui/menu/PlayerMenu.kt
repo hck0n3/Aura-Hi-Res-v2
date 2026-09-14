@@ -435,7 +435,7 @@ fun PlayerMenu(
                                     type = "text/plain"
                                     putExtra(
                                         android.content.Intent.EXTRA_TEXT,
-                                        ShareLinks.song(mediaMetadata.id)
+                                        ShareLinks.songShareText(mediaMetadata.id, mediaMetadata.title, mediaMetadata.artists.map { it.name })
                                     )
                                 }
                                 context.startActivity(android.content.Intent.createChooser(intent, null))

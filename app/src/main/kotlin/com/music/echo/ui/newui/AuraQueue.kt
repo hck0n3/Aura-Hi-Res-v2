@@ -1290,8 +1290,8 @@ private fun AuraBarButton(
             .padding(4.dp)
             .clip(shape)
             .then(
-                if (active) Modifier.background(activeContainerColor, shape)
-                else Modifier.border(1.dp, contentColor.copy(alpha = 0.28f), shape)
+                // TIDAL-style flat icons: only the active button (e.g. lyrics open) keeps a filled pill.
+                if (active) Modifier.background(activeContainerColor, shape) else Modifier
             )
             .tvFocusable(iad1tya.echo.music.ui.utils.rememberIsTvOrCar(), shape)
             .clickable(enabled = enabled, onClickLabel = contentDescription, role = Role.Button, onClick = onClick),

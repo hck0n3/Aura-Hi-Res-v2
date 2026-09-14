@@ -168,6 +168,7 @@ fun ContentSettings(
     val (quickPicks, onQuickPicksChange) = rememberEnumPreference(key = QuickPicksKey, defaultValue = QuickPicks.QUICK_PICKS)
     // OFF by default (owner's call). Keep in sync with HomeScreen's default for the same key.
     val (showSpeedDial, onShowSpeedDialChange) = rememberPreference(key = ShowSpeedDialKey, defaultValue = true)
+    val (shareUseSongLink, onShareUseSongLinkChange) = rememberPreference(key = iad1tya.echo.music.constants.ShareUseSongLinkKey, defaultValue = true)
     val (randomizeHomeOrder, onRandomizeHomeOrderChange) = rememberPreference(
         RandomizeHomeOrderKey,
         defaultValue = false
@@ -1372,6 +1373,22 @@ fun ContentSettings(
         Material3SettingsGroup(
             title = stringResource(R.string.open_links_title),
             items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.share),
+                    title = { Text(stringResource(R.string.share_song_link_title)) },
+                    description = { Text(stringResource(R.string.share_song_link_summary)) },
+                    trailingContent = {
+                        Switch(
+                            checked = shareUseSongLink,
+                            onCheckedChange = { onShareUseSongLinkChange(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    },
+                    onClick = { onShareUseSongLinkChange(!shareUseSongLink) }
+                ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.web_link),
                     title = { Text(stringResource(R.string.open_links_title)) },

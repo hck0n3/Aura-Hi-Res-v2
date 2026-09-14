@@ -205,6 +205,11 @@ fun SpotifyLoginScreen(navController: NavController) {
             factory = { webViewContext ->
                 WebView(webViewContext).apply {
                     webViewRef = this
+                    // Device DevTools check (2026-09-13): the login page reported
+                    // document.visibilityState == "hidden" while on screen, so Chromium painted only
+                    // the page background — the dark empty screen. Forcing the page active made it
+                    // visible. Keep this WebView explicitly resumed.
+                    keepWebViewResumed(this)
                     // LAYER 1 (2026-09-05 diagnosis): a WebView without its own background is
                     // algorithmic-darkening prey on One UI (light parent theme + targetSdk 36),
                     // and the dark pre-paint over the app's near-black ground read as "no
@@ -224,6 +229,12 @@ fun SpotifyLoginScreen(navController: NavController) {
                         // with the WebView's own client hints; the frozen Chrome/Windows UA was
                         // placebo #1 of this saga).
                         userAgentString = userAgentString.replace("; wv", "")
+                        // The device test showed the login form present in the DOM (visible, sized)
+                        // while the screen stayed dark: the dark app theme lets the WebView darken
+                        // the page algorithmically. The login page brings its own colors.
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            isAlgorithmicDarkeningAllowed = false
+                        }
                     }
 
                     webViewClient = object : WebViewClient() {
@@ -243,6 +254,11 @@ fun SpotifyLoginScreen(navController: NavController) {
                             showLoadingPlaceholder = true
                             loginBroken = false
                             captureCookies()
+                        }
+
+                        override fun onPageCommitVisible(view: WebView, url: String?) {
+                            // First visual commit of the page: hand the surface to it right away.
+                            showLoadingPlaceholder = false
                         }
 
                         override fun onPageFinished(view: WebView, url: String?) {
@@ -362,6 +378,9 @@ fun SpotifyLoginScreen(navController: NavController) {
                             if (newProgress in listOf(25, 50, 100)) {
                                 Timber.i("SpotifyLogin: progress $newProgress%")
                             }
+                            // onPageFinished is not always delivered on Samsung builds (the log shows
+                            // 100% with no finish) — never keep the placeholder over a loaded page.
+                            if (newProgress >= 100) showLoadingPlaceholder = false
                         }
                     }
 

@@ -307,7 +307,7 @@ fun QueueMenu(
                                 type = "text/plain"
                                 putExtra(
                                     Intent.EXTRA_TEXT,
-                                    ShareLinks.song(mediaMetadata.id)
+                                    ShareLinks.songShareText(mediaMetadata.id, mediaMetadata.title, mediaMetadata.artists.map { it.name })
                                 )
                             }
                             context.startActivity(Intent.createChooser(intent, null))

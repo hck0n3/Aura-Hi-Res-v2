@@ -219,6 +219,45 @@
                 <data android:host="youtu.be" />
                 <data android:pathPrefix="/" />
             </intent-filter>
+
+            <!-- Music links from other platforms (Spotify, Apple Music, Deezer, Tidal, SoundCloud, Amazon Music,
+                 song.link): MainActivity resolves them to YouTube Music (utils/ExternalMusicLinks.kt).
+                 No autoVerify — these domains are not ours; the user enables them in "Open by default". -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="open.spotify.com" />
+                <data android:host="spotify.link" />
+                <data android:host="spotify.app.link" />
+                <data android:host="music.apple.com" />
+                <data android:host="geo.music.apple.com" />
+                <data android:host="deezer.com" />
+                <data android:host="www.deezer.com" />
+                <data android:host="link.deezer.com" />
+                <data android:host="deezer.page.link" />
+                <data android:host="tidal.com" />
+                <data android:host="listen.tidal.com" />
+                <data android:host="soundcloud.com" />
+                <data android:host="m.soundcloud.com" />
+                <data android:host="on.soundcloud.com" />
+                <data android:host="music.amazon.com" />
+                <data android:host="song.link" />
+                <data android:host="album.link" />
+                <data android:host="odesli.co" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="spotify" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
@@ -295,6 +334,20 @@
             android:name="com.yalantis.ucrop.UCropActivity"
             android:exported="false"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+
+        <activity
+            android:name=".ui.screens.YouTubeLoginActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".spotify.SpotifyLoginActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:windowSoftInputMode="adjustResize" />
 
         <service
             android:name=".playback.MusicService"

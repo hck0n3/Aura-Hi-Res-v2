@@ -92,7 +92,7 @@ private val loginCompletionRunning = AtomicBoolean(false)
  * every variant of the white screen: the jar is the truth, the URL is just where the WebView
  * happens to be stuck.
  */
-private const val JAR_WATCH_INTERVAL_MS = 500L
+internal const val JAR_WATCH_INTERVAL_MS = 500L
 
 /**
  * Registry #190: how long a minted Google account session (password accepted) is given to
@@ -105,7 +105,7 @@ private const val JAR_WATCH_INTERVAL_MS = 500L
  * can legitimately take 5-6s on mobile) time to finish on its own; only a genuinely stuck
  * chain gets rescued, and the user is far less likely to be mid-typing when it fires.
  */
-private const val HANDSHAKE_RESCUE_GRACE_MS = 8000L
+internal const val HANDSHAKE_RESCUE_GRACE_MS = 8000L
 
 /**
  * Registry #190: total rescue attempts per screen visit. Each rescue re-loads the handshake
@@ -115,7 +115,7 @@ private const val HANDSHAKE_RESCUE_GRACE_MS = 8000L
  * 2026-09-05: 3 → 2 — the third reload never cured anything the second didn't, and each
  * extra reload multiplies the flicker the owner reported.
  */
-private const val MAX_HANDSHAKE_RESCUES = 2
+internal const val MAX_HANDSHAKE_RESCUES = 2
 
 /**
  * Registry #182: the sign-in entry point. InnerTune — the reference implementation this flow
@@ -126,7 +126,7 @@ private const val MAX_HANDSHAKE_RESCUES = 2
  * with the bare continue the WebView can land on music.youtube.com without it, detection never
  * fires, and the app "se queda allí donde inicio sesión y no hace nada" (the owner's report).
  */
-private fun youTubeServiceLoginUrl(emailHint: String? = null): String {
+internal fun youTubeServiceLoginUrl(emailHint: String? = null): String {
     val base = "https://accounts.google.com/ServiceLogin" +
         "?ltmpl=music&service=youtube&passive=true" +
         "&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F"
@@ -148,12 +148,12 @@ private fun youTubeServiceLoginUrl(emailHint: String? = null): String {
  * read AFTER the propagation delay because the JavascriptInterface callbacks deliver those
  * values asynchronously during the wait.
  */
-private fun completeLogin(
+internal fun completeLogin(
     context: Context,
     syncUtils: SyncUtils,
     cookie: String,
-    visitorDataState: MutableState<String>,
-    dataSyncIdState: MutableState<String>,
+    visitorDataOf: () -> String,
+    dataSyncIdOf: () -> String,
     onFinished: ((Boolean) -> Unit)?,
 ) {
     if (!loginCompletionRunning.compareAndSet(false, true)) return
@@ -165,8 +165,8 @@ private fun completeLogin(
             // and InnerTube.accountMenu now retries 5xx on a 1 s/2 s clock too.
             delay(1500)
 
-            val visitorData = visitorDataState.value
-            val dataSyncId = dataSyncIdState.value
+            val visitorData = visitorDataOf()
+            val dataSyncId = dataSyncIdOf()
 
             YouTube.cookie = cookie
             YouTube.dataSyncId = dataSyncId
@@ -268,7 +268,7 @@ fun LoginScreen(
 
         // HALLAZGO-061: completion runs on the application scope — leaving the screen during
         // validation can no longer cancel it.
-        completeLogin(context, syncUtils, pageCookie, visitorDataState, dataSyncIdState) { ok ->
+        completeLogin(context, syncUtils, pageCookie, { visitorDataState.value }, { dataSyncIdState.value }) { ok ->
             if (ok) {
                 webViewRef?.apply {
                     stopLoading()
@@ -431,6 +431,10 @@ fun LoginScreen(
                         setSupportZoom(true)
                         builtInZoomControls = true
                         displayZoomControls = false
+                        // Same as the Spotify login: never let the dark app theme darken the login page.
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            isAlgorithmicDarkeningAllowed = false
+                        }
                     }
                     addJavascriptInterface(
                         LoginSessionBridge(
@@ -440,6 +444,8 @@ fun LoginScreen(
                         "Android",
                     )
                     webViewRef = this
+                    // Same hidden-page state as the Spotify login (blank screen): keep it resumed.
+                    iad1tya.echo.music.ui.screens.keepWebViewResumed(this)
                     // Owner report 2026-09-04 (flicker blanco↔contenido making login impossible):
                     // the screen used to load the handshake over whatever jar the previous visit
                     // left behind. A stale .google.com SAPISID with no .youtube.com one made the
@@ -537,7 +543,7 @@ fun LoginScreen(
                 }.getOrNull()
                 if (isLoggedCookie(webCookie)) {
                     Timber.d("Login screen disposed with an uncompleted session, finishing on the application scope (HALLAZGO-061)")
-                    completeLogin(context, syncUtils, webCookie!!, visitorDataState, dataSyncIdState, null)
+                    completeLogin(context, syncUtils, webCookie!!, { visitorDataState.value }, { dataSyncIdState.value }, null)
                 }
             }
         }

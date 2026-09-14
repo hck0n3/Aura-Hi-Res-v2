@@ -1248,3 +1248,9 @@ val OutputDitherEnabledKey = booleanPreferencesKey("mastering_output_dither_enab
 
 /** Mastering: -5 dB sub-bass shelf while the PHONE SPEAKER is the output route. Default OFF (user opt-in). */
 val SpeakerBassProtectEnabledKey = booleanPreferencesKey("mastering_speaker_bass_protect_enabled")
+
+// Song shares send a song.link universal link (opens in Spotify, Apple Music, Deezer…). Default on.
+val ShareUseSongLinkKey = booleanPreferencesKey("share_use_song_link")
+
+// One-shot first-run prompt asking to make Aura the default app for YouTube Music / music links.
+val OpenLinksPromptShownKey = booleanPreferencesKey("open_links_default_prompt_shown")
