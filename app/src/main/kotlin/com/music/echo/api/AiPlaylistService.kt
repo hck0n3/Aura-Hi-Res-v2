@@ -71,11 +71,13 @@ object AiPlaylistService {
      * tighter, because the HTTP call is CANCELABLE (enqueue + call.cancel) so the budget actually
      * cuts a hung call, instead of waiting out the socket.
      */
+    // 60 s (2026-09-14): gpt-oss-120b answers a 22-track ask in ~31 s; 45 s left no margin for a
+    // busy Worker and turned real answers into "sin IA".
     private val keylessClient = client.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
-        .callTimeout(45, TimeUnit.SECONDS)
+        .callTimeout(60, TimeUnit.SECONDS)
         .build()
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
@@ -88,7 +90,12 @@ object AiPlaylistService {
     private const val AURA_WORKER_URL = "https://round-math-d64e.toberto4000.workers.dev/ai"
 
     /** Suggested model for the Worker; the Worker may ignore/override it server-side. */
-    private const val AURA_WORKER_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+    // MOST ACCURATE FREE MODEL (owner directive 2026-09-14: "la mejor IA gratuita… lo más acertiva
+    // posible"). Live comparison on the Worker, same brief ("salsa romántica de los 90", 20 tracks):
+    // llama-3.3-70b 6.8 s but drifted genre (merengue, wrong years); qwen3-30b 11 s, broken JSON and
+    // reggaeton; llama-4-scout 31 s, duplicates and rancheras; gpt-oss-120b 31 s, a real, on-brief
+    // salsa romántica list. Precision wins; the generator's budget was widened to fit it.
+    private const val AURA_WORKER_MODEL = "@cf/openai/gpt-oss-120b"
 
     /** Modest per-endpoint retries for the keyless chain so the chained worst case stays bounded. */
     private const val KEYLESS_MAX_RETRIES = 2

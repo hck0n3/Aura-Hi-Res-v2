@@ -170,7 +170,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         // being rebuilt (the queue arrived late) keeps the local playhead.
                         val startAt =
                             when {
-                                sameTrack -> safePosition(conn)
+                                sameTrack -> onMain { safePosition(conn) }
                                 // change_track carries position 0, and 0 means "from the top" —
                                 // running it through the clock correction turns it into however
                                 // long ago the last command was, which can seek past the end.
@@ -317,30 +317,61 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             }
     }
 
-    private fun publishSnapshot() {
+    /** Everything the host publishes about the current track, read in ONE main-thread hop. */
+    private data class HostSnapshot(
+        val id: String,
+        val trackInfo: TrackInfo,
+        val queue: List<TrackInfo>,
+        val queueTitle: String,
+        val position: Long,
+        val playWhenReady: Boolean,
+    )
+
+    /**
+     * OWNER REPORT 2026-09-14 (crash "Player is accessed on the wrong thread" + guests hearing
+     * nothing): this bridge runs on the manager's Dispatchers.Default scope, and every player read
+     * the host made there threw. Wrapped reads silently returned null/empty — the room got no track,
+     * no queue and a PAUSE — and the unwrapped playWhenReady poll crashed the app on each change.
+     * Media3 players may only be touched on the main thread, so every read goes through here.
+     */
+    private suspend fun <T> onMain(block: () -> T): T = withContext(Dispatchers.Main.immediate) { block() }
+
+    private suspend fun hostSnapshot(conn: PlayerConnection): HostSnapshot? = onMain {
+        runCatching {
+            val item = conn.player.currentMetadata ?: return@runCatching null
+            if (item.id.isBlank()) return@runCatching null
+            HostSnapshot(
+                id = item.id,
+                trackInfo = item.toTrackInfo(conn),
+                queue = hostQueueTracks(conn),
+                queueTitle = conn.service.queueTitle.orEmpty(),
+                position = safePosition(conn),
+                playWhenReady = conn.player.playWhenReady,
+            )
+        }.onFailure { Timber.tag(TAG).w(it, "Could not read the host's player") }.getOrNull()
+    }
+
+    private suspend fun publishSnapshot() {
         val conn = connection.value ?: return
-        val item = runCatching { conn.player.currentMetadata }.getOrNull() ?: return
-        if (item.id.isBlank()) return
-        lastPublishedTrackId = item.id
-        val queue = hostQueueTracks(conn)
+        val snap = hostSnapshot(conn) ?: return
+        lastPublishedTrackId = snap.id
         session.sendPlaybackAction(
             action = PlaybackActions.CHANGE_TRACK,
-            trackId = item.id,
-            position = safePosition(conn),
-            trackInfo = item.toTrackInfo(conn),
-            queue = queue,
-            queueTitle = conn.service.queueTitle.orEmpty(),
+            trackId = snap.id,
+            position = snap.position,
+            trackInfo = snap.trackInfo,
+            queue = snap.queue,
+            queueTitle = snap.queueTitle,
         )
         // A second command, because change_track alone does not say whether it is running —
         // the server explicitly sets IsPlaying=false on a track change.
-        val playing = runCatching { conn.player.playWhenReady }.getOrDefault(false)
         session.sendPlaybackAction(
-            action = if (playing) PlaybackActions.PLAY else PlaybackActions.PAUSE,
+            action = if (snap.playWhenReady) PlaybackActions.PLAY else PlaybackActions.PAUSE,
             trackId = "",
-            position = safePosition(conn),
+            position = snap.position,
             trackInfo = null,
         )
-        Timber.tag(TAG).i("Published current state to the room: %s", item.id)
+        Timber.tag(TAG).i("Published current state to the room: %s", snap.id)
     }
 
     /** The host's queue as the room sees it, read off the player timeline. */
@@ -394,13 +425,16 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         if (item.id == lastPublishedTrackId) return@collect
                         lastPublishedTrackId = item.id
                         Timber.tag(TAG).i("Host publishing track change: %s", item.id)
+                        val (trackInfo, queue, queueTitle) = onMain {
+                            Triple(item.toTrackInfo(conn), hostQueueTracks(conn), conn.service.queueTitle.orEmpty())
+                        }
                         session.sendPlaybackAction(
                             action = PlaybackActions.CHANGE_TRACK,
                             trackId = item.id,
                             position = 0L,
-                            trackInfo = item.toTrackInfo(conn),
-                            queue = hostQueueTracks(conn),
-                            queueTitle = conn.service.queueTitle.orEmpty(),
+                            trackInfo = trackInfo,
+                            queue = queue,
+                            queueTitle = queueTitle,
                         )
                         // change_track alone leaves the room paused: the server sets IsPlaying=false on
                         // every track change. The host's own play state does NOT change when one playing
@@ -419,7 +453,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                                 // path commits, while audible playback waits for the stream URL to
                                 // resolve — which can take longer than any reasonable timeout.
                                 // Polled, because playWhenReady is a plain property with no flow.
-                                while (!conn.player.playWhenReady && !conn.player.isPlaying) {
+                                while (!onMain { runCatching { conn.player.playWhenReady || conn.player.isPlaying }.getOrDefault(false) }) {
                                     delay(PLAY_SETTLE_POLL_MS)
                                 }
                             } != null
@@ -427,7 +461,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                             session.sendPlaybackAction(
                                 action = PlaybackActions.PLAY,
                                 trackId = "",
-                                position = safePosition(conn),
+                                position = onMain { safePosition(conn) },
                                 trackInfo = null,
                             )
                         }
@@ -443,11 +477,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     .collect { isPlaying ->
                         val state = session.state.value
                         if (!state.inRoom || !state.isHost || applyingRemote) return@collect
-                        val player = runCatching { conn.player }.getOrNull() ?: return@collect
                         // A host that merely buffers reports isPlaying=false, indistinguishable from a
                         // user pause — and publishing it stops the WHOLE room on one device's hiccup.
                         // playWhenReady carries the intent, so a dip where the two disagree is not news.
-                        val intent = runCatching { player.playWhenReady }.getOrDefault(false)
+                        val (intent, position) = onMain {
+                            runCatching { conn.player.playWhenReady to safePosition(conn) }.getOrNull()
+                        } ?: return@collect
                         if (isPlaying != intent) return@collect
                         Timber.tag(TAG).i("Host publishing %s", if (intent) "PLAY" else "PAUSE")
                         session.sendPlaybackAction(
@@ -457,7 +492,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                             // sending nothing makes it fill in its own current track, which is always
                             // right.
                             trackId = "",
-                            position = safePosition(conn),
+                            position = position,
                             trackInfo = null,
                         )
                     }
@@ -517,7 +552,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 val conn = connection.value ?: return@collect
                 // bufferedPercentage, not isPlaying: the barrier asks whether the track is loaded,
                 // and playback is exactly what it is holding back.
-                val buffered = runCatching { conn.player.bufferedPercentage }.getOrDefault(0)
+                val buffered = onMain { runCatching { conn.player.bufferedPercentage }.getOrDefault(0) }
                 if (buffered >= READY_BUFFER_PERCENT) {
                     session.reportBufferReady(trackId)
                 } else {

@@ -79,6 +79,9 @@ fun SoundSettings(
 
         // ── Volumen ──
         val (safeVolume, onSafeVolumeChange) = rememberPreference(SafeVolumeEnabledKey, defaultValue = true)
+        val (tidal, onTidalChange) = rememberPreference(
+            iad1tya.echo.music.constants.TidalSimulationEnabledKey, defaultValue = true
+        )
         Material3SettingsGroup(
             title = "Volumen",
             items = listOf(
@@ -107,16 +110,14 @@ fun SoundSettings(
                         Text("Aplica la configuración DSP (pre-gain + filtros) para emular la firma de sonido de TIDAL.")
                     },
                     trailingContent = {
-                        val (tidal, onTidalChange) = rememberPreference(
-                            iad1tya.echo.music.constants.TidalSimulationEnabledKey, defaultValue = true
-                        )
                         Switch(
                             checked = tidal,
                             onCheckedChange = onTidalChange,
                             thumbContent = thumb(tidal),
                         )
                     },
-                    onClick = {},
+                    // The row toggles like every other one (it used to do nothing on tap).
+                    onClick = { onTidalChange(!tidal) },
                 ),
             ),
         )
@@ -124,8 +125,9 @@ fun SoundSettings(
         Spacer(Modifier.height(20.dp))
 
         // ── Masterización (owner directive 2026-09-13): every stage is a user toggle ──
+        // Every toggle defaults ON (owner directive 2026-09-14: "todos los toggles activados por default").
         val (glueCompressor, onGlueCompressorChange) = rememberPreference(
-            iad1tya.echo.music.constants.GlueCompressorEnabledKey, defaultValue = false
+            iad1tya.echo.music.constants.GlueCompressorEnabledKey, defaultValue = true
         )
         val (outputDither, onOutputDitherChange) = rememberPreference(
             iad1tya.echo.music.constants.OutputDitherEnabledKey, defaultValue = true
@@ -134,7 +136,7 @@ fun SoundSettings(
             iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey, defaultValue = true
         )
         val (autoHeadroom, onAutoHeadroomChange) = rememberPreference(
-            iad1tya.echo.music.constants.AutoHeadroomEnabledKey, defaultValue = false
+            iad1tya.echo.music.constants.AutoHeadroomEnabledKey, defaultValue = true
         )
         val (stereoWidth, onStereoWidthChange) = rememberPreference(
             iad1tya.echo.music.constants.StereoWidthKey, defaultValue = 1f

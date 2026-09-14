@@ -774,11 +774,11 @@ class MusicService :
     @Volatile private var spatialProfileNameHint: String = SpatialAudioProfile.WIDE_SURROUND.name
     @Volatile private var tidalEnabledHint: Boolean = true
     // Mastering toggles (owner directive 2026-09-13). Defaults mirror the preference keys.
-    @Volatile private var glueCompressorHint: Boolean = false
+    @Volatile private var glueCompressorHint: Boolean = true
     @Volatile private var outputDitherHint: Boolean = true
     @Volatile private var speakerBassProtectHint: Boolean = true
     @Volatile private var stereoWidthHint: Float = 1f
-    @Volatile private var autoHeadroomHint: Boolean = false
+    @Volatile private var autoHeadroomHint: Boolean = true
     // The offload request CURRENTLY PUBLISHED to the players (not merely the gate's latest verdict — an
     // approved enable can be waiting for a track boundary; see publishOffloadDecision). Read by
     // onPlaybackParametersChanged, which only re-publishes the speed requirement while offload is live.
@@ -2501,7 +2501,7 @@ class MusicService :
         // MASTERING toggles (glue compressor / output dither / phone-speaker sub-bass protection).
         scope.launch {
             combine(
-                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: false },
+                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: true },
                 dataStore.data.map { it[iad1tya.echo.music.constants.OutputDitherEnabledKey] ?: true },
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: true },
             ) { compressor, dither, speaker -> Triple(compressor, dither, speaker) }
@@ -2518,7 +2518,7 @@ class MusicService :
         scope.launch {
             combine(
                 dataStore.data.map { it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f },
-                dataStore.data.map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: false },
+                dataStore.data.map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: true },
             ) { width, headroom -> width to headroom }
                 .distinctUntilChanged()
                 .collect { (width, headroom) ->
@@ -2626,7 +2626,7 @@ class MusicService :
             combine(
                 dataStore.data.map { it[SpatialAudioEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged(),
-                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: false }.distinctUntilChanged(),
+                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f }.distinctUntilChanged(),
             ) { spatial, tidal, compressor, speaker, width -> spatial || tidal || compressor || speaker || width },
@@ -2667,7 +2667,9 @@ class MusicService :
                 persistentQueueHint = prefs[PersistentQueueKey] ?: true
                 historyDurationMsHint = (prefs[HistoryDuration]?.times(1000f)) ?: 30000f
                 pauseListenHistoryHint = prefs[PauseListenHistoryKey] ?: false
-                sendPlaybackMetricsHint = prefs[iad1tya.echo.music.constants.SendPlaybackMetricsKey] ?: false
+                // ON by default (owner directive 2026-09-14): the listen history YouTube receives is what
+                // tunes its home feed and radios, which this app plays from. The user can still turn it off.
+                sendPlaybackMetricsHint = prefs[iad1tya.echo.music.constants.SendPlaybackMetricsKey] ?: true
                 highPerformanceModeHint = prefs[iad1tya.echo.music.constants.HighPerformanceModeKey] ?: false
             }
         }
@@ -5553,13 +5555,11 @@ class MusicService :
         //    (podcast/local/non-video) → on-demand swap (applyVideoToCurrent → brief spinner), exactly as
         //    before. No black screen, no regression.
         if (_videoMode.value && mediaItem != null) {
-            val newId = mediaItem.mediaId
-            val prebuilt = videoCoordinator.videoModeItems[newId]
-            if (prebuilt != null) {
-                _videoUrl.value = prebuilt.videoUrl
-                videoCoordinator.restoreVideoTracksExcept(newId)   // restore previous video track(s) to audio; refreshes single-field state
-            } else if (newId != videoModeMediaId) {
-                videoCoordinator.applyVideoToCurrent()
+            // MUSIC FIRST (owner directive 2026-09-14: "la prioridad del reproductor sea sí o sí la música
+            // primero antes que el video"): video belongs only to the track the user switched to Video.
+            // Any other track plays as music, so moving to it leaves video mode (restores audio sources).
+            if (mediaItem.mediaId != videoModeMediaId) {
+                videoCoordinator.exitVideoMode()
             }
         } else if (
             // Owner: tapping a VIDEO starts playback IN video mode (manual SEEK / new queue only —
@@ -5576,9 +5576,11 @@ class MusicService :
             // video on ANY transition — auto-advance included. Cleared only by an explicit exit.
             mediaItem != null && trackChanged &&
             (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED ||
-                (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK && !userExplicitlyExitedVideo) ||
-                (videoCoordinator.stickyVideoPreferred && !userExplicitlyExitedVideo)) &&
-            (player.currentMetadata?.isVideoSong == true || videoCoordinator.exportedMuxedVideoUri(mediaItem.mediaId) != null) &&
+                (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK && !userExplicitlyExitedVideo)) &&
+            // MUSIC FIRST (2026-09-14): a YouTube video song plays as MUSIC until the user taps Video — no
+            // auto entry, no sticky carry-over. Only an exported video FILE (opened from "Vídeos
+            // exportados", it has no audio-only rendition) still starts in video.
+            videoCoordinator.exportedMuxedVideoUri(mediaItem.mediaId) != null &&
             !(iad1tya.echo.music.utils.PerformanceMode.isOn(this) &&
                 !iad1tya.echo.music.utils.DeviceForm.isTvOrCar(this))
         ) {
@@ -5592,26 +5594,10 @@ class MusicService :
                 // old path that set videoMode=true then swapToVideo mid-stream).
                 videoCoordinator.applyVideoToCurrent(armModeWhenReady = true)
             }
-            val nextIdx = player.nextMediaItemIndex
-            if (nextIdx != C.INDEX_UNSET) {
-                runCatching { player.getMediaItemAt(nextIdx).mediaId }.getOrNull()
-                    ?.let { videoCoordinator.prebuildNextVideoItem(nextIdx, it) }
-            }
         }
-        // PRE-BUILD the NEXT track as a video source NOW (while the current one plays) so the next
-        // auto-advance is seamless: the item becomes video BEFORE it is current, so the transition needs no
-        // swap on the running track. Reuses videoUrlCache. Only while ACTIVELY in video mode — we deliberately
-        // do NOT resolve during normal audio playback: doing it on every track change hammered YouTube with
-        // extra stream-resolution requests and got the app rate-limited, which then stalled normal audio.
-        // Safe no-op if it can't resolve or the next item isn't a YouTube video song (that case uses the
-        // on-demand fallback above).
-        if (_videoMode.value) {
-            val nextIdx = player.nextMediaItemIndex
-            if (nextIdx != C.INDEX_UNSET) {
-                val nid = runCatching { player.getMediaItemAt(nextIdx).mediaId }.getOrNull()
-                if (nid != null) videoCoordinator.prebuildNextVideoItem(nextIdx, nid)
-            }
-        }
+        // MUSIC FIRST (owner directive 2026-09-14): the NEXT track is no longer pre-built as a video source.
+        // It always starts as music (video mode ends when the track changes, see above), so resolving its
+        // video stream ahead of time would only spend YouTube requests on a rendition that never plays.
         // INSTANT VIDEO SWAP: any pre-prepared player was built for the PREVIOUS track — release it, then
         // (if the expanded player is still up, in audio mode) re-attempt for the NEW track after a short
         // delay so it never competes with this track's own startup buffering. For a cached URL the delayed

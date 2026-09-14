@@ -129,10 +129,11 @@ fun LastFMSettingsScreen(
         defaultValue = LastFM.DEFAULT_SCROBBLE_DELAY_SECONDS
     )
 
-    // SEND PLAYBACK METRICS TO GOOGLE (SimpMusic sendBackToGoogle parity) — opt-in, default OFF.
+    // SEND PLAYBACK METRICS TO GOOGLE (SimpMusic sendBackToGoogle parity) — default ON since 2026-09-14
+    // (owner directive: better recommendations); must match MusicService's own default.
     val (sendPlaybackMetrics, onSendPlaybackMetricsChange) = rememberPreference(
         iad1tya.echo.music.constants.SendPlaybackMetricsKey,
-        defaultValue = false
+        defaultValue = true
     )
 
     // ListenBrainz (opt-in, network-only)

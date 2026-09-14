@@ -157,7 +157,8 @@ class VideoModeCoordinator(private val service: MusicService) {
         }
         service.userExplicitlyExitedVideo = false
         service.userHasUsedVideo = true
-        stickyVideoPreferred = true
+        // MUSIC FIRST (owner directive 2026-09-14): video is never carried to the next track.
+        stickyVideoPreferred = false
         service.player.currentMediaItem?.mediaId?.let { service.resetRetryCount(it) }
         service.videoSwapMeasureStart()
         val gen = videoSwapGeneration.incrementAndGet()
@@ -171,11 +172,7 @@ class VideoModeCoordinator(private val service: MusicService) {
         } else {
             pauseOfflineDownloadsForVideoPlayback()
         }
-        val nextIdx = service.player.nextMediaItemIndex
-        if (nextIdx != C.INDEX_UNSET) {
-            runCatching { service.player.getMediaItemAt(nextIdx).mediaId }.getOrNull()
-                ?.let { prebuildNextVideoItem(nextIdx, it) }
-        }
+        // No pre-built next video: with music first the next track always starts as music.
     }
 
     // NOTE (historical): a prior attempt "pre-swapped" the next item's URI to the video stream while the

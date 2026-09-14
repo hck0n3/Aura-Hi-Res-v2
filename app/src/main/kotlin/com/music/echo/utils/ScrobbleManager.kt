@@ -61,7 +61,11 @@ class ScrobbleManager(
         stopTracking()
 
         currentMetadata = metadata
-        this.duration = duration
+        // The player often reports no duration yet when a song starts. Without one, no scrobble was
+        // EVER sent (checkScrobbleThreshold bailed out) and ListenBrainz got duration_ms=0 — so use the
+        // song's own catalogue duration until the player knows better.
+        this.duration = duration?.takeIf { it > 0L }
+            ?: metadata?.duration?.takeIf { it > 0 }?.let { it * 1000L }
         playTimeSeconds = 0
         scrobbled = false
         startEpochMs = System.currentTimeMillis()

@@ -244,6 +244,13 @@ object SpotifyMediaClient {
                 parameter("market", "from_token")
             }
         }
+        // Owner report 2026-09-14 ("letras de Spotify se activan pero no funcionan"): a refused request
+        // used to look exactly like "this song has no lyrics". Log the status (no user data) so the
+        // feedback log tells the two apart.
+        if (response.status.value !in 200..299) {
+            timber.log.Timber.tag("Spotify").w("color-lyrics HTTP %d", response.status.value)
+            return null
+        }
         val root = json.parseToJsonElement(response.bodyAsText()).jsonObject
         val lyrics = root["lyrics"]?.jsonObject ?: return null
         val lines = lyrics["lines"]?.jsonArray ?: return null

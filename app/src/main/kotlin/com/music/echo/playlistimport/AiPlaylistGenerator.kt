@@ -43,7 +43,7 @@ object AiPlaylistGenerator {
      * FIRST AI call of the whole flow — the ask, the resolve loop and the top-up all run inside the
      * SAME [AI_BUDGET_MS] window, so the worst case is 60s once, never 60s per phase stacked.
      */
-    internal const val AI_BUDGET_MS = 60_000L
+    internal const val AI_BUDGET_MS = 90_000L
 
     /**
      * Concurrent resolves against YouTube Music. The resolve loop used to walk the AI proposals
@@ -76,19 +76,23 @@ object AiPlaylistGenerator {
      * The 50-track option exceeds the whole budget by physics (ask ~65s alone) — it failed under
      * the old code too (60s window), now it just fails 15s sooner.
      */
-    internal const val AI_ASK_CAP_MS = 45_000L
+    internal const val AI_ASK_CAP_MS = 60_000L
 
     /** Fixed part of the keyless ask cap: Worker queue + KV + model load, measured ≈3s, padded. */
-    internal const val ASK_BASE_MS = 20_000L
+    internal const val ASK_BASE_MS = 25_000L
 
     /** Variable part: ~1.2s/track measured (17.5s for 12), padded to 1.5s/track. */
-    internal const val ASK_PER_TRACK_MS = 1_500L
+    internal const val ASK_PER_TRACK_MS = 2_000L
 
     /**
      * Budget share the resolve phase may always rely on. A 4-lane resolve of ~36 proposals runs in
      * ~9 waves ≈ 12s worst case; 15s leaves margin. The ask cap clamps to `AI_BUDGET_MS - this`.
      */
-    internal const val RESOLVE_RESERVE_MS = 15_000L
+    internal const val RESOLVE_RESERVE_MS = 20_000L
+
+    // 2026-09-14 (gpt-oss-120b): the top-up round only runs with at least this much budget left, so a
+    // slow refill can never cancel the whole AI flow and throw a good first pass into "sin IA".
+    internal const val MIN_TOP_UP_MS = 20_000L
 
     /** Scaled per-ask cap for the KEYLESS chain — see [AI_ASK_CAP_MS] for the rationale. */
     internal fun keylessAskCapMs(requestCount: Int): Long =
@@ -163,6 +167,7 @@ object AiPlaylistGenerator {
         // (≈ direct seconds on Llama 70B, the slowest leg) and made every answer slower for nothing.
         // The rare shortfall is the structured top-up's job, below.
         val requestCount = target + PAD_OVER_TARGET
+        val flowStartedAt = System.currentTimeMillis()
         // Ask cap, BY PATH: the KEYLESS chain (the owner's path) gets the scaled [keylessAskCapMs]
         // — a hung Worker must fail fast into the instant non-AI fallback (2026-08-31: no dead
         // spinners), but the cap must still cover a legit 30-track ask or it would trade precision
@@ -171,8 +176,14 @@ object AiPlaylistGenerator {
         // (row 198 invariant) is not the place to harvest seconds.
         val askCapMs = if (apiKey.isBlank()) keylessAskCapMs(requestCount) else AI_BUDGET_MS
         val spec = withTimeoutOrNull(askCapMs) {
-            AiPlaylistService.generate(prompt, requestCount, provider, apiKey, baseUrl, model).getOrNull()
-        } ?: return null
+            AiPlaylistService.generate(prompt, requestCount, provider, apiKey, baseUrl, model)
+                .onFailure { timber.log.Timber.w(it, "AI playlist: AI request failed (keyless=%b)", apiKey.isBlank()) }
+                .getOrNull()
+        } ?: run {
+            // Owner report 2026-09-14 ("dice que fue hecha sin IA"): the reason was never logged.
+            timber.log.Timber.w("AI playlist: no AI answer within %d ms -> non-AI fallback", askCapMs)
+            return null
+        }
 
         val proposed = filterTracksForSoloArtist(spec.tracks, soloArtist)
         val firstPass = resolveBounded(database, proposed, soloArtist, target, onResolveProgress)
@@ -185,11 +196,12 @@ object AiPlaylistGenerator {
         // The exclusions travel as a structured list (AiPlaylistPrompt), NOT concatenated into the
         // prompt: a literal "solo X. NO incluyas…: A, B, C" is not re-parseable by
         // extractSoloArtist, so the solo lock silently died on this round (owner wants EXACTNESS).
-        if (ordered.size < target) {
+        val timeLeftMs = AI_BUDGET_MS - (System.currentTimeMillis() - flowStartedAt) - RESOLVE_RESERVE_MS
+        if (ordered.size < target && timeLeftMs >= MIN_TOP_UP_MS) {
             val missing = target - ordered.size
             val exclude = ordered.map { it.title }
             // Same thin pad on the refill round: only what's missing plus the same cushion.
-            val extra = withTimeoutOrNull(askCapMs) {
+            val extra = withTimeoutOrNull(minOf(askCapMs, timeLeftMs)) {
                 AiPlaylistService.generate(
                     prompt = prompt,
                     count = missing + PAD_OVER_TARGET,
@@ -218,7 +230,10 @@ object AiPlaylistGenerator {
             }
         }
 
-        if (ordered.isEmpty()) return null
+        if (ordered.isEmpty()) {
+            timber.log.Timber.w("AI playlist: %d AI tracks, none found in the catalogue -> non-AI fallback", proposed.size)
+            return null
+        }
 
         // The AI proposes a short name; fall back to the user's prompt (also used for the non-AI
         // playlist) when the model omitted or blanked it.

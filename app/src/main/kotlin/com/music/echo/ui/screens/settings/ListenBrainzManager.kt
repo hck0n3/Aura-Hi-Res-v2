@@ -24,6 +24,13 @@ object ListenBrainzManager {
         .callTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
+    /**
+     * `"duration_ms":N,` only when N is a real duration. ListenBrainz rejects the WHOLE listen when
+     * duration_ms is 0 ("should be a positive integer") — owner log 2026-09-14: 39 playing_now refused.
+     */
+    private fun durationPart(durationMs: Long): String =
+        if (durationMs > 0L) "\"duration_ms\":$durationMs," else ""
+
     suspend fun submitPlayingNow(
         context: Context,
         token: String,
@@ -42,7 +49,7 @@ object ListenBrainzManager {
                     artistNames,
                 )}\",\"track_name\":\"${escapeJson(
                     title,
-                )}\",${releasePart}\"additional_info\":{\"duration_ms\":$durationMs,\"position_ms\":$positionMs,\"submission_client\":\"$clientName\",\"submission_client_version\":\"$clientVersion\"}}}"
+                )}\",${releasePart}\"additional_info\":{${durationPart(durationMs)}\"position_ms\":$positionMs,\"submission_client\":\"$clientName\",\"submission_client_version\":\"$clientVersion\"}}}"
                 val listensJson = "[$trackMetadata]"
                 val bodyJson = "{\"listen_type\":\"playing_now\",\"payload\":$listensJson}"
                 Timber.tag(logTag).d("submitPlayingNow JSON: %s", bodyJson)
@@ -105,7 +112,7 @@ object ListenBrainzManager {
                     artistNames,
                 )}\",\"track_name\":\"${escapeJson(
                     title,
-                )}\",${releasePart}\"additional_info\":{\"duration_ms\":$durationMs,\"start_ms\":$startMs,\"end_ms\":$endMs,\"submission_client\":\"$clientName\",\"submission_client_version\":\"$clientVersion\"}}}"
+                )}\",${releasePart}\"additional_info\":{${durationPart(durationMs)}\"start_ms\":$startMs,\"end_ms\":$endMs,\"submission_client\":\"$clientName\",\"submission_client_version\":\"$clientVersion\"}}}"
                 val listensJson = "[$trackMetadataSingle]"
                 val bodyJson = "{\"listen_type\":\"single\",\"payload\":$listensJson}"
                 Timber.tag(logTag).d("submitFinished JSON: %s", bodyJson)
