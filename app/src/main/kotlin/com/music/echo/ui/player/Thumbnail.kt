@@ -623,7 +623,9 @@ fun Thumbnail(
                             containerHeight = maxHeight,
                             // TIDAL-SIZED COVER (owner directive 2026-09-13): the new player's cover
                             // runs almost edge to edge like TIDAL's now-playing screen. Classic keeps 32 dp.
-                            horizontalPadding = if (host == ThumbnailHost.OPAQUE_DARK && !appleMusicCoverStyle) {
+                            // Every new-player cover style gets TIDAL's margin — the owner's Galaxy runs the
+                            // Apple Music cover style, which still fell back to the classic 32 dp (320 dp cover).
+                            horizontalPadding = if (host == ThumbnailHost.OPAQUE_DARK) {
                                 TIDAL_COVER_SIDE_PADDING
                             } else {
                                 PlayerHorizontalPadding

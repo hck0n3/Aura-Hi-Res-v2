@@ -1419,6 +1419,16 @@ private fun AuraPlayerShape(
                             text = makeTimeString(sliderPosition ?: effectivePosition),
                             style = AuraType.Timecode,
                         )
+                        // TIDAL-STYLE CENTRE LABEL: the engine status that used to take a whole row under
+                        // the player now sits between the times, so the cover gets that height back.
+                        if (!dense) {
+                            val eqOn = rememberEqEnabledReadOnly()
+                            val safeVolumeOn by rememberPreference(SafeVolumeEnabledKey, false)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                AuraEngineStat(label = "EQ", value = if (eqOn) "ON" else "OFF", on = eqOn)
+                                AuraEngineStat(label = "V.SEGURO", value = if (safeVolumeOn) "ON" else "OFF", on = safeVolumeOn)
+                            }
+                        }
                         AuraTechnicalText(
                             text = if (duration != C.TIME_UNSET) makeTimeString(duration) else "",
                             style = AuraType.Timecode,
@@ -1461,7 +1471,7 @@ private fun AuraPlayerShape(
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
                     AuraPlayButton(
-                        diameter = if (dense) 58.dp else 74.dp,
+                        diameter = if (dense) 58.dp else 92.dp,
                         // TV / coche: this is where the D-pad lands when the player opens. The latch is
                         // set from the button's OWN focus event rather than from a live `hasFocus`, so a
                         // user who D-pads away inside the retry window is not yanked back (the classic
@@ -1490,8 +1500,9 @@ private fun AuraPlayerShape(
                                 else -> playerConnection.togglePlayPause()
                             }
                         },
-                        fill = playButtonFill,
-                        ink = playButtonInk,
+                        // TIDAL: no disc behind play/pause — the glyph alone, in the ground's ink.
+                        fill = if (dense) playButtonFill else SolidColor(Color.Transparent),
+                        ink = if (dense) playButtonInk else AuraPalette.OnGround,
                     )
                     AuraIconButton(
                         icon = AuraIcons.SkipNext,
@@ -1888,9 +1899,7 @@ private fun AuraPlayerShape(
                     )
                     artworkContent(Modifier.weight(1f).fillMaxWidth())
                     controlsContent(false)
-                    // ── Barra de estado del motor ─────────────────────────────────────────────────
-                    Spacer(Modifier.height(2.dp))
-                    AuraEngineStatusBar()
+                    // Engine status now lives between the timeline's times (TIDAL-style centre label).
                 }
             }
         }

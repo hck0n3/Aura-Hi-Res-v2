@@ -1281,7 +1281,8 @@ private fun AuraBarButton(
     enabled: Boolean = true,
     content: @Composable (tint: Color) -> Unit,
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    // TIDAL-style round, translucent buttons.
+    val shape = androidx.compose.foundation.shape.CircleShape
     val tint = if (active) activeContentColor else contentColor
     Box(
         contentAlignment = Alignment.Center,
@@ -1290,8 +1291,8 @@ private fun AuraBarButton(
             .padding(4.dp)
             .clip(shape)
             .then(
-                // TIDAL-style flat icons: only the active button (e.g. lyrics open) keeps a filled pill.
-                if (active) Modifier.background(activeContainerColor, shape) else Modifier
+                if (active) Modifier.background(activeContainerColor, shape)
+                else Modifier.background(contentColor.copy(alpha = 0.12f), shape)
             )
             .tvFocusable(iad1tya.echo.music.ui.utils.rememberIsTvOrCar(), shape)
             .clickable(enabled = enabled, onClickLabel = contentDescription, role = Role.Button, onClick = onClick),
