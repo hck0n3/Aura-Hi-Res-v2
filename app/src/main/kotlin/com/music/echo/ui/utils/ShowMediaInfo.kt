@@ -84,12 +84,14 @@ fun ShowMediaInfo(videoId: String) {
 
     
     val albumArtShape = RoundedCornerShape(24.dp)
+    // Inside an Aura floating panel the plate IS the background: no second flat colour on top of it.
+    val onAuraPlate = iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome.current
 
     LazyColumn(
         state = rememberLazyListState(),
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .then(if (onAuraPlate) Modifier else Modifier.background(MaterialTheme.colorScheme.background))
             .padding(bottom = windowInsets.asPaddingValues().calculateBottomPadding())
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
@@ -120,7 +122,10 @@ fun ShowMediaInfo(videoId: String) {
                     .fillMaxWidth()
                     .height(200.dp)
                     .clip(albumArtShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(
+                        if (onAuraPlate) iad1tya.echo.music.ui.newui.AuraPalette.SurfaceFill
+                        else MaterialTheme.colorScheme.surfaceVariant,
+                    )
             ) {
                 val imageUrl = song?.thumbnailUrl
                     ?: "https://i.ytimg.com/vi/$videoId/maxresdefault.jpg"

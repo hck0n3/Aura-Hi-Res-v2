@@ -146,6 +146,8 @@ fun BottomSheetPage(
                             // AUDIT P4: clip BEFORE the glass (an interior clip leaves the
                             // effect drawing with square corners over a rounded-content panel).
                             .clip(if (state.fullScreen) RectangleShape else AuraShapes.Sheet)
+                            // Same opaque floating plate as menus and dialogs (one material everywhere).
+                            .background(AuraPalette.FloatingFill)
                             .shellGlass(shellHazeState)
                             .then(if (state.fullScreen) Modifier.statusBarsPadding() else Modifier)
                             .imePadding()

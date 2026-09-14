@@ -2,6 +2,8 @@
 
 package iad1tya.echo.music.ui.component
 
+import androidx.compose.foundation.border
+
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -163,6 +165,10 @@ fun BottomSheetMenu(
                             // interior (it trims the content, not the effect draw), leaving the
                             // panel with square top corners over a rounded-content sheet.
                             .clip(AuraShapes.Sheet)
+                            // ONE FLOATING MATERIAL (owner 2026-09-13: "unas transparentes, otras sólidas"):
+                            // the same opaque account-menu plate + hairline the dialogs use, glass on top.
+                            .background(iad1tya.echo.music.ui.newui.AuraPalette.FloatingFill)
+                            .border(1.dp, iad1tya.echo.music.ui.newui.AuraPalette.SurfaceLine, AuraShapes.Sheet)
                             .shellGlass(shellHazeState)
                             .imePadding()
                             .navigationBarsPadding(),

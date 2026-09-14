@@ -461,7 +461,9 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                         ) {
                             Surface(
                                 shape = MaterialTheme.shapes.extraLarge,
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                // Aura card on the floating sheet instead of a flat Material container.
+                                color = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.SurfaceFill
+                                else MaterialTheme.colorScheme.surfaceContainerLow,
                                 modifier = Modifier.fillMaxWidth()
                             ) {                                 Column(
                                     modifier = Modifier
@@ -707,7 +709,13 @@ fun VolumeControlRow(
                     modifier = Modifier
                         .fillMaxHeight()
                         .fillMaxWidth(animatedVolumeFraction)
-                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .background(
+                            if (iad1tya.echo.music.ui.newui.rememberAuraPanelSkin().let { it.enabled && it.darkGround }) {
+                                iad1tya.echo.music.ui.newui.AuraPalette.Teal.copy(alpha = 0.35f)
+                            } else {
+                                MaterialTheme.colorScheme.primaryContainer
+                            },
+                        )
                 )
             }
 
