@@ -69,8 +69,9 @@ if [[ ! -f "$ROOT/RELEASE_INFO.md" ]]; then
   fail "Release metadata" "RELEASE_INFO.md not found."
 else
   title="$(head -n1 "$ROOT/RELEASE_INFO.md" | tr -d '\r')"
-  version_name="$(grep -m1 'versionName' "$ROOT/app/build.gradle.kts" | sed -n 's/.*"\([^"]*\)".*/\1/p')"
-  version_code="$(grep -m1 'versionCode' "$ROOT/app/build.gradle.kts" | sed -n 's/.*=\s*\([0-9][0-9]*\).*/\1/p')"
+  # Match the assignments only: a bare grep hit `versionNameSuffix = "-nosub"` first.
+  version_name="$(grep -m1 -E '^\s*versionName\s*=' "$ROOT/app/build.gradle.kts" | sed -n 's/.*"\([^"]*\)".*/\1/p')"
+  version_code="$(grep -m1 -E '^\s*versionCode\s*=' "$ROOT/app/build.gradle.kts" | sed -n 's/.*=[[:space:]]*\([0-9][0-9]*\).*/\1/p')"
   if [[ "$version_name" == *"-beta"* || "$version_name" == *"-test"* ]]; then
     warn "Release metadata" "versionName=$version_name looks like a prerelease."
   else
@@ -124,10 +125,11 @@ else
   cert_out="$("$APKSIGNER" verify --print-certs "$APK_PATH" 2>&1)"
   owner="$(echo "$cert_out" | sed -n 's/^Owner: //p' | head -n1)"
   if [[ -z "$owner" ]]; then
-    # apksigner from build-tools 36+ prints "Signer #1 certificate DN:" instead of "Owner:".
-    owner="$(echo "$cert_out" | sed -n 's/^Signer #1 certificate DN: //p' | head -n1)"
+    # apksigner from build-tools 36+ prints "Signer #1 certificate DN:" instead of "Owner:", and newer
+    # ones "V2 Signer: certificate DN:" (seen 2026-09-14 — the gate reported an empty signer).
+    owner="$(echo "$cert_out" | sed -n -e 's/^Signer #1 certificate DN: //p' -e 's/^V[0-9] Signer: certificate DN: //p' | head -n1)"
   fi
-  sha256="$(echo "$cert_out" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':' | tr 'A-F' 'a-f' | head -n1)"
+  sha256="$(echo "$cert_out" | sed -n -e 's/^Signer #1 certificate SHA-256 digest: //p' -e 's/^V[0-9] Signer: certificate SHA-256 digest: //p' | tr -d ':' | tr 'A-F' 'a-f' | head -n1)"
   if [[ "$owner" == *"CN=AURA-V2-EMERGENCY"* ]]; then
     fail "3/4 APK signing certificate" "Emergency CI keystore (CN=AURA-V2-EMERGENCY)."
   elif [[ "$owner" != *"CN=Aura Hi-Res v2"* ]]; then
