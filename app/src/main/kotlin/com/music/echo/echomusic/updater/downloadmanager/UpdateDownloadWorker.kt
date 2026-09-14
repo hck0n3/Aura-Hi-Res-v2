@@ -85,10 +85,12 @@ class UpdateDownloadWorker(private val context: Context, workerParams: WorkerPar
             // The finished APK for THIS version may already be here (app killed right after a download).
             // Trust it only after the archive itself says it is that version and carries our signature.
             if (!isZip && finalApk.isFile) {
-                if (ApkVersionInspector.isInstallable(context, finalApk, version)) {
-                    return@withContext finish(finalApk, version, downloadDir)
+                when (ApkVersionInspector.installGate(context, finalApk, version)) {
+                    UpdateApkFiles.InstallGate.INSTALL -> return@withContext finish(finalApk, version, downloadDir)
+                    // Same bytes, same certificate: fail at once instead of downloading 87 MB again.
+                    UpdateApkFiles.InstallGate.SIGNATURE_MISMATCH -> return@withContext signatureFailure(version)
+                    UpdateApkFiles.InstallGate.REDOWNLOAD -> finalApk.delete()
                 }
-                finalApk.delete()
             }
 
             val onDisk = if (partFile.isFile) partFile.length() else 0L
@@ -222,17 +224,27 @@ class UpdateDownloadWorker(private val context: Context, workerParams: WorkerPar
      * bandwidth, installing the wrong build costs the user every fix since.
      */
     private fun verifyAndFinish(apk: File, version: String, dir: File): Result {
-        if (!ApkVersionInspector.isInstallable(context, apk, version)) {
-            apk.delete()
-            DownloadNotificationManager.showDownloadFailed(
-                version,
-                context.getString(R.string.update_version_mismatch),
-            )
-            // One clean retry covers a corrupt transfer; beyond that the asset itself is wrong and
-            // re-downloading it forever would only burn the user's data.
-            return if (runAttemptCount < 2) Result.retry() else Result.failure()
+        when (ApkVersionInspector.installGate(context, apk, version)) {
+            UpdateApkFiles.InstallGate.INSTALL -> return finish(apk, version, dir)
+            // OWNER REPORT 2026-09-14 (download loop at 100 %): a different certificate is not a corrupt
+            // transfer. Keep the file (a re-tap is then answered from disk) and end the work with a reason.
+            UpdateApkFiles.InstallGate.SIGNATURE_MISMATCH -> return signatureFailure(version)
+            UpdateApkFiles.InstallGate.REDOWNLOAD -> {
+                apk.delete()
+                DownloadNotificationManager.showDownloadFailed(
+                    version,
+                    context.getString(R.string.update_version_mismatch),
+                )
+                // One clean retry covers a corrupt transfer; beyond that the asset itself is wrong and
+                // re-downloading it forever would only burn the user's data.
+                return if (runAttemptCount < 2) Result.retry() else Result.failure()
+            }
         }
-        return finish(apk, version, dir)
+    }
+
+    private fun signatureFailure(version: String): Result {
+        DownloadNotificationManager.showDownloadFailed(version, context.getString(R.string.update_signature_different))
+        return Result.failure(workDataOf(KEY_FAILURE to FAILURE_SIGNATURE, KEY_VERSION to version))
     }
 
     /** Publishes the verified APK: user-visible copy, housekeeping, "tap to install" notification. */
@@ -309,6 +321,9 @@ class UpdateDownloadWorker(private val context: Context, workerParams: WorkerPar
         const val KEY_VERSION = "version"
         const val KEY_FILE_SIZE = "file_size"
         const val KEY_FILE_SIZE_BYTES = "file_size_bytes"
+        /** Output of a FAILED run: why it stopped, so the screen can explain instead of re-downloading. */
+        const val KEY_FAILURE = "failure"
+        const val FAILURE_SIGNATURE = "signature"
 
         private const val HTTP_RANGE_NOT_SATISFIABLE = 416
         private const val MAX_ATTEMPTS = 5

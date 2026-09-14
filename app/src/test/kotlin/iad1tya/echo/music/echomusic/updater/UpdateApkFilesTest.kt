@@ -187,6 +187,58 @@ class UpdateApkFilesTest {
         )
     }
 
+    // ---- the install gate (download loop at 100 %, owner report 2026-09-14) -----------------------
+
+    private val official = setOf("ba82c11d")
+    private val other = setOf("2ad7ff97")
+
+    @Test
+    fun `the official APK over the official install is installed`() {
+        val sig = UpdateApkFiles.signatureCheck(official, official)
+        assertEquals(UpdateApkFiles.SignatureCheck.MATCH, sig)
+        assertEquals(UpdateApkFiles.InstallGate.INSTALL, UpdateApkFiles.installGate(ApkVerdict.MATCHES_TARGET, sig))
+    }
+
+    @Test
+    fun `a different certificate stops the flow instead of downloading again`() {
+        val sig = UpdateApkFiles.signatureCheck(installed = other, downloaded = official)
+        assertEquals(UpdateApkFiles.SignatureCheck.MISMATCH, sig)
+        assertEquals(
+            UpdateApkFiles.InstallGate.SIGNATURE_MISMATCH,
+            UpdateApkFiles.installGate(ApkVerdict.MATCHES_TARGET, sig),
+        )
+    }
+
+    @Test
+    fun `a certificate this device cannot read does not block the update`() {
+        // The system installer still enforces the certificate; failing here only produced the loop.
+        assertEquals(UpdateApkFiles.SignatureCheck.UNREADABLE, UpdateApkFiles.signatureCheck(official, emptySet()))
+        assertEquals(UpdateApkFiles.SignatureCheck.UNREADABLE, UpdateApkFiles.signatureCheck(emptySet(), official))
+        assertEquals(
+            UpdateApkFiles.InstallGate.INSTALL,
+            UpdateApkFiles.installGate(ApkVerdict.MATCHES_TARGET, UpdateApkFiles.SignatureCheck.UNREADABLE),
+        )
+    }
+
+    @Test
+    fun `only a wrong archive is downloaded again`() {
+        assertEquals(
+            UpdateApkFiles.InstallGate.REDOWNLOAD,
+            UpdateApkFiles.installGate(ApkVerdict.REJECT, UpdateApkFiles.SignatureCheck.MATCH),
+        )
+        assertEquals(
+            UpdateApkFiles.InstallGate.INSTALL,
+            UpdateApkFiles.installGate(ApkVerdict.NEWER_THAN_INSTALLED, UpdateApkFiles.SignatureCheck.MATCH),
+        )
+    }
+
+    @Test
+    fun `the stable release is offered to its betas and not to a newer beta`() {
+        assertTrue(UpdateApkFiles.isNewerRelease(target = "v2.0.40", current = "2.0.40-beta1"))
+        assertTrue(UpdateApkFiles.isNewerRelease(target = "v2.0.40", current = "2.0.40-beta2"))
+        assertFalse(UpdateApkFiles.isNewerRelease(target = "v2.0.40", current = "2.0.41-beta1"))
+    }
+
     // ---- what counts as an update ----------------------------------------------------------------
 
     @Test

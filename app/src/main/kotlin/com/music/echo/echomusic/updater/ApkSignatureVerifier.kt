@@ -15,16 +15,22 @@ import java.security.MessageDigest
  */
 object ApkSignatureVerifier {
 
-    fun matchesInstalledSignature(context: Context, apkFile: File): Boolean {
-        return try {
-            if (!apkFile.exists()) return false
-            val installed = installedSignatureHashes(context)
-            val downloaded = apkSignatureHashes(context, apkFile.absolutePath)
-            installed.isNotEmpty() && downloaded.isNotEmpty() && installed == downloaded
-        } catch (e: Exception) {
-            timber.log.Timber.e(e, "APK signature verification failed")
-            false
-        }
+    fun matchesInstalledSignature(context: Context, apkFile: File): Boolean =
+        check(context, apkFile) == UpdateApkFiles.SignatureCheck.MATCH
+
+    /**
+     * MATCH / MISMATCH only when both certificate sets were actually read; anything this device cannot
+     * read (parser quirk, exception) is UNREADABLE, which the updater does not treat as a failure.
+     */
+    fun check(context: Context, apkFile: File): UpdateApkFiles.SignatureCheck {
+        if (!apkFile.exists()) return UpdateApkFiles.SignatureCheck.UNREADABLE
+        val installed = runCatching { installedSignatureHashes(context) }
+            .onFailure { timber.log.Timber.e(it, "Installed signature unreadable") }
+            .getOrDefault(emptySet())
+        val downloaded = runCatching { apkSignatureHashes(context, apkFile.absolutePath) }
+            .onFailure { timber.log.Timber.e(it, "Downloaded APK signature unreadable") }
+            .getOrDefault(emptySet())
+        return UpdateApkFiles.signatureCheck(installed, downloaded)
     }
 
     /**

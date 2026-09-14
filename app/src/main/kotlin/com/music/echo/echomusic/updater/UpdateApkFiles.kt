@@ -182,6 +182,51 @@ object UpdateApkFiles {
         else -> ApkVerdict.REJECT
     }
 
+    /** How the downloaded APK's signing certificate compares with the running app's. */
+    enum class SignatureCheck {
+        /** Same certificate set: the system installer will accept the update. */
+        MATCH,
+
+        /** Both sides were read and they differ: this install can never take this APK. */
+        MISMATCH,
+
+        /** One side could not be read on this device. Not evidence of tampering. */
+        UNREADABLE,
+    }
+
+    fun signatureCheck(installed: Set<String>, downloaded: Set<String>): SignatureCheck = when {
+        installed.isEmpty() || downloaded.isEmpty() -> SignatureCheck.UNREADABLE
+        installed == downloaded -> SignatureCheck.MATCH
+        else -> SignatureCheck.MISMATCH
+    }
+
+    /** What to do with a finished download. */
+    enum class InstallGate {
+        /** Hand it to the system installer. */
+        INSTALL,
+
+        /** The bytes are wrong (truncated, other version): delete and fetch again. */
+        REDOWNLOAD,
+
+        /**
+         * The certificate differs from the installed app's. Re-downloading returns the same bytes, so
+         * this must stop the flow with an explanation — never delete-and-retry.
+         */
+        SIGNATURE_MISMATCH,
+    }
+
+    /**
+     * OWNER REPORT 2026-09-14 ("llega al 100, entra en un bucle y vuelve a descargar"): a signature
+     * failure used to be treated like a corrupt file — delete, retry, download 87 MB again, fail again.
+     * A certificate that differs is deterministic, so it ends the flow; one that cannot be READ is not
+     * treated as a failure at all, because the system installer enforces the certificate anyway.
+     */
+    fun installGate(verdict: ApkVerdict, signature: SignatureCheck): InstallGate = when {
+        verdict == ApkVerdict.REJECT -> InstallGate.REDOWNLOAD
+        signature == SignatureCheck.MISMATCH -> InstallGate.SIGNATURE_MISMATCH
+        else -> InstallGate.INSTALL
+    }
+
     /** Tag carried by the download work so a run started for another release is never mistaken for it. */
     fun versionTag(version: String): String = "update_version:" + normalizeVersion(version)
 

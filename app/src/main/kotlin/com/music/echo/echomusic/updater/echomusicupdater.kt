@@ -187,8 +187,18 @@ fun UpdateScreen(navController: NavHostController) {
                     }
                     WorkInfo.State.FAILED -> {
                         isDownloading = false
+                        val signature = workInfo.outputData.getString(UpdateDownloadWorker.KEY_FAILURE) ==
+                            UpdateDownloadWorker.FAILURE_SIGNATURE
+                        if (signature) {
+                            isDownloadComplete = false
+                            downloadedFile = null
+                        }
                         scope.launch {
-                            snackbarHostState.showSnackbar(context.getString(R.string.download_failed))
+                            snackbarHostState.showSnackbar(
+                                context.getString(
+                                    if (signature) R.string.update_signature_different else R.string.download_failed,
+                                ),
+                            )
                         }
                     }
                     WorkInfo.State.CANCELLED -> {
@@ -219,15 +229,24 @@ fun UpdateScreen(navController: NavHostController) {
             downloadProgress = 0f
             return@LaunchedEffect
         }
-        val installable = withContext(Dispatchers.IO) {
-            ApkVersionInspector.isInstallable(context, file, version)
+        val gate = withContext(Dispatchers.IO) {
+            ApkVersionInspector.installGate(context, file, version)
         }
-        if (!installable) {
-            withContext(Dispatchers.IO) { file.delete() }
-            isDownloadComplete = false
-            downloadedFile = null
-            downloadProgress = 0f
-            snackbarHostState.showSnackbar(context.getString(R.string.update_version_mismatch))
+        when (gate) {
+            UpdateApkFiles.InstallGate.INSTALL -> Unit
+            UpdateApkFiles.InstallGate.REDOWNLOAD -> {
+                withContext(Dispatchers.IO) { file.delete() }
+                isDownloadComplete = false
+                downloadedFile = null
+                downloadProgress = 0f
+                snackbarHostState.showSnackbar(context.getString(R.string.update_version_mismatch))
+            }
+            // Never delete here: that file is what keeps a re-tap from downloading it again.
+            UpdateApkFiles.InstallGate.SIGNATURE_MISMATCH -> {
+                isDownloadComplete = false
+                downloadedFile = null
+                snackbarHostState.showSnackbar(context.getString(R.string.update_signature_different))
+            }
         }
     }
 
@@ -380,27 +399,28 @@ fun UpdateScreen(navController: NavHostController) {
                                                 // the tap: the archive must declare the version we are offering
                                                 // (a stale or truncated file cannot fake that) AND carry our
                                                 // signing certificate (a tampered/MITM'd APK cannot fake that).
-                                                if (ApkVersionInspector.verdict(context, f, currentStatus.version) ==
-                                                    UpdateApkFiles.ApkVerdict.REJECT
-                                                ) {
-                                                    f.delete()
-                                                    isDownloadComplete = false
-                                                    downloadedFile = null
-                                                    downloadProgress = 0f
-                                                    android.widget.Toast.makeText(
-                                                        context,
-                                                        context.getString(R.string.update_version_mismatch),
-                                                        android.widget.Toast.LENGTH_LONG
-                                                    ).show()
-                                                    return@let
-                                                }
-                                                if (!ApkSignatureVerifier.matchesInstalledSignature(context, f)) {
-                                                    android.widget.Toast.makeText(
-                                                        context,
-                                                        context.getString(R.string.update_signature_mismatch),
-                                                        android.widget.Toast.LENGTH_LONG
-                                                    ).show()
-                                                    return@let
+                                                when (ApkVersionInspector.installGate(context, f, currentStatus.version)) {
+                                                    UpdateApkFiles.InstallGate.INSTALL -> Unit
+                                                    UpdateApkFiles.InstallGate.REDOWNLOAD -> {
+                                                        f.delete()
+                                                        isDownloadComplete = false
+                                                        downloadedFile = null
+                                                        downloadProgress = 0f
+                                                        android.widget.Toast.makeText(
+                                                            context,
+                                                            context.getString(R.string.update_version_mismatch),
+                                                            android.widget.Toast.LENGTH_LONG
+                                                        ).show()
+                                                        return@let
+                                                    }
+                                                    UpdateApkFiles.InstallGate.SIGNATURE_MISMATCH -> {
+                                                        android.widget.Toast.makeText(
+                                                            context,
+                                                            context.getString(R.string.update_signature_different),
+                                                            android.widget.Toast.LENGTH_LONG
+                                                        ).show()
+                                                        return@let
+                                                    }
                                                 }
                                                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.FileProvider", f)
                                                 val installIntent = Intent(Intent.ACTION_VIEW).apply {

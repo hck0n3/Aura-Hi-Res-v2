@@ -60,16 +60,26 @@ object ApkVersionInspector {
      * Full pre-install gate: the file must exist, declare an acceptable version, and be signed with our
      * certificate. Returns true only when all three hold.
      */
-    fun isInstallable(context: Context, file: File, targetVersion: String): Boolean {
-        if (!file.isFile) return false
+    fun isInstallable(context: Context, file: File, targetVersion: String): Boolean =
+        installGate(context, file, targetVersion) == UpdateApkFiles.InstallGate.INSTALL
+
+    /**
+     * Full pre-install decision (see [UpdateApkFiles.installGate]). The verdict and signature outcome are
+     * logged — facts only — so an update that does not install can be diagnosed from app.log.
+     */
+    fun installGate(context: Context, file: File, targetVersion: String): UpdateApkFiles.InstallGate {
+        if (!file.isFile) return UpdateApkFiles.InstallGate.REDOWNLOAD
         val verdict = verdict(context, file, targetVersion)
-        if (verdict == UpdateApkFiles.ApkVerdict.REJECT) {
-            timber.log.Timber.w("Downloaded APK rejected: not version %s", targetVersion)
-            return false
+        val signature = if (verdict == UpdateApkFiles.ApkVerdict.REJECT) {
+            UpdateApkFiles.SignatureCheck.UNREADABLE
+        } else {
+            ApkSignatureVerifier.check(context, file)
         }
-        if (verdict == UpdateApkFiles.ApkVerdict.NEWER_THAN_INSTALLED) {
-            timber.log.Timber.w("APK versionName differs from tag %s but is newer than installed", targetVersion)
-        }
-        return ApkSignatureVerifier.matchesInstalledSignature(context, file)
+        val gate = UpdateApkFiles.installGate(verdict, signature)
+        timber.log.Timber.i(
+            "Update gate: target=%s verdict=%s signature=%s -> %s (installedCode=%d)",
+            targetVersion, verdict, signature, gate, installedVersionCode(context),
+        )
+        return gate
     }
 }

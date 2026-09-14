@@ -1,8 +1,14 @@
-# Aura Hi-Res v2.0.40 — ventanas de vidrio, sincronización que termina, ecualizador exacto y Cast
+# Aura Hi-Res v2.0.41 — actualizador sin bucles al 100 %, más todo lo de la 2.0.40
 
-Versión estable (v2.0.40 / versionCode 1001). Actualización directa sobre cualquier versión de la
+Versión estable (v2.0.41 / versionCode 1002). Actualización directa sobre cualquier versión de la
 identidad v2: mismo paquete (iad1tya.aura.music) y misma firma (CN=Aura Hi-Res v2), conserva tus datos,
 tu sesión y tus ajustes. Incluye Cast para enviar la música a tu TV o altavoz.
+
+## Actualizador
+
+- **Ya no se queda descargando en bucle al llegar al 100 %:** si la app instalada tiene una firma distinta a la oficial, ahora se detiene y te explica que debes instalar Aura desde su página de GitHub, en vez de volver a descargar sin fin.
+- **Si el teléfono no logra leer la firma del archivo, la actualización sigue:** Android igualmente comprueba la firma al instalar.
+- **Un archivo ya descargado no se vuelve a bajar** al tocar de nuevo; el motivo de cualquier fallo queda en el registro de la app.
 
 ## Sincronización de tu biblioteca
 
