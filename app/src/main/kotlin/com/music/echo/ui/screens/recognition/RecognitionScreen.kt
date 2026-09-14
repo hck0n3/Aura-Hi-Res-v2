@@ -746,7 +746,6 @@ private fun bestSongMatch(songs: List<SongItem>, result: RecognitionResult): Son
         // title modulo decoration, not merely a fragment appearing somewhere inside it.
         ?: songs.firstOrNull { s ->
             titleMatches(s.title, result.title) &&
-                com.music.jiosaavn.SaavnMatcher.titleMatches(s.title, result.title, result.artist) &&
                 s.artists.any { a -> artistMatches(a.name, result.artist) }
         }
     if (match == null) {

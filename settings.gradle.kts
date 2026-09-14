@@ -32,7 +32,6 @@ include(":youlyplus")
 include(":shazamkit")
 include(":artistvideo")
 include(":applecanvas")
-include(":echomusiccanvas")
 include(":paxsenixlyrics")
 include(":unison")
 
@@ -52,4 +51,3 @@ include(":unison")
 //        substitute(module("com.github.teamnewpipe:NewPipeExtractor")).using(project(":extractor"))
 //    }
 //}
-include(":jiosaavn")

@@ -116,11 +116,6 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
     @Inject
     lateinit var downloadUtilLazy: dagger.Lazy<iad1tya.echo.music.playback.DownloadUtil>
 
-    // Qobuz credential vault (owner's OWN subscription). Bound to the QobuzHiRes playback holder at startup
-    // so the resolver (an object, un-injectable) can read the linked session. Cheap to construct.
-    @Inject
-    lateinit var qobuzTokenStore: iad1tya.echo.music.qobuz.QobuzTokenStore
-
     @Inject
     lateinit var syncUtils: SyncUtils
 
@@ -133,8 +128,6 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // this (and refreshes the SharedPreferences copy) once initializeSettings() runs; see below.
         seedImageCacheSizeMirror(this)
 
-        com.music.jiosaavn.DeviceRouter.init(this)
-        Timber.d("Device ID: ${com.music.jiosaavn.DeviceRouter.getDeviceId()} | Assigned JioSaavn Server: ${com.music.jiosaavn.DeviceRouter.getCurrentServer()}")
 
         // BETA-042 BOOT DIAGNOSTICS (owner reports 2026-09-05: Spotify/micro/cache keep
         // "siguiend igual" after BETA-041). One snapshot at every cold start so the app.log
@@ -1840,11 +1833,6 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
     }
 
     private fun observeSettingsChanges() {
-        // Bind the Qobuz playback holder to the encrypted vault, then keep its "use my subscription" flag in
-        // sync with the preference. INERT unless the owner linked Qobuz (QobuzHiRes.isActive also checks the
-        // token), so this changes nothing for users without a Qobuz account.
-        runCatching { iad1tya.echo.music.qobuz.QobuzHiRes.attach(qobuzTokenStore) }
-
         // Bind the Spotify lyrics/Canvas client to the app context (same attach pattern as above) so
         // its static-object call sites (the lyrics provider, the player's canvas resolver) can read the
         // sp_dc session without DI. Inert until the user turns the toggles on.
@@ -1881,13 +1869,6 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                         iad1tya.echo.music.utils.AppLogger.logSessionHeader(applicationContext)
                     }
                 }
-        }
-
-        applicationScope.launch(Dispatchers.IO) {
-            dataStore.data
-                .map { it[iad1tya.echo.music.constants.UseOwnQobuzHiResKey] ?: false }
-                .distinctUntilChanged()
-                .collect { enabled -> iad1tya.echo.music.qobuz.QobuzHiRes.enabled = enabled }
         }
 
         applicationScope.launch(Dispatchers.IO) {

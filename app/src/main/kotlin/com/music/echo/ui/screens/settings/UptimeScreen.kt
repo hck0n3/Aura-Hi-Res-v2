@@ -62,15 +62,14 @@ fun UptimeScreen(
     }
     val musicServices = remember {
         mutableStateListOf(
+            // JioSaavn and Qobuz removed (owner directive 2026-09-14): only the main catalogue serves music.
             ServiceStatus("Catálogo principal", { "https://music.youtube.com" }),
-            ServiceStatus("JioSaavn", { com.music.jiosaavn.DeviceRouter.getCurrentServer() }, { "Server ${com.music.jiosaavn.DeviceRouter.getCurrentServerIndex() + 1}" }),
-            ServiceStatus("Qobuz", { "https://qobuz.kennyy.com.br" })
         )
     }
 
     val canvasServices = remember {
         mutableStateListOf(
-            ServiceStatus("Echo Canvas", { "https://canvas.echomusic.fun" }),
+            // Echo Canvas removed (owner directive 2026-09-14): TIDAL Canvas is the one that works.
             ServiceStatus("Tidal Canvas", { "https://api.tidal.com/v1/" })
         )
     }

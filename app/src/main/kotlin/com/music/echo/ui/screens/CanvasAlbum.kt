@@ -9,7 +9,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import iad1tya.echo.music.applecanvas.AppleMusicCanvasProvider
-import iad1tya.echo.music.echomusiccanvas.echomusicCanvasProvider
 import iad1tya.echo.music.canvas.CanvasArtwork
 import iad1tya.echo.music.canvas.TidalCanvasProvider
 import iad1tya.echo.music.ui.player.CanvasArtworkPlaybackCache
@@ -66,11 +65,8 @@ fun rememberAlbumCanvas(
 
             searchTasks.filter { (s, a) -> s.isNotBlank() && a.isNotBlank() }
                 .firstNotNullOfOrNull { (s, a) ->
-                    echomusicCanvasProvider.getBySongArtist(
-                        song = s,
-                        artist = a
-                    )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-                    ?: AppleMusicCanvasProvider.getByAlbumArtist(
+                    // Echo Canvas removed (owner directive 2026-09-14); Apple Music then TIDAL.
+                    AppleMusicCanvasProvider.getByAlbumArtist(
                         album = s,
                         artist = a,
                         storefront = storefront

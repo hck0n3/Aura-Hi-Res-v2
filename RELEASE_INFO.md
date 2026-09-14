@@ -1,8 +1,37 @@
-# Aura Hi-Res v2.0.41 — actualizador sin bucles al 100 %, más todo lo de la 2.0.40
+# Aura Hi-Res v2.0.42 — Escuchar juntos que sí sigue al anfitrión, música primero y listas con IA más precisas
 
-Versión estable (v2.0.41 / versionCode 1002). Actualización directa sobre cualquier versión de la
+Versión estable (v2.0.42 / versionCode 1003). Actualización directa sobre cualquier versión de la
 identidad v2: mismo paquete (iad1tya.aura.music) y misma firma (CN=Aura Hi-Res v2), conserva tus datos,
 tu sesión y tus ajustes. Incluye Cast para enviar la música a tu TV o altavoz.
+
+## Escuchar juntos
+
+- **Los invitados reproducen lo que escucha el anfitrión:** la sala recibía una canción vacía, sin cola y en pausa, así que los dispositivos unidos no sonaban.
+- **Arreglado el cierre al pasar el mando** o al cambiar de canción siendo anfitrión.
+
+## Reproductor
+
+- **La música va primero:** un video musical suena como música hasta que tocas «Video», y al pasar a la siguiente canción vuelve a música.
+
+## Sonido
+
+- **Todos los interruptores de Sonido vienen activados por defecto**, incluidos el compresor suave y el headroom automático.
+- **La fila «Simulador Tidal» ya se activa al tocarla.**
+
+## Scrobbling y recomendaciones
+
+- **ListenBrainz ya acepta lo que suena:** antes rechazaba cada canción por una duración inválida.
+- **Last.fm y ListenBrainz registran la escucha aunque el reproductor aún no conozca la duración.**
+- **Enviar métricas de reproducción a Google viene activado por defecto** para afinar tus recomendaciones de YouTube Music; puedes apagarlo en Ajustes ▸ Scrobbling.
+
+## Listas con IA
+
+- **Nuevo modelo gratuito más preciso** para crear listas sin clave propia: respeta mejor el género, la época y los artistas pedidos.
+- **Más tiempo para que la IA responda** antes de recurrir a una lista hecha sin IA.
+
+## Servicios
+
+- **Se quitaron JioSaavn, Qobuz y Echo Canvas:** ya no aparecen en Estado de servicios ni en Cuentas. La música se sirve del catálogo principal y las portadas animadas de Apple Music y TIDAL Canvas.
 
 ## Actualizador
 

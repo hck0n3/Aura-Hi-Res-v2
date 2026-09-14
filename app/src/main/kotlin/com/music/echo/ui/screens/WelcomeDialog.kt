@@ -93,7 +93,7 @@ fun WelcomeDialog(
                     WelcomeBulletGroup(
                         "Reproducción",
                         listOf(
-                            "Gapless y fundido entre canciones (ajustable); Qobuz hi-res solo con tu cuenta",
+                            "Gapless y fundido entre canciones (ajustable)",
                             "Vídeo musical, PiP y Modo Ambiente; Cast solo audio (versión con Google)",
                             "Tempo/tono, SponsorBlock y recargar Opus desde el menú del reproductor",
                         ),
