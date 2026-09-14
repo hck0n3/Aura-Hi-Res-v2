@@ -131,7 +131,13 @@ fun SoundSettings(
             iad1tya.echo.music.constants.OutputDitherEnabledKey, defaultValue = true
         )
         val (speakerBassProtect, onSpeakerBassProtectChange) = rememberPreference(
-            iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey, defaultValue = false
+            iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey, defaultValue = true
+        )
+        val (autoHeadroom, onAutoHeadroomChange) = rememberPreference(
+            iad1tya.echo.music.constants.AutoHeadroomEnabledKey, defaultValue = false
+        )
+        val (stereoWidth, onStereoWidthChange) = rememberPreference(
+            iad1tya.echo.music.constants.StereoWidthKey, defaultValue = 1f
         )
         Material3SettingsGroup(
             title = "Masterización",
@@ -180,6 +186,36 @@ fun SoundSettings(
                         )
                     },
                     onClick = { onSpeakerBassProtectChange(!speakerBassProtect) },
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.volume_up),
+                    title = { Text("Headroom automático") },
+                    description = {
+                        Text("Baja el preamp tanto como el mayor realce de tu ecualización: los realces nunca saturan.")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = autoHeadroom,
+                            onCheckedChange = onAutoHeadroomChange,
+                            thumbContent = thumb(autoHeadroom),
+                        )
+                    },
+                    onClick = { onAutoHeadroomChange(!autoHeadroom) },
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.music_note),
+                    title = { Text("Ancho estéreo: ${(stereoWidth * 100).toInt()} %") },
+                    description = {
+                        Column {
+                            Text("Mid/Side: abre o cierra los lados sin tocar el centro (voz y bombo). 100 % = sin cambio.")
+                            Slider(
+                                value = stereoWidth,
+                                onValueChange = { onStereoWidthChange((it * 20).toInt() / 20f) },
+                                valueRange = 0.5f..1.5f,
+                            )
+                        }
+                    },
+                    onClick = { onStereoWidthChange(1f) },
                 ),
             ),
         )

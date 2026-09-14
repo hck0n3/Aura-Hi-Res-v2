@@ -776,7 +776,9 @@ class MusicService :
     // Mastering toggles (owner directive 2026-09-13). Defaults mirror the preference keys.
     @Volatile private var glueCompressorHint: Boolean = false
     @Volatile private var outputDitherHint: Boolean = true
-    @Volatile private var speakerBassProtectHint: Boolean = false
+    @Volatile private var speakerBassProtectHint: Boolean = true
+    @Volatile private var stereoWidthHint: Float = 1f
+    @Volatile private var autoHeadroomHint: Boolean = false
     // The offload request CURRENTLY PUBLISHED to the players (not merely the gate's latest verdict — an
     // approved enable can be waiting for a track boundary; see publishOffloadDecision). Read by
     // onPlaybackParametersChanged, which only re-publishes the speed requirement while offload is live.
@@ -1882,6 +1884,8 @@ class MusicService :
             SpatialAudioProfile.detectOutputKind(this) == SpatialOutputKind.SPEAKER
         playerEqProcessors.values.forEach {
             it.applyMastering(glueCompressorHint, outputDitherHint, onPhoneSpeaker)
+            it.applyStereoWidth(stereoWidthHint)
+            it.applyAutoHeadroom(autoHeadroomHint)
         }
     }
 
@@ -2499,13 +2503,27 @@ class MusicService :
             combine(
                 dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: false },
                 dataStore.data.map { it[iad1tya.echo.music.constants.OutputDitherEnabledKey] ?: true },
-                dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false },
+                dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: true },
             ) { compressor, dither, speaker -> Triple(compressor, dither, speaker) }
                 .distinctUntilChanged()
                 .collect { (compressor, dither, speaker) ->
                     glueCompressorHint = compressor
                     outputDitherHint = dither
                     speakerBassProtectHint = speaker
+                    applyMasteringFromPrefs()
+                }
+        }
+
+        // STEREO WIDTH + AUTO HEADROOM (owner directive 2026-09-13).
+        scope.launch {
+            combine(
+                dataStore.data.map { it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f },
+                dataStore.data.map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: false },
+            ) { width, headroom -> width to headroom }
+                .distinctUntilChanged()
+                .collect { (width, headroom) ->
+                    stereoWidthHint = width
+                    autoHeadroomHint = headroom
                     applyMasteringFromPrefs()
                 }
         }
@@ -2609,8 +2627,9 @@ class MusicService :
                 dataStore.data.map { it[SpatialAudioEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: false }.distinctUntilChanged(),
-                dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false }.distinctUntilChanged(),
-            ) { spatial, tidal, compressor, speaker -> spatial || tidal || compressor || speaker },
+                dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: true }.distinctUntilChanged(),
+                dataStore.data.map { (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f }.distinctUntilChanged(),
+            ) { spatial, tidal, compressor, speaker, width -> spatial || tidal || compressor || speaker || width },
         ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, spatialOrTidal ->
             AudioOffloadGate.allowOffload(
                 AudioOffloadGate.Inputs(

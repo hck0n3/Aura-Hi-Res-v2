@@ -822,6 +822,23 @@ private fun ColumnScope.EqMainContent(
         ),
     )
 
+    // ── Verificación en el motor real ─────────────────────────────────────────────────────────────
+    val verification by viewModel.verification.collectAsState()
+    Material3SettingsGroup(
+        title = "Verificación",
+        items = listOf(
+            Material3SettingsItem(
+                icon = painterResource(R.drawable.graphic_eq),
+                title = { Text("Verificar ecualizador") },
+                description = {
+                    Text("Mide dentro del motor la ganancia en cada frecuencia y el pico con ruido rosa a −0.1 dBFS, y lo compara con la curva dibujada.")
+                },
+                onClick = { viewModel.runVerification() },
+            ),
+        ),
+    )
+    verification?.let { EqVerificationDialog(result = it, onDismiss = viewModel::dismissVerification) }
+
     SpatialAudioSection(skin = skin)
 
     val (safeVolume, onSafeVolumeChange) = rememberPreference(SafeVolumeEnabledKey, defaultValue = true)
@@ -942,6 +959,7 @@ private fun ColumnScope.EqMainContent(
             bandTypes = viewModel.graphicTypes.collectAsState().value,
             onBandQChange = { i, q -> viewModel.setGraphicBandQLive(i, q) },
             onBandTypeChange = { i, t -> viewModel.setGraphicBandType(i, t) },
+            onBypassPreview = { viewModel.previewBypass(it) },
             enabled = graphicEnabled,
             onBandChange = { i, v -> viewModel.setBandGainLive(i, v) },
             onBandCommit = { viewModel.commit() },
@@ -1252,6 +1270,8 @@ private fun DeviceEqDialog(
                             DropdownMenu(
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false },
+                                shape = iad1tya.echo.music.ui.newui.AuraShapes.Card,
+                                containerColor = iad1tya.echo.music.ui.newui.auraFloatingContainerColor(),
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Ninguno") },
@@ -1601,6 +1621,7 @@ private fun BandEqCard(
     bandTypes: IntArray,
     onBandQChange: (Int, Float) -> Unit,
     onBandTypeChange: (Int, Int) -> Unit,
+    onBypassPreview: (Boolean) -> Unit = {},
     enabled: Boolean,
     onBandChange: (Int, Float) -> Unit,
     onBandCommit: () -> Unit,
@@ -1705,7 +1726,8 @@ private fun BandEqCard(
             Text("Ganancia", style = MaterialTheme.typography.labelSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 // Coarse ±1 dB steps are audible at once; ±0.1 dB is for fine trimming.
-                listOf(-1f to "−1", -0.1f to "−0.1", 0f to "0", 0.1f to "+0.1", 1f to "+1").forEach { (step, label) ->
+                // Audible steps: ±1 dB is subtle on a phone, ±3 dB is clearly heard.
+                listOf(-3f to "−3", -1f to "−1", 0f to "0", 1f to "+1", 3f to "+3").forEach { (step, label) ->
                     OutlinedButton(
                         onClick = {
                             onBandChange(sel, if (step == 0f) 0f else selGain + step)
@@ -1725,6 +1747,31 @@ private fun BandEqCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (EqConstants.FREQUENCIES[sel] < 100.0) {
+                Text(
+                    "Las frecuencias muy graves (31 y 62 Hz) casi no se oyen en el altavoz del teléfono ni en audífonos pequeños.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // A/B: hold to hear the song without the EQ, release to hear your tuning again.
+            OutlinedButton(
+                onClick = {},
+                enabled = enabled,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(enabled) {
+                        if (!enabled) return@pointerInput
+                        detectTapGestures(onPress = {
+                            onBypassPreview(true)
+                            try {
+                                tryAwaitRelease()
+                            } finally {
+                                onBypassPreview(false)
+                            }
+                        })
+                    },
+            ) { Text("Mantén presionado para escuchar sin EQ") }
             Text("Ancho de banda (Q)", style = MaterialTheme.typography.labelSmall)
             Slider(
                 value = selQ,
@@ -1852,105 +1899,12 @@ private fun yToGain(y: Float, height: Float): Double {
  *
  * LSC/HSC use shelfSlope S = 1.0 to match BiquadFilter's default. A near-flat band returns ~0 dB.
  */
-private fun bandMagnitudeDb(band: ParametricEQBand, f: Double): Double {
-    if (!band.enabled) return 0.0
-    val gain = band.gain
-    val q = band.q.coerceAtLeast(1e-4)
-    val f0 = band.frequency
-    val omega0 = 2.0 * Math.PI * f0 / PEQ_GRAPH_SAMPLE_RATE
-    val sinW0 = sin(omega0)
-    val cosW0 = cos(omega0)
+private fun bandMagnitudeDb(band: ParametricEQBand, f: Double): Double =
+    iad1tya.echo.music.eq.EqResponse.bandMagnitudeDb(band, f, PEQ_GRAPH_SAMPLE_RATE)
 
-    // Coefficients (un-normalized b*/a*; a0 divided out at the end).
-    val b0: Double; val b1: Double; val b2: Double
-    val a0: Double; val a1: Double; val a2: Double
-    when (band.filterType) {
-        FilterType.LSC -> {
-            val A = sqrt(10.0.pow(gain / 20.0))
-            val s = 1.0
-            val alpha = sinW0 / 2.0 * sqrt((A + 1.0 / A) * (1.0 / s - 1.0) + 2.0)
-            val sqrtA = sqrt(A)
-            val aPlus = A + 1.0
-            val aMinus = A - 1.0
-            val twoSqrtAAlpha = 2.0 * sqrtA * alpha
-            b0 = A * (aPlus - aMinus * cosW0 + twoSqrtAAlpha)
-            b1 = 2.0 * A * (aMinus - aPlus * cosW0)
-            b2 = A * (aPlus - aMinus * cosW0 - twoSqrtAAlpha)
-            a0 = aPlus + aMinus * cosW0 + twoSqrtAAlpha
-            a1 = -2.0 * (aMinus + aPlus * cosW0)
-            a2 = aPlus + aMinus * cosW0 - twoSqrtAAlpha
-        }
-        FilterType.HSC -> {
-            val A = sqrt(10.0.pow(gain / 20.0))
-            val s = 1.0
-            val alpha = sinW0 / 2.0 * sqrt((A + 1.0 / A) * (1.0 / s - 1.0) + 2.0)
-            val sqrtA = sqrt(A)
-            val aPlus = A + 1.0
-            val aMinus = A - 1.0
-            val twoSqrtAAlpha = 2.0 * sqrtA * alpha
-            b0 = A * (aPlus + aMinus * cosW0 + twoSqrtAAlpha)
-            b1 = -2.0 * A * (aMinus + aPlus * cosW0)
-            b2 = A * (aPlus + aMinus * cosW0 - twoSqrtAAlpha)
-            a0 = aPlus - aMinus * cosW0 + twoSqrtAAlpha
-            a1 = 2.0 * (aMinus - aPlus * cosW0)
-            a2 = aPlus - aMinus * cosW0 - twoSqrtAAlpha
-        }
-        FilterType.LPQ -> { // RBJ low-pass (gain ignored) — matches BiquadFilter.calculateLowPassCoefficients.
-            val alpha = sinW0 / (2.0 * q)
-            b0 = (1.0 - cosW0) / 2.0
-            b1 = 1.0 - cosW0
-            b2 = (1.0 - cosW0) / 2.0
-            a0 = 1.0 + alpha
-            a1 = -2.0 * cosW0
-            a2 = 1.0 - alpha
-        }
-        FilterType.HPQ -> { // RBJ high-pass (gain ignored) — matches BiquadFilter.calculateHighPassCoefficients.
-            val alpha = sinW0 / (2.0 * q)
-            b0 = (1.0 + cosW0) / 2.0
-            b1 = -(1.0 + cosW0)
-            b2 = (1.0 + cosW0) / 2.0
-            a0 = 1.0 + alpha
-            a1 = -2.0 * cosW0
-            a2 = 1.0 - alpha
-        }
-        else -> { // FilterType.PK (peaking) — also the fallback for any non-PEQ type.
-            val A = 10.0.pow(gain / 40.0)
-            val alpha = sinW0 / (2.0 * q)
-            b0 = 1.0 + alpha * A
-            b1 = -2.0 * cosW0
-            b2 = 1.0 - alpha * A
-            a0 = 1.0 + alpha / A
-            a1 = -2.0 * cosW0
-            a2 = 1.0 - alpha / A
-        }
-    }
-
-    // Normalize a0 → 1, exactly as BiquadFilter does.
-    val nb0 = b0 / a0; val nb1 = b1 / a0; val nb2 = b2 / a0
-    val na1 = a1 / a0; val na2 = a2 / a0
-
-    // Evaluate |H(e^jω)| at the display frequency. z^-1 = e^-jω, z^-2 = e^-2jω.
-    val omega = 2.0 * Math.PI * f / PEQ_GRAPH_SAMPLE_RATE
-    val cw = cos(omega); val sw = sin(omega)
-    val c2w = cos(2.0 * omega); val s2w = sin(2.0 * omega)
-    // Numerator B = b0 + b1·e^-jω + b2·e^-2jω
-    val numRe = nb0 + nb1 * cw + nb2 * c2w
-    val numIm = -(nb1 * sw + nb2 * s2w)
-    // Denominator A = 1 + a1·e^-jω + a2·e^-2jω
-    val denRe = 1.0 + na1 * cw + na2 * c2w
-    val denIm = -(na1 * sw + na2 * s2w)
-    val numMag = hypot(numRe, numIm)
-    val denMag = hypot(denRe, denIm).coerceAtLeast(1e-12)
-    val mag = numMag / denMag
-    return 20.0 * log10(mag.coerceAtLeast(1e-9))
-}
-
-/** Combined response (dB) = sum of every band's magnitude in dB at frequency [f]. */
-private fun combinedMagnitudeDb(bands: List<ParametricEQBand>, f: Double): Double {
-    var sum = 0.0
-    for (b in bands) sum += bandMagnitudeDb(b, f)
-    return sum
-}
+/** Combined response (dB) = sum of every band's magnitude in dB at frequency [f]. Same math as the engine. */
+private fun combinedMagnitudeDb(bands: List<ParametricEQBand>, f: Double): Double =
+    iad1tya.echo.music.eq.EqResponse.combinedMagnitudeDb(bands, f, PEQ_GRAPH_SAMPLE_RATE)
 
 private val PEQ_NODE_COLORS = listOf(
     0xFF4FC3F7, 0xFFFF8A65, 0xFFBA68C8, 0xFF81C784,

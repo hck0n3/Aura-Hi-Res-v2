@@ -316,7 +316,8 @@ fun AuraLibraryScreen(navController: NavController) {
                             expanded = showImportMenu,
                             onDismissRequest = { showImportMenu = false },
                             shape = AuraShapes.Card,
-                            containerColor = AuraPalette.GroundRaised,
+                            // Same floating plate as the other Aura dropdowns (FrostFill), not a solid card.
+                            containerColor = AuraPalette.FrostFill,
                             border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
                         ) {
                             DropdownMenuItem(

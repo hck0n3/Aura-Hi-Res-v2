@@ -219,6 +219,8 @@ fun LibraryScreen(navController: NavController) {
                     DropdownMenu(
                         expanded = showImportMenu,
                         onDismissRequest = { showImportMenu = false },
+                        shape = iad1tya.echo.music.ui.newui.AuraShapes.Card,
+                        containerColor = iad1tya.echo.music.ui.newui.auraFloatingContainerColor(),
                     ) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.import_from_spotify)) },

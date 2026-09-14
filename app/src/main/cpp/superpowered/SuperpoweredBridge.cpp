@@ -127,6 +127,62 @@ static bool probeSuperpoweredDsp(unsigned int samplerate) {
 // Native filter slots: 24-band EQ + AutoEQ bands.
 #define NUM_EQ_FILTERS 64
 
+/// RBJ cookbook biquad for one EQ band, normalized to a0 = 1: out = {b0, b1, b2, a1, a2}.
+/// MUST stay identical to Kotlin EqResponse.coefficients — the EQ graph, the in-app verification and this
+/// engine share one definition. typeCode: 0 peak, 1 low shelf, 2 high shelf, 3 low-pass, 4 high-pass.
+/// Shelves take their slope from Q: S = clamp(Q / 1.414, 0.05, 1).
+static void auraRbjCoefficients(double fs, float frequency, float gainDb, float qIn, int typeCode, float out[5]) {
+    double q = qIn < 1e-4f ? 1e-4 : (double) qIn;
+    double f0 = frequency;
+    if (f0 < 1.0) f0 = 1.0;
+    if (f0 > fs * 0.49) f0 = fs * 0.49;
+    const double w0 = 2.0 * 3.14159265358979323846 * f0 / fs;
+    const double sinW0 = std::sin(w0), cosW0 = std::cos(w0);
+    double b0, b1, b2, a0, a1, a2;
+    if (typeCode == 1 || typeCode == 2) {
+        const double A = std::sqrt(std::pow(10.0, gainDb / 20.0));
+        double S = q / 1.414;
+        if (S < 0.05) S = 0.05; else if (S > 1.0) S = 1.0;
+        const double alpha = sinW0 / 2.0 * std::sqrt((A + 1.0 / A) * (1.0 / S - 1.0) + 2.0);
+        const double t = 2.0 * std::sqrt(A) * alpha;
+        if (typeCode == 1) {
+            b0 = A * ((A + 1) - (A - 1) * cosW0 + t);
+            b1 = 2.0 * A * ((A - 1) - (A + 1) * cosW0);
+            b2 = A * ((A + 1) - (A - 1) * cosW0 - t);
+            a0 = (A + 1) + (A - 1) * cosW0 + t;
+            a1 = -2.0 * ((A - 1) + (A + 1) * cosW0);
+            a2 = (A + 1) + (A - 1) * cosW0 - t;
+        } else {
+            b0 = A * ((A + 1) + (A - 1) * cosW0 + t);
+            b1 = -2.0 * A * ((A - 1) + (A + 1) * cosW0);
+            b2 = A * ((A + 1) + (A - 1) * cosW0 - t);
+            a0 = (A + 1) - (A - 1) * cosW0 + t;
+            a1 = 2.0 * ((A - 1) - (A + 1) * cosW0);
+            a2 = (A + 1) - (A - 1) * cosW0 - t;
+        }
+    } else if (typeCode == 3 || typeCode == 4) {
+        const double alpha = sinW0 / (2.0 * q);
+        const double k = (typeCode == 3) ? (1.0 - cosW0) : (1.0 + cosW0);
+        b0 = k / 2.0;
+        b1 = (typeCode == 3) ? k : -k;
+        b2 = k / 2.0;
+        a0 = 1.0 + alpha;
+        a1 = -2.0 * cosW0;
+        a2 = 1.0 - alpha;
+    } else {
+        const double A = std::pow(10.0, gainDb / 40.0);
+        const double alpha = sinW0 / (2.0 * q);
+        b0 = 1.0 + alpha * A;
+        b1 = -2.0 * cosW0;
+        b2 = 1.0 - alpha * A;
+        a0 = 1.0 + alpha / A;
+        a1 = -2.0 * cosW0;
+        a2 = 1.0 - alpha / A;
+    }
+    out[0] = (float) (b0 / a0); out[1] = (float) (b1 / a0); out[2] = (float) (b2 / a0);
+    out[3] = (float) (a1 / a0); out[4] = (float) (a2 / a0);
+}
+
 /// One EQ band's COMPLETE parameter set, as a plain value type.
 /// Data only — it never references a Superpowered object, so it can be copied freely between threads.
 struct BandParams {
@@ -135,6 +191,8 @@ struct BandParams {
     float octave = 2.0f;
     float slope = 0.6f;
     float resonance = 0.1f; // resonant low/high-pass only: Superpowered resonance = Q / 10
+    float q = 1.414f;       // raw band Q and type code: the audio thread derives RBJ coefficients from them
+    int typeCode = 0;
     Superpowered::Filter::FilterType type = Superpowered::Filter::Parametric;
     bool enabled = false;
 };
@@ -178,6 +236,8 @@ struct EqSnapshot {
     bool compressorEnabled = false;
     bool ditherEnabled = false;
     bool speakerBassProtect = false;
+    /// Stereo width (Mid/Side): 1.0 = untouched, > 1 widens the sides, < 1 narrows. The centre (Mid) is kept.
+    float stereoWidth = 1.0f;
     /// Bumped by writers ONLY when a band actually changed (setEqBand / disableAllBands). Lets the audio
     /// thread skip re-writing all 64 filters for a publication that only moved a scalar — most importantly
     /// the per-track Safe Volume update, which must not touch EQ coefficients at all.
@@ -272,6 +332,7 @@ public:
     bool activeCompressorEnabled = false;
     bool activeDitherEnabled = false;
     bool activeSpeakerBassProtect = false;
+    float activeStereoWidth = 1.0f;
     /// bandsRevision of the snapshot whose band parameters are currently loaded into the filter objects.
     uint32_t appliedBandsRevision = 0;
 
@@ -381,6 +442,7 @@ public:
         activeCompressorEnabled = s.compressorEnabled;
         activeDitherEnabled = s.ditherEnabled;
         activeSpeakerBassProtect = s.speakerBassProtect;
+        activeStereoWidth = s.stereoWidth;
         applySpatializerProperties();
 
         // Filter objects are touched ONLY when a band genuinely changed. A publication caused purely by
@@ -392,20 +454,14 @@ public:
         for (int i = 0; i < NUM_EQ_FILTERS; ++i) {
             Superpowered::Filter* f = filters[i];
             const BandParams& b = s.bands[i];
-            f->frequency = b.frequency;
-            f->decibel = b.decibel;
-            f->type = b.type;
-            // Write only the width parameter that is EFFECTIVE for this type, exactly as the old
-            // per-call code did. SuperpoweredFilter.h:21-23 documents the effective parameters as
-            // frequency/slope/decibel for LowShelf+HighShelf and frequency/octave/decibel for
-            // Parametric, so the other one is ignored — but not writing it keeps this byte-for-byte
-            // equivalent to the previous behaviour and leaves no room for doubt.
-            if (b.type == Superpowered::Filter::LowShelf || b.type == Superpowered::Filter::HighShelf) {
-                f->slope = b.slope;
-            } else if (b.type == Superpowered::Filter::Resonant_Lowpass || b.type == Superpowered::Filter::Resonant_Highpass) {
-                f->resonance = b.resonance;
-            } else {
-                f->octave = b.octave;
+            if (b.enabled) {
+                // EXACT RESPONSE (2026-09-13): RBJ coefficients — the same formulas the EQ graph draws and the
+                // in-app verification expects — loaded as Superpowered custom coefficients, so "what you see is
+                // what you hear". The SDK smooths coefficient changes itself.
+                float c[5];
+                auraRbjCoefficients((double) currentSamplerate, b.frequency, b.decibel, b.q, b.typeCode, c);
+                f->type = Superpowered::Filter::CustomCoefficients;
+                f->setCustomCoefficients(c[0], c[1], c[2], c[3], c[4]);
             }
             f->enabled = b.enabled;
         }
@@ -529,7 +585,7 @@ public:
         }
         
         limiter = new Superpowered::Limiter(samplerate);
-        limiter->ceilingDb = -1.0f;
+        limiter->ceilingDb = -0.3f; // true-peak safety ceiling (-0.3 dBFS) for Opus/AAC decoded masters
         // Threshold below the ceiling so the limiter gain-rides EARLIER and rounds peaks smoothly,
         // instead of the old thresholdDb=0 all-or-nothing catch right at full scale (which forced the
         // tanh soft-clip to mop up = harshness). -3 dB gives gentler, more transparent limiting.
@@ -721,6 +777,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setEqBand(JNIEnv 
             if (oct < 0.05f) oct = 0.05f; else if (oct > 5.0f) oct = 5.0f;
             b.octave = oct;
         }
+        b.q = Q;
+        b.typeCode = filterType;
         b.enabled = true;
         processor->staging.bandsRevision++;
     }
@@ -855,6 +913,156 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setMasteringOptio
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setStereoWidth(JNIEnv *env, jobject thiz, jlong ptr, jfloat width) {
+#if HAS_SUPERPOWERED
+    auto* processor = reinterpret_cast<SuperpoweredProcessor*>(ptr);
+    if (!processor) return;
+    std::lock_guard<std::mutex> lock(processor->writerMutex);
+    float w = width;
+    if (!(w >= 0.0f)) w = 1.0f; else if (w > 2.0f) w = 2.0f;
+    processor->staging.stereoWidth = w;
+    processor->publishIfNotBatchingLocked();
+#endif
+}
+
+/// VERIFICATION (sine test): runs a sine at each test frequency through a private cascade built from
+/// [bands] (4 floats per band: frequency, gain dB, Q, type code) with the SAME coefficient code the live
+/// chain uses, and returns the measured gain in dB per frequency. Touches no live processor state.
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureEqResponse(JNIEnv *env, jobject thiz, jint samplerate, jfloatArray bands, jfloatArray freqs) {
+    jsize nf = env->GetArrayLength(freqs);
+    jfloatArray result = env->NewFloatArray(nf);
+#if HAS_SUPERPOWERED
+    jsize nb = env->GetArrayLength(bands) / 4;
+    std::vector<float> bandData((size_t) nb * 4);
+    std::vector<float> freqData((size_t) nf);
+    if (nb > 0) env->GetFloatArrayRegion(bands, 0, nb * 4, bandData.data());
+    env->GetFloatArrayRegion(freqs, 0, nf, freqData.data());
+    const unsigned int sr = samplerate > 0 ? (unsigned int) samplerate : 48000u;
+    std::vector<float> out((size_t) nf, 0.0f);
+    const int block = 512;
+    std::vector<float> buf((size_t) block * 2);
+    for (jsize k = 0; k < nf; ++k) {
+        std::vector<Superpowered::Filter*> cascade;
+        for (jsize i = 0; i < nb; ++i) {
+            auto* f = new Superpowered::Filter(Superpowered::Filter::CustomCoefficients, sr);
+            float c[5];
+            auraRbjCoefficients((double) sr, bandData[i * 4], bandData[i * 4 + 1], bandData[i * 4 + 2], (int) bandData[i * 4 + 3], c);
+            f->setCustomCoefficients(c[0], c[1], c[2], c[3], c[4]);
+            f->enabled = true;
+            cascade.push_back(f);
+        }
+        const double w = 2.0 * 3.14159265358979323846 * freqData[k] / sr;
+        const int settle = (int) (sr * 0.4f);
+        const int total = settle + (int) (sr * 0.6f);
+        double phase = 0.0, inEnergy = 0.0, outEnergy = 0.0;
+        for (int pos = 0; pos < total; pos += block) {
+            for (int i = 0; i < block; ++i) {
+                const float x = 0.25f * (float) std::sin(phase);
+                phase += w;
+                buf[i * 2] = x;
+                buf[i * 2 + 1] = x;
+                if (pos + i >= settle) inEnergy += (double) x * x;
+            }
+            for (auto* f : cascade) f->process(buf.data(), buf.data(), (unsigned int) block);
+            for (int i = 0; i < block; ++i) {
+                if (pos + i >= settle) outEnergy += (double) buf[i * 2] * buf[i * 2];
+            }
+        }
+        for (auto* f : cascade) delete f;
+        out[k] = (inEnergy > 0.0 && outEnergy > 0.0) ? (float) (10.0 * std::log10(outEnergy / inEnergy)) : -120.0f;
+    }
+    env->SetFloatArrayRegion(result, 0, nf, out.data());
+#endif
+    return result;
+}
+
+/// VERIFICATION (headroom): pink noise normalized to -0.1 dBFS peak -> preamp front gain -> EQ cascade ->
+/// limiter (live settings) -> soft knee. Returns {peak in, peak after EQ, peak out} in dBFS.
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(JNIEnv *env, jobject thiz, jint samplerate, jfloatArray bands, jfloat preampDb) {
+    jfloatArray result = env->NewFloatArray(3);
+#if HAS_SUPERPOWERED
+    jsize nb = env->GetArrayLength(bands) / 4;
+    std::vector<float> bandData((size_t) nb * 4);
+    if (nb > 0) env->GetFloatArrayRegion(bands, 0, nb * 4, bandData.data());
+    const unsigned int sr = samplerate > 0 ? (unsigned int) samplerate : 48000u;
+    const int frames = (int) sr * 4;
+    std::vector<float> noise((size_t) frames * 2);
+    uint32_t seed = 0x12345678u;
+    double b[2][7] = {{0}};
+    float maxAbs = 0.0f;
+    for (int i = 0; i < frames; ++i) {
+        for (int ch = 0; ch < 2; ++ch) {
+            seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
+            const double white = ((double) (seed & 0xFFFFFF) / 16777215.0) * 2.0 - 1.0;
+            double* p = b[ch];
+            p[0] = 0.99886 * p[0] + white * 0.0555179;
+            p[1] = 0.99332 * p[1] + white * 0.0750759;
+            p[2] = 0.96900 * p[2] + white * 0.1538520;
+            p[3] = 0.86650 * p[3] + white * 0.3104856;
+            p[4] = 0.55000 * p[4] + white * 0.5329522;
+            p[5] = -0.7616 * p[5] - white * 0.0168980;
+            const double pink = p[0] + p[1] + p[2] + p[3] + p[4] + p[5] + p[6] + white * 0.5362;
+            p[6] = white * 0.115926;
+            const float v = (float) pink;
+            noise[(size_t) i * 2 + ch] = v;
+            if (std::abs(v) > maxAbs) maxAbs = std::abs(v);
+        }
+    }
+    const float target = (float) std::pow(10.0, -0.1 / 20.0);
+    const float norm = maxAbs > 0.0f ? target / maxAbs : 1.0f;
+    for (auto& v : noise) v *= norm;
+
+    std::vector<Superpowered::Filter*> cascade;
+    for (jsize i = 0; i < nb; ++i) {
+        auto* f = new Superpowered::Filter(Superpowered::Filter::CustomCoefficients, sr);
+        float c[5];
+        auraRbjCoefficients((double) sr, bandData[i * 4], bandData[i * 4 + 1], bandData[i * 4 + 2], (int) bandData[i * 4 + 3], c);
+        f->setCustomCoefficients(c[0], c[1], c[2], c[3], c[4]);
+        f->enabled = true;
+        cascade.push_back(f);
+    }
+    auto* limiter = new Superpowered::Limiter(sr);
+    limiter->ceilingDb = -0.3f;
+    limiter->thresholdDb = -3.0f;
+    limiter->releaseSec = 0.05f;
+    limiter->enabled = true;
+
+    const float frontGain = (float) std::pow(10.0, preampDb / 20.0) * 0.7943f;
+    const int block = 512;
+    const int skip = (int) (sr * 0.5f); // let filters/limiter settle before measuring
+    float peakIn = 0.0f, peakEq = 0.0f, peakOut = 0.0f;
+    std::vector<float> buf((size_t) block * 2);
+    for (int pos = 0; pos + block <= frames; pos += block) {
+        for (int i = 0; i < block * 2; ++i) {
+            const float x = noise[(size_t) pos * 2 + i];
+            if (pos >= skip && std::abs(x) > peakIn) peakIn = std::abs(x);
+            buf[(size_t) i] = x * frontGain;
+        }
+        for (auto* f : cascade) f->process(buf.data(), buf.data(), (unsigned int) block);
+        for (int i = 0; i < block * 2; ++i) if (pos >= skip && std::abs(buf[(size_t) i]) > peakEq) peakEq = std::abs(buf[(size_t) i]);
+        limiter->process(buf.data(), buf.data(), (unsigned int) block);
+        for (int i = 0; i < block * 2; ++i) {
+            float x = buf[(size_t) i];
+            const float absX = std::abs(x);
+            if (absX > 0.97f) {
+                const float o = 0.97f + std::tanh(absX - 0.97f) * 0.03f;
+                x = (x > 0) ? o : -o;
+            }
+            if (pos >= skip && std::abs(x) > peakOut) peakOut = std::abs(x);
+        }
+    }
+    for (auto* f : cascade) delete f;
+    delete limiter;
+    auto toDb = [](float v) { return v > 0.0f ? (float) (20.0 * std::log10(v)) : -120.0f; };
+    float values[3] = {toDb(peakIn), toDb(peakEq), toDb(peakOut)};
+    env->SetFloatArrayRegion(result, 0, 3, values);
+#endif
+    return result;
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_disableAllBands(JNIEnv *env, jobject thiz, jlong ptr) {
 #if HAS_SUPERPOWERED
     auto* processor = reinterpret_cast<SuperpoweredProcessor*>(ptr);
@@ -929,7 +1137,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         (processor && (processor->activeSafeVolumeEnabled || processor->safeVolumeGainCurrent != 1.0f)) ||
         runSpatial ||
         (processor && processor->activeTidalSimulationEnabled) ||
-        (processor && (processor->activeCompressorEnabled || processor->activeSpeakerBassProtect));
+        (processor && (processor->activeCompressorEnabled || processor->activeSpeakerBassProtect ||
+                       processor->activeStereoWidth != 1.0f));
     if (runChain && workBuffer && processor) {
         // NO LOCK HERE. Parameters were taken in above via consumeAndApplySnapshot, which is wait-free
         // and delivers a complete set or nothing at all. Everything read below is either that applied
@@ -1034,6 +1243,19 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
             }
         }
 
+        // STEREO WIDTH (M/S, user control): only the Side part is scaled, so voice and kick (Mid) stay put.
+        if (processor->activeStereoWidth != 1.0f && channels == 2) {
+            const float w = processor->activeStereoWidth;
+            for (int i = 0; i < num_frames; ++i) {
+                const float l = workBuffer[i * 2];
+                const float r = workBuffer[i * 2 + 1];
+                const float mid = (l + r) * 0.5f;
+                const float side = (l - r) * 0.5f * w;
+                workBuffer[i * 2] = mid + side;
+                workBuffer[i * 2 + 1] = mid - side;
+            }
+        }
+
         // SPATIAL — after EQ / Safe Volume so the HRTF (or crossfeed / speaker width) sees the
         // levelled signal, and BEFORE the limiter so peaks from summing virtual sources are caught.
         // Stereo only: a Spatializer instance is a 3D point source feeding two ears.
@@ -1110,8 +1332,9 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         for (int i = 0; i < num_frames * channels; ++i) {
             float x = workBuffer[i];
             float absX = std::abs(x);
-            if (absX > 0.95f) {
-                float out = 0.95f + std::tanh(absX - 0.95f) * 0.05f;
+            // Knee sits ABOVE the limiter ceiling (0.966 = -0.3 dBFS) so it never shapes limited audio.
+            if (absX > 0.97f) {
+                float out = 0.97f + std::tanh(absX - 0.97f) * 0.03f;
                 workBuffer[i] = (x > 0) ? out : -out;
             }
         }

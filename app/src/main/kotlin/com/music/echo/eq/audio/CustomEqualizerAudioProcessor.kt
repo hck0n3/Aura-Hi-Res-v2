@@ -141,6 +141,9 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     private external fun setTidalSimulationEnabled(ptr: Long, enabled: Boolean)
     private external fun setSpatial(ptr: Long, enabled: Boolean, algorithm: Int, params: FloatArray)
     private external fun setMasteringOptions(ptr: Long, compressor: Boolean, dither: Boolean, speakerBassProtect: Boolean)
+    private external fun setStereoWidth(ptr: Long, width: Float)
+    private external fun measureEqResponse(sampleRate: Int, bands: FloatArray, freqs: FloatArray): FloatArray
+    private external fun measureHeadroom(sampleRate: Int, bands: FloatArray, preampDb: Float): FloatArray
     private external fun disableAllBands(ptr: Long)
     private external fun setEqBand(ptr: Long, index: Int, frequency: Float, gainDb: Float, q: Float, filterType: Int)
 
@@ -250,6 +253,62 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         }
     }
 
+    // STEREO WIDTH (M/S) and AUTO HEADROOM (owner directive 2026-09-13), kept for onConfigure restores.
+    private var stereoWidth = 1f
+    @Volatile private var autoHeadroom = false
+
+    /** Mid/Side width: 1.0 = untouched, > 1 wider sides, < 1 narrower. The centre is never changed. */
+    fun applyStereoWidth(width: Float) {
+        synchronized(eqApplyLock) {
+            stereoWidth = width.coerceIn(0f, 2f)
+            val ptr = nativePtr
+            if (isInitialized && ptr != 0L) setStereoWidth(ptr, stereoWidth)
+        }
+    }
+
+    /**
+     * Auto headroom: when on, the preamp is lowered by the highest boost of the current curve, so the EQ can
+     * never push a full-scale track into the limiter. Re-applies the current profile when it changes.
+     */
+    fun applyAutoHeadroom(enabled: Boolean) {
+        if (autoHeadroom == enabled) return
+        autoHeadroom = enabled
+        currentProfile?.let { if (this.enabled) applyProfile(it) }
+    }
+
+    private fun effectivePreampDb(profile: ParametricEQ): Double {
+        if (!autoHeadroom) return profile.preamp
+        val active = (profile.autoBands + profile.bands).filter { it.enabled }
+        return profile.preamp - iad1tya.echo.music.eq.EqResponse.peakBoostDb(active)
+    }
+
+    /** The native engine is loaded and usable for measurements. */
+    fun isEngineReady(): Boolean = isInitialized && nativePtr != 0L
+
+    /**
+     * In-engine verification: measured gain (dB) at each of [freqs] through the real coefficient code, plus the
+     * headroom test {peak in, peak after EQ, peak out} for pink noise at -0.1 dBFS. Null when the engine is off.
+     */
+    fun measure(bands: List<iad1tya.echo.music.eq.data.ParametricEQBand>, preampDb: Float, freqs: DoubleArray, sampleRate: Int): Pair<FloatArray, FloatArray>? {
+        if (!isEngineReady()) return null
+        val flat = FloatArray(bands.size * 4)
+        bands.forEachIndexed { i, b ->
+            flat[i * 4] = b.frequency.toFloat()
+            flat[i * 4 + 1] = b.gain.toFloat()
+            flat[i * 4 + 2] = b.q.toFloat()
+            flat[i * 4 + 3] = when (b.filterType) {
+                FilterType.LSC -> 1f
+                FilterType.HSC -> 2f
+                FilterType.LPQ -> 3f
+                FilterType.HPQ -> 4f
+                else -> 0f
+            }
+        }
+        val response = measureEqResponse(sampleRate, flat, FloatArray(freqs.size) { freqs[it].toFloat() })
+        val headroom = measureHeadroom(sampleRate, flat, preampDb)
+        return response to headroom
+    }
+
     fun isEnabled(): Boolean = enabled
 
     fun disable() {
@@ -319,7 +378,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
                 // the user dragged EQ sliders (owner: "muevo las barras y cambia el volumen"). Peaks are
                 // caught by the gentle -3 dBFS limiter + true-peak path instead — perceived loudness stays
                 // with the user's preamp; only the shape changes.
-                setPreamp(ptr, profile.preamp.toFloat())
+                setPreamp(ptr, effectivePreampDb(profile).toFloat())
 
                 allBands.forEachIndexed { index, band ->
                     if (bandActive(band)) {
@@ -437,6 +496,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             if (isInitialized && restorePtr != 0L) {
                 setSpatial(restorePtr, spatialEnabled, spatialAlgorithm, spatialParams)
                 setMasteringOptions(restorePtr, masteringCompressor, masteringDither, masteringSpeakerBassProtect)
+                setStereoWidth(restorePtr, stereoWidth)
             }
         }
 

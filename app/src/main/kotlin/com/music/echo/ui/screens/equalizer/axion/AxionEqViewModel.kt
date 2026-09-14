@@ -654,6 +654,56 @@ class AxionEqViewModel @Inject constructor(
         if (_enabled.value) equalizerService.applyProfile(liveProfile())
     }
 
+    // ── In-engine verification (owner directive 2026-09-13: "funcionando a la perfección") ─────────────
+    private val _verification = MutableStateFlow<EqVerification?>(null)
+    val verification = _verification.asStateFlow()
+
+    /**
+     * Measures the current curve inside the real engine: a sine at each test frequency through the same
+     * coefficient code the live chain uses, compared with the drawn curve (EqResponse), plus the pink-noise
+     * headroom test at -0.1 dBFS. Runs off the main thread; touches no live audio state.
+     */
+    fun runVerification() {
+        _verification.value = EqVerification.running()
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val bands = ((if (_autoEqActive.value) _autoEqBands.value else emptyList()) + allBands()).filter { it.enabled }
+            val freqs = EqVerification.TEST_FREQUENCIES
+            val measured = equalizerService.measure(bands, _preamp.value, freqs, EqVerification.SAMPLE_RATE)
+            _verification.value = if (measured == null) {
+                EqVerification.engineUnavailable()
+            } else {
+                val (response, headroom) = measured
+                EqVerification(
+                    running = false,
+                    engineReady = true,
+                    rows = freqs.mapIndexed { i, f ->
+                        EqVerificationRow(
+                            frequency = f,
+                            expectedDb = iad1tya.echo.music.eq.EqResponse.combinedMagnitudeDb(bands, f, EqVerification.SAMPLE_RATE.toDouble()),
+                            measuredDb = response.getOrElse(i) { -120f }.toDouble(),
+                        )
+                    },
+                    peakInDb = headroom.getOrElse(0) { 0f },
+                    peakAfterEqDb = headroom.getOrElse(1) { 0f },
+                    peakOutDb = headroom.getOrElse(2) { 0f },
+                )
+            }
+        }
+    }
+
+    fun dismissVerification() {
+        _verification.value = null
+    }
+
+    /**
+     * A/B listening: while [bypass] is true the DSP runs without the EQ (bands and preamp); releasing
+     * re-applies the current tuning. Nothing is persisted and the EQ switch is untouched.
+     */
+    fun previewBypass(bypass: Boolean) {
+        if (!_enabled.value) return
+        if (bypass) equalizerService.disable() else equalizerService.applyProfile(liveProfile())
+    }
+
     /** Live preamp drag (see [setBandGainLive]). */
     fun setPreampLive(db: Float) {
         val v = db.coerceIn(EqConstants.PREAMP_MIN, EqConstants.PREAMP_MAX)
@@ -692,5 +742,37 @@ class AxionEqViewModel @Inject constructor(
             eqProfileRepository.setUnsavedProfile(p)
             eqProfileRepository.setActiveProfile(p.id)
         }
+    }
+}
+
+
+data class EqVerificationRow(val frequency: Double, val expectedDb: Double, val measuredDb: Double) {
+    val differenceDb: Double get() = measuredDb - expectedDb
+    val passes: Boolean get() = kotlin.math.abs(differenceDb) <= EqVerification.TOLERANCE_DB
+}
+
+data class EqVerification(
+    val running: Boolean,
+    val engineReady: Boolean,
+    val rows: List<EqVerificationRow>,
+    val peakInDb: Float,
+    val peakAfterEqDb: Float,
+    val peakOutDb: Float,
+) {
+    val responsePasses: Boolean get() = rows.isNotEmpty() && rows.all { it.passes }
+    /** The output never reaches full scale: limited to the -0.3 dBFS ceiling (small tolerance). */
+    val headroomPasses: Boolean get() = engineReady && peakOutDb <= HEADROOM_LIMIT_DBFS
+
+    companion object {
+        const val SAMPLE_RATE = 48_000
+        const val TOLERANCE_DB = 0.5
+        const val HEADROOM_LIMIT_DBFS = -0.2f
+        val TEST_FREQUENCIES = doubleArrayOf(
+            31.5, 45.0, 62.5, 90.0, 125.0, 180.0, 250.0, 355.0, 500.0, 710.0,
+            1000.0, 1400.0, 2000.0, 2800.0, 4000.0, 5600.0, 8000.0, 11200.0, 16000.0,
+        )
+
+        fun running() = EqVerification(true, true, emptyList(), 0f, 0f, 0f)
+        fun engineUnavailable() = EqVerification(false, false, emptyList(), 0f, 0f, 0f)
     }
 }

@@ -1249,6 +1249,12 @@ val OutputDitherEnabledKey = booleanPreferencesKey("mastering_output_dither_enab
 /** Mastering: -5 dB sub-bass shelf while the PHONE SPEAKER is the output route. Default OFF (user opt-in). */
 val SpeakerBassProtectEnabledKey = booleanPreferencesKey("mastering_speaker_bass_protect_enabled")
 
+// Stereo width (Mid/Side) of the Superpowered chain: 1.0 = untouched. Default untouched.
+val StereoWidthKey = floatPreferencesKey("mastering_stereo_width")
+
+// Auto headroom: lower the preamp by the curve's highest boost so the EQ never clips. Default off.
+val AutoHeadroomEnabledKey = booleanPreferencesKey("mastering_auto_headroom")
+
 // Song shares send a song.link universal link (opens in Spotify, Apple Music, Deezer…). Default on.
 val ShareUseSongLinkKey = booleanPreferencesKey("share_use_song_link")
 

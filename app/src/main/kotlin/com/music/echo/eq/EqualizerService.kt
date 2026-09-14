@@ -108,6 +108,17 @@ class EqualizerService @Inject constructor() {
     }
 
     
+    /**
+     * In-engine verification through the first live processor (see CustomEqualizerAudioProcessor.measure):
+     * measured gain per frequency and the pink-noise headroom peaks. Null when no engine is loaded.
+     */
+    fun measure(
+        bands: List<iad1tya.echo.music.eq.data.ParametricEQBand>,
+        preampDb: Float,
+        freqs: DoubleArray,
+        sampleRate: Int,
+    ): Pair<FloatArray, FloatArray>? = audioProcessors.firstOrNull { it.isEngineReady() }?.measure(bands, preampDb, freqs, sampleRate)
+
     fun isInitialized(): Boolean {
         return audioProcessors.isNotEmpty()
     }
