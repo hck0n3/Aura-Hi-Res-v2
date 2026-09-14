@@ -1,8 +1,15 @@
-# Aura Hi-Res v2.0.40-beta1 — ventanas flotantes sólidas, micrófono que se ve, caché que se reutiliza y betas por el actualizador
+# Aura Hi-Res v2.0.40-beta2 — sin esperas de 4 minutos ante enlaces caducados y listas guardadas que vuelven a cargar
 
-BETA PRIVADA para el dueño (v2.0.40-beta1 / versionCode 999). Actualización directa sobre
+BETA PRIVADA para el dueño (v2.0.40-beta2 / versionCode 1000). Actualización directa sobre
 cualquier versión de la identidad v2: mismo paquete (iad1tya.aura.music) y misma
 firma (CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes.
+
+## Nuevo en beta2 (corregido a partir del registro de tu teléfono)
+
+- **Enlace de canción rechazado por YouTube (403):** antes la app lo reintentaba unas 55 veces durante más de 4 minutos y la canción acababa en error. Ahora pide un enlace nuevo al instante (máximo 3 intentos por canción).
+- **Tus listas guardadas vuelven a cargar en Inicio y Cuenta:** YouTube Music cambió el formato de esa página y la app no la reconocía.
+
+## Incluido desde beta1
 
 ## Ventanas flotantes con el estilo del menú de cuenta
 
