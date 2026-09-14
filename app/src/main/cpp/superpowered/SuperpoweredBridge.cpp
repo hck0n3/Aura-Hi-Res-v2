@@ -183,6 +183,34 @@ static void auraRbjCoefficients(double fs, float frequency, float gainDb, float 
     out[3] = (float) (a1 / a0); out[4] = (float) (a2 / a0);
 }
 
+/// EQ band biquad (transposed direct form II, one state per channel) running the RBJ coefficients above.
+/// Replaces Superpowered custom-coefficient filters for the EQ bands: with those the owner's phone played
+/// silence. A non-finite state (never expected) resets the band instead of muting the whole chain.
+struct AuraBiquad {
+    float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
+    float z1[2] = {0.0f, 0.0f};
+    float z2[2] = {0.0f, 0.0f};
+    void set(const float c[5]) { b0 = c[0]; b1 = c[1]; b2 = c[2]; a1 = c[3]; a2 = c[4]; }
+    void reset() { z1[0] = z1[1] = z2[0] = z2[1] = 0.0f; }
+    void process(float* data, int frames, int channels) {
+        const int chs = channels < 2 ? channels : 2;
+        for (int ch = 0; ch < chs; ++ch) {
+            float s1 = z1[ch], s2 = z2[ch];
+            for (int i = 0; i < frames; ++i) {
+                const int idx = i * channels + ch;
+                const float x = data[idx];
+                const float y = b0 * x + s1;
+                s1 = b1 * x - a1 * y + s2;
+                s2 = b2 * x - a2 * y;
+                data[idx] = y;
+            }
+            if (!std::isfinite(s1) || !std::isfinite(s2)) { s1 = 0.0f; s2 = 0.0f; }
+            z1[ch] = s1;
+            z2[ch] = s2;
+        }
+    }
+};
+
 /// One EQ band's COMPLETE parameter set, as a plain value type.
 /// Data only — it never references a Superpowered object, so it can be copied freely between threads.
 struct BandParams {
@@ -247,6 +275,8 @@ struct EqSnapshot {
 class SuperpoweredProcessor {
 public:
     std::vector<Superpowered::Filter*> filters;
+    AuraBiquad eqBiquads[NUM_EQ_FILTERS];
+    bool eqBiquadOn[NUM_EQ_FILTERS] = {};
     Superpowered::Limiter* limiter = nullptr;
     Superpowered::Filter* deEsser = nullptr;
     Superpowered::Filter* deEsserDetector = nullptr;
@@ -452,18 +482,16 @@ public:
         appliedBandsRevision = s.bandsRevision;
 
         for (int i = 0; i < NUM_EQ_FILTERS; ++i) {
-            Superpowered::Filter* f = filters[i];
             const BandParams& b = s.bands[i];
             if (b.enabled) {
-                // EXACT RESPONSE (2026-09-13): RBJ coefficients — the same formulas the EQ graph draws and the
-                // in-app verification expects — loaded as Superpowered custom coefficients, so "what you see is
-                // what you hear". The SDK smooths coefficient changes itself.
+                // RBJ coefficients — the same formulas the EQ graph draws — into the band's own biquad.
                 float c[5];
                 auraRbjCoefficients((double) currentSamplerate, b.frequency, b.decibel, b.q, b.typeCode, c);
-                f->type = Superpowered::Filter::CustomCoefficients;
-                f->setCustomCoefficients(c[0], c[1], c[2], c[3], c[4]);
+                if (!eqBiquadOn[i]) eqBiquads[i].reset();
+                eqBiquads[i].set(c);
             }
-            f->enabled = b.enabled;
+            eqBiquadOn[i] = b.enabled;
+            filters[i]->enabled = false; // the Superpowered filter objects no longer run the EQ bands
         }
     }
 
@@ -943,14 +971,11 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureEqResponse
     const int block = 512;
     std::vector<float> buf((size_t) block * 2);
     for (jsize k = 0; k < nf; ++k) {
-        std::vector<Superpowered::Filter*> cascade;
+        std::vector<AuraBiquad> cascade((size_t) nb);
         for (jsize i = 0; i < nb; ++i) {
-            auto* f = new Superpowered::Filter(Superpowered::Filter::CustomCoefficients, sr);
             float c[5];
             auraRbjCoefficients((double) sr, bandData[i * 4], bandData[i * 4 + 1], bandData[i * 4 + 2], (int) bandData[i * 4 + 3], c);
-            f->setCustomCoefficients(c[0], c[1], c[2], c[3], c[4]);
-            f->enabled = true;
-            cascade.push_back(f);
+            cascade[(size_t) i].set(c);
         }
         const double w = 2.0 * 3.14159265358979323846 * freqData[k] / sr;
         const int settle = (int) (sr * 0.4f);
@@ -964,12 +989,11 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureEqResponse
                 buf[i * 2 + 1] = x;
                 if (pos + i >= settle) inEnergy += (double) x * x;
             }
-            for (auto* f : cascade) f->process(buf.data(), buf.data(), (unsigned int) block);
+            for (auto& bq : cascade) bq.process(buf.data(), block, 2);
             for (int i = 0; i < block; ++i) {
                 if (pos + i >= settle) outEnergy += (double) buf[i * 2] * buf[i * 2];
             }
         }
-        for (auto* f : cascade) delete f;
         out[k] = (inEnergy > 0.0 && outEnergy > 0.0) ? (float) (10.0 * std::log10(outEnergy / inEnergy)) : -120.0f;
     }
     env->SetFloatArrayRegion(result, 0, nf, out.data());
@@ -1014,14 +1038,11 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(J
     const float norm = maxAbs > 0.0f ? target / maxAbs : 1.0f;
     for (auto& v : noise) v *= norm;
 
-    std::vector<Superpowered::Filter*> cascade;
+    std::vector<AuraBiquad> cascade((size_t) nb);
     for (jsize i = 0; i < nb; ++i) {
-        auto* f = new Superpowered::Filter(Superpowered::Filter::CustomCoefficients, sr);
         float c[5];
         auraRbjCoefficients((double) sr, bandData[i * 4], bandData[i * 4 + 1], bandData[i * 4 + 2], (int) bandData[i * 4 + 3], c);
-        f->setCustomCoefficients(c[0], c[1], c[2], c[3], c[4]);
-        f->enabled = true;
-        cascade.push_back(f);
+        cascade[(size_t) i].set(c);
     }
     auto* limiter = new Superpowered::Limiter(sr);
     limiter->ceilingDb = -0.3f;
@@ -1040,7 +1061,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(J
             if (pos >= skip && std::abs(x) > peakIn) peakIn = std::abs(x);
             buf[(size_t) i] = x * frontGain;
         }
-        for (auto* f : cascade) f->process(buf.data(), buf.data(), (unsigned int) block);
+        for (auto& bq : cascade) bq.process(buf.data(), block, 2);
         for (int i = 0; i < block * 2; ++i) if (pos >= skip && std::abs(buf[(size_t) i]) > peakEq) peakEq = std::abs(buf[(size_t) i]);
         limiter->process(buf.data(), buf.data(), (unsigned int) block);
         for (int i = 0; i < block * 2; ++i) {
@@ -1053,7 +1074,6 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(J
             if (pos >= skip && std::abs(x) > peakOut) peakOut = std::abs(x);
         }
     }
-    for (auto* f : cascade) delete f;
     delete limiter;
     auto toDb = [](float v) { return v > 0.0f ? (float) (20.0 * std::log10(v)) : -120.0f; };
     float values[3] = {toDb(peakIn), toDb(peakEq), toDb(peakOut)};
@@ -1163,12 +1183,9 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         }
 
         if (runEq) {
-            // Apply EQ bands
-            for (auto* filter : processor->filters) {
-                if (filter->enabled) {
-                    if (channels == 1) filter->processMono(workBuffer, workBuffer, num_frames);
-                    else filter->process(workBuffer, workBuffer, num_frames);
-                }
+            // Apply EQ bands (own TDF-II biquads with the graph's RBJ coefficients).
+            for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) {
+                if (processor->eqBiquadOn[bi]) processor->eqBiquads[bi].process(workBuffer, num_frames, channels);
             }
 
             // Dynamic De-Esser (only with EQ on — it exists to tame EQ-boosted sibilance). Improved
