@@ -125,7 +125,7 @@ fun AccountsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text("Cuentas") },
                 navigationIcon = {
                     IconButton(

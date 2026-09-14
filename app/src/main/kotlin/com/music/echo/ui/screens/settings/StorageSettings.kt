@@ -629,7 +629,7 @@ fun StorageSettings(
         Spacer(Modifier.padding(bottom = 30.dp))
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(stringResource(R.string.storage)) },
         navigationIcon = {
             IconButton(

@@ -75,7 +75,7 @@ fun OnboardingArtistsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = {
+            iad1tya.echo.music.ui.component.AuraTopAppBar(title = {
                 Column {
                     Text("Elige tus artistas favoritos", fontWeight = FontWeight.Bold)
                     Text(

@@ -197,7 +197,7 @@ fun RecognitionHistoryScreen(
         // `MaterialTheme.colorScheme.background` IS the `Scaffold` default.
         containerColor = ground,
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.recognition_history)) },
                 navigationIcon = {
                     IconButton(

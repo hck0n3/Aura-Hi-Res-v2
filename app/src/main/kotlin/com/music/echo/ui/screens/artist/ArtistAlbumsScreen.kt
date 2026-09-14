@@ -186,7 +186,7 @@ fun ArtistAlbumsScreen(
         // the same single source the chrome does (SimpMusic production pattern). No source →
         // Material default solid, byte-identical.
         val classicBarHazeState = LocalShellHazeState.current
-        TopAppBar(
+        iad1tya.echo.music.ui.component.AuraTopAppBar(
             title = { Text(artist?.artist?.name.orEmpty()) },
             navigationIcon = {
                 IconButton(

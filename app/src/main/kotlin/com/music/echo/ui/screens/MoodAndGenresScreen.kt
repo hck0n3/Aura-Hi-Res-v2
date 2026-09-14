@@ -103,7 +103,7 @@ fun MoodAndGenresScreen(
         }
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(stringResource(R.string.mood_and_genres)) },
         navigationIcon = {
             IconButton(

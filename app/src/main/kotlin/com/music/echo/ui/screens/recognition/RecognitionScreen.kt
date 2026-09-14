@@ -349,7 +349,7 @@ fun RecognitionScreen(
     Scaffold(
         containerColor = if (skin.enabled) AuraPalette.Ground else MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.recognize_music)) },
                 navigationIcon = {
                     IconButton(

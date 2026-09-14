@@ -477,7 +477,7 @@ fun OnlinePlaylistScreen(
             }
         }
 
-        TopAppBar(
+        iad1tya.echo.music.ui.component.AuraTopAppBar(
             title = {
                 if (inSelectMode) {
                     Text(

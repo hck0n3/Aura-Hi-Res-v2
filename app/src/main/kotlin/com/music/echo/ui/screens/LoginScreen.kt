@@ -342,7 +342,7 @@ fun LoginScreen(
                 }
             }
         } else {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.login)) },
                 navigationIcon = {
                     IconButton(

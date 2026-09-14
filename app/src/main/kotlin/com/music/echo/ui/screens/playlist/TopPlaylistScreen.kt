@@ -405,7 +405,7 @@ fun TopPlaylistScreen(
             headerItems = 2
         )
 
-        TopAppBar(
+        iad1tya.echo.music.ui.component.AuraTopAppBar(
             title = {
                 when {
                     inSelectMode -> {

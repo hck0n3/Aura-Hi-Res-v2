@@ -104,7 +104,7 @@ fun ChartsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.charts)) },
                 navigationIcon = {
                     IconButton(

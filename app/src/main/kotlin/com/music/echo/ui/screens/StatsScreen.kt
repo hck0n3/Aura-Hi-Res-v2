@@ -311,7 +311,7 @@ fun StatsScreen(
             )
         }
 
-        TopAppBar(
+        iad1tya.echo.music.ui.component.AuraTopAppBar(
             title = { Text(stringResource(R.string.stats)) },
             navigationIcon = {
                 IconButton(

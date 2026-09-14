@@ -397,7 +397,7 @@ fun RomanizationSettings(
         }
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(stringResource(R.string.lyrics_romanize_title)) },
         navigationIcon = {
             IconButton(

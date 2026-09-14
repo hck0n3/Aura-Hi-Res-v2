@@ -104,7 +104,7 @@ fun NewReleaseScreen(
         }
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(stringResource(R.string.new_release_albums)) },
         navigationIcon = {
             IconButton(

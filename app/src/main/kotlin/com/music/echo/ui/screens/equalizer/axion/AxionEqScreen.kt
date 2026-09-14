@@ -196,7 +196,7 @@ fun AxionEqScreen(
         },
         containerColor = ground,
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.echo_equalizer)) },
                 navigationIcon = {
                     iad1tya.echo.music.ui.component.IconButton(onClick = onBackClick, onLongClick = null) {

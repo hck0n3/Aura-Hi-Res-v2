@@ -140,7 +140,7 @@ fun PodcastScreen(
     Scaffold(
         containerColor = ground,
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = {
                     Text(
                         selectedShow?.title ?: stringResource(R.string.podcasts),

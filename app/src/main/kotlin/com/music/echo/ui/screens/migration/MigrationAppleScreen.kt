@@ -74,7 +74,7 @@ fun MigrationAppleScreen(navController: NavController) {
 
             // Steps
             AppleMusicGuide.STEPS.forEach { step ->
-                Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                iad1tya.echo.music.ui.component.AuraCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -128,7 +128,7 @@ fun MigrationAppleScreen(navController: NavController) {
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
             )
-            Card(
+            iad1tya.echo.music.ui.component.AuraCard(
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(

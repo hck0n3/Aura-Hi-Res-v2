@@ -420,7 +420,7 @@ fun HistoryScreen(
         )
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = {
             if (inSelectMode) {
                 Text(pluralStringResource(R.plurals.n_selected, selection.size, selection.size))

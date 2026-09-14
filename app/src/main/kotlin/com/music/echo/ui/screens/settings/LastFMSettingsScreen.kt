@@ -762,7 +762,7 @@ fun LastFMSettingsScreen(
         Spacer(Modifier.height(24.dp))
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(stringResource(R.string.lastfm_integration)) },
         navigationIcon = {
             IconButton(

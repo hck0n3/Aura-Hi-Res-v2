@@ -211,7 +211,7 @@ fun ArtistSongsScreen(
         // single source the chrome does (the SimpMusic production pattern). No source →
         // Material default solid bar, byte-identical to what shipped before.
         val classicBarHazeState = LocalShellHazeState.current
-        TopAppBar(
+        iad1tya.echo.music.ui.component.AuraTopAppBar(
             title = { Text(artist?.artist?.name.orEmpty()) },
             navigationIcon = {
                 IconButton(

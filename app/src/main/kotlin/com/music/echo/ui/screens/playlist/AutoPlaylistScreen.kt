@@ -501,7 +501,7 @@ fun AutoPlaylistScreen(
             )
         }
 
-        TopAppBar(
+        iad1tya.echo.music.ui.component.AuraTopAppBar(
             title = {
                 when {
                     inSelectMode -> {

@@ -464,7 +464,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.confirmContent(
     onCancel: () -> Unit,
 ) {
     item {
-        Card(
+        iad1tya.echo.music.ui.component.AuraCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
         ) {
@@ -527,7 +527,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.confirmContent(
 
 private fun androidx.compose.foundation.lazy.LazyListScope.runningContent(state: MigrationUiState) {
     item {
-        Card(
+        iad1tya.echo.music.ui.component.AuraCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
         ) {
@@ -579,7 +579,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.doneContent(
     onShareFailuresCsv: () -> Unit,
 ) {
     item {
-        Card(
+        iad1tya.echo.music.ui.component.AuraCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
         ) {
@@ -766,7 +766,7 @@ private fun AmbiguousCard(
     onChoose: (String) -> Unit,
     onSkip: () -> Unit,
 ) {
-    Card(
+    iad1tya.echo.music.ui.component.AuraCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
     ) {
@@ -872,7 +872,7 @@ private fun CandidateRow(
 
 @Composable
 private fun WarningCard(text: String) {
-    Card(
+    iad1tya.echo.music.ui.component.AuraCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(

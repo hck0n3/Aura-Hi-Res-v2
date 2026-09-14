@@ -113,7 +113,7 @@ fun UptimeScreen(
     Scaffold(
         containerColor = ground,
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.service_uptime)) },
                 navigationIcon = {
                     IconButton(onClick = navController::navigateUp) {

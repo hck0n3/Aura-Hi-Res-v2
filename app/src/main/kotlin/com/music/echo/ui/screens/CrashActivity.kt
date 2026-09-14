@@ -144,7 +144,7 @@ fun CrashScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { 
                     Text(
                         text = stringResource(R.string.crash_title),

@@ -549,7 +549,7 @@ fun GlassEffectSettings(
         )
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(stringResource(R.string.liquid_glass_settings)) },
         navigationIcon = {
             AppIconButton(

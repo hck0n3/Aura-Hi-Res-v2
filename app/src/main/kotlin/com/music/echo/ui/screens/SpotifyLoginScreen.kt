@@ -128,7 +128,7 @@ fun SpotifyLoginScreen(navController: NavController) {
                 else Modifier,
             ),
     ) {
-        TopAppBar(
+        iad1tya.echo.music.ui.component.AuraTopAppBar(
             title = { Text(stringResource(R.string.spotify_login_title)) },
             navigationIcon = {
                 IconButton(onClick = navController::navigateUp) {

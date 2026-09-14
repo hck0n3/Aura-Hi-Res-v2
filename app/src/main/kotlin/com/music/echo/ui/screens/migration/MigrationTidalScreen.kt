@@ -139,7 +139,7 @@ fun MigrationTidalScreen(navController: NavController) {
             // pasted), or when the user explicitly opens the advanced override. With a baked-in id the
             // owner sees a compact "listo" line + an optional "cambiar" link instead of a paste form.
             if (effectiveClientId.isBlank() || showClientIdEditor) {
-                Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                iad1tya.echo.music.ui.component.AuraCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -232,7 +232,7 @@ fun MigrationTidalScreen(navController: NavController) {
 
 @Composable
 private fun LoginCard(loggingIn: Boolean, onLogin: () -> Unit) {
-    Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+    iad1tya.echo.music.ui.component.AuraCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -277,7 +277,7 @@ private fun ConnectedCard(
     onReload: () -> Unit,
     onLogout: () -> Unit,
 ) {
-    Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+    iad1tya.echo.music.ui.component.AuraCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -373,7 +373,7 @@ private fun ConnectedCard(
 
 @Composable
 private fun ErrorCard(text: String, onDismiss: () -> Unit) {
-    Card(
+    iad1tya.echo.music.ui.component.AuraCard(
         shape = RoundedCornerShape(20.dp),
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

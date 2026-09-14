@@ -335,7 +335,7 @@ fun ArtistItemsScreen(
     }
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(title) },
         navigationIcon = {
             IconButton(

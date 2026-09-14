@@ -146,7 +146,7 @@ fun YouTubeBrowseScreen(
         }
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(browseResult?.title.orEmpty()) },
         navigationIcon = {
             IconButton(

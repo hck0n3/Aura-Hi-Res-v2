@@ -70,7 +70,7 @@ fun AccountSettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.account)) },
                 navigationIcon = {
                     IconButton(

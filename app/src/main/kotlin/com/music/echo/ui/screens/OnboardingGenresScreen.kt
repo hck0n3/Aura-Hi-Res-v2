@@ -67,7 +67,7 @@ fun OnboardingGenresScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = {
+            iad1tya.echo.music.ui.component.AuraTopAppBar(title = {
                 Column {
                     Text("¿Qué géneros te gustan?", fontWeight = FontWeight.Bold)
                     Text(

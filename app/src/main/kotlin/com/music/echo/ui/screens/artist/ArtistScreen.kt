@@ -1247,7 +1247,7 @@ fun ArtistScreen(
         )
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { if (!transparentAppBar) Text(artistPage?.artist?.title.orEmpty()) },
         navigationIcon = {
             IconButton(

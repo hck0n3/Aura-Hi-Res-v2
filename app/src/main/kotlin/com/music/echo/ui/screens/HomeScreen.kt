@@ -411,7 +411,7 @@ fun CommunityPlaylistCard(
     val dbPlaylist by database.playlistByBrowseId(item.playlist.id).collectAsState(initial = null)
     val isBookmarked = dbPlaylist?.playlist?.bookmarkedAt != null
 
-    Card(
+    iad1tya.echo.music.ui.component.AuraCard(
         modifier = modifier
             .width(320.dp)
             .height(420.dp),
@@ -657,7 +657,7 @@ fun DailyDiscoverCard(
     val song = dailyDiscover.recommendation as? SongItem
     val playsString = stringResource(R.string.plays)
 
-    Card(
+    iad1tya.echo.music.ui.component.AuraCard(
         modifier = modifier
             .fillMaxSize()
             .clip(RoundedCornerShape(28.dp))

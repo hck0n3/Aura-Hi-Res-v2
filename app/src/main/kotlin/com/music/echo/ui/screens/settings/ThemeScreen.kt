@@ -332,7 +332,7 @@ fun ThemeScreen(
         },
         containerColor = if (newUiEnabled) Color.Transparent else MaterialTheme.colorScheme.surface,
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.theme_colors), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
@@ -454,7 +454,7 @@ fun ThemeScreen(
                     modifier = Modifier.padding(bottom = 16.dp, start = 4.dp)
                 )
                 
-                Card(
+                iad1tya.echo.music.ui.component.AuraCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(32.dp),
                     colors = CardDefaults.cardColors(
@@ -645,7 +645,7 @@ private fun CustomRolesSection(
             modifier = Modifier.padding(bottom = 16.dp, start = 4.dp),
         )
 
-        Card(
+        iad1tya.echo.music.ui.component.AuraCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(
@@ -889,7 +889,7 @@ private fun ResetThemeSection(
             modifier = Modifier.padding(bottom = 16.dp, start = 4.dp)
         )
 
-        Card(
+        iad1tya.echo.music.ui.component.AuraCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(
@@ -1104,7 +1104,7 @@ private fun CustomAccentSection(
             modifier = Modifier.padding(bottom = 16.dp, start = 4.dp)
         )
 
-        Card(
+        iad1tya.echo.music.ui.component.AuraCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(

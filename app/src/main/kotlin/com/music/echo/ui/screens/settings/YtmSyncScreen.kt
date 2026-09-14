@@ -74,7 +74,7 @@ fun YtmSyncScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text("Sincronizar desde YouTube Music") },
                 navigationIcon = {
                     IconButton(onClick = navController::navigateUp, onLongClick = null) {

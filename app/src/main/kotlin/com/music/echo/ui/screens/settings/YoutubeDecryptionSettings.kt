@@ -248,7 +248,7 @@ fun YoutubeDecryptionSettings(
         Spacer(modifier = Modifier.height(36.dp))
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(stringResource(R.string.youtube_decryption_settings)) },
         navigationIcon = {
             IconButton(

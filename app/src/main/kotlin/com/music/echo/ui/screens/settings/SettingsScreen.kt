@@ -381,7 +381,7 @@ fun SettingsScreen(
                 newUiSubtitle.lowercase().contains(searchLower))
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            Card(
+            iad1tya.echo.music.ui.component.AuraCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
@@ -418,7 +418,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(50.dp))
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = {
             androidx.compose.animation.AnimatedVisibility(
                 visible = scrollState.value > 100,

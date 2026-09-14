@@ -250,7 +250,7 @@ fun PerformanceSettings(
         Spacer(modifier = Modifier.height(16.dp))
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text("Rendimiento") },
         navigationIcon = {
             IconButton(

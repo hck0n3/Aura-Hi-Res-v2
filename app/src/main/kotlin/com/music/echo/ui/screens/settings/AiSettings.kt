@@ -672,7 +672,7 @@ fun AiSettings(
         Spacer(modifier = Modifier.height(16.dp))
     }
 
-    TopAppBar(
+    iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(stringResource(R.string.ai_lyrics_translation)) },
         navigationIcon = {
             IconButton(onClick = { navController.navigateUp() }) {

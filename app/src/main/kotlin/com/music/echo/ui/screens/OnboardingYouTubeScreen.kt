@@ -41,7 +41,7 @@ fun OnboardingYouTubeScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(title = {
+            iad1tya.echo.music.ui.component.AuraTopAppBar(title = {
                 Text("Migra tu YouTube Music", fontWeight = FontWeight.Bold)
             })
         },

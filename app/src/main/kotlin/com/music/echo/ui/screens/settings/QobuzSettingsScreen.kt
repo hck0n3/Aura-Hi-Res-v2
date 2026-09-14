@@ -359,7 +359,7 @@ private fun LoginCard(
  */
 @Composable
 private fun ErrorCard(text: String, skin: AuraPanelSkin, onDismiss: () -> Unit) {
-    Card(
+    iad1tya.echo.music.ui.component.AuraCard(
         shape = if (skin.enabled) AuraShapes.Card else RoundedCornerShape(20.dp),
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

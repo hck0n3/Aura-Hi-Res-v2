@@ -172,7 +172,7 @@ fun WelcomeDialog(
                 )
             }
         } else {
-            androidx.compose.material3.Card(
+            iad1tya.echo.music.ui.component.AuraCard(
                 modifier = Modifier
                     .padding(24.dp)
                     .fillMaxWidth(),

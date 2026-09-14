@@ -39,7 +39,7 @@ fun OnboardingSpotifyScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(title = {
+            iad1tya.echo.music.ui.component.AuraTopAppBar(title = {
                 Text("Migra tu Spotify", fontWeight = FontWeight.Bold)
             })
         },

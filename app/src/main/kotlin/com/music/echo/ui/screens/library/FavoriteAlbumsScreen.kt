@@ -59,7 +59,7 @@ fun FavoriteAlbumsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.favorite_albums)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {

@@ -200,7 +200,7 @@ fun BackupAndRestore(
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
+            iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(titleRes) },
                 navigationIcon = {
                     IconButton(
