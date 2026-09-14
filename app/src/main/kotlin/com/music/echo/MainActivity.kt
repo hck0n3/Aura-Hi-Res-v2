@@ -1696,7 +1696,15 @@ class MainActivity : ComponentActivity() {
                     } else {
                         null
                     }
+                    // GLASS PORTAL (owner 2026-09-14: floating windows with the mini player's glass):
+                    // in-window dialogs register here and compose at the outlet next to BottomSheetMenu.
+                    val auraOverlayHost = if (shellHazeState != null) {
+                        remember { iad1tya.echo.music.ui.newui.AuraOverlayHostState() }
+                    } else {
+                        null
+                    }
                     androidx.compose.runtime.CompositionLocalProvider(
+                        iad1tya.echo.music.ui.newui.LocalAuraOverlayHost provides auraOverlayHost,
                         iad1tya.echo.music.ui.newui.LocalShellHazeState provides shellHazeState,
                         iad1tya.echo.music.ui.newui.LocalPlayerSheetHazeState provides playerSheetHazeState,
                         // DYNAMIC: the player's own source while its sheet is expanded (the menu
@@ -2346,6 +2354,10 @@ class MainActivity : ComponentActivity() {
                         state = LocalMenuState.current,
                         modifier = Modifier.align(Alignment.BottomCenter)
                     )
+
+                    // Floating windows (dialogs) LAST: above the page, the menu and the player sheet,
+                    // and a sibling of the haze source so their glass samples like the mini pill's.
+                    iad1tya.echo.music.ui.newui.AuraOverlayOutlet(auraOverlayHost)
 
                     // PICTURE-IN-PICTURE: cover everything with JUST the video so the floating window is a
                     // clean fullscreen video (no title bar / Home / playlist behind it). The NavHost stays

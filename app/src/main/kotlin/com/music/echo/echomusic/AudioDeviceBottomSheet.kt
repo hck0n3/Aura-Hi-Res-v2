@@ -291,37 +291,18 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
 
     val skin = iad1tya.echo.music.ui.newui.rememberAuraPanelSkin()
     val premiumSheet = skin.enabled && skin.darkGround
+    // THE MINI-PLAYER GLASS (owner 2026-09-14): with the activity-level host the output card is an
+    // in-window glass panel like the menus; a system sheet window can never sample the app behind it.
+    val inWindowGlass = premiumSheet &&
+        iad1tya.echo.music.ui.newui.LocalOverlayHazeState.current != null &&
+        iad1tya.echo.music.ui.newui.auraOverlayHostAvailable()
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = bottomSheetState,
-        modifier = modifier,
-        shape = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraShapes.Sheet
-            else BottomSheetDefaults.ExpandedShape,
-        containerColor = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.FrostFill
-            else MaterialTheme.colorScheme.surface,
-        contentColor = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.OnGround
-            else MaterialTheme.colorScheme.onSurface,
-        scrimColor = if (premiumSheet) iad1tya.echo.music.ui.newui.auraFloatingScrimColor()
-            else BottomSheetDefaults.ScrimColor,
-        tonalElevation = 0.dp,
-        dragHandle = {
-            Box(
-                Modifier
-                    .padding(top = 12.dp, bottom = 8.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(
-                        if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.OnGround.copy(alpha = 0.28f)
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                    ),
-            )
-        },
-    ) {
+    val sheetBody: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
         androidx.compose.runtime.CompositionLocalProvider(
             iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome provides premiumSheet,
         ) {
-        iad1tya.echo.music.ui.newui.AuraFrostWindowIfPremium()
+        // Window blur flags only belong to a real sheet window, never to the activity window.
+        if (!inWindowGlass) iad1tya.echo.music.ui.newui.AuraFrostWindowIfPremium()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -626,6 +607,48 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
             }
         }
         }
+    }
+
+    if (inWindowGlass) {
+        iad1tya.echo.music.ui.newui.AuraInWindowDialog(
+            visible = true,
+            onDismiss = onDismiss,
+            modifier = modifier,
+            center = false,
+            fullHeight = false,
+        ) { sheetBody() }
+        return
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = bottomSheetState,
+        modifier = modifier,
+        shape = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraShapes.Sheet
+            else BottomSheetDefaults.ExpandedShape,
+        containerColor = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.FrostFill
+            else MaterialTheme.colorScheme.surface,
+        contentColor = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.OnGround
+            else MaterialTheme.colorScheme.onSurface,
+        scrimColor = if (premiumSheet) iad1tya.echo.music.ui.newui.auraFloatingScrimColor()
+            else BottomSheetDefaults.ScrimColor,
+        tonalElevation = 0.dp,
+        dragHandle = {
+            Box(
+                Modifier
+                    .padding(top = 12.dp, bottom = 8.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.OnGround.copy(alpha = 0.28f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    ),
+            )
+        },
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            iad1tya.echo.music.ui.newui.LocalInsideDialogWindow provides true,
+        ) { sheetBody() }
     }
 }
 

@@ -9,6 +9,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +50,11 @@ import androidx.compose.ui.unit.dp
  *   fixed the overlays not closing on back).
  * - IME: imePadding on the panel; the scrim dismisses on outside tap.
  *
+ * THE MINI-PLAYER GLASS (owner 2026-09-14): with an [AuraOverlayHostState] the panel is PORTED to the
+ * activity-level outlet, a sibling of the haze source, so its shellGlass really blurs what is behind
+ * — the same film, noise, tint and hairline as the mini pill. Without a host it composes in place,
+ * where the glass is a no-op and the double plate carries it (the 2026-09-04 contrast step).
+ *
  * WITHOUT a haze source (glass OFF / classic shell): the panel composes with the premium frost
  * (auraFloatingContainerColor) — the same translucent family, never a hard window. Returns
  * without composing anything when the premium skin is OFF (callers keep their classic window).
@@ -63,12 +69,35 @@ fun AuraInWindowDialog(
     // the dialog and silently killed the generation. Hosts that must NOT dismiss on outside tap
     // while busy (AiPlaylistDialog) pass false here.
     dismissOnOutsideTap: Boolean = true,
+    // Bottom panels only: false wraps the content (short menus, the audio output card) instead of
+    // taking 85 % of the screen.
+    fullHeight: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val skin = rememberAuraPanelSkin()
+    if (!(skin.enabled && skin.darkGround)) return
+
+    val ported = rememberAuraOverlayPortal {
+        AuraInWindowDialogPanel(visible, onDismiss, modifier, center, dismissOnOutsideTap, fullHeight, ported = true, content)
+    }
+    if (!ported) {
+        AuraInWindowDialogPanel(visible, onDismiss, modifier, center, dismissOnOutsideTap, fullHeight, ported = false, content)
+    }
+}
+
+@Composable
+private fun AuraInWindowDialogPanel(
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    modifier: Modifier,
+    center: Boolean,
+    dismissOnOutsideTap: Boolean,
+    fullHeight: Boolean,
+    ported: Boolean,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
     val overlayHazeState = LocalOverlayHazeState.current
-    val skin = rememberAuraPanelSkin()
-    val premium = skin.enabled && skin.darkGround
 
     // STALE-CLOSURE FIX (audit 2026-09-04): the scrim's pointerInput(Unit) and the back callback
     // captured the onDismiss lambda of the composition where they STARTED (dialog opening,
@@ -78,16 +107,14 @@ fun AuraInWindowDialog(
     val currentOnDismiss by rememberUpdatedState(onDismiss)
     val currentDismissOnOutsideTap by rememberUpdatedState(dismissOnOutsideTap)
 
-    if (!premium) return
-
     // REMOTE DIAGNOSIS (2026-09-04, the "phantom dialog" report): a device app.log must be able
     // to answer "did the in-window dialog actually compose?" — the phantom case was an open but
     // unreadable panel. Facts only, no user data (regla 4).
-    LaunchedEffect(visible, overlayHazeState != null, center) {
+    LaunchedEffect(visible, overlayHazeState != null, center, ported) {
         if (visible) {
             Timber.i(
-                "InWindowDialog: composed visible, source=%s, center=%s, plate=double",
-                if (overlayHazeState != null) "haze" else "none", center,
+                "InWindowDialog: composed visible, source=%s, center=%s, ported=%s",
+                if (overlayHazeState != null) "haze" else "none", center, ported,
             )
         }
     }
@@ -106,6 +133,8 @@ fun AuraInWindowDialog(
         onDispose { callback.remove() }
     }
 
+    val shape = if (center) AuraShapes.Card else AuraShapes.Sheet
+
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = tween(180)),
@@ -123,6 +152,10 @@ fun AuraInWindowDialog(
                     }
                 },
         ) {
+          // KEYBOARD (owner report 2026-09-14: "se estiran hasta abajo cuando se abre el teclado"): the
+          // IME inset used to be padding INSIDE the panel, so the card grew down to the keyboard. It is
+          // now taken off the area the panel is placed in: the card keeps its size and moves above it.
+          Box(modifier = Modifier.fillMaxSize().imePadding()) {
             AnimatedVisibility(
                 visible = visible,
                 enter = if (center) {
@@ -146,46 +179,43 @@ fun AuraInWindowDialog(
                     Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .fillMaxHeight(fraction = 0.85f)
+                        .then(if (fullHeight) Modifier.fillMaxHeight(fraction = 0.85f) else Modifier)
                 },
             ) {
                 Column(
                     modifier = Modifier
-                        .then(if (center) Modifier else Modifier.fillMaxSize())
-                        // Clip BEFORE the glass (audit P4 — an interior clip leaves square corners).
-                        .clip(if (center) AuraShapes.Card else AuraShapes.Sheet)
                         .then(
-                            if (overlayHazeState != null) {
-                                // PLATE UNDER THE GLASS (row 197/204 pattern, owner report
-                                // 2026-09-04: "crear lista no funciona"). Every DefaultDialog
-                                // caller (create/import playlist, AI playlist, ~44 more) is composed
-                                // INSIDE the NavHost — a DESCENDANT of the shell haze source — and
-                                // in haze 1.7.2 the descendant filter is a SILENT no-op: the glass
-                                // paints nothing, and a glass-only panel left the dialog as floating
-                                // glyphs over the scrim ("the dialog doesn't open"). The plate
-                                // paints under the glass exactly like AuraFab does: when the glass
-                                // renders (sibling callers like the cloud menu) it covers the
-                                // plate; when it's a no-op, the plate IS the panel.
-                                //
-                                // CONTRAST STEP (2026-09-04, the "phantom dialog" report): a single
-                                // FloatingFill over the Library ground was near-invisible on the
-                                // S26 Ultra — the owner tapped the FAB, the dialog DID open, he
-                                // saw "nothing", tapped again (no recomposition — the state was
-                                // already true) and concluded the button was dead; the dialog then
-                                // resurfaced after navigating away and back, reading as "touching
-                                // EQ opened create-playlist". Double-composite the plate so a
-                                // floating dialog reads clearly ABOVE any screen ground.
-                                Modifier
+                            when {
+                                center -> Modifier
+                                fullHeight -> Modifier.fillMaxSize()
+                                else -> Modifier.fillMaxWidth()
+                            },
+                        )
+                        // Clip BEFORE the glass (audit P4 — an interior clip leaves square corners).
+                        .clip(shape)
+                        // A tap on the panel must not reach the scrim's dismiss detector.
+                        .pointerInput(Unit) { detectTapGestures { } }
+                        .then(
+                            when {
+                                // PORTED: a sibling of the haze source — the glass renders, so this is
+                                // the mini pill's exact material (shellGlass film + hairline). The one
+                                // plate underneath only shows during the first frame before sampling.
+                                overlayHazeState != null && ported -> Modifier
+                                    .background(AuraPalette.FloatingFill)
+                                    .shellGlass(overlayHazeState)
+                                // IN PLACE (no host): descendant of the source, glass is a no-op —
+                                // PLATE UNDER THE GLASS, double-composited for contrast (row 197/204,
+                                // the 2026-09-04 "phantom dialog" report).
+                                overlayHazeState != null -> Modifier
                                     .background(AuraPalette.FloatingFill)
                                     .background(AuraPalette.FloatingFill)
                                     .shellGlass(overlayHazeState)
-                            } else {
                                 // No source: the premium frost family — translucent, never hard.
-                                Modifier.background(auraFloatingContainerColor())
+                                else -> Modifier.background(auraFloatingContainerColor())
                             },
                         )
-                        .then(if (center) Modifier else Modifier.navigationBarsPadding())
-                        .imePadding(),
+                        .border(1.dp, AuraPalette.SurfaceLine, shape)
+                        .then(if (center) Modifier else Modifier.navigationBarsPadding()),
                 ) {
                     if (!center) {
                         // Drag handle — TOP CENTER (the owner's centered-handle directive).
@@ -206,6 +236,7 @@ fun AuraInWindowDialog(
                     content()
                 }
             }
+          }
         }
     }
 }

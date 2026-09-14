@@ -79,8 +79,9 @@ fun AuraAlertDialog(
         icon = icon,
         title = title,
         dismissOnOutsideTap = properties.dismissOnClickOutside,
-        // A window like the dialogs it replaces: several of these open from inside menus/sheets, and an
-        // in-window overlay would compose underneath them.
+        // Several of these open from inside menus/sheets: a window used to be the only way to layer above
+        // them. The activity-level glass host does that now (and gives the mini player's glass);
+        // DefaultDialog still falls back to a window when there is no host or it sits inside one.
         forceWindow = true,
         buttons = {
             dismissButton?.invoke()
@@ -135,6 +136,9 @@ fun AuraModalBottomSheet(
         properties = properties,
     ) {
         AuraFrostWindowIfPremium()
-        content()
+        // A sheet WINDOW: dialogs opened from here must stay windows, the glass host draws under it.
+        CompositionLocalProvider(iad1tya.echo.music.ui.newui.LocalInsideDialogWindow provides true) {
+            content()
+        }
     }
 }

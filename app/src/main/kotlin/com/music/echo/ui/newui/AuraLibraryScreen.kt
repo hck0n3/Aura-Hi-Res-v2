@@ -295,14 +295,7 @@ fun AuraLibraryScreen(navController: NavController) {
                         contentDescription = stringResource(R.string.create_playlist),
                         onClick = { showImportMenu = true },
                     )
-                    DropdownMenu(
-                        expanded = showImportMenu,
-                        onDismissRequest = { showImportMenu = false },
-                        shape = AuraShapes.Card,
-                        // Same floating plate as the other Aura dropdowns (FrostFill), not a solid card.
-                        containerColor = AuraPalette.FrostFill,
-                        border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
-                    ) {
+                    val importMenuItems: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.create_playlist), color = AuraPalette.OnGround) },
                                 leadingIcon = { AuraIconGlyph(AuraIcons.Plus, null, size = 20.dp, tint = AuraPalette.Teal) },
@@ -367,6 +360,32 @@ fun AuraLibraryScreen(navController: NavController) {
                                     navController.navigate("migration")
                                 },
                             )
+                    }
+                    // THE MINI-PLAYER GLASS (owner 2026-09-14): a popup window can't blur the app, so with
+                    // the glass host the menu is a bottom glass panel like the player's "…" menu.
+                    if (LocalOverlayHazeState.current != null && auraOverlayHostAvailable()) {
+                        if (showImportMenu) {
+                            AuraInWindowDialog(
+                                visible = true,
+                                onDismiss = { showImportMenu = false },
+                                center = false,
+                                fullHeight = false,
+                            ) {
+                                androidx.compose.foundation.layout.Column(
+                                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 16.dp),
+                                    content = importMenuItems,
+                                )
+                            }
+                        }
+                    } else {
+                        DropdownMenu(
+                            expanded = showImportMenu,
+                            onDismissRequest = { showImportMenu = false },
+                            shape = AuraShapes.Card,
+                            containerColor = AuraPalette.FrostFill,
+                            border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
+                            content = importMenuItems,
+                        )
                     }
                 }
             }

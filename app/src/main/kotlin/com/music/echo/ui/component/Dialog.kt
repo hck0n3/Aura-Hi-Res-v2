@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -118,7 +119,10 @@ fun DefaultDialog(
     // Children of dialog WINDOWS stay dialog WINDOWS: they layer above everything, like the
     // parent that opened them.
     val overlayHazeState = LocalOverlayHazeState.current
-    if (premium && overlayHazeState != null && !forceWindow) {
+    // GLASS PORTAL (2026-09-14): with the activity-level host the overlay composes ABOVE the player
+    // sheet and every menu, so the reason for forceWindow (an in-place overlay buried under them) is
+    // gone — unless this dialog is opened from inside a real dialog window, which the host can't top.
+    if (premium && overlayHazeState != null && (!forceWindow || iad1tya.echo.music.ui.newui.auraOverlayHostAvailable())) {
         AuraInWindowDialog(
             visible = true,
             onDismiss = onDismiss,
@@ -144,23 +148,25 @@ fun DefaultDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        AuraDialogWindowEffects(enabled = premium)
-        AuraFloatingSurface(
-            modifier = Modifier.padding(24.dp),
-            shape = if (premium) AuraShapes.Card else AlertDialogDefaults.shape,
-        ) {
-            DialogBody(
-                premium = premium,
-                icon = icon,
-                title = title,
-                buttons = buttons,
-                horizontalAlignment = horizontalAlignment,
-                buttonTint = buttonTint,
-                iconTint = iconTint,
-                titleTint = titleTint,
-                modifier = modifier,
-                content = content,
-            )
+        CompositionLocalProvider(iad1tya.echo.music.ui.newui.LocalInsideDialogWindow provides true) {
+            AuraDialogWindowEffects(enabled = premium)
+            AuraFloatingSurface(
+                modifier = Modifier.padding(24.dp),
+                shape = if (premium) AuraShapes.Card else AlertDialogDefaults.shape,
+            ) {
+                DialogBody(
+                    premium = premium,
+                    icon = icon,
+                    title = title,
+                    buttons = buttons,
+                    horizontalAlignment = horizontalAlignment,
+                    buttonTint = buttonTint,
+                    iconTint = iconTint,
+                    titleTint = titleTint,
+                    modifier = modifier,
+                    content = content,
+                )
+            }
         }
     }
 }
@@ -309,26 +315,47 @@ fun ListDialog(
         baseScheme
     }
 
+    // GLASS PORTAL (2026-09-14): "Añadir a lista" and every other list dialog get the mini player's
+    // glass through the activity-level host; its children (Crear lista) port above it.
+    if (premium && LocalOverlayHazeState.current != null && iad1tya.echo.music.ui.newui.auraOverlayHostAvailable()) {
+        AuraInWindowDialog(visible = true, onDismiss = onDismiss) {
+            MaterialTheme(colorScheme = listScheme) {
+                CompositionLocalProvider(LocalContentColor provides AuraPalette.OnGround) {
+                    LazyColumn(
+                        modifier = modifier
+                            .padding(vertical = 24.dp)
+                            .heightIn(max = 560.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        content = content,
+                    )
+                }
+            }
+        }
+        return
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        AuraDialogWindowEffects(enabled = premium)
-        AuraFloatingSurface(
-            modifier = Modifier.padding(24.dp),
-            shape = if (premium) AuraShapes.Card else AlertDialogDefaults.shape,
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = modifier
-                    .padding(vertical = 24.dp)
-                    .imePadding(),
+        CompositionLocalProvider(iad1tya.echo.music.ui.newui.LocalInsideDialogWindow provides true) {
+            AuraDialogWindowEffects(enabled = premium)
+            AuraFloatingSurface(
+                modifier = Modifier.padding(24.dp),
+                shape = if (premium) AuraShapes.Card else AlertDialogDefaults.shape,
             ) {
-                MaterialTheme(colorScheme = listScheme) {
-                    CompositionLocalProvider(
-                        LocalContentColor provides if (premium) AuraPalette.OnGround else LocalContentColor.current,
-                    ) {
-                        LazyColumn(content = content)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = modifier
+                        .padding(vertical = 24.dp)
+                        .imePadding(),
+                ) {
+                    MaterialTheme(colorScheme = listScheme) {
+                        CompositionLocalProvider(
+                            LocalContentColor provides if (premium) AuraPalette.OnGround else LocalContentColor.current,
+                        ) {
+                            LazyColumn(content = content)
+                        }
                     }
                 }
             }

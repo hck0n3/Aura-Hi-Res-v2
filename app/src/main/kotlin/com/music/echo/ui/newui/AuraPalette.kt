@@ -286,7 +286,12 @@ object AuraPalette {
     // #191E28 — the full 7 % film made them a lighter, greyer panel. The plate is now the pill's own
     // material: GroundRaised with a whisper of film, still opaque (legibility above covers holds) and
     // still separated from the screen by the [SurfaceLine] hairline every floating surface draws.
-    val FloatingFill: Color get() = Color.White.copy(alpha = 0.025f).compositeOver(GroundRaised)
+    //
+    // COVER TINT (owner 2026-09-14: "tienen que cambiar de color según la portada, así como lo hace la
+    // app"): a whisper of the cover-driven accent ([Teal] follows the artwork via AuraPaletteSync), the
+    // same warmth the pill picks up from the bloomed screen it blurs.
+    val FloatingFill: Color
+        get() = Teal.copy(alpha = 0.07f).compositeOver(Color.White.copy(alpha = 0.025f).compositeOver(GroundRaised))
 
     /**
      * Frosted overlay plate (dialogs / sheets / menus).
