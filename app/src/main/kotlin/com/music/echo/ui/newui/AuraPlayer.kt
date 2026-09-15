@@ -152,6 +152,7 @@ import iad1tya.echo.music.constants.QueuePeekHeight
 import iad1tya.echo.music.constants.SafeVolumeEnabledKey
 import iad1tya.echo.music.constants.ShowCodecOnPlayerKey
 import iad1tya.echo.music.extensions.SwipeGesture
+import iad1tya.echo.music.extensions.metadata
 import iad1tya.echo.music.extensions.togglePlayPause
 import iad1tya.echo.music.extensions.toggleRepeatMode
 import iad1tya.echo.music.listentogether.RoomRole
@@ -174,6 +175,8 @@ import androidx.compose.foundation.clickable
 import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.player.CanvasArtworkPlaybackCache
 import iad1tya.echo.music.ui.player.rememberCanvasAnimationEnabled
+import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
+import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
 import iad1tya.echo.music.ui.player.InlineLyricsView
 import iad1tya.echo.music.ui.player.PlayerVideoSurface
 import iad1tya.echo.music.ui.player.Thumbnail
@@ -410,6 +413,30 @@ private fun AuraPlayerShape(
     val playbackState by playerConnection.playbackState.collectAsState()
     val repeatMode by playerConnection.repeatMode.collectAsState()
     val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
+
+    // ── Aleatorio SIN REPETIR, desde el propio reproductor (petición del dueño 2026-09-15) ────────
+    // The shuffle toggle already starts the no-repeat session when the live queue has an Enhanced
+    // Shuffle context — what it could not do is ASK. Turning it on always continued the current lap
+    // (or silently reset a finished one), so «empezar de cero sin repetir ninguna canción» was only
+    // reachable by going back to the list's own Shuffle button. The prompt is the SAME composable the
+    // list screens use ([rememberShuffleMemoryPrompt]), so the two can never drift; the queue's
+    // context and its played set are read here so the question is about the queue that is playing.
+    val queueWindowsForShuffle by playerConnection.queueWindows.collectAsState()
+    val shuffleContextId = remember(queueWindowsForShuffle) { playerConnection.shuffleContextId }
+    val shuffleQueueIds = remember(queueWindowsForShuffle) {
+        queueWindowsForShuffle.mapNotNull { it.mediaItem.metadata?.id }
+    }
+    val shufflePlayedIds = rememberPlayedShuffleSet(shuffleContextId)
+    val onShuffleWithMemory = rememberShuffleMemoryPrompt(
+        contextId = shuffleContextId,
+        playedCount = shuffleQueueIds.count { it in shufflePlayedIds },
+        totalCount = shuffleQueueIds.size,
+    ) { resetMemory ->
+        // The service owns both answers: continue = seed from the memory, start over = wipe it first
+        // and suppress this activation's seed read (the DELETE is still in flight).
+        playerConnection.shuffleLiveQueue(resetMemory)
+    }
+
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
     val isMuted by playerConnection.isMuted.collectAsState()
@@ -1488,8 +1515,10 @@ private fun AuraPlayerShape(
                                 // OFF (toggle). Reshuffle = turn on again → beginShuffleSession.
                                 playerConnection.player.shuffleModeEnabled = false
                             } else {
-                                // Ensure anti-repeat session even if media3 quirks skip the callback.
-                                playerConnection.service.toggleShuffleOrReshuffle()
+                                // ON: ask «continuar o empezar de cero» when this queue's context has
+                                // memory; with no memory (or Aleatorio mejorado off) it starts the
+                                // anti-repeat session straight away, exactly as it did before.
+                                onShuffleWithMemory()
                             }
                         },
                         enabled = !isListenTogetherGuest,

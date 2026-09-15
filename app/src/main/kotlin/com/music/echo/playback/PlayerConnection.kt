@@ -335,6 +335,32 @@ class PlayerConnection(
         }
     }
 
+    /**
+     * The Enhanced Shuffle context of the live queue, or null. Read at click time by the player's
+     * shuffle button so it can offer «continuar o empezar de cero» exactly as the list screens do.
+     */
+    val shuffleContextId: String?
+        get() = runCatching { service.currentShuffleContextId }.getOrNull()
+
+    /**
+     * Shuffle the live queue with the no-repeat algorithm: [resetMemory] `false` continues the lap,
+     * `true` starts a fresh one (this context's memory is wiped first).
+     *
+     * Blocked for a Listen Together GUEST for the same reason as [startRadioSeamlessly]: a guest must
+     * never re-point the shared queue.
+     */
+    fun shuffleLiveQueue(resetMemory: Boolean) {
+        if (shouldBlockPlaybackChanges?.invoke() == true) {
+            Timber.tag(TAG).d("shuffleLiveQueue blocked - Listen Together guest")
+            return
+        }
+        try {
+            service.shuffleLiveQueue(resetMemory)
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Error in shuffleLiveQueue")
+        }
+    }
+
     fun startRadioSeamlessly() {
         
         if (shouldBlockPlaybackChanges?.invoke() == true) {

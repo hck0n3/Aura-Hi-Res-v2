@@ -1015,6 +1015,12 @@ class MusicService :
     @Volatile private var pendingSeedPlayedIds: Set<String> = emptySet()
 
     /**
+     * One activation must NOT seed itself from the persistent memory: the user asked for a fresh lap
+     * and the DELETE that clears it is still in flight. Consumed by the next [beginShuffleSession].
+     */
+    @Volatile private var suppressEnhancedSeedOnce: Boolean = false
+
+    /**
      * COVERAGE — how many items the CURRENT CONTEXT actually loaded, and WHICH context that number
      * describes. This is the proof that "everything on the timeline is played" really means "the LIST
      * finished", instead of "the user trimmed the queue down to songs he already heard".
@@ -6461,6 +6467,40 @@ class MusicService :
         }
     }
 
+    /**
+     * The Enhanced Shuffle context of the LIVE queue ("PL:<id>", "OL:<id>", "AP:liked"…), or null when
+     * this queue has no persistent memory (raw radio, search results).
+     *
+     * Read-only mirror for the PLAYER's shuffle button. Owner request 2026-09-15: the no-repeat
+     * algorithm must be startable from the full-screen player, with the same «continuar o empezar de
+     * cero» choice the list screens offer — and that choice can only be offered by someone who knows
+     * which context the queue belongs to.
+     */
+    val currentShuffleContextId: String?
+        get() = shuffleContextId
+
+    /**
+     * Shuffle the LIVE queue the way a list screen's Shuffle button does.
+     *
+     * [resetMemory] `false` continues the current no-repeat lap (unplayed songs first, nothing repeats
+     * until the context has cycled); `true` starts a fresh lap — this context's memory is wiped and the
+     * order is a plain shuffle of everything.
+     *
+     * The wipe is asynchronous, so a fresh lap ALSO suppresses this activation's seed read
+     * ([suppressEnhancedSeedOnce]): otherwise the read could still see the rows the DELETE is about to
+     * remove and quietly re-apply the very order the user asked to abandon.
+     */
+    fun shuffleLiveQueue(resetMemory: Boolean) {
+        if (resetMemory) {
+            shuffleContextId?.let { ctx ->
+                resetEnhancedContextMemory(ctx, listOfNotNull(player.currentMetadata?.id))
+            }
+            pendingSeedPlayedIds = emptySet()
+            suppressEnhancedSeedOnce = true
+        }
+        toggleShuffleOrReshuffle()
+    }
+
     private fun beginShuffleSession(isUserActivation: Boolean = true) {
             if (player.mediaItemCount == 0) return
 
@@ -6499,7 +6539,9 @@ class MusicService :
             // repeats a song until the whole context has cycled. The DB read is async; if it hasn't finished
             // the fallback above already plays — we just refine the order when it lands.
             val ctx = shuffleContextId
-            if (enhancedShuffleHint && ctx != null) {
+            val skipSeed = suppressEnhancedSeedOnce
+            suppressEnhancedSeedOnce = false
+            if (enhancedShuffleHint && ctx != null && !skipSeed) {
                 seedEnhancedShuffleFromDb(ctx, shufflePlaylistFirst, isUserActivation)
             }
     }
