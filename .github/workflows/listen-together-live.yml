@@ -16,6 +16,14 @@ name: Listen Together live test
 on:
   workflow_dispatch:
 
+# Lo mínimo que necesita: clonar el repo. Sin esto el job hereda el GITHUB_TOKEN con los permisos
+# por defecto del repositorio, que es más de lo que hace falta para leer código y subir un informe
+# (CodeQL lo señaló en el PR #25: "Workflow does not contain permissions"). Un token de CI con más
+# permisos de los necesarios es lo que convierte un workflow comprometido en un repositorio
+# comprometido.
+permissions:
+  contents: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
