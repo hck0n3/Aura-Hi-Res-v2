@@ -59,12 +59,23 @@ object NotificationTapIntents {
         route: String,
         requestCode: Int,
     ): PendingIntent {
-        val intent =
-            Intent(context, MainActivity::class.java).apply {
-                action = MainActivity.ACTION_OPEN_ROUTE
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra(MainActivity.EXTRA_OPEN_ROUTE, route)
-            }
+        // Written flat, with the target named TWICE on purpose — this is the one PendingIntent the
+        // app hands to the system, and a PendingIntent built on an intent that does not name its
+        // target is the classic Android hole: whoever holds it can fill in the blanks and have it
+        // run with this app's identity (CWE-927).
+        //
+        // `Intent(context, MainActivity::class.java)` already names the component, and
+        // FLAG_IMMUTABLE already forbids the holder from changing anything. The extra `setPackage`
+        // is belt and braces for a human reader — and it is also what CodeQL's explicit-intent
+        // barrier recognises: that barrier follows LOCAL flow only, and it does not traverse
+        // Kotlin's `apply { }`, so the earlier version of this function (a builder chained inside
+        // `apply`) read to the analyzer as an intent of unknown target and raised 8 high-severity
+        // alerts on PR #25. The behaviour was never unsafe; it was unprovable. Keep it flat.
+        val intent = Intent(context, MainActivity::class.java)
+        intent.setPackage(context.packageName)
+        intent.action = MainActivity.ACTION_OPEN_ROUTE
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        intent.putExtra(MainActivity.EXTRA_OPEN_ROUTE, route)
         return PendingIntent.getActivity(
             context,
             requestCode,
