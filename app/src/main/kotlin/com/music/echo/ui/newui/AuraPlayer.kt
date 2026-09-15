@@ -804,6 +804,9 @@ private fun AuraPlayerShape(
     }
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        // The song being added, so the picker can mark the lists that already have it (owner
+        // request 2026-09-15). Known without any work here — it is what is playing.
+        songIdsForMembership = mediaMetadata?.id?.let { listOf(it) },
         onGetSong = {
             val meta = mediaMetadata
             if (meta == null) {

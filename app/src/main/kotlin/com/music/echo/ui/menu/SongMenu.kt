@@ -265,6 +265,7 @@ fun SongMenu(
 
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        songIdsForMembership = listOf(song.id),
         onGetSong = {
             // No remote add here: AddToPlaylistDialog is the single writer to the remote playlist
             // (it calls YouTube.addToPlaylist for every returned id, on the duplicate-confirm
