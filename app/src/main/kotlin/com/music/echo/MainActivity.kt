@@ -322,6 +322,18 @@ class MainActivity : ComponentActivity() {
         /** Notification / in-app redirect: open Ajustes ▸ Actualizaciones. */
         const val EXTRA_OPEN_UPDATE = "extra_open_update"
         const val EXTRA_UPDATE_TAG = "extra_update_tag"
+
+        /**
+         * The generic "a notification was tapped, go to what it is about" door.
+         *
+         * Owner report 2026-09-15: app notifications did nothing when tapped — most carried no
+         * content intent at all, and the ones that did (Radar de novedades) carried a bare launcher
+         * intent, which just reopens the app wherever it was. [iad1tya.echo.music.utils.NotificationTapIntents]
+         * builds the PendingIntent; the route it carries is ALLOW-LISTED there, because this
+         * activity is exported and any app can send it this action.
+         */
+        const val ACTION_OPEN_ROUTE = "iad1tya.echo.music.action.OPEN_ROUTE"
+        const val EXTRA_OPEN_ROUTE = "extra_open_route"
     }
 
     override fun attachBaseContext(newBase: Context) {
@@ -2586,6 +2598,21 @@ class MainActivity : ComponentActivity() {
                     launchSingleTop = true
                 }
             }
+            return
+        }
+
+        // A notification tap: go to the screen the notification is ABOUT. The route is checked
+        // against the allow-list rather than trusted, and navigateToReentryTarget is what keeps a
+        // tap from stacking a second copy of a screen the user already has open.
+        if (intent.action == ACTION_OPEN_ROUTE) {
+            val route = intent.getStringExtra(EXTRA_OPEN_ROUTE)
+            intent.action = null
+            intent.removeExtra(EXTRA_OPEN_ROUTE)
+            if (route == null || route !in iad1tya.echo.music.utils.NotificationTapIntents.ALLOWED_ROUTES) {
+                Timber.tag("MainActivity").w("Ignoring notification route outside the allow-list")
+                return
+            }
+            runCatching { navController.navigateToReentryTarget(route) }
             return
         }
 

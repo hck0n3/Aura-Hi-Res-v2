@@ -763,6 +763,14 @@ class AudioExportService : Service() {
         stopSelf()
     }
 
+    /** Where an export notification takes you: the library the exported copy lands in. */
+    private fun exportTapIntent() =
+        iad1tya.echo.music.utils.NotificationTapIntents.open(
+            context = this,
+            route = iad1tya.echo.music.utils.NotificationTapIntents.ROUTE_LIBRARY,
+            requestCode = NOTIFICATION_ID,
+        )
+
     private fun updateExportProgress(songId: String, percent: Int, text: String) {
         val pct = percent.coerceIn(0, 100)
         _liveProgress.update { it + (songId to pct.toFloat()) }
@@ -772,6 +780,10 @@ class AudioExportService : Service() {
                 .setSmallIcon(R.drawable.ic_launcher_nobg)
                 .setContentTitle(getString(R.string.exporting))
                 .setContentText(text)
+                // Tapping opens the Biblioteca, which is where the exported copy shows up. The
+                // notification had NO content intent at all, so the tap did nothing (owner report
+                // 2026-09-15).
+                .setContentIntent(exportTapIntent())
                 .setProgress(100, pct, false)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
@@ -797,6 +809,7 @@ class AudioExportService : Service() {
                 .setSmallIcon(R.drawable.ic_launcher_nobg)
                 .setContentTitle(getString(R.string.exporting))
                 .setContentText(getString(R.string.export_preparing))
+                .setContentIntent(exportTapIntent())
                 .setProgress(100, 0, false)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
