@@ -337,7 +337,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             (listOf(info) + roomQueue.filter { it.id != info.id })
                 .filter { it.id.isNotBlank() }
                 .distinctBy { it.id }
-        Timber.tag(TAG).i("Guest loading %s + %d upcoming", info.id, ordered.size - 1)
+        Timber.tag(TAG).i("Guest loading %s + %d upcoming", info.id.asLogToken(), ordered.size - 1)
 
         // Dispatchers.Main is mandatory, not tidiness: Media3 throws if the player is touched off
         // the main thread, and this collector runs on the bridge scope (Default).
@@ -478,7 +478,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             position = snap.position,
             trackInfo = null,
         )
-        Timber.tag(TAG).i("Published current state to the room: %s", snap.id)
+        Timber.tag(TAG).i("Published current state to the room: %s", snap.id.asLogToken())
     }
 
     /** The host's queue as the room sees it, read off the player timeline. */
@@ -534,7 +534,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 if (!state.inRoom || !state.isHost || applyingRemote) return@collect
                 if (item.id == lastPublishedTrackId) return@collect
                 lastPublishedTrackId = item.id
-                Timber.tag(TAG).i("Host publishing track change: %s", item.id)
+                Timber.tag(TAG).i("Host publishing track change: %s", item.id.asLogToken())
                 val (trackInfo, queue, queueTitle) = onMain {
                     Triple(item.toTrackInfo(service), hostQueueTracks(service), service.queueTitle.orEmpty())
                 }
@@ -667,6 +667,24 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 }
             }
     }
+
+    /**
+     * A track id as it may appear in the SHARED log.
+     *
+     * Regla 4 del registro de regresiones: nothing about what the user is listening to — titles,
+     * artists, IDs — goes into `filesDir/logs/app.log`, because that is the file they hand to someone
+     * else from Ajustes ▸ Registros. These three lines used to write the raw videoId.
+     *
+     * Dropping the id outright would make a room undiagnosable, though: the whole question when two
+     * phones disagree is whether they think they are on the SAME track. A truncated SHA-256 answers
+     * exactly that and nothing else — the same track yields the same token on the host and on the
+     * guest, and the token says nothing about the song to anyone reading the log.
+     */
+    private fun String.asLogToken(): String =
+        runCatching {
+            val digest = java.security.MessageDigest.getInstance("SHA-256").digest(toByteArray())
+            digest.take(3).joinToString("") { b -> "%02x".format(b) }
+        }.getOrDefault("?")
 
     private fun safePosition(service: MusicService): Long =
         runCatching { service.player.currentPosition }.getOrDefault(0L)

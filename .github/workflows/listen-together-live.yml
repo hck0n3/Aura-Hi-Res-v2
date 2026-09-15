@@ -1,0 +1,63 @@
+name: Listen Together live test
+
+# Escuchar juntos contra el servidor REAL, sin teléfonos.
+#
+# Ejecuta SOLO `LiveRoomTest` (app/src/test/.../listentogether/), que abre dos clientes en el mismo
+# proceso — uno anfitrión, otro invitado — y recorre la secuencia entera: handshake, crear sala,
+# solicitud, aprobación, cambio de pista, cola y PLAY, comprobando el estado del invitado en cada
+# paso.
+#
+# - SOLO workflow_dispatch: nunca en push, nunca en pull_request. Estos tests dependen de la red y
+#   crean salas en el servidor de otra persona, así que un CI verde no puede depender de ellos.
+# - En la suite normal se SALTAN solos (la puerta `LT_LIVE_TEST` con `assumeTrue`), así que añadir
+#   este archivo no cambia nada del pipeline existente.
+# - No firma, no publica, no crea release y no avisa a nadie.
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  live-room:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-ltlive-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-ltlive-
+            ${{ runner.os }}-gradle-
+
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Run the live room tests
+        # LT_LIVE_TEST=1 es lo que abre la puerta; sin esta variable los mismos tests se saltan.
+        # `-i` para que los println de cada paso (✓ handshake, ✓ sala creada, ✓ el invitado recibió
+        # la pista…) salgan en el log del run y se pueda ver DÓNDE se rompe, no solo que se rompió.
+        env:
+          LT_LIVE_TEST: '1'
+        run: ./gradlew testUniversalFossDebugUnitTest --tests '*LiveRoomTest*' --console=plain -i
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: listen-together-live-report
+          path: app/build/reports/tests/testUniversalFossDebugUnitTest/
+          retention-days: 7
