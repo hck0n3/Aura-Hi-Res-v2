@@ -12,6 +12,13 @@ on:
     branches:
       - 'test/**'
 
+# Clonar el repo y nada más: este job compila y sube un artefacto, no escribe en el repositorio.
+# Sin este bloque el job hereda el GITHUB_TOKEN con los permisos por defecto, que es más de lo que
+# usa — la misma regla de CodeQL ("Workflow does not contain permissions") que señaló el workflow de
+# los tests de sala en el PR #25.
+permissions:
+  contents: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
