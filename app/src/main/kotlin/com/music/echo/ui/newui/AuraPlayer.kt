@@ -152,6 +152,7 @@ import iad1tya.echo.music.constants.QueuePeekHeight
 import iad1tya.echo.music.constants.SafeVolumeEnabledKey
 import iad1tya.echo.music.constants.ShowCodecOnPlayerKey
 import iad1tya.echo.music.extensions.SwipeGesture
+import iad1tya.echo.music.extensions.metadata
 import iad1tya.echo.music.extensions.togglePlayPause
 import iad1tya.echo.music.extensions.toggleRepeatMode
 import iad1tya.echo.music.listentogether.RoomRole
@@ -174,6 +175,8 @@ import androidx.compose.foundation.clickable
 import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.player.CanvasArtworkPlaybackCache
 import iad1tya.echo.music.ui.player.rememberCanvasAnimationEnabled
+import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
+import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
 import iad1tya.echo.music.ui.player.InlineLyricsView
 import iad1tya.echo.music.ui.player.PlayerVideoSurface
 import iad1tya.echo.music.ui.player.Thumbnail
@@ -306,6 +309,39 @@ import kotlin.math.roundToInt
 internal val AURA_WIDE_COVER_MIN_PANE_HEIGHT = 520.dp
 
 /**
+ * Portrait height — already net of the status bar and of the docked queue bar — under which the
+ * controls block is drawn A SIZE DOWN instead of at full size.
+ *
+ * The portrait column used to hand `controlsContent(false)` — full size, always — to every phone, and
+ * let the cover's `weight(1f)` absorb whatever was left. That works while there IS something left. It
+ * stops working on a short window, and the shortest window on an ordinary phone is the one the owner
+ * reported: Android's CLASSIC THREE-BUTTON navigation bar takes ~48 dp that gestures take ~24 dp for,
+ * and the collapsed queue bar is sized off that inset, so the same phone gives this column ~24 dp less
+ * height with the three buttons on. Past the point where the cover has no height left to give, the
+ * squeeze lands on whatever is below it.
+ *
+ * The budget, at the default font scale: the full-size controls block — título, artista, chips
+ * técnicos, línea de tiempo, transporte con el botón de 92 dp y la fila de accesos rápidos — is ~345 dp,
+ * the header ~48 dp, and a cover is not a cover under ~160 dp. 560 dp is those three. Below it the
+ * DENSE block (~270 dp, the same controls a size down — the one the wide shape already uses) buys the
+ * cover back the ~75 dp difference, which is the "compactar" half of the fix: the interface steps up
+ * and resizes as a whole instead of crushing one row.
+ *
+ * `internal` rather than private so it can be pinned by a test rather than restated.
+ */
+internal val AURA_PORTRAIT_FULL_CONTROLS_MIN_HEIGHT = 560.dp
+
+/**
+ * **WHICH SIZE.** Pure, so the rule is pinned by a test instead of restated in a comment — the same
+ * discipline as [auraUsesWideShape] and [auraShowsQueueColumn].
+ *
+ * @param availableHeight the portrait column's height with the status bar and the docked queue bar
+ *   already paid for — i.e. the height the header, the cover and the controls actually share.
+ */
+internal fun auraUsesDensePortraitControls(availableHeight: Dp): Boolean =
+    availableHeight < AURA_PORTRAIT_FULL_CONTROLS_MIN_HEIGHT
+
+/**
  * **WHICH SHAPE.** Pure, so the rule can be pinned by a test instead of restated in a comment — the same
  * discipline as [iad1tya.echo.music.ui.player.playerHoldsScreenOn] and
  * [iad1tya.echo.music.ui.player.swipeLyricsGestureArmed].
@@ -377,6 +413,30 @@ private fun AuraPlayerShape(
     val playbackState by playerConnection.playbackState.collectAsState()
     val repeatMode by playerConnection.repeatMode.collectAsState()
     val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
+
+    // ── Aleatorio SIN REPETIR, desde el propio reproductor (petición del dueño 2026-09-15) ────────
+    // The shuffle toggle already starts the no-repeat session when the live queue has an Enhanced
+    // Shuffle context — what it could not do is ASK. Turning it on always continued the current lap
+    // (or silently reset a finished one), so «empezar de cero sin repetir ninguna canción» was only
+    // reachable by going back to the list's own Shuffle button. The prompt is the SAME composable the
+    // list screens use ([rememberShuffleMemoryPrompt]), so the two can never drift; the queue's
+    // context and its played set are read here so the question is about the queue that is playing.
+    val queueWindowsForShuffle by playerConnection.queueWindows.collectAsState()
+    val shuffleContextId = remember(queueWindowsForShuffle) { playerConnection.shuffleContextId }
+    val shuffleQueueIds = remember(queueWindowsForShuffle) {
+        queueWindowsForShuffle.mapNotNull { it.mediaItem.metadata?.id }
+    }
+    val shufflePlayedIds = rememberPlayedShuffleSet(shuffleContextId)
+    val onShuffleWithMemory = rememberShuffleMemoryPrompt(
+        contextId = shuffleContextId,
+        playedCount = shuffleQueueIds.count { it in shufflePlayedIds },
+        totalCount = shuffleQueueIds.size,
+    ) { resetMemory ->
+        // The service owns both answers: continue = seed from the memory, start over = wipe it first
+        // and suppress this activation's seed read (the DELETE is still in flight).
+        playerConnection.shuffleLiveQueue(resetMemory)
+    }
+
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
     val isMuted by playerConnection.isMuted.collectAsState()
@@ -771,6 +831,9 @@ private fun AuraPlayerShape(
     }
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        // The song being added, so the picker can mark the lists that already have it (owner
+        // request 2026-09-15). Known without any work here — it is what is playing.
+        songIdsForMembership = mediaMetadata?.id?.let { listOf(it) },
         onGetSong = {
             val meta = mediaMetadata
             if (meta == null) {
@@ -1452,8 +1515,10 @@ private fun AuraPlayerShape(
                                 // OFF (toggle). Reshuffle = turn on again → beginShuffleSession.
                                 playerConnection.player.shuffleModeEnabled = false
                             } else {
-                                // Ensure anti-repeat session even if media3 quirks skip the callback.
-                                playerConnection.service.toggleShuffleOrReshuffle()
+                                // ON: ask «continuar o empezar de cero» when this queue's context has
+                                // memory; with no memory (or Aleatorio mejorado off) it starts the
+                                // anti-repeat session straight away, exactly as it did before.
+                                onShuffleWithMemory()
                             }
                         },
                         enabled = !isListenTogetherGuest,
@@ -1884,23 +1949,37 @@ private fun AuraPlayerShape(
 
             // 3) VERTICAL — la forma que ya se envía, sin un solo cambio de estructura.
             else -> {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                // BoxWithConstraints, same reason as the wide branch: the density decision needs the
+                // height this column REALLY gets, and that is only known after the docked queue bar is
+                // paid for. Applied BEFORE the constraints are read, so `maxHeight` below is the truth
+                // and not the window height. One subcomposition per player composition, nothing per
+                // frame.
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
                         .padding(bottom = queueSheetState.collapsedBound)
                         .then(openQueueOnSwipeUp),
                 ) {
-                    headerContent(
-                        Modifier
-                            .fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
-                            .padding(horizontal = 8.dp),
-                    )
-                    artworkContent(Modifier.weight(1f).fillMaxWidth())
-                    controlsContent(false)
-                    // Engine status now lives between the timeline's times (TIDAL-style centre label).
+                    // The status bar is still inside `maxHeight` — the header pays it itself, below —
+                    // so it comes off here before the budget is compared. Without this the same phone
+                    // would be judged ~24-48 dp taller than the column the controls actually get.
+                    val statusBar = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+                    val denseControls = auraUsesDensePortraitControls(maxHeight - statusBar)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        headerContent(
+                            Modifier
+                                .fillMaxWidth()
+                                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
+                                .padding(horizontal = 8.dp),
+                        )
+                        artworkContent(Modifier.weight(1f).fillMaxWidth())
+                        controlsContent(denseControls)
+                        // Engine status now lives between the timeline's times (TIDAL-style centre label).
+                    }
                 }
             }
         }

@@ -200,6 +200,7 @@ fun AuraPlayerMenu(
 
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        songIdsForMembership = listOf(mediaMetadata.id),
         onGetSong = {
             database.withTransaction { insert(mediaMetadata) }
             onDismiss()

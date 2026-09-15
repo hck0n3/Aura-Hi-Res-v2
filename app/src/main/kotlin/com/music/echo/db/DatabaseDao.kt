@@ -1177,6 +1177,16 @@ interface DatabaseDao {
         songId: String,
     ): Int
 
+    /**
+     * The playlists that ALREADY contain any of [songIds].
+     *
+     * Owner request (2026-09-15): the "añadir a una lista" picker must say, before you choose,
+     * which lists the song is already in. A Flow rather than a one-shot read so the marks update
+     * the moment a song is added — the picker stays open for several adds in a row.
+     */
+    @Query("SELECT DISTINCT playlistId from playlist_song_map WHERE songId IN (:songIds)")
+    fun playlistIdsContaining(songIds: List<String>): Flow<List<String>>
+
     @Query("SELECT songId from playlist_song_map WHERE playlistId = :playlistId AND songId IN (:songIds)")
     fun playlistDuplicates(
         playlistId: String,

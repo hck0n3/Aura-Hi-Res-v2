@@ -60,6 +60,7 @@ import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.PlaylistsViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 @Composable
@@ -67,6 +68,17 @@ fun AddToPlaylistDialog(
     isVisible: Boolean,
     allowSyncing: Boolean = true,
     initialTextFieldValue: String? = null,
+    /**
+     * The ids this dialog is about to add, when the caller already knows them without doing any
+     * work (the player's current song, a song menu, a selection). Used ONLY to mark which playlists
+     * already contain them.
+     *
+     * It is not derived from [onGetSong] on purpose: that callback is per-target-playlist and some
+     * callers do real work in it (fetching a whole YouTube playlist, writing rows), so calling it
+     * to draw a list would be a network round trip per row. Callers that cannot say cheaply pass
+     * nothing and the list looks exactly as it did before.
+     */
+    songIdsForMembership: List<String>? = null,
     onGetSong: suspend (Playlist) -> List<String>, 
     onDismiss: () -> Unit,
     viewModel: PlaylistsViewModel = hiltViewModel()
@@ -107,6 +119,17 @@ fun AddToPlaylistDialog(
     var searchQuery by rememberSaveable {
         mutableStateOf("")
     }
+    // Which playlists ALREADY have the song (owner request 2026-09-15: "que me indique en qué
+    // listado ya está esa canción para saber en qué lista o listas ya está"). One live query for
+    // every row, not one per row, and it stays live so a list the user just added to marks itself
+    // while the dialog is still open. `remember` on the ids keeps the composable call order stable
+    // whether or not the caller passed any.
+    val membershipFlow = remember(songIdsForMembership) {
+        val ids = songIdsForMembership.orEmpty().filter { it.isNotBlank() }
+        if (ids.isEmpty()) flowOf(emptyList()) else database.playlistIdsContaining(ids)
+    }
+    val playlistIdsWithSong by membershipFlow.collectAsState(initial = emptyList())
+
     val filteredPlaylists = remember(playlists, searchQuery) {
         if (searchQuery.isBlank()) {
             playlists
@@ -242,9 +265,33 @@ fun AddToPlaylistDialog(
             }
 
             itemsIndexed(filteredPlaylists) { index, playlist ->
+                val alreadyHasSong = playlist.id in playlistIdsWithSong
                 PlaylistListItem(
                     playlist = playlist,
                     shape = listItemShape(index = index + 1, count = totalItemsCount),
+                    trailingContent = {
+                        // The mark, not a block: adding again is still allowed (that is what the
+                        // duplicates dialog is for) — this only answers "where is it already?".
+                        if (alreadyHasSong) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(end = 4.dp),
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.check),
+                                    contentDescription = null,
+                                    tint = if (premium) AuraPalette.Teal else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Text(
+                                    text = stringResource(R.string.playlist_already_has_song),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (premium) AuraPalette.Teal else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(start = 4.dp),
+                                )
+                            }
+                        }
+                    },
                     modifier = Modifier.clickable {
                         selectedPlaylist = playlist
                         coroutineScope.launch(Dispatchers.IO) {

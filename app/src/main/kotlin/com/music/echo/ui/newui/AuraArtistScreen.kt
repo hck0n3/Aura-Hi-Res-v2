@@ -618,6 +618,7 @@ fun AuraArtistScreen(
                             val albumW = AuraAlbumShelfWidth * 1.2f
                             AuraDoubleRowShelf(
                                 rowHeight = auraShelfCardStackHeight(albumW),
+                                itemCount = filteredLibraryAlbums.size,
                                 modifier = Modifier.animateItem(),
                             ) {
                                 items(

@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -312,6 +313,11 @@ fun Queue(
         background = {
             Box(Modifier.fillMaxSize().background(Color.Unspecified))
         },
+        // Same fix as the new shape's bar (AuraQueue.kt): the docked strip is
+        // `QueuePeekHeight + navigation-bar inset` (Player.kt), so the bar has to be measured in the
+        // WHOLE strip. Measured in a fixed 64 dp box, its own bottom-inset padding was taken out of the
+        // buttons, which is what shrank them with Android's three-button navigation bar.
+        collapsedContentHeight = state.dismissedBound,
         collapsedContent = {
             if (useNewPlayerDesign) {
                 
@@ -319,13 +325,16 @@ fun Queue(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 30.dp, vertical = 12.dp)
+                        // Fill the strip, step off the navigation bar, centre what is left — the row is
+                        // no longer measured inside the inset it is supposed to sit above.
+                        .fillMaxSize()
                         .windowInsetsPadding(
                             WindowInsets.systemBars.only(
                                 WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
                             ),
-                        ),
+                        )
+                        .padding(horizontal = 30.dp)
+                        .wrapContentHeight(Alignment.CenterVertically),
                 ) {
                     val buttonSize = 42.dp
                     val iconSize = 24.dp
@@ -460,12 +469,15 @@ fun Queue(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 30.dp, vertical = 12.dp)
+                        // Same as the branch above: the 56 dp output toggle and the 40 dp glyphs are
+                        // measured in the strip ABOVE the navigation bar, not inside it.
+                        .fillMaxSize()
                         .windowInsetsPadding(
                             WindowInsets.systemBars
                                 .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
-                        ),
+                        )
+                        .padding(horizontal = 30.dp)
+                        .wrapContentHeight(Alignment.CenterVertically),
                 ) {
                     TextButton(
                         onClick = { state.expandSoft() },

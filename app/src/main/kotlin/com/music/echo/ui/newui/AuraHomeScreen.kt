@@ -733,6 +733,12 @@ fun AuraHomeScreen(
                                         val pinW = auraTypeVisual(AuraContentKind.Playlist).shelfWidth * cardScale
                                         AuraDoubleRowShelf(
                                             rowHeight = auraShelfCardStackHeight(pinW),
+                                            // The shelf is exactly as tall as what the user pinned. Without this
+                                            // it always reserved TWO rows, so pinning one playlist drew one card
+                                            // and a card-sized hole under it (owner: "abajo de lo que fijo queda
+                                            // un súper espacio inutilizado"). This is the shelf the user curates
+                                            // by hand, so it is the one that is short most often.
+                                            itemCount = items.size,
                                         ) {
                                             lazyGridItems(items, key = { it.id }) { item ->
                                                 AuraTypedYtCoverCard(
@@ -943,10 +949,12 @@ fun AuraHomeScreen(
                                             onClick = { navController.navigate("account") },
                                         )
                                         val playlistW = auraTypeVisual(AuraContentKind.Playlist).shelfWidth * cardScale
+                                        val uniquePlaylists = remember(playlists) { playlists.distinctBy { it.id } }
                                         AuraDoubleRowShelf(
                                             rowHeight = auraShelfCardStackHeight(playlistW),
+                                            itemCount = uniquePlaylists.size,
                                         ) {
-                                            lazyGridItems(playlists.distinctBy { it.id }, key = { it.id }) { item ->
+                                            lazyGridItems(uniquePlaylists, key = { it.id }) { item ->
                                                 AuraTypedYtCoverCard(
                                                     item = item,
                                                     cardScale = cardScale,

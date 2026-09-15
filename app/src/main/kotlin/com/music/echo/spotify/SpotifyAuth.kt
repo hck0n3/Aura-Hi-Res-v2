@@ -37,6 +37,35 @@ object SpotifyAuth {
     private const val SERVER_TIME_URL = "https://open.spotify.com/api/server-time"
     private const val NUANCE_GIST_URL =
         "https://api.github.com/gists/22ed9c6ba463899e933427f7de1f0eef"
+
+    /**
+     * SimpMusic's secret source, and the one tried FIRST (owner 2026-09-15: "las letras de Spotify no
+     * funcionan bien — clona cómo lo hace SimpMusic").
+     *
+     * It is `raw.githubusercontent.com`, not the GitHub **API**: the gist above is fetched through
+     * api.github.com, which rate-limits UNAUTHENTICATED callers to 60 requests per hour **per IP** —
+     * and mobile carriers put thousands of subscribers behind one NAT address, so that budget can be
+     * spent by other people entirely. When it is, the secret fetch fails, no token is minted and
+     * every Spotify lyric silently reports "no lyrics". raw.githubusercontent.com has no such quota.
+     *
+     * Format: `{"<version>": [<cipher bytes>], …}` — the derivation is in [secretFromCipherBytes].
+     */
+    private const val SECRET_DICT_URL =
+        "https://raw.githubusercontent.com/xyloflake/spot-secrets-go/refs/heads/main/secrets/secretDict.json"
+
+    /**
+     * SimpMusic's built-in `TOTP_SECRET_V22`, the last resort when BOTH remote sources are
+     * unreachable.
+     *
+     * Upstream ships it precisely so a network blip is not the end of the feature; this port had no
+     * fallback at all and threw instead, which is the difference between "Spotify lyrics are off for
+     * a minute" and "Spotify lyrics do not work". Spotify rotates these on a cadence of months, so a
+     * baked-in copy is worth having even though it will eventually go stale — and when it does, the
+     * two live sources above are what carry the feature.
+     */
+    internal val BUILTIN_SECRET_VERSION = 22
+    internal val BUILTIN_SECRET_CIPHER =
+        listOf(99, 101, 119, 123, 69, 120, 91, 123, 97, 74, 53, 48, 76, 102, 55, 69, 110, 54)
     /** Chrome/Windows UA: used by token requests AND by the login WebView (desktop UA fixes the
      *  login white-screen — accounts.spotify.com serves a broken SPA to system WebView UAs). */
     const val USER_AGENT =
@@ -105,29 +134,39 @@ object SpotifyAuth {
         val serverTimeSec = fetchServerTime()
         val totp = generateTotp(nuance.s, serverTimeSec)
 
-        val tokenUrl = buildString {
+        val headers = if (cookieHeader != null) mapOf("Cookie" to cookieHeader) else emptyMap()
+
+        fun tokenUrl(reason: String) = buildString {
             append(TOKEN_URL)
-            append("?reason=transport")
+            append("?reason=$reason")
             append("&productType=web-player")
             append("&totp=$totp")
             append("&totpServer=$totp")
             append("&totpVer=${nuance.v}")
         }
 
-        val headers = if (cookieHeader != null) mapOf("Cookie" to cookieHeader) else emptyMap()
-
-        val body = withContext(Dispatchers.IO) {
-            httpGet(tokenUrl, headers)
-        }
-
-        val token = try {
-            json.decodeFromString<SpotifyInternalToken>(body)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+        // `transport` first, then `init` — SimpMusic's own two-step, and it is not cosmetic: the mint
+        // answers a `transport` request with a SHORT, unusable token often enough that upstream
+        // checks the length (a real web-player token is 374 characters) and re-asks as `init`. This
+        // port only ever tried `transport`, so those attempts ended as "Spotify session required"
+        // and the lyrics provider reported nothing.
+        val transportToken = parseToken(withContext(Dispatchers.IO) { httpGet(tokenUrl("transport"), headers) })
+        // The length check only applies to a LOGGED-IN mint: an anonymous token is a different shape,
+        // and re-asking for one would cost a request per call for nothing.
+        val transportUsable = transportToken != null &&
+            (cookieHeader == null || transportToken.accessToken.length == VALID_TOKEN_LENGTH)
+        val token =
+            if (transportUsable) {
+                transportToken
+            } else {
+                parseToken(withContext(Dispatchers.IO) { httpGet(tokenUrl("init"), headers) })
+                    ?: transportToken
+            }
+        if (token == null) {
             // A malformed body from the token endpoint can only mean the TOTP/secret pair was
             // rejected — the cached secret may be stale (audit FASE 3 #1).
             invalidateNuanceCache()
-            throw e
+            throw Spotify.SpotifyException(500, "Token endpoint returned an unparseable body")
         }
 
         if (token.accessToken.isBlank() || (!allowAnonymous && token.isAnonymous)) {
@@ -145,6 +184,17 @@ object SpotifyAuth {
 
         return token
     }
+
+    /** A web-player access token is 374 characters; anything else is the mint fobbing us off. */
+    private const val VALID_TOKEN_LENGTH = 374
+
+    private fun parseToken(body: String): SpotifyInternalToken? =
+        try {
+            json.decodeFromString<SpotifyInternalToken>(body)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
 
     /**
      * Fetches the TOTP secret ("nuance") from the community Gist, with resilience (owner directive
@@ -192,10 +242,11 @@ object SpotifyAuth {
         // this process cached a usable secret (the Gist failing now says nothing about the
         // secret's validity: it was minted when the gist was last updated).
         cachedNuance?.let { (nuance, _) -> return nuance }
-        throw Spotify.SpotifyException(
-            503,
-            "Failed to fetch TOTP secret from gist after $NUANCE_MAX_RETRIES attempts (capped at 30s)",
-        )
+        // Neither remote source answered and nothing is cached. SimpMusic keeps a built-in secret for
+        // exactly this and so do we now: a network blip must not be the difference between "Spotify
+        // lyrics are off for a minute" and "Spotify lyrics do not work". It is NOT cached — the next
+        // attempt goes back to the live sources rather than pinning a copy that will go stale.
+        return Nuance(s = secretFromCipherBytes(BUILTIN_SECRET_CIPHER), v = BUILTIN_SECRET_VERSION)
     }
 
     /** One atomic cache slot: (secret, cachedAtMs) — see [fetchNuance] for why it is a single field. */
@@ -207,6 +258,30 @@ object SpotifyAuth {
     }
 
     private suspend fun fetchNuanceOnce(): Nuance = withContext(Dispatchers.IO) {
+        // SimpMusic's source first (raw.githubusercontent, no API quota — see [SECRET_DICT_URL]),
+        // then the gist this app has always used. Two independent sources, so one being down,
+        // rate-limited or renamed is no longer the end of every Spotify token.
+        runCatching { fetchFromSecretDict() }
+            .onFailure { if (it is CancellationException) throw it }
+            .getOrNull()
+            ?.let { return@withContext it }
+        fetchFromGist()
+    }
+
+    /** SimpMusic's `secretDict.json`: `{"<version>": [<cipher bytes>], …}`. */
+    private fun fetchFromSecretDict(): Nuance {
+        val body = httpGet(SECRET_DICT_URL, emptyMap())
+        val dict = json.decodeFromString<Map<String, List<Int>>>(body)
+        val newest = dict.entries
+            .mapNotNull { entry -> entry.key.toIntOrNull()?.let { it to entry.value } }
+            // Upstream takes the LAST entry; the highest version is the same choice without
+            // depending on the file's key order surviving a JSON round trip.
+            .maxByOrNull { it.first }
+            ?: throw Spotify.SpotifyException(500, "secretDict has no usable versions")
+        return Nuance(s = secretFromCipherBytes(newest.second), v = newest.first)
+    }
+
+    private fun fetchFromGist(): Nuance {
         val body = try {
             httpGet(NUANCE_GIST_URL, emptyMap())
         } catch (e: Exception) {
@@ -219,8 +294,43 @@ object SpotifyAuth {
         val nuancesJson = gist.files.values.firstOrNull()?.content
             ?: throw Spotify.SpotifyException(500, "Gist has no files")
         val nuances = json.decodeFromString<List<Nuance>>(nuancesJson)
-        nuances.maxByOrNull { it.v }
+        return nuances.maxByOrNull { it.v }
             ?: throw Spotify.SpotifyException(500, "No nuance data found in gist")
+    }
+
+    /**
+     * SimpMusic's `SpotifyTotp.generateSecret`, verbatim in effect: XOR each cipher byte with
+     * `(index % 33) + 9`, concatenate the results as DECIMAL TEXT, and base32 the ASCII bytes of
+     * that text.
+     *
+     * Upstream runs the bytes through hex and then base64 before base32; both are exact round trips
+     * (`hexToByteArray(toHexString(x)) == x`, and `base64ToBase32` decodes the base64 it was just
+     * handed), so they are omitted here rather than reimplemented. The resulting secret is identical
+     * — which is what matters, because a secret that differs by one byte mints no token at all.
+     */
+    internal fun secretFromCipherBytes(cipher: List<Int>): String {
+        val transformed = cipher.mapIndexed { index, byte -> byte xor ((index % 33) + 9) }
+        val joined = transformed.joinToString("")
+        return base32Encode(joined.toByteArray(Charsets.US_ASCII)).trimEnd('=')
+    }
+
+    private fun base32Encode(data: ByteArray): String {
+        if (data.isEmpty()) return ""
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        val result = StringBuilder()
+        var bits = 0
+        var value = 0
+        for (byte in data) {
+            value = (value shl 8) or (byte.toInt() and 0xFF)
+            bits += 8
+            while (bits >= 5) {
+                result.append(alphabet[(value shr (bits - 5)) and 0x1F])
+                bits -= 5
+            }
+        }
+        if (bits > 0) result.append(alphabet[(value shl (5 - bits)) and 0x1F])
+        while (result.length % 8 != 0) result.append('=')
+        return result.toString()
     }
 
     private suspend fun fetchServerTime(): Long = withContext(Dispatchers.IO) {

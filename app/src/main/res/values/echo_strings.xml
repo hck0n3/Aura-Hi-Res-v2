@@ -1330,4 +1330,6 @@
     <string name="listen_together_how_step2_desc">Enter their room code to join their session instantly.</string>
     <string name="listen_together_how_step3_title">3. Sync Playback</string>
     <string name="listen_together_how_step3_desc">The host controls the music. Everyone listens in perfect sync!</string>
+    <!-- Badge on a playlist row in the "add to playlist" picker: this playlist already has the song. -->
+    <string name="playlist_already_has_song">Added</string>
 </resources>

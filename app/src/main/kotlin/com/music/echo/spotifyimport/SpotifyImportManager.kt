@@ -104,10 +104,24 @@ class SpotifyImportManager @Inject constructor(
         }
     }
 
+    /**
+     * Every import notification — en curso, terminada y fallida — opens the import screen.
+     *
+     * None of them carried a content intent before (owner report 2026-09-15: "las notificaciones no
+     * hacen nada"): a notification built without one simply swallows the tap, so a finished import
+     * could not even be opened to see what came in or what failed.
+     */
     private fun base(): NotificationCompat.Builder =
         NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_nobg)
             .setOnlyAlertOnce(true)
+            .setContentIntent(
+                iad1tya.echo.music.utils.NotificationTapIntents.open(
+                    context = context,
+                    route = iad1tya.echo.music.utils.NotificationTapIntents.ROUTE_SPOTIFY_IMPORT,
+                    requestCode = NOTIF_ID,
+                ),
+            )
 
     private fun notify(id: Int, n: Notification) {
         try {

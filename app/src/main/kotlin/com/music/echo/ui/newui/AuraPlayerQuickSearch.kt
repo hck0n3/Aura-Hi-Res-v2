@@ -162,6 +162,7 @@ fun AuraPlayerQuickSearchContent(
 
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        songIdsForMembership = pendingPlaylistSong?.id?.let { listOf(it) },
         onGetSong = {
             val item = pendingPlaylistSong ?: return@AddToPlaylistDialog emptyList()
             val meta = item.toMediaMetadata()

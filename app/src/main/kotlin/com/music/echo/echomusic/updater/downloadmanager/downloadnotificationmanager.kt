@@ -33,6 +33,13 @@ object DownloadNotificationManager {
             .setSmallIcon(R.drawable.ic_launcher_nobg)
             .setContentTitle("Descargando actualización $version")
             .setContentText(if (progress > 0) "$progress%" else "Preparando…")
+            .setContentIntent(
+                iad1tya.echo.music.utils.NotificationTapIntents.open(
+                    context = context,
+                    route = iad1tya.echo.music.utils.NotificationTapIntents.ROUTE_UPDATE,
+                    requestCode = NOTIFICATION_ID,
+                ),
+            )
             .setProgress(100, progress.coerceIn(0, 100), progress <= 0)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -98,11 +105,24 @@ object DownloadNotificationManager {
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            // A failed download is something the user acts on, so the tap lands on Ajustes ▸
+            // Actualizaciones, where the retry lives. It had no content intent at all before, so
+            // tapping it did nothing (owner report 2026-09-15).
+            .setContentIntent(updateScreenIntent())
             .setAutoCancel(true)
             .build()
 
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
+
+    /** Ajustes ▸ Actualizaciones — where every update notification that is not "ready to install"
+     *  takes you. ("Listo para instalar" keeps its own installer intent.) */
+    private fun updateScreenIntent() =
+        iad1tya.echo.music.utils.NotificationTapIntents.open(
+            context = appContext,
+            route = iad1tya.echo.music.utils.NotificationTapIntents.ROUTE_UPDATE,
+            requestCode = NOTIFICATION_ID,
+        )
 
 
     fun cancelNotification() {
@@ -151,6 +171,7 @@ object DownloadNotificationManager {
             .setSmallIcon(R.drawable.ic_launcher_foreground) 
             .setContentTitle(appContext.getString(R.string.downloading_update))
             .setContentText(appContext.getString(R.string.version_file_size, version, fileSize))
+            .setContentIntent(updateScreenIntent())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setStyle(progressStyle)
@@ -189,6 +210,7 @@ object DownloadNotificationManager {
             .setSmallIcon(R.drawable.ic_launcher_foreground) 
             .setContentTitle(appContext.getString(R.string.downloading_update))
             .setContentText(appContext.getString(R.string.version_progress, version, progress))
+            .setContentIntent(updateScreenIntent())
             .setOngoing(progress < 100)
             .setOnlyAlertOnce(true)
             .setStyle(progressStyle)
@@ -299,6 +321,7 @@ object DownloadNotificationManager {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setContentIntent(updateScreenIntent())
             .build()
 
         notificationManager.notify(NOTIFICATION_ID, notification)
@@ -315,6 +338,7 @@ object DownloadNotificationManager {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setContentIntent(updateScreenIntent())
             .build()
 
         notificationManager.notify(NOTIFICATION_ID, notification)

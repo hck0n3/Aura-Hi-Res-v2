@@ -157,6 +157,7 @@ fun YouTubeSongMenu(
     // playlist's browseId — adding here too sent the song TWICE to the remote playlist.
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        songIdsForMembership = listOf(song.id),
         onGetSong = { _ ->
             database.withTransaction {
                 insert(song.toMediaMetadata())

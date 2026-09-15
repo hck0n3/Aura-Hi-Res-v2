@@ -322,6 +322,18 @@ class MainActivity : ComponentActivity() {
         /** Notification / in-app redirect: open Ajustes ▸ Actualizaciones. */
         const val EXTRA_OPEN_UPDATE = "extra_open_update"
         const val EXTRA_UPDATE_TAG = "extra_update_tag"
+
+        /**
+         * The generic "a notification was tapped, go to what it is about" door.
+         *
+         * Owner report 2026-09-15: app notifications did nothing when tapped — most carried no
+         * content intent at all, and the ones that did (Radar de novedades) carried a bare launcher
+         * intent, which just reopens the app wherever it was. [iad1tya.echo.music.utils.NotificationTapIntents]
+         * builds the PendingIntent; the route it carries is ALLOW-LISTED there, because this
+         * activity is exported and any app can send it this action.
+         */
+        const val ACTION_OPEN_ROUTE = "iad1tya.echo.music.action.OPEN_ROUTE"
+        const val EXTRA_OPEN_ROUTE = "extra_open_route"
     }
 
     override fun attachBaseContext(newBase: Context) {
@@ -382,7 +394,6 @@ class MainActivity : ComponentActivity() {
                 if (existing != null && existing.service === service.service) {
                     Timber.tag("MainActivity").d("Rebound to the same service — reusing PlayerConnection")
                     existing.service.onAppForegrounded()
-                    listenTogetherManager.setPlayerConnection(existing)
                     return
                 }
                 // A genuinely different service instance (process death / fresh start): the old connection can
@@ -394,8 +405,6 @@ class MainActivity : ComponentActivity() {
                     // #27: binding on a cold start = the app is in the foreground → genuine engagement, so drop
                     // the cold-restore PLAY veto and let external controls (BT/AA/notification/watch) work.
                     service.service.onAppForegrounded()
-
-                    listenTogetherManager.setPlayerConnection(playerConnection)
                 } catch (e: Exception) {
                     Timber.tag("MainActivity").e(e, "Failed to create PlayerConnection")
                     
@@ -403,7 +412,6 @@ class MainActivity : ComponentActivity() {
                         delay(500)
                         try {
                             playerConnection = PlayerConnection(this@MainActivity, service, database, lifecycleScope, this@MainActivity.lifecycle)
-                            listenTogetherManager.setPlayerConnection(playerConnection)
                         } catch (e2: Exception) {
                             Timber.tag("MainActivity").e(e2, "Failed to create PlayerConnection on retry")
                         }
@@ -413,8 +421,8 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            
-            listenTogetherManager.setPlayerConnection(null)
+            // Listen Together is NOT unwired here any more: its player seam is the service itself
+            // (MusicService attaches/detaches), so a room survives the UI going away.
             playerConnection?.dispose()
             playerConnection = null
         }
@@ -584,9 +592,9 @@ class MainActivity : ComponentActivity() {
 
         // The SimpMusic-port manager boots itself (settings mirrors live in its init); the old
         // explicit initialize() no longer exists. Session resumption happens HERE (a persisted
-        // room token means the socket reopens on app start), and the playback bridge starts on
-        // the first setPlayerConnection (onServiceConnected) — the same seam upstream uses for
-        // its bridge.start().
+        // room token means the socket reopens on app start); the playback bridge is started by
+        // MusicService when its player exists — upstream starts it from the media service too,
+        // and anything Activity-scoped would stop publishing the moment the screen went away.
         listenTogetherManager.connectIfResumable()
 
         // App language (device/system locale by default) is applied for all API levels in attachBaseContext().
@@ -2590,6 +2598,21 @@ class MainActivity : ComponentActivity() {
                     launchSingleTop = true
                 }
             }
+            return
+        }
+
+        // A notification tap: go to the screen the notification is ABOUT. The route is checked
+        // against the allow-list rather than trusted, and navigateToReentryTarget is what keeps a
+        // tap from stacking a second copy of a screen the user already has open.
+        if (intent.action == ACTION_OPEN_ROUTE) {
+            val route = intent.getStringExtra(EXTRA_OPEN_ROUTE)
+            intent.action = null
+            intent.removeExtra(EXTRA_OPEN_ROUTE)
+            if (route == null || route !in iad1tya.echo.music.utils.NotificationTapIntents.ALLOWED_ROUTES) {
+                Timber.tag("MainActivity").w("Ignoring notification route outside the allow-list")
+                return
+            }
+            runCatching { navController.navigateToReentryTarget(route) }
             return
         }
 
