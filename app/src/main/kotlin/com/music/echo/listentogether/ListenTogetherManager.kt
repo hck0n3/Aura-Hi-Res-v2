@@ -219,21 +219,27 @@ class ListenTogetherManager @Inject constructor(
         }
     }
 
-    // ─────────────────── the player seam (PlayerConnection / MainActivity) ───────────────────
+    // ─────────────────── the player seam (MusicService) ───────────────────
 
     /**
-     * The UI process hands its PlayerConnection over exactly once per bind; the bridge keeps it
-     * and installs the guest-resume / host-seek listeners on the live player.
+     * The SERVICE hands itself over the moment its player exists, and takes itself back in
+     * `onDestroy`.
+     *
+     * It used to be the Activity's `PlayerConnection` (`setPlayerConnection`, called from
+     * MainActivity's ServiceConnection). That is the wrong lifetime for a room: its play-state flow
+     * is scoped to the Activity's lifecycleScope and stops emitting when the screen goes away, and
+     * the listeners it installed were pinned to one ExoPlayer instance and re-added on every
+     * rebind. The service is exactly as long-lived as the ability to play music, which is what a
+     * room needs — see the header of [ListenTogetherPlaybackBridge].
      */
-    fun setPlayerConnection(connection: iad1tya.echo.music.playback.PlayerConnection?) {
-        bridge.setPlayerConnection(connection)
-        if (connection != null) {
-            bridge.start(scope)
-            runCatching {
-                bridge.installGuestResumeListener(connection.player)
-                bridge.installHostSeekPublisher(connection.player)
-            }
-        }
+    fun attachPlayerService(service: iad1tya.echo.music.playback.MusicService) {
+        bridge.attachService(service)
+        bridge.start(scope)
+    }
+
+    /** The service is going away. Identity-guarded inside the bridge. */
+    fun detachPlayerService(service: iad1tya.echo.music.playback.MusicService) {
+        bridge.detachService(service)
     }
 
     /**

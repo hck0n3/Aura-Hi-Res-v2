@@ -1959,6 +1959,13 @@ class MusicService :
         playerInitialized.value = true
         Timber.tag(TAG).d("Player successfully initialized")
 
+        // Listen Together's playback bridge lives here, NOT in the Activity: a room has to keep
+        // publishing (host) and following (guest) while the screen is off, and the bridge follows
+        // `playerFlow` so it survives every player rebuild. Attaching after the player exists is
+        // what makes its first read valid. See ListenTogetherPlaybackBridge's header.
+        runCatching { listenTogetherManager.attachPlayerService(this@MusicService) }
+            .onFailure { Timber.tag(TAG).w(it, "Could not attach the Listen Together bridge") }
+
         // FIX B1 (#28.1): rehydrate the in-memory stream-URL cache from DataStore so the first play/resume
         // after an app-update restart can serve a still-valid resolved URL instead of re-running the slow
         // resolver. Best-effort, off the main thread; only non-expired entries are restored.
@@ -9587,6 +9594,9 @@ class MusicService :
     override fun onDestroy() {
         isRunning = false
         playbackKeepAlive.release()
+        // Identity-guarded inside the bridge: a service that has already been replaced must not
+        // unwire the new one.
+        runCatching { listenTogetherManager.detachPlayerService(this) }
         // The expanded flag lives in the process-wide PlaybackStateManager, which OUTLIVES this
         // service instance. If the UI died without collapsing (its onDispose reset is best-effort),
         // a recreated service would inherit "expanded" and keep speculative video warm-ups alive

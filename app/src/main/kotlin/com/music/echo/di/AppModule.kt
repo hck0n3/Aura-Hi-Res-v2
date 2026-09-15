@@ -172,6 +172,10 @@ object AppModule {
         }
         return ListenTogetherClient(
             clientVersion = "AuraHiRes",
+            // Same shape upstream sends: app/version (applicationId; Android release). No user data
+            // — the server only needs to know which client it is talking to.
+            userAgent = "Aura/${iad1tya.echo.music.BuildConfig.VERSION_NAME} " +
+                "(${iad1tya.echo.music.BuildConfig.APPLICATION_ID}; Android ${android.os.Build.VERSION.RELEASE})",
             serverUrl = urlSupplier,
         )
     }
@@ -193,8 +197,7 @@ object AppModule {
     @Provides
     fun provideListenTogetherPlaybackBridge(
         session: ListenTogetherSession,
-        tokenStore: SessionTokenStore,
-    ): ListenTogetherPlaybackBridge = ListenTogetherPlaybackBridge(session, tokenStore)
+    ): ListenTogetherPlaybackBridge = ListenTogetherPlaybackBridge(session)
 
     @Singleton
     @Provides

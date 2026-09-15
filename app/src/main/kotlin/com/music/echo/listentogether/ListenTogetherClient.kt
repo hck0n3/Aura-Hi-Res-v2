@@ -11,6 +11,7 @@ package iad1tya.echo.music.listentogether
 
 import android.os.SystemClock
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.UserAgent
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
@@ -92,6 +93,14 @@ sealed interface ListenTogetherEvent {
 class ListenTogetherClient(
     private val clientVersion: String,
     /**
+     * Application identity for the HTTP upgrade request, separate from the protocol capabilities
+     * below. Upstream SimpMusic sends one and pins it with a test (`UserAgentHandshakeTest`): a
+     * websocket upgrade carrying a bare HTTP-library User-Agent is exactly the shape edge proxies
+     * in front of community servers drop, and a dropped upgrade looks from inside the app like a
+     * room that simply never connects.
+     */
+    userAgent: String,
+    /**
      * Read on every connection attempt rather than captured once, so changing the server in
      * settings takes effect on the next connect instead of needing the screen to be recreated.
      */
@@ -108,6 +117,7 @@ class ListenTogetherClient(
 
     private val client: HttpClient =
         HttpClient {
+            install(UserAgent) { agent = userAgent }
             install(WebSockets)
         }
 

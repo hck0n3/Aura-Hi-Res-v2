@@ -265,10 +265,12 @@ class PlayerConnection(
     
     
     var shouldBlockPlaybackChanges: (() -> Boolean)? = null
-    
-    
-    @Volatile
-    var allowInternalSync: Boolean = false
+
+    // `allowInternalSync` used to sit here as an escape hatch for the Listen Together bridge, which
+    // reached the player THROUGH this class. The bridge now talks to MusicService's player directly
+    // (it is the service that owns the room's playback, not whatever screen happens to be alive), so
+    // nothing ever set the flag any more — and a guard nobody can lift is exactly the kind of dead
+    // switch this project's registry calls a placebo.
 
     var onSkipPrevious: (() -> Unit)? = null
     var onSkipNext: (() -> Unit)? = null
@@ -354,7 +356,7 @@ class PlayerConnection(
 
     fun playNext(items: List<MediaItem>) {
         
-        if (!allowInternalSync && shouldBlockPlaybackChanges?.invoke() == true) {
+        if (shouldBlockPlaybackChanges?.invoke() == true) {
             Timber.tag("PlayerConnection").d("playNext blocked - Listen Together guest")
             return
         }
@@ -370,7 +372,7 @@ class PlayerConnection(
 
     fun addToQueue(items: List<MediaItem>) {
         
-        if (!allowInternalSync && shouldBlockPlaybackChanges?.invoke() == true) {
+        if (shouldBlockPlaybackChanges?.invoke() == true) {
             Timber.tag("PlayerConnection").d("addToQueue blocked - Listen Together guest")
             return
         }
