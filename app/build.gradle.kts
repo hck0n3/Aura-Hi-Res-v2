@@ -521,7 +521,7 @@ dependencies {
     testImplementation("org.json:json:20240303")
 
     // Firebase - GMS flavor only (excluded from F-Droid / FOSS builds)
-    "gmsImplementation"(platform("com.google.firebase:firebase-bom:34.15.0"))
+    "gmsImplementation"(platform("com.google.firebase:firebase-bom:34.19.0"))
     "gmsImplementation"("com.google.firebase:firebase-analytics")
     "gmsImplementation"("com.google.firebase:firebase-crashlytics")
 
