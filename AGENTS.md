@@ -100,6 +100,20 @@ El actualizador de la app consulta `releases/latest` de GitHub, que **excluye la
 > ### ⛔ Nunca publiques sin permiso explícito del dueño.
 > Compilar y dejar el trabajo listo es correcto. Ejecutar `git push` de un tag **no lo es** salvo que él lo
 > pida en ese momento. Es la única acción de todo el repositorio que llega a los móviles de terceros.
+>
+> **ORDEN PERMANENTE DEL DUEÑO (2026-09-15), literal:** *«siempre espera, para la próxima pide confirmación
+> antes de publicar para todos, porque todos los cambios que pida de ahora en adelante solo los manejaremos
+> en privado hasta que yo dé la orden de publicar»*. Es decir, **por defecto TODO trabajo se queda privado**:
+> rama de trabajo, commits y, como mucho, un APK de prueba (`test-build.yml`, que no crea release ni avisa a
+> nadie). Requieren que él lo pida **en ese momento y con esas palabras**:
+> - `git merge`/push a **`main`** y push de cualquier **tag** `v*` (el tag estable llega por el actualizador
+>   a todos los usuarios; incluso un `-beta` publica una página de release);
+> - lanzar **`gradle.yml`** (Android Build & Sign), que crea la release y manda los avisos;
+> - publicar `player_configs.json` en `main`, que la app lee **en vivo** para todos los usuarios;
+> - abrir un pull request, que es visible fuera.
+>
+> Pedir permiso no es una formalidad: si la respuesta no ha llegado, el trabajo se queda en la rama y se le
+> dice al dueño qué está listo y esperando.
 
 Antes de una versión estable, comprueba:
 
