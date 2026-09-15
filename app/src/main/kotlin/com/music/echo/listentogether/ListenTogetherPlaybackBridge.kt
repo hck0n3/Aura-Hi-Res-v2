@@ -580,8 +580,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     }
 
     private suspend fun publishPlayPauseAsHost() {
+        // No `distinctUntilChanged`: a StateFlow already conflates equal values, and asking for it
+        // again is a compile error in this project (the operator is deprecated on StateFlow).
         isPlayingNow
-            .distinctUntilChanged()
             .collect { isPlaying ->
                 val service = serviceFlow.value ?: return@collect
                 val state = session.state.value
@@ -615,8 +616,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      * short queue it was given plays on alone.
      */
     private suspend fun publishQueueAsHost() {
+        // Same as above: the counter is a StateFlow, so consecutive equal values never arrive twice.
         timelineRevision
-            .distinctUntilChanged()
             .collect {
                 val service = serviceFlow.value ?: return@collect
                 val state = session.state.value
