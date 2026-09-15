@@ -103,9 +103,16 @@ El actualizador de la app consulta `releases/latest` de GitHub, que **excluye la
 >
 > **ORDEN PERMANENTE DEL DUEÑO (2026-09-15), literal:** *«siempre espera, para la próxima pide confirmación
 > antes de publicar para todos, porque todos los cambios que pida de ahora en adelante solo los manejaremos
-> en privado hasta que yo dé la orden de publicar»*. Es decir, **por defecto TODO trabajo se queda privado**:
-> rama de trabajo, commits y, como mucho, un APK de prueba (`test-build.yml`, que no crea release ni avisa a
-> nadie). Requieren que él lo pida **en ese momento y con esas palabras**:
+> en privado hasta que yo dé la orden de publicar»*. Es decir, **por defecto NADA llega a los usuarios**: el
+> trabajo vive en su rama, con sus commits y, como mucho, un APK de prueba (`test-build.yml`, que no crea
+> release ni avisa a nadie).
+>
+> **Ojo con la palabra «privado»: este repositorio es PÚBLICO** (comprobado 2026-09-15). Una rama pusheada y
+> sus commits los ve cualquiera; lo que la orden protege es que el cambio **no llegue a los móviles de los
+> usuarios**, no que sea invisible. Si alguna vez hace falta lo segundo, es una decisión del dueño (repo a
+> privado), no algo que un agente resuelva por su cuenta.
+>
+> Requieren que él lo pida **en ese momento y con esas palabras**:
 > - `git merge`/push a **`main`** y push de cualquier **tag** `v*` (el tag estable llega por el actualizador
 >   a todos los usuarios; incluso un `-beta` publica una página de release);
 > - lanzar **`gradle.yml`** (Android Build & Sign), que crea la release y manda los avisos;
