@@ -56,6 +56,19 @@ fun BottomSheet(
     onDismiss: (() -> Unit)? = null,
     collapsedContent: @Composable BoxScope.() -> Unit,
     isExpandable: Boolean = true,
+    // Height of the docked strip this sheet hands to [collapsedContent].
+    //
+    // It used to be [MiniPlayerHeight], hard-coded, for EVERY sheet. That is right for a mini player
+    // (it never pays a system-bar inset: the shell's own bar sits under it) and WRONG for any collapsed
+    // content that steps off the navigation bar itself, which is what the collapsed queue bar does:
+    // its caller sizes the docked strip as `QueuePeekHeight + navigation inset`, but the box it was
+    // measured in stayed 64 dp, so the bar's own `windowInsetsPadding(Bottom)` came out of the BUTTONS
+    // instead of out of the strip. With the classic three-button navigation bar (~48 dp) that left 16 dp
+    // for a row of 48 dp controls, and `sizeIn(min = 48.dp)` is a MINIMUM the parent may coerce down —
+    // hence the reported "los botones se vuelven ultra pequeños" with the three-button bar and not with
+    // gestures (~24 dp). Callers whose collapsed content pays the inset pass the same bound they used for
+    // the strip, so the inset comes out of the strip and the controls keep their full size.
+    collapsedContentHeight: Dp = MiniPlayerHeight,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val density = LocalDensity.current
@@ -146,7 +159,7 @@ fun BottomSheet(
                         enabled = !state.isExpanded,
                         onClick = { if (isExpandable) state.expandSoft() },
                     ).fillMaxWidth()
-                    .height(MiniPlayerHeight),
+                    .height(collapsedContentHeight),
                 content = collapsedContent,
             )
         }

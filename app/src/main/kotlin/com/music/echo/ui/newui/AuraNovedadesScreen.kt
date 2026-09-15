@@ -230,7 +230,10 @@ fun AuraNovedadesScreen(
                         Column {
                             AuraSectionHeader(title = stringResource(R.string.novedades_updated_playlists))
                             val w = auraTypeVisual(AuraContentKind.Playlist).shelfWidth * cardScale
-                            AuraDoubleRowShelf(rowHeight = auraShelfCardStackHeight(w)) {
+                            AuraDoubleRowShelf(
+                                rowHeight = auraShelfCardStackHeight(w),
+                                itemCount = unique.playlists.size,
+                            ) {
                                 lazyGridItems(unique.playlists, key = { it.id }) { item ->
                                     AuraTypedYtCoverCard(
                                         item = item,
@@ -447,7 +450,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.novedadesAlbumShelf(
         Column {
             AuraSectionHeader(title = stringResource(titleRes))
             val w = auraTypeVisual(AuraContentKind.Album).shelfWidth * cardScale
-            AuraDoubleRowShelf(rowHeight = auraShelfCardStackHeight(w)) {
+            AuraDoubleRowShelf(
+                rowHeight = auraShelfCardStackHeight(w),
+                itemCount = albums.size,
+            ) {
                 lazyGridItems(albums, key = { it.id }) { album ->
                     AuraTypedYtCoverCard(
                         item = album,

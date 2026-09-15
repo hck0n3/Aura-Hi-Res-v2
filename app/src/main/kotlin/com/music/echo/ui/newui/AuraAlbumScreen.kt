@@ -1204,12 +1204,16 @@ internal fun AuraDetailShelf(
 internal fun AuraDoubleRowShelf(
     rowHeight: Dp,
     modifier: Modifier = Modifier,
-    /** When 1, use a single-row shelf so small sections (e.g. one "Aparece en" album) don't reserve double height. */
+    /**
+     * How many items [content] emits, when the caller knows it. Under
+     * [AURA_SHELF_MIN_ITEMS_FOR_TWO_ROWS] the shelf drops to ONE row instead of reserving a second one
+     * that cannot be filled. `null` keeps two rows — for callers that cannot count what they emit.
+     */
     itemCount: Int? = null,
     content: LazyGridScope.() -> Unit,
 ) {
     val gap = AuraSpacing.ShelfItemGap
-    val rows = if (itemCount == 1) 1 else 2
+    val rows = if (itemCount != null && itemCount < AURA_SHELF_MIN_ITEMS_FOR_TWO_ROWS) 1 else 2
     val gridState = rememberLazyGridState()
     val fling = rememberSnapFlingBehavior(lazyGridState = gridState)
     LazyHorizontalGrid(
@@ -1227,6 +1231,20 @@ internal fun AuraDoubleRowShelf(
         content = content,
     )
 }
+
+/**
+ * How many items a two-row shelf needs before the second row earns its height.
+ *
+ * A [AuraDoubleRowShelf] fills COLUMN BY COLUMN, so a short section does not spread out — it leaves
+ * the bottom half of the shelf empty. That is the owner's report about the pinned-to-Home shelf
+ * ("abajo de lo que fijo queda un súper espacio inutilizado"): one pinned playlist drew one card and
+ * an equally tall hole under it, because the shelf reserved `rowHeight × 2 + gap` regardless.
+ *
+ * Four is the number the typed Home shelves already used inline (`group.size >= 4`, AuraHomeScreen):
+ * four items are exactly two full columns, so at four and above nothing visible is empty, and under
+ * four a single row shows the same cards with no hole beneath them.
+ */
+internal const val AURA_SHELF_MIN_ITEMS_FOR_TWO_ROWS = 4
 
 /** Stack height for [AuraTypedYtCoverCard] / [AuraCoverCard] (cover + fixed 2-line title + subtitle). */
 internal fun auraShelfCardStackHeight(cardWidth: Dp, ratio: Float = 1f): Dp =
