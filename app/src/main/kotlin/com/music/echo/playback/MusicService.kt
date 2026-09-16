@@ -1640,6 +1640,25 @@ class MusicService :
                     player.playbackState == Player.STATE_READY &&
                     !player.isPlaying
                 ) {
+                    // 🔴 OWNER REPORT (2026-09-16): "de la nada Aura se dispara reproduciendo a veces, eso
+                    // pasa de manera aleatoria" — and he has not spotted a pattern. This branch is one of the
+                    // two doors that can do it, and the `settingResume` half has NO time limit and no
+                    // requirement that the user ever paused: with "Reanudar al conectar Bluetooth" on, any
+                    // headset or car that connects starts playback, even hours after a deliberate pause.
+                    //
+                    // Logged rather than changed, because which door is his is a fact we can HAVE instead of
+                    // guess. Names the branch, so his log says "the Bluetooth setting did it" or stays silent
+                    // and points at the external-PLAY path in MediaLibrarySessionCallback instead.
+                    // Privacy (rule 4): a branch name and a boolean — no title, artist or id.
+                    iad1tya.echo.music.utils.PlaybackLogManager.log(
+                        iad1tya.echo.music.utils.PlaybackLogLevel.WARNING,
+                        "Auto-resume on device connect",
+                        if (settingResume) {
+                            "reason=ResumeOnBluetoothConnect setting (no time limit)"
+                        } else {
+                            "reason=Android Auto re-connect within 45s of a noisy pause"
+                        },
+                    )
                     pausedByNoisy = false
                     player.play()
                 }

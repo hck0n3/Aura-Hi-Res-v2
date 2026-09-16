@@ -42,6 +42,8 @@ import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.extensions.toggleRepeatMode
 import iad1tya.echo.music.models.toMediaMetadata
+import iad1tya.echo.music.utils.PlaybackLogLevel
+import iad1tya.echo.music.utils.PlaybackLogManager
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.get
 import iad1tya.echo.music.utils.reportException
@@ -113,9 +115,47 @@ constructor(
             this::service.isInitialized &&
             service.awaitingFirstUserPlay
         ) {
+            recordExternalPlayAttempt(controller, vetoed = true)
             return SessionResult.RESULT_ERROR_PERMISSION_DENIED
         }
+        recordExternalPlayAttempt(controller, vetoed = false)
         return super.onPlayerCommandRequest(session, controller, playerCommand)
+    }
+
+    /**
+     * 🔴 OWNER REPORT (2026-09-16): *"de la nada Aura se dispara reproduciendo a veces, eso pasa de manera
+     * aleatoria"*. He has not spotted a pattern, and the code offers more than one door: an external PLAY
+     * accepted after the veto above was dropped (it is dropped permanently the first time the app is
+     * foregrounded, and nothing ever re-arms it), or the "Reanudar al conectar Bluetooth" branch in
+     * `MusicService.onAudioDevicesAdded`, which has no time limit at all.
+     *
+     * Rather than guess between them and change behaviour on a hunch, this records WHO asked. Every
+     * controller PLAY is routed through this callback — Bluetooth/AVRCP, a watch, Android Auto, the
+     * notification, a headset button — and [MediaSession.ControllerInfo.packageName] says which. A stray
+     * reconnect from the Bluetooth stack and a deliberate press on the notification look identical in the
+     * player; they do not look identical here.
+     *
+     * Only logged when the command would START playback: while something is already playing, a PLAY_PAUSE
+     * is a pause, which is never the reported problem and would just fill the log.
+     *
+     * PRIVACY (AGENTS.md rule 4): a controller's package name is an app identity on the device, not user
+     * data — no title, artist, id, response body or cookie goes near this line. The owner shares this log.
+     */
+    private fun recordExternalPlayAttempt(
+        controller: MediaSession.ControllerInfo,
+        vetoed: Boolean,
+    ) {
+        if (!this::service.isInitialized) return
+        runCatching {
+            val player = service.player
+            if (player.isPlaying) return
+            PlaybackLogManager.log(
+                if (vetoed) PlaybackLogLevel.INFO else PlaybackLogLevel.WARNING,
+                if (vetoed) "External PLAY rejected (phantom veto armed)" else "External PLAY accepted",
+                "from=${controller.packageName} state=${player.playbackState} " +
+                    "items=${player.mediaItemCount} vetoArmed=${service.awaitingFirstUserPlay}",
+            )
+        }
     }
 
     override fun onCustomCommand(
