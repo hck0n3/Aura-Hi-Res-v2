@@ -3464,6 +3464,10 @@ class MusicService :
             player.prepare()
             player.playWhenReady = playWhenReady
         }
+        // How many items the queue actually produced, BEFORE any filter. Read only to explain an empty
+        // queue below: "the source gave us nothing" and "our own filters ate everything" look identical
+        // from here and need opposite fixes. A count is not user data — no title, artist or id is logged.
+        var fetchedCount = 0
         scope.launch(SilentHandler) {
             val rawStatus =
                 withContext(Dispatchers.IO) {
@@ -3471,9 +3475,20 @@ class MusicService :
                     // ListQueue, playlists, liked) often have musicVideoType=null on plain audio rows from
                     // the DB — filtering them emptied albums so taps silently no-op'd (0.6.176 regression).
                     // Non-music filtering belongs only on automatic radio/related appends.
-                    queue.getInitialStatus()
+                    val fetched = queue.getInitialStatus()
+                    fetchedCount = fetched.items.size
+                    fetched
                         .filterExplicit(dataStore.get(HideExplicitKey, false))
-                        .filterVideoSongs(dataStore.get(HideVideoSongsKey, false) || dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false))
+                        // protectAnchor: THIS is the queue the user just started by tapping something. The
+                        // tapped item must survive the hide-videos preference (which Data Saver turns on by
+                        // itself) or the tap plays nothing at all — see the owner report on
+                        // Queue.Status.filterVideoSongs. Every OTHER call site in this file is an automatic
+                        // radio / autoplay append and deliberately keeps the old, unprotected behaviour.
+                        .filterVideoSongs(
+                            disableVideos = dataStore.get(HideVideoSongsKey, false) ||
+                                dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false),
+                            protectAnchor = true,
+                        )
                 }
             // Duplicate ROWS of one mediaId (a playlist can hold the same song twice) defeat the id-keyed
             // no-repeat memory: both rows play, and the second reads as a repeat. Context queues dedupe at
@@ -3495,8 +3510,33 @@ class MusicService :
             if (initialStatus.title != null) {
                 queueTitle = initialStatus.title
             }
-            if (initialStatus.items.isEmpty()) return@launch
-            
+            if (initialStatus.items.isEmpty()) {
+                // NEVER return in silence here. This single line is what the owner experienced as
+                // "toco un vídeo y no hace nada" (2026-09-16): the tap reached the service, the service
+                // decided there was nothing to play, and nobody was told — not the user, not the log.
+                // protectAnchor above stops the video case from ever reaching this point again, but the
+                // branch itself stays reachable (an empty playlist, a region-blocked radio, every item
+                // explicit with "hide explicit" on), and every one of those deserves an explanation.
+                // Counts only: rule 4 of AGENTS.md — no title, artist or id in the log the owner shares.
+                Timber.tag(TAG).w(
+                    "playQueue: nothing to play — the queue returned %d item(s) and %s",
+                    fetchedCount,
+                    if (fetchedCount > 0) "the content filters removed all of them" else "the source was empty",
+                )
+                // Only when OUR filters are the reason, and never on a restore (that runs with no one
+                // looking at the screen): a toast then explains an app that otherwise looks broken.
+                if (!isRestore && fetchedCount > 0) {
+                    runCatching {
+                        Toast.makeText(
+                            this@MusicService,
+                            getString(R.string.queue_empty_after_filters),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                }
+                return@launch
+            }
+
             originalQueueSize = initialStatus.items.size
             if (queue.preloadItem != null) {
                 val safeIndex = initialStatus.mediaItemIndex.coerceIn(0, (initialStatus.items.size - 1).coerceAtLeast(0))

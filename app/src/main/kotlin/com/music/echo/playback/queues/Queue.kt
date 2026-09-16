@@ -93,8 +93,44 @@ interface Queue {
         fun filterExplicit(enabled: Boolean = true) =
             if (enabled) reanchor(items.filterExplicit()) else this
 
-        fun filterVideoSongs(disableVideos: Boolean = false) =
-            if (disableVideos) reanchor(items.filterVideoSongs(true)) else this
+        /**
+         * Hides video songs from the queue.
+         *
+         * 🔴 OWNER REPORT (2026-09-16): *"cuando doy clic sobre los video no hace nada"* — in the search
+         * results, in Tendencias, on an artist's page and in Vídeos exportados alike, with no player, no
+         * error and no message. This filter was the whole reason.
+         *
+         * A queue seeded from a video IS videos: the tapped item, and usually most of the radio behind it.
+         * Filtering the list therefore removed **the very item the user asked for**, and when it removed
+         * everything, `playQueue` hit `if (initialStatus.items.isEmpty()) return@launch` and gave up in
+         * silence. The setting reads as "hide videos from lists", so nothing on screen explained it — and
+         * it is ORed with Data Saver in [iad1tya.echo.music.playback.MusicService], which turns it on for a
+         * user who never asked to filter anything while the lists KEEP showing videos (the search screen
+         * only consults `HideVideoSongsKey`). Visible, tappable, dead.
+         *
+         * [protectAnchor] is the fix, and it belongs to user-initiated queues only: the item at
+         * [mediaItemIndex] — what the tap chose — always survives, so the tap always plays something, while
+         * the rest of the queue is still filtered and the preference keeps meaning what it says. Automatic
+         * radio / related appends pass false and behave exactly as before.
+         *
+         * The decision itself lives in [QueueFilters] so it can be tested without a device; this function
+         * only maps it back onto [items].
+         */
+        fun filterVideoSongs(
+            disableVideos: Boolean = false,
+            protectAnchor: Boolean = false,
+        ) = if (disableVideos) {
+            reanchor(
+                QueueFilters
+                    .keepIndicesHidingVideos(
+                        isVideoSong = items.map { it.metadata?.isVideoSong == true },
+                        anchorIndex = mediaItemIndex,
+                        protectAnchor = protectAnchor,
+                    ).map { items[it] },
+            )
+        } else {
+            this
+        }
 
         /**
          * Automatic radio / related / mood appends: keep only items YouTube Music tagged with a
@@ -129,3 +165,34 @@ fun List<MediaItem>.filterNonMusicForAutoQueue(enabled: Boolean = true) =
     } else {
         this
     }
+
+/**
+ * The pure decision behind [Queue.Status.filterVideoSongs], kept apart from media3.
+ *
+ * A `MediaItem` cannot be built in a plain JVM test (its builder parses an `android.net.Uri`), so a filter
+ * expressed directly over `List<MediaItem>` is only ever exercised on a device — which is how this one
+ * shipped able to empty a queue without a single test noticing. Reduced to "which indices survive", the
+ * rule is ordinary data and [iad1tya.echo.music.playback.queues.QueueFilterAnchorTest] can hold it.
+ */
+object QueueFilters {
+    /**
+     * Indices of [isVideoSong] to KEEP when hiding video songs.
+     *
+     * With [protectAnchor], [anchorIndex] survives even when it is a video: it is the item the user tapped,
+     * and a preference about what to HIDE must never decide that the tap plays nothing. Everything else is
+     * filtered either way, so the queue behind the tapped video still honours the setting.
+     *
+     * Out-of-range or negative [anchorIndex] values protect nothing rather than throwing — a queue whose
+     * index does not point into its own items is already degenerate, and the caller re-anchors afterwards.
+     */
+    fun keepIndicesHidingVideos(
+        isVideoSong: List<Boolean>,
+        anchorIndex: Int,
+        protectAnchor: Boolean,
+    ): List<Int> {
+        val protectedIndex = if (protectAnchor) anchorIndex else -1
+        return isVideoSong.indices.filter { index ->
+            index == protectedIndex || !isVideoSong[index]
+        }
+    }
+}
