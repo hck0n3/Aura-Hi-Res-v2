@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -77,6 +78,8 @@ import coil3.compose.AsyncImage
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.ui.component.LocalGlassEffectConfig
+import iad1tya.echo.music.ui.component.isGlassSupported
+import iad1tya.echo.music.ui.component.liquidGlassInteractive
 import iad1tya.echo.music.constants.CropAlbumArtKey
 import iad1tya.echo.music.constants.MiniPlayerBackgroundStyleKey
 import iad1tya.echo.music.constants.MiniPlayerHeight
@@ -391,22 +394,43 @@ fun AuraNavigationBar(
     // remains available for Performance Mode (where sampling pauses in-place, never unmounts).
     // AUDIT P6: the dead rememberShellScrollActive() read is GONE — it subscribed the nav bar to
     // every fling of every screen (a recomposition per gesture for a value nothing consumed).
-    val inPerformanceMode = LocalGlassEffectConfig.current.globalEnabled.not()
+    val glassConfig = LocalGlassEffectConfig.current
+    val inPerformanceMode = glassConfig.globalEnabled.not()
+    // "Cristal interactivo" (SimpMusic) — la MISMA barra, otra receta: desenfoque y oscurecido que se
+    // adaptan a la luminancia de lo que pasa por debajo, y lente proporcional. Muestrea `appBackdrop`,
+    // que MainActivity graba con esta apariencia solo cuando esta opción está encendida.
+    //
+    // `interactive = false` aquí a propósito y NO por ahorrar: esta barra ocupa todo el ancho, y el
+    // escalado al pulsar del original está pensado para una cápsula flotante (la barra clásica sí la
+    // es, y allí sí va con reacción). Escalar una barra a pantalla completa se ve como un fallo de
+    // dibujo, no como cristal.
+    val interactiveGlass = glassConfig.interactive && glassConfig.globalEnabled && isGlassSupported()
     val navHazeState = LocalShellHazeState.current
-    val navBarModifier = if (navHazeState != null) {
-        modifier
-            .fillMaxWidth()
-            .then(
-                if (inPerformanceMode) {
-                    Modifier.freezeGlass(navHazeState)
-                } else {
-                    Modifier.shellGlass(navHazeState)
-                },
-            )
-    } else {
-        modifier
-            .fillMaxWidth()
-            .background(AuraPalette.Ground)
+    val navBarModifier = when {
+        interactiveGlass ->
+            modifier
+                .fillMaxWidth()
+                .liquidGlassInteractive(
+                    config = glassConfig,
+                    shape = RoundedCornerShape(0.dp),
+                    interactive = false,
+                )
+
+        navHazeState != null ->
+            modifier
+                .fillMaxWidth()
+                .then(
+                    if (inPerformanceMode) {
+                        Modifier.freezeGlass(navHazeState)
+                    } else {
+                        Modifier.shellGlass(navHazeState)
+                    },
+                )
+
+        else ->
+            modifier
+                .fillMaxWidth()
+                .background(AuraPalette.Ground)
     }
     Column(
         modifier = navBarModifier,
@@ -776,7 +800,15 @@ fun AuraMiniPlayer(
         // drift=false/spin=false, the HALLAZGO-059 guardian), so there is nothing here to disable;
         // with the film frozen the idle-animated ground under the pill no longer re-blurs either.
         // AUDIT P6: dead bus read removed — no consumer; it recomposed the pill per gesture.
-        val inPerformanceMode = LocalGlassEffectConfig.current.globalEnabled.not()
+        val pillGlassConfig = LocalGlassEffectConfig.current
+        val inPerformanceMode = pillGlassConfig.globalEnabled.not()
+        // "Cristal interactivo" (SimpMusic) en la píldora. Aquí SÍ reacciona al tacto — es una cápsula,
+        // el caso para el que se diseñó el efecto — pero con el escalado suave (1.04) que el propio
+        // SimpMusic usa en su minirreproductor: el 1.12 de los botones redondos abomba demasiado una
+        // superficie ancha. El gesto no consume eventos, así que arrastrar la píldora para expandir o
+        // cambiar de canción sigue funcionando igual.
+        val pillInteractiveGlass =
+            pillGlassConfig.interactive && pillGlassConfig.globalEnabled && isGlassSupported()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -809,7 +841,13 @@ fun AuraMiniPlayer(
                 // SCROLL FREEZE (row 196): mid-gesture the film is REPLACED by the frozen tint, not
                 // painted over — the swap is exclusive, the ground recipe underneath is unchanged.
                 .then(
-                    if (pillHazeState != null) {
+                    if (pillInteractiveGlass) {
+                        Modifier.liquidGlassInteractive(
+                            config = pillGlassConfig,
+                            shape = AuraShapes.Card,
+                            pressedScale = 1.04f,
+                        )
+                    } else if (pillHazeState != null) {
                         // ALWAYS-SAMPLING chrome (owner 2026-08-31) — same contract as the nav
                         // bar: live glass through scrolls; freezeGlass only under Performance
                         // Mode. No source → SurfaceFill, byte-identical.

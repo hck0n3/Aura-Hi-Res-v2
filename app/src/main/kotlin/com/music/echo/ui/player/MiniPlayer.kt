@@ -124,6 +124,7 @@ import iad1tya.echo.music.ui.component.LocalGlassEffectConfig
 import iad1tya.echo.music.ui.component.glassContentColor
 import iad1tya.echo.music.ui.component.isGlassSupported
 import iad1tya.echo.music.ui.component.liquidGlass
+import iad1tya.echo.music.ui.component.liquidGlassInteractive
 import iad1tya.echo.music.ui.theme.PlayerColorExtractor
 import iad1tya.echo.music.ui.theme.rememberEffectiveDarkTheme
 import iad1tya.echo.music.ui.theme.rememberNewUiForcesDarkTheme
@@ -1222,7 +1223,15 @@ private fun MiniPlayerBackgroundLayer(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .liquidGlass(config = glassConfig)
+                        .then(
+                            // Misma superficie, dos recetas. La interactiva reacciona al tacto y se
+                            // adapta a la luminancia de la portada que tiene detrás.
+                            if (glassConfig.interactive) {
+                                Modifier.liquidGlassInteractive(config = glassConfig)
+                            } else {
+                                Modifier.liquidGlass(config = glassConfig)
+                            },
+                        )
                 )
             } else if (gradientColors.isNotEmpty()) {
                 // Glass unavailable (gate off / unsupported device): degrade to the gradient look.

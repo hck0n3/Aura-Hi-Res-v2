@@ -49,6 +49,7 @@ import iad1tya.echo.music.constants.LiquidGlassBlurRadiusKey
 import iad1tya.echo.music.constants.LiquidGlassChromaticAberrationKey
 import iad1tya.echo.music.constants.LiquidGlassDepthEffectKey
 import iad1tya.echo.music.constants.LiquidGlassGlobalEnabledKey
+import iad1tya.echo.music.constants.LiquidGlassInteractiveKey
 import iad1tya.echo.music.constants.LiquidGlassLensAmountKey
 import iad1tya.echo.music.constants.LiquidGlassLensHeightKey
 import iad1tya.echo.music.constants.LiquidGlassMiniPlayerEnabledKey
@@ -71,9 +72,11 @@ import iad1tya.echo.music.utils.rememberPreference
  * on ineligible devices the master switch is disabled and marked unavailable, and the effect
  * never renders regardless of the stored preferences.
  *
- * With "Interfaz nueva" on this screen is UNREACHABLE — the glass system has no render site left under
- * that flag, so its route bounces (NavigationBuilder.kt) and the settings-search index drops every row
- * pointing at it (SearchableSettings.kt). See the CORRECTION note on `newUiEnabled` below.
+ * STALE UNTIL 2026-09-16, corrected here: this KDoc used to say the screen was UNREACHABLE with
+ * "Interfaz nueva" on. That stopped being true on 2026-08-29 (NavigationBuilder.kt composes it in both
+ * interfaces, the route bounce is gone and the search index points at it again — see the CORRECTION
+ * note on `newUiEnabled` below), and leaving the claim here would now contradict the screen itself:
+ * "Cristal interactivo" renders in BOTH interfaces.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,6 +97,9 @@ fun GlassEffectSettings(
 
     val (globalEnabled, onGlobalEnabledChange) = rememberPreference(
         LiquidGlassGlobalEnabledKey, defaultValue = false
+    )
+    val (interactiveGlass, onInteractiveGlassChange) = rememberPreference(
+        LiquidGlassInteractiveKey, defaultValue = false
     )
     val (vibrancy, onVibrancyChange) = rememberPreference(
         LiquidGlassVibrancyKey, defaultValue = 1f
@@ -234,6 +240,35 @@ fun GlassEffectSettings(
                         )
                     },
                     onClick = { onGlobalEnabledChange(!globalEnabled) }
+                ),
+                // "Cristal interactivo" — la otra versión del efecto (orden del dueño 2026-09-16:
+                // *"otra versión de liquid glass que se pueda aplicar a las dos versiones de mi
+                // apariencia"*). Vive DENTRO del grupo del interruptor maestro y deshabilitada cuando
+                // ese está apagado, porque no es un efecto aparte: es otra receta para las mismas
+                // superficies. Funciona en las DOS apariencias — con la nueva, MainActivity empieza a
+                // grabar la capa de fondo que esta receta muestrea justo cuando esto se enciende.
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.tune),
+                    title = { Text(stringResource(R.string.liquid_glass_interactive)) },
+                    description = { Text(stringResource(R.string.liquid_glass_interactive_desc)) },
+                    enabled = globalEnabled,
+                    trailingContent = {
+                        Switch(
+                            checked = interactiveGlass,
+                            onCheckedChange = onInteractiveGlassChange,
+                            enabled = globalEnabled,
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (interactiveGlass) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        )
+                    },
+                    onClick = { if (globalEnabled) onInteractiveGlassChange(!interactiveGlass) }
                 )
             )
         )

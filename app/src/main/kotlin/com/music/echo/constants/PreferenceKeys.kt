@@ -789,6 +789,12 @@ val LiquidGlassPlayerEnabledKey = booleanPreferencesKey("liquidGlassPlayerEnable
 val LiquidGlassMiniPlayerEnabledKey = booleanPreferencesKey("liquidGlassMiniPlayerEnabled")
 val LiquidGlassNavBarEnabledKey = booleanPreferencesKey("liquidGlassNavBarEnabled")
 
+// "Cristal interactivo" (orden del dueño 2026-09-16: el liquid glass de SimpMusic, aplicable a LAS DOS
+// apariencias). Por defecto APAGADO: es otra versión del efecto, no un cambio del que ya tiene, y
+// encenderlo hace que la apariencia nueva grabe una capa de fondo que hoy no paga. Ver
+// [iad1tya.echo.music.ui.component.liquidGlassInteractive].
+val LiquidGlassInteractiveKey = booleanPreferencesKey("liquidGlassInteractive")
+
 val TopSize = stringPreferencesKey("topSize")
 val HistoryDuration = floatPreferencesKey("historyDuration")
 

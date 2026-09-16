@@ -111,10 +111,19 @@ fun FloatingNavigationToolbar(
         toolbarContainerColor = toolbarContainerColor,
     )
     val glassModifier = if (useGlass) {
-        Modifier.liquidGlass(
-            config = glassConfig,
-            shape = RoundedCornerShape(percent = 50),
-        )
+        // "Cristal interactivo" (SimpMusic) o el de Aura: MISMA superficie, misma forma, mismo hueco.
+        // La opción solo cambia el dibujo, nunca la disposición ni el área táctil.
+        if (glassConfig.interactive) {
+            Modifier.liquidGlassInteractive(
+                config = glassConfig,
+                shape = RoundedCornerShape(percent = 50),
+            )
+        } else {
+            Modifier.liquidGlass(
+                config = glassConfig,
+                shape = RoundedCornerShape(percent = 50),
+            )
+        }
     } else {
         Modifier
     }

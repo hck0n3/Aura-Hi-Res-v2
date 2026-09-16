@@ -235,6 +235,7 @@ import iad1tya.echo.music.constants.LiquidGlassLensAmountKey
 import iad1tya.echo.music.constants.LiquidGlassLensHeightKey
 import iad1tya.echo.music.constants.LiquidGlassMiniPlayerEnabledKey
 import iad1tya.echo.music.constants.LiquidGlassNavBarEnabledKey
+import iad1tya.echo.music.constants.LiquidGlassInteractiveKey
 import iad1tya.echo.music.constants.LiquidGlassPlayerEnabledKey
 import iad1tya.echo.music.constants.LiquidGlassSurfaceOpacityKey
 import iad1tya.echo.music.constants.LiquidGlassSurfaceTintColorKey
@@ -1617,12 +1618,13 @@ class MainActivity : ComponentActivity() {
                 val (liquidGlassPlayerEnabled) = rememberPreference(LiquidGlassPlayerEnabledKey, defaultValue = true)
                 val (liquidGlassMiniPlayerEnabled) = rememberPreference(LiquidGlassMiniPlayerEnabledKey, defaultValue = true)
                 val (liquidGlassNavBarEnabled) = rememberPreference(LiquidGlassNavBarEnabledKey, defaultValue = true)
+                val (liquidGlassInteractive) = rememberPreference(LiquidGlassInteractiveKey, defaultValue = false)
                 val glassEffectConfig = remember(
                     liquidGlassGlobalEnabled, glassRuntimeAllowed, liquidGlassVibrancy, liquidGlassBlurRadius,
                     liquidGlassLensHeight, liquidGlassLensAmount, liquidGlassChromaticAberration,
                     liquidGlassDepthEffect, liquidGlassSurfaceTintColorInt,
                     liquidGlassSurfaceOpacity, liquidGlassTextColorInt, liquidGlassPlayerEnabled,
-                    liquidGlassMiniPlayerEnabled, liquidGlassNavBarEnabled,
+                    liquidGlassMiniPlayerEnabled, liquidGlassNavBarEnabled, liquidGlassInteractive,
                 ) {
                     GlassEffectConfig(
                         // FORCED (owner directive 2026-08-29): no isGlassEligible() AND here — the
@@ -1640,6 +1642,7 @@ class MainActivity : ComponentActivity() {
                         playerEnabled = liquidGlassPlayerEnabled,
                         miniPlayerEnabled = liquidGlassMiniPlayerEnabled,
                         navBarEnabled = liquidGlassNavBarEnabled,
+                        interactive = liquidGlassInteractive,
                     )
                 }
                 // The app-content layer glass surfaces sample from. Only recorded into while glass is
@@ -2306,7 +2309,16 @@ class MainActivity : ComponentActivity() {
                                     // one that shipped.
                                     modifier = Modifier
                                         .then(
-                                            if (!newUiShell && glassEffectConfig.globalEnabled && glassEffectConfig.anyComponentEnabled) {
+                                            // `|| interactive` (2026-09-16): the SimpMusic glass samples this
+                                            // same layer, and the new shell draws it too — without recording
+                                            // here it would have no source and fall back to its opaque ground.
+                                            // Still narrower than a blanket record: the layer is only paid for
+                                            // when the user turns that option ON, so the documented heat bug
+                                            // above stays fixed for everyone who leaves it off.
+                                            if ((!newUiShell || glassEffectConfig.interactive) &&
+                                                glassEffectConfig.globalEnabled &&
+                                                glassEffectConfig.anyComponentEnabled
+                                            ) {
                                                 Modifier.layerBackdrop(appBackdrop)
                                             } else {
                                                 Modifier

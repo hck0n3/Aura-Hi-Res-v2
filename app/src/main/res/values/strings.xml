@@ -360,6 +360,8 @@
     <string name="liquid_glass_settings">Liquid Glass (Beta)</string>
     <string name="liquid_glass_settings_desc">Glass surfaces for the player, mini player and navigation bar</string>
     <string name="liquid_glass_global_enabled">Enable Liquid Glass</string>
+    <string name="liquid_glass_interactive">Interactive glass</string>
+    <string name="liquid_glass_interactive_desc">Another take on liquid glass, ported from SimpMusic: the blur and the darkening follow the brightness of whatever is behind, the refraction is sized to the surface, and the pill responds to your finger. Works on both interfaces</string>
     <string name="liquid_glass_effects">Effects</string>
     <string name="liquid_glass_appearance">Appearance</string>
     <string name="liquid_glass_per_component">Per component</string>

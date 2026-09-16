@@ -60,6 +60,11 @@ data class GlassEffectConfig(
     val playerEnabled: Boolean = true,
     val miniPlayerEnabled: Boolean = true,
     val navBarEnabled: Boolean = true,
+    /**
+     * "Cristal interactivo": dibuja el cristal de SimpMusic ([liquidGlassInteractive]) en lugar del de
+     * Aura ([liquidGlass]) en las MISMAS superficies, y en las dos apariencias. Apagado por defecto.
+     */
+    val interactive: Boolean = false,
 ) {
     /**
      * Whether the glass effect should be rendered for [component], taking the master
