@@ -1,0 +1,71 @@
+# Baseline Profile — Aura Hi-Res v2
+#
+# OWNER REQUEST (2026-09-16): "me gustaría que las animaciones de Aura sean súper fluidas como las de
+# SimpMusic… no estoy hablando de clonar las animaciones, estoy hablando de la VELOCIDAD".
+#
+# WHAT THIS IS
+# A baseline profile tells ART which code to compile ahead of time instead of interpreting and
+# JIT-compiling it the first time it runs. Without one, the first pass through every screen — the first
+# scroll, the first time the player opens, the first artist page — runs interpreted, which is exactly
+# where dropped frames are felt. It is the standard answer to "make it as smooth as that other app",
+# and this project had none at all.
+#
+# WHY THE profileinstaller DEPENDENCY IS NOT OPTIONAL HERE
+# Google Play applies a packaged profile at install time. Aura is distributed as an APK from GitHub
+# releases, so that never happens: androidx.profileinstaller (added in app/build.gradle.kts alongside
+# this file) is what writes the profile into ART's profile directory on first run. Without it this file
+# would ship inside the APK and do nothing at all.
+#
+# WHAT IS *NOT* HERE, AND WHY
+# No androidx/ or kotlin/ rules. The Compose, Lifecycle, Media3 and Room artifacts ship their OWN
+# baseline profiles, which AGP merges into the app's. Repeating them here would add nothing and make
+# this file rot the moment those libraries change.
+#
+# SCOPE
+# The app's own packages, restricted to what actually runs during startup and interaction. It is
+# deliberately NOT "HSPL everything": compiling the entire app ahead of time inflates install time and
+# storage for code most people never reach (migration importers, backup/restore, the settings tree).
+#
+# HONEST LIMIT (this matters more than the rules below)
+# The size of the win can only be measured on a device, and this profile's *packaging* cannot even be
+# confirmed from a debug build — AGP only bundles it into release builds. So: treat this as a standard
+# optimisation that was missing, not as a number. What confirms it is a release build (its
+# :app:compileReleaseArtProfile task) and then the phone.
+#
+# Syntax: H = hot, S = startup, P = post-startup. `**` spans package separators.
+
+# ── Startup path: the process, the activity, the theme ───────────────────────────────────────────
+HSPLiad1tya/echo/music/App**->**(**)**
+HSPLiad1tya/echo/music/MainActivity**->**(**)**
+HSPLiad1tya/echo/music/ui/theme/**->**(**)**
+HSPLiad1tya/echo/music/constants/**->**(**)**
+
+# ── The two shells and everything they draw every frame ──────────────────────────────────────────
+# Both appearances on purpose: whichever one the user is on has to be fast, and the profile cannot
+# know which that is.
+HSPLiad1tya/echo/music/ui/newui/**->**(**)**
+HSPLiad1tya/echo/music/ui/component/**->**(**)**
+HSPLiad1tya/echo/music/ui/player/**->**(**)**
+HSPLiad1tya/echo/music/ui/screens/**->**(**)**
+HSPLiad1tya/echo/music/ui/menu/**->**(**)**
+HSPLiad1tya/echo/music/ui/utils/**->**(**)**
+
+# ── Data on the way to the screen ────────────────────────────────────────────────────────────────
+HSPLiad1tya/echo/music/viewmodels/**->**(**)**
+HSPLiad1tya/echo/music/db/**->**(**)**
+HSPLiad1tya/echo/music/models/**->**(**)**
+HSPLiad1tya/echo/music/extensions/**->**(**)**
+HSPLiad1tya/echo/music/utils/**->**(**)**
+
+# ── Playback: the service, the queue, the audio chain ────────────────────────────────────────────
+# A dropped frame is annoying; a gap in the audio is not, and the first track of a session is exactly
+# when this code is still cold.
+HSPLiad1tya/echo/music/playback/**->**(**)**
+HSPLiad1tya/echo/music/eq/**->**(**)**
+HSPLiad1tya/echo/music/lyrics/**->**(**)**
+
+# ── Classes only (no method compilation) ─────────────────────────────────────────────────────────
+# One line, covering everything the app declares. Class-load rules are cheap: they say "resolve this
+# class eagerly", not "compile its methods", so the packages left out of the HSPL list above (the
+# migration importers, backup/restore) still start faster without paying to be compiled.
+Liad1tya/echo/music/**;

@@ -42,6 +42,7 @@ smoothCorner = "v1.0.0"
 lottie = "6.7.1"
 work = "2.11.2"
 coreSplashscreen = "1.2.0"
+profileinstaller = "1.4.1"
 ffmpegKit = "6.0-2"
 # Removed 2026-09-04 (FASE 3 audit #5): playServicesAuth/googleApiClient/googleDriveApi versions
 # and their library aliases — zero consumers since the dead Drive Sync dependencies left app/build.gradle.kts.
@@ -142,6 +143,7 @@ smoothCorner = { module = "com.github.racra:smooth-corner-rect-android-compose",
 lottie-compose = { module = "com.airbnb.android:lottie-compose", version.ref = "lottie" }
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 ffmpeg-kit-full = { module = "com.arthenica:ffmpeg-kit-full", version.ref = "ffmpegKit" }
 
 [plugins]

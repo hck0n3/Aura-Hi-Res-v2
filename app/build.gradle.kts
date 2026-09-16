@@ -645,5 +645,11 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation(libs.work.runtime.ktx)
     implementation(libs.androidx.core.splashscreen)
+    // BASELINE PROFILE (2026-09-16, owner: "haz que Aura sea igual de fluido o mejor"). The profile
+    // itself is packaged by AGP from src/main/baselineProfiles/, but on a SIDELOADED APK nothing
+    // installs it: Play applies profiles at install time, and Aura ships through GitHub releases. This
+    // library is what writes the packaged profile into ART's profile directory on first run, so
+    // without it the profile would be a file that rides along and never does anything.
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.ffmpeg.kit.full)
 }
