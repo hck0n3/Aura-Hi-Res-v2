@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -139,6 +138,30 @@ import kotlinx.coroutines.launch
  * whichever bar is actually drawn; feeding only one of them is how every list ends up mis-padded.
  */
 val AuraNavBarHeight: Dp = 64.dp
+
+/**
+ * El margen lateral de las superficies FLOTANTES del shell: la píldora del minirreproductor y —
+ * con el cristal interactivo encendido — la cápsula de navegación.
+ *
+ * Existe como constante única por una razón concreta: las dos se dibujan **una encima de la otra**,
+ * así que dos números distintos no se leen como dos márgenes, se leen como bordes desalineados. La
+ * píldora llevaba un `14.dp` literal y la cápsula nació con otro valor; con eso la barra sobresalía
+ * por los lados respecto al minirreproductor que tiene justo encima. Es la misma lección de la fila
+ * 254: un valor visual escrito en dos sitios se separa en cuanto se ajusta uno.
+ */
+val AuraFloatingInset: Dp = 14.dp
+
+/**
+ * Lo que la cápsula de navegación se separa arriba y abajo, **solo** con el cristal interactivo.
+ *
+ * Sale de [AuraNavBarHeight] y no es un número suelto: se resta por arriba y por abajo dentro de
+ * esos mismos 64 dp, así que la cápsula queda en 52 dp — cómodo para un glifo de 24 dp ya sin
+ * etiqueta, y por encima del objetivo táctil mínimo. Lo que importa es lo que **NO** cambia: la
+ * altura total que la barra ocupa en el layout sigue siendo [AuraNavBarHeight] + el inset inferior,
+ * que es de donde MainActivity saca `navSlideDistance` y el inset del contenido. Conseguir lo
+ * flotante quitando altura habría descuadrado esas tres cosas a la vez.
+ */
+val AuraNavCapsuleInset: Dp = 6.dp
 
 // ── Global actions, re-hosted ─────────────────────────────────────────────────────────────────────
 
@@ -443,20 +466,34 @@ fun AuraNavigationBar(
     // adaptan a la luminancia de lo que pasa por debajo, y lente proporcional. Muestrea `appBackdrop`,
     // que MainActivity graba con esta apariencia solo cuando esta opción está encendida.
     //
-    // `interactive = false` aquí a propósito y NO por ahorrar: esta barra ocupa todo el ancho, y el
-    // escalado al pulsar del original está pensado para una cápsula flotante (la barra clásica sí la
-    // es, y allí sí va con reacción). Escalar una barra a pantalla completa se ve como un fallo de
-    // dibujo, no como cristal.
+    // 🔴 ORDEN DEL DUEÑO (2026-09-16): *"en el mini reproductor con su barra de abajo que solo salgan
+    // los iconos flotantes en una barra sin texto para que el efecto liquid glass cristal interactivo
+    // se vea mejor, pero solo cuando esté activado"*.
+    //
+    // Tenía razón, y de paso resuelve una tensión que dejé escrita aquí mismo el mismo día: la
+    // reacción al tacto iba con `interactive = false` porque **esta barra ocupa todo el ancho**, y
+    // escalar algo a pantalla completa se lee como un fallo de dibujo, no como cristal. Esa nota daba
+    // por fija la forma de la barra. Convertida en cápsula flotante, el motivo desaparece y el
+    // escalado pasa a ser lo que el original hace en esa misma forma — así que con el interruptor
+    // encendido la barra pasa a `interactive = true`.
+    //
+    // Por qué la cápsula hace que el efecto se vea mejor y no es solo estética: esta receta muestrea
+    // lo que pasa por DEBAJO y le aplica lente y refracción. Una barra a todo el ancho y pegada al
+    // suelo tapa una banda entera de pantalla, así que casi todo lo que refracta es el propio fondo
+    // quieto. Flotando, la lista sigue moviéndose alrededor Y por debajo, y eso es lo que se ve como
+    // cristal.
+    //
+    // **La altura total NO cambia**, y es deliberado: MainActivity calcula `navSlideDistance` como
+    // `bottomInset + AuraNavBarHeight` y de ahí salen el deslizamiento de la hoja del reproductor y el
+    // inset inferior del contenido. Si la barra encogiera, esas tres cosas dejarían de coincidir y la
+    // última fila de cada lista quedaría tapada o flotando. Lo flotante se consigue con márgenes
+    // DENTRO de la misma altura, no quitando altura.
     val navHazeState = LocalShellHazeState.current
     val navBarModifier = when {
-        interactiveGlass ->
-            modifier
-                .fillMaxWidth()
-                .liquidGlassInteractive(
-                    config = glassConfig,
-                    shape = RoundedCornerShape(0.dp),
-                    interactive = false,
-                )
+        // Flotando, el cristal NO va aquí: va en la cápsula de dentro (ver más abajo), porque si se
+        // quedara en la columna el efecto seguiría cubriendo todo el ancho y solo habríamos movido
+        // los iconos.
+        interactiveGlass -> modifier.fillMaxWidth()
 
         navHazeState != null ->
             modifier
@@ -477,11 +514,32 @@ fun AuraNavigationBar(
     Column(
         modifier = navBarModifier,
     ) {
-        AuraDivider()
+        // El filete separa la barra del contenido cuando está pegada al suelo. Sobre una cápsula
+        // flotante sería una raya suelta cruzando la pantalla por encima de ella.
+        if (!interactiveGlass) AuraDivider()
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(AuraNavBarHeight),
+                .height(AuraNavBarHeight)
+                .then(
+                    if (interactiveGlass) {
+                        // Los márgenes van AQUÍ, en la misma caja que ya medía `AuraNavBarHeight`, así
+                        // que la altura que ve MainActivity es idéntica. Y el cristal va en esta caja,
+                        // que es la que tiene la forma de cápsula: `drawBackdrop` coloca el borde de
+                        // luz y la refracción SEGÚN la forma que se le pasa — la lección de la fila
+                        // 254, cuando el minirreproductor salía con las esquinas cuadradas.
+                        Modifier
+                            .padding(horizontal = AuraFloatingInset, vertical = AuraNavCapsuleInset)
+                            .clip(AuraShapes.Pill)
+                            .liquidGlassInteractive(
+                                config = glassConfig,
+                                shape = AuraShapes.Pill,
+                                interactive = true,
+                            )
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
                 AuraNavIndicator(
                     width = pillWidth.asState(),
@@ -498,6 +556,7 @@ fun AuraNavigationBar(
                         icon = auraNavIcon(screen),
                         label = stringResource(screen.titleId),
                         selected = selected,
+                        showLabel = !interactiveGlass,
                         onClick = { onItemClick(screen, selected) },
                         modifier = Modifier.onGloballyPositioned { coordinates ->
                             cellWidths[index] = with(density) { coordinates.size.width.toDp() }
@@ -510,6 +569,7 @@ fun AuraNavigationBar(
                         icon = AuraIcons.Settings,
                         label = stringResource(R.string.settings),
                         selected = settingsSelected,
+                        showLabel = !interactiveGlass,
                         onClick = onSettingsClick,
                         modifier = Modifier.onGloballyPositioned { coordinates ->
                             cellWidths[settingsIndex] = with(density) { coordinates.size.width.toDp() }
@@ -582,6 +642,7 @@ private fun RowScope.AuraNavItem(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showLabel: Boolean = true,
 ) {
     val transition = updateTransition(targetState = selected, label = "auraNavItem")
     val tint by transition.animateColor(
@@ -636,15 +697,20 @@ private fun RowScope.AuraNavItem(
                 scaleY = iconScale
             },
         )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = label,
-            style = AuraType.NavLabel,
-            color = tint,
-            maxLines = 1,
-            textAlign = TextAlign.Center,
-            overflow = AuraDefaultOverflow,
-        )
+        // `label` sigue llegando siempre aunque no se pinte: es el `onClickLabel` y la descripción de
+        // accesibilidad de la celda, así que quitar el texto de la pantalla NO deja la navegación muda
+        // para un lector de pantalla.
+        if (showLabel) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = label,
+                style = AuraType.NavLabel,
+                color = tint,
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+                overflow = AuraDefaultOverflow,
+            )
+        }
     }
 }
 
@@ -759,7 +825,8 @@ fun AuraMiniPlayer(
         modifier = modifier
             .fillMaxWidth()
             .height(MiniPlayerHeight)
-            .padding(horizontal = 14.dp)
+            // Mismo margen que la cápsula de navegación de debajo — ver [AuraFloatingInset].
+            .padding(horizontal = AuraFloatingInset)
             .then(
                 if (swipeEnabled) {
                     Modifier.pointerInputSwipe(
