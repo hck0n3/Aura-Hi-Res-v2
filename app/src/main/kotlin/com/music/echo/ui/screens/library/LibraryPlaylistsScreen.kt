@@ -87,6 +87,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import iad1tya.echo.music.ui.component.AutoPlaylistButton
+import iad1tya.echo.music.ui.component.EmptyPlaceholder
+import iad1tya.echo.music.ui.component.librarySectionEmptyText
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.IconButton
@@ -382,6 +384,15 @@ fun LibraryPlaylistsScreen(
                     filteredPlaylists.let { playlists ->
                         if (playlists.isEmpty()) {
                             item(key = "empty_placeholder") {
+                                EmptyPlaceholder(
+                                    icon = R.drawable.queue_music,
+                                    text = if (playlistSearchQuery.isNotBlank()) stringResource(R.string.no_results_found)
+                                    else librarySectionEmptyText(
+                                        section = { it.playlists },
+                                        emptyText = stringResource(R.string.library_playlist_empty),
+                                    ),
+                                    modifier = Modifier.animateItem()
+                                )
                             }
                         }
 
@@ -499,6 +510,15 @@ fun LibraryPlaylistsScreen(
                     filteredPlaylists.let { playlists ->
                         if (playlists.isEmpty()) {
                             item(span = { GridItemSpan(maxLineSpan) }) {
+                                EmptyPlaceholder(
+                                    icon = R.drawable.queue_music,
+                                    text = if (playlistSearchQuery.isNotBlank()) stringResource(R.string.no_results_found)
+                                    else librarySectionEmptyText(
+                                        section = { it.playlists },
+                                        emptyText = stringResource(R.string.library_playlist_empty),
+                                    ),
+                                    modifier = Modifier.animateItem()
+                                )
                             }
                         }
 

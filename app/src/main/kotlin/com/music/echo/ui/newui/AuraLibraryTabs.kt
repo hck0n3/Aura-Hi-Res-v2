@@ -110,6 +110,7 @@ import iad1tya.echo.music.viewmodels.LibraryArtistsViewModel
 import iad1tya.echo.music.viewmodels.LibraryMixViewModel
 import iad1tya.echo.music.viewmodels.LibraryPlaylistsViewModel
 import iad1tya.echo.music.viewmodels.LibrarySongsViewModel
+import iad1tya.echo.music.ui.component.librarySectionEmptyText
 import java.text.Collator
 import java.time.LocalDateTime
 import java.util.Locale
@@ -960,7 +961,10 @@ fun AuraLibraryAlbumsTab(
         if (albums.isEmpty()) {
             item(key = "aura_albums_empty", span = { GridItemSpan(maxLineSpan) }) {
                 AuraEmpty(
-                    text = stringResource(R.string.library_album_empty),
+                    text = librarySectionEmptyText(
+                        section = { it.likedAlbums },
+                        emptyText = stringResource(R.string.library_album_empty),
+                    ),
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -1074,7 +1078,10 @@ fun AuraLibraryArtistsTab(
                     text = if (searchQuery.isNotEmpty()) {
                         stringResource(R.string.no_results_found)
                     } else {
-                        stringResource(R.string.library_artist_empty)
+                        librarySectionEmptyText(
+                            section = { it.artists },
+                            emptyText = stringResource(R.string.library_artist_empty),
+                        )
                     },
                     modifier = Modifier.animateItem(),
                 )
@@ -1234,6 +1241,26 @@ fun AuraLibraryPlaylistsTab(
                 title = stringResource(R.string.filter_playlists),
                 modifier = Modifier.padding(start = 0.dp),
             )
+        }
+
+        // Esta pestaña no tenía NINGÚN hueco vacío: con la lista vacía dibujaba una cuadrícula en
+        // blanco, que es indistinguible de "todavía está sincronizando" — justo el caso que el dueño
+        // describió al iniciar sesión ("las listas… sin estar esperando que cargue"). Ahora dice cuál
+        // de las dos cosas es. `library_playlist_empty` ya existía en strings.xml sin un solo uso.
+        if (filteredPlaylists.isEmpty()) {
+            item(key = "aura_playlists_empty", span = { GridItemSpan(maxLineSpan) }) {
+                AuraEmpty(
+                    text = if (playlistSearchQuery.isNotBlank()) {
+                        stringResource(R.string.no_results_found)
+                    } else {
+                        librarySectionEmptyText(
+                            section = { it.playlists },
+                            emptyText = stringResource(R.string.library_playlist_empty),
+                        )
+                    },
+                    modifier = Modifier.animateItem(),
+                )
+            }
         }
 
         items(filteredPlaylists.distinctBy { it.id }, key = { it.id }) { playlist ->
