@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -63,6 +64,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -85,6 +88,8 @@ import androidx.compose.ui.util.fastForEach
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
+import iad1tya.echo.music.ui.component.BlurBandSupported
+import iad1tya.echo.music.ui.component.progressiveBottomBlurMask
 import com.music.innertube.YouTube
 import com.music.innertube.models.AlbumItem
 import com.music.innertube.models.ArtistItem
@@ -354,6 +359,10 @@ fun ArtistScreen(
                         // NOT the window: a narrow split pane keeps the square cover like a phone; only a
                         // genuinely wide pane (>= 840dp, the expanded breakpoint) caps it to a short banner.
                         val isTvHero = maxWidth >= 840.dp
+                        // Hoisted for the same reason AuraArtistScreen hoists it: inside the
+                        // nested Box the closest implicit receiver is BoxScope, which has no
+                        // `maxWidth`. Read it once, here, where the receiver is unambiguous.
+                        val heroWidth = maxWidth
                         if (thumbnail != null || backgroundVideoUrl != null) {
                             Box(
                                 modifier = Modifier
@@ -386,6 +395,49 @@ fun ArtistScreen(
                                             modifier = Modifier.fillMaxSize(),
                                             onClick = { }
                                         )
+                                    }
+
+                                    // El desenfoque de la parte de abajo de la portada, la MISMA pieza
+                                    // que usa la apariencia nueva (AuraArtistScreen) — un solo ramp en
+                                    // ui/component/ProgressiveBlur.kt, porque un efecto visual escrito
+                                    // dos veces se separa en cuanto se ajusta uno de los dos.
+                                    //
+                                    // `fadingEdge` de arriba solo DESVANECE la imagen; el detalle del
+                                    // retrato seguía peleando con el nombre, los suscriptores y las
+                                    // visualizaciones. Segunda copia de la misma portada (Coil la sirve
+                                    // de su caché de memoria: misma URL), desenfocada entera, alineada
+                                    // abajo con el MISMO tamaño del héroe para que los píxeles cuadren,
+                                    // y borrada hacia arriba por la máscara.
+                                    val heroBlurBand =
+                                        if (isTvHero) 220.dp else (heroWidth * 0.5f).coerceAtMost(260.dp)
+                                    val artistVideoIsPlaying =
+                                        backgroundVideoUrl != null && showArtistBackgroundVideo
+                                    if (BlurBandSupported && thumbnail != null && !artistVideoIsPlaying) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(heroBlurBand)
+                                                .align(Alignment.BottomCenter)
+                                                .progressiveBottomBlurMask(),
+                                        ) {
+                                            AsyncImage(
+                                                // Decoded small on purpose: nobody can tell the
+                                                // resolution of a blur, and this is a second decode.
+                                                model = thumbnail.resize(400, 400),
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    // requiredHeight, NOT height: the band is shorter
+                                                    // than the hero, and a plain height() is coerced
+                                                    // into the parent's constraints — the copy would be
+                                                    // squashed and its blurred pixels would not line up
+                                                    // with the sharp ones above.
+                                                    .requiredHeight(if (isTvHero) 320.dp else heroWidth)
+                                                    .align(Alignment.BottomCenter)
+                                                    .blur(26.dp, BlurredEdgeTreatment.Unbounded),
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            )
+                                        }
                                     }
                                 }
                             }

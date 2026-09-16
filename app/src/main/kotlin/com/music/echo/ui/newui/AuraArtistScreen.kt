@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,11 +47,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import iad1tya.echo.music.ui.component.BlurBandSupported
+import iad1tya.echo.music.ui.component.progressiveBottomBlurMask
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -1010,6 +1015,9 @@ private fun AuraArtistHero(
         // BoxWithConstraintsScope, so `maxWidth` cannot be reached there without an explicit receiver.
         val heroWidth = maxWidth
         val isWideHero = heroWidth >= 840.dp
+        // Slightly taller than the darkening scrim (200.dp) so the blur is already fading where the
+        // gradient starts biting; two effects that end on the same line read as one hard edge.
+        val heroBlurBand = if (isWideHero) 220.dp else (heroWidth * 0.5f).coerceAtMost(260.dp)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1040,6 +1048,50 @@ private fun AuraArtistHero(
                     modifier = Modifier.fillMaxSize(),
                     onClick = { },
                 )
+            }
+
+            // ── El desenfoque de la parte de abajo de la portada ──────────────────────────────
+            // Owner, about SimpMusic's artist page: "la parte de abajo de la portada del artista está
+            // desenfocada para que el título del artista y suscriptores y visualizaciones se vea mejor;
+            // se ve más premium". The gradient below already DARKENS that band; darkening alone still
+            // leaves the portrait's own detail fighting the text. This blurs it as well.
+            //
+            // A blur cannot be applied to part of a node, so this is the standard two-copy form: the
+            // same cover drawn again, blurred whole, aligned BottomCenter inside a short band (so the
+            // same pixels land on the same place with no offset arithmetic) and erased upward by
+            // [progressiveBottomBlurMask]. Coil serves the second copy from its memory cache — same
+            // URL — and it is decoded small on purpose: nobody can tell the resolution of a blur.
+            //
+            // Skipped while the Apple-Music background video plays: the blurred copy is a still, and a
+            // frozen frame under a moving one is worse than no blur. Skipped below API 31, where
+            // Modifier.blur does nothing and the copy would show through sharp.
+            val videoIsPlaying = videoUrl != null && showBackgroundVideo
+            if (BlurBandSupported && thumbnailUrl != null && !videoIsPlaying) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(heroBlurBand)
+                        .align(Alignment.BottomCenter)
+                        .progressiveBottomBlurMask(),
+                ) {
+                    AuraCover(
+                        thumbnailUrl = thumbnailUrl,
+                        size = heroWidth,
+                        seed = thumbnailUrl,
+                        shape = RectangleShape,
+                        decodeTo = 400,
+                        ratio = if (isWideHero) heroWidth / 320.dp else 1f,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            // requiredHeight, NOT height: the band is shorter than the hero, so a
+                            // normal height() (and AuraCover's own aspectRatio) would be coerced into
+                            // the band's constraints and the copy would come out squashed — blurred
+                            // pixels that do not line up with the sharp ones above them, which is
+                            // exactly the seam this effect exists to avoid.
+                            .requiredHeight(if (isWideHero) 320.dp else heroWidth)
+                            .blur(26.dp, BlurredEdgeTreatment.Unbounded),
+                    )
+                }
             }
 
             Box(
