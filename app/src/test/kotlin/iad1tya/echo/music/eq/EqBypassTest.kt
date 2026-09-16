@@ -54,8 +54,13 @@ class EqBypassTest {
         // stages the equalizer screen presents. Stereo width, the glue compressor, output dither, speaker
         // bass protection and Safe Volume live on other screens and must never be decided here — the day
         // one of them is added back to this type, the owner's slider goes quietly dead again.
+        // INSTANCE fields only. The Compose compiler adds a static `$stable` to classes in this module,
+        // and it is NOT marked synthetic — the first version of this test counted it as a governed stage
+        // and failed in CI on a correct implementation. Statics are compiler bookkeeping, never state.
         val fields = EqBypass.ToneStages::class.java.declaredFields
             .filterNot { it.isSynthetic }
+            .filterNot { java.lang.reflect.Modifier.isStatic(it.modifiers) }
+            .filterNot { it.name.startsWith("$") }
             .map { it.name }
             .sorted()
 
