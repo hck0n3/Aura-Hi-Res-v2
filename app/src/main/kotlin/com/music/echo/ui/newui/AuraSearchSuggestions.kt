@@ -171,7 +171,7 @@ fun AuraOnlineSearchSuggestions(
             .focusProperties { canFocus = false },
     ) {
         if (viewState.history.isNotEmpty()) {
-            item(key = "aura_history_header") {
+            item(key = "aura_history_header", contentType = "aura_history_header") {
                 AuraSectionHeader(
                     title = stringResource(R.string.search_history),
                     modifier = Modifier,
@@ -195,7 +195,7 @@ fun AuraOnlineSearchSuggestions(
         }
 
         if (viewState.suggestions.isNotEmpty()) {
-            item(key = "aura_suggestions_header") {
+            item(key = "aura_suggestions_header", contentType = "aura_suggestions_header") {
                 AuraSectionHeader(
                     title = stringResource(R.string.suggestions),
                     modifier = Modifier,
@@ -217,7 +217,7 @@ fun AuraOnlineSearchSuggestions(
         }
 
         if (viewState.items.isNotEmpty()) {
-            item(key = "aura_top_result_header") {
+            item(key = "aura_top_result_header", contentType = "aura_top_result_header") {
                 AuraSectionHeader(
                     title = stringResource(
                         if (viewState.isFromLink) R.string.parsed_from_link else R.string.top_result
@@ -273,7 +273,7 @@ fun AuraOnlineSearchSuggestions(
             )
         }
 
-        item(key = "aura_suggestions_bottom_spacer") {
+        item(key = "aura_suggestions_bottom_spacer", contentType = "aura_suggestions_bottom_spacer") {
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -467,7 +467,7 @@ fun AuraLocalSearchResults(
             .fillMaxSize()
             .focusProperties { canFocus = false },
     ) {
-        item(key = "aura_local_filters") {
+        item(key = "aura_local_filters", contentType = "aura_local_filters") {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
@@ -486,7 +486,7 @@ fun AuraLocalSearchResults(
 
         result.map.forEach { (filter, items) ->
             if (result.filter == LocalFilter.ALL) {
-                item(key = "aura_local_section_${filter.name}") {
+                item(key = "aura_local_section_${filter.name}", contentType = "aura_local_section") {
                     AuraSectionHeader(
                         title = stringResource(auraLocalFilterLabel(filter)),
                         onClick = { viewModel.filter.value = filter },
@@ -638,12 +638,12 @@ fun AuraLocalSearchResults(
         }
 
         if (result.query.isNotEmpty() && result.map.isEmpty()) {
-            item(key = "aura_local_no_result") {
+            item(key = "aura_local_no_result", contentType = "aura_local_no_result") {
                 AuraEmpty(text = stringResource(R.string.no_results_found))
             }
         }
 
-        item(key = "aura_local_bottom_spacer") {
+        item(key = "aura_local_bottom_spacer", contentType = "aura_local_bottom_spacer") {
             Spacer(Modifier.height(24.dp))
         }
     }

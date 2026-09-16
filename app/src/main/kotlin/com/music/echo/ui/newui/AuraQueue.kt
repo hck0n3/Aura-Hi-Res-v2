@@ -823,14 +823,14 @@ fun AuraQueue(
                                     .tvFocusRestorer(),
                             ) {
                                 // Leading items — keep AURA_QUEUE_LEADING_ITEMS in sync with this count.
-                                item(key = "aura_queue_select_spacer") {
+                                item(key = "aura_queue_select_spacer", contentType = "aura_queue_select_spacer") {
                                     Spacer(
                                         Modifier
                                             .animateContentSize()
                                             .height(if (inSelectMode) 8.dp else 0.dp),
                                     )
                                 }
-                                item(key = "aura_queue_list_header") {
+                                item(key = "aura_queue_list_header", contentType = "aura_queue_list_header") {
                                     AuraQueueListHeader(
                                         songCount = queueWindows.size,
                                         totalDurationMs = queueLength * 1000L,
@@ -1039,7 +1039,7 @@ fun AuraQueue(
 
                                 // ── Autoplay footer: header + toggle + steering chips + preview rows ──
                                 if (!isListenTogetherGuest || automix.isNotEmpty()) {
-                                    item(key = "aura_autoplay_header") {
+                                    item(key = "aura_autoplay_header", contentType = "aura_autoplay_header") {
                                         Column {
                                             Spacer(Modifier.height(AuraSpacing.SectionTop))
                                             AuraDivider()
@@ -1075,7 +1075,7 @@ fun AuraQueue(
                                     }
 
                                     if (!isListenTogetherGuest && autoLoadMore && autoplayChips.isNotEmpty()) {
-                                        item(key = "aura_autoplay_chips") {
+                                        item(key = "aura_autoplay_chips", contentType = "aura_autoplay_chips") {
                                             ChipsRow(
                                                 chips = autoplayChips.map { it to it.label },
                                                 currentValue = autoplaySelectedChip,

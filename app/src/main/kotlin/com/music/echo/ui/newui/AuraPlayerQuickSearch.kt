@@ -510,7 +510,7 @@ private fun QuickSearchBrowsePane(
                         }
                         if (filtered.isEmpty()) return@forEach
                         if (sectionTitle.isNotBlank()) {
-                            item(key = "qb_h_$sectionTitle") {
+                            item(key = "qb_h_$sectionTitle", contentType = "qb_h") {
                                 AuraSectionHeader(title = sectionTitle)
                             }
                         }
@@ -536,7 +536,7 @@ private fun QuickSearchBrowsePane(
                             )
                         }
                     }
-                    item(key = "qb_spacer") { Spacer(Modifier.height(24.dp)) }
+                    item(key = "qb_spacer", contentType = "qb_spacer") { Spacer(Modifier.height(24.dp)) }
                 }
             }
         }
@@ -573,7 +573,7 @@ private fun PlayerOnlineSuggestionPanel(
 
     LazyColumn(state = lazyListState, modifier = modifier) {
         if (viewState.history.isNotEmpty()) {
-            item(key = "pq_history_header") {
+            item(key = "pq_history_header", contentType = "pq_history_header") {
                 AuraSectionHeader(title = stringResource(R.string.search_history))
             }
             items(viewState.history, key = { "pq_hist_${it.query}" }) { history ->
@@ -588,7 +588,7 @@ private fun PlayerOnlineSuggestionPanel(
         }
 
         if (viewState.suggestions.isNotEmpty()) {
-            item(key = "pq_sug_header") {
+            item(key = "pq_sug_header", contentType = "pq_sug_header") {
                 AuraSectionHeader(title = stringResource(R.string.suggestions))
             }
             items(viewState.suggestions, key = { "pq_sug_$it" }) { suggestion ->
@@ -603,7 +603,7 @@ private fun PlayerOnlineSuggestionPanel(
         }
 
         if (viewState.items.isNotEmpty()) {
-            item(key = "pq_top_header") {
+            item(key = "pq_top_header", contentType = "pq_top_header") {
                 AuraSectionHeader(
                     title = stringResource(
                         if (viewState.isFromLink) R.string.parsed_from_link else R.string.top_result,
@@ -634,7 +634,7 @@ private fun PlayerOnlineSuggestionPanel(
             viewState.suggestions.isEmpty() &&
             viewState.items.isEmpty()
         ) {
-            item(key = "pq_hint") {
+            item(key = "pq_hint", contentType = "pq_hint") {
                 Text(
                     text = stringResource(R.string.search_yt_music),
                     style = AuraType.RowSubtitle,
@@ -647,7 +647,7 @@ private fun PlayerOnlineSuggestionPanel(
             }
         }
 
-        item(key = "pq_sug_spacer") { Spacer(Modifier.height(24.dp)) }
+        item(key = "pq_sug_spacer", contentType = "pq_sug_spacer") { Spacer(Modifier.height(24.dp)) }
     }
 }
 
@@ -669,7 +669,7 @@ private fun PlayerOnlineSummaryResults(
 
     LazyColumn(state = lazyListState, modifier = modifier) {
         if (loading && summaryPage == null) {
-            item(key = "pq_loading") {
+            item(key = "pq_loading", contentType = "pq_loading") {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -697,7 +697,7 @@ private fun PlayerOnlineSummaryResults(
                 }
                 if (musicItems.isEmpty()) return@forEach
 
-                item(key = "pq_sum_h_${summary.title}") {
+                item(key = "pq_sum_h_${summary.title}", contentType = "pq_sum_h") {
                     AuraSectionHeader(title = summary.title)
                 }
                 items(musicItems, key = { "pq_sum_${summary.title}_${it.id}" }) { item ->
@@ -728,7 +728,7 @@ private fun PlayerOnlineSummaryResults(
                 s.items.none { !(hideVideoSongs && it is SongItem && it.isVideoSong) }
             }
         ) {
-            item(key = "pq_empty") {
+            item(key = "pq_empty", contentType = "pq_empty") {
                 Text(
                     text = stringResource(R.string.no_results_found),
                     style = AuraType.RowSubtitle,
@@ -741,7 +741,7 @@ private fun PlayerOnlineSummaryResults(
             }
         }
 
-        item(key = "pq_sum_spacer") { Spacer(Modifier.height(24.dp)) }
+        item(key = "pq_sum_spacer", contentType = "pq_sum_spacer") { Spacer(Modifier.height(24.dp)) }
     }
 }
 

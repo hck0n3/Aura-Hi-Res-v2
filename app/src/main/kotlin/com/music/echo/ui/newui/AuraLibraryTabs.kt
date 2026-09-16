@@ -410,7 +410,7 @@ fun AuraLibraryHub(
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
             modifier = Modifier.fillMaxSize(),
         ) {
-            item(key = "aura_hub_sort") {
+            item(key = "aura_hub_sort", contentType = "aura_hub_sort") {
                 AuraSortControl(
                     sortType = sortType,
                     sortDescending = sortDescending,
@@ -424,7 +424,7 @@ fun AuraLibraryHub(
                 )
             }
 
-            item(key = "aura_hub_auto_playlists") {
+            item(key = "aura_hub_auto_playlists", contentType = "aura_hub_auto_playlists") {
                 FlowRow(
                     maxItemsInEachRow = 2,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -517,7 +517,7 @@ fun AuraLibraryHub(
             }
 
             if (artistItems.isNotEmpty()) {
-                item(key = "aura_hub_artists_header") {
+                item(key = "aura_hub_artists_header", contentType = "aura_hub_artists_header") {
                     AuraSectionHeader(title = stringResource(R.string.filter_artists))
                 }
                 items(artistItems, key = { "artist_${it.id}" }) { item ->
@@ -547,7 +547,7 @@ fun AuraLibraryHub(
                 }
             }
 
-            item(key = "aura_hub_playlists_header") {
+            item(key = "aura_hub_playlists_header", contentType = "aura_hub_playlists_header") {
                 AuraSectionHeader(title = stringResource(R.string.filter_playlists))
             }
             items(nonArtistItems, key = { it.id }) { item ->
@@ -700,7 +700,7 @@ fun AuraLibrarySongsTab(
                     .weight(1f)
                     .fillMaxSize(),
             ) {
-            item(key = "aura_songs_subfilters") {
+            item(key = "aura_songs_subfilters", contentType = "aura_songs_subfilters") {
                 AuraSubFilterRow(
                     options = listOf(
                         SongFilter.LIKED to R.string.filter_liked,
@@ -713,7 +713,7 @@ fun AuraLibrarySongsTab(
                 )
             }
 
-            item(key = "aura_songs_sort") {
+            item(key = "aura_songs_sort", contentType = "aura_songs_sort") {
                 AuraSortControl(
                     sortType = sortType,
                     sortDescending = sortDescending,
@@ -741,7 +741,7 @@ fun AuraLibrarySongsTab(
             }
 
             if (libraryContextId != null) {
-                item(key = "aura_songs_shuffle_chip") {
+                item(key = "aura_songs_shuffle_chip", contentType = "aura_songs_shuffle_chip") {
                     val playedCount = remember(shufflePlayedSet, filteredSongs) {
                         filteredSongs.count { it.id in shufflePlayedSet || it.song.totalPlayTime > 0L }
                     }
@@ -926,7 +926,7 @@ fun AuraLibraryAlbumsTab(
             .fillMaxSize()
             .padding(horizontal = AuraSpacing.Gutter),
     ) {
-        item(key = "aura_albums_subfilters", span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "aura_albums_subfilters", contentType = "aura_albums_subfilters", span = { GridItemSpan(maxLineSpan) }) {
             AuraSubFilterRow(
                 options = listOf(
                     AlbumFilter.LIKED to R.string.filter_liked,
@@ -936,7 +936,7 @@ fun AuraLibraryAlbumsTab(
                 onSelect = { filter = it },
             )
         }
-        item(key = "aura_albums_sort", span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "aura_albums_sort", contentType = "aura_albums_sort", span = { GridItemSpan(maxLineSpan) }) {
             AuraSortControl(
                 sortType = sortType,
                 sortDescending = sortDescending,
@@ -959,7 +959,7 @@ fun AuraLibraryAlbumsTab(
         }
 
         if (albums.isEmpty()) {
-            item(key = "aura_albums_empty", span = { GridItemSpan(maxLineSpan) }) {
+            item(key = "aura_albums_empty", contentType = "aura_albums_empty", span = { GridItemSpan(maxLineSpan) }) {
                 AuraEmpty(
                     text = librarySectionEmptyText(
                         section = { it.likedAlbums },
@@ -1040,7 +1040,7 @@ fun AuraLibraryArtistsTab(
             .fillMaxSize()
             .padding(horizontal = AuraSpacing.Gutter),
     ) {
-        item(key = "aura_artists_subfilters", span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "aura_artists_subfilters", contentType = "aura_artists_subfilters", span = { GridItemSpan(maxLineSpan) }) {
             AuraSubFilterRow(
                 options = listOf(
                     ArtistFilter.LIKED to R.string.filter_liked,
@@ -1050,7 +1050,7 @@ fun AuraLibraryArtistsTab(
                 onSelect = { filter = it },
             )
         }
-        item(key = "aura_artists_sort", span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "aura_artists_sort", contentType = "aura_artists_sort", span = { GridItemSpan(maxLineSpan) }) {
             AuraSortControl(
                 sortType = sortType,
                 sortDescending = sortDescending,
@@ -1073,7 +1073,7 @@ fun AuraLibraryArtistsTab(
         }
 
         if (artists.isEmpty()) {
-            item(key = "aura_artists_empty", span = { GridItemSpan(maxLineSpan) }) {
+            item(key = "aura_artists_empty", contentType = "aura_artists_empty", span = { GridItemSpan(maxLineSpan) }) {
                 AuraEmpty(
                     text = if (searchQuery.isNotEmpty()) {
                         stringResource(R.string.no_results_found)
@@ -1183,7 +1183,7 @@ fun AuraLibraryPlaylistsTab(
             .fillMaxSize()
             .padding(horizontal = AuraSpacing.Gutter),
     ) {
-        item(key = "aura_playlists_sort", span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "aura_playlists_sort", contentType = "aura_playlists_sort", span = { GridItemSpan(maxLineSpan) }) {
             AuraSortControl(
                 sortType = sortType,
                 sortDescending = sortDescending,
@@ -1212,7 +1212,7 @@ fun AuraLibraryPlaylistsTab(
                 },
             )
         }
-        item(key = "aura_playlists_auto", span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "aura_playlists_auto", contentType = "aura_playlists_auto", span = { GridItemSpan(maxLineSpan) }) {
             FlowRow(
                 maxItemsInEachRow = 2,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1236,7 +1236,7 @@ fun AuraLibraryPlaylistsTab(
                     }
             }
         }
-        item(key = "aura_playlists_header", span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "aura_playlists_header", contentType = "aura_playlists_header", span = { GridItemSpan(maxLineSpan) }) {
             AuraSectionHeader(
                 title = stringResource(R.string.filter_playlists),
                 modifier = Modifier.padding(start = 0.dp),
@@ -1248,7 +1248,7 @@ fun AuraLibraryPlaylistsTab(
         // describió al iniciar sesión ("las listas… sin estar esperando que cargue"). Ahora dice cuál
         // de las dos cosas es. `library_playlist_empty` ya existía en strings.xml sin un solo uso.
         if (filteredPlaylists.isEmpty()) {
-            item(key = "aura_playlists_empty", span = { GridItemSpan(maxLineSpan) }) {
+            item(key = "aura_playlists_empty", contentType = "aura_playlists_empty", span = { GridItemSpan(maxLineSpan) }) {
                 AuraEmpty(
                     text = if (playlistSearchQuery.isNotBlank()) {
                         stringResource(R.string.no_results_found)

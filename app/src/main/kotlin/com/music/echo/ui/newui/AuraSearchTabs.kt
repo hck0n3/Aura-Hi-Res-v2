@@ -189,7 +189,7 @@ fun AuraExploreTab(
         // Section index + row index cannot collide whatever the server returns, and they are stable
         // across recomposition (this list never reorders), which is what `animateItem` needs.
         sections?.forEachIndexed { sectionIndex, section ->
-            item(key = "aura_explore_header_$sectionIndex") {
+            item(key = "aura_explore_header_$sectionIndex", contentType = "aura_explore_header") {
                 AuraSectionHeader(title = section.title, modifier = Modifier.animateItem())
             }
 
@@ -223,7 +223,7 @@ fun AuraExploreTab(
         }
 
         if (sections == null) {
-            item(key = "aura_explore_state") {
+            item(key = "aura_explore_state", contentType = "aura_explore_state") {
                 if (isLoading) {
                     AuraLoadingLine()
                 } else {
@@ -236,7 +236,7 @@ fun AuraExploreTab(
             }
         }
 
-        item(key = "aura_explore_bottom_spacer") { Spacer(Modifier.height(24.dp)) }
+        item(key = "aura_explore_bottom_spacer", contentType = "aura_explore_bottom_spacer") { Spacer(Modifier.height(24.dp)) }
     }
 }
 
@@ -344,11 +344,11 @@ fun AuraTrendingTab(
             modifier = Modifier.fillMaxSize(),
         ) {
             if (isLoading && !isManualLoading && everythingEmpty) {
-                item(key = "aura_trending_loading") { AuraLoadingLine() }
+                item(key = "aura_trending_loading", contentType = "aura_trending_loading") { AuraLoadingLine() }
             }
 
             youtubeTop?.takeIf { it.isNotEmpty() }?.let { list ->
-                item(key = "aura_trending_yt") {
+                item(key = "aura_trending_yt", contentType = "aura_trending_yt") {
                     AuraTrackShelf(
                         title = stringResource(R.string.trending_top_global),
                         label = null,
@@ -367,7 +367,7 @@ fun AuraTrendingTab(
             }
 
             tracks?.takeIf { it.isNotEmpty() }?.let { list ->
-                item(key = "aura_trending_apple") {
+                item(key = "aura_trending_apple", contentType = "aura_trending_apple") {
                     AuraTrackShelf(
                         title = stringResource(R.string.trending_apple_top),
                         label = regionLabel,
@@ -386,7 +386,7 @@ fun AuraTrendingTab(
             }
 
             albums?.takeIf { it.isNotEmpty() }?.let { list ->
-                item(key = "aura_trending_albums") {
+                item(key = "aura_trending_albums", contentType = "aura_trending_albums") {
                     AuraAlbumShelf(
                         title = stringResource(R.string.trending_albums),
                         albums = list,
@@ -404,7 +404,7 @@ fun AuraTrendingTab(
             }
 
             artists?.takeIf { it.isNotEmpty() }?.let { list ->
-                item(key = "aura_trending_artists") {
+                item(key = "aura_trending_artists", contentType = "aura_trending_artists") {
                     AuraArtistShelf(
                         title = stringResource(R.string.trending_artists),
                         artists = list,
@@ -421,7 +421,7 @@ fun AuraTrendingTab(
             }
 
             videos?.takeIf { it.isNotEmpty() }?.let { list ->
-                item(key = "aura_trending_videos") {
+                item(key = "aura_trending_videos", contentType = "aura_trending_videos") {
                     AuraTrackShelf(
                         title = stringResource(R.string.trending_videos),
                         label = null,
@@ -443,7 +443,7 @@ fun AuraTrendingTab(
             }
 
             if (everythingEmpty && !isLoading) {
-                item(key = "aura_trending_empty") {
+                item(key = "aura_trending_empty", contentType = "aura_trending_empty") {
                     AuraStateWithAction(
                         text = stringResource(R.string.trending_none),
                         actionLabel = stringResource(R.string.retry),
@@ -453,7 +453,7 @@ fun AuraTrendingTab(
             }
 
             if (!everythingEmpty) {
-                item(key = "aura_trending_source") {
+                item(key = "aura_trending_source", contentType = "aura_trending_source") {
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -468,7 +468,7 @@ fun AuraTrendingTab(
                 }
             }
 
-            item(key = "aura_trending_bottom_spacer") { Spacer(Modifier.height(24.dp)) }
+            item(key = "aura_trending_bottom_spacer", contentType = "aura_trending_bottom_spacer") { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
@@ -510,7 +510,7 @@ private fun AuraTrackShelf(
                     modifier = Modifier.animateItem(),
                 )
             }
-            item(key = "more") {
+            item(key = "more", contentType = "more") {
                 AuraPillAction(
                     label = stringResource(R.string.trending_see_more),
                     onClick = onMore,
@@ -554,7 +554,7 @@ private fun AuraAlbumShelf(
                     modifier = Modifier.animateItem(),
                 )
             }
-            item(key = "more") {
+            item(key = "more", contentType = "more") {
                 AuraPillAction(
                     label = stringResource(R.string.trending_see_more),
                     onClick = onMore,

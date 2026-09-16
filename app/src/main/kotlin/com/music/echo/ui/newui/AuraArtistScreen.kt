@@ -327,7 +327,7 @@ fun AuraArtistScreen(
         ) {
             val isKnownArtist = libraryArtist != null || artistPage != null
             if (!isKnownArtist && !showLocal && hasFailed) {
-                item(key = "aura_artist_error") {
+                item(key = "aura_artist_error", contentType = "aura_artist_error") {
                     Column {
                         Spacer(Modifier.height(auraStatusBarPadding() + 72.dp))
                         AuraDetailErrorState(
@@ -337,14 +337,14 @@ fun AuraArtistScreen(
                     }
                 }
             } else if (!isKnownArtist && !showLocal) {
-                item(key = "aura_artist_skeleton") {
+                item(key = "aura_artist_skeleton", contentType = "aura_artist_skeleton") {
                     Column {
                         Spacer(Modifier.height(auraStatusBarPadding() + 56.dp))
                         ShimmerHost { repeat(8) { AuraDetailSkeletonRow() } }
                     }
                 }
             } else {
-                item(key = "aura_artist_hero") {
+                item(key = "aura_artist_hero", contentType = "aura_artist_hero") {
                     AuraArtistHero(
                         thumbnailUrl = artistPage?.artist?.thumbnail
                             ?: libraryArtist?.artist?.thumbnailUrl,
@@ -355,7 +355,7 @@ fun AuraArtistScreen(
                     )
                 }
 
-                item(key = "aura_artist_header") {
+                item(key = "aura_artist_header", contentType = "aura_artist_header") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -571,7 +571,7 @@ fun AuraArtistScreen(
                         allLibrarySongs
                     }
                     if (filteredLibrarySongs.isNotEmpty()) {
-                        item(key = "aura_artist_local_songs_label") {
+                        item(key = "aura_artist_local_songs_label", contentType = "aura_artist_local_songs_label") {
                             AuraSectionHeader(
                                 title = stringResource(R.string.songs),
                                 onClick = {
@@ -580,7 +580,7 @@ fun AuraArtistScreen(
                                 modifier = Modifier.animateItem(),
                             )
                         }
-                        item(key = "aura_artist_local_songs_pages") {
+                        item(key = "aura_artist_local_songs_pages", contentType = "aura_artist_local_songs_pages") {
                             AuraSongPages(
                                 itemCount = filteredLibrarySongs.size,
                                 modifier = Modifier.animateItem(),
@@ -608,7 +608,7 @@ fun AuraArtistScreen(
                         libraryAlbums
                     }
                     if (filteredLibraryAlbums.isNotEmpty()) {
-                        item(key = "aura_artist_local_albums_label") {
+                        item(key = "aura_artist_local_albums_label", contentType = "aura_artist_local_albums_label") {
                             AuraSectionHeader(
                                 title = stringResource(R.string.albums),
                                 onClick = {
@@ -617,7 +617,7 @@ fun AuraArtistScreen(
                                 modifier = Modifier.animateItem(),
                             )
                         }
-                        item(key = "aura_artist_local_albums_row") {
+                        item(key = "aura_artist_local_albums_row", contentType = "aura_artist_local_albums_row") {
                             // Same scale as the artist's video cards, like the online album shelves below.
                             val albumW = AuraAlbumShelfWidth * 1.2f
                             AuraDoubleRowShelf(
@@ -695,7 +695,7 @@ fun AuraArtistScreen(
                     }
 
                     if (artistPage == null && !showLocal) {
-                        item(key = "aura_artist_online_loading") {
+                        item(key = "aura_artist_online_loading", contentType = "aura_artist_online_loading") {
                             Column(Modifier.padding(top = 16.dp)) {
                                 ShimmerHost { repeat(3) { AuraDetailSkeletonRow() } }
                             }
@@ -724,7 +724,7 @@ fun AuraArtistScreen(
                         val sectionItems = section.items.distinctBy { it.id }
                         if (sectionItems.isEmpty()) return@forEachIndexed
 
-                        item(key = "aura_artist_section_${sectionIndex}_label") {
+                        item(key = "aura_artist_section_${sectionIndex}_label", contentType = "aura_artist_section__label") {
                             AuraSectionHeader(
                                 title = section.title,
                                 // The "ver todos" affordance is ALWAYS offered: YouTube's own "more"
@@ -763,7 +763,7 @@ fun AuraArtistScreen(
                                     sectionItems.filterIsInstance<SongItem>()
                                 }
                             if (isArtistPopularSectionTitle(section.title)) {
-                                item(key = "aura_artist_section_${sectionIndex}_pages") {
+                                item(key = "aura_artist_section_${sectionIndex}_pages", contentType = "aura_artist_section__pages") {
                                     AuraSongPages(
                                         itemCount = sectionSongs.size,
                                         modifier = Modifier.animateItem(),
@@ -810,7 +810,7 @@ fun AuraArtistScreen(
                                 }
                             }
                         } else {
-                            item(key = "aura_artist_section_${sectionIndex}_shelf") {
+                            item(key = "aura_artist_section_${sectionIndex}_shelf", contentType = "aura_artist_section__shelf") {
                                 val videoHeavy = sectionItems.any { it is SongItem && it.isVideoSong }
                                 if (videoHeavy) {
                                     // YTM-style: one row of large full-bleed 16:9 cards (not a cramped 2×N stamp grid).
@@ -1119,14 +1119,14 @@ private fun LazyListScope.auraArtistLibraryPreviewItems(
     haptic: HapticFeedback,
 ) {
     if (songs.isEmpty()) return
-    item(key = "aura_artist_library_preview_label") {
+    item(key = "aura_artist_library_preview_label", contentType = "aura_artist_library_preview_label") {
         AuraSectionHeader(
             title = headerTitle,
             onClick = { navController.navigate("artist/$artistId/songs") },
             modifier = Modifier.animateItem(),
         )
     }
-    item(key = "aura_artist_library_preview_pages") {
+    item(key = "aura_artist_library_preview_pages", contentType = "aura_artist_library_preview_pages") {
         AuraSongPages(
             itemCount = songs.size,
             modifier = Modifier.animateItem(),

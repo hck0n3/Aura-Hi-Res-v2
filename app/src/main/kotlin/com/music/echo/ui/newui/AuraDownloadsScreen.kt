@@ -318,7 +318,7 @@ fun AuraAutoPlaylistScreen(
         extraItems = { isSearching ->
             // ── Almacenamiento (solo "Descargado") ────────────────────────────────────────────────
             if (isDownloadsScreen && !isSearching) {
-                item(key = "aura_ap_storage") {
+                item(key = "aura_ap_storage", contentType = "aura_ap_storage") {
                     AuraDownloadStorageCard(
                         onOpenStorageSettings = { navController.navigate("settings/storage") },
                         modifier = Modifier.animateItem(),
@@ -328,7 +328,7 @@ fun AuraAutoPlaylistScreen(
 
             // ── Descargas en curso (solo "Descargado") ────────────────────────────────────────────
             if (isDownloadsScreen && activeDownloads.isNotEmpty()) {
-                item(key = "aura_ap_active_label") {
+                item(key = "aura_ap_active_label", contentType = "aura_ap_active_label") {
                     AuraSectionLabel(
                         text = stringResource(R.string.aura_downloads_in_progress).uppercase(Locale.ROOT),
                         modifier = Modifier

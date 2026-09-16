@@ -199,7 +199,7 @@ fun AuraArtistItemsScreen(
                         .fillMaxSize()
                         .tvFocusRestorer(),
                 ) {
-                    item(key = "aura_artist_items_header") {
+                    item(key = "aura_artist_items_header", contentType = "aura_artist_items_header") {
                         AuraSectionGridHeader(
                             title = title.ifBlank { stringResource(R.string.songs) },
                             countLabel = "${pageItems.size}",
@@ -255,7 +255,7 @@ fun AuraArtistItemsScreen(
                         }
                     }
                     if (itemsPage?.continuation != null) {
-                        item(key = "loading") {
+                        item(key = "loading", contentType = "loading") {
                             Box(Modifier.height(72.dp))
                         }
                     }
@@ -338,7 +338,7 @@ fun AuraArtistItemsScreen(
                             )
                         }
                         if (itemsPage?.continuation != null) {
-                            item(key = "loading") {
+                            item(key = "loading", contentType = "loading") {
                                 Box(Modifier.height(72.dp))
                             }
                         }

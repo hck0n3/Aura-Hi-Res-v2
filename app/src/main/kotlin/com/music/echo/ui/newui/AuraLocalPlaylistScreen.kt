@@ -568,7 +568,7 @@ fun AuraLocalPlaylistScreen(
             val current = playlist
             if (current != null) {
                 if (current.songCount == 0 && current.playlist.remoteSongCount == 0) {
-                    item(key = "aura_lp_empty") {
+                    item(key = "aura_lp_empty", contentType = "aura_lp_empty") {
                         AuraEmpty(
                             text = stringResource(R.string.playlist_is_empty),
                             modifier = Modifier.animateItem(),
@@ -576,7 +576,7 @@ fun AuraLocalPlaylistScreen(
                     }
                 } else {
                     if (!isSearching) {
-                        item(key = "aura_lp_header") {
+                        item(key = "aura_lp_header", contentType = "aura_lp_header") {
                             AuraLocalPlaylistHeader(
                                 playlist = current,
                                 songs = songs,
@@ -607,7 +607,7 @@ fun AuraLocalPlaylistScreen(
                         }
                     }
 
-                    item(key = "aura_lp_sort") {
+                    item(key = "aura_lp_sort", contentType = "aura_lp_sort") {
                         AuraInlineSortControl(
                             sortType = sortType,
                             sortDescending = sortDescending,
@@ -807,7 +807,7 @@ fun AuraLocalPlaylistScreen(
             }
 
             if (editable && !isSearching && !inSelectMode) {
-                item(key = "aura_lp_add_music") {
+                item(key = "aura_lp_add_music", contentType = "aura_lp_add_music") {
                     AuraAddMusicButton(
                         onClick = {
                             // Stop any footer preview so it doesn't overlap the sheet's own preview.
@@ -817,7 +817,7 @@ fun AuraLocalPlaylistScreen(
                         modifier = Modifier.animateItem(),
                     )
                 }
-                item(key = "aura_lp_suggested") {
+                item(key = "aura_lp_suggested", contentType = "aura_lp_suggested") {
                     SuggestedSongsSection(
                         viewModel = viewModel,
                         previewController = previewController,
@@ -825,7 +825,7 @@ fun AuraLocalPlaylistScreen(
                         modifier = Modifier.animateItem(),
                     )
                 }
-                item(key = "aura_lp_featured") {
+                item(key = "aura_lp_featured", contentType = "aura_lp_featured") {
                     FeaturedArtistsSection(
                         viewModel = viewModel,
                         navController = navController,
@@ -834,7 +834,7 @@ fun AuraLocalPlaylistScreen(
                 }
             }
 
-            item(key = "aura_lp_tail") { Spacer(Modifier.height(50.dp)) }
+            item(key = "aura_lp_tail", contentType = "aura_lp_tail") { Spacer(Modifier.height(50.dp)) }
         }
         }
 

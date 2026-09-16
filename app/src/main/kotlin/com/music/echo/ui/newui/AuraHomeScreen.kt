@@ -430,7 +430,7 @@ fun AuraHomeScreen(
                 // plus the IntOffset visibility threshold a placement spec needs — and are what the
                 // classic Home already uses in its 34 call sites, so this decides nothing new.
                 // Every item below has a stable `key`; animateItem does nothing without one.
-                item(key = "aura_home_header") {
+                item(key = "aura_home_header", contentType = "aura_home_header") {
                     AuraScreenHeader(
                         modifier = Modifier.animateItem(),
                         label = auraGreeting(),
@@ -443,7 +443,7 @@ fun AuraHomeScreen(
                 }
 
                 // HALLAZGO-028: post-login library sync used to run with zero UI feedback.
-                item(key = "aura_home_sync_status") {
+                item(key = "aura_home_sync_status", contentType = "aura_home_sync_status") {
                     AnimatedVisibility(
                         visible = anySyncActive(syncState),
                         enter = fadeIn() + expandVertically(),
@@ -471,7 +471,7 @@ fun AuraHomeScreen(
 
                 // Chips de estado de ánimo de YouTube (dynamic text; only when YouTube returns chips).
                 homePage?.chips?.takeIf { it.isNotEmpty() }?.let { chips ->
-                    item(key = "aura_home_chips") {
+                    item(key = "aura_home_chips", contentType = "aura_home_chips") {
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -493,7 +493,7 @@ fun AuraHomeScreen(
 
                 if (selectedChip != null) {
                     if (isChipLoading) {
-                        item(key = "aura_home_chip_loading") {
+                        item(key = "aura_home_chip_loading", contentType = "aura_home_chip_loading") {
                             ShimmerHost(modifier = Modifier.animateItem()) {
                                 AuraHomeShelfSkeleton(cardScale = cardScale)
                                 repeat(4) { AuraDetailSkeletonRow() }
@@ -501,7 +501,7 @@ fun AuraHomeScreen(
                         }
                     }
                     chipError?.let { message ->
-                        item(key = "aura_home_chip_error") {
+                        item(key = "aura_home_chip_error", contentType = "aura_home_chip_error") {
                             AuraTechnicalText(
                                 text = message,
                                 color = AuraPalette.OnGroundMuted,
@@ -515,7 +515,7 @@ fun AuraHomeScreen(
                         }
                     }
                     homePage?.sections.orEmpty().forEachIndexed { index, sectionData ->
-                        item(key = "aura_mood_section_$index") {
+                        item(key = "aura_mood_section_$index", contentType = "aura_mood_section") {
                             val sectionSongs = sectionData.items.filterIsInstance<SongItem>()
                             val isSongsOnly = sectionData.items.isNotEmpty() &&
                                 sectionData.items.all { it is SongItem }
@@ -588,7 +588,7 @@ fun AuraHomeScreen(
 
                 // Tus podcasts (fijados)
                 if (pinnedPodcasts.isNotEmpty()) {
-                    item(key = "aura_home_podcasts") {
+                    item(key = "aura_home_podcasts", contentType = "aura_home_podcasts") {
                         Column(Modifier.animateItem()) {
                             AuraSectionHeader(title = stringResource(R.string.home_your_podcasts))
                             AuraShelf {
@@ -616,7 +616,7 @@ fun AuraHomeScreen(
 
                 // Reproducido recientemente — pinned outside homeSections, exactly as in the classic Home.
                 recentlyPlayed?.takeIf { it.isNotEmpty() }?.let { recentSongs ->
-                    item(key = "aura_home_recent") {
+                    item(key = "aura_home_recent", contentType = "aura_home_recent") {
                         val recentTitle = stringResource(R.string.home_recently_played)
                         Column(Modifier.animateItem()) {
                             AuraSectionHeader(
@@ -647,7 +647,7 @@ fun AuraHomeScreen(
                     keepListening.isNullOrEmpty() &&
                     forgottenFavorites.isNullOrEmpty()
                 if (!isLoading && !hasPlayHistory && tasteShelvesEmpty) {
-                    item(key = "aura_home_cold_empty") {
+                    item(key = "aura_home_cold_empty", contentType = "aura_home_cold_empty") {
                         Column(
                             modifier = Modifier
                                 .animateItem()
@@ -687,7 +687,7 @@ fun AuraHomeScreen(
 
                 // Apple Music style: Hero carousel "Para ti" at the very top.
                 if (!heroCarouselSongs.isNullOrEmpty()) {
-                    item(key = "aura_quick_picks") {
+                    item(key = "aura_quick_picks", contentType = "aura_quick_picks") {
                         val forYouTitle = stringResource(R.string.home_for_you)
                         val distinctQuickPicks = remember(heroCarouselSongs) { heroCarouselSongs.distinctBy { it.id } }
                         val carouselWidth = (LocalConfiguration.current.screenWidthDp.dp * 0.58f).coerceIn(220.dp, 340.dp)
@@ -715,7 +715,7 @@ fun AuraHomeScreen(
                     when (section) {
                         HomeSection.SpeedDial -> {
                             speedDialItems.takeIf { it.isNotEmpty() }?.let { items ->
-                                item(key = "aura_speed_dial") {
+                                item(key = "aura_speed_dial", contentType = "aura_speed_dial") {
                                     Column(Modifier.animateItem()) {
                                         AuraSectionHeader(
                                             title = stringResource(R.string.speed_dial),
@@ -762,7 +762,7 @@ fun AuraHomeScreen(
 
                         HomeSection.FromTheCommunity -> {
                             communityPlaylists?.takeIf { it.isNotEmpty() }?.let { playlists ->
-                                item(key = "aura_community") {
+                                item(key = "aura_community", contentType = "aura_community") {
                                     Column(Modifier.animateItem()) {
                                         AuraSectionHeader(title = stringResource(R.string.from_the_community))
                                         LazyRow(
@@ -798,7 +798,7 @@ fun AuraHomeScreen(
 
                         is HomeSection.DailyMix -> {
                             dailyMixes?.getOrNull(section.index)?.takeIf { it.items.isNotEmpty() }?.let { mix ->
-                                item(key = "aura_daily_mix_${section.index}") {
+                                item(key = "aura_daily_mix_${section.index}", contentType = "aura_daily_mix") {
                                     val title = stringResource(R.string.home_daily_mix, section.index + 1)
                                     val seedLine = stringResource(
                                         R.string.daily_discover_because_you_listen_to,
@@ -853,7 +853,7 @@ fun AuraHomeScreen(
 
                         HomeSection.KeepListening -> {
                             keepListening?.takeIf { it.isNotEmpty() }?.let { items ->
-                                item(key = "aura_keep_listening") {
+                                item(key = "aura_keep_listening", contentType = "aura_keep_listening") {
                                     val klTitle = stringResource(R.string.keep_listening)
                                     Column(Modifier.animateItem()) {
                                         AuraSectionHeader(
@@ -941,7 +941,7 @@ fun AuraHomeScreen(
 
                         HomeSection.AccountPlaylists -> {
                             accountPlaylists?.takeIf { it.isNotEmpty() }?.let { playlists ->
-                                item(key = "aura_account_playlists") {
+                                item(key = "aura_account_playlists", contentType = "aura_account_playlists") {
                                     Column(Modifier.animateItem()) {
                                         AuraSectionHeader(
                                             title = stringResource(R.string.your_youtube_playlists),
@@ -973,7 +973,7 @@ fun AuraHomeScreen(
 
                         HomeSection.TimeOfDayMix -> {
                             timeOfDayMix?.takeIf { it.songs.isNotEmpty() }?.let { mix ->
-                                item(key = "aura_time_of_day_mix") {
+                                item(key = "aura_time_of_day_mix", contentType = "aura_time_of_day_mix") {
                                     val mixTitle = stringResource(
                                         when (mix.bucket) {
                                             0 -> R.string.home_mix_morning
@@ -1006,7 +1006,7 @@ fun AuraHomeScreen(
                         HomeSection.AiRecommended -> {
                             if (!aiRecsEnabled) return@forEach
                             aiRecommendedSongs?.takeIf { it.isNotEmpty() }?.let { recommended ->
-                                item(key = "aura_ai_recommended") {
+                                item(key = "aura_ai_recommended", contentType = "aura_ai_recommended") {
                                     val recEntity = aiRecommendedPlaylist?.playlist
                                     val recTitle = recEntity?.name ?: AutoRecoPlaylistWorker.PLAYLIST_NAME
                                     Column(Modifier.animateItem()) {
@@ -1064,7 +1064,7 @@ fun AuraHomeScreen(
 
                         HomeSection.GenreMix -> {
                             genreMix?.takeIf { it.songs.isNotEmpty() }?.let { mix ->
-                                item(key = "aura_genre_mix") {
+                                item(key = "aura_genre_mix", contentType = "aura_genre_mix") {
                                     val mixTitle = stringResource(R.string.home_genre_mix, mix.genre)
                                     Column(Modifier.animateItem()) {
                                         AuraSectionHeader(
@@ -1090,7 +1090,7 @@ fun AuraHomeScreen(
 
                         HomeSection.ForgottenFavorites -> {
                             forgottenFavorites?.takeIf { it.isNotEmpty() }?.let { favorites ->
-                                item(key = "aura_forgotten_favorites") {
+                                item(key = "aura_forgotten_favorites", contentType = "aura_forgotten_favorites") {
                                     val title = stringResource(R.string.forgotten_favorites)
                                     val distinctFavorites = remember(favorites) { favorites.distinctBy { it.id } }
                                     val visibleFavorites = if (forgottenExpanded) {
@@ -1146,7 +1146,7 @@ fun AuraHomeScreen(
 
                         is HomeSection.SimilarRecommendation -> {
                             similarRecommendations?.getOrNull(section.index)?.let { recommendation ->
-                                item(key = "aura_similar_${section.index}") {
+                                item(key = "aura_similar_${section.index}", contentType = "aura_similar") {
                                     // Only offer a destination that exists — a song with no album falls
                                     // back to its artist; with neither, the header is not clickable.
                                     val similarDest: String? = when (val t = recommendation.title) {
@@ -1201,7 +1201,7 @@ fun AuraHomeScreen(
 
                         is HomeSection.HomePageSection -> {
                             homePage?.sections?.getOrNull(section.index)?.let { sectionData ->
-                                item(key = "aura_yt_section_${section.index}") {
+                                item(key = "aura_yt_section_${section.index}", contentType = "aura_yt_section") {
                                     val sectionSongs = sectionData.items.filterIsInstance<SongItem>()
                                     val isSongsOnly = sectionData.items.isNotEmpty() &&
                                         sectionData.items.all { it is SongItem }
@@ -1293,7 +1293,7 @@ fun AuraHomeScreen(
 
                         HomeSection.MoodAndGenres -> {
                             explorePage?.moodAndGenres?.let { moodAndGenres ->
-                                item(key = "aura_mood_and_genres") {
+                                item(key = "aura_mood_and_genres", contentType = "aura_mood_and_genres") {
                                     Column(Modifier.animateItem()) {
                                         AuraSectionHeader(
                                             title = stringResource(R.string.mood_and_genres),
@@ -1328,7 +1328,7 @@ fun AuraHomeScreen(
                 // Initial load: shimmer shelves instead of a bare "CARGANDO…" label. Once any
                 // section is on screen, pull-to-refresh covers further loads — no cheap footer.
                 if (isLoading && homeSections.isEmpty()) {
-                    item(key = "aura_home_skeleton") {
+                    item(key = "aura_home_skeleton", contentType = "aura_home_skeleton") {
                         ShimmerHost(modifier = Modifier.animateItem()) {
                             AuraHomeShelfSkeleton(cardScale = cardScale)
                             AuraHomeShelfSkeleton(cardScale = cardScale)
@@ -1339,7 +1339,7 @@ fun AuraHomeScreen(
 
                 } // selectedChip == null — normal home shelves
 
-                item(key = "aura_home_bottom_spacer") {
+                item(key = "aura_home_bottom_spacer", contentType = "aura_home_bottom_spacer") {
                     Spacer(
                         Modifier
                             .animateItem()
