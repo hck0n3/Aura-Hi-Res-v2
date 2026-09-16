@@ -1304,6 +1304,54 @@ object YTPlayerUtils {
         // a non-auto-dubbed track, then to ANY audio, so playback always resolves. The dev-device path is
         // unchanged (original still wins when it exists).
         val audioFormats = playerResponse.streamingData?.adaptiveFormats?.filter { it.isAudio }
+
+        // EVERY VIDEO MUST BE PLAYABLE AS AUDIO — owner report 2026-09-16: "algunos videos solo
+        // reproducían video". When a response carries no audio-only track, the progressive (muxed) list
+        // still does: itag 18/22 hold picture and sound in one file. `isAudio` is `width == null`, so a
+        // progressive stream reads as "not audio" and this resolver never looked at it — while the video
+        // branch above deliberately searches BOTH lists. That asymmetry is the whole bug: the video path
+        // found a stream, the audio path found nothing, and the song ended up playable only as video.
+        //
+        // Runs ONLY when there is no adaptive audio at all, so every normal track resolves exactly as
+        // before. The choice of WHICH progressive stream lives in ProgressiveAudioFallback so it can be
+        // tested without a device.
+        if (audioFormats.isNullOrEmpty()) {
+            val progressive = playerResponse.streamingData?.formats.orEmpty()
+            val metered = connectivityManager.isActiveNetworkMetered
+            val saverOn = PrefsBridge.peek(iad1tya.echo.music.constants.DataSaverEnabledKey) == true
+            val index =
+                iad1tya.echo.music.playback.ProgressiveAudioFallback.pickIndex(
+                    streams =
+                        progressive.map {
+                            iad1tya.echo.music.playback.ProgressiveAudioFallback.Stream(
+                                itag = it.itag,
+                                bitrate = it.bitrate,
+                                // A progressive entry without an audio track would play as silence, which
+                                // is worse than the failure it replaces.
+                                hasAudioTrack = it.audioSampleRate != null ||
+                                    it.audioChannels != null ||
+                                    it.audioQuality != null,
+                                hasUrl = !it.url.isNullOrEmpty() ||
+                                    !it.signatureCipher.isNullOrEmpty() ||
+                                    !it.cipher.isNullOrEmpty(),
+                            )
+                        },
+                    // Progressive means fetching a picture nobody watches, so stay small when bytes cost
+                    // money or when the caller only keeps a few seconds anyway (ringtone trimmer).
+                    preferSmallest = preferSmallestAudio || saverOn || metered,
+                )
+            if (index == null) {
+                Timber.tag(logTag).d("No audio-only format and no progressive stream carrying audio")
+                return null
+            }
+            val picked = progressive[index]
+            Timber.tag(logTag).i(
+                "No audio-only format for this video — playing progressive itag ${picked.itag} " +
+                    "(${picked.bitrate} bps); its video track is simply not rendered",
+            )
+            return picked
+        }
+
         val audioPool = audioFormats?.filter { it.isOriginal }?.takeIf { it.isNotEmpty() }
             ?: audioFormats?.filter { it.audioTrack?.isAutoDubbed == false }?.takeIf { it.isNotEmpty() }
             ?: audioFormats

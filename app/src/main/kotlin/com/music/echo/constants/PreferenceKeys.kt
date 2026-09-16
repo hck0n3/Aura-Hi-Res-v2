@@ -220,6 +220,12 @@ val EqPreampDefault2DbAppliedKey = booleanPreferencesKey("eq_preamp_default_2db_
 // installs, so on those devices this migration only ever stamps its flag (the stored value already
 // matches).
 val EqPreampDefault23DbAppliedKey = booleanPreferencesKey("eq_preamp_default_23db_applied")
+// One-time (V6, owner order 2026-09-16: "el preamp quiero que esté +2.2 dB, y a veces cuando reviso está
+// en 0.0 dB"). Settles every install on the single house value, EqConstants.DEFAULT_PREAMP_DB. Two values
+// count as "not chosen by the user" and are migrated: +2.3 (the V5 default this replaces) and 0.0 — the
+// number MusicService.resetEqPreamp used to write behind the user's back on every Safe Volume ON -> OFF,
+// which is the "a veces" in the report. Any other preamp is a deliberate choice and is left alone.
+val EqPreampDefault22DbAppliedKey = booleanPreferencesKey("eq_preamp_default_22db_applied")
 // One-time: force infinite playback (auto-radio at end of album/playlist/queue) ON for EVERYONE — the owner
 // wants endless playback always active. Fresh key so it re-applies even for users who had it toggled off.
 val InfinitePlaybackForcedOnKey = booleanPreferencesKey("infinite_playback_forced_on_v1")

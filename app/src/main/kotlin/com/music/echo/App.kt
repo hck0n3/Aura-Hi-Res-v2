@@ -575,6 +575,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // migrateEqPreampDefaultV4 so the V4 chain settling an install on +2.0 continues on
         // to +2.3 in the same launch.
         migrateEqPreampDefaultV5(settings)
+        // SEPARATE (same EQ side effects): owner order 2026-09-16 settles the preamp on the single house
+        // value (+2.2 dB) and rescues the installs that Safe Volume's old reset had left at 0.0. MUST run
+        // after migrateEqPreampDefaultV5 so an install that chain just settled on +2.3 continues to +2.2
+        // in the same launch.
+        migrateEqPreampDefaultV6(settings)
         // SEPARATE (same EQ side effects): owner directive 2026-09-13 replaces the "Aura Hi-Res v2"
         // curve. MUST run after the V2 seed so a fresh install's seeded curve is already the new one.
         migrateAuraHiResV2CurveV2(settings)
@@ -1243,6 +1248,51 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         }.onFailure { reportException(it) }.getOrDefault(false)
         if (applied) {
             dataStore.edit { it[iad1tya.echo.music.constants.EqPreampDefault23DbAppliedKey] = true }
+        }
+    }
+
+    /**
+     * One-time (V6, owner order 2026-09-16: *"el preamp quiero que esté +2.2 dB, y a veces cuando reviso
+     * está en 0.0 dB"*): settle every install on [EqConstants.DEFAULT_PREAMP_DB], the single place the
+     * house preamp is now written down.
+     *
+     * The "a veces" was real and it was ours. The value lived in four disagreeing places: the EQ screen
+     * defaulted to +2.2, this migration chain walked it +2.2 → +3.0 → +2.0 → +2.3, and
+     * `MusicService.resetEqPreamp` wrote 0.0 over it on every Safe Volume ON → OFF. Which number he found
+     * depended on which had spoken last. That reset now lands on the house value instead, and this brings
+     * the already-affected installs back.
+     *
+     * Two stored values count as "not chosen by the user" and are migrated: +2.3 (the V5 default this
+     * replaces) and 0.0 (what the reset wrote). Any other preamp is a deliberate choice and is kept —
+     * same convention as V3/V4/V5. Runs AFTER [migrateEqPreampDefaultV5] so an install the V4→V5 chain
+     * just settled on +2.3 continues to +2.2 in the same launch. Two-phase like the others: the flag is
+     * stamped only on success, and while no EQ state exists yet it retries instead of stamping.
+     */
+    private suspend fun migrateEqPreampDefaultV6(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.EqPreampDefault22DbAppliedKey] == true) return
+        val house = iad1tya.echo.music.eq.data.EqConstants.DEFAULT_PREAMP_DB
+        val applied = runCatching {
+            val eqPrefs = applicationContext.getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
+            val eqRepo = eqProfileRepository.get()
+            val hasAnyEqState = eqPrefs.contains("enabled") || eqPrefs.contains("preampDb") ||
+                eqPrefs.all.keys.any { it.startsWith("band") } ||
+                runCatching { eqRepo.getAllProfiles().isNotEmpty() }.getOrDefault(false)
+            if (!hasAnyEqState) return@runCatching false
+            val storedPreamp = eqPrefs.getFloat("preampDb", Float.NaN)
+            val migratable = storedPreamp.isNaN() || storedPreamp == 2.3f || storedPreamp == 0.0f
+            if (!migratable) return@runCatching true
+            val effective = eqRepo.unsavedProfile.value ?: eqRepo.activeProfile.value
+            if (effective != null && (effective.preamp == 2.3 || effective.preamp == 0.0)) {
+                val settled = effective.copy(preamp = house.toDouble())
+                eqRepo.saveProfile(settled)
+                eqRepo.setUnsavedProfile(settled)
+                eqRepo.setActiveProfile(settled.id)
+            }
+            eqPrefs.edit().putFloat("preampDb", house).apply()
+            true
+        }.onFailure { reportException(it) }.getOrDefault(false)
+        if (applied) {
+            dataStore.edit { it[iad1tya.echo.music.constants.EqPreampDefault22DbAppliedKey] = true }
         }
     }
 

@@ -1744,7 +1744,8 @@ class MusicService :
     }
 
     /**
-     * Returns the EQ preamp to 0.0 dB when the user turns Safe Volume OFF.
+     * Brings the EQ preamp down to the house level ([EqConstants.DEFAULT_PREAMP_DB]) when the user turns
+     * Safe Volume OFF. It used to force 0.0 dB — see the owner report in the body.
      *
      * WHY: the preamp is output make-up applied AFTER the limiter, so while Safe Volume is on it is
      * safe — the limiter catches whatever it pushes past full scale. Turn Safe Volume off and that
@@ -1764,19 +1765,38 @@ class MusicService :
     private fun resetEqPreamp() {
         if (!::eqProfileRepository.isInitialized) return
         val effective = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value
+        // 🔴 OWNER REPORT (2026-09-16): "el preamp quiero que esté +2.2 dB, y a veces cuando reviso está
+        // en 0.0 dB". THIS was the "sometimes". Every Safe Volume ON -> OFF transition wrote 0.0 over
+        // whatever he had set, silently, so the value he found depended on whether he had touched that
+        // switch since the last time he looked.
+        //
+        // The safety intent is kept — a big boost still comes down when the limiter goes away — but it
+        // lands on the tuning this player ships with instead of on silence-flat. Dropping to 0.0 was never
+        // the safe choice anyway: it makes the app suddenly quieter than every other player on the phone,
+        // which is exactly the surprise the reset existed to avoid, only pointing the other way.
+        val house = iad1tya.echo.music.eq.data.EqConstants.DEFAULT_PREAMP_DB
+        // Never RAISE a preamp the user deliberately lowered: the target is whatever is already there when
+        // that is quieter than the house level. The prefs mirror is written with the SAME value the DSP
+        // ends on — the old code wrote its constant unconditionally, so the mirror and the profile could
+        // disagree about what was actually playing.
+        val target = effective?.preamp?.coerceAtMost(house.toDouble()) ?: house.toDouble()
         runCatching {
             getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
                 .edit()
-                .putFloat("preampDb", 0f)
+                .putFloat("preampDb", target.toFloat())
                 .apply()
         }
-        if (effective == null || effective.preamp == 0.0) return
-        val flattened = effective.copy(preamp = 0.0)
-        eqProfileRepository.setUnsavedProfile(flattened)
+        if (effective == null || effective.preamp <= house) return
+        val lowered = effective.copy(preamp = house.toDouble())
+        eqProfileRepository.setUnsavedProfile(lowered)
         if (::equalizerService.isInitialized) {
-            runCatching { equalizerService.applyProfile(flattened) }
+            runCatching { equalizerService.applyProfile(lowered) }
         }
-        Timber.tag(TAG).i("Safe Volume turned off -> EQ preamp reset from %.1f dB to 0.0 dB", effective.preamp)
+        Timber.tag(TAG).i(
+            "Safe Volume turned off -> EQ preamp brought down from %.1f dB to the house %.1f dB",
+            effective.preamp,
+            house,
+        )
     }
 
     /**
