@@ -36,8 +36,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -216,6 +214,7 @@ import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.recognition.RecognitionForegroundService
 import iad1tya.echo.music.utils.coil.LocalAudioArtFetcher
+import iad1tya.echo.music.ui.component.AuraNavMotion
 import iad1tya.echo.music.ui.component.AppNavigationRail
 import iad1tya.echo.music.ui.component.BottomSheetMenu
 import iad1tya.echo.music.ui.component.BottomSheetPage
@@ -2236,60 +2235,64 @@ class MainActivity : ComponentActivity() {
                                         else -> Screens.Home
                                     }.route,
                                     
+                                    // SimpMusic clonado (2026-09-16, orden del dueno: "animaciones que
+                                    // se mira que se desplaza a alta velocidad de un lado a otro mientras
+                                    // toco los botones"). Antes esto recorria `it / 8` con `tween(200)`:
+                                    // un octavo de pantalla a ritmo plano, que se nota pero no se lee
+                                    // como un barrido. SimpMusic recorre el ancho COMPLETO con el resorte
+                                    // por defecto de Compose. El porque de cada numero esta en
+                                    // AuraNavMotion; los predicados de direccion son los mismos que
+                                    // estaban aqui, solo movidos alla para poder probarlos.
                                     enterTransition = {
-                                        val currentRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == targetState.destination.route
-                                        }
-                                        val previousRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == initialState.destination.route
-                                        }
-
-                                        if (currentRouteIndex == -1 || currentRouteIndex > previousRouteIndex)
-                                            slideInHorizontally { it / 8 } + fadeIn(tween(200))
-                                        else
-                                            slideInHorizontally { -it / 8 } + fadeIn(tween(200))
+                                        AuraNavMotion.enter(
+                                            AuraNavMotion.forward(
+                                                fromIndex = navigationItems.indexOfFirst {
+                                                    it.route == initialState.destination.route
+                                                },
+                                                toIndex = navigationItems.indexOfFirst {
+                                                    it.route == targetState.destination.route
+                                                },
+                                            )
+                                        )
                                     },
-                                    
+
                                     exitTransition = {
-                                        val currentRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == initialState.destination.route
-                                        }
-                                        val targetRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == targetState.destination.route
-                                        }
-
-                                        if (targetRouteIndex == -1 || targetRouteIndex > currentRouteIndex)
-                                            slideOutHorizontally { -it / 8 } + fadeOut(tween(200))
-                                        else
-                                            slideOutHorizontally { it / 8 } + fadeOut(tween(200))
+                                        AuraNavMotion.exit(
+                                            AuraNavMotion.forward(
+                                                fromIndex = navigationItems.indexOfFirst {
+                                                    it.route == initialState.destination.route
+                                                },
+                                                toIndex = navigationItems.indexOfFirst {
+                                                    it.route == targetState.destination.route
+                                                },
+                                            )
+                                        )
                                     },
-                                    
+
                                     popEnterTransition = {
-                                        val currentRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == targetState.destination.route
-                                        }
-                                        val previousRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == initialState.destination.route
-                                        }
-
-                                        if (previousRouteIndex != -1 && previousRouteIndex < currentRouteIndex)
-                                            slideInHorizontally { it / 8 } + fadeIn(tween(200))
-                                        else
-                                            slideInHorizontally { -it / 8 } + fadeIn(tween(200))
+                                        AuraNavMotion.enter(
+                                            AuraNavMotion.popForward(
+                                                fromIndex = navigationItems.indexOfFirst {
+                                                    it.route == initialState.destination.route
+                                                },
+                                                toIndex = navigationItems.indexOfFirst {
+                                                    it.route == targetState.destination.route
+                                                },
+                                            )
+                                        )
                                     },
-                                    
-                                    popExitTransition = {
-                                        val currentRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == initialState.destination.route
-                                        }
-                                        val targetRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == targetState.destination.route
-                                        }
 
-                                        if (currentRouteIndex != -1 && currentRouteIndex < targetRouteIndex)
-                                            slideOutHorizontally { -it / 8 } + fadeOut(tween(200))
-                                        else
-                                            slideOutHorizontally { it / 8 } + fadeOut(tween(200))
+                                    popExitTransition = {
+                                        AuraNavMotion.exit(
+                                            AuraNavMotion.popForward(
+                                                fromIndex = navigationItems.indexOfFirst {
+                                                    it.route == initialState.destination.route
+                                                },
+                                                toIndex = navigationItems.indexOfFirst {
+                                                    it.route == targetState.destination.route
+                                                },
+                                            )
+                                        )
                                     },
                                     // Record the app content into the glass backdrop ONLY while Liquid
                                     // Glass is enabled + eligible AND at least one per-component surface
