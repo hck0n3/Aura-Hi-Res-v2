@@ -645,11 +645,14 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation(libs.work.runtime.ktx)
     implementation(libs.androidx.core.splashscreen)
-    // BASELINE PROFILE (2026-09-16, owner: "haz que Aura sea igual de fluido o mejor"). The profile
-    // itself is packaged by AGP from src/main/baselineProfiles/, but on a SIDELOADED APK nothing
-    // installs it: Play applies profiles at install time, and Aura ships through GitHub releases. This
-    // library is what writes the packaged profile into ART's profile directory on first run, so
-    // without it the profile would be a file that rides along and never does anything.
-    implementation(libs.androidx.profileinstaller)
+    // BASELINE PROFILE (2026-09-16): NO explicit androidx.profileinstaller dependency here, and that
+    // is the correct state, not an oversight. It is ALREADY on this module's runtime classpath as a
+    // transitive dependency (gradle.lockfile pins androidx.profileinstaller:profileinstaller:1.4.1 on
+    // every *RuntimeClasspath, debug and release alike), which is all the profile needs: its
+    // InitializationProvider ships in the merged manifest and writes the packaged profile into ART on
+    // first run. Declaring it explicitly put it on the COMPILE classpath too, where the lock does not
+    // list it, and the build failed with "not part of the dependency lock state" — a lock this
+    // container cannot regenerate, since the proxy blocks Maven. BaselineProfilePackagedTest guards
+    // that the transitive never disappears without anyone noticing.
     implementation(libs.ffmpeg.kit.full)
 }
