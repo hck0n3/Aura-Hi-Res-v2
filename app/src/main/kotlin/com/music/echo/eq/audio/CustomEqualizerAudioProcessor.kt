@@ -340,14 +340,14 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             masterEqOn = enabled,
             spatialEnabled = spatialEnabled,
             tidalSignatureEnabled = tidalSimulationEnabled,
-            stereoWidth = stereoWidth,
-            glueCompressorEnabled = masteringCompressor,
         )
         setSpatial(ptr, plan.spatial, spatialAlgorithm, spatialParams)
         setTidalSimulationEnabled(ptr, plan.tidalSignature)
-        setStereoWidth(ptr, plan.stereoWidth)
-        // Dither and speaker bass protection are protections, not tone: they are published unchanged.
-        setMasteringOptions(ptr, plan.glueCompressor, masteringDither, masteringSpeakerBassProtect)
+        // Stereo width and the mastering stages live in Ajustes ▸ Sonido, NOT inside the equalizer, so the
+        // equalizer switch has no say over them: they are published exactly as the user set them. They stay
+        // in this function only so every native tone setter keeps a single call site.
+        setStereoWidth(ptr, stereoWidth)
+        setMasteringOptions(ptr, masteringCompressor, masteringDither, masteringSpeakerBassProtect)
     }
 
     fun disable() {
