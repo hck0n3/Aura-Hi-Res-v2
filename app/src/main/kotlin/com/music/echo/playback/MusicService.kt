@@ -7187,6 +7187,21 @@ class MusicService :
         Timber.tag(TAG).w(error, "Player error occurred for $mediaId: errorCode=${error.errorCode}, message=${error.message}")
         reportException(error)
 
+        // SESIÓN CADUCADA (registro del dueño, 2026-09-16): 36 canciones distintas seguidas muertas con
+        // "Este contenido no está disponible" — un mensaje que culpa a la canción mientras la causa real
+        // era su cookie de YouTube muerta. Estuvo así hasta que cerró sesión y volvió a entrar a mano.
+        // Cuando el resolver ya ha visto la racha (vídeos DISTINTOS, no reintentos de uno), nombrar la
+        // causa una vez convierte ese misterio en treinta segundos de arreglo.
+        if (iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint()) {
+            runCatching {
+                Toast.makeText(
+                    this@MusicService,
+                    getString(R.string.session_expired_sign_in_again),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+
         // VIDEO MODE: if the failing item is the video track (e.g. its muxed URL expired / 403'd or decoder error),
         // drop the stale cached URL and fall back to AUDIO (exitVideoMode restores the normal source), so the
         // song keeps playing. Do not let video failures hit retry-limit/stopOnError.

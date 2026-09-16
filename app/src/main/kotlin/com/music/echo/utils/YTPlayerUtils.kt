@@ -340,6 +340,22 @@ object YTPlayerUtils {
     private val AUTH_SHAPED_STATUSES = setOf("LOGIN_REQUIRED")
 
     /**
+     * Rechazos con forma de IDENTIDAD, que [AUTH_SHAPED_STATUSES] no puede describir.
+     *
+     * El registro del dueño (2026-09-16, estable 2.0.42, sesión iniciada) trae 36 vídeos distintos con
+     * cero éxitos, todos `UNPLAYABLE` en ANDROID_VR y HTTP 400 en IOS, sin una sola línea de cifrado: las
+     * dos identidades del camino de audio mueren antes de firmar. En el mismo teléfono y la misma red, sin
+     * sesión, la reproducción iba bien. `UNPLAYABLE` no entra en AUTH_SHAPED_STATUSES porque casi siempre
+     * describe al CONTENIDO — y meterlo ahí haría que cada vídeo retirado o bloqueado por región gastase
+     * un reintento anónimo inútil. Lo que distingue una cosa de la otra es la racha sobre vídeos
+     * DISTINTOS, y eso es lo único que mide [IdentityRejectionTracker].
+     *
+     * A nivel de proceso a propósito: la señal es "esta sesión está siendo rechazada", no "esta canción
+     * falló", así que la tercera canción distinta ya dispara la recuperación que hoy no llega nunca.
+     */
+    internal val identityRejections = iad1tya.echo.music.utils.IdentityRejectionTracker()
+
+    /**
      * Per-resolve stage timing (slow-start telemetry). ONE instance per playerResponseForPlayback call,
      * threaded down the pipeline; exactly ONE summary line is emitted per completed resolve (success,
      * failure or cancellation) via Timber + PlaybackLogManager, so the shareable playback log turns every
@@ -470,6 +486,9 @@ object YTPlayerUtils {
         }
 
         val firstAttempt = boundedResolve()
+        // Cualquier acierto limpia la racha: unas pocas canciones legítimamente no disponibles a lo
+        // largo de una tarde normal no deben sumarse hasta parecer un rechazo de identidad.
+        firstAttempt.onSuccess { identityRejections.recordSuccess() }
 
         if (firstAttempt.isFailure && YouTube.cookie == null) {
             Timber.tag(TAG).w("Playback failed for guest. Rotating session and retrying...")
@@ -493,7 +512,9 @@ object YTPlayerUtils {
         //
         // Independent of the cipher/player-rotation path: playabilityStatus is decided server-side before
         // any signature work, so this survives a correct cipher config.
-        if (firstAttempt.isFailure && YouTube.cookie != null && authShaped.get()) {
+        if (firstAttempt.isFailure && YouTube.cookie != null &&
+            (authShaped.get() || identityRejections.isIdentityShaped)
+        ) {
             Timber.tag(TAG).w("Auth-shaped failure while signed in — rotating the guest session and retrying anonymously")
             PlaybackLogManager.log(
                 PlaybackLogLevel.BOT,
@@ -1066,6 +1087,11 @@ object YTPlayerUtils {
                 // dead-end can tell the user WHY instead of a generic failure.
                 streamPlayerResponse?.playabilityStatus?.reason?.let { lastPlayabilityReason = it }
                 if (status in AUTH_SHAPED_STATUSES) authShaped?.set(true)
+                // Solo con sesión iniciada: sin cookie no hay identidad que YouTube pueda rechazar,
+                // y la rama de invitado ya tiene su propia rotación unas líneas más arriba.
+                if (status == "UNPLAYABLE" && YouTube.cookie != null) {
+                    identityRejections.recordRejection(videoId)
+                }
                 Timber.tag(logTag).d("Player response status not OK: $status, reason: $reason")
                 PlaybackLogManager.log(PlaybackLogLevel.WARNING, "Client failed: ${client.clientName}", "$status: $reason")
                 
