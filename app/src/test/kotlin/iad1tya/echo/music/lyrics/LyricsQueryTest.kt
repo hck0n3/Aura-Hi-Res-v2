@@ -71,8 +71,18 @@ class LyricsQueryTest {
         assertEquals("Eminem", LyricsQuery.primaryArtist("Eminem feat. Rihanna"))
         assertEquals("Eminem", LyricsQuery.primaryArtist("Eminem, Rihanna"))
         assertEquals("Daft Punk", LyricsQuery.primaryArtist("Daft Punk & Pharrell Williams"))
+        // "feat." with the period is the common spelling on YouTube, and it is the one that used to slip
+        // through: the word boundary was anchored after the optional dot, where there is never one.
+        assertEquals("Eminem", LyricsQuery.primaryArtist("Eminem ft. Dido"))
+        assertEquals("Bad Bunny", LyricsQuery.primaryArtist("Bad Bunny x Rosalia"))
         // "Tyler, The Creator" is ONE artist. Splitting it gives someone else entirely.
         assertEquals("Tyler, The Creator", LyricsQuery.primaryArtist("Tyler, The Creator"))
+        // ...and it stays one artist when the credit really is a list.
+        assertEquals("Tyler, The Creator", LyricsQuery.primaryArtist("Tyler, The Creator, Kali Uchis"))
+        // A name that is nothing but a suffix case must not be truncated either.
+        assertEquals("Sammy Davis, Jr.", LyricsQuery.primaryArtist("Sammy Davis, Jr."))
+        // Nobody named Malcolm X gets cut in half by the "x" separator.
+        assertEquals("Malcolm X", LyricsQuery.primaryArtist("Malcolm X"))
     }
 
     @Test

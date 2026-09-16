@@ -84,6 +84,19 @@ object LyricsQuery {
     }
 
     /**
+     * Where a credit list stops being the lead artist. The word boundary must come BEFORE the optional
+     * period, not after it: in "feat." there is no word boundary after the dot, so anchoring there made
+     * the whole alternative unmatchable and "Eminem feat. Rihanna" was sent to the providers whole.
+     */
+    private val FEATURE_SEPARATOR = Regex(
+        """\s*(?:&|\bfeat\b\.?|\bft\b\.?|\bfeaturing\b|\bwith\b|\bx\b|\bvs\b\.?)\s+""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** Pieces that follow a comma inside ONE artist's name. "Tyler, The Creator" is not two people. */
+    private val KNOWN_SUFFIXES = listOf("the creator", "jr", "sr", "ii", "iii")
+
+    /**
      * The lead credited artist.
      *
      * Splits on "&", "feat", "ft", "featuring", "with", "x" and the comma list the player joins with —
@@ -93,19 +106,16 @@ object LyricsQuery {
      * reason.
      */
     fun primaryArtist(credited: String): String {
-        val featSplit = credited.split(
-            Regex("""\s*(?:&|\bfeat\.?\b|\bft\.?\b|\bfeaturing\b|\bwith\b|\bx\b)\s+""", RegexOption.IGNORE_CASE),
-        ).firstOrNull()?.trim().orEmpty().ifBlank { credited }
+        val featSplit = credited.split(FEATURE_SEPARATOR)
+            .firstOrNull()?.trim().orEmpty().ifBlank { credited }
 
         // The player joins several artists with ", ". Treat that as a list ONLY when what follows the
-        // comma starts a new credited name — never for a single name that contains a comma, which is why
-        // this needs the trailing space the joiner always writes.
-        val commaSplit = featSplit.split(", ").firstOrNull()?.trim().orEmpty()
-        val candidate = commaSplit.ifBlank { featSplit }
-        // A name like "Tyler, The Creator" survives because these suffixes are not new artists.
-        val knownSuffixes = listOf("the creator", "jr", "sr", "the kid laroi")
-        val tail = featSplit.removePrefix(candidate).removePrefix(", ").trim().lowercase()
-        return if (knownSuffixes.any { tail.startsWith(it) }) featSplit else candidate.ifBlank { credited }
+        // comma starts a new credited name — never for a single name that contains a comma.
+        val parts = featSplit.split(", ")
+        if (parts.size <= 1) return featSplit
+        val suffix = parts[1].trim().trimEnd('.').lowercase()
+        val lead = if (KNOWN_SUFFIXES.any { it == suffix }) "${parts[0].trim()}, ${parts[1].trim()}" else parts[0].trim()
+        return lead.ifBlank { credited }
     }
 
     /** True when cleaning actually changed the query, i.e. a raw retry could find something different. */
