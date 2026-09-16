@@ -1224,7 +1224,11 @@ fun AppearanceSettings(
                 // hidden the timeline). Now honoured by BOTH players: the classic Apple-Music transport
                 // hides its inline volume row, the new player hides the volume slider at the head of its
                 // merged player menu. Labels come from string resources instead of hardcoded literals.
-                if (!useNewPlayerDesign) Material3SettingsItem(
+                // The `|| newUiEnabled` is the fix for a control that WORKED and could not be reached:
+                // the row was gated on the classic Apple-Music design alone, so a user on the new
+                // interface with that design off never saw it — while AuraPlayerMenu was reading the key
+                // the whole time. Hiding a live control is the same defect as a placebo, upside down.
+                if (!useNewPlayerDesign || newUiEnabled) Material3SettingsItem(
                     icon = painterResource(R.drawable.linear_scale),
                     title = { Text(stringResource(R.string.hide_player_volume)) },
                     description = { Text(stringResource(R.string.hide_player_volume_desc)) },
