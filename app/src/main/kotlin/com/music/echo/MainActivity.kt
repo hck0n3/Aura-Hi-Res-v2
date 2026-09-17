@@ -1670,7 +1670,25 @@ class MainActivity : ComponentActivity() {
                     newUiShell, shouldShowNavigationBar, showRail, navController,
                 ) {
                     if (newUiShell && !shouldShowNavigationBar && !showRail) {
-                        { navController.navigateAsTab(Screens.Home.route) }
+                        {
+                            // 🔴 DIAGNÓSTICO DEL ATAJO (dueño, 2026-09-17: *"cuando entro a los álbum,
+                            // playlist la casita del mini reproductor no funciona"*).
+                            //
+                            // Con el escudo de toques de la píldora ya puesto (fila 283), si el botón
+                            // sigue sin responder solo quedan dos culpables, y esta línea los separa
+                            // en un toque: si NO aparece, el toque no llegó (gesto); si aparece con
+                            // `now=` igual a `from=`, el toque llegó y la navegación se descartó.
+                            //
+                            // Regla 4 de AGENTS: se registra el NOMBRE DE PANTALLA (lo de antes de la
+                            // barra), nunca la ruta entera — "album/OLAK5uy..." lleva el id de lo que
+                            // él estaba escuchando, y eso es dato suyo.
+                            val from = navController.currentDestination?.route?.substringBefore('/')
+                            navController.navigateAsTab(Screens.Home.route)
+                            val now = navController.currentDestination?.route?.substringBefore('/')
+                            Timber.tag("AuraShell").i(
+                                "HOME_SHORTCUT tap from=%s now=%s", from ?: "none", now ?: "none",
+                            )
+                        }
                     } else {
                         null
                     }
