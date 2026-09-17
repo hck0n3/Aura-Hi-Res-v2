@@ -927,6 +927,10 @@ private fun AuraPlayerShape(
                 positionState = positionState,
                 durationState = durationState,
                 shouldBindVideoSurface = state.isCollapsed && !LocalIsInPipMode.current,
+                // Mismo criterio que la superficie de vídeo: mientras la hoja está expandida esta
+                // píldora es una franja invisible arriba, y sus gestos no deben existir. Ver
+                // [AuraMiniPlayer.gesturesEnabled].
+                gesturesEnabled = state.isCollapsed,
             )
         },
     ) {

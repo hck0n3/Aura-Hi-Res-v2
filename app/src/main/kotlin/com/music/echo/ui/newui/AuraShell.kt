@@ -861,6 +861,19 @@ fun AuraMiniPlayer(
     durationState: MutableLongState,
     modifier: Modifier = Modifier,
     shouldBindVideoSurface: Boolean = true,
+    /**
+     * 🔴 false mientras la píldora NO es el minirreproductor visible (dueño, 2026-09-17: *"si lo
+     * toco seguido me cambia la canción porque se confunde con el gesto de cambiar canción"*).
+     *
+     * El `collapsedContent` de la hoja del reproductor está **precompuesto y siempre presente** — a
+     * propósito, porque componerlo al terminar la expansión era un tión visible en cada gesto de
+     * volver (HALLAZGO-027). Su `clickable` SÍ se apaga con la hoja expandida, y el comentario de
+     * `BottomSheet` dice literalmente que es *"para que la franja invisible de arriba de la hoja
+     * expandida no dibuje ni robe toques"*. **Al gesto de deslizar se le olvidó esa misma regla**:
+     * seguía vivo sobre una franja con alfa 0, y deslizar ahí — o un toque que se mueve unos píxeles —
+     * cambia de canción sin que nada visible lo explique.
+     */
+    gesturesEnabled: Boolean = true,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
 
@@ -885,7 +898,7 @@ fun AuraMiniPlayer(
     // ── Swipe to change track — the classic gesture, verbatim ─────────────────────────────────────
     val swipeThumbnailPref by rememberPreference(SwipeThumbnailKey, true)
     val swipeSensitivity by rememberPreference(SwipeSensitivityKey, 0.73f)
-    val swipeEnabled = swipeThumbnailPref && !isListenTogetherGuest
+    val swipeEnabled = swipeThumbnailPref && !isListenTogetherGuest && gesturesEnabled
     val offsetX = remember { Animatable(0f) }
     var dragStartTime by remember { mutableLongStateOf(0L) }
     var totalDrag by remember { mutableFloatStateOf(0f) }

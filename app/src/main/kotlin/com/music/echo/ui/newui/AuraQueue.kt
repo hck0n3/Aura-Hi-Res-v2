@@ -381,6 +381,12 @@ fun AuraQueue(
         state = state,
         modifier = modifier,
         background = { Box(Modifier.fillMaxSize().background(Color.Unspecified)) },
+        // 🔴 La barra colapsada de la cola es una BARRA DE BOTONES, no una superficie que se
+        // arrastra: contiene el único selector de salida de audio de la app, y el detector de arrastre
+        // del sheet le estaba robando los toques (dueño, 2026-09-17: *"el botón de cast cuesta que me
+        // funcione, tengo que tocarlo varias veces"*). No se pierde forma de abrirla — tocar la barra
+        // sigue expandiendo, y hay un botón de "cola" ahí mismo. Ver [BottomSheet.dragCollapsedContent].
+        dragCollapsedContent = false,
         // The docked strip is `QueuePeekHeight + navigation-bar inset` (AuraPlayer.kt sizes it and this
         // sheet's `dismissedBound` IS that number), so the bar must be MEASURED in the whole strip.
         // Measured in a fixed 64 dp box instead, its own bottom-inset padding was paid by the buttons:
