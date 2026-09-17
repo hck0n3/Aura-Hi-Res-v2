@@ -246,7 +246,7 @@ import iad1tya.echo.music.ui.component.rememberBottomSheetState
 import iad1tya.echo.music.ui.component.shimmer.ShimmerTheme
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.ui.newui.AuraGlobalActions
-import iad1tya.echo.music.ui.newui.AuraHomeFab
+import iad1tya.echo.music.ui.newui.LocalAuraHomeShortcut
 import iad1tya.echo.music.ui.newui.AuraNavBarHeight
 import iad1tya.echo.music.ui.newui.AuraNavigationBar
 import iad1tya.echo.music.ui.newui.AuraPalette
@@ -1656,7 +1656,27 @@ class MainActivity : ComponentActivity() {
                 val ringtoneViewModel: RingtoneViewModel = hiltViewModel()
                 val ringtoneUiState by ringtoneViewModel.uiState.collectAsState()
 
+                // 🔴 EL ATAJO A INICIO del minirreproductor (punto 1 del dueño, 2026-09-17).
+                //
+                // Se decide AQUÍ porque los dos datos que lo gobiernan viven aquí: la ruta actual y si
+                // la barra de abajo se dibuja. `null` = el botón no existe, y es lo que pasa en cuanto
+                // la barra vuelve a estar visible — *"el botón desaparece y el mini reproductor vuelve a
+                // la normalidad"*. La condición es **el mismo** `shouldShowNavigationBar` que esconde la
+                // barra, así que no hay ni un fotograma con dos botones de Inicio.
+                //
+                // `showRail` también lo apaga: en disposición ancha la navegación vive en el raíl
+                // lateral, que siempre está a la vista, y ahí el atajo no resuelve nada.
+                val auraHomeShortcut: (() -> Unit)? = remember(
+                    newUiShell, shouldShowNavigationBar, showRail, navController,
+                ) {
+                    if (newUiShell && !shouldShowNavigationBar && !showRail) {
+                        { navController.navigateAsTab(Screens.Home.route) }
+                    } else {
+                        null
+                    }
+                }
                 CompositionLocalProvider(
+                    LocalAuraHomeShortcut provides auraHomeShortcut,
                     LocalRingtoneViewModel provides ringtoneViewModel,
                     LocalDatabase provides database,
                     LocalContentColor provides if (pureBlack) Color.White else contentColorFor(MaterialTheme.colorScheme.surface),
@@ -2058,56 +2078,20 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    // ── Botón flotante de INICIO ─────────────────────────────────
-                                    // Petición del dueño (2026-09-17): *"un mini botón flotante con
-                                    // liquid glass y cristal interactivo para volver al inicio […] en
-                                    // todas las pantallas donde no se muestra la barra de abajo […] sin
-                                    // estar teniendo que darle para atrás muchas veces"*, con la
-                                    // condición de *"que este botón no vaya a interferir con el uso de
-                                    // la app"*. Las decisiones de forma y sitio están en [AuraHomeFab];
-                                    // lo que se decide AQUÍ es CUÁNDO existe, que es la mitad de esa
-                                    // condición:
+                                    // 🔴 EL ATAJO A INICIO SE MUDÓ AL MINIRREPRODUCTOR (punto 1 del
+                                    // dueño, 2026-09-17: *"ubicarlo dentro del mini reproductor al
+                                    // final de los controles, y que cuando aparezca el contenido se
+                                    // auto compacte de manera animada"*).
                                     //
-                                    //  · `!shouldShowNavigationBar` — exactamente el mismo valor que
-                                    //    esconde la barra, así que no hay ni un fotograma con las dos
-                                    //    cosas (dos botones de Inicio a la vez sería peor que ninguno);
-                                    //  · `newUiShell` — la interfaz clásica tiene su propia barra
-                                    //    flotante y meterle un círculo de cristal encima sería justo el
-                                    //    "reproductor flotante y sus botones flotantes" que ya rechazó;
-                                    //  · se va con la hoja del reproductor abierta (`progress`), donde
-                                    //    taparía la letra o la portada a pantalla completa;
-                                    //  · y sube por encima del minirreproductor cuando lo hay, en vez de
-                                    //    comerle una esquina.
+                                    // Aquí vivía un círculo flotante abajo a la izquierda. Se va
+                                    // entero: un botón dentro de la píldora no puede tapar contenido
+                                    // — es la razón por la que él lo pidió ahí — y además la píldora
+                                    // ya se esconde sola con el reproductor abierto, así que toda la
+                                    // lógica de cuándo ocultarlo desaparece con él.
                                     //
-                                    // Va FUERA de la caja de la barra a propósito: esa caja se desliza
-                                    // con `navSlideDistance` y arrastraría el botón fuera de pantalla en
-                                    // el único momento en que hace falta.
-                                    if (newUiShell) {
-                                        val miniPlayerLift = if (playerBottomSheetState.isDismissed) 0.dp else MiniPlayerHeight
-                                        AuraHomeFab(
-                                            onClick = {
-                                                if (playerBottomSheetState.isExpanded) {
-                                                    playerBottomSheetState.collapseSoft()
-                                                }
-                                                navController.navigateAsTab(Screens.Home.route)
-                                            },
-                                            visible = !shouldShowNavigationBar,
-                                            modifier = Modifier
-                                                .align(Alignment.BottomStart)
-                                                .padding(
-                                                    start = 16.dp,
-                                                    bottom = bottomInset + miniPlayerLift + 12.dp,
-                                                )
-                                                .graphicsLayer {
-                                                    // Se desvanece con la hoja: leído en el draw, no en
-                                                    // la composición, para no recomponer este shell una
-                                                    // vez por fotograma del gesto (HALLAZGO-027).
-                                                    alpha = (1f - playerBottomSheetState.progress * 3f)
-                                                        .coerceIn(0f, 1f)
-                                                },
-                                        )
-                                    }
-
+                                    // Lo único que queda en MainActivity es DECIDIR si existe, que es
+                                    // lo que sabe esta capa: ver [LocalAuraHomeShortcut], provisto
+                                    // más abajo junto al resto del cromo del shell.
                                     // IMMERSIVE: an opaque `baseBg` rectangle over the gesture-nav strip.
                                     // It cut the ambient bloom dead along the bottom edge of every new
                                     // screen. With the new shell the [AuraNavigationBar] already paints its

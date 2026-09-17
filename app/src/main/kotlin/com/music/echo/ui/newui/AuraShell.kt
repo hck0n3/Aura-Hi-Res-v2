@@ -9,7 +9,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -178,6 +180,25 @@ val AuraNavCapsuleInset: Dp = 6.dp
  * [AuraTopActions] draws nothing.
  */
 val LocalAuraTopActions = compositionLocalOf<(@Composable () -> Unit)?> { null }
+
+/**
+ * El atajo a INICIO que el minirreproductor dibuja al final de sus controles, o `null`.
+ *
+ * 🔴 Punto 1 del dueño (2026-09-17): *"botón flotante de inicio: ubicarlo dentro del mini reproductor
+ * al final de los controles, y que cuando aparezca el contenido se auto compacte de manera animada
+ * para mostrar el botón de inicio desde allí; y luego cuando uno esté donde la barra de abajo aparezca
+ * visible, el botón desaparece y el mini reproductor vuelve a la normalidad"*.
+ *
+ * Es un `CompositionLocal` y no un parámetro por una razón concreta: los dos datos que deciden si el
+ * botón existe — la ruta actual y si la barra de abajo se dibuja — viven en `MainActivity`, y el
+ * minirreproductor está tres composables más abajo (`BottomSheetPlayerHost` → `AuraPlayer` →
+ * `collapsedContent`). Enhebrar un parámetro por esos tres solo para esto añade tres firmas que nadie
+ * más usa; este local es el mismo patrón que [LocalAuraTopActions], que existe por lo mismo.
+ *
+ * `null` = no dibujar nada, y es el valor por defecto: con la barra de abajo visible ya hay un botón de
+ * Inicio ahí, y dos a la vez sería peor que ninguno.
+ */
+val LocalAuraHomeShortcut = compositionLocalOf<(() -> Unit)?> { null }
 
 /** Renders [LocalAuraTopActions], or nothing. Put it in `AuraScreenHeader(trailing = ...)`. */
 @Composable
@@ -354,82 +375,10 @@ fun AuraGlobalActions(
 @Composable
 private fun rememberShellScrollActive(): Boolean = ShellScrollBus.active.value
 
-/** Diámetro del botón flotante de inicio. Ver [AuraHomeFab]. */
-val AuraHomeFabSize: Dp = 44.dp
-
-/**
- * Botón flotante para VOLVER AL INICIO desde cualquier pantalla que no tenga la barra de abajo.
- *
- * 🔴 Petición del dueño (2026-09-17): *"un mini botón flotante con liquid glass y cristal interactivo
- * para volver al inicio, siempre, en todas las pantallas donde no se muestra la barra de abajo […]
- * para volver al inicio más rápido sin estar teniendo que darle para atrás muchas veces"*, con una
- * condición que manda sobre todo lo demás: *"y que este botón no vaya a interferir con el uso de la
- * app"*.
- *
- * Esa condición es la que fija cada decisión de aquí, porque un botón flotante mal puesto es una
- * trampa permanente encima del contenido:
- *
- *  - **Abajo a la IZQUIERDA.** La derecha de esa franja es donde viven el play/pausa del
- *    minirreproductor y los botones de acción de las pantallas de detalle. La izquierda, en cambio,
- *    solo tiene portada — y el minirreproductor entero es táctil, así que el botón se sube POR ENCIMA
- *    de él en vez de taparle un trozo.
- *  - **44 dp**, no los 56 de un FAB de Material: es un atajo, no la acción principal de ninguna
- *    pantalla, y al lado de un minirreproductor de 64 dp un círculo grande se lee como un error.
- *  - **Se va cuando estorbaría**: con la hoja del reproductor abierta (`visible = false`), y en las
- *    pantallas que ya no dibujan nada de este cromo. No se dibuja jamás donde la barra SÍ está — ahí
- *    ya hay un botón de Inicio y dos serían confusos.
- *  - **Sin etiqueta.** Un texto obligaría a una cápsula ancha, y ancho es exactamente lo que estorba.
- *
- * El cristal es el mismo que el resto del cromo: [liquidGlassInteractive] con forma de círculo cuando
- * el interruptor de cristal interactivo está encendido — la forma se le pasa a `drawBackdrop` porque
- * es quien coloca el borde de luz y la refracción (la lección de la fila 254, cuando el
- * minirreproductor salía con las esquinas cuadradas) — y una superficie sólida con filete cuando no,
- * para que en un teléfono sin cristal siga viéndose en vez de desaparecer sobre la portada.
- */
-@Composable
-fun AuraHomeFab(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    visible: Boolean = true,
-) {
-    val glassConfig = LocalGlassEffectConfig.current
-    val interactiveGlass = glassConfig.interactive && glassConfig.globalEnabled && isGlassSupported()
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(),
-        exit = fadeOut(),
-        modifier = modifier,
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(AuraHomeFabSize)
-                .clip(CircleShape)
-                .then(
-                    if (interactiveGlass) {
-                        Modifier.liquidGlassInteractive(
-                            config = glassConfig,
-                            shape = CircleShape,
-                            interactive = true,
-                        )
-                    } else {
-                        Modifier
-                            .background(AuraPalette.GroundRaised.copy(alpha = 0.92f), CircleShape)
-                            .border(1.dp, AuraPalette.OnGround.copy(alpha = 0.12f), CircleShape)
-                    },
-                ),
-        ) {
-            AuraIconButton(
-                icon = AuraIcons.Home,
-                contentDescription = stringResource(R.string.home),
-                onClick = onClick,
-                size = 20.dp,
-                tint = AuraPalette.OnGround.copy(alpha = 0.85f),
-            )
-        }
-    }
-}
-
+// 🔴 `AuraHomeFab` (el círculo flotante abajo a la izquierda) SE RETIRÓ el 2026-09-17: el dueño pidió
+// el atajo a Inicio *"dentro del mini reproductor al final de los controles"*, y un botón dentro de la
+// píldora no puede tapar contenido — que era la única preocupación real del círculo suelto. Lo que
+// queda de esa petición es [LocalAuraHomeShortcut] y la celda animada del final de los controles.
 
 @Composable
 fun AuraNavigationBar(
@@ -1228,6 +1177,33 @@ fun AuraMiniPlayer(
                     enabled = canSkipNext && !isListenTogetherGuest,
                     size = 22.dp,
                 )
+
+                // 🔴 INICIO, al final de los controles y solo donde la barra de abajo no está (punto 1
+                // del dueño, 2026-09-17). Ver [LocalAuraHomeShortcut] para por qué llega por un local.
+                //
+                // `AnimatedVisibility` con `expandHorizontally` es lo que da el *"que el contenido se
+                // auto compacte de manera animada"*: la columna del título lleva `weight(1f)`, así que
+                // cuando esta celda crece desde 0 el texto cede el ancho **animado** por el propio
+                // sistema de layout, sin un segundo animador que pueda desincronizarse del primero. Y
+                // al desaparecer el ancho vuelve solo: *"el mini reproductor vuelve a la normalidad"*.
+                val homeShortcut = LocalAuraHomeShortcut.current
+                AnimatedVisibility(
+                    visible = homeShortcut != null,
+                    enter = expandHorizontally() + fadeIn(),
+                    exit = shrinkHorizontally() + fadeOut(),
+                ) {
+                    AuraIconButton(
+                        icon = AuraIcons.Home,
+                        contentDescription = stringResource(R.string.home),
+                        // El valor se captura ARRIBA y no se lee aquí: `CompositionLocal.current` solo
+                        // existe en contexto composable, y este `onClick` es una lambda normal. Y
+                        // `?.invoke()` en vez de `!!` porque dentro de `AnimatedVisibility` el contenido
+                        // sobrevive a la salida mientras se anima, y ahí ya puede ser null.
+                        onClick = { homeShortcut?.invoke() },
+                        size = 20.dp,
+                        tint = AuraPalette.OnGround.copy(alpha = 0.85f),
+                    )
+                }
             }
         }
     }
