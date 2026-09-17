@@ -1339,4 +1339,8 @@
     <!-- Descarga automática por lista (punto 3 del dueño, 2026-09-17) -->
     <string name="auto_download_playlist">Download automatically</string>
     <string name="auto_download_playlist_desc">Keeps this playlist downloaded, including songs added later.</string>
+    <!-- Pedir música (punto 11 del dueño, 2026-09-17) -->
+    <string name="music_request_label">Ask for music</string>
+    <string name="music_request_hint">Something calm to study to…</string>
+    <string name="music_request_empty">Nothing came up for that. Try describing it another way.</string>
 </resources>
