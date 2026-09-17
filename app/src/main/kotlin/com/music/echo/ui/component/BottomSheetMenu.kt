@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -62,6 +62,7 @@ import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.ui.newui.shellGlass
 import iad1tya.echo.music.ui.newui.shellGlassStyle
+import iad1tya.echo.music.ui.newui.rememberAuraSheetMaxHeight
 
 val LocalMenuState = compositionLocalOf { MenuState() }
 
@@ -147,6 +148,7 @@ fun BottomSheetMenu(
                         detectTapGestures { focusManager.clearFocus(); state.dismiss() }
                     },
             ) {
+                val sheetMaxHeight = rememberAuraSheetMaxHeight()
                 androidx.compose.animation.AnimatedVisibility(
                     visible = visible,
                     enter = slideInVertically(animationSpec = tween(220)) { it } +
@@ -156,11 +158,15 @@ fun BottomSheetMenu(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .fillMaxHeight(fraction = 0.85f),
+                        // TOPE, no objetivo (dueño 2026-09-17: *"la ventana se desplaza muy alto y su
+                        // contenido es poco"*). Esto pedía `fillMaxHeight(0.85f)` y dentro un
+                        // `fillMaxSize()`: el 85 % de la pantalla SIEMPRE, tuviera el menú tres
+                        // opciones o treinta. Ver [rememberAuraSheetMaxHeight].
+                        .heightIn(max = sheetMaxHeight),
                 ) {
                     Column(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .fillMaxWidth()
                             // AUDIT P4: clip BEFORE the glass — a clip AFTER the hazeChild is
                             // interior (it trims the content, not the effect draw), leaving the
                             // panel with square top corners over a rounded-content sheet.
@@ -235,7 +241,8 @@ fun BottomSheetMenu(
                     ),
             )
         },
-        modifier = modifier.fillMaxHeight(),
+        // CLÁSICO: sin `fillMaxHeight()`, por el mismo motivo que la ruta de cristal de arriba.
+        modifier = modifier,
     ) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides premium) {
             Column(
