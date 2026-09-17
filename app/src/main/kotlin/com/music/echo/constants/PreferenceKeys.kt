@@ -162,6 +162,26 @@ val Defaults0127AppliedKey = booleanPreferencesKey("defaults_0_6_127_applied")
 // the user's later choices win forever after.
 val LiquidGlassHighTierV1AppliedKey = booleanPreferencesKey("liquid_glass_high_tier_v1_applied")
 
+// 🔴 ORDEN DEL DUEÑO (2026-09-17): *"en los dispositivos que la app detecte que son de gama alta y
+// puedan mover bien el liquid glass y la función de cristal interactivo, que lo active por defecto para
+// que tenga la mejor experiencia visual"*.
+//
+// CLAVE FRESCA, y hace falta que lo sea: [LiquidGlassHighTierV1AppliedKey] ya está marcada en todo el
+// mundo que actualizó desde 0.6.127, así que colgar el cristal interactivo de aquella nunca se
+// ejecutaría — un flag ya puesto (o subir el versionCode) jamás vuelve a correr una migración. Es la
+// misma lección escrita tres veces más arriba en este archivo.
+//
+// Enciende DOS cosas, y las dos hacen falta para que se vea algo: el maestro de Liquid Glass y el
+// cristal interactivo. La fila del interactivo está deshabilitada mientras el maestro esté apagado, así
+// que escribir solo una sería un ajuste que promete y no dibuja.
+//
+// Se evalúa sobre el hardware REAL de este teléfono con el mismo test que la migración de 0.6.127
+// (`isGlassEligible` + tier HIGH), reutilizado a propósito: dos criterios distintos para "gama alta"
+// acabarían dejando encendido el maestro y apagado el interactivo, o al revés. Una sola vez, y a partir
+// de ahí manda siempre lo que el usuario elija.
+val LiquidGlassInteractiveHighTierV1AppliedKey =
+    booleanPreferencesKey("liquid_glass_interactive_high_tier_v1_applied")
+
 // 0.6.148 — UNDO the mini-player half of the order above, once, with a FRESH key (a set flag or a
 // versionCode bump alone never re-runs a one-time migration).
 //

@@ -513,6 +513,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             settings[iad1tya.echo.music.constants.CrossfadeDefault9AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.Defaults0127AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.LiquidGlassHighTierV1AppliedKey] != true ||
+            settings[iad1tya.echo.music.constants.LiquidGlassInteractiveHighTierV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.MiniPlayerGlassUndoV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.MiniPlayerBlurDefaultV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.MiniPlayerGlowDefaultV1AppliedKey] != true ||
@@ -1028,6 +1029,37 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 // and forcing LIQUID_GLASS onto the mini was the complaint MiniPlayerGlassUndoV1 undoes.
             }
             p[iad1tya.echo.music.constants.LiquidGlassHighTierV1AppliedKey] = true
+        }
+
+        // 🔴 ORDEN DEL DUEÑO (2026-09-17): en gama alta, Liquid Glass Y "Cristal interactivo" encendidos
+        // de fábrica, "para que tenga la mejor experiencia visual".
+        //
+        // CLAVE FRESCA a propósito: la de arriba ya está marcada en todo el que actualizó desde 0.6.127,
+        // así que colgar esto de ella no se ejecutaría nunca. Misma lección que MiniPlayerGlassUndoV1.
+        //
+        // Se escriben las DOS claves. El maestro también, aunque la migración de arriba ya lo encendiera
+        // en su día: quien la pasó en un teléfono de gama media y hoy está en uno de gama alta tiene el
+        // flag puesto y el maestro apagado, y escribir solo el interactivo le dejaría un ajuste encendido
+        // que no dibuja nada (la fila depende del maestro). Los tres interruptores por componente ya
+        // vienen en `true` por defecto, así que con estos dos basta para que se vea.
+        //
+        // MISMO test que la migración de arriba, reutilizado literalmente en vez de reescrito: dos
+        // definiciones de "gama alta" acabarían encendiendo una cosa y no la otra.
+        if (settings[iad1tya.echo.music.constants.LiquidGlassInteractiveHighTierV1AppliedKey] != true) {
+            val glassHigh = runCatching {
+                iad1tya.echo.music.ui.component.isGlassEligible(this@App) &&
+                    iad1tya.echo.music.utils.PerformanceMode.effectiveTier(this@App) ==
+                    iad1tya.echo.music.utils.DeviceTier.HIGH
+            }.getOrDefault(false)
+            if (glassHigh) {
+                p[iad1tya.echo.music.constants.LiquidGlassGlobalEnabledKey] = true
+                p[iad1tya.echo.music.constants.LiquidGlassInteractiveKey] = true
+            }
+            // El flag se marca SIEMPRE, también cuando el teléfono no es de gama alta: si no, cada
+            // arranque volvería a evaluar la capacidad del dispositivo y a escribir en DataStore para
+            // nada. Y marcarlo NO le cierra la puerta a nadie — el interruptor sigue en
+            // Ajustes ▸ Apariencia ▸ Liquid Glass y lo que el usuario elija manda desde ese momento.
+            p[iad1tya.echo.music.constants.LiquidGlassInteractiveHighTierV1AppliedKey] = true
         }
 
         // Owner order (0.6.130): the forced Respiro profundo default (0.6.127) has a BY-DESIGN -12dB
