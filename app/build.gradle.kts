@@ -231,19 +231,20 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1008
-        // BETA 2.0.47 (orden del dueño 2026-09-17: *"todos estos cambios al final los quiero en una
-        // beta para probarla y ver si me decido a lanzar todos esos cambios luego como una
-        // actualización global"*).
+        versionCode = 1009
+        // ESTABLE 2.0.48 — PARA TODOS (orden del dueño 2026-09-17: *"quiero que lances la estable
+        // para todos los usuarios, pero hasta que corrijas que sí o sí, sin importar dónde esté, el
+        // botón de inicio del mini reproductor tiene que mandarlo a la pantalla de inicio"*).
         //
-        // El nombre de versión es "2.0.47" LIMPIO y lo que marca la beta es el TAG (`v2.0.47-beta4`,
-        // que el workflow publica como prerelease). No al revés, y el motivo es una trampa real:
-        // `compareVersions` parte por puntos y hace `toIntOrNull()`, así que "2.0.47-beta4" se lee
-        // como 2.0.0 — con ese nombre instalado, el 2.0.43 estable de `releases/latest` saldría como
-        // "actualización disponible" y le estaría ofreciendo BAJAR de versión una y otra vez.
-        // Con el nombre limpio, 2.0.43 < 2.0.47 y no se le ofrece nada; y como GitHub excluye las
-        // prereleases de `releases/latest`, a ningún otro usuario le llega la beta.
-        versionName = "2.0.47"
+        // Recoge las cuatro betas (2.0.44-beta1 … 2.0.47-beta4). El nombre de versión sigue LIMPIO,
+        // que aquí ya no es una precaución sino el caso normal: `compareVersions` parte por puntos y
+        // hace `toIntOrNull()`, así que cualquier sufijo se leería como 2.0.0 y al usuario le saldría
+        // una "actualización" que en realidad le baja de versión. Con el nombre limpio, 2.0.43 <
+        // 2.0.48 y la actualización se ofrece como lo que es.
+        //
+        // Esta SÍ entra en `releases/latest`, o sea que le llega a todo el mundo: el tag va sin
+        // `-beta` a propósito.
+        versionName = "2.0.48"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

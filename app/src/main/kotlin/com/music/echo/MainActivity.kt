@@ -246,6 +246,7 @@ import iad1tya.echo.music.ui.component.rememberBottomSheetState
 import iad1tya.echo.music.ui.component.shimmer.ShimmerTheme
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.ui.newui.AuraGlobalActions
+import iad1tya.echo.music.ui.newui.HomeShortcut
 import iad1tya.echo.music.ui.newui.LocalAuraHomeShortcut
 import iad1tya.echo.music.ui.newui.AuraNavBarHeight
 import iad1tya.echo.music.ui.newui.AuraNavigationBar
@@ -1670,25 +1671,7 @@ class MainActivity : ComponentActivity() {
                     newUiShell, shouldShowNavigationBar, showRail, navController,
                 ) {
                     if (newUiShell && !shouldShowNavigationBar && !showRail) {
-                        {
-                            // 🔴 DIAGNÓSTICO DEL ATAJO (dueño, 2026-09-17: *"cuando entro a los álbum,
-                            // playlist la casita del mini reproductor no funciona"*).
-                            //
-                            // Con el escudo de toques de la píldora ya puesto (fila 283), si el botón
-                            // sigue sin responder solo quedan dos culpables, y esta línea los separa
-                            // en un toque: si NO aparece, el toque no llegó (gesto); si aparece con
-                            // `now=` igual a `from=`, el toque llegó y la navegación se descartó.
-                            //
-                            // Regla 4 de AGENTS: se registra el NOMBRE DE PANTALLA (lo de antes de la
-                            // barra), nunca la ruta entera — "album/OLAK5uy..." lleva el id de lo que
-                            // él estaba escuchando, y eso es dato suyo.
-                            val from = navController.currentDestination?.route?.substringBefore('/')
-                            navController.navigateAsTab(Screens.Home.route)
-                            val now = navController.currentDestination?.route?.substringBefore('/')
-                            Timber.tag("AuraShell").i(
-                                "HOME_SHORTCUT tap from=%s now=%s", from ?: "none", now ?: "none",
-                            )
-                        }
+                        { navController.goHomeAlways() }
                     } else {
                         null
                     }
@@ -3051,6 +3034,53 @@ private const val SCROLL_HAPTIC_THROTTLE_MS = 100L
  * raw today and will poison the same saved deque; they must route through here rather than re-type the
  * options and get one of the three wrong.
  */
+/**
+ * 🔴 A INICIO, SÍ O SÍ (dueño, 2026-09-17: *"sin importar dónde esté, el botón de inicio del mini
+ * reproductor tiene que mandarlo a la pantalla de inicio sí o sí"*).
+ *
+ * El atajo llamaba directamente a [navigateAsTab], y eso es UN intento: si ese intento no cambia de
+ * pantalla, el botón se queda muerto y él se queda mirándolo — que es exactamente lo que reportó en
+ * álbum y playlist. Aquí hay una escalera de tres peldaños y el último no puede fallar; las reglas de
+ * cuándo pasar al siguiente están en [HomeShortcut], aparte y con pruebas.
+ *
+ * Por qué [navigateAsTab] solo no basta: hace `popUpTo(graph.startDestinationId)`, y **el destino
+ * inicial del grafo no siempre es Inicio** — lo elige su ajuste de "pestaña al abrir", así que con
+ * Biblioteca como pestaña de arranque la operación no es la que parece. Y `restoreState = true`
+ * restaura una pila guardada que puede volver a dejarle en una pantalla interior. El peldaño de
+ * `popBackStack` cubre el caso normal sin depender de nada de eso, y el de forzar cubre el resto.
+ *
+ * Cada llamada envuelta en `runCatching`: una excepción del navegador en el peldaño 2 no puede
+ * impedir que corra el 3. Un botón que no hace nada es el fallo que estamos arreglando.
+ *
+ * El registro (una línea por toque, con NOMBRE DE PANTALLA y nunca la ruta entera — regla 4 de
+ * AGENTS: "album/OLAK5uy…" lleva el id de lo que estaba escuchando) dice en qué peldaño se resolvió,
+ * que es lo único que hace falta si algún día vuelve a fallar.
+ */
+internal fun NavController.goHomeAlways() {
+    val home = Screens.Home.route
+    val from = currentDestination?.route
+    if (!HomeShortcut.needsNavigation(from, home)) {
+        Timber.tag("AuraShell").i("HOME_SHORTCUT tap from=%s step=already", HomeShortcut.screenName(from))
+        return
+    }
+    val popped = runCatching { popBackStack(home, inclusive = false) }.getOrDefault(false)
+    if (!popped) {
+        runCatching { navigateAsTab(home) }
+    }
+    val forced = HomeShortcut.forceNeeded(currentDestination?.route, home)
+    if (forced) {
+        // Último recurso: a pelo. Puede dejar una entrada de más en la pila, y eso es infinitamente
+        // preferible a un botón que no hace nada.
+        runCatching { navigate(home) { launchSingleTop = true } }
+    }
+    Timber.tag("AuraShell").i(
+        "HOME_SHORTCUT tap from=%s step=%s now=%s",
+        HomeShortcut.screenName(from),
+        if (forced) "forced" else if (popped) "pop" else "tab",
+        HomeShortcut.screenName(currentDestination?.route),
+    )
+}
+
 internal fun NavController.navigateAsTab(route: String) {
     navigate(route) {
         popUpTo(graph.startDestinationId) {

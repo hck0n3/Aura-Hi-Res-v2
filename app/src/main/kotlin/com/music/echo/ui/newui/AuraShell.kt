@@ -63,6 +63,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -1199,6 +1201,9 @@ fun AuraMiniPlayer(
                     AuraIconButton(
                         icon = AuraIcons.Home,
                         contentDescription = stringResource(R.string.home),
+                        // 🔴 SÍ O SÍ (dueño, 2026-09-17). Ver [unstealableClick]: este botón no se
+                        // fía del `clickable` de dentro, se queda el gesto en la pasada INICIAL.
+                        modifier = Modifier.unstealableClick { homeShortcut?.invoke() },
                         // El valor se captura ARRIBA y no se lee aquí: `CompositionLocal.current` solo
                         // existe en contexto composable, y este `onClick` es una lambda normal. Y
                         // `?.invoke()` en vez de `!!` porque dentro de `AnimatedVisibility` el contenido
@@ -1210,6 +1215,48 @@ fun AuraMiniPlayer(
                 }
             }
         }
+    }
+}
+
+/**
+ * 🔴 UN TOQUE QUE NO SE LO PUEDE ROBAR NADIE (dueño, 2026-09-17: *"sin importar dónde esté, el botón
+ * de inicio del mini reproductor tiene que mandarlo a la pantalla de inicio sí o sí"*).
+ *
+ * [shieldTapsFromAncestorDrags] ya impide que los dos arrastres ancestros reclamen el gesto, y con eso
+ * debería bastar. Esto es el cinturón encima de los tirantes, porque él pidió "sí o sí" y porque el
+ * escudo depende de un detalle del reparto de eventos (la pasada Main va de dentro hacia fuera) que yo
+ * no puedo verificar aquí sin un dispositivo.
+ *
+ * Aquí el botón se queda el gesto en la pasada **INICIAL**, que va de fuera hacia dentro y llega antes
+ * que cualquier detector: consume desde el primer evento, así que ni el arrastre de la hoja, ni el de
+ * cambiar canción, ni el `clickable` de la píldora pueden verlo siquiera. Y dispara al **levantar el
+ * dedo dentro del botón**, sin exigir que no se haya movido — que es justo lo que hacía fallar al
+ * `clickable` normal cuando el dedo rodaba unos píxeles.
+ *
+ * El `clickable` de dentro de [AuraIconButton] se queda: ya no recibe el toque (llega consumido), pero
+ * sigue siendo el que aporta la semántica de accesibilidad, y TalkBack invoca esa acción, no el gesto.
+ * Los dos caminos llaman a lo mismo, y `goHomeAlways` no hace nada si ya estamos en Inicio, así que un
+ * doble disparo sería inofensivo.
+ */
+private fun Modifier.unstealableClick(onClick: () -> Unit): Modifier = pointerInput(onClick) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        down.consume()
+        var released: PointerInputChange? = null
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            event.changes.forEach { it.consume() }
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            if (!change.pressed) {
+                released = change
+                break
+            }
+        }
+        val up = released ?: return@awaitEachGesture
+        // Levantar fuera del botón es cancelar, como en cualquier botón del sistema.
+        val inside = up.position.x >= 0f && up.position.y >= 0f &&
+            up.position.x <= size.width && up.position.y <= size.height
+        if (inside) onClick()
     }
 }
 
