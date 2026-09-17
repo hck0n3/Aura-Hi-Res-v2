@@ -260,6 +260,27 @@ fun AuraLocalPlaylistScreen(
         }
     }
 
+    // 🔴 DESCARGA AUTOMÁTICA POR LISTA (punto 3 del dueño, 2026-09-17).
+    //
+    // Tercero de los tres momentos en que "qué debería estar descargado" puede haber cambiado: al
+    // encender el interruptor, al terminar una sincronización, y aquí — abrir la lista después de
+    // haberle añadido canciones. Cubre las añadidas por CUALQUIER camino (el menú de una canción, el
+    // de varias, la importación de Spotify/Tidal/Deezer, la generación con IA, arrastrar aquí mismo)
+    // sin que ninguno de esos sitios tenga que acordarse de nada: el reconciliador es idempotente y,
+    // con el interruptor apagado, cuesta una sola consulta. Ver [PlaylistAutoDownload].
+    //
+    // Depende de `songs` a propósito y no de `Unit`: añadir una canción cambia esa lista, así que
+    // vuelve a correr sin necesidad de salir y entrar.
+    LaunchedEffect(songs, playlist?.playlist?.autoDownload) {
+        if (playlist?.playlist?.autoDownload == true) {
+            iad1tya.echo.music.playback.PlaylistAutoDownload.reconcile(
+                context = context,
+                database = database,
+                stateById = downloadUtil.downloads.value.mapValues { it.value.state },
+            )
+        }
+    }
+
     var downloadState by remember { mutableIntStateOf(Download.STATE_STOPPED) }
     LaunchedEffect(songs) {
         mutableSongs.apply {

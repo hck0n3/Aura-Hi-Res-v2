@@ -1225,4 +1225,7 @@
     <string name="sync_channel_name">Sincronización de biblioteca</string>
     <string name="sync_notification_title">Sincronizando tu biblioteca</string>
     <string name="sync_notification_text">Poniendo Aura y tu cuenta de YouTube Music al día. Puedes cerrar la app.</string>
+    <!-- Descarga automática por lista (punto 3 del dueño, 2026-09-17) -->
+    <string name="auto_download_playlist">Descargar automáticamente</string>
+    <string name="auto_download_playlist_desc">Mantiene esta lista descargada, incluidas las canciones que añadas después.</string>
 </resources>

@@ -47,6 +47,10 @@ class YtmSyncWorker(
     interface YtmSyncEntryPoint {
         fun syncUtils(): SyncUtils
         fun libraryUploadSync(): LibraryUploadSync
+
+        /** Para la descarga automática por lista — ver el final de [doWork]. */
+        fun database(): iad1tya.echo.music.db.MusicDatabase
+        fun downloadUtil(): iad1tya.echo.music.playback.DownloadUtil
     }
 
     /**
@@ -145,6 +149,18 @@ class YtmSyncWorker(
             // sincronización completa de una que el sistema cortó a los diez minutos — que es justo la
             // diferencia que había que demostrar.
             Timber.tag(TAG).i("SYNC_DONE type=$type tookMs=${System.currentTimeMillis() - startedAt}")
+            // 🔴 DESCARGA AUTOMÁTICA POR LISTA (punto 3 del dueño, 2026-09-17). Una sincronización
+            // es justo como entran las canciones que él añadió desde OTRO aparato, así que es uno de los
+            // tres momentos en que la respuesta a "qué debería estar descargado" puede haber cambiado.
+            // El reconciliador es idempotente y, si ninguna lista tiene el interruptor puesto, cuesta
+            // una sola consulta. Ver [iad1tya.echo.music.playback.PlaylistAutoDownload].
+            runCatching {
+                iad1tya.echo.music.playback.PlaylistAutoDownload.reconcile(
+                    context = ctx,
+                    database = entryPoint.database(),
+                    stateById = entryPoint.downloadUtil().downloads.value.mapValues { it.value.state },
+                )
+            }.onFailure { Timber.tag(TAG).w(it, "auto-download reconcile failed") }
             Result.success()
         } catch (e: CancellationException) {
             throw e
