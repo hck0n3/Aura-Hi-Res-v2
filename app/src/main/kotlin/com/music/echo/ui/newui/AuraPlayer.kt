@@ -200,6 +200,7 @@ import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceTier
 import iad1tya.echo.music.utils.isLocalMediaId
+import iad1tya.echo.music.utils.shareSong
 import iad1tya.echo.music.utils.makeTimeString
 import iad1tya.echo.music.utils.needsOnlineBrowseResolution
 import iad1tya.echo.music.utils.rememberDeviceThrottle
@@ -1611,7 +1612,15 @@ private fun AuraPlayerShape(
                 //
                 // FIVE: like, no me gusta, añadir a playlist, descargar, lupa. Biblioteca removed by
                 // owner (still in [AuraPlayerMenu]); lupa is the more useful fifth slot.
-                // Compartir / Ecualizador / Vídeo live in [AuraQueueBar]'s bottom row instead.
+                // Ecualizador / Vídeo live in [AuraQueueBar]'s bottom row instead.
+                //
+                // COMPARTIR, el sexto (dueño, 2026-09-17: *"en el reproductor en pantalla completa
+                // necesito el botón de compartir"*, con la condición expresa de *"no vayas a dañar el
+                // diseño del reproductor ni dañar la estética agregando el botón"*). Por eso entra AQUÍ
+                // y no como chrome nuevo: es un glifo más, del mismo tamaño, con el mismo tinte y el
+                // mismo foco de TV que los otros cinco, en una fila que ya reparte el ancho sola
+                // (SpaceEvenly) — no hay color nuevo, ni fondo nuevo, ni nada que se mueva de sitio.
+                // Compartir seguía existiendo solo dentro del menú “Más”, a dos toques.
                 Spacer(Modifier.height(if (dense) 2.dp else 6.dp))
                 val liked = currentSong?.song?.liked == true
                 val quickAccessGlyph = if (dense) 20.dp else 22.dp
@@ -1778,6 +1787,29 @@ private fun AuraPlayerShape(
                                         state.collapseSoft()
                                     },
                                     isListenTogetherGuest = isListenTogetherGuest,
+                                )
+                            }
+                        },
+                        size = quickAccessGlyph,
+                        tint = AuraPalette.OnGround.copy(alpha = 0.7f),
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                    )
+                    AuraIconButton(
+                        icon = AuraIcons.Share,
+                        contentDescription = stringResource(R.string.share),
+                        onClick = {
+                            coroutineScope.launch {
+                                // Mismo cuerpo que el menú “Más” (local → exportado → enlace): una sola
+                                // implementación, para que no acaben compartiendo cosas distintas.
+                                shareSong(
+                                    context = context,
+                                    songId = meta.id,
+                                    title = meta.title,
+                                    artists = meta.artists.map { it.name },
+                                    isLocalTrack = isLocalTrack,
+                                    isExported = exportedSongIds.split(',').any { it.trim() == meta.id } ||
+                                        exportedVideoIds.split(',').any { it.trim() == meta.id },
+                                    isExportedVideo = exportedVideoIds.split(',').any { it.trim() == meta.id },
                                 )
                             }
                         },

@@ -1394,6 +1394,21 @@ class MusicService :
         get() = playbackState.videoModeIsMuxedPodcast
         set(value) { playbackState.videoModeIsMuxedPodcast = value }
 
+    // ÚLTIMO FALLO DE VIDEO, para que el ECO no se disfrace de audio corrupto.
+    //
+    // Un `MergingMediaSource` (video-only + audio) reporta el mismo 3003 DOS veces, con ~200 ms entre
+    // medias. El primero se reconocía como fallo de video y limpiaba `_videoMode`/`videoModeMediaId`/
+    // `videoModeItems` — y el segundo, ya sin ese estado, entraba por la rama de CONTENEDOR CORRUPTO y
+    // ejecutaba `performAggressiveCacheClear` sobre los bytes BUENOS del audio, encadenando 2000 →
+    // reintentos → canción saltada (registro del dueño 2026-09-16, 20:29:27–38, `f6f0dqs4Ax4`; el
+    // `io_unspecified (2000)` que él ve en pantalla es el último eslabón, no la causa).
+    // La ventana la decide [VideoFormatFallback.stillVideoFailure].
+    @Volatile
+    private var lastVideoFailureId: String? = null
+
+    @Volatile
+    private var lastVideoFailureAtMs: Long = 0L
+
     internal var userHasUsedVideo: Boolean
         get() = playbackState.userHasUsedVideo
         set(value) { playbackState.userHasUsedVideo = value }
@@ -7297,12 +7312,26 @@ class MusicService :
             videoModeOn = _videoMode.value,
             videoModeMediaId = videoModeMediaId,
             isTrackedVideoItem = mediaId != null && videoCoordinator.videoModeItems.containsKey(mediaId)
-        )
+        ) ||
+            // El eco del mismo fallo, ya con el estado de video limpiado. Ver [lastVideoFailureId].
+            VideoFormatFallback.stillVideoFailure(
+                mediaId = mediaId,
+                lastVideoFailureId = lastVideoFailureId,
+                lastVideoFailureAtMs = lastVideoFailureAtMs,
+                nowMs = System.currentTimeMillis(),
+            )
         if (isVideoFailure) {
             if (mediaId != null) {
+                lastVideoFailureId = mediaId
+                lastVideoFailureAtMs = System.currentTimeMillis()
                 videoUrlCache.remove(mediaId)
                 videoCoordinator.newPipeMuxedVideoIds.remove(mediaId)
                 resetRetryCount(mediaId)
+                // ESCALERA DE FORMATOS antes que rendirse: el audio de esta canción está perfecto, lo
+                // único roto es el contenedor del video, así que se prueba OTRO formato (otro itag →
+                // InnerTube → muxed 22/18) mientras el audio sigue sonando. Solo cuando no queda ningún
+                // peldaño se vuelve a audio — y ni siquiera entonces se salta la canción.
+                if (videoCoordinator.retryVideoWithAnotherFormat(mediaId)) return
             }
             exitVideoMode()
             Toast.makeText(this, "Video no disponible — volviendo a audio", Toast.LENGTH_SHORT).show()
@@ -10218,14 +10247,28 @@ class MusicService :
     /**
      * AIMP-style smooth entry: wait until audio is actually rendering, then a short ~400ms sine ramp
      * so the skip is not a slam. Owner: songs were taking too long to start — the old 1.6s quieterstep
-     * swell (first quarter almost silent) felt like the track had not begun. Volume-only. The finally
-     * ALWAYS restores the exact user volume (mute-aware), so a cancelled ramp can never strand it low.
+     * swell (first quarter almost silent) felt like the track had not begun. Volume-only.
+     *
+     * 🔴 2026-09-17 — *"a veces las canciones inician cortadas cuando cambio a mano, y en Android
+     * Auto también"*. Eran DOS agujeros de esta función, los dos con el volumen como víctima; el
+     * razonamiento completo y los umbrales están en [ManualFadeIn]:
+     *
+     *  - la espera muda miraba `isPlaying`, que es FALSO mientras el foco está suprimido (ducking, un
+     *    aviso del coche) aunque ya esté saliendo audio, y aguantaba hasta 8 s con el volumen en 0 —
+     *    hasta ocho segundos de canción sonando a cero, y encima al agotarse rampaba desde cero otra
+     *    vez. Ahora mira el estado real y la espera muda dura poco más de un segundo; si se agota se
+     *    devuelve el volumen ENTERO de golpe, porque perder el fundido es mejor que perder la entrada;
+     *  - la rampa cortaba con `if (isCrossfading) break` y el `finally` restauraba solo
+     *    `if (!isCrossfading)`: la MISMA condición, así que un crossfade encima dejaba el volumen
+     *    clavado en el escalón que tocara. Ahora se restaura siempre (salvo que una entrada más nueva
+     *    ya sea la dueña del volumen); el crossfade fija el suyo en su primer tic, así que no le quita
+     *    nada.
      */
     private fun fadeInOnManualChange() {
         manualFadeInJob?.cancel()
         if (!::playerVolume.isInitialized) return
-        val target = if (isMuted.value) 0f else playerVolume.value
-        if (target <= 0f) return
+        if (!ManualFadeIn.worthFading(isMuted.value, playerVolume.value)) return
+        val target = playerVolume.value
         lateinit var self: Job
         self = scope.launch {
             try {
@@ -10233,23 +10276,34 @@ class MusicService :
                 // WAIT for the audio to actually RENDER before ramping (bounded): a wall-clock ramp from
                 // the transition callback finished into SILENCE and the real audio then slammed in.
                 var waited = 0L
-                while (isActive && waited < 8_000L &&
-                    !(player.isPlaying && player.playbackState == Player.STATE_READY)
+                while (isActive &&
+                    ManualFadeIn.shouldKeepWaiting(
+                        waitedMs = waited,
+                        audible = ManualFadeIn.audible(
+                            ready = player.playbackState == Player.STATE_READY,
+                            playWhenReady = player.playWhenReady,
+                        ),
+                    )
                 ) {
-                    delay(40)
-                    waited += 40
+                    delay(ManualFadeIn.WAIT_POLL_MS)
+                    waited += ManualFadeIn.WAIT_POLL_MS
                 }
-                if (!isActive || !player.isPlaying) return@launch
+                // Se agotó la espera: la canción ya lleva sonando un rato y rampar desde cero AHORA es
+                // exactamente el corte del que se queja. El `finally` devuelve el volumen entero.
+                if (!isActive ||
+                    !ManualFadeIn.audible(
+                        ready = player.playbackState == Player.STATE_READY,
+                        playWhenReady = player.playWhenReady,
+                    )
+                ) {
+                    return@launch
+                }
                 // Audible on the first step (~−12 dB), full level in ~400ms. Equal-power sine, no
                 // smootherstep hold-at-silence.
-                val steps = 16
-                val stepTime = 400L / steps
-                for (i in 1..steps) {
-                    if (!isActive || isCrossfading) break
-                    val p = i / steps.toFloat()
-                    val floor = 0.25f
-                    player.volume = target * (floor + (1f - floor) *
-                        kotlin.math.sin(p * (Math.PI / 2.0).toFloat()))
+                val stepTime = ManualFadeIn.RAMP_MS / ManualFadeIn.STEPS
+                for (i in 1..ManualFadeIn.STEPS) {
+                    if (!isActive) break
+                    player.volume = target * ManualFadeIn.stepGain(i)
                     delay(stepTime)
                 }
             } finally {
@@ -10258,8 +10312,12 @@ class MusicService :
                     // IDENTITY guard: on rapid skips a NEWER fade may already own the volume (it just set
                     // 0f); a cancelled older job restoring FULL volume after that would kill the new
                     // fade-in. Only the job still registered as current restores.
-                    if (manualFadeInJob === self && !isCrossfading && ::playerVolume.isInitialized) {
-                        player.volume = if (isMuted.value) 0f else playerVolume.value
+                    if (::playerVolume.isInitialized) {
+                        ManualFadeIn.finalVolume(
+                            isCurrentJob = manualFadeInJob === self,
+                            muted = isMuted.value,
+                            userVolume = playerVolume.value,
+                        )?.let { player.volume = it }
                     }
                 }
             }
@@ -11085,7 +11143,20 @@ class MusicService :
             val durOut = CrossfadePlanning.outgoingFadeDurationMs(configured, fpRemaining)
             val durIn = configured
             val curve = try { dataStore.get(CrossfadeCurveKey, 4) } catch (e: Exception) { 4 }
-            val startVolume = try { fadingPlayer?.volume ?: 1f } catch(e:Exception) { 1f }
+            // NIVEL BASE DEL BLEND = el volumen DEL USUARIO, no el que tuviera el reproductor saliente.
+            //
+            // Leía `fadingPlayer.volume`, y ese valor podía venir de una rampa de entrada manual
+            // abandonada a medias (ver [fadeInOnManualChange]): entonces las DOS rampas se escalaban por,
+            // digamos, 0.3, y la canción ENTRANTE sonaba a un tercio durante toda la mezcla — el "empieza
+            // cortada" pegándose de una canción a la siguiente. El volumen del usuario es lo que ese
+            // `fadingPlayer.volume` pretendía leer siempre; ahora se lee de donde vive de verdad.
+            val startVolume = try {
+                if (::playerVolume.isInitialized) {
+                    if (isMuted.value) 0f else playerVolume.value
+                } else {
+                    fadingPlayer?.volume ?: 1f
+                }
+            } catch (e: Exception) { 1f }
             // Because LUFS Normalization is fixed and active, tracks play at roughly -14 LUFS,
             // leaving massive natural headroom. Thus, two tracks summing during an equal-power crossfade
             // will NEVER clip the Android mixer (they'll sum to ~-11 LUFS). We can safely remove the

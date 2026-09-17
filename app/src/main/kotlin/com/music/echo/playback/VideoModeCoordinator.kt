@@ -88,6 +88,21 @@ class VideoModeCoordinator(private val service: MusicService) {
     // Ids with a video-URL resolve currently in flight (dedupe; cleared in a finally / on exit).
     private val prebuildingIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
+    // ESCALERA DE FORMATOS (registro del dueño 2026-09-16, `f6f0dqs4Ax4`). El modo video elegía
+    // itag 136, el contenedor no se dejaba leer (`NoDeclaredBrand`) y los tres reintentos pedían
+    // EXACTAMENTE el mismo itag — tres veces el mismo intento — hasta que la canción se saltaba. Estos
+    // tres mapas son la memoria que faltaba: qué formato está puesto, cuáles ya reventaron y por qué
+    // peldaño de [VideoFormatFallback] vamos. Las EXCLUSIONES duran toda la sesión (un itag que no se
+    // deja leer hoy no se va a dejar leer dentro de tres canciones); el contador de intentos se
+    // reinicia al salir de modo video, para que volver a entrar empiece la escalera de nuevo pero ya
+    // sin los formatos malos.
+    private val videoItagForId = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    internal val excludedVideoItags = java.util.concurrent.ConcurrentHashMap<String, Set<Int>>()
+    private val videoFormatAttempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /** Ids con un peldaño de la escalera en marcha: el eco del mismo fallo no arranca un segundo. */
+    private val videoFallbackInFlight = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
     /** One re-prepare per [mediaId] when video stalls in BUFFERING/IDLE (debounced). */
     private val videoStuckRecoveryAttemptedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
     internal var videoStuckRecoveryJob: Job? = null
@@ -365,64 +380,144 @@ class VideoModeCoordinator(private val service: MusicService) {
         }
         service.scope.launch(Dispatchers.IO) {
             val maxH = videoModeMaxHeight
-            var url: String? = null
-            var muxed = false
-            var innerTubeResult: Result<String>? = null
-            // FAST PATH FIRST — the music↔video toggle used to sit here while the burned InnerTube
-            // client class chewed through its multi-client resolve budget and only THEN fell back to
-            // the extractor. PipePipe (SimpMusic's own provider, ANDROID_VR extraction) is NOT burned,
-            // returns adaptive video-only formats and answers in one extraction call — mirroring the
-            // audio path, where the extractor is already the primary URL source. InnerTube remains as
-            // fallback for devices where it still works.
-            val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(id, service.connectivityManager, maxH).getOrNull()
-            if (picked != null && !picked.first.isNullOrEmpty()) {
-                url = picked.first
-                muxed = VideoModePlanning.muxedFlagAfterResolve(fromPipePipe = true, pipePipeMuxed = picked.second)
-                if (muxed) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
-                Timber.tag(MusicService.TAG).i("Video mode: resolved via PipePipe adaptive muxed=$muxed (fast path)")
-            } else {
-                var result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, service.connectivityManager, maxH) }
-                    .getOrElse { Result.failure(it) }
-                // TV robustness: if 1080p video-only selection failed at runtime, fall back to the default
-                // (720p) resolution so video mode never black-screens (no regression vs. phone/tablet).
-                if (VideoModePlanning.shouldRetryWithoutHeightCap(maxH, result.getOrNull())) {
-                    result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, service.connectivityManager, null) }
-                        .getOrElse { Result.failure(it) }
-                }
-                innerTubeResult = result
-                url = result.getOrNull()
-                if (!url.isNullOrEmpty()) {
-                    // InnerTube worked — a stale muxed flag must not poison the video-only merge path.
-                    muxed = VideoModePlanning.muxedFlagAfterResolve(fromPipePipe = false, pipePipeMuxed = false)
-                    if (!muxed) newPipeMuxedVideoIds.remove(id)
-                }
-            }
-            val resolvedUrl = url
+            val attempt = videoFormatAttempts[id] ?: 0
+            val outcome = resolveVideoDownTheLadder(id, maxH, attempt)
+            val resolved = outcome.resolved
             withContext(Dispatchers.Main) {
+                videoFallbackInFlight.remove(id)
                 if (videoSwapGeneration.get() != swapGeneration) return@withContext
                 if (service.player.currentMediaItem?.mediaId != id) return@withContext
-                if (resolvedUrl.isNullOrEmpty()) {
+                if (resolved == null) {
                     if (!armModeWhenReady) {
                         disarmVideoModeKeepAudio()
-                        val ex = innerTubeResult?.exceptionOrNull()
+                        val ex = outcome.innerTubeError
                         val reason = ex?.let { "${it.javaClass.simpleName}: ${it.message}" } ?: "sin formato de video"
                         Toast.makeText(service, "Video falló — $reason", Toast.LENGTH_LONG).show()
                     }
                     return@withContext
                 }
-                MusicService.videoUrlCache[id] = resolvedUrl to VideoModePlanning.videoUrlCacheExpiry(System.currentTimeMillis())
+                MusicService.videoUrlCache[id] = resolved.url to VideoModePlanning.videoUrlCacheExpiry(System.currentTimeMillis())
                 if (armModeWhenReady) {
                     service._videoMode.value = true
                 } else if (!service._videoMode.value) {
                     return@withContext
                 }
-                swapToVideo(id, resolvedUrl, isMuxed = muxed)
+                swapToVideo(id, resolved.url, isMuxed = resolved.isMuxed)
             }
         }
     }
 
+    /** Un formato de video resuelto. [itag] es null cuando la fuente (InnerTube) no lo expone. */
+    internal data class ResolvedVideo(val url: String, val isMuxed: Boolean, val itag: Int?)
+
+    private class LadderOutcome(val resolved: ResolvedVideo?, val innerTubeError: Throwable?)
+
+    /**
+     * Baja por la escalera de [VideoFormatFallback] desde [startAttempt] hasta que un peldaño devuelva
+     * URL, y deja anotado en qué peldaño se quedó — para que el siguiente fallo siga bajando en vez de
+     * repetir el mismo formato, que es justo lo que hacía antes.
+     *
+     * Bloquea: llámese solo desde [Dispatchers.IO].
+     */
+    private fun resolveVideoDownTheLadder(id: String, maxH: Int?, startAttempt: Int): LadderOutcome {
+        var innerTubeError: Throwable? = null
+
+        fun pipePipe(exclude: Set<Int>, forceMuxed: Boolean): ResolvedVideo? =
+            YTPlayerUtils.adaptiveVideoStreamNewPipe(id, service.connectivityManager, maxH, exclude, forceMuxed)
+                .getOrNull()
+                ?.takeIf { it.url.isNotEmpty() }
+                ?.let { ResolvedVideo(it.url, it.isMuxed, it.itag) }
+
+        fun innerTube(): ResolvedVideo? {
+            var result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, service.connectivityManager, maxH) }
+                .getOrElse { Result.failure(it) }
+            // TV robustness: if 1080p video-only selection failed at runtime, fall back to the default
+            // (720p) resolution so video mode never black-screens (no regression vs. phone/tablet).
+            if (VideoModePlanning.shouldRetryWithoutHeightCap(maxH, result.getOrNull())) {
+                result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, service.connectivityManager, null) }
+                    .getOrElse { Result.failure(it) }
+            }
+            result.exceptionOrNull()?.let { innerTubeError = it }
+            // InnerTube devuelve video-only mezclable: un muxed heredado envenenaría la mezcla de audio.
+            return result.getOrNull()?.takeIf { it.isNotEmpty() }?.let { ResolvedVideo(it, isMuxed = false, itag = null) }
+        }
+
+        var attempt = startAttempt
+        while (true) {
+            val source = VideoFormatFallback.sourceForAttempt(attempt) ?: break
+            val excluded = excludedVideoItags[id].orEmpty()
+            val resolved = when (source) {
+                // El camino rápido de siempre — PipePipe/ANDROID_VR, sin quemar, una sola extracción —
+                // pero YA respetando los itags que reventaron en plays anteriores de esta sesión.
+                VideoFormatFallback.Source.PIPEPIPE_ADAPTIVE -> pipePipe(excluded, forceMuxed = false) ?: innerTube()
+                VideoFormatFallback.Source.PIPEPIPE_ADAPTIVE_EXCLUDING -> pipePipe(excluded, forceMuxed = false)
+                VideoFormatFallback.Source.INNERTUBE -> innerTube()
+                VideoFormatFallback.Source.PIPEPIPE_MUXED -> pipePipe(excluded, forceMuxed = true)
+            }
+            if (resolved != null) {
+                videoFormatAttempts[id] = attempt
+                val pickedItag = resolved.itag
+                if (pickedItag != null) videoItagForId[id] = pickedItag else videoItagForId.remove(id)
+                if (resolved.isMuxed) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
+                Timber.tag(MusicService.TAG).i(
+                    "Video mode: resolved via $source muxed=${resolved.isMuxed} itag=${resolved.itag} attempt=$attempt",
+                )
+                return LadderOutcome(resolved, innerTubeError)
+            }
+            attempt++
+        }
+        videoFormatAttempts[id] = VideoFormatFallback.MAX_ATTEMPTS
+        Timber.tag(MusicService.TAG).w("Video mode: no format left for ${id.take(11)} (ladder exhausted)")
+        return LadderOutcome(null, innerTubeError)
+    }
+
+    /**
+     * El modo video acaba de reventar en [mediaId]: prueba OTRO formato en vez de dar la canción por
+     * perdida. Devuelve `true` si hay un peldaño más (el audio vuelve a sonar al instante mientras el
+     * siguiente formato se resuelve), `false` si la escalera se agotó y el llamante debe quedarse en
+     * audio.
+     *
+     * Nunca salta de canción y nunca la marca como fallida: el audio de esta canción está perfecto —
+     * lo único roto era el contenedor del video.
+     */
+    internal fun retryVideoWithAnotherFormat(mediaId: String): Boolean {
+        if (!videoFallbackInFlight.add(mediaId)) {
+            // El eco del mismo fallo (la fuente de video y la de audio del merge reportan por separado).
+            Timber.tag(MusicService.TAG).d("Video fallback already in flight for ${mediaId.take(11)} — ignoring echo")
+            return true
+        }
+        val failedItag = videoItagForId[mediaId]
+        val nextAttempt = (videoFormatAttempts[mediaId] ?: 0) + 1
+        if (!VideoFormatFallback.hasNextSource(nextAttempt)) {
+            videoFallbackInFlight.remove(mediaId)
+            Timber.tag(MusicService.TAG).w("Video fallback exhausted for ${mediaId.take(11)} — staying on audio")
+            return false
+        }
+        val excluded = VideoFormatFallback.exclusionsAfter(excludedVideoItags[mediaId].orEmpty(), failedItag)
+        excludedVideoItags[mediaId] = excluded
+        videoFormatAttempts[mediaId] = nextAttempt
+        Timber.tag(MusicService.TAG).i(
+            "VIDEO_FALLBACK id=${mediaId.take(11)} failedItag=$failedItag excluded=$excluded " +
+                "next=${VideoFormatFallback.sourceForAttempt(nextAttempt)} attempt=$nextAttempt",
+        )
+        MusicService.videoUrlCache.remove(mediaId)
+        newPipeMuxedVideoIds.remove(mediaId)
+        videoItagForId.remove(mediaId)
+        service.resetRetryCount(mediaId)
+        // Volver a AUDIO ya mismo: la canción no puede callarse mientras se busca otro formato.
+        restoreVideoTracksExcept(null)
+        // Seguimos armados — el usuario pidió video y lo va a tener en cuanto un formato entre.
+        service._videoMode.value = true
+        service._videoUrl.value = null
+        stickyVideoPreferred = true
+        val generation = videoSwapGeneration.incrementAndGet()
+        applyVideoToCurrent(armModeWhenReady = false, swapGeneration = generation, forceExplicit = true)
+        return true
+    }
+
     /** Drop video chrome and keep audio. Safe to call when downloads were never paused. */
     private fun disarmVideoModeKeepAudio() {
+        videoFallbackInFlight.clear()
         service._videoMode.value = false
         service._videoUrl.value = null
         resumeOfflineDownloadsAfterVideoPlayback()
@@ -431,6 +526,7 @@ class VideoModeCoordinator(private val service: MusicService) {
     /** Swap the current item's source URI to [url] (the muxed stream) so the factory builds a video source
      * rendered on the main player. Keeps position + play state. */
     private fun swapToVideo(id: String, url: String, isMuxed: Boolean = false) {
+        videoFallbackInFlight.remove(id)
         service.videoSwapMark("swapToVideo entry")
         val idx = service.player.currentMediaItemIndex
         val item = service.player.currentMediaItem ?: return
@@ -612,10 +708,20 @@ class VideoModeCoordinator(private val service: MusicService) {
                 if (url.isNullOrEmpty()) {
                     // PipePipe FIRST (mirrors applyVideoToCurrent): the fast, unburned SimpMusic
                     // provider — InnerTube only as fallback for devices where it still resolves.
-                    val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(nextId, service.connectivityManager, maxH).getOrNull()
-                    if (picked != null && !picked.first.isNullOrEmpty()) {
-                        url = picked.first
-                        muxed = picked.second
+                    val picked = YTPlayerUtils
+                        .adaptiveVideoStreamNewPipe(
+                            nextId,
+                            service.connectivityManager,
+                            maxH,
+                            // El pre-build tampoco puede volver a elegir un formato que ya reventó:
+                            // sería dejar armada la misma bomba para el auto-avance.
+                            excludeItags = excludedVideoItags[nextId].orEmpty(),
+                        )
+                        .getOrNull()
+                    if (picked != null && picked.url.isNotEmpty()) {
+                        url = picked.url
+                        muxed = picked.isMuxed
+                        videoItagForId[nextId] = picked.itag
                         if (muxed) newPipeMuxedVideoIds.add(nextId) else newPipeMuxedVideoIds.remove(nextId)
                     } else {
                         url = runCatching { YTPlayerUtils.videoStreamUrl(nextId, service.connectivityManager, maxH) }.getOrNull()
@@ -717,10 +823,18 @@ class VideoModeCoordinator(private val service: MusicService) {
                 var url: String? = null
                 // PipePipe FIRST (mirrors applyVideoToCurrent): the fast, unburned SimpMusic
                 // provider — InnerTube only as fallback for devices where it still resolves.
-                val picked = YTPlayerUtils.adaptiveVideoStreamNewPipe(id, service.connectivityManager, maxH).getOrNull()
-                if (picked != null && !picked.first.isNullOrEmpty()) {
-                    url = picked.first
-                    if (picked.second) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
+                val picked = YTPlayerUtils
+                    .adaptiveVideoStreamNewPipe(
+                        id,
+                        service.connectivityManager,
+                        maxH,
+                        excludeItags = excludedVideoItags[id].orEmpty(),
+                    )
+                    .getOrNull()
+                if (picked != null && picked.url.isNotEmpty()) {
+                    url = picked.url
+                    videoItagForId[id] = picked.itag
+                    if (picked.isMuxed) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
                 } else {
                     url = runCatching { YTPlayerUtils.videoStreamUrl(id, service.connectivityManager, maxH) }.getOrNull()
                     // TV robustness: if 1080p came back empty, fall back to the default resolution (matches
@@ -769,6 +883,10 @@ class VideoModeCoordinator(private val service: MusicService) {
         service._videoMode.value = false
         service._videoUrl.value = null
         prebuildingIds.clear()
+        // El contador de la escalera vuelve a cero para que el próximo "ver video" empiece por el camino
+        // rápido; las EXCLUSIONES se quedan, así ese camino rápido ya no puede reelegir el formato malo.
+        videoFormatAttempts.clear()
+        videoFallbackInFlight.clear()
         restoreVideoTracksExcept(null)   // restore ALL tracked video items (current + any pre-built) to audio
         // Resume offline pipeline + flush any download deferred while watching.
         resumeOfflineDownloadsAfterVideoPlayback()

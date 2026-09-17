@@ -71,6 +71,24 @@ import javax.inject.Singleton
  * mimeType with no codecs parameter. Prefer the explicit codecs= token; else map the container; else
  * keep the row's previous codec; only "" as a last resort when nothing is knowable.
  */
+/**
+ * Nombre legible del estado de una descarga de media3, para el log compartido.
+ *
+ * `Download.state` es un entero y en un registro que lee una persona "state=5" no dice nada; el
+ * dueño comparte estos logs para que se le diga QUÉ pasó con sus descargas, no para descifrar
+ * constantes.
+ */
+internal fun downloadStateName(state: Int): String = when (state) {
+    Download.STATE_QUEUED -> "QUEUED"
+    Download.STATE_STOPPED -> "STOPPED"
+    Download.STATE_DOWNLOADING -> "DOWNLOADING"
+    Download.STATE_COMPLETED -> "COMPLETED"
+    Download.STATE_FAILED -> "FAILED"
+    Download.STATE_REMOVING -> "REMOVING"
+    Download.STATE_RESTARTING -> "RESTARTING"
+    else -> "UNKNOWN($state)"
+}
+
 internal fun codecsFromMimeType(mimeType: String, existingCodecs: String? = null): String {
     mimeType.substringAfter("codecs=", "").takeIf { it.isNotBlank() }?.let { return it.removeSurrounding("\"") }
     return when {
@@ -365,6 +383,17 @@ constructor(
                                 "failed id=${download.request.id} reason=${download.failureReason} " +
                                     "bytes=${download.bytesDownloaded} " +
                                     "${finalException?.javaClass?.simpleName}: ${finalException?.message?.take(180)}"
+                            )
+                        } else if (download.state != Download.STATE_DOWNLOADING) {
+                            // EL HUECO QUE DEJÓ UNA PREGUNTA SIN RESPUESTA (dueño, 2026-09-17: "verifica en el
+                            // log por qué las descargas para escuchar offline fallaron"). Su registro compartido
+                            // no tenía NI UNA línea de descarga: solo se escribía en STATE_FAILED, así que una
+                            // descarga que se queda en cola para siempre, que se detiene sola o que nunca
+                            // arranca no dejaba rastro ninguno — indistinguible de "no la pidió".
+                            // Sin títulos ni artistas (regla 4 de AGENTS.md); solo el id y el estado.
+                            timber.log.Timber.tag("DOWNLOAD").i(
+                                "state=${downloadStateName(download.state)} id=${download.request.id} " +
+                                    "stopReason=${download.stopReason} bytes=${download.bytesDownloaded}"
                             )
                         }
 

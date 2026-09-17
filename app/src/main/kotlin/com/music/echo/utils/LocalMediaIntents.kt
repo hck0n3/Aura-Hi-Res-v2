@@ -119,6 +119,47 @@ suspend fun lookupExportedFileUri(context: Context, songId: String): String? {
 }
 
 /**
+ * Compartir LA CANCIÓN que suena, con la misma escalera para todos los sitios que lo ofrezcan.
+ *
+ * Extraído del menú “Más” del reproductor cuando el dueño pidió un botón de compartir en el
+ * reproductor a pantalla completa (2026-09-17): duplicar el cuerpo habría dejado dos comportamientos
+ * que se separan a la primera corrección — uno mandando el fichero y el otro el enlace.
+ *
+ * El orden importa y es el que ya tenía el menú: un tema LOCAL se comparte como fichero de audio; una
+ * canción EXPORTADA, como el fichero exportado (con su mime real, vídeo o audio); y cualquier otra,
+ * como enlace de YouTube. Solo se cae al enlace cuando el fichero no se puede mandar.
+ *
+ * @return true si se abrió un selector de compartir.
+ */
+suspend fun shareSong(
+    context: Context,
+    songId: String,
+    title: String,
+    artists: List<String>,
+    isLocalTrack: Boolean,
+    isExported: Boolean,
+    isExportedVideo: Boolean,
+): Boolean {
+    if (songId.isBlank()) return false
+    if (isLocalTrack && shareLocalAudio(context, songId)) return true
+    if (isExported) {
+        val uri = lookupExportedFileUri(context, songId)
+        if (uri != null &&
+            shareContentUri(context, uri, if (isExportedVideo) "video/mp4" else "audio/mpeg")
+        ) {
+            return true
+        }
+    }
+    val intent = Intent().apply {
+        action = Intent.ACTION_SEND
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, ShareLinks.songShareText(songId, title, artists))
+    }
+    context.startActivity(Intent.createChooser(intent, null))
+    return true
+}
+
+/**
  * Removes an exported video from Aura lists AND deletes the SAF/file on storage when possible.
  * @return true if the library entry was removed (file delete is best-effort).
  */
