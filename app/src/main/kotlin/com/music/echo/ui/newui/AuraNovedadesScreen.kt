@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -51,6 +55,7 @@ import iad1tya.echo.music.ui.menu.SongMenu
 import iad1tya.echo.music.ui.menu.YouTubeAlbumMenu
 import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.claimUnique
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.NovedadesViewModel
@@ -146,6 +151,53 @@ fun AuraNovedadesScreen(
                 else -> {}
             }
         }
+    }
+
+    // 🔴 SIN CONEXIÓN (punto 4 del dueño, 2026-09-17). Novedades es 100 % red — estrenos, próximos
+    // lanzamientos, lo más escuchado — así que aquí no hay una versión local que enseñar: lo honesto
+    // es decirlo y prometer que vuelve solo, en vez de siete estantes vacíos o siete errores. Es la
+    // única de las cuatro pantallas sin cuerpo local, y por eso no usa [DownloadedOnlyView].
+    val offlineState = rememberOfflineState()
+    if (offlineState.offline) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .auraScreenBackground(bloom, intensity = 1f),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(LocalPlayerAwareWindowInsets.current.asPaddingValues()),
+            ) {
+                AuraScreenHeader(
+                    title = stringResource(R.string.tab_novedades),
+                    trailing = { AuraTopActions() },
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = AuraSpacing.Gutter),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = stringResource(
+                            if (offlineState.automatic) R.string.offline_auto_title else R.string.offline_mode,
+                        ),
+                        style = AuraType.SheetTitle,
+                        color = AuraPalette.OnGround,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.offline_auto_novedades),
+                        style = AuraType.RowSubtitle,
+                        color = AuraPalette.OnGroundMuted,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+        return
     }
 
     Box(

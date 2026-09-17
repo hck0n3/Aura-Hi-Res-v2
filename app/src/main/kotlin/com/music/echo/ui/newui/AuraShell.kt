@@ -17,6 +17,8 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -60,6 +62,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -1127,6 +1130,7 @@ fun AuraMiniPlayer(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
+                modifier = Modifier.shieldTapsFromAncestorDrags(),
             ) {
                 AuraIconButton(
                     icon = AuraIcons.SkipPrevious,
@@ -1206,6 +1210,47 @@ fun AuraMiniPlayer(
                 }
             }
         }
+    }
+}
+
+/**
+ * 🔴 EL ESCUDO DE LOS BOTONES DE LA PÍLDORA (dueño, 2026-09-17: *"el botón home que sale en algunas
+ * pantallas, en el reproductor mini a veces no funciona"*).
+ *
+ * Sobre esos cuatro botones hay **dos detectores de arrastre**, y los dos son ANCESTROS suyos:
+ *  1. el arrastre vertical de la hoja del reproductor (`BottomSheet`, sobre un `fillMaxSize()` que
+ *     cubre también la franja colapsada — de ahí `dragCollapsedContent`), y
+ *  2. el deslizar horizontal de cambiar canción, sobre la raíz de esta píldora.
+ *
+ * Y así es como le roban el clic, que es EXACTAMENTE lo mismo que le pasaba al botón de cast:
+ * `Modifier.clickable` no cancela por moverse — mantiene la pulsación y dispara al levantar — pero
+ * sí cancela si **alguien consume** el evento. Los dos detectores arrancan con
+ * `awaitFirstDown(requireUnconsumed = false)`, o sea que el `consume()` del propio botón no les
+ * estorba, y en cuanto el dedo recorre el touch slop (unos 8 dp: lo normal con un pulgar sobre un
+ * glifo de 20 dp) uno de ellos reclama el gesto, consume el movimiento y el `clickable` se cancela.
+ * El clic **nunca llega**: "a veces no funciona".
+ *
+ * El arreglo usa el orden de reparto de Compose en la pasada Main, que va de dentro hacia fuera:
+ * este modificador está en la fila de controles, así que los botones (más adentro) ya han visto el
+ * evento cuando esta fila lo consume, y los dos detectores (más afuera) lo ven ya consumido — su
+ * `awaitPointerSlopOrCancellation` devuelve null y el arrastre no arranca. Resultado: el botón
+ * dispara aunque el dedo se mueva, la píldora no da el tirón y tampoco cambia de canción sola.
+ *
+ * Lo que NO se pierde: la píldora se sigue arrastrando hacia arriba para abrir el reproductor y se
+ * sigue deslizando para cambiar canción — desde la portada y desde el título, que es casi toda su
+ * superficie. Solo la fila de botones deja de ser zona de arrastre, y ahí el arrastre nunca fue una
+ * función: era el fallo.
+ */
+private fun Modifier.shieldTapsFromAncestorDrags(): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        // `requireUnconsumed = false`: el `clickable` del botón consume el down antes de llegar aquí
+        // (está más adentro), y si lo exigiéramos limpio el escudo no se armaría nunca.
+        awaitFirstDown(requireUnconsumed = false)
+        var event: PointerEvent
+        do {
+            event = awaitPointerEvent()
+            event.changes.forEach { it.consume() }
+        } while (event.changes.any { it.pressed })
     }
 }
 

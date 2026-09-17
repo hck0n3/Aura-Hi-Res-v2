@@ -71,6 +71,17 @@ import kotlinx.coroutines.flow.flowOf
 fun DownloadedOnlyView(
     navController: NavController,
     modifier: Modifier = Modifier,
+    /**
+     * 🔴 true cuando aquí nos ha traído la FALTA DE RED y no el interruptor del dueño (punto 4,
+     * 2026-09-17). Solo cambia el cartel de arriba, porque el cuerpo — lo descargado, lo cacheado
+     * completo y lo exportado — es el mismo en los dos casos.
+     *
+     * Y el cartel tiene que cambiar: el del manual ofrece "Desactivar", que con el automático sería
+     * un placebo — apagaría un interruptor que ya está apagado y la app seguiría sin conexión porque
+     * sigue sin haber red. En automático el cartel explica lo que pasa y promete lo que hace
+     * (volver solo), que es lo único cierto.
+     */
+    automatic: Boolean = false,
 ) {
     val database = LocalDatabase.current
     val menuState = LocalMenuState.current
@@ -119,6 +130,7 @@ fun DownloadedOnlyView(
     ) {
         item(key = "offline_banner") {
             OfflineBanner(
+                automatic = automatic,
                 onDisable = { offlineMode = false },
             )
         }
@@ -213,6 +225,7 @@ fun DownloadedOnlyView(
 
 @Composable
 private fun OfflineBanner(
+    automatic: Boolean,
     onDisable: () -> Unit,
 ) {
     Surface(
@@ -235,20 +248,26 @@ private fun OfflineBanner(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.offline_mode),
+                    text = stringResource(
+                        if (automatic) R.string.offline_auto_title else R.string.offline_mode,
+                    ),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Spacer(modifier = Modifier.size(2.dp))
                 Text(
-                    text = stringResource(R.string.offline_banner_hint),
+                    text = stringResource(
+                        if (automatic) R.string.offline_auto_hint else R.string.offline_banner_hint,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
             }
-            TextButton(onClick = onDisable) {
-                Text(stringResource(R.string.offline_disable))
+            if (!automatic) {
+                TextButton(onClick = onDisable) {
+                    Text(stringResource(R.string.offline_disable))
+                }
             }
         }
     }

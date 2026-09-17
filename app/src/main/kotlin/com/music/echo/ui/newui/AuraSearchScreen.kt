@@ -85,7 +85,6 @@ import iad1tya.echo.music.LocalIsPlayerExpanded
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
-import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.constants.PauseSearchHistoryKey
 import iad1tya.echo.music.constants.SearchSource
 import iad1tya.echo.music.constants.SearchSourceKey
@@ -95,6 +94,7 @@ import iad1tya.echo.music.playback.PlayerConnection
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
 import timber.log.Timber
 import java.net.URLEncoder
@@ -157,7 +157,9 @@ fun AuraSearchScreen(
     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
     // "Modo sin conexión" forces the entry to the local database and never hits the network — the same
     // term the classic screen computes, read from the same key.
-    val offlineMode by rememberPreference(OfflineModeKey, false)
+    // Manual **o** automático sin red (punto 4, 2026-09-17): las dos cosas atan la búsqueda a la base
+    // local, porque sin red una búsqueda en línea solo puede dar un error.
+    val offlineMode = rememberOfflineState().offline
     val effectiveSource = if (offlineMode) SearchSource.LOCAL else searchSource
     val pauseSearchHistory by rememberPreference(PauseSearchHistoryKey, defaultValue = false)
 

@@ -59,13 +59,13 @@ import iad1tya.echo.music.constants.LibraryFilter
 import iad1tya.echo.music.constants.MiniPlayerBottomSpacing
 import iad1tya.echo.music.constants.MiniPlayerHeight
 import iad1tya.echo.music.constants.NavigationBarHeight
-import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.ui.component.AiPlaylistDialog
 import iad1tya.echo.music.ui.component.CreatePlaylistDialog
 import iad1tya.echo.music.ui.component.TextFieldDialog
 import iad1tya.echo.music.ui.screens.DownloadedOnlyView
 import iad1tya.echo.music.ui.screens.library.LocalSongScreen
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
 
 /**
@@ -91,9 +91,10 @@ import iad1tya.echo.music.utils.rememberPreference
  */
 @Composable
 fun AuraLibraryScreen(navController: NavController) {
-    val offlineMode by rememberPreference(OfflineModeKey, false)
-    if (offlineMode) {
-        DownloadedOnlyView(navController = navController)
+    // Sin conexión = el interruptor manual o el automático sin red (punto 4, 2026-09-17).
+    val offlineState = rememberOfflineState()
+    if (offlineState.offline) {
+        DownloadedOnlyView(navController = navController, automatic = offlineState.automatic)
         return
     }
 

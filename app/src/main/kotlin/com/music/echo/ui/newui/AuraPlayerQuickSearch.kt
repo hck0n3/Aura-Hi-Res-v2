@@ -52,7 +52,6 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.HideVideoSongsKey
-import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.constants.SearchSource
 import iad1tya.echo.music.constants.SearchSourceKey
 import iad1tya.echo.music.db.entities.SearchHistory
@@ -67,6 +66,7 @@ import iad1tya.echo.music.ui.menu.YouTubeArtistMenu
 import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.OnlineSearchSuggestionViewModel
 import iad1tya.echo.music.viewmodels.PlayerOnlineSearchViewModel
@@ -105,7 +105,8 @@ fun AuraPlayerQuickSearchContent(
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
-    val offlineMode by rememberPreference(OfflineModeKey, false)
+    // Manual o automático sin red, igual que la pantalla de Buscar (punto 4, 2026-09-17).
+    val offlineMode = rememberOfflineState().offline
     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
     val effectiveSource = if (offlineMode) SearchSource.LOCAL else searchSource
 
