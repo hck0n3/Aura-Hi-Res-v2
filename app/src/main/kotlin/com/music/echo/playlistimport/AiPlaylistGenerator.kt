@@ -110,6 +110,13 @@ object AiPlaylistGenerator {
      */
     internal const val MUSIC_REQUEST_SEARCH_BUDGET_MS = 20_000L
 
+    /**
+     * Cuántas listas se miran por filtro antes de elegir. Seis: más allá de eso el buscador ya está
+     * devolviendo cosas que solo comparten una palabra con la petición, y mirarlas solo aumenta la
+     * probabilidad de aceptar una que no toca.
+     */
+    internal const val PLAYLIST_CANDIDATES = 6
+
     /** Scaled per-ask cap for the KEYLESS chain — see [AI_ASK_CAP_MS] for the rationale. */
     internal fun keylessAskCapMs(requestCount: Int): Long =
         (ASK_BASE_MS + ASK_PER_TRACK_MS * requestCount)
@@ -237,6 +244,23 @@ object AiPlaylistGenerator {
                 searchFallbackPlaylist(prompt, soloArtist, target)
             }
         }.getOrNull().orEmpty()
+
+        // QUE NO IMPROVISE (dueño, 2026-09-17), y aquí está la regla que lo decide entre las dos
+        // rutas: cuando la petición trae algo **comprobable** — una década — gana la ruta que lo ha
+        // COMPROBADO. La búsqueda llega por una lista cuyo título nombra esa década
+        // ([MusicRequestMatch]); la IA devuelve títulos y artistas sin año, así que nadie puede
+        // verificar que sean de los 80: con un modelo flojo, "80s" se convierte en "lo que al modelo
+        // le suena a antiguo". Sigue sin decirse cuál de las dos fue — el híbrido es de dónde salen
+        // las canciones, no de qué se le cuenta a él.
+        val verifiable = MusicRequestQuery.build(prompt).decade != null
+        if (verifiable && search.isNotEmpty()) {
+            aiJob.cancel()
+            return@coroutineScope Produced(
+                name = prompt.trim().take(MAX_NAME_LENGTH),
+                songs = search,
+                fromAi = false,
+            )
+        }
 
         // Desempate a favor de la IA: solo si YA terminó. Esperarla aquí sería volver a la fila.
         val aiEarly = if (aiJob.isCompleted) runCatching { aiJob.await() }.getOrNull() else null
@@ -584,13 +608,24 @@ object AiPlaylistGenerator {
 
         // Paso 1 (solo para épocas y momentos): la lista curada que alguien ya hizo para eso. Una
         // sola: coger canciones de varias mezcla criterios y el resultado deja de parecerse a nada.
+        //
+        // QUE NO IMPROVISE (dueño, 2026-09-17): NO se coge "la primera que salga". El buscador
+        // devuelve también listas de gente ("mi mix", "para el carro") que contienen cualquier cosa, y
+        // reproducir una de esas para una petición de los 80 es exactamente improvisar. Las candidatas
+        // pasan por [MusicRequestMatch], que exige que el TÍTULO nombre la década pedida y puntúa
+        // idioma, palabras de la petición y forma de recopilación. Si ninguna lo demuestra, no se usa
+        // ninguna: se baja al peldaño siguiente. Primero las de YouTube Music (FEATURED), que son
+        // editoriales, y solo después las de la comunidad.
         if (parsed.preferPlaylists && soloArtist == null) {
-            val playlist = YouTube.search(query, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST)
-                .getOrNull()?.items?.filterIsInstance<PlaylistItem>()?.firstOrNull()
-                ?: YouTube.search(query, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST)
-                    .getOrNull()?.items?.filterIsInstance<PlaylistItem>()?.firstOrNull()
-            if (playlist != null) {
-                YouTube.playlist(playlist.id).getOrNull()?.songs?.let { absorb(it) }
+            val candidates = ArrayList<PlaylistItem>()
+            YouTube.search(query, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST).getOrNull()
+                ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)?.let { candidates += it }
+            YouTube.search(query, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST).getOrNull()
+                ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)?.let { candidates += it }
+            val chosen = MusicRequestMatch.bestIndex(candidates.map { it.title }, parsed)
+                ?.let { candidates[it] }
+            if (chosen != null) {
+                YouTube.playlist(chosen.id).getOrNull()?.songs?.let { absorb(it) }
             }
         }
 
@@ -598,7 +633,11 @@ object AiPlaylistGenerator {
             YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
         }
-        if (out.size < target) {
+        // Los VÍDEOS son el peldaño menos fiable — recopilaciones de una hora, versiones en directo,
+        // subidas de aficionado — así que para una petición de época o momento solo se usan cuando no
+        // hay NADA más. Rellenar con ellos una lista que ya iba bien es la otra forma de improvisar.
+        val videosAllowed = if (parsed.preferPlaylists) out.isEmpty() else out.size < target
+        if (videosAllowed) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
         }
