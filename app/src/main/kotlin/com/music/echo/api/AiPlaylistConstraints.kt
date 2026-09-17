@@ -89,6 +89,33 @@ object AiPlaylistConstraints {
             } ||
             folded == "musica" || folded.startsWith("musica ")
         if (isGenreLike) return null
+        // 🔴 UNA DÉCADA NO ES UN ARTISTA (dueño, 2026-09-17: *"le pedí música de los 80s y nunca
+        // funcionó, luego le pedí música de los 80s en inglés y no funcionó"*).
+        //
+        // ESTE era el fallo, y era total: el patrón `^música de (.+)$` capturaba **"los 80s"** como
+        // nombre de artista, y a partir de ahí el filtro duro de artista único (`soloPrimaryMatch`)
+        // descartaba TODOS los resultados de la búsqueda — cero canciones, estado "no encontré nada".
+        // No es que buscara mal: es que se buscaba bien y luego se tiraba todo.
+        //
+        // El guardián de arriba decía tener cubierto este caso ("música de los 90 no sobrevive"), pero
+        // solo miraba capturas que EMPIEZAN por "de "/"musica ", y aquí el patrón ya se había comido
+        // ese trozo: lo que llegaba era "los 90" pelado, que no empieza por nada de eso.
+        //
+        // La regla: si al quitar palabras de época, idioma y relleno no queda NADA, no era un nombre.
+        // "los 80s en inglés" → nada → no es artista. "50 Cent" → queda "cent" → sí lo es.
+        // Límite asumido a conciencia: "The 1975" (grupo real) se queda sin la restricción de artista
+        // único y pasa a ser una búsqueda normal — que sigue encontrándolos. Perder la restricción es
+        // infinitamente más barato que vaciar el resultado, que es lo que pasaba hasta ahora.
+        val eraOnly = folded
+            .replace(Regex("""(?iu)\b(los|las|the|de|del|en|y|and|a[nñ]os?|anos?)\b"""), " ")
+            .replace(
+                Regex("""(?iu)\b(ingles|english|espanol|spanish|castellano|anglo|latino|latina)\b"""),
+                " ",
+            )
+            .replace(Regex("""(?iu)\b(sesentas?|setentas?|ochentas?|noventas?|sixties|seventies|eighties|nineties)\b"""), " ")
+            .replace(Regex("""\b\d{2,4}'?s?\b"""), " ")
+            .trim()
+        if (eraOnly.isBlank()) return null
         return s
     }
 

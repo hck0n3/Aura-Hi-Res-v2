@@ -83,4 +83,21 @@ class AiPlaylistConstraintsTest {
         // not eat him (only genre-like captures after the prefix are rejected).
         assertEquals("De La Ghetto", AiPlaylistConstraints.extractSoloArtist("puro De La Ghetto"))
     }
+
+    // --- Dueño (2026-09-17): "le pedí música de los 80s y nunca funcionó, luego le pedí música de
+    // los 80s en inglés y no funcionó". El patrón "música de (.+)" capturaba "los 80s" como ARTISTA y
+    // el filtro duro vaciaba el resultado entero: cero canciones. Una década no es un artista. ---
+
+    @Test fun rejectsDecadesAsArtists() {
+        assertNull(AiPlaylistConstraints.extractSoloArtist("música de los 80s"))
+        assertNull(AiPlaylistConstraints.extractSoloArtist("música de los 80s en inglés"))
+        assertNull(AiPlaylistConstraints.extractSoloArtist("canciones de los 90"))
+        assertNull(AiPlaylistConstraints.extractSoloArtist("música de los ochentas"))
+        assertNull(AiPlaylistConstraints.extractSoloArtist("temas de los 2000 en español"))
+    }
+
+    @Test fun artistWithANumberInTheNameSurvives() {
+        // El guardián mira si queda ALGO al quitar época e idioma: "cent" queda, así que es un nombre.
+        assertEquals("50 Cent", AiPlaylistConstraints.extractSoloArtist("canciones de 50 Cent"))
+    }
 }

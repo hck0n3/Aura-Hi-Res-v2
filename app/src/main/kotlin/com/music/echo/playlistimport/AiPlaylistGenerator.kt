@@ -1,6 +1,7 @@
 package iad1tya.echo.music.playlistimport
 
 import com.music.innertube.YouTube
+import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.SongItem
 import iad1tya.echo.music.api.AiPlaylistConstraints
 import iad1tya.echo.music.api.AiPlaylistService
@@ -10,6 +11,7 @@ import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.toMediaMetadata
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -94,6 +96,20 @@ object AiPlaylistGenerator {
     // slow refill can never cancel the whole AI flow and throw a good first pass into "sin IA".
     internal const val MIN_TOP_UP_MS = 20_000L
 
+    /**
+     * Correa de la IA en "pedir música". No es el presupuesto de [AI_BUDGET_MS] (90 s): aquí la
+     * búsqueda corre en paralelo y responde en uno o dos segundos, así que la IA solo vale la pena
+     * mientras pueda llegar antes de que él se canse. 25 s cubre de sobra a un proveedor con clave
+     * propia (2-6 s) y corta en seco al Worker atascado, que es lo que le arruinaba la función.
+     */
+    internal const val MUSIC_REQUEST_AI_LEASH_MS = 25_000L
+
+    /**
+     * Techo de la búsqueda en "pedir música". Son 1-3 peticiones a YouTube Music; si en 20 s no han
+     * vuelto, la red está para pocas alegrías y es mejor decirlo que seguir girando.
+     */
+    internal const val MUSIC_REQUEST_SEARCH_BUDGET_MS = 20_000L
+
     /** Scaled per-ask cap for the KEYLESS chain — see [AI_ASK_CAP_MS] for the rationale. */
     internal fun keylessAskCapMs(requestCount: Int): Long =
         (ASK_BASE_MS + ASK_PER_TRACK_MS * requestCount)
@@ -160,7 +176,7 @@ object AiPlaylistGenerator {
     ): Produced? {
         val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
         val startedAt = System.currentTimeMillis()
-        val produced = produceInternal(
+        val produced = produceRacing(
             database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress,
         )
         timber.log.Timber.i(
@@ -174,6 +190,70 @@ object AiPlaylistGenerator {
             System.currentTimeMillis() - startedAt,
         )
         return produced
+    }
+
+    /**
+     * 🔴 QUIEN ESTÉ LISTO, MANDA — la escalera de "pedir música", que corre en PARALELO en vez de en
+     * fila (dueño, 2026-09-17: *"nunca funcionó […] y que el máximo de canciones que busque sean 10
+     * para que responda más rápido"*).
+     *
+     * La escalera en fila de [produceInternal] es correcta para GUARDAR una playlist y es un desastre
+     * para pedir música: primero agota hasta [AI_BUDGET_MS] (90 s) esperando a la IA y solo entonces
+     * empieza a buscar — así que con el Worker lento o caído él se quedaba mirando un indicador
+     * durante minuto y medio antes de ver nada. Eso es lo que vivió como "nunca funcionó".
+     *
+     * Aquí las dos rutas salen a la vez y gana **la que esté lista**, con el desempate a favor de la
+     * IA:
+     *  · la búsqueda tarda uno o dos segundos → normalmente responde ella, que es la velocidad que
+     *    pidió;
+     *  · si la IA contesta ANTES (pasa con clave propia y un proveedor rápido), manda la IA, que es
+     *    el híbrido que él encargó — y se sigue sin decir cuál fue;
+     *  · si la búsqueda vuelve vacía, entonces sí se espera a la IA hasta [MUSIC_REQUEST_AI_LEASH_MS],
+     *    porque ahí esperar es la única opción que queda antes de decir "no encontré nada".
+     *
+     * [generate] NO usa esto: guardar una playlist de IA es otra promesa, más lenta a propósito, y él
+     * no se ha quejado de ella.
+     */
+    private suspend fun produceRacing(
+        database: MusicDatabase,
+        prompt: String,
+        target: Int,
+        soloArtist: String?,
+        provider: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        onResolveProgress: (done: Int, total: Int) -> Unit,
+    ): Produced? = coroutineScope {
+        val aiJob = async {
+            runCatching {
+                withTimeoutOrNull(MUSIC_REQUEST_AI_LEASH_MS) {
+                    aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
+                }
+            }.getOrNull()
+        }
+        val search = runCatching {
+            withTimeoutOrNull(MUSIC_REQUEST_SEARCH_BUDGET_MS) {
+                searchFallbackPlaylist(prompt, soloArtist, target)
+            }
+        }.getOrNull().orEmpty()
+
+        // Desempate a favor de la IA: solo si YA terminó. Esperarla aquí sería volver a la fila.
+        val aiEarly = if (aiJob.isCompleted) runCatching { aiJob.await() }.getOrNull() else null
+        if (aiEarly != null && aiEarly.songs.isNotEmpty()) {
+            return@coroutineScope aiEarly
+        }
+        if (search.isNotEmpty()) {
+            aiJob.cancel()
+            return@coroutineScope Produced(
+                name = prompt.trim().take(MAX_NAME_LENGTH),
+                songs = search,
+                fromAi = false,
+            )
+        }
+        // La búsqueda no dio nada: ahora sí merece la pena esperar a la IA hasta su correa.
+        val aiLate = runCatching { aiJob.await() }.getOrNull()
+        if (aiLate != null && aiLate.songs.isNotEmpty()) aiLate else null
     }
 
     /**
@@ -492,13 +572,40 @@ object AiPlaylistGenerator {
                 }
             }
         }
-        val query = prompt.trim().take(80)
+        // LENGUAJE NATURAL (dueño, 2026-09-17: *"necesito que pueda entender el lenguaje natural
+        // también y que me responda"*). El buscador de YouTube Music no es un asistente: busca la
+        // FRASE. [MusicRequestQuery] la convierte en lo que sí premia ("éxitos de los 80", "80s hits
+        // english") y dice cuándo una LISTA responde mejor que canciones sueltas — que es justo el
+        // caso de una época o un momento, y es lo que la propia app de YouTube Music te enseña cuando
+        // le pides eso mismo.
+        val parsed = MusicRequestQuery.build(prompt)
+        val query = parsed.query.ifBlank { prompt.trim().take(80) }
         if (query.isBlank()) return out
 
-        YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
-            ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+        // Paso 1 (solo para épocas y momentos): la lista curada que alguien ya hizo para eso. Una
+        // sola: coger canciones de varias mezcla criterios y el resultado deja de parecerse a nada.
+        if (parsed.preferPlaylists && soloArtist == null) {
+            val playlist = YouTube.search(query, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST)
+                .getOrNull()?.items?.filterIsInstance<PlaylistItem>()?.firstOrNull()
+                ?: YouTube.search(query, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST)
+                    .getOrNull()?.items?.filterIsInstance<PlaylistItem>()?.firstOrNull()
+            if (playlist != null) {
+                YouTube.playlist(playlist.id).getOrNull()?.songs?.let { absorb(it) }
+            }
+        }
+
+        if (out.size < target) {
+            YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+        }
         if (out.size < target) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+        }
+        // Red de seguridad: si la consulta construida no dio nada, se prueba su petición TAL CUAL.
+        // Así el traductor nunca puede dejarle con menos de lo que ya tenía.
+        if (out.isEmpty() && query != prompt.trim().take(80)) {
+            YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
         }
         return out

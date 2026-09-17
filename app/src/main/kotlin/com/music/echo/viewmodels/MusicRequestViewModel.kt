@@ -44,8 +44,20 @@ constructor(
 
     private var job: Job? = null
 
-    /** Cuántas canciones pedir. Una cola, no una lista para guardar: 25 llena un buen rato. */
-    private val requestedCount = 25
+    /**
+     * Cuántas canciones pedir.
+     *
+     * 🔴 Diez, por orden del dueño (2026-09-17): *"que el máximo de canciones que busque sean 10 para
+     * que responda más rápido, y luego la cola infinita inteligente continuará con el mismo algoritmo
+     * para completar la función"*. Eran 25.
+     *
+     * Y encaja con cómo está hecho el reproductor, no es solo "menos": la cola que se pone aquí es una
+     * `ListQueue`, y `MusicService` guarda TODAS sus canciones como semilla de la radio
+     * (`radioSeedPool`). Al acabar las diez, la continuación multi-semilla las usa enteras — con su
+     * mezcla de artistas y géneros — para seguir con el mismo algoritmo de siempre. O sea que diez no
+     * es una cola corta: es la semilla, y lo que viene después ya lo pone el algoritmo.
+     */
+    private val requestedCount = 10
 
     fun request(
         prompt: String,
