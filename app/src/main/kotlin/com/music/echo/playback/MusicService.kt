@@ -5924,8 +5924,25 @@ class MusicService :
         // Still guarded: only the very last item to PLAY (shuffle/repeat-aware, so the list is never truncated),
         // only while actually playing, never twice for the same end (radioSeedInFlight), and skipped while the
         // first block already handles continuation (next page).
+        // 🔴 SOLO en un avance NATURAL (o en una cola que nace en su último elemento).
+        //
+        // Esto se disparaba con cualquier motivo menos REPEAT, **incluido un SEEK manual**, y por eso
+        // saltar a mano hasta la última canción de un álbum le metía ahí mismo una tanda de canciones
+        // ajenas: *"de la nada me reproduce música de otro artista o otra canción que no corresponde a
+        // la cola actual"* (dueño, 2026-09-17, y ya lo había reportado antes). Con el aleatorio
+        // encendido es peor, porque `hasNextMediaItem()` mira el orden ALEATORIO y un salto puede caer
+        // en "el último que toca sonar" habiendo escuchado tres de quince.
+        //
+        // Restringirlo es seguro porque esta siembra es solo un ADELANTO para no dejar hueco en el
+        // empalme: la red que garantiza que la música nunca se pare es la de `STATE_ENDED` con
+        // `!hasNextMediaItem()`, que está siempre activa y cuyo comentario ya dice que existe porque
+        // este adelanto "puede no dispararse (en pausa, salto manual a la última pista, semilla
+        // vacía)". El razonamiento completo está en [RadioQueueShaping.mayPreSeedRadio].
         if (autoLoadMoreHint &&
-            reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT &&
+            RadioQueueShaping.mayPreSeedRadio(
+                isAuto = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO,
+                isPlaylistChanged = reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED,
+            ) &&
             player.playWhenReady &&
             !radioSeedInFlight &&
             !currentQueue.hasNextPage() &&

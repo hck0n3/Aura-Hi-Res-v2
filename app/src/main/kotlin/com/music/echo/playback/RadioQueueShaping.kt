@@ -12,6 +12,51 @@ import iad1tya.echo.music.reco.TasteProfile
  */
 object RadioQueueShaping {
 
+    /**
+     * ¿Puede el **adelanto** de la radio infinita sembrar ya, o hay que esperar a que la cola termine
+     * de verdad?
+     *
+     * 🔴 Reporte del dueño, DOS veces (2026-09-17): *"estoy en un álbum y empiezo a reproducir el
+     * álbum desde el inicio y estoy cambiando las canciones de manera manual […] de la nada me
+     * reproduce música de otro artista o otra canción que no corresponde a la cola actual"*. Y antes,
+     * sobre lo mismo: *"deve de poner canción dentro del playlist o álbum que esté escuchando, y para
+     * cuando termine devirá seguir con la cola infinita"*.
+     *
+     * ## El fallo
+     * La siembra de adelanto (el bloque B3 de `onMediaItemTransition`) se disparaba con **cualquier**
+     * motivo de transición menos `REPEAT` — incluido un **SEEK manual** — en cuanto
+     * `!player.hasNextMediaItem()`. O sea: saltar a mano hasta la última canción del álbum le metía
+     * ahí mismo una tanda de canciones ajenas, y a partir de ese momento el álbum ya no era el álbum.
+     *
+     * Y con el **aleatorio encendido** es peor, porque `hasNextMediaItem()` mira el orden ALEATORIO:
+     * un salto manual puede caer en "el último que toca sonar" habiendo escuchado tres de quince, y la
+     * radio se sembraba con el álbum casi entero sin oír.
+     *
+     * El código ya sabía que un salto manual no es una cola terminada — la marca de "vuelta completa"
+     * del aleatorio mejorado, en ese mismo bloque, exige `reason == AUTO` — pero el traspaso a la radio
+     * se quedó sin esa misma prueba, con un comentario diciendo que corría "de todas formas".
+     *
+     * ## Por qué restringirlo es seguro
+     * Esta siembra es **solo un adelanto** para que no haya hueco en el empalme. La red que de verdad
+     * garantiza que la música no se pare es otra: la de `STATE_ENDED` con `!hasNextMediaItem()`, que
+     * está **siempre activa** (ni siquiera la apaga el interruptor de autoplay) y cuyo propio
+     * comentario ya dice que existe porque el adelanto "puede no dispararse (en pausa, **salto manual a
+     * la última pista**, semilla vacía)". O sea: el caso del salto manual ya estaba cubierto por la
+     * red de abajo, y el adelanto solo estaba ensuciando la cola antes de tiempo.
+     *
+     * Así queda el comportamiento que pidió, exacto:
+     *  - álbum sonando de principio a fin → el adelanto siembra en la última transición AUTO, sin hueco;
+     *  - saltando a mano → no se le mete nada, el álbum sigue siendo el álbum;
+     *  - salta a la última y la deja acabar → la red de `STATE_ENDED` siembra y la música continúa.
+     *
+     * @param reason el `Player.MEDIA_ITEM_TRANSITION_REASON_*` de la transición en curso.
+     * @param isAuto `reason` es AUTO (avance natural al acabar una canción).
+     * @param isPlaylistChanged `reason` es PLAYLIST_CHANGED (una cola nueva que **nace** en su último
+     *   elemento — una cola de un solo tema, por ejemplo — y que por tanto no tiene nada detrás).
+     */
+    fun mayPreSeedRadio(isAuto: Boolean, isPlaylistChanged: Boolean): Boolean = isAuto || isPlaylistChanged
+
+
     /** Greedy artist-spacing: keep the incoming (taste/relatedness) order as the base, but when the next item
      *  repeats a primary artist placed in the last 2 slots, skip ahead to the best-ranked item by a different
      *  artist (fallback: take the head). Preserves the backbone, kills same-artist streaks. */
