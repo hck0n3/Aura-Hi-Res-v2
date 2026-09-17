@@ -67,6 +67,9 @@ import iad1tya.echo.music.ui.screens.DownloadedOnlyView
 import iad1tya.echo.music.ui.screens.library.LocalSongScreen
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.ui.component.LocalGlassEffectConfig
+import iad1tya.echo.music.ui.component.isGlassSupported
+import iad1tya.echo.music.ui.component.liquidGlassInteractive
 
 /**
  * # Biblioteca — "Interfaz nueva"
@@ -566,12 +569,38 @@ private fun AuraFab(
     // chrome (the row-196 crash was the descendant pattern, gone; haze 1.7.2 carries the Samsung
     // shader fix; SimpMusic production pattern). No source (glass OFF / classic / previews) →
     // the opaque FloatingFill plate, hairline and glyph, byte-identical to before.
+    // 🔴 CRISTAL INTERACTIVO (dueño, 2026-09-17: *"botón flotante de 'Más' en la biblioteca:
+    // aplicar un diseño interactivo estilo liquid glass"*).
+    //
+    // Va PRIMERO en la cadena de decisión y no como un añadido, porque las dos recetas son
+    // excluyentes: `shellGlass` es un `hazeChild` — ES la superficie — y pintar la otra encima la
+    // tapa entera (lección 0b1151e, escrita tres veces en este repo). Con el interruptor apagado el
+    // camino de abajo queda **idéntico** al de hoy.
+    //
+    // La forma se le pasa explícitamente: `drawBackdrop` coloca el borde de luz y la refracción
+    // SEGÚN la forma, y omitirla es lo que sacó el minirreproductor con las esquinas cuadradas
+    // (fila 254). `interactive = true` porque esto es un botón pequeño y flotante — el caso donde el
+    // escalado al tacto se lee como cristal y no como un fallo de dibujo, que es justo el motivo por
+    // el que la barra de navegación tuvo que volverse cápsula antes de poder activarlo.
+    val glassConfig = LocalGlassEffectConfig.current
+    val interactiveGlass = glassConfig.interactive && glassConfig.globalEnabled && isGlassSupported()
     val shellHazeState = LocalShellHazeState.current
     val base = modifier
         .height(52.dp)
         .clip(AuraShapes.Pill)
         .then(
-            if (shellHazeState != null) {
+            if (interactiveGlass) {
+                // La placa opaca se queda DEBAJO por el mismo motivo que en el camino de haze: si la
+                // receta no llega a dibujar en este contexto, la placa ES el botón — nunca un glifo
+                // desnudo flotando en un agujero.
+                Modifier
+                    .background(AuraPalette.FloatingFill)
+                    .liquidGlassInteractive(
+                        config = glassConfig,
+                        shape = AuraShapes.Pill,
+                        interactive = true,
+                    )
+            } else if (shellHazeState != null) {
                 // AUDIT 2026-08-31 (fix P3): these FABs live INSIDE the NavHost, i.e. DESCENDANTS
                 // of the haze source — in haze 1.7.2 the descendant filter is a silent no-op (the
                 // glass never draws) and the opaque plate was dropped when the glass arrived, so
