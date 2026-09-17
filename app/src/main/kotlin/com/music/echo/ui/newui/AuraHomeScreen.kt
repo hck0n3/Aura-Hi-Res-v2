@@ -469,6 +469,24 @@ fun AuraHomeScreen(
                     }
                 }
 
+                // 🔴 PEDIR MÚSICA (dueño, 2026-09-17: *"el apartado de pedir música lo quiero en el
+                // apartado de inicio, así como YouTube Music, y una apariencia a ese estilo también"*).
+                //
+                // Va ARRIBA, justo debajo del saludo y antes de los estantes, que es donde YouTube
+                // Music lo pone: es una invitación a empezar, y debajo de tres carruseles dejaría de
+                // serlo. Solo en línea, porque sin red no hay catálogo del que sacar nada y una
+                // tarjeta que no puede responder es peor que no estar. La forma (tarjeta aquí, campo y
+                // sugerencias en una hoja) está razonada en [AuraMusicRequestCard].
+                if (!offlineMode) {
+                    item(key = "aura_home_music_request", contentType = "aura_home_music_request") {
+                        AuraMusicRequestCard(
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = AuraSpacing.Gutter, vertical = 4.dp),
+                        )
+                    }
+                }
+
                 // Chips de estado de ánimo de YouTube (dynamic text; only when YouTube returns chips).
                 homePage?.chips?.takeIf { it.isNotEmpty() }?.let { chips ->
                     item(key = "aura_home_chips", contentType = "aura_home_chips") {

@@ -1232,4 +1232,12 @@
     <string name="music_request_label">Pedir música</string>
     <string name="music_request_hint">Algo tranquilo para estudiar…</string>
     <string name="music_request_empty">No encontré nada para eso. Prueba describiéndolo de otra forma.</string>
+    <string name="music_request_card_subtitle">Describe un momento y empieza a sonar</string>
+    <string name="music_request_working">Buscando música…</string>
+    <string name="music_request_working_count">%1$d de %2$d listas</string>
+    <string name="music_request_suggestion_study">Algo tranquilo para estudiar</string>
+    <string name="music_request_suggestion_gym">Para el gimnasio</string>
+    <string name="music_request_suggestion_sleep">Para dormir</string>
+    <string name="music_request_suggestion_drive">Para un viaje largo</string>
+    <string name="music_request_suggestion_party">Para prender la fiesta</string>
 </resources>

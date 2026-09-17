@@ -324,30 +324,11 @@ fun AuraSearchScreen(
                 }
             }
 
-            // 🔴 PEDIR MÚSICA (punto 11 del dueño, 2026-09-17: la función que YouTube Music llama
-            // así, *"pero de manera gratuita y funcional"*).
-            //
-            // Vive AQUÍ, en Buscar, porque es donde ya se está pidiendo algo que poner — y lo que
-            // devuelve no es una lista que revisar, es música que empieza a sonar, así que una pantalla
-            // propia obligaría a un "atrás" después de conseguir exactamente lo que se pedía.
-            //
-            // Solo con el panel de búsqueda CERRADO (si no, competiría por el sitio con las
-            // sugerencias) y solo en línea: sin red no hay catálogo del que sacar nada, y un campo que
-            // no puede responder es peor que no estar.
-            AnimatedVisibility(
-                visible = !searchActive && effectiveSource == SearchSource.ONLINE,
-                enter = expandVertically(animationSpec = AuraMotion.intSize) +
-                    fadeIn(animationSpec = AuraMotion.float),
-                exit = shrinkVertically(animationSpec = AuraMotion.intSize) +
-                    fadeOut(animationSpec = AuraMotion.float),
-            ) {
-                AuraMusicRequestRow(
-                    modifier = Modifier.padding(
-                        horizontal = AuraSpacing.Gutter,
-                        vertical = 6.dp,
-                    ),
-                )
-            }
+            // 🔴 "Pedir música" se MUDÓ A INICIO (dueño, 2026-09-17: *"el apartado de pedir música lo
+            // quiero en el apartado de inicio, así como YouTube Music, y una apariencia a ese estilo
+            // también"*). Aquí estuvo una versión con un campo de texto suelto que él describió como
+            // *"muy básico"*, y con razón: un `OutlinedTextField` con un botón de play no se parece en
+            // nada a lo que YouTube Music pone en su pantalla de inicio. Ver [AuraMusicRequestCard].
 
             CompositionLocalProvider(LocalPlayerAwareWindowInsets provides bodyInsets) {
                 Box(Modifier.fillMaxSize()) {
