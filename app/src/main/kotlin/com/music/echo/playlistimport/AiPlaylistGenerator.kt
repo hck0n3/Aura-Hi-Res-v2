@@ -117,6 +117,27 @@ object AiPlaylistGenerator {
      */
     internal const val PLAYLIST_CANDIDATES = 6
 
+    /**
+     * Cuántas candidatas se juntan antes de elegir. Sesenta salen de dos páginas de lista, que es lo
+     * que ya se descarga de todas formas: el montón no cuesta red, cuesta memoria durante un segundo.
+     * Más allá de esto ya no mejora la elección — solo se añaden candidatas que el propio origen
+     * colocó al final por algo.
+     */
+    internal const val POOL_TARGET = 60
+
+    /**
+     * Cuántas listas se usan. Dos, no una: dos curadores distintos dan más variedad que uno, y las dos
+     * han pasado la misma prueba. Tres empieza a mezclar criterios y el resultado deja de parecerse a
+     * lo que pidió.
+     */
+    internal const val PLAYLISTS_USED = 2
+
+    /** Doce horas. La taxonomía de estados de ánimo y géneros cambia como mucho cada varios meses. */
+    internal const val MOODS_TTL_MS = 12 * 60 * 60 * 1000L
+
+    @Volatile private var cachedMoods: List<com.music.innertube.pages.MoodAndGenres>? = null
+    @Volatile private var cachedMoodsAt = 0L
+
     /** Scaled per-ask cap for the KEYLESS chain — see [AI_ASK_CAP_MS] for the rationale. */
     internal fun keylessAskCapMs(requestCount: Int): Long =
         (ASK_BASE_MS + ASK_PER_TRACK_MS * requestCount)
@@ -180,11 +201,18 @@ object AiPlaylistGenerator {
         baseUrl: String,
         model: String,
         onResolveProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+        /**
+         * El perfil de gusto del usuario, o null. Lo construye el llamante **en paralelo** con esta
+         * llamada (ver `MusicRequestViewModel`), así que no cuesta tiempo de espera; aquí solo se usa
+         * para ELEGIR entre las candidatas que ya se han traído. Null = sin personalizar, y entonces
+         * el resultado es exactamente el orden de origen.
+         */
+        taste: iad1tya.echo.music.reco.TasteProfile? = null,
     ): Produced? {
         val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
         val startedAt = System.currentTimeMillis()
         val produced = produceRacing(
-            database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress,
+            database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress, taste,
         )
         timber.log.Timber.i(
             "MUSIC_REQUEST source=%s tracks=%d tookMs=%d",
@@ -231,6 +259,7 @@ object AiPlaylistGenerator {
         baseUrl: String,
         model: String,
         onResolveProgress: (done: Int, total: Int) -> Unit,
+        taste: iad1tya.echo.music.reco.TasteProfile?,
     ): Produced? = coroutineScope {
         val aiJob = async {
             runCatching {
@@ -241,7 +270,7 @@ object AiPlaylistGenerator {
         }
         val search = runCatching {
             withTimeoutOrNull(MUSIC_REQUEST_SEARCH_BUDGET_MS) {
-                searchFallbackPlaylist(prompt, soloArtist, target)
+                searchFallbackPlaylist(prompt, soloArtist, target, taste)
             }
         }.getOrNull().orEmpty()
 
@@ -574,80 +603,132 @@ object AiPlaylistGenerator {
      * 2026-08-29). This is the no-LLM approach InnerTune/OuterTune/Metrolist use for auto playlists:
      * the search itself IS the recommender.
      *
-     * Query ladder: the raw prompt (truncated to YouTube's practical query length) → song filter,
-     * then progressively looser passes (no filter, video filter) → finally a top-up from YouTube
-     * MUSIC search filtered to the solo artist when the user asked for one. De-duplicated by video id;
-     * every result is a real, playable [SongItem] straight from the catalog the app already plays.
+     * La escalera, de más fiable a menos, y todo de-duplicado por id: **categoría oficial** de
+     * YouTube Music ([MusicRequestMoods] — la categoría ES la prueba) → **listas de la búsqueda que
+     * demuestran por título** que corresponden ([MusicRequestMatch], las dos mejores) → canciones
+     * sueltas → vídeos, que solo se tocan si no hay nada. Cada peldaño no llena el cupo: llena un
+     * MONTÓN ([POOL_TARGET]) del que al final se ELIGE ([MusicRequestRanking]) con el gusto del
+     * usuario empujando sobre el orden de origen. Todo lo que sale es un [SongItem] real y reproducible
+     * del mismo catálogo que ya suena en la app.
      */
     private suspend fun searchFallbackPlaylist(
         prompt: String,
         soloArtist: String?,
         target: Int,
+        taste: iad1tya.echo.music.reco.TasteProfile? = null,
     ): List<MediaMetadata> {
+        val parsed = MusicRequestQuery.build(prompt)
+        val query = parsed.query.ifBlank { prompt.trim().take(80) }
+        if (query.isBlank()) return emptyList()
+
+        // UN MONTÓN Y LUEGO ELEGIR (dueño, 2026-09-17). Antes se aceptaban canciones por orden hasta
+        // llenar el cupo, así que la primera fuente que pasara el filtro decidía el resultado entero.
+        // Una sola página de lista ya trae cincuenta y pico, o sea que juntar candidatas NO cuesta ni
+        // una llamada más — lo que cambia es que al final se puede elegir. Ver [MusicRequestRanking].
+        val pool = ArrayList<SongItem>()
         val seen = HashSet<String>()
-        val out = ArrayList<MediaMetadata>()
-        suspend fun absorb(items: List<SongItem>) {
+        fun absorb(items: List<SongItem>) {
             for (item in items) {
-                if (out.size >= target) return
-                if (seen.add(item.id)) {
-                    if (soloPrimaryMatch(item.artists.map { it.name }, soloArtist)) {
-                        out += item.toMediaMetadata()
-                    }
+                if (pool.size >= POOL_TARGET) return
+                if (seen.add(item.id) && soloPrimaryMatch(item.artists.map { it.name }, soloArtist)) {
+                    pool += item
                 }
             }
         }
-        // LENGUAJE NATURAL (dueño, 2026-09-17: *"necesito que pueda entender el lenguaje natural
-        // también y que me responda"*). El buscador de YouTube Music no es un asistente: busca la
-        // FRASE. [MusicRequestQuery] la convierte en lo que sí premia ("éxitos de los 80", "80s hits
-        // english") y dice cuándo una LISTA responde mejor que canciones sueltas — que es justo el
-        // caso de una época o un momento, y es lo que la propia app de YouTube Music te enseña cuando
-        // le pides eso mismo.
-        val parsed = MusicRequestQuery.build(prompt)
-        val query = parsed.query.ifBlank { prompt.trim().take(80) }
-        if (query.isBlank()) return out
 
-        // Paso 1 (solo para épocas y momentos): la lista curada que alguien ya hizo para eso. Una
-        // sola: coger canciones de varias mezcla criterios y el resultado deja de parecerse a nada.
-        //
-        // QUE NO IMPROVISE (dueño, 2026-09-17): NO se coge "la primera que salga". El buscador
-        // devuelve también listas de gente ("mi mix", "para el carro") que contienen cualquier cosa, y
-        // reproducir una de esas para una petición de los 80 es exactamente improvisar. Las candidatas
-        // pasan por [MusicRequestMatch], que exige que el TÍTULO nombre la década pedida y puntúa
-        // idioma, palabras de la petición y forma de recopilación. Si ninguna lo demuestra, no se usa
-        // ninguna: se baja al peldaño siguiente. Primero las de YouTube Music (FEATURED), que son
-        // editoriales, y solo después las de la comunidad.
         if (parsed.preferPlaylists && soloArtist == null) {
-            val candidates = ArrayList<PlaylistItem>()
-            YouTube.search(query, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST).getOrNull()
-                ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)?.let { candidates += it }
-            YouTube.search(query, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST).getOrNull()
-                ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)?.let { candidates += it }
-            val chosen = MusicRequestMatch.bestIndex(candidates.map { it.title }, parsed)
-                ?.let { candidates[it] }
-            if (chosen != null) {
-                YouTube.playlist(chosen.id).getOrNull()?.songs?.let { absorb(it) }
+            // Peldaño 1 — EL CATÁLOGO PROPIO DE YOUTUBE MUSIC. Sus categorías ("Años 80",
+            // "Concentración") entregan listas editoriales suyas, y ahí la categoría ES la prueba: no
+            // hace falta verificar por título porque el contenido lo garantiza la casa. Ver
+            // [MusicRequestMoods] para por qué sus palabras no coinciden con los nombres de categoría.
+            moodCategoryPlaylists(prompt, parsed).take(PLAYLISTS_USED).forEach { pl ->
+                if (pool.size < POOL_TARGET) {
+                    YouTube.playlist(pl.id).getOrNull()?.songs?.let { absorb(it) }
+                }
+            }
+
+            // Peldaño 2 — listas de la búsqueda, y solo las que DEMUESTRAN por título que
+            // corresponden ([MusicRequestMatch]). Ahora se usan las DOS mejores en vez de una: dos
+            // curadores distintos dan más variedad que uno, y las dos han pasado la misma prueba.
+            if (pool.size < POOL_TARGET) {
+                val candidates = ArrayList<PlaylistItem>()
+                YouTube.search(query, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST).getOrNull()
+                    ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)
+                    ?.let { candidates += it }
+                YouTube.search(query, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST).getOrNull()
+                    ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)
+                    ?.let { candidates += it }
+                MusicRequestMatch.rankedIndices(candidates.map { it.title }, parsed)
+                    .take(PLAYLISTS_USED)
+                    .forEach { index ->
+                        if (pool.size < POOL_TARGET) {
+                            YouTube.playlist(candidates[index].id).getOrNull()?.songs?.let { absorb(it) }
+                        }
+                    }
             }
         }
 
-        if (out.size < target) {
+        // Peldaño 3 — canciones sueltas del buscador.
+        if (pool.size < POOL_TARGET) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
         }
-        // Los VÍDEOS son el peldaño menos fiable — recopilaciones de una hora, versiones en directo,
-        // subidas de aficionado — así que para una petición de época o momento solo se usan cuando no
-        // hay NADA más. Rellenar con ellos una lista que ya iba bien es la otra forma de improvisar.
-        val videosAllowed = if (parsed.preferPlaylists) out.isEmpty() else out.size < target
+        // Peldaño 4 — los VÍDEOS son lo menos fiable (recopilaciones de una hora, versiones de
+        // aficionado): en una petición de época o momento solo se tocan si no hay NADA.
+        val videosAllowed = if (parsed.preferPlaylists) pool.isEmpty() else pool.size < target
         if (videosAllowed) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
         }
         // Red de seguridad: si la consulta construida no dio nada, se prueba su petición TAL CUAL.
-        // Así el traductor nunca puede dejarle con menos de lo que ya tenía.
-        if (out.isEmpty() && query != prompt.trim().take(80)) {
+        if (pool.isEmpty() && query != prompt.trim().take(80)) {
             YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
         }
-        return out
+
+        // Y ahora se elige: orden de origen como esqueleto, el gusto empuja unos puestos, lo marcado
+        // con "No me gusta" se cae y no hay dos seguidas del mismo artista. Sin perfil ([taste] null)
+        // el empujón es cero y esto devuelve exactamente el orden de origen.
+        return MusicRequestRanking.pick(
+            candidates = pool,
+            target = target,
+            artistOf = { it.artists.firstOrNull()?.name },
+            tasteOf = { item ->
+                taste?.scoreNames(item.artists.map { a -> a.name }, item.title) ?: 0.0
+            },
+            avoidScore = iad1tya.echo.music.reco.TasteProfile.AVOID,
+        ).map { it.toMediaMetadata() }
+    }
+
+    /**
+     * Las listas editoriales de la categoría de YouTube Music que corresponde a su petición, o vacío
+     * si ninguna corresponde claramente — y entonces la escalera sigue por la búsqueda, que es lo
+     * honesto: usar una categoría que no es sería inventarse la respuesta.
+     *
+     * La taxonomía se cachea [MOODS_TTL_MS] porque cambia como mucho cada varios meses y pedirla en
+     * cada petición sería una llamada de red a cambio de nada.
+     */
+    private suspend fun moodCategoryPlaylists(
+        prompt: String,
+        parsed: MusicRequestQuery.Parsed,
+    ): List<PlaylistItem> {
+        val cached = cachedMoods
+        val now = System.currentTimeMillis()
+        val sections = if (cached != null && now - cachedMoodsAt < MOODS_TTL_MS) {
+            cached
+        } else {
+            YouTube.moodAndGenres().getOrNull()?.also {
+                cachedMoods = it
+                cachedMoodsAt = now
+            } ?: return emptyList()
+        }
+        val items = sections.flatMap { it.items }
+        if (items.isEmpty()) return emptyList()
+        val index = MusicRequestMoods.pickCategory(items.map { it.title }, prompt, parsed)
+            ?: return emptyList()
+        val endpoint = items[index].endpoint
+        val browse = YouTube.browse(endpoint.browseId, endpoint.params).getOrNull() ?: return emptyList()
+        return browse.items.flatMap { it.items }.filterIsInstance<PlaylistItem>()
     }
 
     private fun filterTracksForSoloArtist(

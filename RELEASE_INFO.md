@@ -13,6 +13,8 @@ paquete y misma firma. Recoge cuatro rondas de pruebas.
 
 ## Pedir música
 
+- **Busca donde busca YouTube Music.** Para una época o un momento entra por el catálogo oficial de categorías de YouTube Music ("Años 80", "Concentración", "Entrenamiento") y usa sus listas editoriales: ahí no hace falta adivinar, la categoría garantiza el contenido. Si tu petición no cae claramente en ninguna, busca listas y solo acepta las que demuestran por título que corresponden.
+- **Y son tus canciones, no las de cualquiera.** Junta unas sesenta candidatas y elige diez con tu propio historial: la curación de la lista manda, pero lo que ya escuchas adelanta puestos, lo que marcaste con "No me gusta" se cae y no salen dos seguidas del mismo artista. En una instalación nueva, sin historial, el resultado es exactamente el orden de la lista.
 - **Le describes lo que quieres y suena.** "Música de los 80s", "algo para el gimnasio", "éxitos en inglés": entiende la década (en cifras o en letra), el idioma y las muletillas, y traduce tu frase a lo que el buscador de YouTube Music premia de verdad.
 - **No improvisa.** Para una época o un momento busca listas, pero solo acepta una si su título demuestra que corresponde a lo que pediste; si ninguna lo demuestra, busca canciones. Los vídeos son el último recurso.
 - **Responde en segundos**, y las diez canciones que devuelve son la semilla de la cola infinita: cuando se acaban, la continuación inteligente sigue con el mismo algoritmo.

@@ -119,6 +119,18 @@ object MusicRequestMatch {
         return bestIdx
     }
 
+    /**
+     * Todas las candidatas que PASAN, de mejor a peor. Existe porque ahora se usan las dos mejores en
+     * vez de una sola: dos curadores distintos dan más variedad, y las dos han pasado la misma prueba.
+     * Las rechazadas no aparecen, pase lo que pase.
+     */
+    fun rankedIndices(titles: List<String>, parsed: MusicRequestQuery.Parsed): List<Int> =
+        titles.indices
+            .map { it to score(titles[it], parsed) }
+            .filter { it.second != REJECT }
+            .sortedByDescending { it.second }
+            .map { it.first }
+
     /** Coincidencia por palabra completa sobre un texto ya normalizado. */
     private fun containsToken(folded: String, token: String): Boolean {
         if (token.isBlank()) return false

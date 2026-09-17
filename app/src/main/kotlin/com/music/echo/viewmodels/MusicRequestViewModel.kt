@@ -6,11 +6,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.playlistimport.AiPlaylistGenerator
+import iad1tya.echo.music.reco.AffinityEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -37,6 +40,7 @@ class MusicRequestViewModel
 @Inject
 constructor(
     private val database: MusicDatabase,
+    private val dislikeStore: iad1tya.echo.music.dislike.DislikeStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<MusicRequestUiState>(MusicRequestUiState.Idle)
@@ -59,6 +63,13 @@ constructor(
      */
     private val requestedCount = 10
 
+    /**
+     * Cuántos eventos de escucha lee el perfil de gusto. Seiscientos son varias semanas de uso real y
+     * una sola consulta; los 3000 del reproductor son para su perfil completo, que se cachea cinco
+     * minutos y aquí no hace falta: esto solo tiene que ordenar sesenta candidatas.
+     */
+    private val TASTE_EVENTS = 600
+
     fun request(
         prompt: String,
         provider: String,
@@ -70,6 +81,25 @@ constructor(
         if (prompt.isBlank()) return
         job = viewModelScope.launch(Dispatchers.IO) {
             _state.value = MusicRequestUiState.Working(0, 0)
+            // 🔴 SU GUSTO, CONSTRUIDO EN PARALELO (dueño, 2026-09-17: *"haz lo mejor de esa
+            // recomendación"*).
+            //
+            // La app ya sabe qué le gusta — es el mismo perfil que usan la radio, Inicio y el
+            // aleatorio inteligente — y "pedir música" lo ignoraba por completo: le daba los 80 de
+            // cualquiera en vez de LOS SUYOS. Se construye aquí con el mismo motor
+            // ([AffinityEngine]), y **arrancado antes** de la petición para que sus lecturas de base
+            // de datos corran mientras la red trabaja: el usuario no espera ni un milisegundo más.
+            //
+            // Solo eventos y "No me gusta": es una lectura, no las cinco que hace el reproductor para
+            // su perfil completo. Con eso ya sabe de artistas y géneros, que es lo que hace falta para
+            // ELEGIR entre sesenta candidatas. Si falla, null — y entonces no se personaliza nada, que
+            // es exactamente como estaba.
+            val tasteJob = async {
+                runCatching {
+                    val events = database.recentEventsWithSong(TASTE_EVENTS).first()
+                    AffinityEngine.buildProfile(events, dislikeStore.snapshot())
+                }.getOrNull()
+            }
             val produced = AiPlaylistGenerator.produce(
                 database = database,
                 prompt = prompt,
@@ -81,6 +111,7 @@ constructor(
                 onResolveProgress = { done, total ->
                     _state.value = MusicRequestUiState.Working(done, total)
                 },
+                taste = tasteJob.await(),
             )
             _state.value = when {
                 produced == null || produced.songs.isEmpty() -> MusicRequestUiState.Empty
