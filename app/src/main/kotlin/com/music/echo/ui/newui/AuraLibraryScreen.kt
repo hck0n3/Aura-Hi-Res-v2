@@ -579,10 +579,14 @@ private fun AuraFab(
     // una recursión de dibujo. Con `shellGlass` el mismo caso es un no-op silencioso (por eso la nota
     // de abajo solo habla de "glifos desnudos"); con `drawBackdrop` se cae.
     //
-    // Para que este botón tuviera cristal interactivo de verdad habría que sacarlo del NavHost al
-    // nivel del shell, como la barra de navegación y el minirreproductor — que es exactamente por qué
-    // esos dos sí pueden. Eso es mover el botón de sitio, no cambiarle el material, y no es lo que
-    // pidió. Queda con la placa + haze de siempre.
+    // Para que este botón tuviera cristal interactivo de verdad habría que darle a esta pantalla su
+    // PROPIA capa de fondo y leerla desde fuera de ella (el FAB ya es hermano del contenido, no
+    // descendiente), que es exactamente por qué la barra de navegación y el minirreproductor sí
+    // pueden: viven al nivel del shell y leen la capa del NavHost.
+    //
+    // 🔴 CERRADO POR EL DUEÑO (2026-09-17): *"el punto dos omítelo"*. Después de que esto le cerrara
+    // la app al entrar en la biblioteca en la beta 2.0.45-beta2, decidió quitarlo de la lista. No se
+    // vuelve a intentar salvo que él lo pida: queda con la placa + haze de siempre.
     val shellHazeState = LocalShellHazeState.current
     val base = modifier
         .height(52.dp)

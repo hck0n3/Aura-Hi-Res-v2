@@ -21,7 +21,3 @@ canal de actualización de la app.
 - **Modo sin conexión automático.** Sin red, Inicio, Novedades, Biblioteca y Buscar pasan solos a lo descargado y vuelven solos. No toca tu interruptor manual. Se apaga en Ajustes → Contenido.
 - **"No me gusta" le enseña al algoritmo**: antes solo escondía filas y por dentro el artista marcado conservaba toda su puntuación.
 - La cola de un álbum no se llena de canciones ajenas, el vídeo no se cuelga, las playlists de solo vídeo avanzan, las canciones no empiezan cortadas, identificar una canción es más rápido, descarga automática por lista, la sincronización acaba aunque cierres la app, portadas a todo el ancho, "Ver álbum" bajo los artistas, compartir en el reproductor, las ventanas miden lo que mide su contenido y Novedades sin estantes de una sola tarjeta.
-
-## Lo que queda pendiente
-
-- **El cristal interactivo del botón "Más" de la biblioteca** (tu punto 2) sigue con la placa de siempre, hasta que confirmes que la biblioteca abre bien en estas betas. La vía para hacerlo bien está identificada: darle a esa pantalla su propia capa de fondo, como ya la tienen la barra de abajo y el minirreproductor.
