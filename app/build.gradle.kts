@@ -231,8 +231,8 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1003
-        versionName = "2.0.42"
+        versionCode = 1004
+        versionName = "2.0.43"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -645,5 +645,14 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation(libs.work.runtime.ktx)
     implementation(libs.androidx.core.splashscreen)
+    // BASELINE PROFILE (2026-09-16): NO explicit androidx.profileinstaller dependency here, and that
+    // is the correct state, not an oversight. It is ALREADY on this module's runtime classpath as a
+    // transitive dependency (gradle.lockfile pins androidx.profileinstaller:profileinstaller:1.4.1 on
+    // every *RuntimeClasspath, debug and release alike), which is all the profile needs: its
+    // InitializationProvider ships in the merged manifest and writes the packaged profile into ART on
+    // first run. Declaring it explicitly put it on the COMPILE classpath too, where the lock does not
+    // list it, and the build failed with "not part of the dependency lock state" — a lock this
+    // container cannot regenerate, since the proxy blocks Maven. BaselineProfilePackagedTest guards
+    // that the transitive never disappears without anyone noticing.
     implementation(libs.ffmpeg.kit.full)
 }

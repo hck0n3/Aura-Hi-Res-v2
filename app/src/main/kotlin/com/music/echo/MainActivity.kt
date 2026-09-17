@@ -36,8 +36,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -216,6 +214,7 @@ import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.recognition.RecognitionForegroundService
 import iad1tya.echo.music.utils.coil.LocalAudioArtFetcher
+import iad1tya.echo.music.ui.component.AuraNavMotion
 import iad1tya.echo.music.ui.component.AppNavigationRail
 import iad1tya.echo.music.ui.component.BottomSheetMenu
 import iad1tya.echo.music.ui.component.BottomSheetPage
@@ -235,6 +234,7 @@ import iad1tya.echo.music.constants.LiquidGlassLensAmountKey
 import iad1tya.echo.music.constants.LiquidGlassLensHeightKey
 import iad1tya.echo.music.constants.LiquidGlassMiniPlayerEnabledKey
 import iad1tya.echo.music.constants.LiquidGlassNavBarEnabledKey
+import iad1tya.echo.music.constants.LiquidGlassInteractiveKey
 import iad1tya.echo.music.constants.LiquidGlassPlayerEnabledKey
 import iad1tya.echo.music.constants.LiquidGlassSurfaceOpacityKey
 import iad1tya.echo.music.constants.LiquidGlassSurfaceTintColorKey
@@ -322,6 +322,18 @@ class MainActivity : ComponentActivity() {
         /** Notification / in-app redirect: open Ajustes ▸ Actualizaciones. */
         const val EXTRA_OPEN_UPDATE = "extra_open_update"
         const val EXTRA_UPDATE_TAG = "extra_update_tag"
+
+        /**
+         * The generic "a notification was tapped, go to what it is about" door.
+         *
+         * Owner report 2026-09-15: app notifications did nothing when tapped — most carried no
+         * content intent at all, and the ones that did (Radar de novedades) carried a bare launcher
+         * intent, which just reopens the app wherever it was. [iad1tya.echo.music.utils.NotificationTapIntents]
+         * builds the PendingIntent; the route it carries is ALLOW-LISTED there, because this
+         * activity is exported and any app can send it this action.
+         */
+        const val ACTION_OPEN_ROUTE = "iad1tya.echo.music.action.OPEN_ROUTE"
+        const val EXTRA_OPEN_ROUTE = "extra_open_route"
     }
 
     override fun attachBaseContext(newBase: Context) {
@@ -382,7 +394,6 @@ class MainActivity : ComponentActivity() {
                 if (existing != null && existing.service === service.service) {
                     Timber.tag("MainActivity").d("Rebound to the same service — reusing PlayerConnection")
                     existing.service.onAppForegrounded()
-                    listenTogetherManager.setPlayerConnection(existing)
                     return
                 }
                 // A genuinely different service instance (process death / fresh start): the old connection can
@@ -394,8 +405,6 @@ class MainActivity : ComponentActivity() {
                     // #27: binding on a cold start = the app is in the foreground → genuine engagement, so drop
                     // the cold-restore PLAY veto and let external controls (BT/AA/notification/watch) work.
                     service.service.onAppForegrounded()
-
-                    listenTogetherManager.setPlayerConnection(playerConnection)
                 } catch (e: Exception) {
                     Timber.tag("MainActivity").e(e, "Failed to create PlayerConnection")
                     
@@ -403,7 +412,6 @@ class MainActivity : ComponentActivity() {
                         delay(500)
                         try {
                             playerConnection = PlayerConnection(this@MainActivity, service, database, lifecycleScope, this@MainActivity.lifecycle)
-                            listenTogetherManager.setPlayerConnection(playerConnection)
                         } catch (e2: Exception) {
                             Timber.tag("MainActivity").e(e2, "Failed to create PlayerConnection on retry")
                         }
@@ -413,8 +421,8 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            
-            listenTogetherManager.setPlayerConnection(null)
+            // Listen Together is NOT unwired here any more: its player seam is the service itself
+            // (MusicService attaches/detaches), so a room survives the UI going away.
             playerConnection?.dispose()
             playerConnection = null
         }
@@ -584,9 +592,9 @@ class MainActivity : ComponentActivity() {
 
         // The SimpMusic-port manager boots itself (settings mirrors live in its init); the old
         // explicit initialize() no longer exists. Session resumption happens HERE (a persisted
-        // room token means the socket reopens on app start), and the playback bridge starts on
-        // the first setPlayerConnection (onServiceConnected) — the same seam upstream uses for
-        // its bridge.start().
+        // room token means the socket reopens on app start); the playback bridge is started by
+        // MusicService when its player exists — upstream starts it from the media service too,
+        // and anything Activity-scoped would stop publishing the moment the screen went away.
         listenTogetherManager.connectIfResumable()
 
         // App language (device/system locale by default) is applied for all API levels in attachBaseContext().
@@ -1609,12 +1617,13 @@ class MainActivity : ComponentActivity() {
                 val (liquidGlassPlayerEnabled) = rememberPreference(LiquidGlassPlayerEnabledKey, defaultValue = true)
                 val (liquidGlassMiniPlayerEnabled) = rememberPreference(LiquidGlassMiniPlayerEnabledKey, defaultValue = true)
                 val (liquidGlassNavBarEnabled) = rememberPreference(LiquidGlassNavBarEnabledKey, defaultValue = true)
+                val (liquidGlassInteractive) = rememberPreference(LiquidGlassInteractiveKey, defaultValue = false)
                 val glassEffectConfig = remember(
                     liquidGlassGlobalEnabled, glassRuntimeAllowed, liquidGlassVibrancy, liquidGlassBlurRadius,
                     liquidGlassLensHeight, liquidGlassLensAmount, liquidGlassChromaticAberration,
                     liquidGlassDepthEffect, liquidGlassSurfaceTintColorInt,
                     liquidGlassSurfaceOpacity, liquidGlassTextColorInt, liquidGlassPlayerEnabled,
-                    liquidGlassMiniPlayerEnabled, liquidGlassNavBarEnabled,
+                    liquidGlassMiniPlayerEnabled, liquidGlassNavBarEnabled, liquidGlassInteractive,
                 ) {
                     GlassEffectConfig(
                         // FORCED (owner directive 2026-08-29): no isGlassEligible() AND here — the
@@ -1632,6 +1641,7 @@ class MainActivity : ComponentActivity() {
                         playerEnabled = liquidGlassPlayerEnabled,
                         miniPlayerEnabled = liquidGlassMiniPlayerEnabled,
                         navBarEnabled = liquidGlassNavBarEnabled,
+                        interactive = liquidGlassInteractive,
                     )
                 }
                 // The app-content layer glass surfaces sample from. Only recorded into while glass is
@@ -2225,60 +2235,64 @@ class MainActivity : ComponentActivity() {
                                         else -> Screens.Home
                                     }.route,
                                     
+                                    // SimpMusic clonado (2026-09-16, orden del dueno: "animaciones que
+                                    // se mira que se desplaza a alta velocidad de un lado a otro mientras
+                                    // toco los botones"). Antes esto recorria `it / 8` con `tween(200)`:
+                                    // un octavo de pantalla a ritmo plano, que se nota pero no se lee
+                                    // como un barrido. SimpMusic recorre el ancho COMPLETO con el resorte
+                                    // por defecto de Compose. El porque de cada numero esta en
+                                    // AuraNavMotion; los predicados de direccion son los mismos que
+                                    // estaban aqui, solo movidos alla para poder probarlos.
                                     enterTransition = {
-                                        val currentRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == targetState.destination.route
-                                        }
-                                        val previousRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == initialState.destination.route
-                                        }
-
-                                        if (currentRouteIndex == -1 || currentRouteIndex > previousRouteIndex)
-                                            slideInHorizontally { it / 8 } + fadeIn(tween(200))
-                                        else
-                                            slideInHorizontally { -it / 8 } + fadeIn(tween(200))
+                                        AuraNavMotion.enter(
+                                            AuraNavMotion.forward(
+                                                fromIndex = navigationItems.indexOfFirst {
+                                                    it.route == initialState.destination.route
+                                                },
+                                                toIndex = navigationItems.indexOfFirst {
+                                                    it.route == targetState.destination.route
+                                                },
+                                            )
+                                        )
                                     },
-                                    
+
                                     exitTransition = {
-                                        val currentRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == initialState.destination.route
-                                        }
-                                        val targetRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == targetState.destination.route
-                                        }
-
-                                        if (targetRouteIndex == -1 || targetRouteIndex > currentRouteIndex)
-                                            slideOutHorizontally { -it / 8 } + fadeOut(tween(200))
-                                        else
-                                            slideOutHorizontally { it / 8 } + fadeOut(tween(200))
+                                        AuraNavMotion.exit(
+                                            AuraNavMotion.forward(
+                                                fromIndex = navigationItems.indexOfFirst {
+                                                    it.route == initialState.destination.route
+                                                },
+                                                toIndex = navigationItems.indexOfFirst {
+                                                    it.route == targetState.destination.route
+                                                },
+                                            )
+                                        )
                                     },
-                                    
+
                                     popEnterTransition = {
-                                        val currentRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == targetState.destination.route
-                                        }
-                                        val previousRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == initialState.destination.route
-                                        }
-
-                                        if (previousRouteIndex != -1 && previousRouteIndex < currentRouteIndex)
-                                            slideInHorizontally { it / 8 } + fadeIn(tween(200))
-                                        else
-                                            slideInHorizontally { -it / 8 } + fadeIn(tween(200))
+                                        AuraNavMotion.enter(
+                                            AuraNavMotion.popForward(
+                                                fromIndex = navigationItems.indexOfFirst {
+                                                    it.route == initialState.destination.route
+                                                },
+                                                toIndex = navigationItems.indexOfFirst {
+                                                    it.route == targetState.destination.route
+                                                },
+                                            )
+                                        )
                                     },
-                                    
-                                    popExitTransition = {
-                                        val currentRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == initialState.destination.route
-                                        }
-                                        val targetRouteIndex = navigationItems.indexOfFirst {
-                                            it.route == targetState.destination.route
-                                        }
 
-                                        if (currentRouteIndex != -1 && currentRouteIndex < targetRouteIndex)
-                                            slideOutHorizontally { -it / 8 } + fadeOut(tween(200))
-                                        else
-                                            slideOutHorizontally { it / 8 } + fadeOut(tween(200))
+                                    popExitTransition = {
+                                        AuraNavMotion.exit(
+                                            AuraNavMotion.popForward(
+                                                fromIndex = navigationItems.indexOfFirst {
+                                                    it.route == initialState.destination.route
+                                                },
+                                                toIndex = navigationItems.indexOfFirst {
+                                                    it.route == targetState.destination.route
+                                                },
+                                            )
+                                        )
                                     },
                                     // Record the app content into the glass backdrop ONLY while Liquid
                                     // Glass is enabled + eligible AND at least one per-component surface
@@ -2298,7 +2312,16 @@ class MainActivity : ComponentActivity() {
                                     // one that shipped.
                                     modifier = Modifier
                                         .then(
-                                            if (!newUiShell && glassEffectConfig.globalEnabled && glassEffectConfig.anyComponentEnabled) {
+                                            // `|| interactive` (2026-09-16): the SimpMusic glass samples this
+                                            // same layer, and the new shell draws it too — without recording
+                                            // here it would have no source and fall back to its opaque ground.
+                                            // Still narrower than a blanket record: the layer is only paid for
+                                            // when the user turns that option ON, so the documented heat bug
+                                            // above stays fixed for everyone who leaves it off.
+                                            if ((!newUiShell || glassEffectConfig.interactive) &&
+                                                glassEffectConfig.globalEnabled &&
+                                                glassEffectConfig.anyComponentEnabled
+                                            ) {
                                                 Modifier.layerBackdrop(appBackdrop)
                                             } else {
                                                 Modifier
@@ -2590,6 +2613,21 @@ class MainActivity : ComponentActivity() {
                     launchSingleTop = true
                 }
             }
+            return
+        }
+
+        // A notification tap: go to the screen the notification is ABOUT. The route is checked
+        // against the allow-list rather than trusted, and navigateToReentryTarget is what keeps a
+        // tap from stacking a second copy of a screen the user already has open.
+        if (intent.action == ACTION_OPEN_ROUTE) {
+            val route = intent.getStringExtra(EXTRA_OPEN_ROUTE)
+            intent.action = null
+            intent.removeExtra(EXTRA_OPEN_ROUTE)
+            if (route == null || route !in iad1tya.echo.music.utils.NotificationTapIntents.ALLOWED_ROUTES) {
+                Timber.tag("MainActivity").w("Ignoring notification route outside the allow-list")
+                return
+            }
+            runCatching { navController.navigateToReentryTarget(route) }
             return
         }
 

@@ -1015,6 +1015,12 @@ class MusicService :
     @Volatile private var pendingSeedPlayedIds: Set<String> = emptySet()
 
     /**
+     * One activation must NOT seed itself from the persistent memory: the user asked for a fresh lap
+     * and the DELETE that clears it is still in flight. Consumed by the next [beginShuffleSession].
+     */
+    @Volatile private var suppressEnhancedSeedOnce: Boolean = false
+
+    /**
      * COVERAGE — how many items the CURRENT CONTEXT actually loaded, and WHICH context that number
      * describes. This is the proof that "everything on the timeline is played" really means "the LIST
      * finished", instead of "the user trimmed the queue down to songs he already heard".
@@ -1634,6 +1640,25 @@ class MusicService :
                     player.playbackState == Player.STATE_READY &&
                     !player.isPlaying
                 ) {
+                    // 🔴 OWNER REPORT (2026-09-16): "de la nada Aura se dispara reproduciendo a veces, eso
+                    // pasa de manera aleatoria" — and he has not spotted a pattern. This branch is one of the
+                    // two doors that can do it, and the `settingResume` half has NO time limit and no
+                    // requirement that the user ever paused: with "Reanudar al conectar Bluetooth" on, any
+                    // headset or car that connects starts playback, even hours after a deliberate pause.
+                    //
+                    // Logged rather than changed, because which door is his is a fact we can HAVE instead of
+                    // guess. Names the branch, so his log says "the Bluetooth setting did it" or stays silent
+                    // and points at the external-PLAY path in MediaLibrarySessionCallback instead.
+                    // Privacy (rule 4): a branch name and a boolean — no title, artist or id.
+                    iad1tya.echo.music.utils.PlaybackLogManager.log(
+                        iad1tya.echo.music.utils.PlaybackLogLevel.WARNING,
+                        "Auto-resume on device connect",
+                        if (settingResume) {
+                            "reason=ResumeOnBluetoothConnect setting (no time limit)"
+                        } else {
+                            "reason=Android Auto re-connect within 45s of a noisy pause"
+                        },
+                    )
                     pausedByNoisy = false
                     player.play()
                 }
@@ -1738,7 +1763,8 @@ class MusicService :
     }
 
     /**
-     * Returns the EQ preamp to 0.0 dB when the user turns Safe Volume OFF.
+     * Brings the EQ preamp down to the house level ([EqConstants.DEFAULT_PREAMP_DB]) when the user turns
+     * Safe Volume OFF. It used to force 0.0 dB — see the owner report in the body.
      *
      * WHY: the preamp is output make-up applied AFTER the limiter, so while Safe Volume is on it is
      * safe — the limiter catches whatever it pushes past full scale. Turn Safe Volume off and that
@@ -1758,19 +1784,38 @@ class MusicService :
     private fun resetEqPreamp() {
         if (!::eqProfileRepository.isInitialized) return
         val effective = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value
+        // 🔴 OWNER REPORT (2026-09-16): "el preamp quiero que esté +2.2 dB, y a veces cuando reviso está
+        // en 0.0 dB". THIS was the "sometimes". Every Safe Volume ON -> OFF transition wrote 0.0 over
+        // whatever he had set, silently, so the value he found depended on whether he had touched that
+        // switch since the last time he looked.
+        //
+        // The safety intent is kept — a big boost still comes down when the limiter goes away — but it
+        // lands on the tuning this player ships with instead of on silence-flat. Dropping to 0.0 was never
+        // the safe choice anyway: it makes the app suddenly quieter than every other player on the phone,
+        // which is exactly the surprise the reset existed to avoid, only pointing the other way.
+        val house = iad1tya.echo.music.eq.data.EqConstants.DEFAULT_PREAMP_DB
+        // Never RAISE a preamp the user deliberately lowered: the target is whatever is already there when
+        // that is quieter than the house level. The prefs mirror is written with the SAME value the DSP
+        // ends on — the old code wrote its constant unconditionally, so the mirror and the profile could
+        // disagree about what was actually playing.
+        val target = effective?.preamp?.coerceAtMost(house.toDouble()) ?: house.toDouble()
         runCatching {
             getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
                 .edit()
-                .putFloat("preampDb", 0f)
+                .putFloat("preampDb", target.toFloat())
                 .apply()
         }
-        if (effective == null || effective.preamp == 0.0) return
-        val flattened = effective.copy(preamp = 0.0)
-        eqProfileRepository.setUnsavedProfile(flattened)
+        if (effective == null || effective.preamp <= house) return
+        val lowered = effective.copy(preamp = house.toDouble())
+        eqProfileRepository.setUnsavedProfile(lowered)
         if (::equalizerService.isInitialized) {
-            runCatching { equalizerService.applyProfile(flattened) }
+            runCatching { equalizerService.applyProfile(lowered) }
         }
-        Timber.tag(TAG).i("Safe Volume turned off -> EQ preamp reset from %.1f dB to 0.0 dB", effective.preamp)
+        Timber.tag(TAG).i(
+            "Safe Volume turned off -> EQ preamp brought down from %.1f dB to the house %.1f dB",
+            effective.preamp,
+            house,
+        )
     }
 
     /**
@@ -1958,6 +2003,13 @@ class MusicService :
         player.addListener(this@MusicService)
         playerInitialized.value = true
         Timber.tag(TAG).d("Player successfully initialized")
+
+        // Listen Together's playback bridge lives here, NOT in the Activity: a room has to keep
+        // publishing (host) and following (guest) while the screen is off, and the bridge follows
+        // `playerFlow` so it survives every player rebuild. Attaching after the player exists is
+        // what makes its first read valid. See ListenTogetherPlaybackBridge's header.
+        runCatching { listenTogetherManager.attachPlayerService(this@MusicService) }
+            .onFailure { Timber.tag(TAG).w(it, "Could not attach the Listen Together bridge") }
 
         // FIX B1 (#28.1): rehydrate the in-memory stream-URL cache from DataStore so the first play/resume
         // after an app-update restart can serve a still-valid resolved URL instead of re-running the slow
@@ -3451,6 +3503,10 @@ class MusicService :
             player.prepare()
             player.playWhenReady = playWhenReady
         }
+        // How many items the queue actually produced, BEFORE any filter. Read only to explain an empty
+        // queue below: "the source gave us nothing" and "our own filters ate everything" look identical
+        // from here and need opposite fixes. A count is not user data — no title, artist or id is logged.
+        var fetchedCount = 0
         scope.launch(SilentHandler) {
             val rawStatus =
                 withContext(Dispatchers.IO) {
@@ -3458,9 +3514,20 @@ class MusicService :
                     // ListQueue, playlists, liked) often have musicVideoType=null on plain audio rows from
                     // the DB — filtering them emptied albums so taps silently no-op'd (0.6.176 regression).
                     // Non-music filtering belongs only on automatic radio/related appends.
-                    queue.getInitialStatus()
+                    val fetched = queue.getInitialStatus()
+                    fetchedCount = fetched.items.size
+                    fetched
                         .filterExplicit(dataStore.get(HideExplicitKey, false))
-                        .filterVideoSongs(dataStore.get(HideVideoSongsKey, false) || dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false))
+                        // protectAnchor: THIS is the queue the user just started by tapping something. The
+                        // tapped item must survive the hide-videos preference (which Data Saver turns on by
+                        // itself) or the tap plays nothing at all — see the owner report on
+                        // Queue.Status.filterVideoSongs. Every OTHER call site in this file is an automatic
+                        // radio / autoplay append and deliberately keeps the old, unprotected behaviour.
+                        .filterVideoSongs(
+                            disableVideos = dataStore.get(HideVideoSongsKey, false) ||
+                                dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false),
+                            protectAnchor = true,
+                        )
                 }
             // Duplicate ROWS of one mediaId (a playlist can hold the same song twice) defeat the id-keyed
             // no-repeat memory: both rows play, and the second reads as a repeat. Context queues dedupe at
@@ -3482,8 +3549,33 @@ class MusicService :
             if (initialStatus.title != null) {
                 queueTitle = initialStatus.title
             }
-            if (initialStatus.items.isEmpty()) return@launch
-            
+            if (initialStatus.items.isEmpty()) {
+                // NEVER return in silence here. This single line is what the owner experienced as
+                // "toco un vídeo y no hace nada" (2026-09-16): the tap reached the service, the service
+                // decided there was nothing to play, and nobody was told — not the user, not the log.
+                // protectAnchor above stops the video case from ever reaching this point again, but the
+                // branch itself stays reachable (an empty playlist, a region-blocked radio, every item
+                // explicit with "hide explicit" on), and every one of those deserves an explanation.
+                // Counts only: rule 4 of AGENTS.md — no title, artist or id in the log the owner shares.
+                Timber.tag(TAG).w(
+                    "playQueue: nothing to play — the queue returned %d item(s) and %s",
+                    fetchedCount,
+                    if (fetchedCount > 0) "the content filters removed all of them" else "the source was empty",
+                )
+                // Only when OUR filters are the reason, and never on a restore (that runs with no one
+                // looking at the screen): a toast then explains an app that otherwise looks broken.
+                if (!isRestore && fetchedCount > 0) {
+                    runCatching {
+                        Toast.makeText(
+                            this@MusicService,
+                            getString(R.string.queue_empty_after_filters),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                }
+                return@launch
+            }
+
             originalQueueSize = initialStatus.items.size
             if (queue.preloadItem != null) {
                 val safeIndex = initialStatus.mediaItemIndex.coerceIn(0, (initialStatus.items.size - 1).coerceAtLeast(0))
@@ -4773,6 +4865,10 @@ class MusicService :
     fun playNext(items: List<MediaItem>) {
         
         if (player.mediaItemCount == 0 || player.playbackState == STATE_IDLE) {
+            // Con el reproductor vacío esto NO es un "poner a continuación": construye una cola nueva
+            // entera, así que la cola anterior tiene que dejar de mandar. Sin esto, el servicio le
+            // paginaba encima la colección que estuviera puesta antes — ver [adoptDirectQueue].
+            adoptDirectQueue(items = items, title = null)
             player.setMediaItems(items)
             player.prepare()
             
@@ -5321,6 +5417,37 @@ class MusicService :
     @Volatile private var externalExpectedFirstId: String? = null
 
     /**
+     * La línea de tiempo del reproductor se acaba de reemplazar **sin pasar por [playQueue]** — dile al
+     * servicio de qué cola se trata.
+     *
+     * [currentQueue] no es decorativo: a cinco canciones del final, `onMediaItemTransition` hace
+     * `currentQueue.nextPage()` y lo añade, y el traspaso a la radio infinita exige
+     * `!currentQueue.hasNextPage()`. Quien reemplaza la línea de tiempo y NO actualiza esto deja viva la
+     * cola anterior, así que el servicio pagina una colección que ya no suena dentro de la que sí suena,
+     * y además nunca entrega el mando a la radio infinita al terminar. Eso es exactamente lo que el dueño
+     * reportó en Android Auto (2026-09-17); lo escribo aquí, en el punto único, porque los tres sitios que
+     * reemplazan la línea de tiempo por fuera de [playQueue] tenían el mismo agujero y repetir la
+     * asignación en tres sitios es cómo vuelve a abrirse uno.
+     *
+     * Siempre una [ListQueue]: estas colas **son** listas finitas, y `hasNextPage()` false es justo lo que
+     * apaga la paginación ajena y enciende el traspaso a la radio al final.
+     */
+    fun adoptDirectQueue(
+        items: List<MediaItem>,
+        title: String?,
+        contextId: String? = null,
+        startIndex: Int = 0,
+    ) {
+        currentQueue = ListQueue(
+            title = title,
+            items = items,
+            startIndex = startIndex,
+            contextId = contextId,
+        )
+        queueTitle = title
+    }
+
+    /**
      * Adopts a queue that did NOT come through [playQueue].
      *
      * `onSetMediaItems` returns items straight to media3, so the service never learned about them:
@@ -5335,7 +5462,49 @@ class MusicService :
         shuffle: Boolean,
         expectedCount: Int = 0,
         expectedFirstId: String? = null,
+        items: List<MediaItem> = emptyList(),
+        startIndex: Int = 0,
     ) {
+        // 🔴 REPORTE DEL DUEÑO (2026-09-17, Android Auto): *"me meto a un playlist o álbum y empiezo a
+        // reproducir, y de la nada después de la canción que selecciono me pone otra cosa […] si el
+        // aleatorio estuviese activado debe poner canción DENTRO del playlist o álbum, y para cuando
+        // termine deberá seguir con la cola infinita"*.
+        //
+        // ## La causa, y es una sola para los dos síntomas
+        // [currentQueue] solo se asignaba dentro de `playQueue` y en los sitios de radio. Una cola que
+        // llega de un controlador EXTERNO no pasa por `playQueue` — `onSetMediaItems` le entrega los
+        // items a media3 directamente — así que `currentQueue` **seguía siendo la cola que la app dejó
+        // puesta la última vez**. Y esa cola vieja sigue viva para dos cosas:
+        //
+        //  1. **La paginación.** `onMediaItemTransition` hace, a cinco canciones del final en orden de
+        //     reproducción: `if (autoLoadMoreHint && … && currentQueue.hasNextPage()) currentQueue.nextPage()`
+        //     y lo añade a la cola del coche. O sea que mientras suena el álbum que él eligió, el
+        //     servicio le iba pegando **la página siguiente de otra colección**. Con el aleatorio
+        //     encendido es peor todavía: `applyShuffleOrder` se rehace sobre la línea de tiempo ya
+        //     contaminada, así que esa canción ajena puede caer justo detrás de la que está sonando —
+        //     literalmente *"después de la canción que selecciono me pone otra cosa"*.
+        //  2. **El traspaso a la radio infinita.** El salto a la cola infinita exige
+        //     `!currentQueue.hasNextPage()`. Con una cola vieja que SÍ tiene páginas, esa condición es
+        //     falsa y el traspaso nunca ocurre: al acabar el álbum no arranca la cola infinita, arranca
+        //     la paginación de lo ajeno. Los dos síntomas que él describe son la misma línea.
+        //
+        // Por qué se notaba "de la nada" y no siempre: `EmptyQueue.hasNextPage()` es `false`, así que en
+        // un proceso recién arrancado no pasa nada. Hace falta haber usado la app antes — y entonces
+        // depende de qué cola quedó puesta.
+        //
+        // ## El arreglo
+        // La cola externa **es** una lista finita, así que se representa como tal. `ListQueue` no pagina
+        // (`hasNextPage()` siempre `false`), con lo que (1) desaparece y (2) pasa a cumplirse: al acabar
+        // el álbum el servicio entrega el mando a la radio infinita, que es justo lo que él pide.
+        //
+        // Se le pasa el `contextId` a propósito en vez de usar [EmptyQueue]: es lo que `toPersistQueue`
+        // guarda en disco, y es lo que hace que la memoria de "aleatorio mejorado" de ESE álbum
+        // sobreviva a un reinicio. Con EmptyQueue se guardaría null, y hoy se guarda algo peor —el
+        // contexto de la colección ANTERIOR—, así que este es el único valor honesto de los tres.
+        //
+        // `queueTitle` se limpia por lo mismo: es el título que se persiste con la cola, y el nombre de
+        // la playlist anterior sobre el álbum que suena en el coche es sencillamente falso.
+        adoptDirectQueue(items = items, title = null, contextId = contextId, startIndex = startIndex)
         shuffleContextId = contextId
         pendingExternalShuffle = shuffle
         pendingExternalShuffleAt = android.os.SystemClock.elapsedRealtime()
@@ -6454,6 +6623,40 @@ class MusicService :
         }
     }
 
+    /**
+     * The Enhanced Shuffle context of the LIVE queue ("PL:<id>", "OL:<id>", "AP:liked"…), or null when
+     * this queue has no persistent memory (raw radio, search results).
+     *
+     * Read-only mirror for the PLAYER's shuffle button. Owner request 2026-09-15: the no-repeat
+     * algorithm must be startable from the full-screen player, with the same «continuar o empezar de
+     * cero» choice the list screens offer — and that choice can only be offered by someone who knows
+     * which context the queue belongs to.
+     */
+    val currentShuffleContextId: String?
+        get() = shuffleContextId
+
+    /**
+     * Shuffle the LIVE queue the way a list screen's Shuffle button does.
+     *
+     * [resetMemory] `false` continues the current no-repeat lap (unplayed songs first, nothing repeats
+     * until the context has cycled); `true` starts a fresh lap — this context's memory is wiped and the
+     * order is a plain shuffle of everything.
+     *
+     * The wipe is asynchronous, so a fresh lap ALSO suppresses this activation's seed read
+     * ([suppressEnhancedSeedOnce]): otherwise the read could still see the rows the DELETE is about to
+     * remove and quietly re-apply the very order the user asked to abandon.
+     */
+    fun shuffleLiveQueue(resetMemory: Boolean) {
+        if (resetMemory) {
+            shuffleContextId?.let { ctx ->
+                resetEnhancedContextMemory(ctx, listOfNotNull(player.currentMetadata?.id))
+            }
+            pendingSeedPlayedIds = emptySet()
+            suppressEnhancedSeedOnce = true
+        }
+        toggleShuffleOrReshuffle()
+    }
+
     private fun beginShuffleSession(isUserActivation: Boolean = true) {
             if (player.mediaItemCount == 0) return
 
@@ -6492,7 +6695,9 @@ class MusicService :
             // repeats a song until the whole context has cycled. The DB read is async; if it hasn't finished
             // the fallback above already plays — we just refine the order when it lands.
             val ctx = shuffleContextId
-            if (enhancedShuffleHint && ctx != null) {
+            val skipSeed = suppressEnhancedSeedOnce
+            suppressEnhancedSeedOnce = false
+            if (enhancedShuffleHint && ctx != null && !skipSeed) {
                 seedEnhancedShuffleFromDb(ctx, shufflePlaylistFirst, isUserActivation)
             }
     }
@@ -7058,6 +7263,21 @@ class MusicService :
         val mediaId = player.currentMediaItem?.mediaId
         Timber.tag(TAG).w(error, "Player error occurred for $mediaId: errorCode=${error.errorCode}, message=${error.message}")
         reportException(error)
+
+        // SESIÓN CADUCADA (registro del dueño, 2026-09-16): 36 canciones distintas seguidas muertas con
+        // "Este contenido no está disponible" — un mensaje que culpa a la canción mientras la causa real
+        // era su cookie de YouTube muerta. Estuvo así hasta que cerró sesión y volvió a entrar a mano.
+        // Cuando el resolver ya ha visto la racha (vídeos DISTINTOS, no reintentos de uno), nombrar la
+        // causa una vez convierte ese misterio en treinta segundos de arreglo.
+        if (iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint()) {
+            runCatching {
+                Toast.makeText(
+                    this@MusicService,
+                    getString(R.string.session_expired_sign_in_again),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
 
         // VIDEO MODE: if the failing item is the video track (e.g. its muxed URL expired / 403'd or decoder error),
         // drop the stale cached URL and fall back to AUDIO (exitVideoMode restores the normal source), so the
@@ -9587,6 +9807,9 @@ class MusicService :
     override fun onDestroy() {
         isRunning = false
         playbackKeepAlive.release()
+        // Identity-guarded inside the bridge: a service that has already been replaced must not
+        // unwire the new one.
+        runCatching { listenTogetherManager.detachPlayerService(this) }
         // The expanded flag lives in the process-wide PlaybackStateManager, which OUTLIVES this
         // service instance. If the UI died without collapsing (its onDispose reset is best-effort),
         // a recreated service would inherit "expanded" and keep speculative video warm-ups alive

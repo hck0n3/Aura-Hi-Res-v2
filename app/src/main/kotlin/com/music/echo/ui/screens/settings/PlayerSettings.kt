@@ -60,7 +60,6 @@ import iad1tya.echo.music.constants.PreviousQueueOfferKey
 import iad1tya.echo.music.constants.PreventDuplicateTracksInQueueKey
 import iad1tya.echo.music.constants.RememberShuffleAndRepeatKey
 import iad1tya.echo.music.constants.ResumeOnBluetoothConnectKey
-import iad1tya.echo.music.constants.SeekExtraSeconds
 import iad1tya.echo.music.constants.ShufflePlaylistFirstKey
 import iad1tya.echo.music.constants.SimilarContent
 import iad1tya.echo.music.constants.ShowAudioFallbackToastKey
@@ -221,11 +220,6 @@ fun PlayerSettings(
     val (enableGoogleCast, onEnableGoogleCastChange) = rememberPreference(
         key = EnableGoogleCastKey,
         defaultValue = true
-    )
-
-    val (seekExtraSeconds, onSeekExtraSeconds) = rememberPreference(
-        SeekExtraSeconds,
-        defaultValue = false
     )
 
     val (autoLoadMore, onAutoLoadMoreChange) = rememberPreference(
@@ -685,27 +679,9 @@ fun PlayerSettings(
                         onClick = { onEnableGoogleCastChange(!enableGoogleCast) }
                     ))
                 }
-                add(Material3SettingsItem(
-                    icon = painterResource(R.drawable.arrow_forward),
-                    title = { Text(stringResource(R.string.seek_seconds_addup)) },
-                    description = { Text(stringResource(R.string.seek_seconds_addup_description)) },
-                    trailingContent = {
-                        Switch(
-                            checked = seekExtraSeconds,
-                            onCheckedChange = onSeekExtraSeconds,
-                            thumbContent = {
-                                Icon(
-                                    painter = painterResource(
-                                        id = if (seekExtraSeconds) R.drawable.check else R.drawable.close
-                                    ),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(SwitchDefaults.IconSize)
-                                )
-                            }
-                        )
-                    },
-                    onClick = { onSeekExtraSeconds(!seekExtraSeconds) }
-                ))
+                // Búsqueda progresiva: ya no es opcional (orden del dueño 2026-09-16, "siempre
+                // activada sí o sí"). El comportamiento vive en Thumbnail.kt; dejar aquí un
+                // interruptor que no decide nada sería mentirle al usuario.
             }
         )
 

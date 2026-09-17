@@ -73,6 +73,7 @@ import iad1tya.echo.music.ui.component.SortHeader
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.LibraryArtistsViewModel
+import iad1tya.echo.music.ui.component.librarySectionEmptyText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -245,7 +246,10 @@ fun LibraryArtistsScreen(
                                 EmptyPlaceholder(
                                     icon = R.drawable.artist,
                                     text = if (searchQuery.isNotBlank()) stringResource(R.string.no_results_found)
-                                    else stringResource(R.string.library_artist_empty),
+                                    else librarySectionEmptyText(
+                                        section = { it.artists },
+                                        emptyText = stringResource(R.string.library_artist_empty),
+                                    ),
                                     modifier = Modifier.animateItem()
                                 )
                             }
@@ -304,7 +308,10 @@ fun LibraryArtistsScreen(
                                 EmptyPlaceholder(
                                     icon = R.drawable.artist,
                                     text = if (searchQuery.isNotBlank()) stringResource(R.string.no_results_found)
-                                    else stringResource(R.string.library_artist_empty),
+                                    else librarySectionEmptyText(
+                                        section = { it.artists },
+                                        emptyText = stringResource(R.string.library_artist_empty),
+                                    ),
                                     modifier = Modifier.animateItem()
                                 )
                             }

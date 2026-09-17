@@ -343,7 +343,7 @@ fun AuraSearchResultScreen(
                                 }.forAllTabSearchPreview()
                                 if (musicItems.isEmpty()) return@forEachIndexed
 
-                                item(key = "aura_summary_${summaryIndex}_${summary.title}") {
+                                item(key = "aura_summary_${summaryIndex}_${summary.title}", contentType = "aura_summary") {
                                     AuraSectionHeader(
                                         title = summary.title,
                                         modifier = Modifier.animateItem(),
@@ -379,7 +379,7 @@ fun AuraSearchResultScreen(
                         // Universal search: podcasts (Apple/RSS) alongside the music results.
                         val podcasts = viewModel.podcastResults
                         if (podcasts.isNotEmpty()) {
-                            item(key = "aura_podcasts_title") {
+                            item(key = "aura_podcasts_title", contentType = "aura_podcasts_title") {
                                 AuraSectionHeader(
                                     title = stringResource(R.string.podcasts),
                                     modifier = Modifier.animateItem(),
@@ -412,7 +412,7 @@ fun AuraSearchResultScreen(
                         }
 
                         if (searchSummary?.summaries?.isEmpty() == true && podcasts.isEmpty()) {
-                            item(key = "aura_results_empty") {
+                            item(key = "aura_results_empty", contentType = "aura_results_empty") {
                                 AuraEmpty(text = stringResource(R.string.no_results_found))
                             }
                         }
@@ -438,13 +438,13 @@ fun AuraSearchResultScreen(
                         }
 
                         if (itemsPage?.continuation != null) {
-                            item(key = "aura_results_loading") {
+                            item(key = "aura_results_loading", contentType = "aura_results_loading") {
                                 ShimmerHost { repeat(3) { AuraSkeletonRow() } }
                             }
                         }
 
                         if (itemsPage?.items?.isEmpty() == true) {
-                            item(key = "aura_results_empty_filtered") {
+                            item(key = "aura_results_empty_filtered", contentType = "aura_results_empty_filtered") {
                                 AuraEmpty(text = stringResource(R.string.no_results_found))
                             }
                         }
@@ -454,7 +454,7 @@ fun AuraSearchResultScreen(
                         ((searchFilter == null && searchSummary == null) ||
                             (searchFilter != null && itemsPage == null))
                     ) {
-                        item(key = "aura_results_error") {
+                        item(key = "aura_results_error", contentType = "aura_results_error") {
                             AuraDetailErrorState(
                                 message = stringResource(R.string.couldnt_load_search),
                                 onRetry = viewModel::retry,
@@ -463,12 +463,12 @@ fun AuraSearchResultScreen(
                     } else if (searchFilter == null && searchSummary == null ||
                         searchFilter != null && itemsPage == null
                     ) {
-                        item(key = "aura_results_skeleton") {
+                        item(key = "aura_results_skeleton", contentType = "aura_results_skeleton") {
                             ShimmerHost { repeat(8) { AuraSkeletonRow() } }
                         }
                     }
 
-                    item(key = "aura_results_bottom_spacer") { Spacer(Modifier.height(24.dp)) }
+                    item(key = "aura_results_bottom_spacer", contentType = "aura_results_bottom_spacer") { Spacer(Modifier.height(24.dp)) }
                 }
             }
 

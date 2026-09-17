@@ -7,6 +7,7 @@ package iad1tya.echo.music.ui.component
 
 import android.content.Context
 import android.os.Build
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -14,9 +15,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.ui.component.backdrop.Backdrop
@@ -55,6 +60,11 @@ data class GlassEffectConfig(
     val playerEnabled: Boolean = true,
     val miniPlayerEnabled: Boolean = true,
     val navBarEnabled: Boolean = true,
+    /**
+     * "Cristal interactivo": dibuja el cristal de SimpMusic ([liquidGlassInteractive]) en lugar del de
+     * Aura ([liquidGlass]) en las MISMAS superficies, y en las dos apariencias. Apagado por defecto.
+     */
+    val interactive: Boolean = false,
 ) {
     /**
      * Whether the glass effect should be rendered for [component], taking the master
@@ -248,5 +258,140 @@ fun Modifier.liquidGlass(
             }
         },
         backdropScale = resolutionScale,
+    )
+}
+
+/**
+ * # El cristal líquido de SimpMusic, sobre la fontanería que Aura ya tiene
+ *
+ * 🔴 ORDEN DEL DUEÑO (2026-09-16): *"lo quiero exacto, pero como otra versión de liquid glass que se
+ * pueda aplicar a las dos versiones de mi apariencia"*. PASO 2 de 3: el dibujo.
+ *
+ * Hermano de [liquidGlass], no sustituto: aquella sigue siendo el cristal de Aura y no cambia ni un
+ * píxel. Esta es la variante de SimpMusic, y se diferencia en exactamente tres cosas — las tres
+ * verificadas leyendo su código, no deducidas:
+ *
+ *  1. **Reacciona al tacto.** Al mantener pulsado, la superficie escala, la refracción se hace más
+ *     profunda y un brillo radial sigue al dedo, volviendo con un muelle al soltar. Es lo que hace que
+ *     parezca líquido y no cristal pintado. El gesto **no consume eventos**, así que los botones que
+ *     haya dentro siguen recibiendo sus toques (ver `LiquidGlassSurface.kt`).
+ *
+ *  2. **La lente es proporcional a la píldora**, no un tamaño absoluto: altura `minDimension / 4` y
+ *     cantidad `minDimension / 2`. Eso mantiene la refracción POR DEBAJO del eje medio, que es lo que
+ *     evita la costura horizontal oscura en una superficie ancha — el fallo que SimpMusic documenta
+ *     haber corregido. Por eso esta variante NO usa los deslizadores de altura/cantidad de lente: no es
+ *     que los ignore por capricho, es que un valor absoluto en una píldora ancha rompe el efecto.
+ *     `depthEffect` queda apagado por el mismo motivo (discontinuidad radial en el centro).
+ *
+ *  3. **Se adapta a la luminancia del fondo.** El desenfoque sube sobre fondo claro y baja sobre
+ *     oscuro, y el oscurecido crece según se aclara el fondo (*"đục đen"*), que es lo que impide que el
+ *     cristal se lave a blanco sobre una portada brillante. La curva está en [LiquidGlassMath], fijada
+ *     por test.
+ *
+ * ## Qué respeta de Temas
+ * Todos los ajustes del dueño que esta receta puede honrar sin romperse: el radio de desenfoque es la
+ * BASE de la rampa de luminancia, la vibrancia entra como saturación igual que en [liquidGlass], el
+ * tinte de superficie es el color del oscurecido, y **la opacidad de superficie es el tope de la rampa**
+ * — o sea que su deslizador sigue mandando: marca cuánto llega a oscurecerse como mucho.
+ *
+ * @param backgroundLuminance 0..1 del fondo detrás de la superficie. 0.5 = neutro, que es lo que pasan
+ * las superficies estáticas; quien pueda medir su fondo (el minirreproductor sobre la portada) pasa el
+ * valor real y el cristal se adapta.
+ */
+@Composable
+fun Modifier.liquidGlassInteractive(
+    config: GlassEffectConfig,
+    shape: CornerBasedShape = CircleShape,
+    backgroundLuminance: Float = 0.5f,
+    interactive: Boolean = true,
+    pressedScale: Float = 1.12f,
+    minScrim: Float = 0.12f,
+): Modifier {
+    if (!isGlassSupported()) return this
+    val backdrop = LocalAppBackdrop.current
+    val density = LocalDensity.current
+    val press = rememberGlassPressState()
+    val resolutionScale = glassResolutionScale(config.blurRadius)
+    // Igual que en [liquidGlass]: los parámetros en píxeles actúan sobre la capa reducida, así que se
+    // premultiplican por la escala para que el tamaño visual no cambie.
+    val baseBlurPx = with(density) { config.blurRadius.dp.toPx() } * resolutionScale
+    val pressBlurPx = with(density) { 2.dp.toPx() } * resolutionScale
+    val saturation = glassSaturation(config.vibrancy)
+    val scrimColor = if (config.surfaceTintColor.isSpecified) {
+        config.surfaceTintColor
+    } else if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
+        Color.White
+    } else {
+        Color.Black
+    }
+    // El deslizador del usuario es el TOPE de la rampa, nunca un valor fijo. Si lo bajó por debajo del
+    // suelo, el suelo cede: mandar él es más importante que mi mínimo.
+    val maxScrim = config.surfaceOpacity.coerceIn(0f, 1f)
+    val floor = minScrim.coerceAtMost(maxScrim)
+
+    return drawBackdrop(
+        backdrop = backdrop,
+        shape = { shape },
+        effects = {
+            if (saturation != 1f) {
+                colorControls(saturation = saturation)
+            }
+            val blurPx = LiquidGlassMath.blurRadiusPx(
+                basePx = baseBlurPx,
+                luminance = backgroundLuminance,
+                pressPx = pressBlurPx * (if (interactive) press.pressProgress else 0f),
+            )
+            if (blurPx > 0f) {
+                blur(blurPx)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                lens(
+                    refractionHeight = LiquidGlassMath.lensHeightPx(
+                        minDimension = size.minDimension,
+                        pressPx = pressBlurPx * (if (interactive) press.pressProgress else 0f),
+                    ),
+                    refractionAmount = LiquidGlassMath.lensAmountPx(size.minDimension),
+                    // Apagado a propósito: ver el punto 2 de la documentación de arriba.
+                    depthEffect = false,
+                    chromaticAberration = config.chromaticAberration,
+                )
+            }
+        },
+        highlight = { Highlight.Default },
+        shadow = { Shadow.Default },
+        onDrawSurface = {
+            val darken = LiquidGlassMath.scrimAlpha(backgroundLuminance, floor, maxScrim)
+            if (darken > 0f) {
+                drawRect(color = scrimColor.copy(alpha = darken), size = size)
+            }
+            val p = if (interactive) press.pressProgress else 0f
+            if (p > 0f) {
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.18f * p), Color.Transparent),
+                        center = press.touchPosition.takeIf { it != Offset.Zero }
+                            ?: Offset(size.width / 2f, size.height / 2f),
+                        radius = size.minDimension * 1.2f,
+                    ),
+                    blendMode = BlendMode.Plus,
+                )
+            }
+        },
+        layerBlock = if (interactive) {
+            {
+                val scale = 1f + (pressedScale - 1f) * press.pressProgress
+                scaleX = scale
+                scaleY = scale
+            }
+        } else {
+            null
+        },
+        backdropScale = resolutionScale,
+    ).then(
+        if (interactive) {
+            Modifier.pointerInput(press) { press.observePress(this) }
+        } else {
+            Modifier
+        },
     )
 }

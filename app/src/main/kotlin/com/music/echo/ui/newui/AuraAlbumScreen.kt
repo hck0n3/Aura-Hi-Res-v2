@@ -295,7 +295,7 @@ fun AuraAlbumScreen(
             contentPadding = PaddingValues(bottom = bottomClearance + 56.dp),
         ) {
             if (album != null && album.songs.isNotEmpty()) {
-                item(key = "aura_album_hero") {
+                item(key = "aura_album_hero", contentType = "aura_album_hero") {
                     AuraAlbumHero(
                         thumbnailUrl = album.album.thumbnailUrl,
                         canvasPrimaryUrl = canvasArtwork?.animated,
@@ -306,7 +306,7 @@ fun AuraAlbumScreen(
                     )
                 }
 
-                item(key = "aura_album_header") {
+                item(key = "aura_album_header", contentType = "aura_album_header") {
                     AuraAlbumHeader(
                         album = album,
                         filteredSongs = filteredSongs,
@@ -336,7 +336,7 @@ fun AuraAlbumScreen(
                 }
 
                 if (filteredSongs.isNotEmpty()) {
-                    item(key = "aura_album_songs_label") {
+                    item(key = "aura_album_songs_label", contentType = "aura_album_songs_label") {
                         AuraSectionHeader(
                             title = stringResource(R.string.songs),
                             modifier = Modifier.animateItem(),
@@ -425,13 +425,13 @@ fun AuraAlbumScreen(
 
                 val versions = otherVersions.distinctBy { it.id }
                 if (versions.isNotEmpty()) {
-                    item(key = "aura_album_versions_label") {
+                    item(key = "aura_album_versions_label", contentType = "aura_album_versions_label") {
                         AuraSectionHeader(
                             title = stringResource(R.string.other_versions),
                             modifier = Modifier.animateItem(),
                         )
                     }
-                    item(key = "aura_album_versions_row") {
+                    item(key = "aura_album_versions_row", contentType = "aura_album_versions_row") {
                         AuraDetailShelf(modifier = Modifier.animateItem()) {
                             itemsIndexed(
                                 items = versions,
@@ -536,14 +536,14 @@ fun AuraAlbumScreen(
                 // classic screen makes the same distinction, because retrying a deleted album can only
                 // fail and the generic "check your connection" would send the user hunting a problem
                 // that does not exist.
-                item(key = "aura_album_not_found") {
+                item(key = "aura_album_not_found", contentType = "aura_album_not_found") {
                     Column {
                         Spacer(Modifier.height(auraStatusBarPadding() + 72.dp))
                         AuraEmpty(text = stringResource(R.string.album_no_longer_available))
                     }
                 }
             } else if (hasFailed) {
-                item(key = "aura_album_error") {
+                item(key = "aura_album_error", contentType = "aura_album_error") {
                     Column {
                         Spacer(Modifier.height(auraStatusBarPadding() + 72.dp))
                         AuraDetailErrorState(
@@ -553,7 +553,7 @@ fun AuraAlbumScreen(
                     }
                 }
             } else {
-                item(key = "aura_album_skeleton") {
+                item(key = "aura_album_skeleton", contentType = "aura_album_skeleton") {
                     Column {
                         Spacer(Modifier.height(auraStatusBarPadding() + 56.dp))
                         ShimmerHost { repeat(8) { AuraDetailSkeletonRow() } }
@@ -1111,13 +1111,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraAlbumRelatedShelf
     mediaMetadata: iad1tya.echo.music.models.MediaMetadata?,
     isPlaying: Boolean,
 ) {
-    item(key = "aura_album_${key}_label") {
+    item(key = "aura_album_${key}_label", contentType = "aura_album__label") {
         AuraSectionHeader(
             title = stringResource(titleRes),
             modifier = Modifier.animateItem(),
         )
     }
-    item(key = "aura_album_${key}_row") {
+    item(key = "aura_album_${key}_row", contentType = "aura_album__row") {
         AuraDetailShelf(modifier = Modifier.animateItem()) {
             itemsIndexed(
                 items = items,
@@ -1204,12 +1204,16 @@ internal fun AuraDetailShelf(
 internal fun AuraDoubleRowShelf(
     rowHeight: Dp,
     modifier: Modifier = Modifier,
-    /** When 1, use a single-row shelf so small sections (e.g. one "Aparece en" album) don't reserve double height. */
+    /**
+     * How many items [content] emits, when the caller knows it. Under
+     * [AURA_SHELF_MIN_ITEMS_FOR_TWO_ROWS] the shelf drops to ONE row instead of reserving a second one
+     * that cannot be filled. `null` keeps two rows — for callers that cannot count what they emit.
+     */
     itemCount: Int? = null,
     content: LazyGridScope.() -> Unit,
 ) {
     val gap = AuraSpacing.ShelfItemGap
-    val rows = if (itemCount == 1) 1 else 2
+    val rows = if (itemCount != null && itemCount < AURA_SHELF_MIN_ITEMS_FOR_TWO_ROWS) 1 else 2
     val gridState = rememberLazyGridState()
     val fling = rememberSnapFlingBehavior(lazyGridState = gridState)
     LazyHorizontalGrid(
@@ -1227,6 +1231,20 @@ internal fun AuraDoubleRowShelf(
         content = content,
     )
 }
+
+/**
+ * How many items a two-row shelf needs before the second row earns its height.
+ *
+ * A [AuraDoubleRowShelf] fills COLUMN BY COLUMN, so a short section does not spread out — it leaves
+ * the bottom half of the shelf empty. That is the owner's report about the pinned-to-Home shelf
+ * ("abajo de lo que fijo queda un súper espacio inutilizado"): one pinned playlist drew one card and
+ * an equally tall hole under it, because the shelf reserved `rowHeight × 2 + gap` regardless.
+ *
+ * Four is the number the typed Home shelves already used inline (`group.size >= 4`, AuraHomeScreen):
+ * four items are exactly two full columns, so at four and above nothing visible is empty, and under
+ * four a single row shows the same cards with no hole beneath them.
+ */
+internal const val AURA_SHELF_MIN_ITEMS_FOR_TWO_ROWS = 4
 
 /** Stack height for [AuraTypedYtCoverCard] / [AuraCoverCard] (cover + fixed 2-line title + subtitle). */
 internal fun auraShelfCardStackHeight(cardWidth: Dp, ratio: Float = 1f): Dp =

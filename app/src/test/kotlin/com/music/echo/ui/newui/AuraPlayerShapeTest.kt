@@ -156,4 +156,41 @@ class AuraPlayerShapeTest {
     fun `the threshold is the shipped literal`() {
         assertEquals(520.dp, AURA_WIDE_COVER_MIN_PANE_HEIGHT)
     }
+
+    // ---------------------------------------------------------------- the portrait controls budget
+
+    @Test
+    fun `a tall portrait phone keeps the full-size controls`() {
+        // ~873 dp of window on a current phone; ~113 dp goes to the docked queue bar with the classic
+        // three-button navigation bar and ~24 dp to the status bar. Nothing about that window is short,
+        // so nothing about it should be compacted.
+        assertFalse(auraUsesDensePortraitControls(873.dp - 113.dp - 24.dp))
+    }
+
+    @Test
+    fun `a short portrait phone compacts the controls instead of crushing the cover`() {
+        // A 1080x1920 phone at density 3 is a 640 dp window. Once the status bar and the docked queue
+        // bar are paid for there is ~503 dp left for header + cover + controls, and the full-size
+        // controls block alone is ~345 dp of it — so the cover would be what pays. Compact instead.
+        assertTrue(auraUsesDensePortraitControls(640.dp - 113.dp - 24.dp))
+    }
+
+    @Test
+    fun `the portrait budget leaves a cover worth drawing at the threshold`() {
+        // Same discipline as the wide threshold above: the number is a budget, not a taste. At the
+        // threshold the FULL-SIZE controls and the header must still leave a real cover behind, or the
+        // rule would be compacting too late.
+        val header = 48.dp
+        val fullControls = 345.dp
+        val leftForCover = AURA_PORTRAIT_FULL_CONTROLS_MIN_HEIGHT - header - fullControls
+        assertTrue(
+            "a portrait column at the threshold must have a cover worth drawing, got $leftForCover",
+            leftForCover >= 160.dp,
+        )
+    }
+
+    @Test
+    fun `the portrait threshold is the shipped literal`() {
+        assertEquals(560.dp, AURA_PORTRAIT_FULL_CONTROLS_MIN_HEIGHT)
+    }
 }

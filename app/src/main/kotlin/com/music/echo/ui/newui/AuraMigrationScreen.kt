@@ -359,13 +359,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraPickerContent(
     // is sent to log in — otherwise they would authenticate Tidal, pick a playlist and only fail at
     // the very end.
     if (!state.signedInYouTube) {
-        item(key = "aura_migrate_needs_yt") {
+        item(key = "aura_migrate_needs_yt", contentType = "aura_migrate_needs_yt") {
             AuraNoticeCard(
                 text = stringResource(R.string.migrate_needs_youtube),
                 modifier = Modifier.animateItem(),
             )
         }
-        item(key = "aura_migrate_yt_login") {
+        item(key = "aura_migrate_yt_login", contentType = "aura_migrate_yt_login") {
             AuraActionButton(
                 text = stringResource(R.string.migrate_youtube_login),
                 onClick = onYouTubeLogin,
@@ -377,7 +377,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraPickerContent(
         return
     }
 
-    item(key = "aura_migrate_pick_desc") {
+    item(key = "aura_migrate_pick_desc", contentType = "aura_migrate_pick_desc") {
         Text(
             text = stringResource(R.string.migrate_pick_source_desc),
             style = AuraType.RowSubtitle,
@@ -385,7 +385,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraPickerContent(
             modifier = Modifier.animateItem(),
         )
     }
-    item(key = "aura_migrate_sources") {
+    item(key = "aura_migrate_sources", contentType = "aura_migrate_sources") {
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.animateItem(),
@@ -427,7 +427,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraCollectionContent
     onPick: (SourcePlaylist) -> Unit,
     onBack: () -> Unit,
 ) {
-    item(key = "aura_migrate_collection_head") {
+    item(key = "aura_migrate_collection_head", contentType = "aura_migrate_collection_head") {
         Column(
             verticalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.animateItem(),
@@ -448,14 +448,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraCollectionContent
     }
 
     if (state.collectionLoading) {
-        item(key = "aura_migrate_collection_loading") {
+        item(key = "aura_migrate_collection_loading", contentType = "aura_migrate_collection_loading") {
             AuraLoadingLine(
                 text = stringResource(R.string.migrate_collection_loading),
                 modifier = Modifier.animateItem(),
             )
         }
     } else if (state.collection.isEmpty()) {
-        item(key = "aura_migrate_collection_empty") {
+        item(key = "aura_migrate_collection_empty", contentType = "aura_migrate_collection_empty") {
             AuraNoticeCard(
                 text = stringResource(R.string.migrate_collection_empty),
                 modifier = Modifier.animateItem(),
@@ -471,7 +471,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraCollectionContent
         }
     }
 
-    item(key = "aura_migrate_collection_back") {
+    item(key = "aura_migrate_collection_back", contentType = "aura_migrate_collection_back") {
         AuraLinkButton(
             text = stringResource(R.string.migrate_collection_back),
             onClick = onBack,
@@ -563,7 +563,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraConfirmContent(
     onContinue: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    item(key = "aura_migrate_confirm") {
+    item(key = "aura_migrate_confirm", contentType = "aura_migrate_confirm") {
         AuraCardSurface(modifier = Modifier.animateItem()) {
             Text(
                 text = state.pendingName,
@@ -629,7 +629,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraConfirmContent(
 // ── RUNNING ───────────────────────────────────────────────────────────────────────────────────────
 
 private fun androidx.compose.foundation.lazy.LazyListScope.auraRunningContent(state: MigrationUiState) {
-    item(key = "aura_migrate_running") {
+    item(key = "aura_migrate_running", contentType = "aura_migrate_running") {
         AuraCardSurface(modifier = Modifier.animateItem()) {
             Text(
                 text = stringResource(R.string.migrate_running_title),
@@ -674,7 +674,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
     onSaveFailuresCsv: () -> Unit,
     onShareFailuresCsv: () -> Unit,
 ) {
-    item(key = "aura_migrate_done") {
+    item(key = "aura_migrate_done", contentType = "aura_migrate_done") {
         AuraCardSurface(modifier = Modifier.animateItem()) {
             Text(
                 text = state.playlistName,
@@ -734,7 +734,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
         }
     }
     if (state.ambiguousPending > 0) {
-        item(key = "aura_migrate_review_cta") {
+        item(key = "aura_migrate_review_cta", contentType = "aura_migrate_review_cta") {
             AuraActionButton(
                 text = stringResource(R.string.migrate_review_ambiguous, state.ambiguousPending),
                 onClick = onReview,
@@ -745,7 +745,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
         }
     }
     if (state.importFailures.isNotEmpty()) {
-        item(key = "aura_migrate_export_csv") {
+        item(key = "aura_migrate_export_csv", contentType = "aura_migrate_export_csv") {
             AuraQuietButton(
                 text = stringResource(R.string.migrate_export_failures_csv),
                 onClick = onSaveFailuresCsv,
@@ -754,7 +754,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
                     .animateItem(),
             )
         }
-        item(key = "aura_migrate_share_csv") {
+        item(key = "aura_migrate_share_csv", contentType = "aura_migrate_share_csv") {
             AuraLinkButton(
                 text = stringResource(R.string.spotify_import_share_failures_csv),
                 onClick = onShareFailuresCsv,
@@ -765,7 +765,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
         }
     }
     if (state.localPlaylistId != null) {
-        item(key = "aura_migrate_open_library") {
+        item(key = "aura_migrate_open_library", contentType = "aura_migrate_open_library") {
             AuraQuietButton(
                 text = stringResource(R.string.migrate_open_in_library),
                 onClick = onOpenLibrary,
@@ -775,7 +775,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
             )
         }
     }
-    item(key = "aura_migrate_another") {
+    item(key = "aura_migrate_another", contentType = "aura_migrate_another") {
         AuraLinkButton(
             text = stringResource(R.string.migrate_another),
             onClick = onMigrateAnother,
@@ -815,7 +815,7 @@ private fun AuraAmbiguousReview(
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            item(key = "aura_review_desc") {
+            item(key = "aura_review_desc", contentType = "aura_review_desc") {
                 Text(
                     text = stringResource(R.string.migrate_review_desc),
                     style = AuraType.RowSubtitle,

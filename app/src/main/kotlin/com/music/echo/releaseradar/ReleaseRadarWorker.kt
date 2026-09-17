@@ -3,7 +3,6 @@ package iad1tya.echo.music.releaseradar
 import android.Manifest
 import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
@@ -25,7 +24,6 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import iad1tya.echo.music.MainActivity
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.SpotifyAccessTokenExpiresAtKey
 import iad1tya.echo.music.constants.SpotifyAccessTokenKey
@@ -446,12 +444,14 @@ class ReleaseRadarWorker(
             nm.createNotificationChannel(channel)
         }
 
-        // Plain launch intent for now; a deep link to the Release Radar screen lands in the next sub-task.
-        val launchIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        val pending = android.app.PendingIntent.getActivity(context, NOTIFICATION_ID, launchIntent, flags)
+        // The tap opens the Radar itself — the releases this notification is counting. It used to be a
+        // bare launcher intent ("a deep link lands in the next sub-task"), which reopens the app
+        // wherever it was: from the user's side, tapping did nothing (owner report 2026-09-15).
+        val pending = iad1tya.echo.music.utils.NotificationTapIntents.open(
+            context = context,
+            route = iad1tya.echo.music.utils.NotificationTapIntents.ROUTE_RELEASE_RADAR,
+            requestCode = NOTIFICATION_ID,
+        )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_nobg)

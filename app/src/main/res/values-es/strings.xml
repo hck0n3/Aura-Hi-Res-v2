@@ -57,6 +57,8 @@
     <string name="filter_featured_playlists">Listas destacadas</string>
     <string name="filter_bookmarked">En marcadores</string>
     <string name="no_results_found">No se han encontrado resultados</string>
+    <string name="session_expired_sign_in_again">Tu sesión de YouTube caducó. Cierra sesión y vuelve a entrar en Ajustes ▸ Cuentas para reproducir tu biblioteca.</string>
+    <string name="queue_empty_after_filters">No hay nada que reproducir: tus filtros de contenido (ocultar vídeos / ocultar explícito / ahorro de datos) quitaron todas las canciones de esta lista.</string>
     <string name="library_song_empty">Las canciones de la biblioteca aparecerán aquí</string>
     <string name="library_artist_empty">Los artistas de la biblioteca aparecerán aquí</string>
     <string name="library_album_empty">Los álbumes de la biblioteca aparecerán aquí</string>
@@ -396,6 +398,8 @@
     <string name="liquid_glass_settings">Liquid Glass (Beta)</string>
     <string name="liquid_glass_settings_desc">Superficies de cristal para el reproductor, el mini reproductor y la barra de navegación</string>
     <string name="liquid_glass_global_enabled">Activar Liquid Glass</string>
+    <string name="liquid_glass_interactive">Cristal interactivo</string>
+    <string name="liquid_glass_interactive_desc">Otra versión del cristal líquido, portada de SimpMusic: el desenfoque y el oscurecido siguen el brillo de lo que hay detrás, la refracción se ajusta al tamaño de la superficie y la píldora reacciona a tu dedo. Funciona en las dos apariencias</string>
     <string name="liquid_glass_effects">Efectos</string>
     <string name="liquid_glass_appearance">Apariencia</string>
     <string name="liquid_glass_per_component">Por componente</string>

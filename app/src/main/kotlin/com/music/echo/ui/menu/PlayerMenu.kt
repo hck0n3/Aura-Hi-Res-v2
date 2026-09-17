@@ -201,6 +201,8 @@ fun PlayerMenu(
 
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        // The picker marks the lists that already have this song (owner request 2026-09-15).
+        songIdsForMembership = listOf(mediaMetadata.id),
         onGetSong = {
             // withTransaction (suspending), NOT transaction {}: the latter posts to Room's
             // transaction executor and returns immediately, so the id could be handed back before

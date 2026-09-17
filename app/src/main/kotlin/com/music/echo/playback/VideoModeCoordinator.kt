@@ -52,7 +52,7 @@ class VideoModeCoordinator(private val service: MusicService) {
      * uncapped after first video use — so cipher/PoToken contention cannot hammer every video-capable
      * track transition and cut audible audio (heat/battery + stutter rule).
      */
-    private var speculativeVideoPrefetches = 0
+    private val speculativeVideoBudget = VideoPrefetchBudget()
 
     /**
      * YouTube Music's Song/Video switch is a PREFERENCE, not a per-track state (owner directive
@@ -687,8 +687,6 @@ class VideoModeCoordinator(private val service: MusicService) {
         val id = service.player.currentMediaItem?.mediaId ?: return
         if (id.isEmpty() || id.isLocalMediaId() || id.startsWith("http", ignoreCase = true)) return
         if (service.player.currentMetadata?.isVideoSong != true) return
-        // ALWAYS cap speculative resolves for the session (audio-only listeners + post-first-use alike).
-        if (speculativeVideoPrefetches >= 8) return
         // Before the user has opened video once: only capable devices pay the speculative cipher cost.
         if (!service.userHasUsedVideo) {
             val perfMode = iad1tya.echo.music.utils.PerformanceMode.isOn(service)
@@ -702,7 +700,14 @@ class VideoModeCoordinator(private val service: MusicService) {
         val cached = MusicService.videoUrlCache[id]?.takeIf { it.second > System.currentTimeMillis() }?.first
         if (!cached.isNullOrEmpty()) return
         if (!prebuildingIds.add(id)) return // a resolve for this id is already in flight (dedupe)
-        speculativeVideoPrefetches++
+        // Speculative resolves stay capped — in a BURST, which is what protects the audio resolve from
+        // WebView mutex contention. The budget refills over time instead of being spent for the life of
+        // the process (owner: "siento que tarda entre cambiar música y vídeo"). Consumed HERE, past every
+        // other guard, so a token is never lost on a call that was going to return anyway.
+        if (!speculativeVideoBudget.tryConsume(System.currentTimeMillis())) {
+            prebuildingIds.remove(id)
+            return
+        }
         service.scope.launch(Dispatchers.IO) {
             try {
                 // Bail if audio resolve grabbed the locks while we were queued.

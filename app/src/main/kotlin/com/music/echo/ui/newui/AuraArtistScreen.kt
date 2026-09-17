@@ -51,6 +51,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import dev.chrisbanes.haze.HazeProgressive
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -323,7 +327,7 @@ fun AuraArtistScreen(
         ) {
             val isKnownArtist = libraryArtist != null || artistPage != null
             if (!isKnownArtist && !showLocal && hasFailed) {
-                item(key = "aura_artist_error") {
+                item(key = "aura_artist_error", contentType = "aura_artist_error") {
                     Column {
                         Spacer(Modifier.height(auraStatusBarPadding() + 72.dp))
                         AuraDetailErrorState(
@@ -333,14 +337,14 @@ fun AuraArtistScreen(
                     }
                 }
             } else if (!isKnownArtist && !showLocal) {
-                item(key = "aura_artist_skeleton") {
+                item(key = "aura_artist_skeleton", contentType = "aura_artist_skeleton") {
                     Column {
                         Spacer(Modifier.height(auraStatusBarPadding() + 56.dp))
                         ShimmerHost { repeat(8) { AuraDetailSkeletonRow() } }
                     }
                 }
             } else {
-                item(key = "aura_artist_hero") {
+                item(key = "aura_artist_hero", contentType = "aura_artist_hero") {
                     AuraArtistHero(
                         thumbnailUrl = artistPage?.artist?.thumbnail
                             ?: libraryArtist?.artist?.thumbnailUrl,
@@ -351,7 +355,7 @@ fun AuraArtistScreen(
                     )
                 }
 
-                item(key = "aura_artist_header") {
+                item(key = "aura_artist_header", contentType = "aura_artist_header") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -567,7 +571,7 @@ fun AuraArtistScreen(
                         allLibrarySongs
                     }
                     if (filteredLibrarySongs.isNotEmpty()) {
-                        item(key = "aura_artist_local_songs_label") {
+                        item(key = "aura_artist_local_songs_label", contentType = "aura_artist_local_songs_label") {
                             AuraSectionHeader(
                                 title = stringResource(R.string.songs),
                                 onClick = {
@@ -576,7 +580,7 @@ fun AuraArtistScreen(
                                 modifier = Modifier.animateItem(),
                             )
                         }
-                        item(key = "aura_artist_local_songs_pages") {
+                        item(key = "aura_artist_local_songs_pages", contentType = "aura_artist_local_songs_pages") {
                             AuraSongPages(
                                 itemCount = filteredLibrarySongs.size,
                                 modifier = Modifier.animateItem(),
@@ -604,7 +608,7 @@ fun AuraArtistScreen(
                         libraryAlbums
                     }
                     if (filteredLibraryAlbums.isNotEmpty()) {
-                        item(key = "aura_artist_local_albums_label") {
+                        item(key = "aura_artist_local_albums_label", contentType = "aura_artist_local_albums_label") {
                             AuraSectionHeader(
                                 title = stringResource(R.string.albums),
                                 onClick = {
@@ -613,11 +617,12 @@ fun AuraArtistScreen(
                                 modifier = Modifier.animateItem(),
                             )
                         }
-                        item(key = "aura_artist_local_albums_row") {
+                        item(key = "aura_artist_local_albums_row", contentType = "aura_artist_local_albums_row") {
                             // Same scale as the artist's video cards, like the online album shelves below.
                             val albumW = AuraAlbumShelfWidth * 1.2f
                             AuraDoubleRowShelf(
                                 rowHeight = auraShelfCardStackHeight(albumW),
+                                itemCount = filteredLibraryAlbums.size,
                                 modifier = Modifier.animateItem(),
                             ) {
                                 items(
@@ -690,7 +695,7 @@ fun AuraArtistScreen(
                     }
 
                     if (artistPage == null && !showLocal) {
-                        item(key = "aura_artist_online_loading") {
+                        item(key = "aura_artist_online_loading", contentType = "aura_artist_online_loading") {
                             Column(Modifier.padding(top = 16.dp)) {
                                 ShimmerHost { repeat(3) { AuraDetailSkeletonRow() } }
                             }
@@ -719,7 +724,7 @@ fun AuraArtistScreen(
                         val sectionItems = section.items.distinctBy { it.id }
                         if (sectionItems.isEmpty()) return@forEachIndexed
 
-                        item(key = "aura_artist_section_${sectionIndex}_label") {
+                        item(key = "aura_artist_section_${sectionIndex}_label", contentType = "aura_artist_section__label") {
                             AuraSectionHeader(
                                 title = section.title,
                                 // The "ver todos" affordance is ALWAYS offered: YouTube's own "more"
@@ -758,7 +763,7 @@ fun AuraArtistScreen(
                                     sectionItems.filterIsInstance<SongItem>()
                                 }
                             if (isArtistPopularSectionTitle(section.title)) {
-                                item(key = "aura_artist_section_${sectionIndex}_pages") {
+                                item(key = "aura_artist_section_${sectionIndex}_pages", contentType = "aura_artist_section__pages") {
                                     AuraSongPages(
                                         itemCount = sectionSongs.size,
                                         modifier = Modifier.animateItem(),
@@ -805,7 +810,7 @@ fun AuraArtistScreen(
                                 }
                             }
                         } else {
-                            item(key = "aura_artist_section_${sectionIndex}_shelf") {
+                            item(key = "aura_artist_section_${sectionIndex}_shelf", contentType = "aura_artist_section__shelf") {
                                 val videoHeavy = sectionItems.any { it is SongItem && it.isVideoSong }
                                 if (videoHeavy) {
                                     // YTM-style: one row of large full-bleed 16:9 cards (not a cramped 2×N stamp grid).
@@ -1023,28 +1028,71 @@ private fun AuraArtistHero(
                     alpha = (1f - scrolled / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
                 },
         ) {
-            AuraCover(
-                thumbnailUrl = thumbnailUrl,
-                size = heroWidth,
-                seed = thumbnailUrl ?: artistName,
-                shape = RectangleShape,
-                decodeTo = 1200,
-                ratio = if (isWideHero) heroWidth / 320.dp else 1f,
-            )
-
-            val videoUrl = backgroundVideoUrl
-            if (videoUrl != null && showBackgroundVideo) {
-                ArtistVideo(
-                    videoUrl = videoUrl,
-                    modifier = Modifier.fillMaxSize(),
-                    onClick = { },
+            // ── El cristal de la parte baja de la portada, como lo hace SimpMusic ─────────────
+            // Orden del dueño (2026-09-16): *"lo quiero exactamente como lo hace SimpMusic, ya que lo
+            // hace como si fuera un cristal, tiene un buen efecto"*.
+            //
+            // Mi primera versión (de esta misma mañana) NO podía dar ese efecto, y conviene dejar
+            // escrito por qué, porque el fallo era de forma y no de ajuste:
+            //
+            //  1. Dibujaba una SEGUNDA COPIA de la portada, desenfocada entera, y la borraba hacia
+            //     arriba con una máscara. Eso mezcla una imagen nítida con una borrosa; no desenfoca lo
+            //     que hay debajo. SimpMusic desenfoca la CAPA VIVA.
+            //  2. Por eso yo tenía que SALTARME el efecto mientras sonaba el vídeo de fondo — una copia
+            //     fija bajo un vídeo en movimiento se ve mal. El suyo desenfoca el vídeo también, y esa
+            //     es buena parte de lo que se ve "como cristal".
+            //  3. El desenfoque era UNIFORME con la opacidad en rampa. El suyo es un desenfoque
+            //     PROGRESIVO: el radio crece hacia abajo. No es lo mismo y se nota.
+            //
+            // Esto es su receta, con la misma librería y la misma versión que Aura ya trae
+            // (haze 1.7.2): la capa de medios es la FUENTE, y una banda abajo la muestrea con
+            // `progressive`.
+            val heroHaze = remember { HazeState() }
+            Box(modifier = Modifier.fillMaxSize().hazeSource(heroHaze)) {
+                AuraCover(
+                    thumbnailUrl = thumbnailUrl,
+                    size = heroWidth,
+                    seed = thumbnailUrl ?: artistName,
+                    shape = RectangleShape,
+                    decodeTo = 1200,
+                    ratio = if (isWideHero) heroWidth / 320.dp else 1f,
                 )
+
+                val videoUrl = backgroundVideoUrl
+                if (videoUrl != null && showBackgroundVideo) {
+                    ArtistVideo(
+                        videoUrl = videoUrl,
+                        modifier = Modifier.fillMaxSize(),
+                        onClick = { },
+                    )
+                }
             }
 
+            // El desenfoque progresivo. 200 dp y radio 32 dp, los valores del original.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
+                    .align(Alignment.BottomCenter)
+                    .hazeEffect(heroHaze) {
+                        blurRadius = 32.dp
+                        progressive = HazeProgressive.verticalGradient(
+                            startIntensity = 0f,
+                            endIntensity = 1f,
+                        )
+                    },
+            )
+
+            // El oscurecido va en una caja APARTE y MÁS ALTA, que es el detalle que más se nota y el
+            // que yo tenía al revés (mi desenfoque era más alto que el degradado). El razonamiento es
+            // del propio SimpMusic: el desenfoque se queda en 200 dp para que su coste no crezca,
+            // mientras el color dispone del 70 % de la portada para subir. Una rampa corta obliga a una
+            // pendiente de opacidad fuerte, y una pendiente fuerte ES el borde visible que se intenta
+            // evitar.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height((if (isWideHero) 320.dp else heroWidth) * 0.7f)
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(
@@ -1071,14 +1119,14 @@ private fun LazyListScope.auraArtistLibraryPreviewItems(
     haptic: HapticFeedback,
 ) {
     if (songs.isEmpty()) return
-    item(key = "aura_artist_library_preview_label") {
+    item(key = "aura_artist_library_preview_label", contentType = "aura_artist_library_preview_label") {
         AuraSectionHeader(
             title = headerTitle,
             onClick = { navController.navigate("artist/$artistId/songs") },
             modifier = Modifier.animateItem(),
         )
     }
-    item(key = "aura_artist_library_preview_pages") {
+    item(key = "aura_artist_library_preview_pages", contentType = "aura_artist_library_preview_pages") {
         AuraSongPages(
             itemCount = songs.size,
             modifier = Modifier.animateItem(),

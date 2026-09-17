@@ -70,6 +70,7 @@ import iad1tya.echo.music.ui.component.SortHeader
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.LibraryAlbumsViewModel
+import iad1tya.echo.music.ui.component.librarySectionEmptyText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -224,7 +225,10 @@ fun LibraryAlbumsScreen(
                             item(key = "empty_placeholder") {
                                 EmptyPlaceholder(
                                     icon = R.drawable.album,
-                                    text = stringResource(R.string.library_album_empty),
+                                    text = librarySectionEmptyText(
+                                        section = { it.likedAlbums },
+                                        emptyText = stringResource(R.string.library_album_empty),
+                                    ),
                                     modifier = Modifier.animateItem()
                                 )
                             }
@@ -284,7 +288,10 @@ fun LibraryAlbumsScreen(
                             item(span = { GridItemSpan(maxLineSpan) }) {
                                 EmptyPlaceholder(
                                     icon = R.drawable.album,
-                                    text = stringResource(R.string.library_album_empty),
+                                    text = librarySectionEmptyText(
+                                        section = { it.likedAlbums },
+                                        emptyText = stringResource(R.string.library_album_empty),
+                                    ),
                                     modifier = Modifier.animateItem()
                                 )
                             }

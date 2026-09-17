@@ -85,6 +85,10 @@ import androidx.compose.ui.util.fastForEach
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
+import dev.chrisbanes.haze.HazeProgressive
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import com.music.innertube.YouTube
 import com.music.innertube.models.AlbumItem
 import com.music.innertube.models.ArtistItem
@@ -354,6 +358,10 @@ fun ArtistScreen(
                         // NOT the window: a narrow split pane keeps the square cover like a phone; only a
                         // genuinely wide pane (>= 840dp, the expanded breakpoint) caps it to a short banner.
                         val isTvHero = maxWidth >= 840.dp
+                        // Hoisted for the same reason AuraArtistScreen hoists it: inside the
+                        // nested Box the closest implicit receiver is BoxScope, which has no
+                        // `maxWidth`. Read it once, here, where the receiver is unambiguous.
+                        val heroWidth = maxWidth
                         if (thumbnail != null || backgroundVideoUrl != null) {
                             Box(
                                 modifier = Modifier
@@ -365,28 +373,56 @@ fun ArtistScreen(
                                         IntOffset(x = 0, y = if (isTvHero) 0 else headerOffset)
                                     }
                             ) {
+                                // ── El cristal de la parte baja de la portada (SimpMusic) ─────
+                                // La MISMA pieza que la apariencia nueva, con los mismos valores. Ver
+                                // AuraArtistScreen para por qué la forma de dos copias que tenía aquí
+                                // antes no podía dar este efecto: desenfocaba una copia fija en vez de
+                                // la capa viva, se saltaba el vídeo de fondo, y era un desenfoque
+                                // uniforme con la opacidad en rampa en vez de un desenfoque progresivo.
+                                //
+                                // El degradado (`fadingEdge`) pasa de 200 dp al 70 % de la altura del
+                                // héroe: el desenfoque se queda en 200 dp para acotar su coste y el
+                                // color tiene sitio para subir suave. Una rampa corta obliga a una
+                                // pendiente fuerte, y esa pendiente es el borde visible.
+                                val heroHaze = remember { HazeState() }
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .fadingEdge(
-                                            bottom = 200.dp,
+                                            bottom = (if (isTvHero) 320.dp else heroWidth) * 0.7f,
                                         )
                                 ) {
-                                    if (thumbnail != null) {
-                                        AsyncImage(
-                                            model = thumbnail.resize(1200, 1200),
-                                            contentDescription = null,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                        )
+                                    Box(modifier = Modifier.fillMaxSize().hazeSource(heroHaze)) {
+                                        if (thumbnail != null) {
+                                            AsyncImage(
+                                                model = thumbnail.resize(1200, 1200),
+                                                contentDescription = null,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                            )
+                                        }
+                                        if (backgroundVideoUrl != null && showArtistBackgroundVideo) {
+                                            ArtistVideo(
+                                                videoUrl = backgroundVideoUrl!!,
+                                                modifier = Modifier.fillMaxSize(),
+                                                onClick = { }
+                                            )
+                                        }
                                     }
-                                    if (backgroundVideoUrl != null && showArtistBackgroundVideo) {
-                                        ArtistVideo(
-                                            videoUrl = backgroundVideoUrl!!,
-                                            modifier = Modifier.fillMaxSize(),
-                                            onClick = { }
-                                        )
-                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp)
+                                            .align(Alignment.BottomCenter)
+                                            .hazeEffect(heroHaze) {
+                                                blurRadius = 32.dp
+                                                progressive = HazeProgressive.verticalGradient(
+                                                    startIntensity = 0f,
+                                                    endIntensity = 1f,
+                                                )
+                                            },
+                                    )
                                 }
                             }
                         }

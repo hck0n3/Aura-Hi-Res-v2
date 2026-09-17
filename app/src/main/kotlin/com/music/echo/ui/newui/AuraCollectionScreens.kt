@@ -285,7 +285,7 @@ internal fun AuraSongCollectionScaffold(
             val list = songs ?: return@LazyColumn
 
             if (list.isEmpty() && !extraItemsPresent) {
-                item(key = "aura_coll_empty") {
+                item(key = "aura_coll_empty", contentType = "aura_coll_empty") {
                     AuraEmpty(
                         text = emptyText ?: stringResource(R.string.playlist_is_empty),
                         modifier = Modifier.animateItem(),
@@ -294,7 +294,7 @@ internal fun AuraSongCollectionScaffold(
             }
 
             if (list.isNotEmpty() && !isSearching) {
-                item(key = "aura_coll_header") {
+                item(key = "aura_coll_header", contentType = "aura_coll_header") {
                     AuraCollectionHeader(
                         name = title,
                         queueTitle = queueTitle,
@@ -317,13 +317,13 @@ internal fun AuraSongCollectionScaffold(
 
             if (list.isNotEmpty()) {
                 if (sortItem != null) {
-                    item(key = "aura_coll_sort") { sortItem(filteredSongs) }
+                    item(key = "aura_coll_sort", contentType = "aura_coll_sort") { sortItem(filteredSongs) }
                 }
 
                 // Searching with no match is NOT an empty collection — the classic "En caché" screen is
                 // the only one of the three that says so today; all three do now.
                 if (isSearching && filteredSongs.isEmpty()) {
-                    item(key = "aura_coll_no_results") {
+                    item(key = "aura_coll_no_results", contentType = "aura_coll_no_results") {
                         AuraEmpty(
                             text = stringResource(R.string.no_results_found),
                             modifier = Modifier.animateItem(),
@@ -451,7 +451,7 @@ internal fun AuraSongCollectionScaffold(
                 }
             }
 
-            item(key = "aura_coll_tail") { Spacer(Modifier.height(50.dp)) }
+            item(key = "aura_coll_tail", contentType = "aura_coll_tail") { Spacer(Modifier.height(50.dp)) }
         }
         }
 

@@ -392,8 +392,6 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.sponsorblock_description), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.google_cast), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.google_cast_description), "Reproductor", "settings/player"),
-            Triple(stringResource(R.string.seek_seconds_addup), "Reproductor", "settings/player"),
-            Triple(stringResource(R.string.seek_seconds_addup_description), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.queue), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.persistent_queue), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.persistent_queue_desc), "Reproductor", "settings/player"),

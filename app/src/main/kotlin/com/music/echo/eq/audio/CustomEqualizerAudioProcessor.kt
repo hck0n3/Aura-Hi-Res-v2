@@ -202,9 +202,10 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         synchronized(eqApplyLock) {
             tidalSimulationEnabled = enabled
             val ptr = nativePtr
-            if (isInitialized && ptr != 0L) {
-                setTidalSimulationEnabled(ptr, enabled)
-            }
+            // Through pushToneStages, never straight to the native setter: with the master EQ off this
+            // stores the choice and publishes the bypass, so a settings change cannot switch a stage back
+            // on behind a disabled equalizer.
+            if (isInitialized && ptr != 0L) pushToneStages(ptr)
         }
     }
 
@@ -224,9 +225,9 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             masteringDither = dither
             masteringSpeakerBassProtect = speakerBassProtect
             val ptr = nativePtr
-            if (isInitialized && ptr != 0L) {
-                setMasteringOptions(ptr, compressor, dither, speakerBassProtect)
-            }
+            // Via pushToneStages so the glue compressor honours the master EQ switch. Dither and speaker
+            // bass protection are NOT tone stages and stay on either way — see pushToneStages.
+            if (isInitialized && ptr != 0L) pushToneStages(ptr)
         }
     }
 
@@ -245,10 +246,10 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             }
             val ptr = nativePtr
             if (isInitialized && ptr != 0L) {
-                // Push persistent states
+                // Safe Volume is a protection, not a tone stage: it is republished as-is, independent of
+                // the master EQ switch. The tone stages (this one included) go through pushToneStages.
                 setSafeVolume(ptr, safeVolumeEnabled, safeVolumeGain)
-                setTidalSimulationEnabled(ptr, tidalSimulationEnabled)
-                setSpatial(ptr, enabled, algorithm, spatialParams)
+                pushToneStages(ptr)
             }
         }
     }
@@ -262,7 +263,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         synchronized(eqApplyLock) {
             stereoWidth = width.coerceIn(0f, 2f)
             val ptr = nativePtr
-            if (isInitialized && ptr != 0L) setStereoWidth(ptr, stereoWidth)
+            if (isInitialized && ptr != 0L) pushToneStages(ptr)
         }
     }
 
@@ -311,6 +312,44 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
 
     fun isEnabled(): Boolean = enabled
 
+    /**
+     * Publishes the TONE stages, honouring the master EQ switch. Call under [eqApplyLock] with a live [ptr].
+     *
+     * 🔴 OWNER REPORT (2026-09-16): *"cuando desactivo el ecualizador no siento ningún cambio"*, followed by
+     * *"quiero que desactive todo lo que está dentro del ecualizador"*.
+     *
+     * He was right, and the reason was structural. The native chain gates only the bands and the de-esser on
+     * the EQ switch (`if (runEq)` in SuperpoweredBridge.cpp); spatial, the Tidal sound signature, stereo
+     * width and the glue compressor ran regardless — `applySpatial` even documented it as intended
+     * ("Independent of the EQ profile: it can run with the EQ off"). Those four are the stages that colour
+     * the sound most, so switching the EQ off removed the bands and left the colouring behind. Nothing
+     * audible changed, exactly as reported.
+     *
+     * One function publishes all four, for every caller, so the switch cannot drift out of sync again: a
+     * setter called while the EQ is off stores the user's choice and pushes the bypass value, and turning
+     * the EQ back on republishes what was stored. The Kotlin-side fields are never overwritten by a bypass,
+     * so nothing the user picked is lost.
+     *
+     * NOT bypassed, on purpose: Safe Volume, the true-peak limiter, output dither and phone-speaker bass
+     * protection. Those four protect the listener and the hardware rather than shaping tone — switching the
+     * EQ off must not make the app suddenly louder or let sub-bass hit the phone speaker unprotected. They
+     * have their own switches (Safe Volume lives in Ajustes ▸ Reproductor, not inside the equalizer).
+     */
+    private fun pushToneStages(ptr: Long) {
+        val plan = EqBypass.toneStages(
+            masterEqOn = enabled,
+            spatialEnabled = spatialEnabled,
+            tidalSignatureEnabled = tidalSimulationEnabled,
+        )
+        setSpatial(ptr, plan.spatial, spatialAlgorithm, spatialParams)
+        setTidalSimulationEnabled(ptr, plan.tidalSignature)
+        // Stereo width and the mastering stages live in Ajustes ▸ Sonido, NOT inside the equalizer, so the
+        // equalizer switch has no say over them: they are published exactly as the user set them. They stay
+        // in this function only so every native tone setter keeps a single call site.
+        setStereoWidth(ptr, stereoWidth)
+        setMasteringOptions(ptr, masteringCompressor, masteringDither, masteringSpeakerBassProtect)
+    }
+
     fun disable() {
         enabled = false
         // Guard INSIDE the lock — see applyProfile for why evaluating it outside was a use-after-free window.
@@ -326,6 +365,8 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             } finally {
                 endEqBatch(ptr)
             }
+            // …and the rest of what the equalizer screen offers, or turning it off changes nothing audible.
+            pushToneStages(ptr)
         }
     }
 
@@ -397,6 +438,11 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
                 // half-built set that was staged but never handed to the audio thread.
                 endEqBatch(ptr)
             }
+            // Coming back from a bypass: [disable] pushed the tone stages off WITHOUT touching their
+            // Kotlin-side values, so this republishes exactly what the user had chosen. Without it, turning
+            // the equalizer back on would restore the bands and silently leave spatial / Tidal / width /
+            // compressor switched off — the same class of bug as the one being fixed, pointing the other way.
+            pushToneStages(ptr)
         }
     }
 
@@ -490,13 +536,11 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             if (isInitialized && restorePtr != 0L && safeVolumeEnabled) {
                 setSafeVolume(restorePtr, safeVolumeEnabled, safeVolumeGain)
             }
-            if (isInitialized && restorePtr != 0L && tidalSimulationEnabled) {
-                setTidalSimulationEnabled(restorePtr, tidalSimulationEnabled)
-            }
+            // The native processor was just re-created, so every tone stage has to be published again —
+            // through the same gate, or a sample-rate change would silently bring spatial / Tidal / width /
+            // compressor back to life underneath a disabled equalizer.
             if (isInitialized && restorePtr != 0L) {
-                setSpatial(restorePtr, spatialEnabled, spatialAlgorithm, spatialParams)
-                setMasteringOptions(restorePtr, masteringCompressor, masteringDither, masteringSpeakerBassProtect)
-                setStereoWidth(restorePtr, stereoWidth)
+                pushToneStages(restorePtr)
             }
         }
 

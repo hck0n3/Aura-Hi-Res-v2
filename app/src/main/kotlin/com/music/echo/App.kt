@@ -513,6 +513,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             settings[iad1tya.echo.music.constants.CrossfadeDefault9AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.Defaults0127AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.LiquidGlassHighTierV1AppliedKey] != true ||
+            settings[iad1tya.echo.music.constants.LiquidGlassInteractiveHighTierV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.MiniPlayerGlassUndoV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.MiniPlayerBlurDefaultV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.MiniPlayerGlowDefaultV1AppliedKey] != true ||
@@ -575,6 +576,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // migrateEqPreampDefaultV4 so the V4 chain settling an install on +2.0 continues on
         // to +2.3 in the same launch.
         migrateEqPreampDefaultV5(settings)
+        // SEPARATE (same EQ side effects): owner order 2026-09-16 settles the preamp on the single house
+        // value (+2.2 dB) and rescues the installs that Safe Volume's old reset had left at 0.0. MUST run
+        // after migrateEqPreampDefaultV5 so an install that chain just settled on +2.3 continues to +2.2
+        // in the same launch.
+        migrateEqPreampDefaultV6(settings)
         // SEPARATE (same EQ side effects): owner directive 2026-09-13 replaces the "Aura Hi-Res v2"
         // curve. MUST run after the V2 seed so a fresh install's seeded curve is already the new one.
         migrateAuraHiResV2CurveV2(settings)
@@ -1025,6 +1031,37 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             p[iad1tya.echo.music.constants.LiquidGlassHighTierV1AppliedKey] = true
         }
 
+        // 🔴 ORDEN DEL DUEÑO (2026-09-17): en gama alta, Liquid Glass Y "Cristal interactivo" encendidos
+        // de fábrica, "para que tenga la mejor experiencia visual".
+        //
+        // CLAVE FRESCA a propósito: la de arriba ya está marcada en todo el que actualizó desde 0.6.127,
+        // así que colgar esto de ella no se ejecutaría nunca. Misma lección que MiniPlayerGlassUndoV1.
+        //
+        // Se escriben las DOS claves. El maestro también, aunque la migración de arriba ya lo encendiera
+        // en su día: quien la pasó en un teléfono de gama media y hoy está en uno de gama alta tiene el
+        // flag puesto y el maestro apagado, y escribir solo el interactivo le dejaría un ajuste encendido
+        // que no dibuja nada (la fila depende del maestro). Los tres interruptores por componente ya
+        // vienen en `true` por defecto, así que con estos dos basta para que se vea.
+        //
+        // MISMO test que la migración de arriba, reutilizado literalmente en vez de reescrito: dos
+        // definiciones de "gama alta" acabarían encendiendo una cosa y no la otra.
+        if (settings[iad1tya.echo.music.constants.LiquidGlassInteractiveHighTierV1AppliedKey] != true) {
+            val glassHigh = runCatching {
+                iad1tya.echo.music.ui.component.isGlassEligible(this@App) &&
+                    iad1tya.echo.music.utils.PerformanceMode.effectiveTier(this@App) ==
+                    iad1tya.echo.music.utils.DeviceTier.HIGH
+            }.getOrDefault(false)
+            if (glassHigh) {
+                p[iad1tya.echo.music.constants.LiquidGlassGlobalEnabledKey] = true
+                p[iad1tya.echo.music.constants.LiquidGlassInteractiveKey] = true
+            }
+            // El flag se marca SIEMPRE, también cuando el teléfono no es de gama alta: si no, cada
+            // arranque volvería a evaluar la capacidad del dispositivo y a escribir en DataStore para
+            // nada. Y marcarlo NO le cierra la puerta a nadie — el interruptor sigue en
+            // Ajustes ▸ Apariencia ▸ Liquid Glass y lo que el usuario elija manda desde ese momento.
+            p[iad1tya.echo.music.constants.LiquidGlassInteractiveHighTierV1AppliedKey] = true
+        }
+
         // Owner order (0.6.130): the forced Respiro profundo default (0.6.127) has a BY-DESIGN -12dB
         // center valley that the owner hears as an unwanted gap between songs. His described shape —
         // both songs audible TOGETHER, outgoing lowering while the incoming rises, no space — is curve
@@ -1243,6 +1280,51 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         }.onFailure { reportException(it) }.getOrDefault(false)
         if (applied) {
             dataStore.edit { it[iad1tya.echo.music.constants.EqPreampDefault23DbAppliedKey] = true }
+        }
+    }
+
+    /**
+     * One-time (V6, owner order 2026-09-16: *"el preamp quiero que esté +2.2 dB, y a veces cuando reviso
+     * está en 0.0 dB"*): settle every install on [EqConstants.DEFAULT_PREAMP_DB], the single place the
+     * house preamp is now written down.
+     *
+     * The "a veces" was real and it was ours. The value lived in four disagreeing places: the EQ screen
+     * defaulted to +2.2, this migration chain walked it +2.2 → +3.0 → +2.0 → +2.3, and
+     * `MusicService.resetEqPreamp` wrote 0.0 over it on every Safe Volume ON → OFF. Which number he found
+     * depended on which had spoken last. That reset now lands on the house value instead, and this brings
+     * the already-affected installs back.
+     *
+     * Two stored values count as "not chosen by the user" and are migrated: +2.3 (the V5 default this
+     * replaces) and 0.0 (what the reset wrote). Any other preamp is a deliberate choice and is kept —
+     * same convention as V3/V4/V5. Runs AFTER [migrateEqPreampDefaultV5] so an install the V4→V5 chain
+     * just settled on +2.3 continues to +2.2 in the same launch. Two-phase like the others: the flag is
+     * stamped only on success, and while no EQ state exists yet it retries instead of stamping.
+     */
+    private suspend fun migrateEqPreampDefaultV6(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.EqPreampDefault22DbAppliedKey] == true) return
+        val house = iad1tya.echo.music.eq.data.EqConstants.DEFAULT_PREAMP_DB
+        val applied = runCatching {
+            val eqPrefs = applicationContext.getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
+            val eqRepo = eqProfileRepository.get()
+            val hasAnyEqState = eqPrefs.contains("enabled") || eqPrefs.contains("preampDb") ||
+                eqPrefs.all.keys.any { it.startsWith("band") } ||
+                runCatching { eqRepo.getAllProfiles().isNotEmpty() }.getOrDefault(false)
+            if (!hasAnyEqState) return@runCatching false
+            val storedPreamp = eqPrefs.getFloat("preampDb", Float.NaN)
+            val migratable = storedPreamp.isNaN() || storedPreamp == 2.3f || storedPreamp == 0.0f
+            if (!migratable) return@runCatching true
+            val effective = eqRepo.unsavedProfile.value ?: eqRepo.activeProfile.value
+            if (effective != null && (effective.preamp == 2.3 || effective.preamp == 0.0)) {
+                val settled = effective.copy(preamp = house.toDouble())
+                eqRepo.saveProfile(settled)
+                eqRepo.setUnsavedProfile(settled)
+                eqRepo.setActiveProfile(settled.id)
+            }
+            eqPrefs.edit().putFloat("preampDb", house).apply()
+            true
+        }.onFailure { reportException(it) }.getOrDefault(false)
+        if (applied) {
+            dataStore.edit { it[iad1tya.echo.music.constants.EqPreampDefault22DbAppliedKey] = true }
         }
     }
 

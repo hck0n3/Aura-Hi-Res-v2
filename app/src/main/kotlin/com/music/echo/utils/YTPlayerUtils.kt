@@ -340,6 +340,22 @@ object YTPlayerUtils {
     private val AUTH_SHAPED_STATUSES = setOf("LOGIN_REQUIRED")
 
     /**
+     * Rechazos con forma de IDENTIDAD, que [AUTH_SHAPED_STATUSES] no puede describir.
+     *
+     * El registro del dueño (2026-09-16, estable 2.0.42, sesión iniciada) trae 36 vídeos distintos con
+     * cero éxitos, todos `UNPLAYABLE` en ANDROID_VR y HTTP 400 en IOS, sin una sola línea de cifrado: las
+     * dos identidades del camino de audio mueren antes de firmar. En el mismo teléfono y la misma red, sin
+     * sesión, la reproducción iba bien. `UNPLAYABLE` no entra en AUTH_SHAPED_STATUSES porque casi siempre
+     * describe al CONTENIDO — y meterlo ahí haría que cada vídeo retirado o bloqueado por región gastase
+     * un reintento anónimo inútil. Lo que distingue una cosa de la otra es la racha sobre vídeos
+     * DISTINTOS, y eso es lo único que mide [IdentityRejectionTracker].
+     *
+     * A nivel de proceso a propósito: la señal es "esta sesión está siendo rechazada", no "esta canción
+     * falló", así que la tercera canción distinta ya dispara la recuperación que hoy no llega nunca.
+     */
+    internal val identityRejections = iad1tya.echo.music.utils.IdentityRejectionTracker()
+
+    /**
      * Per-resolve stage timing (slow-start telemetry). ONE instance per playerResponseForPlayback call,
      * threaded down the pipeline; exactly ONE summary line is emitted per completed resolve (success,
      * failure or cancellation) via Timber + PlaybackLogManager, so the shareable playback log turns every
@@ -470,6 +486,9 @@ object YTPlayerUtils {
         }
 
         val firstAttempt = boundedResolve()
+        // Cualquier acierto limpia la racha: unas pocas canciones legítimamente no disponibles a lo
+        // largo de una tarde normal no deben sumarse hasta parecer un rechazo de identidad.
+        firstAttempt.onSuccess { identityRejections.recordSuccess() }
 
         if (firstAttempt.isFailure && YouTube.cookie == null) {
             Timber.tag(TAG).w("Playback failed for guest. Rotating session and retrying...")
@@ -493,7 +512,9 @@ object YTPlayerUtils {
         //
         // Independent of the cipher/player-rotation path: playabilityStatus is decided server-side before
         // any signature work, so this survives a correct cipher config.
-        if (firstAttempt.isFailure && YouTube.cookie != null && authShaped.get()) {
+        if (firstAttempt.isFailure && YouTube.cookie != null &&
+            (authShaped.get() || identityRejections.isIdentityShaped)
+        ) {
             Timber.tag(TAG).w("Auth-shaped failure while signed in — rotating the guest session and retrying anonymously")
             PlaybackLogManager.log(
                 PlaybackLogLevel.BOT,
@@ -1066,6 +1087,11 @@ object YTPlayerUtils {
                 // dead-end can tell the user WHY instead of a generic failure.
                 streamPlayerResponse?.playabilityStatus?.reason?.let { lastPlayabilityReason = it }
                 if (status in AUTH_SHAPED_STATUSES) authShaped?.set(true)
+                // Solo con sesión iniciada: sin cookie no hay identidad que YouTube pueda rechazar,
+                // y la rama de invitado ya tiene su propia rotación unas líneas más arriba.
+                if (status == "UNPLAYABLE" && YouTube.cookie != null) {
+                    identityRejections.recordRejection(videoId)
+                }
                 Timber.tag(logTag).d("Player response status not OK: $status, reason: $reason")
                 PlaybackLogManager.log(PlaybackLogLevel.WARNING, "Client failed: ${client.clientName}", "$status: $reason")
                 
@@ -1304,6 +1330,54 @@ object YTPlayerUtils {
         // a non-auto-dubbed track, then to ANY audio, so playback always resolves. The dev-device path is
         // unchanged (original still wins when it exists).
         val audioFormats = playerResponse.streamingData?.adaptiveFormats?.filter { it.isAudio }
+
+        // EVERY VIDEO MUST BE PLAYABLE AS AUDIO — owner report 2026-09-16: "algunos videos solo
+        // reproducían video". When a response carries no audio-only track, the progressive (muxed) list
+        // still does: itag 18/22 hold picture and sound in one file. `isAudio` is `width == null`, so a
+        // progressive stream reads as "not audio" and this resolver never looked at it — while the video
+        // branch above deliberately searches BOTH lists. That asymmetry is the whole bug: the video path
+        // found a stream, the audio path found nothing, and the song ended up playable only as video.
+        //
+        // Runs ONLY when there is no adaptive audio at all, so every normal track resolves exactly as
+        // before. The choice of WHICH progressive stream lives in ProgressiveAudioFallback so it can be
+        // tested without a device.
+        if (audioFormats.isNullOrEmpty()) {
+            val progressive = playerResponse.streamingData?.formats.orEmpty()
+            val metered = connectivityManager.isActiveNetworkMetered
+            val saverOn = PrefsBridge.peek(iad1tya.echo.music.constants.DataSaverEnabledKey) == true
+            val index =
+                iad1tya.echo.music.playback.ProgressiveAudioFallback.pickIndex(
+                    streams =
+                        progressive.map {
+                            iad1tya.echo.music.playback.ProgressiveAudioFallback.Stream(
+                                itag = it.itag,
+                                bitrate = it.bitrate,
+                                // A progressive entry without an audio track would play as silence, which
+                                // is worse than the failure it replaces.
+                                hasAudioTrack = it.audioSampleRate != null ||
+                                    it.audioChannels != null ||
+                                    it.audioQuality != null,
+                                hasUrl = !it.url.isNullOrEmpty() ||
+                                    !it.signatureCipher.isNullOrEmpty() ||
+                                    !it.cipher.isNullOrEmpty(),
+                            )
+                        },
+                    // Progressive means fetching a picture nobody watches, so stay small when bytes cost
+                    // money or when the caller only keeps a few seconds anyway (ringtone trimmer).
+                    preferSmallest = preferSmallestAudio || saverOn || metered,
+                )
+            if (index == null) {
+                Timber.tag(logTag).d("No audio-only format and no progressive stream carrying audio")
+                return null
+            }
+            val picked = progressive[index]
+            Timber.tag(logTag).i(
+                "No audio-only format for this video — playing progressive itag ${picked.itag} " +
+                    "(${picked.bitrate} bps); its video track is simply not rendered",
+            )
+            return picked
+        }
+
         val audioPool = audioFormats?.filter { it.isOriginal }?.takeIf { it.isNotEmpty() }
             ?: audioFormats?.filter { it.audioTrack?.isAutoDubbed == false }?.takeIf { it.isNotEmpty() }
             ?: audioFormats

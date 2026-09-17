@@ -265,10 +265,12 @@ class PlayerConnection(
     
     
     var shouldBlockPlaybackChanges: (() -> Boolean)? = null
-    
-    
-    @Volatile
-    var allowInternalSync: Boolean = false
+
+    // `allowInternalSync` used to sit here as an escape hatch for the Listen Together bridge, which
+    // reached the player THROUGH this class. The bridge now talks to MusicService's player directly
+    // (it is the service that owns the room's playback, not whatever screen happens to be alive), so
+    // nothing ever set the flag any more — and a guard nobody can lift is exactly the kind of dead
+    // switch this project's registry calls a placebo.
 
     var onSkipPrevious: (() -> Unit)? = null
     var onSkipNext: (() -> Unit)? = null
@@ -333,6 +335,32 @@ class PlayerConnection(
         }
     }
 
+    /**
+     * The Enhanced Shuffle context of the live queue, or null. Read at click time by the player's
+     * shuffle button so it can offer «continuar o empezar de cero» exactly as the list screens do.
+     */
+    val shuffleContextId: String?
+        get() = runCatching { service.currentShuffleContextId }.getOrNull()
+
+    /**
+     * Shuffle the live queue with the no-repeat algorithm: [resetMemory] `false` continues the lap,
+     * `true` starts a fresh one (this context's memory is wiped first).
+     *
+     * Blocked for a Listen Together GUEST for the same reason as [startRadioSeamlessly]: a guest must
+     * never re-point the shared queue.
+     */
+    fun shuffleLiveQueue(resetMemory: Boolean) {
+        if (shouldBlockPlaybackChanges?.invoke() == true) {
+            Timber.tag(TAG).d("shuffleLiveQueue blocked - Listen Together guest")
+            return
+        }
+        try {
+            service.shuffleLiveQueue(resetMemory)
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Error in shuffleLiveQueue")
+        }
+    }
+
     fun startRadioSeamlessly() {
         
         if (shouldBlockPlaybackChanges?.invoke() == true) {
@@ -354,7 +382,7 @@ class PlayerConnection(
 
     fun playNext(items: List<MediaItem>) {
         
-        if (!allowInternalSync && shouldBlockPlaybackChanges?.invoke() == true) {
+        if (shouldBlockPlaybackChanges?.invoke() == true) {
             Timber.tag("PlayerConnection").d("playNext blocked - Listen Together guest")
             return
         }
@@ -370,7 +398,7 @@ class PlayerConnection(
 
     fun addToQueue(items: List<MediaItem>) {
         
-        if (!allowInternalSync && shouldBlockPlaybackChanges?.invoke() == true) {
+        if (shouldBlockPlaybackChanges?.invoke() == true) {
             Timber.tag("PlayerConnection").d("addToQueue blocked - Listen Together guest")
             return
         }

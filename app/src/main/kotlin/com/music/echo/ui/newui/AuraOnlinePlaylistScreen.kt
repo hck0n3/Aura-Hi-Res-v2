@@ -278,7 +278,7 @@ fun AuraOnlinePlaylistScreen(
             // instead of a blank screen forever.
             if (currentPlaylist == null) {
                 if (isLoading) {
-                    item(key = "aura_op_loading") {
+                    item(key = "aura_op_loading", contentType = "aura_op_loading") {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -289,7 +289,7 @@ fun AuraOnlinePlaylistScreen(
                         }
                     }
                 } else {
-                    item(key = "aura_op_error") {
+                    item(key = "aura_op_error", contentType = "aura_op_error") {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
@@ -325,7 +325,7 @@ fun AuraOnlinePlaylistScreen(
                 }
             } else {
                 if (!isSearching) {
-                    item(key = "aura_op_header") {
+                    item(key = "aura_op_header", contentType = "aura_op_header") {
                         AuraOnlinePlaylistHeader(
                             playlist = currentPlaylist,
                             songs = songs,
@@ -503,7 +503,7 @@ fun AuraOnlinePlaylistScreen(
                 }
 
                 if (isLoadingMore) {
-                    item(key = "aura_op_loading_more") {
+                    item(key = "aura_op_loading_more", contentType = "aura_op_loading_more") {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -520,7 +520,7 @@ fun AuraOnlinePlaylistScreen(
                 }
 
                 if (relatedItems.isNotEmpty() && !isSearching) {
-                    item(key = "aura_op_related_title") {
+                    item(key = "aura_op_related_title", contentType = "aura_op_related_title") {
                         AuraSectionLabel(
                             text = stringResource(R.string.you_might_also_like).uppercase(Locale.ROOT),
                             modifier = Modifier
@@ -533,7 +533,7 @@ fun AuraOnlinePlaylistScreen(
                                 ),
                         )
                     }
-                    item(key = "aura_op_related") {
+                    item(key = "aura_op_related", contentType = "aura_op_related") {
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -602,7 +602,7 @@ fun AuraOnlinePlaylistScreen(
                     }
                 }
 
-                item(key = "aura_op_tail") { Spacer(Modifier.height(50.dp)) }
+                item(key = "aura_op_tail", contentType = "aura_op_tail") { Spacer(Modifier.height(50.dp)) }
             }
         }
         }

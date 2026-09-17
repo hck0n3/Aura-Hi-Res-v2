@@ -168,7 +168,7 @@ fun AuraNovedadesScreen(
                 contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                item(key = "aura_novedades_header") {
+                item(key = "aura_novedades_header", contentType = "aura_novedades_header") {
                     AuraScreenHeader(
                         title = stringResource(R.string.tab_novedades),
                         trailing = { AuraTopActions() },
@@ -176,7 +176,7 @@ fun AuraNovedadesScreen(
                 }
 
                 if (unique.hero.isNotEmpty()) {
-                    item(key = "aura_novedades_hero") {
+                    item(key = "aura_novedades_hero", contentType = "aura_novedades_hero") {
                         Column(Modifier.padding(top = AuraSpacing.SectionGap)) {
                             AuraSectionHeader(title = stringResource(R.string.tab_novedades))
                             AuraShelf {
@@ -226,11 +226,14 @@ fun AuraNovedadesScreen(
                     onMenu = ytMenu,
                 )
                 if (unique.playlists.isNotEmpty()) {
-                    item(key = "aura_novedades_playlists") {
+                    item(key = "aura_novedades_playlists", contentType = "aura_novedades_playlists") {
                         Column {
                             AuraSectionHeader(title = stringResource(R.string.novedades_updated_playlists))
                             val w = auraTypeVisual(AuraContentKind.Playlist).shelfWidth * cardScale
-                            AuraDoubleRowShelf(rowHeight = auraShelfCardStackHeight(w)) {
+                            AuraDoubleRowShelf(
+                                rowHeight = auraShelfCardStackHeight(w),
+                                itemCount = unique.playlists.size,
+                            ) {
                                 lazyGridItems(unique.playlists, key = { it.id }) { item ->
                                     AuraTypedYtCoverCard(
                                         item = item,
@@ -272,7 +275,7 @@ fun AuraNovedadesScreen(
                     },
                 )
                 if (unique.listening.isNotEmpty()) {
-                    item(key = "aura_novedades_listening") {
+                    item(key = "aura_novedades_listening", contentType = "aura_novedades_listening") {
                         Column {
                             AuraSectionHeader(title = stringResource(R.string.novedades_everyones_listening))
                             AuraShelf {
@@ -322,7 +325,7 @@ fun AuraNovedadesScreen(
                     )
                 }
                 if (unique.upcoming.isNotEmpty()) {
-                    item(key = "aura_novedades_coming_soon") {
+                    item(key = "aura_novedades_coming_soon", contentType = "aura_novedades_coming_soon") {
                         Column {
                             AuraSectionHeader(title = stringResource(R.string.novedades_coming_soon))
                             LazyRow(
@@ -372,7 +375,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.novedadesSongShelf(
     onMenu: (YTItem) -> Unit,
 ) {
     if (songs.isEmpty()) return
-    item(key = "aura_novedades_$key") {
+    item(key = "aura_novedades_$key", contentType = "aura_novedades") {
         Column {
             AuraSectionHeader(title = stringResource(titleRes))
             AuraShelf {
@@ -404,7 +407,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.novedadesLocalSongShe
     headerClick: (() -> Unit)? = null,
 ) {
     if (songs.isEmpty()) return
-    item(key = "aura_novedades_$key") {
+    item(key = "aura_novedades_$key", contentType = "aura_novedades") {
         val title = stringResource(titleRes)
         val visual = auraTypeVisual(AuraContentKind.Song)
         Column {
@@ -443,11 +446,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.novedadesAlbumShelf(
     onMenu: (YTItem) -> Unit,
 ) {
     if (albums.isEmpty()) return
-    item(key = "aura_novedades_$key") {
+    item(key = "aura_novedades_$key", contentType = "aura_novedades") {
         Column {
             AuraSectionHeader(title = stringResource(titleRes))
             val w = auraTypeVisual(AuraContentKind.Album).shelfWidth * cardScale
-            AuraDoubleRowShelf(rowHeight = auraShelfCardStackHeight(w)) {
+            AuraDoubleRowShelf(
+                rowHeight = auraShelfCardStackHeight(w),
+                itemCount = albums.size,
+            ) {
                 lazyGridItems(albums, key = { it.id }) { album ->
                     AuraTypedYtCoverCard(
                         item = album,

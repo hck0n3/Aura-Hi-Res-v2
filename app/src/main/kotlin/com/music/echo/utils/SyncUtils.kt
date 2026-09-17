@@ -155,6 +155,34 @@ fun anySyncActive(state: SyncState): Boolean =
         state.artists == SyncStatus.Syncing ||
         state.playlists == SyncStatus.Syncing
 
+/**
+ * ¿Esta sección de la biblioteca está TODAVÍA por llegar?
+ *
+ * 🔴 ORDEN DEL DUEÑO (2026-09-16): *"cuando uno inicia sesión con SimpMusic la biblioteca ya está
+ * allí de un solo, sin estar esperando que cargue"*. La mitad de eso es que llegue antes
+ * ([SyncUtils.syncLibraryAfterLogin] reordenado); la otra mitad es **no mentir mientras llega**.
+ *
+ * Hasta ahora las pantallas de biblioteca no miraban [SyncState] para nada — solo Home lo hacía —
+ * así que en cuanto Room devolvía una lista vacía pintaban *"no tienes artistas"*. Eso no es un
+ * estado de carga: es una afirmación, y es FALSA durante todo el rato que dura la sincronización.
+ * Da igual lo rápido que llegue el dato: si mientras tanto la app asegura que no hay nada, el
+ * usuario se lo cree y cierra.
+ *
+ * ## El caso que hace falta acertar, y que un `== Syncing` a secas falla
+ * [SyncUtils.syncChannel] es **serial**. Mientras corre la pasada de "me gusta", la de listas está
+ * encolada y su estado es `Idle`, no `Syncing` — no ha arrancado. O sea que preguntar solo por el
+ * estado PROPIO de la sección deja la pestaña de listas diciendo "vacío" durante justo el rato en
+ * que más falso es. Por eso `Idle` + *algo está sincronizando* también cuenta como pendiente: es
+ * la forma de ver la cola, no solo lo que corre ahora mismo.
+ *
+ * `Completed` y `Error` devuelven false a propósito: ahí el vacío ya es verdad (o ya es un fallo
+ * del que el usuario debe enterarse), y seguir mostrando "sincronizando" sería una rueda eterna.
+ *
+ * @param section el campo de [state] de esta sección (`state.artists`, `state.playlists`…).
+ */
+fun isSectionPending(section: SyncStatus, state: SyncState): Boolean =
+    section == SyncStatus.Syncing || (section == SyncStatus.Idle && anySyncActive(state))
+
 @Singleton
 class SyncUtils @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -818,12 +846,54 @@ class SyncUtils @Inject constructor(
      * recovery path (login completion, the App cookie watcher, the cold-start check) goes through
      * this single entry point; the HALLAZGO-056 single-flight guard coalesces any overlap, so the
      * redundant enqueues from two paths firing close together never duplicate YouTube requests.
+     *
+     * ## El orden NO es decorativo — es lo único que decide qué ves primero
+     *
+     * 🔴 ORDEN DEL DUEÑO (2026-09-16): *"cuando uno inicia sesión con SimpMusic la biblioteca ya
+     * está allí de un solo, sin estar esperando que cargue… tanto las suscripciones, me gustas y
+     * listas"*.
+     *
+     * [syncChannel] es **estrictamente serial** (`for (operation in syncChannel)`), a propósito:
+     * es lo que impide la tormenta de 429 de HALLAZGO-056. O sea que estas cuatro llamadas no son
+     * cuatro cosas que arrancan a la vez, son una **cola**, y lo que se encola último no se ve
+     * hasta que termina todo lo anterior.
+     *
+     * Con el orden viejo (me gusta → biblioteca → suscripciones → listas), las dos secciones que
+     * él nombró iban **al final**, detrás de las dos pasadas sin cota:
+     *
+     *  · `executeSyncLikedSongs` transmite sus páginas (HALLAZGO-028), pero al terminar hace una
+     *    reconciliación sobre la lista local ENTERA que puede disparar un `likeVideo` por canción
+     *    que esté local y no remota. En una cuenta grande esa cola es la larga.
+     *  · `executeSyncLibrarySongs` va detrás de ella.
+     *
+     * Resultado: las listas y las suscripciones tardaban lo que tardaban las otras dos, y la
+     * biblioteca se veía vacía mientras tanto. No era lentitud de red, era el puesto en la cola.
+     *
+     * El orden nuevo pone delante lo **acotado y visible**:
+     *
+     *  1. **Listas guardadas** — un solo browse de biblioteca, y cada fila se crea mientras el
+     *     resto de la página sigue bajando. Es además la sección que peor se ve vacía.
+     *  2. **Suscripciones** — un browse más, con la resolución de channelIds ya acotada por
+     *     semáforo dentro de `insertArtistsPage`.
+     *  3. **Me gusta** — transmite página a página, así que sigue llenándose a la vista mientras
+     *     tú ya estás mirando una biblioteca con cosas dentro.
+     *  4. **Canciones de la biblioteca** — la última, porque es la que menos se echa en falta.
+     *
+     * **Por qué no se lanzan las cuatro en paralelo**, que sería lo obvio: la cola serial es la
+     * defensa contra el 429 documentado en HALLAZGO-056, y este archivo ya resolvió exactamente
+     * este problema una vez por ORDEN y no por concurrencia — ver el comentario de
+     * `executeFullSync`, donde las listas se subieron desde el último puesto porque con cuentas
+     * reales *"no me pone nunca las playlists"*. Se sigue el mismo precedente: cambiar el orden no
+     * añade ni una sola petición, y por eso no puede empeorar nada.
+     *
+     * Las cuatro pasadas son independientes entre sí (ninguna lee lo que otra escribe), que es lo
+     * que hace legítimo reordenarlas; [executeFullSync] ya las ejecuta en un orden distinto a este.
      */
     fun syncLibraryAfterLogin() {
+        syncSavedPlaylists()
+        syncArtistsSubscriptions()
         syncLikedSongs()
         syncLibrarySongs()
-        syncArtistsSubscriptions()
-        syncSavedPlaylists()
     }
 
     /**

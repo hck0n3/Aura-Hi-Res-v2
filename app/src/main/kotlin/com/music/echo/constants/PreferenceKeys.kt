@@ -162,6 +162,26 @@ val Defaults0127AppliedKey = booleanPreferencesKey("defaults_0_6_127_applied")
 // the user's later choices win forever after.
 val LiquidGlassHighTierV1AppliedKey = booleanPreferencesKey("liquid_glass_high_tier_v1_applied")
 
+// 🔴 ORDEN DEL DUEÑO (2026-09-17): *"en los dispositivos que la app detecte que son de gama alta y
+// puedan mover bien el liquid glass y la función de cristal interactivo, que lo active por defecto para
+// que tenga la mejor experiencia visual"*.
+//
+// CLAVE FRESCA, y hace falta que lo sea: [LiquidGlassHighTierV1AppliedKey] ya está marcada en todo el
+// mundo que actualizó desde 0.6.127, así que colgar el cristal interactivo de aquella nunca se
+// ejecutaría — un flag ya puesto (o subir el versionCode) jamás vuelve a correr una migración. Es la
+// misma lección escrita tres veces más arriba en este archivo.
+//
+// Enciende DOS cosas, y las dos hacen falta para que se vea algo: el maestro de Liquid Glass y el
+// cristal interactivo. La fila del interactivo está deshabilitada mientras el maestro esté apagado, así
+// que escribir solo una sería un ajuste que promete y no dibuja.
+//
+// Se evalúa sobre el hardware REAL de este teléfono con el mismo test que la migración de 0.6.127
+// (`isGlassEligible` + tier HIGH), reutilizado a propósito: dos criterios distintos para "gama alta"
+// acabarían dejando encendido el maestro y apagado el interactivo, o al revés. Una sola vez, y a partir
+// de ahí manda siempre lo que el usuario elija.
+val LiquidGlassInteractiveHighTierV1AppliedKey =
+    booleanPreferencesKey("liquid_glass_interactive_high_tier_v1_applied")
+
 // 0.6.148 — UNDO the mini-player half of the order above, once, with a FRESH key (a set flag or a
 // versionCode bump alone never re-runs a one-time migration).
 //
@@ -220,6 +240,12 @@ val EqPreampDefault2DbAppliedKey = booleanPreferencesKey("eq_preamp_default_2db_
 // installs, so on those devices this migration only ever stamps its flag (the stored value already
 // matches).
 val EqPreampDefault23DbAppliedKey = booleanPreferencesKey("eq_preamp_default_23db_applied")
+// One-time (V6, owner order 2026-09-16: "el preamp quiero que esté +2.2 dB, y a veces cuando reviso está
+// en 0.0 dB"). Settles every install on the single house value, EqConstants.DEFAULT_PREAMP_DB. Two values
+// count as "not chosen by the user" and are migrated: +2.3 (the V5 default this replaces) and 0.0 — the
+// number MusicService.resetEqPreamp used to write behind the user's back on every Safe Volume ON -> OFF,
+// which is the "a veces" in the report. Any other preamp is a deliberate choice and is left alone.
+val EqPreampDefault22DbAppliedKey = booleanPreferencesKey("eq_preamp_default_22db_applied")
 // One-time: force infinite playback (auto-radio at end of album/playlist/queue) ON for EVERYONE — the owner
 // wants endless playback always active. Fresh key so it re-applies even for users who had it toggled off.
 val InfinitePlaybackForcedOnKey = booleanPreferencesKey("infinite_playback_forced_on_v1")
@@ -782,6 +808,12 @@ val LiquidGlassDepthEffectKey = booleanPreferencesKey("liquidGlassDepthEffect")
 val LiquidGlassPlayerEnabledKey = booleanPreferencesKey("liquidGlassPlayerEnabled")
 val LiquidGlassMiniPlayerEnabledKey = booleanPreferencesKey("liquidGlassMiniPlayerEnabled")
 val LiquidGlassNavBarEnabledKey = booleanPreferencesKey("liquidGlassNavBarEnabled")
+
+// "Cristal interactivo" (orden del dueño 2026-09-16: el liquid glass de SimpMusic, aplicable a LAS DOS
+// apariencias). Por defecto APAGADO: es otra versión del efecto, no un cambio del que ya tiene, y
+// encenderlo hace que la apariencia nueva grabe una capa de fondo que hoy no paga. Ver
+// [iad1tya.echo.music.ui.component.liquidGlassInteractive].
+val LiquidGlassInteractiveKey = booleanPreferencesKey("liquidGlassInteractive")
 
 val TopSize = stringPreferencesKey("topSize")
 val HistoryDuration = floatPreferencesKey("historyDuration")

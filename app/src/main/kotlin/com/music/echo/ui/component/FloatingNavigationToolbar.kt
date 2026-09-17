@@ -111,10 +111,19 @@ fun FloatingNavigationToolbar(
         toolbarContainerColor = toolbarContainerColor,
     )
     val glassModifier = if (useGlass) {
-        Modifier.liquidGlass(
-            config = glassConfig,
-            shape = RoundedCornerShape(percent = 50),
-        )
+        // "Cristal interactivo" (SimpMusic) o el de Aura: MISMA superficie, misma forma, mismo hueco.
+        // La opción solo cambia el dibujo, nunca la disposición ni el área táctil.
+        if (glassConfig.interactive) {
+            Modifier.liquidGlassInteractive(
+                config = glassConfig,
+                shape = RoundedCornerShape(percent = 50),
+            )
+        } else {
+            Modifier.liquidGlass(
+                config = glassConfig,
+                shape = RoundedCornerShape(percent = 50),
+            )
+        }
     } else {
         Modifier
     }
@@ -128,7 +137,19 @@ fun FloatingNavigationToolbar(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
-        val showSelectedLabels = true
+        // 🔴 ORDEN DEL DUEÑO (2026-09-16): *"en el mini reproductor con su barra de abajo que solo
+        // salgan los iconos flotantes en una barra sin texto para que el efecto liquid glass cristal
+        // interactivo se vea mejor, pero solo cuando esté activado"*.
+        //
+        // Con el cristal interactivo encendido la cápsula se queda en SOLO iconos. No es capricho de
+        // estilo: esta receta muestrea lo que pasa por DEBAJO y le aplica lente y refracción, así que
+        // cuanto menos ancho tape la cápsula, más fondo en movimiento se ve a través y más se lee como
+        // cristal. La etiqueta del seleccionado ensancha la cápsula justo cuando cambias de pestaña
+        // —que es cuando más se mira el efecto— y encima lo hace con una animación de ancho que
+        // arrastra el muestreo.
+        //
+        // Va atado al interruptor y a nada más: apagado, la etiqueta vuelve exactamente como hoy.
+        val showSelectedLabels = !glassConfig.interactive
 
         if (hasQuickActions) {
             HorizontalFloatingToolbar(

@@ -20,6 +20,21 @@ object EqConstants {
     const val GAIN_MAX = 18f
     const val PREAMP_MIN = -20f
     const val PREAMP_MAX = 6f
+
+    /**
+     * The house preamp, and the only place it is written down.
+     *
+     * 🔴 OWNER ORDER (2026-09-16): *"el preamp quiero que esté +2.2 dB, y a veces cuando reviso está en
+     * 0.0 dB"*. Both halves of that sentence had the same cause — the value lived in four places that
+     * disagreed: the EQ screen defaulted to 2.2, three one-time migrations in `App.kt` walked it
+     * 2.2 → 3.0 → 2.0, and `MusicService.resetEqPreamp` set it to 0.0 every time Safe Volume was switched
+     * off. So "sometimes it is at 0.0" was not a glitch he imagined: the app really did zero it behind
+     * him, and which value he saw depended on which of the four had spoken last.
+     *
+     * Everything that needs a default preamp now reads THIS. A number that means "the tuning this player
+     * ships with" must have exactly one home, or it drifts apart again the next time one copy is edited.
+     */
+    const val DEFAULT_PREAMP_DB = 2.2f
 }
 
 /** Band filter shape — code matches desktop bandType (0=Peak, 1=LowShelf, 2=HighShelf). */

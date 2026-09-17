@@ -100,7 +100,6 @@ import iad1tya.echo.music.constants.PlayerBackgroundStyle
 import iad1tya.echo.music.constants.PlayerBackgroundStyleKey
 import iad1tya.echo.music.constants.PlayerHorizontalPadding
 import iad1tya.echo.music.constants.RotatingThumbnailKey
-import iad1tya.echo.music.constants.SeekExtraSeconds
 import iad1tya.echo.music.constants.SwipeThumbnailKey
 import iad1tya.echo.music.constants.ThumbnailCornerRadiusKey
 import iad1tya.echo.music.constants.UseNewPlayerDesignKey
@@ -901,7 +900,12 @@ private fun ThumbnailItem(
         0f
     }
 
-    val incrementalSeekSkipEnabled by rememberPreference(SeekExtraSeconds, defaultValue = false)
+    // 🔴 OWNER ORDER (2026-09-16): *"la función de búsqueda progresiva siempre esté activada, sí o sí"*.
+    // Progressive seek is what makes a second and third tap on the same side jump further than the first,
+    // so holding a double-tap actually travels through a long track. It was behind a switch that defaulted
+    // to OFF, which meant almost nobody ever felt it. It is now simply how the player behaves, and its
+    // toggle is gone from Ajustes ▸ Reproductor rather than left there doing nothing.
+    val incrementalSeekSkipEnabled = true
     var skipMultiplier by remember { mutableIntStateOf(1) }
     var lastTapTime by remember { mutableLongStateOf(0L) }
 
@@ -1092,6 +1096,14 @@ private fun ThumbnailItem(
                     val country = Locale.getDefault().country
                     if (country.length == 2) country.lowercase(Locale.ROOT) else "us"
                 }
+                // "Canvas de Spotify" (EnableSpotifyCanvasKey, Ajustes ▸ Apariencia). Read HERE and not
+                // only in the classic player: this resolver is the one the NEW appearance runs, because
+                // AuraPlayer draws its artwork through this very [Thumbnail]. Without it the switch was
+                // a placebo for anyone on the new interface — on, off, same three providers.
+                val enableSpotifyCanvas by iad1tya.echo.music.utils.rememberPreference(
+                    iad1tya.echo.music.constants.EnableSpotifyCanvasKey,
+                    defaultValue = false,
+                )
 
                 LaunchedEffect(item.mediaId) {
                     CanvasArtworkPlaybackCache.get(item.mediaId)?.let { cached ->
@@ -1117,7 +1129,20 @@ private fun ThumbnailItem(
                         
                         println("CanvasFetch: Song='$songTitle' (raw='$songTitleRaw'), Artist='$artistName' (raw='$artistNameRaw'), Album='$albumName'")
                         
-                        linkedSetOf(
+                        // SPOTIFY CANVAS FIRST — the same order and the same reason as the classic
+                        // player (Player.kt:726): with the toggle on and a session present, the official
+                        // Canvas is the richest source. It only ever ADDS a source; on no session, no
+                        // match or no video the resolver returns null and the Tidal/Apple chain below
+                        // runs exactly as it did before.
+                        val spotifyCanvas = if (enableSpotifyCanvas) {
+                            runCatching {
+                                resolveSpotifyCanvas(songTitle, artistName, duration ?: 0)
+                            }.getOrNull()
+                        } else {
+                            null
+                        }
+
+                        spotifyCanvas ?: linkedSetOf(
                             songTitle to artistName,
                             songTitleRaw to artistName,
                             songTitle to artistNameRaw,

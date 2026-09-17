@@ -124,6 +124,7 @@ import iad1tya.echo.music.ui.component.LocalGlassEffectConfig
 import iad1tya.echo.music.ui.component.glassContentColor
 import iad1tya.echo.music.ui.component.isGlassSupported
 import iad1tya.echo.music.ui.component.liquidGlass
+import iad1tya.echo.music.ui.component.liquidGlassInteractive
 import iad1tya.echo.music.ui.theme.PlayerColorExtractor
 import iad1tya.echo.music.ui.theme.rememberEffectiveDarkTheme
 import iad1tya.echo.music.ui.theme.rememberNewUiForcesDarkTheme
@@ -161,6 +162,23 @@ class ProgressState(
             return if (duration > 0) (positionState.longValue.toFloat() / duration).coerceIn(0f, 1f) else 0f
         }
 }
+
+/**
+ * La silueta del minirreproductor, en UN solo sitio.
+ *
+ * 🔴 REPORTE DEL DUEÑO (2026-09-16): *"veo que el liquid glass de cristal interactivo… las esquinas son
+ * más cuadradas que redondeadas"*. Tenía razón y la causa es exactamente esta: el cristal se dibuja
+ * DENTRO del contenedor recortado a 32 dp, pero se le pasaba otra forma — el cristal de Aura usaba su
+ * `RoundedCornerShape(0.dp)` por defecto y el interactivo, `CircleShape`. La forma no es solo el recorte:
+ * `drawBackdrop` la usa para colocar el **borde de luz** y la **refracción de la lente**. Con una forma
+ * equivocada, ese borde abraza una silueta cuadrada que luego el padre recorta, y el ojo lee justo lo que
+ * él describió.
+ *
+ * Que el recorte, el borde y el cristal salgan de la misma constante es lo que impide que vuelvan a
+ * separarse: antes había dos literales `RoundedCornerShape(32.dp)` y un tercer valor implícito en cada
+ * llamada al cristal.
+ */
+private val MiniPlayerShape = RoundedCornerShape(32.dp)
 
 @Composable
 fun MiniPlayer(
@@ -405,9 +423,9 @@ private fun NewMiniPlayer(
                 .then(if (isTabletLandscape) Modifier.width(480.dp).align(Alignment.Center) else Modifier.fillMaxWidth())
                 .height(MiniPlayerHeight)
                 .offset { IntOffset(offsetXAnimatable.value.roundToInt(), 0) }
-                .clip(RoundedCornerShape(32.dp))
+                .clip(MiniPlayerShape)
                 .background(color = backgroundColor)
-                .border(1.dp, outlineColor.copy(alpha = 0.3f), RoundedCornerShape(32.dp))
+                .border(1.dp, outlineColor.copy(alpha = 0.3f), MiniPlayerShape)
         ) {
             
             MiniPlayerBackgroundLayer(
@@ -1222,7 +1240,23 @@ private fun MiniPlayerBackgroundLayer(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .liquidGlass(config = glassConfig)
+                        .then(
+                            // Misma superficie, dos recetas. La interactiva reacciona al tacto y se
+                            // adapta a la luminancia de la portada que tiene detrás.
+                            // La forma REAL del minirreproductor en las dos, no el cuadrado por
+                            // defecto ni el círculo: es la que coloca el borde de luz y la refracción.
+                            if (glassConfig.interactive) {
+                                Modifier.liquidGlassInteractive(
+                                    config = glassConfig,
+                                    shape = MiniPlayerShape,
+                                )
+                            } else {
+                                Modifier.liquidGlass(
+                                    config = glassConfig,
+                                    shape = MiniPlayerShape,
+                                )
+                            },
+                        )
                 )
             } else if (gradientColors.isNotEmpty()) {
                 // Glass unavailable (gate off / unsupported device): degrade to the gradient look.

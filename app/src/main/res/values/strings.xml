@@ -77,6 +77,8 @@
     <string name="filter_featured_playlists">Featured playlists</string>
     <string name="filter_bookmarked">Bookmarked</string>
     <string name="no_results_found">No results found</string>
+    <string name="session_expired_sign_in_again">Your YouTube session has expired. Sign out and sign in again in Settings ▸ Accounts to play your library.</string>
+    <string name="queue_empty_after_filters">Nothing to play: your content filters (hide videos / hide explicit / data saver) removed every track in this queue.</string>
 
     <!-- Library -->
     <string name="library_song_empty">Library songs will show up here</string>
@@ -359,6 +361,8 @@
     <string name="liquid_glass_settings">Liquid Glass (Beta)</string>
     <string name="liquid_glass_settings_desc">Glass surfaces for the player, mini player and navigation bar</string>
     <string name="liquid_glass_global_enabled">Enable Liquid Glass</string>
+    <string name="liquid_glass_interactive">Interactive glass</string>
+    <string name="liquid_glass_interactive_desc">Another take on liquid glass, ported from SimpMusic: the blur and the darkening follow the brightness of whatever is behind, the refraction is sized to the surface, and the pill responds to your finger. Works on both interfaces</string>
     <string name="liquid_glass_effects">Effects</string>
     <string name="liquid_glass_appearance">Appearance</string>
     <string name="liquid_glass_per_component">Per component</string>

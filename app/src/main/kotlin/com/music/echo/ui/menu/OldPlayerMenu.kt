@@ -170,6 +170,7 @@ fun OldPlayerMenu(
 
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        songIdsForMembership = listOf(mediaMetadata.id),
         onGetSong = {
             // withTransaction (suspending), NOT transaction {}: the latter posts to Room's
             // transaction executor and returns immediately, so the id could be handed back before

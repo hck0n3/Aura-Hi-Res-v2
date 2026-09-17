@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -380,6 +381,12 @@ fun AuraQueue(
         state = state,
         modifier = modifier,
         background = { Box(Modifier.fillMaxSize().background(Color.Unspecified)) },
+        // The docked strip is `QueuePeekHeight + navigation-bar inset` (AuraPlayer.kt sizes it and this
+        // sheet's `dismissedBound` IS that number), so the bar must be MEASURED in the whole strip.
+        // Measured in a fixed 64 dp box instead, its own bottom-inset padding was paid by the buttons:
+        // with the three-button navigation bar the four controls collapsed to ~16 dp. See
+        // [BottomSheet]'s `collapsedContentHeight`.
+        collapsedContentHeight = state.dismissedBound,
         collapsedContent = {
             AuraQueueBar(
                 onOpenQueue = { state.expandSoft() },
@@ -816,14 +823,14 @@ fun AuraQueue(
                                     .tvFocusRestorer(),
                             ) {
                                 // Leading items — keep AURA_QUEUE_LEADING_ITEMS in sync with this count.
-                                item(key = "aura_queue_select_spacer") {
+                                item(key = "aura_queue_select_spacer", contentType = "aura_queue_select_spacer") {
                                     Spacer(
                                         Modifier
                                             .animateContentSize()
                                             .height(if (inSelectMode) 8.dp else 0.dp),
                                     )
                                 }
-                                item(key = "aura_queue_list_header") {
+                                item(key = "aura_queue_list_header", contentType = "aura_queue_list_header") {
                                     AuraQueueListHeader(
                                         songCount = queueWindows.size,
                                         totalDurationMs = queueLength * 1000L,
@@ -1032,7 +1039,7 @@ fun AuraQueue(
 
                                 // ── Autoplay footer: header + toggle + steering chips + preview rows ──
                                 if (!isListenTogetherGuest || automix.isNotEmpty()) {
-                                    item(key = "aura_autoplay_header") {
+                                    item(key = "aura_autoplay_header", contentType = "aura_autoplay_header") {
                                         Column {
                                             Spacer(Modifier.height(AuraSpacing.SectionTop))
                                             AuraDivider()
@@ -1068,7 +1075,7 @@ fun AuraQueue(
                                     }
 
                                     if (!isListenTogetherGuest && autoLoadMore && autoplayChips.isNotEmpty()) {
-                                        item(key = "aura_autoplay_chips") {
+                                        item(key = "aura_autoplay_chips", contentType = "aura_autoplay_chips") {
                                             ChipsRow(
                                                 chips = autoplayChips.map { it to it.label },
                                                 currentValue = autoplaySelectedChip,
@@ -1188,11 +1195,19 @@ private fun AuraQueueBar(
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 18.dp)
+            // FILL the docked strip, step off the navigation bar, and CENTRE what is left. The bar used
+            // to be `fillMaxWidth()` only, top-anchored inside a box that was 64 dp no matter how tall
+            // the strip actually was — so the bottom inset was subtracted from the row rather than from
+            // the strip, and `sizeIn(min = MinTouchTarget)` was coerced down to whatever the inset left
+            // (~16 dp with Android's three-button navigation bar). Now the inset is paid by the strip
+            // the caller already sized for it and the row keeps its full 48 dp controls, with the same
+            // result under gestures, a three-button bar, or a landscape cutout.
+            .fillMaxSize()
             .windowInsetsPadding(
                 WindowInsets.systemBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
-            ),
+            )
+            .padding(horizontal = 18.dp)
+            .wrapContentHeight(Alignment.CenterVertically),
     ) {
         AuraBarButton(
             contentDescription = stringResource(R.string.cd_open_queue),

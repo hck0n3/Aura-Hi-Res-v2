@@ -171,7 +171,7 @@ fun AuraStatsScreen(
                 bottom = bottomClearance + 96.dp,
             ),
         ) {
-            item(key = "aura_stats_header") {
+            item(key = "aura_stats_header", contentType = "aura_stats_header") {
                 AuraDetailHeader(
                     title = stringResource(R.string.stats),
                     onBack = navController::navigateUp,
@@ -188,7 +188,7 @@ fun AuraStatsScreen(
                 )
             }
 
-            item(key = "aura_stats_period") {
+            item(key = "aura_stats_period", contentType = "aura_stats_period") {
                 AuraStatsRangeSelector(
                     option = selectedOption,
                     chips = periodChips,
@@ -204,7 +204,7 @@ fun AuraStatsScreen(
                 )
             }
 
-            item(key = "aura_stats_songs") {
+            item(key = "aura_stats_songs", contentType = "aura_stats_songs") {
                 Column(Modifier.animateItem()) {
                     AuraSectionHeader(title = "${mostPlayedSongsStats.size} $songsLabel")
                     if (mostPlayedSongsStats.isNotEmpty()) {
@@ -262,7 +262,7 @@ fun AuraStatsScreen(
                 }
             }
 
-            item(key = "aura_stats_artists") {
+            item(key = "aura_stats_artists", contentType = "aura_stats_artists") {
                 Column(Modifier.animateItem()) {
                     AuraSectionHeader(title = "${mostPlayedArtists.size} $artistsLabel")
                     if (mostPlayedArtists.isNotEmpty()) {
@@ -305,7 +305,7 @@ fun AuraStatsScreen(
                 }
             }
 
-            item(key = "aura_stats_albums") {
+            item(key = "aura_stats_albums", contentType = "aura_stats_albums") {
                 Column(Modifier.animateItem()) {
                     AuraSectionHeader(title = "${mostPlayedAlbums.size} $albumsLabel")
                     if (mostPlayedAlbums.isNotEmpty()) {

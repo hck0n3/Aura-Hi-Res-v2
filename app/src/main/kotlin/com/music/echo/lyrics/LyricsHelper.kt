@@ -92,7 +92,42 @@ constructor(
         // Paxsenix stays the last resort. Because this is structured, a caller cancellation
         // (the user skipping to another song) cancels every in-flight provider fetch: no
         // orphaned network work and no late result that could surface for the wrong song.
-        val result = coroutineScope {
+        // 🔴 OWNER REPORT (2026-09-16): "la mayoría de las veces dice que no hay letras, y con 10
+        // proveedores… no lo veo correcto" + "que la canción busque su letra dentro de los 10".
+        //
+        // All ten ARE asked on a miss — the early exit below only fires once something was found. What
+        // was wrong is WHAT they were asked: `mediaMetadata.title` is the raw YouTube title, so the
+        // providers were sent "Song (Official Music Video) [4K]" and none of them indexes that string.
+        // TWO PASSES, so this can only ever add matches: the cleaned query first, and the original
+        // strings after, but only when cleaning actually changed them.
+        val credited = mediaMetadata.artists.joinToString { it.name }
+        val cleanedTitle = LyricsQuery.cleanTitle(mediaMetadata.title)
+        val cleanedArtist = LyricsQuery.primaryArtist(credited)
+        var result = searchProviders(providers, mediaMetadata, cleanedTitle, cleanedArtist)
+        if (result.lyrics == LYRICS_NOT_FOUND &&
+            LyricsQuery.isWorthRetryingRaw(mediaMetadata.title, credited, cleanedTitle, cleanedArtist)
+        ) {
+            Timber.d("No lyrics for the cleaned query — retrying every provider with the raw title")
+            result = searchProviders(providers, mediaMetadata, mediaMetadata.title, credited)
+        }
+
+        if (result.lyrics != LYRICS_NOT_FOUND) {
+            cache.put(mediaMetadata.id, listOf(LyricsResult(result.provider, result.lyrics)))
+        }
+        return result
+    }
+
+    /**
+     * Asks every provider for [title] / [artist]. Extracted verbatim from getLyrics so the caller can run
+     * it twice (cleaned query, then the raw one) without duplicating the ordering, the lazy tail or the
+     * synced-preference hunt.
+     */
+    private suspend fun searchProviders(
+        providers: List<LyricsProvider>,
+        mediaMetadata: MediaMetadata,
+        title: String,
+        artist: String,
+    ): LyricsWithProvider = coroutineScope {
             // Lazy last-resort TAIL. The last two providers in the order (Paxsenix + Unison by
             // default) are both unreliable: Paxsenix's public endpoint 403s behind Cloudflare, and
             // Unison's crowd-sourced DB is near-empty (404s for most songs). Neither should be hit
@@ -116,8 +151,8 @@ constructor(
                         withTimeoutOrNull(PROVIDER_TIMEOUT_MS) {
                             provider.getLyrics(
                                 mediaMetadata.id,
-                                mediaMetadata.title,
-                                mediaMetadata.artists.joinToString { it.name },
+                                title,
+                                artist,
                                 mediaMetadata.duration,
                                 mediaMetadata.album?.title,
                             )
@@ -219,12 +254,6 @@ constructor(
             // waits on every child) cannot hang on an unstarted coroutine.
             deferreds.forEach { (_, deferred) -> deferred.cancel() }
             resolved ?: LyricsWithProvider(LYRICS_NOT_FOUND, "Unknown")
-        }
-
-        if (result.lyrics != LYRICS_NOT_FOUND) {
-            cache.put(mediaMetadata.id, listOf(LyricsResult(result.provider, result.lyrics)))
-        }
-        return result
     }
 
     suspend fun getAllLyrics(
