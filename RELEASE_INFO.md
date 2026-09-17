@@ -1,4 +1,4 @@
-# Aura Hi-Res v2.0.46 (beta 3) — La biblioteca ya no cierra la app, y "pedir música" vive en Inicio
+# Aura Hi-Res v2.0.46 (beta 3) — La biblioteca abre, "pedir música" vive en Inicio y la app se pone sola sin conexión
 
 BETA para probar antes de decidir si sale para todos (v2.0.46 / versionCode 1007). Se instala encima de
 la beta 2 o de tu 2.0.43 sin perder nada: mismo paquete (iad1tya.aura.music) y misma firma
@@ -8,6 +8,7 @@ excluye las betas del canal de actualización de la app.
 ## Lo que arregla de la beta 2
 
 - **Entrar en la biblioteca ya no cierra la app.** Lo metí yo en la beta 2: al botón "Más" le puse el cristal interactivo, y ese cristal copia el fondo de la pantalla... estando él dentro de la pantalla que copia. Un dibujo que se muerde la cola. El botón vuelve al cristal de antes, que se ve casi igual y no se cae; queda escrito en el código para que no se vuelva a intentar por ahí.
+- **El botón de Inicio del minirreproductor responde siempre.** Fallaba "a veces" y la causa era la misma que la del botón de salida de audio: encima de esos botones hay dos gestos de arrastre (subir el reproductor y deslizar para cambiar canción), y en cuanto el dedo se mueve unos píxeles uno de los dos reclama el toque y el clic nunca llega. Ahora la fila de botones se queda con sus toques; arrastrar y deslizar siguen funcionando desde la portada y el título.
 - **"Pedir música" se muda a Inicio y deja de parecer un formulario.** Ahora es una tarjeta en la portada, al estilo de YouTube Music: la tocas y sube una hoja con cinco ideas ya escritas ("para concentrarme", "como Bad Bunny", "para correr"...) o escribes lo que quieras. Mientras trabaja te dice cuántas canciones va encontrando, y al terminar pone la lista a reproducir directamente. Desaparece sola cuando estás sin conexión.
 
 ## Reproducción (ya venía de la beta 2)
@@ -34,6 +35,11 @@ excluye las betas del canal de actualización de la app.
 - **En Novedades ya no hay estantes con una sola tarjeta**, y se fue la categoría de "playlists actualizadas", que repetía contenido de Inicio.
 - **El botón de descarga de las listas se fue al menú de tres puntos**, donde ya estaba la misma función.
 
+## Nuevo en esta beta
+
+- **Modo sin conexión automático.** Sin red, la app se pone en local sola — Inicio, Novedades, Biblioteca y Buscar pasan a lo que tienes descargado — y vuelve sola en cuanto la red aparece. No toca tu interruptor manual de "Modo sin conexión": ese sigue siendo tuyo y sigue mandando cuando lo enciendes. Se puede apagar en Ajustes → Contenido, justo debajo del manual.
+- **"No me gusta" ahora le enseña al algoritmo.** Hasta ahora solo escondía filas: por dentro, un artista que marcaste después de escucharlo mucho conservaba toda su puntuación y seguía saliendo como favorito en la radio infinita, en los estantes de Inicio y en el aleatorio inteligente — y se colaba entero cuando venía sin identificar. Ya no suma nada de lo que marcas; y lo que no marcas no se penaliza.
+
 ## Escuchar juntos
 
 - Sincronización al estilo Sonos/AirPlay: el invitado se alinea estirando el tiempo un 2 % como mucho, sin saltos ni cortes.
@@ -43,7 +49,6 @@ excluye las betas del canal de actualización de la app.
 
 - El log registra las descargas (en cola, detenida, terminada, fallida y por qué) y el inicio y fin de cada sincronización, así que si algo falla te lo puedo decir exacto.
 
-## Lo que queda pendiente para la siguiente
+## Lo que queda pendiente
 
-- Modo offline automático (que la app se ponga en local sola cuando no hay red y vuelva sola cuando la hay).
-- Repasar el algoritmo de predicción y afinar la puntería de la cola infinita.
+- **El cristal interactivo del botón "Más" de la biblioteca** (tu punto 2) sigue con la placa de siempre. Es lo que cerraba la app en la beta 2, y hay una vía para hacerlo bien — darle a esa pantalla su propia capa de fondo, como ya la tienen la barra de abajo y el minirreproductor — pero no la meto en la misma beta que arregla el cierre: si algo volviera a fallar no sabríamos cuál de las dos cosas fue. Primero confirmas que la biblioteca abre bien, y luego se lo pongo.
