@@ -79,7 +79,6 @@ fun AuraNovedadesScreen(
     val featured by viewModel.featuredSongs.collectAsState()
     val moment by viewModel.momentSongs.collectAsState()
     val listening by viewModel.listening.collectAsState()
-    val playlists by viewModel.updatedPlaylists.collectAsState()
     val topSongs by viewModel.topSongs.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val (topSize) = rememberPreference(TopSize, "50")
@@ -102,7 +101,7 @@ fun AuraNovedadesScreen(
     val heroRaw = (radarAlbums + newAlbums).distinctBy { it.id }.take(8)
     // First-seen id wins across every shelf so the same album/song never repeats in Novedades.
     val unique = remember(
-        heroRaw, featured, newAlbums, radarAlbums, playlists, moment, listening, topSongs, upcoming,
+        heroRaw, featured, newAlbums, radarAlbums, moment, listening, topSongs, upcoming,
     ) {
         val seen = linkedSetOf<String>()
         NovedadesUnique(
@@ -110,7 +109,6 @@ fun AuraNovedadesScreen(
             featured = seen.claimUnique(featured) { it.id },
             newAlbums = seen.claimUnique(newAlbums) { it.id },
             radarAlbums = seen.claimUnique(radarAlbums) { it.id },
-            playlists = seen.claimUnique(playlists) { it.id },
             moment = seen.claimUnique(moment) { it.id },
             listening = seen.claimUnique(listening) { it.id },
             topSongs = seen.claimUnique(topSongs.take(12)) { it.id },
@@ -225,27 +223,11 @@ fun AuraNovedadesScreen(
                     onOpen = openYt,
                     onMenu = ytMenu,
                 )
-                if (unique.playlists.isNotEmpty()) {
-                    item(key = "aura_novedades_playlists", contentType = "aura_novedades_playlists") {
-                        Column {
-                            AuraSectionHeader(title = stringResource(R.string.novedades_updated_playlists))
-                            val w = auraTypeVisual(AuraContentKind.Playlist).shelfWidth * cardScale
-                            AuraDoubleRowShelf(
-                                rowHeight = auraShelfCardStackHeight(w),
-                                itemCount = unique.playlists.size,
-                            ) {
-                                lazyGridItems(unique.playlists, key = { it.id }) { item ->
-                                    AuraTypedYtCoverCard(
-                                        item = item,
-                                        cardScale = cardScale,
-                                        onClick = { openYt(item) },
-                                        onLongClick = { ytMenu(item) },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                // 🔴 "Playlists actualizadas" FUERA (punto 9 del dueño, 2026-09-17: *"eliminar la
+                // categoría de 'playlists actualizadas' para evitar contenido repetido. Mantener
+                // únicamente la sección de novedades"*). Era la única sección de Novedades que no
+                // hablaba de lanzamientos: listas que YouTube marca como "actualizadas" y que ya
+                // aparecen en Inicio, así que en la práctica repetía contenido de otra pestaña.
                 novedadesLocalSongShelf(
                     key = "moment",
                     titleRes = R.string.novedades_songs_of_the_moment,
@@ -357,7 +339,6 @@ private data class NovedadesUnique(
     val featured: List<SongItem>,
     val newAlbums: List<AlbumItem>,
     val radarAlbums: List<AlbumItem>,
-    val playlists: List<PlaylistItem>,
     val moment: List<Song>,
     val listening: List<YTItem>,
     val topSongs: List<Song>,
@@ -374,7 +355,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.novedadesSongShelf(
     onOpen: (YTItem) -> Unit,
     onMenu: (YTItem) -> Unit,
 ) {
-    if (songs.isEmpty()) return
+    // Misma regla que los estantes de álbumes — ver [NovedadesShelves].
+    if (!NovedadesShelves.worthShowing(songs.size)) return
     item(key = "aura_novedades_$key", contentType = "aura_novedades") {
         Column {
             AuraSectionHeader(title = stringResource(titleRes))
@@ -406,7 +388,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.novedadesLocalSongShe
     onMenu: (Song) -> Unit,
     headerClick: (() -> Unit)? = null,
 ) {
-    if (songs.isEmpty()) return
+    // Misma regla que los estantes de álbumes — ver [NovedadesShelves].
+    if (!NovedadesShelves.worthShowing(songs.size)) return
     item(key = "aura_novedades_$key", contentType = "aura_novedades") {
         val title = stringResource(titleRes)
         val visual = auraTypeVisual(AuraContentKind.Song)
@@ -445,7 +428,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.novedadesAlbumShelf(
     onOpen: (YTItem) -> Unit,
     onMenu: (YTItem) -> Unit,
 ) {
-    if (albums.isEmpty()) return
+    // Ver [NovedadesShelves]: un estante con una sola tarjeta no es variedad, es una sección rota
+    // con un encabezado que promete más de lo que hay.
+    if (!NovedadesShelves.worthShowing(albums.size)) return
     item(key = "aura_novedades_$key", contentType = "aura_novedades") {
         Column {
             AuraSectionHeader(title = stringResource(titleRes))
