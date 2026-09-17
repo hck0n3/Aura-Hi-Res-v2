@@ -246,6 +246,7 @@ import iad1tya.echo.music.ui.component.rememberBottomSheetState
 import iad1tya.echo.music.ui.component.shimmer.ShimmerTheme
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.ui.newui.AuraGlobalActions
+import iad1tya.echo.music.ui.newui.AuraHomeFab
 import iad1tya.echo.music.ui.newui.AuraNavBarHeight
 import iad1tya.echo.music.ui.newui.AuraNavigationBar
 import iad1tya.echo.music.ui.newui.AuraPalette
@@ -2055,6 +2056,56 @@ class MainActivity : ComponentActivity() {
                                                 .height(NavigationBarHeight)
                                         )
                                         }
+                                    }
+
+                                    // ── Botón flotante de INICIO ─────────────────────────────────
+                                    // Petición del dueño (2026-09-17): *"un mini botón flotante con
+                                    // liquid glass y cristal interactivo para volver al inicio […] en
+                                    // todas las pantallas donde no se muestra la barra de abajo […] sin
+                                    // estar teniendo que darle para atrás muchas veces"*, con la
+                                    // condición de *"que este botón no vaya a interferir con el uso de
+                                    // la app"*. Las decisiones de forma y sitio están en [AuraHomeFab];
+                                    // lo que se decide AQUÍ es CUÁNDO existe, que es la mitad de esa
+                                    // condición:
+                                    //
+                                    //  · `!shouldShowNavigationBar` — exactamente el mismo valor que
+                                    //    esconde la barra, así que no hay ni un fotograma con las dos
+                                    //    cosas (dos botones de Inicio a la vez sería peor que ninguno);
+                                    //  · `newUiShell` — la interfaz clásica tiene su propia barra
+                                    //    flotante y meterle un círculo de cristal encima sería justo el
+                                    //    "reproductor flotante y sus botones flotantes" que ya rechazó;
+                                    //  · se va con la hoja del reproductor abierta (`progress`), donde
+                                    //    taparía la letra o la portada a pantalla completa;
+                                    //  · y sube por encima del minirreproductor cuando lo hay, en vez de
+                                    //    comerle una esquina.
+                                    //
+                                    // Va FUERA de la caja de la barra a propósito: esa caja se desliza
+                                    // con `navSlideDistance` y arrastraría el botón fuera de pantalla en
+                                    // el único momento en que hace falta.
+                                    if (newUiShell) {
+                                        val miniPlayerLift = if (playerBottomSheetState.isDismissed) 0.dp else MiniPlayerHeight
+                                        AuraHomeFab(
+                                            onClick = {
+                                                if (playerBottomSheetState.isExpanded) {
+                                                    playerBottomSheetState.collapseSoft()
+                                                }
+                                                navController.navigateAsTab(Screens.Home.route)
+                                            },
+                                            visible = !shouldShowNavigationBar,
+                                            modifier = Modifier
+                                                .align(Alignment.BottomStart)
+                                                .padding(
+                                                    start = 16.dp,
+                                                    bottom = bottomInset + miniPlayerLift + 12.dp,
+                                                )
+                                                .graphicsLayer {
+                                                    // Se desvanece con la hoja: leído en el draw, no en
+                                                    // la composición, para no recomponer este shell una
+                                                    // vez por fotograma del gesto (HALLAZGO-027).
+                                                    alpha = (1f - playerBottomSheetState.progress * 3f)
+                                                        .coerceIn(0f, 1f)
+                                                },
+                                        )
                                     }
 
                                     // IMMERSIVE: an opaque `baseBg` rectangle over the gesture-nav strip.

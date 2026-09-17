@@ -316,4 +316,36 @@ object ArtistSyncPolicy {
      */
     fun afterAccountDetached(artist: ArtistEntity): ArtistEntity =
         artist.copy(ytmSyncedAt = null, unfollowedByUserAt = null)
+
+    /**
+     * Cuántos rechazos SEGUIDOS de YouTube bastan para abandonar la subida de suscripciones de esta
+     * pasada.
+     *
+     * Hallado en el log del dueño (`share_all_diagnostics_3.txt`, 2026-09-16): más de ochenta líneas
+     * `Could not subscribe to <artista>`, una detrás de otra, todas con el mismo 400 de YouTube —
+     * *"Tienes demasiadas suscripciones en comparación con tu recuento de suscriptores"*. Es un límite
+     * ANTI-SPAM de la CUENTA, no un problema de cada artista: cuando salta, el artista número ochenta y
+     * uno va a ser rechazado exactamente igual que el primero.
+     *
+     * Y nada lo paraba. Solo `markArtistsSyncedToYtm` (que corre en ÉXITO) saca a un artista de la
+     * cola, así que cada pasada volvía a intentar los mismos artistas condenados, gastaba su
+     * presupuesto entero en escrituras rechazadas y encadenaba otra pasada — hasta 20 saltos por 400
+     * escrituras. Eso es machacar la cuenta de alguien para nada, y en silencio.
+     *
+     * TRES y no uno: un fallo suelto es un artista raro (un canal borrado, un id que no resuelve) y
+     * saltarlo es lo correcto; tres seguidos ya no es casualidad, es que la cuenta no acepta
+     * suscripciones ahora mismo. Tres también deja que una pasada normal con un hueco por medio siga
+     * adelante, porque el contador se pone a cero con cada éxito.
+     */
+    const val SUBSCRIBE_FAILURE_STREAK_LIMIT = 3
+
+    /**
+     * ¿Abandonar la subida de suscripciones tras [consecutiveFailures] rechazos seguidos?
+     *
+     * Abandonar NO pierde nada: los artistas siguen pendientes y la próxima pasada los reintenta. Lo
+     * único que se deja de hacer es seguir pidiendo cientos de veces algo que la cuenta acaba de
+     * rechazar tres veces seguidas.
+     */
+    fun shouldAbandonSubscribePass(consecutiveFailures: Int): Boolean =
+        consecutiveFailures >= SUBSCRIBE_FAILURE_STREAK_LIMIT
 }

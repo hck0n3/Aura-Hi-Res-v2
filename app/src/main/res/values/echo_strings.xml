@@ -1332,4 +1332,8 @@
     <string name="listen_together_how_step3_desc">The host controls the music. Everyone listens in perfect sync!</string>
     <!-- Badge on a playlist row in the "add to playlist" picker: this playlist already has the song. -->
     <string name="playlist_already_has_song">Added</string>
+    <!-- Sincronización de biblioteca como trabajo de primer plano (YtmSyncWorker) -->
+    <string name="sync_channel_name">Library sync</string>
+    <string name="sync_notification_title">Syncing your library</string>
+    <string name="sync_notification_text">Keeping Aura and your YouTube Music account in step. You can close the app.</string>
 </resources>

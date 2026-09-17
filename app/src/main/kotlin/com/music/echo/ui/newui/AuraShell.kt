@@ -354,6 +354,83 @@ fun AuraGlobalActions(
 @Composable
 private fun rememberShellScrollActive(): Boolean = ShellScrollBus.active.value
 
+/** Diámetro del botón flotante de inicio. Ver [AuraHomeFab]. */
+val AuraHomeFabSize: Dp = 44.dp
+
+/**
+ * Botón flotante para VOLVER AL INICIO desde cualquier pantalla que no tenga la barra de abajo.
+ *
+ * 🔴 Petición del dueño (2026-09-17): *"un mini botón flotante con liquid glass y cristal interactivo
+ * para volver al inicio, siempre, en todas las pantallas donde no se muestra la barra de abajo […]
+ * para volver al inicio más rápido sin estar teniendo que darle para atrás muchas veces"*, con una
+ * condición que manda sobre todo lo demás: *"y que este botón no vaya a interferir con el uso de la
+ * app"*.
+ *
+ * Esa condición es la que fija cada decisión de aquí, porque un botón flotante mal puesto es una
+ * trampa permanente encima del contenido:
+ *
+ *  - **Abajo a la IZQUIERDA.** La derecha de esa franja es donde viven el play/pausa del
+ *    minirreproductor y los botones de acción de las pantallas de detalle. La izquierda, en cambio,
+ *    solo tiene portada — y el minirreproductor entero es táctil, así que el botón se sube POR ENCIMA
+ *    de él en vez de taparle un trozo.
+ *  - **44 dp**, no los 56 de un FAB de Material: es un atajo, no la acción principal de ninguna
+ *    pantalla, y al lado de un minirreproductor de 64 dp un círculo grande se lee como un error.
+ *  - **Se va cuando estorbaría**: con la hoja del reproductor abierta (`visible = false`), y en las
+ *    pantallas que ya no dibujan nada de este cromo. No se dibuja jamás donde la barra SÍ está — ahí
+ *    ya hay un botón de Inicio y dos serían confusos.
+ *  - **Sin etiqueta.** Un texto obligaría a una cápsula ancha, y ancho es exactamente lo que estorba.
+ *
+ * El cristal es el mismo que el resto del cromo: [liquidGlassInteractive] con forma de círculo cuando
+ * el interruptor de cristal interactivo está encendido — la forma se le pasa a `drawBackdrop` porque
+ * es quien coloca el borde de luz y la refracción (la lección de la fila 254, cuando el
+ * minirreproductor salía con las esquinas cuadradas) — y una superficie sólida con filete cuando no,
+ * para que en un teléfono sin cristal siga viéndose en vez de desaparecer sobre la portada.
+ */
+@Composable
+fun AuraHomeFab(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    visible: Boolean = true,
+) {
+    val glassConfig = LocalGlassEffectConfig.current
+    val interactiveGlass = glassConfig.interactive && glassConfig.globalEnabled && isGlassSupported()
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = modifier,
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(AuraHomeFabSize)
+                .clip(CircleShape)
+                .then(
+                    if (interactiveGlass) {
+                        Modifier.liquidGlassInteractive(
+                            config = glassConfig,
+                            shape = CircleShape,
+                            interactive = true,
+                        )
+                    } else {
+                        Modifier
+                            .background(AuraPalette.GroundRaised.copy(alpha = 0.92f), CircleShape)
+                            .border(1.dp, AuraPalette.OnGround.copy(alpha = 0.12f), CircleShape)
+                    },
+                ),
+        ) {
+            AuraIconButton(
+                icon = AuraIcons.Home,
+                contentDescription = stringResource(R.string.home),
+                onClick = onClick,
+                size = 20.dp,
+                tint = AuraPalette.OnGround.copy(alpha = 0.85f),
+            )
+        }
+    }
+}
+
+
 @Composable
 fun AuraNavigationBar(
     items: List<Screens>,

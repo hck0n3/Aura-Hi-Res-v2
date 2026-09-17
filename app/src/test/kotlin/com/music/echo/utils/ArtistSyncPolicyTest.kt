@@ -529,4 +529,39 @@ class ArtistSyncPolicyTest {
         // Same inputs, current code: nothing is removed from the account.
         wiped.backfillFromAccount(remoteIds).assertNoUnsubscribes("the reproduction of the shipped bug")
     }
+
+    /**
+     * Su log del 2026-09-16: más de ochenta `Could not subscribe to <artista>` seguidos, todos con el
+     * mismo 400 de YouTube — *"Tienes demasiadas suscripciones en comparación con tu recuento de
+     * suscriptores"*. Ese límite es de la CUENTA, no del artista, así que el número ochenta y uno iba a
+     * ser rechazado igual que el primero; y como solo el ÉXITO saca a un artista de la cola, cada
+     * pasada gastaba su presupuesto entero en escrituras condenadas y encadenaba otra.
+     */
+    @Test
+    fun `una racha de rechazos abandona la pasada de suscripciones`() {
+        assertTrue(
+            ArtistSyncPolicy.shouldAbandonSubscribePass(
+                ArtistSyncPolicy.SUBSCRIBE_FAILURE_STREAK_LIMIT,
+            ),
+        )
+        assertTrue(ArtistSyncPolicy.shouldAbandonSubscribePass(80))
+    }
+
+    /**
+     * Y un fallo suelto NO la abandona: un canal borrado o un id que no resuelve es un artista raro,
+     * y saltarlo es lo correcto. El límite tiene que dejar sitio a eso o la subida no avanzaría nunca.
+     */
+    @Test
+    fun `un fallo suelto no abandona nada`() {
+        assertFalse(ArtistSyncPolicy.shouldAbandonSubscribePass(0))
+        assertFalse(ArtistSyncPolicy.shouldAbandonSubscribePass(1))
+        assertTrue(
+            "el límite tiene que tolerar al menos un artista raro",
+            ArtistSyncPolicy.SUBSCRIBE_FAILURE_STREAK_LIMIT >= 2,
+        )
+        assertTrue(
+            "y no puede ser tan alto que la racha deje de ser una señal",
+            ArtistSyncPolicy.SUBSCRIBE_FAILURE_STREAK_LIMIT <= 10,
+        )
+    }
 }

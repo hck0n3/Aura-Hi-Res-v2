@@ -289,6 +289,7 @@ class LibraryUploadSync @Inject constructor(
         }
 
         requestBudget = 0
+        subscribeRejectedByAccount = false
         _progress.value = _progress.value.copy(running = true, stoppedReason = null, moreWorkPending = false)
 
         try {
@@ -350,6 +351,13 @@ class LibraryUploadSync @Inject constructor(
         _progress.value = _progress.value.copy(
             running = false,
             requestsLastRun = requestBudget,
+            // Un rechazo en cadena de la cuenta NO es un fallo de la pasada, pero sí es un motivo para
+            // no encadenar la siguiente: [YtmSyncWorker.runUploadPass] para en cuanto hay razón.
+            stoppedReason = if (subscribeRejectedByAccount) {
+                "YouTube no está aceptando más suscripciones ahora mismo; se reintentará más tarde"
+            } else {
+                null
+            },
             moreWorkPending = !done,
             lastCompletedEpochMs = if (done) System.currentTimeMillis()
             else _progress.value.lastCompletedEpochMs,
@@ -409,6 +417,13 @@ class LibraryUploadSync @Inject constructor(
         return ids.toSet()
     }
 
+    /**
+     * La cuenta rechazó varias suscripciones seguidas en esta pasada. Se traduce en un `stoppedReason`
+     * al final, que es lo que impide a [YtmSyncWorker] encadenar otra pasada a hacer lo mismo.
+     */
+    @Volatile
+    private var subscribeRejectedByAccount = false
+
     private suspend fun uploadArtistSubscriptions(remoteIds: Set<String>) {
         _progress.value = _progress.value.copy(artists = _progress.value.artists.copy(running = true))
         val pending = runCatching { database.artistsPendingSubscribe(MAX_SUBSCRIBES_PER_RUN) }
@@ -421,8 +436,21 @@ class LibraryUploadSync @Inject constructor(
             .filterNot { it.id in remoteIds }
 
         val subscribed = ArrayList<String>()
+        // Racha de rechazos SEGUIDOS. Ver [ArtistSyncPolicy.shouldAbandonSubscribePass]: el límite que
+        // devuelve el 400 de YouTube es de la CUENTA, no de cada artista, así que seguir la lista
+        // entera después de varios rechazos iguales es gastar el presupuesto en escrituras condenadas
+        // — y encadenar otra pasada para volver a gastarlo. Se pone a cero con cada éxito.
+        var consecutiveFailures = 0
         for (artist in pending) {
             if (!budgetLeft()) break
+            if (ArtistSyncPolicy.shouldAbandonSubscribePass(consecutiveFailures)) {
+                Timber.w(
+                    "LibraryUploadSync: $consecutiveFailures rechazos seguidos al suscribir — " +
+                        "la cuenta no los está aceptando; el resto queda pendiente para otra pasada",
+                )
+                subscribeRejectedByAccount = true
+                break
+            }
             try {
                 val channelId = artist.channelId?.takeIf { it.isNotBlank() }
                     ?: run {
@@ -441,11 +469,18 @@ class LibraryUploadSync @Inject constructor(
                 }
                 if (!spend()) break
                 YouTube.subscribeChannel(channelId, true)
-                    .onSuccess { subscribed.add(artist.id) }
-                    .onFailure { Timber.w(it, "Could not subscribe to ${artist.name}") }
+                    .onSuccess {
+                        subscribed.add(artist.id)
+                        consecutiveFailures = 0
+                    }
+                    .onFailure {
+                        consecutiveFailures++
+                        Timber.w(it, "Could not subscribe to ${artist.name}")
+                    }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                consecutiveFailures++
                 Timber.w(e, "Could not subscribe to ${artist.name}")
             }
         }

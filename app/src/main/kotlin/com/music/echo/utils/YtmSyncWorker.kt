@@ -1,12 +1,20 @@
 package iad1tya.echo.music.utils
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ServiceInfo
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.content.getSystemService
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ForegroundInfo
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -15,6 +23,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.InnerTubeCookieKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +49,67 @@ class YtmSyncWorker(
         fun libraryUploadSync(): LibraryUploadSync
     }
 
+    /**
+     * Notificación del trabajo de LARGA DURACIÓN. Ver [promoteToForeground] para el porqué.
+     * Es silenciosa (IMPORTANCIA_LOW, sin badge) y su único trabajo es doble: quitarle al sistema el
+     * límite de ejecución, y que él pueda VER que la sincronización sigue en marcha — media queja era
+     * justamente esa, que no había forma de saberlo.
+     */
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        val ctx = applicationContext
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = ctx.getSystemService<NotificationManager>()
+            if (nm?.getNotificationChannel(SYNC_CHANNEL_ID) == null) {
+                nm?.createNotificationChannel(
+                    NotificationChannel(
+                        SYNC_CHANNEL_ID,
+                        ctx.getString(R.string.sync_channel_name),
+                        NotificationManager.IMPORTANCE_LOW,
+                    ).apply { setShowBadge(false) },
+                )
+            }
+        }
+        val notification = NotificationCompat.Builder(ctx, SYNC_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_nobg)
+            .setContentTitle(ctx.getString(R.string.sync_notification_title))
+            .setContentText(ctx.getString(R.string.sync_notification_text))
+            .setProgress(0, 0, true)
+            .setOngoing(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(SYNC_NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            ForegroundInfo(SYNC_NOTIFICATION_ID, notification)
+        }
+    }
+
+    /**
+     * EL ARREGLO DE *"le doy sincronizar y la tarea no continúa hasta terminar; vuelvo al apartado y
+     * tengo que volverle a dar sincronizar ahora"* (dueño, 2026-09-17, y lo llamó imprescindible).
+     *
+     * Un `CoroutineWorker` normal tiene un **límite de ejecución de ~10 minutos**: pasado ese tiempo el
+     * sistema lo para donde vaya. Una biblioteca grande (canciones con “Me gusta”, álbumes, artistas,
+     * playlists guardadas y la biblioteca entera, cada una con su paginación) no cabe ahí, y
+     * `performFullSyncSuspend` **empieza desde arriba en cada intento** — así que cada reintento volvía
+     * a gastar los mismos diez minutos en la primera parte y nunca llegaba al final. Exactamente el
+     * bucle que él describe.
+     *
+     * Un trabajo de PRIMER PLANO no tiene ese límite. El permiso `FOREGROUND_SERVICE_DATA_SYNC` y el
+     * `SystemForegroundService` con `foregroundServiceType="dataSync"` ya estaban en el manifest (los
+     * puso la descarga de actualizaciones), así que no hace falta nada nuevo.
+     *
+     * Si la promoción falla **no se aborta**: Android 12+ prohibe arrancar un servicio en primer plano
+     * desde segundo plano en algunos casos, y en esos la sincronización debe seguir como trabajo normal
+     * — peor (con el límite de vuelta), pero funcionando. Rendirse aquí cambiaría “a veces no termina”
+     * por “a veces no empieza”, que es peor.
+     */
+    private suspend fun promoteToForeground() {
+        runCatching { setForeground(getForegroundInfo()) }
+            .onFailure { Timber.tag(TAG).w("No se pudo promover la sincronización a primer plano: ${it.javaClass.simpleName}") }
+    }
+
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             val ctx = applicationContext
@@ -48,11 +118,17 @@ class YtmSyncWorker(
                 // Not signed in → nothing to sync (don't retry forever).
                 return@withContext Result.success()
             }
+            // Solo DESPUÉS de saber que hay sesión: una notificación de “sincronizando” para quien no
+            // ha iniciado sesión sería ruido por una tarea que no va a hacer nada.
+            promoteToForeground()
             val entryPoint = EntryPointAccessors
                 .fromApplication(ctx, YtmSyncEntryPoint::class.java)
             val sync = entryPoint.syncUtils()
 
-            when (inputData.getString(KEY_TYPE)) {
+            val type = inputData.getString(KEY_TYPE)
+            val startedAt = System.currentTimeMillis()
+            Timber.tag(TAG).i("SYNC_START type=$type attempt=$runAttemptCount")
+            when (type) {
                 TYPE_LIKED_SONGS -> sync.syncLikedSongsSuspend()
                 TYPE_LIKED_ALBUMS -> sync.syncLikedAlbumsSuspend()
                 TYPE_ARTISTS -> sync.syncArtistsSubscriptionsSuspend()
@@ -65,6 +141,10 @@ class YtmSyncWorker(
                 TYPE_UPLOAD_LIBRARY -> runUploadPass(ctx, entryPoint.libraryUploadSync())
                 else -> sync.performFullSyncSuspend()
             }
+            // TERMINÓ de verdad. Sin esta línea no había forma de distinguir en un log compartido una
+            // sincronización completa de una que el sistema cortó a los diez minutos — que es justo la
+            // diferencia que había que demostrar.
+            Timber.tag(TAG).i("SYNC_DONE type=$type tookMs=${System.currentTimeMillis() - startedAt}")
             Result.success()
         } catch (e: CancellationException) {
             throw e
@@ -103,6 +183,10 @@ class YtmSyncWorker(
 
     companion object {
         private const val TAG = "YtmSyncWorker"
+
+        /** Canal silencioso del trabajo de primer plano. Ver [getForegroundInfo]. */
+        private const val SYNC_CHANNEL_ID = "library_sync"
+        private const val SYNC_NOTIFICATION_ID = 0x5C10
         const val KEY_TYPE = "type"
         const val TYPE_ALL = "all"
         const val TYPE_LIKED_SONGS = "liked_songs"
@@ -132,6 +216,11 @@ class YtmSyncWorker(
                 .setConstraints(constraints)
                 .setInputData(workDataOf(KEY_TYPE to type))
                 .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.SECONDS)
+                // ACELERADO: esto se pide casi siempre desde un botón que él acaba de tocar, y esperar
+                // a que WorkManager encuentre un hueco es parte de la sensación de “no hizo nada”.
+                // RUN_AS_NON_EXPEDITED_WORK_REQUEST y no un fallo cuando se acaba la cuota del sistema:
+                // una sincronización normal y tardía sigue siendo una sincronización.
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 .build()
             // KEEP: if a sync of this type is already queued/running, don't pile up duplicates — the
             // running one already covers it (and WorkManager will keep retrying it to completion).

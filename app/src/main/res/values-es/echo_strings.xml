@@ -1221,4 +1221,8 @@
     <string name="listen_together_how_step3_title">3. Sincroniza la reproducción</string>
     <string name="listen_together_how_step3_desc">El anfitrión controla la música. ¡Todo el mundo escucha en sincronía perfecta!</string>
     <string name="playlist_already_has_song">Ya está</string>
+    <!-- Sincronización de biblioteca como trabajo de primer plano (YtmSyncWorker) -->
+    <string name="sync_channel_name">Sincronización de biblioteca</string>
+    <string name="sync_notification_title">Sincronizando tu biblioteca</string>
+    <string name="sync_notification_text">Poniendo Aura y tu cuenta de YouTube Music al día. Puedes cerrar la app.</string>
 </resources>
