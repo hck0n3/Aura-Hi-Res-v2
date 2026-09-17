@@ -70,6 +70,18 @@ object AudioOffloadGate {
         val equalizerActive: Boolean,
         /** `SpatialAudioEnabledKey` (default OFF): live Superpowered HRTF / crossfeed / speaker-width stage. */
         val spatialEnabled: Boolean = false,
+        /**
+         * El usuario está en una sala de Escuchar juntos.
+         *
+         * 🔴 (2026-09-17) El invitado se alinea con el anfitrión **ajustando la velocidad** en vez de
+         * saltar (ver `SyncCorrection`), y una velocidad distinta de 1.0 hace que
+         * `Player.setOffloadEnabled` pida `setIsSpeedChangeSupportRequired`. En un teléfono cuyo HAL
+         * no tenga offload de velocidad variable, eso es una RESELECCIÓN de pista — audible — y
+         * ocurriría en cada cruce entre "corrigiendo" y "ya alineado", o sea varias veces por
+         * canción. Vetar el offload mientras dura la sala cambia esas muchas reconfiguraciones por
+         * UNA al entrar, y devuelve el offload al salir.
+         */
+        val listenTogetherActive: Boolean = false,
     )
 
     /** Why offload is impossible right now, independently of the user's own switch. */
@@ -78,6 +90,7 @@ object AudioOffloadGate {
         SAFE_VOLUME,
         EQUALIZER,
         SPATIAL,
+        LISTEN_TOGETHER,
     }
 
     /**
@@ -100,6 +113,9 @@ object AudioOffloadGate {
         inputs.safeVolumeEnabled -> BlockReason.SAFE_VOLUME
         inputs.equalizerActive -> BlockReason.EQUALIZER
         inputs.spatialEnabled -> BlockReason.SPATIAL
+        // El último del orden a propósito: añadirlo antes cambiaría el motivo que ya se muestra hoy
+        // para una configuración que no ha cambiado.
+        inputs.listenTogetherActive -> BlockReason.LISTEN_TOGETHER
         else -> null
     }
 

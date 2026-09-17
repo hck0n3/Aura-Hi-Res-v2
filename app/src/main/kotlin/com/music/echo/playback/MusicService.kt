@@ -2681,8 +2681,16 @@ class MusicService :
                 dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f }.distinctUntilChanged(),
-            ) { spatial, tidal, compressor, speaker, width -> spatial || tidal || compressor || speaker || width },
-        ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, spatialOrTidal ->
+            ) { spatial, tidal, compressor, speaker, width -> spatial || tidal || compressor || speaker || width }
+                // Emparejado con la sala en vez de como sexta fuente: `combine` se queda sin
+                // sobrecargas en cinco, y el par mantiene el bloque de arriba tal cual estaba.
+                .let { dsp ->
+                    combine(
+                        dsp,
+                        listenTogetherManager.session.state.map { it.inRoom }.distinctUntilChanged(),
+                    ) { anyDsp, inRoom -> anyDsp to inRoom }
+                },
+        ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, (spatialOrTidal, inRoom) ->
             AudioOffloadGate.allowOffload(
                 AudioOffloadGate.Inputs(
                     userWantsOffload = offloadPref,
@@ -2691,6 +2699,7 @@ class MusicService :
                     safeVolumeEnabled = safeVolume,
                     equalizerActive = eqActive,
                     spatialEnabled = spatialOrTidal,
+                    listenTogetherActive = inRoom,
                 ),
             )
         }.distinctUntilChanged()

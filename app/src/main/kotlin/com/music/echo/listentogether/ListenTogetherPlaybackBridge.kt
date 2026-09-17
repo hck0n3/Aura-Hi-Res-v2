@@ -58,7 +58,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
-import kotlin.math.abs
 
 private const val TAG = "ListenTogetherBridge"
 
@@ -83,6 +82,17 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 ) {
     /** The live service, or null while no player exists. Every collector tolerates null. */
     private val serviceFlow = MutableStateFlow<MusicService?>(null)
+
+    /**
+     * El tempo que el usuario eligió a mano en «Tempo y tono», guardado mientras la sala ajusta la
+     * velocidad para alinearlo. Null = no estamos corrigiendo, así que la velocidad del reproductor
+     * ES la suya y se puede volver a leer.
+     *
+     * Hace falta guardarlo porque el ajuste MULTIPLICA sobre él: sin esto, leer la velocidad del
+     * reproductor mientras corregimos devolvería el valor ya recortado y cada corrección se
+     * compondría sobre la anterior, alejándose de 1.0 sin volver nunca.
+     */
+    private var syncUserTempo: Float? = null
 
     /** True while the guest is executing the host's last command; guards the publish loops. */
     @Volatile
@@ -241,7 +251,13 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             }
             .distinctUntilChanged()
             .collect { (snapshot, shouldFollow) ->
-                if (!shouldFollow) return@collect
+                if (!shouldFollow) {
+                    // Salir de la sala (o pasar a ser anfitrión) con la velocidad recortada la
+                    // dejaría así para siempre: el ajuste solo se toca desde aquí, y aquí ya no se
+                    // entra. Devolverla es parte de apagar la corrección, no un detalle.
+                    restoreUserTempo()
+                    return@collect
+                }
                 val service = serviceFlow.value ?: return@collect
                 val (track, isPlaying, position, queueIds) = snapshot
                 Timber.tag(TAG).i("Room says: playing=%b pos=%d queue=%d", isPlaying, position, queueIds.size)
@@ -289,6 +305,23 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             }
     }
 
+    /**
+     * Devuelve la velocidad que el usuario tenía antes de que la sala empezara a corregir.
+     *
+     * Exactamente su valor, no "más o menos 1.0": `Player.setOffloadEnabled` decide si pedir soporte
+     * de cambio de velocidad comparando `speed != 1f`, así que un 1.0000001 residual dejaría el
+     * audio offload rechazado para siempre después de una sala — batería perdida sin que nada lo
+     * diga.
+     */
+    private fun restoreUserTempo(player: Player? = null) {
+        val tempo = syncUserTempo ?: return
+        syncUserTempo = null
+        val target = player ?: runCatching { serviceFlow.value?.player }.getOrNull() ?: return
+        if (target.playbackParameters.speed != tempo) {
+            target.playbackParameters = target.playbackParameters.withSpeed(tempo)
+        }
+    }
+
     private suspend fun applyTransport(
         service: MusicService,
         isPlaying: Boolean,
@@ -298,10 +331,40 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // to the raw value whenever it is not calibrated yet.
         val corrected = session.positionAt(position, isPlaying)
         val player = runCatching { service.player }.getOrNull() ?: return@withContext
-        // A small drift is normal and seeking on every tick would stutter; only a real gap is worth
-        // a seek, which is also why the host publishes position with each command.
-        if (abs(player.currentPosition - corrected) > SEEK_TOLERANCE_MS) {
-            player.seekTo(corrected)
+        // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
+        //
+        // 🔴 PETICIÓN DEL DUEÑO (2026-09-17): *"hazlo entonces como lo hace Sonos o AirPlay"*, tras
+        // preguntar por qué esto nunca sonaba sincronizado del todo.
+        //
+        // Antes esto era `if (|error| > 750 ms) seekTo(...)`, y ese umbral no tenía ningún valor
+        // bueno: pequeño, saltas a cada rato y cada salto es un corte audible; grande, aceptas hasta
+        // tres cuartos de segundo de desfase como normal. El salto era la herramienta equivocada.
+        // [SyncCorrection] elige entre tres regímenes y el porqué de cada número está allí.
+        //
+        // Solo mientras SUENA: con la reproducción parada no hay nada que converger, y tocar la
+        // velocidad de un reproductor en pausa no alinea nada.
+        if (isPlaying) {
+            // Cuando NO estamos corrigiendo, la velocidad del reproductor es la que el usuario
+            // eligió — se vuelve a leer aquí para que un cambio suyo a mitad de sala se recoja solo,
+            // en vez de que se lo pisemos con el valor que capturamos al entrar.
+            val userTempo = syncUserTempo ?: player.playbackParameters.speed
+            val action = SyncCorrection.correct(
+                errorMs = player.currentPosition - corrected,
+                targetMs = corrected,
+            )
+            if (action is SyncAction.Resync) player.seekTo(action.positionMs)
+
+            val target = SyncCorrection.playerSpeed(userTempo, action)
+            // Recordar el tempo del usuario SOLO mientras se corrige; en cuanto deja de corregirse
+            // se suelta, para que la próxima lectura vuelva a salir del reproductor.
+            syncUserTempo = if (action is SyncAction.Trim) userTempo else null
+            // El tono NO se toca: `withSpeed` conserva el `pitch` del usuario, y es lo que hace que
+            // el estirado sea inaudible en vez de desafinar la canción.
+            if (player.playbackParameters.speed != target) {
+                player.playbackParameters = player.playbackParameters.withSpeed(target)
+            }
+        } else {
+            restoreUserTempo(player)
         }
         // playWhenReady, not isPlaying: a track that is still buffering reports isPlaying=false
         // while already committed to playing, so comparing against it re-issues play() every tick
@@ -707,7 +770,6 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
          * Metrolist's own hard-sync threshold (`HARD_SYNC_THRESHOLD_MS`). Below it a seek costs
          * more in stutter than it buys in sync; above it the room is audibly apart.
          */
-        const val SEEK_TOLERANCE_MS = 750L
 
         /** How much of the host's timeline rides along with a track change. */
         const val HOST_QUEUE_WINDOW = 25
