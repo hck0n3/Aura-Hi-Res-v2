@@ -419,7 +419,7 @@ class VideoModeCoordinator(private val service: MusicService) {
      *
      * Bloquea: llámese solo desde [Dispatchers.IO].
      */
-    private fun resolveVideoDownTheLadder(id: String, maxH: Int?, startAttempt: Int): LadderOutcome {
+    private suspend fun resolveVideoDownTheLadder(id: String, maxH: Int?, startAttempt: Int): LadderOutcome {
         var innerTubeError: Throwable? = null
 
         fun pipePipe(exclude: Set<Int>, forceMuxed: Boolean): ResolvedVideo? =
@@ -428,7 +428,7 @@ class VideoModeCoordinator(private val service: MusicService) {
                 ?.takeIf { it.url.isNotEmpty() }
                 ?.let { ResolvedVideo(it.url, it.isMuxed, it.itag) }
 
-        fun innerTube(): ResolvedVideo? {
+        suspend fun innerTube(): ResolvedVideo? {
             var result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, service.connectivityManager, maxH) }
                 .getOrElse { Result.failure(it) }
             // TV robustness: if 1080p video-only selection failed at runtime, fall back to the default
