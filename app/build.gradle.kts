@@ -231,7 +231,7 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1005
+        versionCode = 1006
         // BETA 2.0.44 (orden del dueño 2026-09-17: *"todos estos cambios al final los quiero en una
         // beta para probarla y ver si me decido a lanzar todos esos cambios luego como una
         // actualización global"*).
@@ -243,7 +243,7 @@ android {
         // "actualización disponible" y le estaría ofreciendo BAJAR de versión una y otra vez.
         // Con el nombre limpio, 2.0.43 < 2.0.44 y no se le ofrece nada; y como GitHub excluye las
         // prereleases de `releases/latest`, a ningún otro usuario le llega la beta.
-        versionName = "2.0.44"
+        versionName = "2.0.45"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

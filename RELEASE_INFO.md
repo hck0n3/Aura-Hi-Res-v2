@@ -1,37 +1,42 @@
-# Aura Hi-Res v2.0.44 (beta 1) — Vídeo sin errores, canciones que no empiezan cortadas y la sincronización que sí termina
+# Aura Hi-Res v2.0.45 (beta 2) — La cola ya no se contamina, el vídeo ya no se cuelga y el cast responde
 
-BETA para probar antes de decidir si sale para todos (v2.0.44 / versionCode 1005). Se instala encima de
-tu 2.0.43 sin perder nada: mismo paquete (iad1tya.aura.music) y misma firma (CN=Aura Hi-Res v2), conserva
-tus datos, tu sesión y tus ajustes. No se le ofrece a nadie más — GitHub excluye las betas del canal de
-actualización de la app.
+BETA para probar antes de decidir si sale para todos (v2.0.45 / versionCode 1006). Se instala encima de
+la beta anterior o de tu 2.0.43 sin perder nada: mismo paquete (iad1tya.aura.music) y misma firma
+(CN=Aura Hi-Res v2), conserva tus datos, tu sesión y tus ajustes. No se le ofrece a nadie más — GitHub
+excluye las betas del canal de actualización de la app.
 
-## Modo vídeo
+## Lo primero que deberías notar
 
-- **Ninguna canción con vídeo debería volver a dar error.** Cuando el formato que YouTube devuelve no se deja leer, la app ya no se queda atascada pidiendo el mismo: prueba otro formato, luego otro proveedor y por último uno progresivo. Cuatro caminos antes de rendirse.
-- **Y si ninguno funciona, la canción NO se salta.** Se queda sonando en audio con la música intacta. Antes el fallo del vídeo arrastraba al audio y acababa saltándose la canción entera — ese `io_unspecified (2000)` que veías en pantalla era el último eslabón, no la causa.
-- Un formato que ya falló para un vídeo no se vuelve a elegir en toda la sesión, ni siquiera al preparar la siguiente canción.
+- **Arreglado el cuelgue de vídeo de la beta 1.** Lo metí yo: al fallar el formato, la app entraba en un bucle de reintentos que no paraba nunca. Ya no puede repetirse — además del arreglo, hay un tope de ocho intentos por canción que no se reinicia, así que un bucle es imposible incluso por un camino que no haya previsto. Cuando se agotan los intentos: audio y listo.
+- **La cola de un álbum ya no se llena de canciones ajenas.** Saltar a mano hasta la última canción metía ahí mismo una tanda de música de otros artistas. Con el aleatorio encendido era peor: podía pasar habiendo escuchado tres canciones de quince. Ahora el álbum se mantiene entero, y la cola infinita entra solo cuando de verdad termina.
+- **El botón de salida de audio responde al primer toque**, y ya no cambia de canción cuando insistes. Eran dos cosas distintas: el arrastre de la hoja le robaba el toque al botón, y el minirreproductor dejaba un gesto vivo sobre una franja invisible.
 
 ## Reproducción
 
-- **Arregladas las canciones que empezaban cortadas** al cambiar de canción a mano y en Android Auto. La entrada suave esperaba a que el audio «estuviera sonando» con el volumen en cero, y esa condición es falsa mientras el coche o el navegador bajan el volumen un momento — así que el principio de la canción se perdía. Ahora esa espera dura poco más de un segundo y, si se agota, vuelve el volumen entero de golpe: mejor sin fundido que sin el principio.
-- **Y arreglado que una canción se quedara sonando a medio volumen** el resto de la mezcla cuando un crossfade empezaba justo encima del cambio.
+- **Las playlists de solo vídeo avanzan como una cola.** Antes cada "siguiente" salía de modo vídeo, así que había que volver a tocar Vídeo en cada elemento. Ahora vídeo pasa a vídeo; una canción sin vídeo sigue bajando a audio, así que en una lista mixta nada cambia.
+- **Identificar una canción es más rápido y acierta más.** Antes grababa 10 segundos completos y hacía una sola consulta. Ahora consulta a los 3, 5, 8 y 12 segundos sin dejar de grabar, y se queda con el primer acierto: normalmente a los 3-5 segundos, y con cuatro oportunidades en vez de una.
 
 ## Biblioteca
 
-- **La sincronización con tu cuenta ahora llega hasta el final.** Era una tarea normal de Android, y esas las corta el sistema a los diez minutos; como cada intento empezaba desde el principio, una biblioteca grande nunca terminaba. Ahora es una tarea de primer plano, sin ese límite, y con una notificación silenciosa para que veas que sigue trabajando aunque cierres la app.
-- **Deja de insistir cuando YouTube no acepta más suscripciones.** Tu cuenta tiene un límite y estaba rechazando decenas de artistas seguidos; la app los reintentaba en bucle sin decírtelo. Ahora para y lo intenta más tarde.
+- **Descarga automática por lista.** Nuevo interruptor en el menú de cada lista: con él activo se descarga todo lo que tiene y todo lo que le añadas después, venga de donde venga (el menú de una canción, una importación, la sincronización desde otro aparato). Apagarlo no borra nada de lo que ya bajaste.
+- **La sincronización con tu cuenta llega hasta el final** aunque cierres la app, con una notificación silenciosa mientras trabaja.
 
 ## Interfaz
 
-- **Botón de compartir en el reproductor a pantalla completa**, en la misma fila de accesos rápidos, sin cambiar nada del diseño.
-- **Botón flotante para volver al inicio** en todas las pantallas donde la barra de abajo está oculta, para no tener que dar atrás muchas veces. Abajo a la izquierda, por encima del minirreproductor y fuera del camino.
-- **Las ventanas que suben desde abajo ahora miden lo que mide su contenido.** La tarjeta de salida de audio y los menús subían al 85 % de la pantalla tuvieran tres opciones o treinta.
+- **El atajo a Inicio vive dentro del minirreproductor**, al final de los controles, y solo aparece donde la barra de abajo está oculta. Al aparecer, el título se compacta animado para hacerle sitio; al desaparecer, la píldora vuelve a la normalidad.
+- **Portadas de álbum y de playlist a todo el ancho**, con el mismo cristal borroso progresivo de las portadas de artista.
+- **Tocar los nombres de los artistas** abre justo debajo "Ver álbum" y "Ver artista".
+- **Botón de compartir** en el reproductor a pantalla completa.
+- **El botón "Más" de la biblioteca** con el cristal interactivo.
+- **Las ventanas que suben desde abajo miden lo que mide su contenido.** La tarjeta de salida de audio y los menús subían al 85 % de la pantalla tuvieran tres opciones o treinta.
+- **En Novedades ya no hay estantes con una sola tarjeta**, y se fue la categoría de "playlists actualizadas", que repetía contenido de Inicio.
+- **El botón de descarga de las listas se fue al menú de tres puntos**, donde ya estaba la misma función.
 
 ## Escuchar juntos
 
-- **Sincronización al estilo Sonos/AirPlay:** en vez de dar saltos, el invitado se alinea estirando el tiempo un 2 % como mucho. Como el tono se conserva, no se oye ni un corte.
-- **Compensación de la latencia de salida:** cada teléfono descuenta lo que su propio altavoz o su Bluetooth retrasan, así que dos aparatos con salidas distintas dejan de sonar desfasados.
+- Sincronización al estilo Sonos/AirPlay: el invitado se alinea estirando el tiempo un 2 % como mucho, sin saltos ni cortes.
+- Cada teléfono descuenta lo que su propio altavoz o su Bluetooth retrasan.
 
 ## Diagnóstico
 
-- El log compartido ahora registra las descargas para escuchar sin conexión (en cola, detenida, terminada, fallida y por qué). Antes solo escribía cuando una fallaba del todo, así que una descarga que no arrancaba no dejaba ningún rastro.
+- El log registra las descargas (en cola, detenida, terminada, fallida y por qué) y el inicio y fin de cada sincronización, así que si algo falla te lo puedo decir exacto.
