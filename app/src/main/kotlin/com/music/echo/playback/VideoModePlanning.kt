@@ -99,6 +99,35 @@ object VideoModePlanning {
         (videoModeMediaId != null && mediaId == videoModeMediaId) ||
         (mediaId != null && isTrackedVideoItem)
 
+    /**
+     * ¿Se queda el modo vídeo al cambiar de pista, o se vuelve a audio?
+     *
+     * 🔴 Reporte del dueño (2026-09-17): *"las playlist que solo contienen video, cuando intento
+     * cambiar al siguiente no me cambia al siguiente video que sigue dentro de la playlist, como si la
+     * cola estuviera mala […] veo que me los agarra como canción independiente como si no detectara
+     * las colas"*.
+     *
+     * La cola estaba perfecta: lo que pasaba es que **cada** cambio de pista salía de modo vídeo. En
+     * una lista donde TODO es vídeo, eso significa tocar "siguiente" y caer en audio, tocar Vídeo otra
+     * vez, siguiente, audio, Vídeo otra vez… y por eso se siente como si cada elemento fuera
+     * independiente y la cola no existiera.
+     *
+     * ## Esto MATIZA la directiva "la música primero" del 2026-09-14, no la deshace
+     * Esa directiva (*"la prioridad del reproductor sea sí o sí la música primero antes que el
+     * vídeo"*) existía para un caso concreto: estás escuchando música, pones Vídeo en una canción
+     * suelta, y la SIGUIENTE no debe secuestrarte a vídeo. Eso se conserva entero: si la pista a la
+     * que se va **no es** un vídeo, se vuelve a audio igual que hoy.
+     *
+     * Lo que cambia es solo el caso que él nombra: si ya estás viendo vídeo y la pista siguiente
+     * TAMBIÉN es un vídeo, seguir en vídeo es lo que cualquiera espera. En una lista mixta el
+     * comportamiento sigue siendo el de antes — la pista sin vídeo baja a audio.
+     *
+     * @param incomingIsVideoSong la pista que pasa a ser actual tiene rendición de vídeo.
+     * @param sameTrack la transición no cambió de pista (un re-prepare del mismo id): nunca se sale.
+     */
+    fun keepVideoOnTrackChange(incomingIsVideoSong: Boolean, sameTrack: Boolean): Boolean =
+        sameTrack || incomingIsVideoSong
+
     /** Region 4b — download-cache completeness (the isCached range check stays in the service). */
     fun videoDownloadCacheComplete(cachedLength: Long): Boolean =
         cachedLength != LENGTH_UNSET && cachedLength > 0

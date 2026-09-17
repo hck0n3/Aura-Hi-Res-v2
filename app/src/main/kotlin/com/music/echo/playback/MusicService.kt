@@ -5751,8 +5751,28 @@ class MusicService :
             // MUSIC FIRST (owner directive 2026-09-14: "la prioridad del reproductor sea sí o sí la música
             // primero antes que el video"): video belongs only to the track the user switched to Video.
             // Any other track plays as music, so moving to it leaves video mode (restores audio sources).
-            if (mediaItem.mediaId != videoModeMediaId) {
+            //
+            // 🔴 MATIZADO (dueño, 2026-09-17): *"las playlist que solo contienen video, cuando intento
+            // cambiar al siguiente no me cambia al siguiente video que sigue dentro de la playlist […]
+            // como si no detectara las colas"*. La cola estaba bien — lo que pasaba es que CADA cambio
+            // de pista salía de vídeo, así que en una lista donde todo es vídeo había que volver a
+            // tocar Vídeo en cada una. La directiva de "música primero" se conserva entera para el
+            // caso que la motivó (una canción suelta puesta en vídeo no secuestra la siguiente): si la
+            // pista entrante NO es un vídeo, se baja a audio igual que antes. Ver
+            // [VideoModePlanning.keepVideoOnTrackChange].
+            val keepVideo = VideoModePlanning.keepVideoOnTrackChange(
+                incomingIsVideoSong = mediaItem.metadata?.isVideoSong == true,
+                sameTrack = mediaItem.mediaId == videoModeMediaId,
+            )
+            if (!keepVideo) {
                 videoCoordinator.exitVideoMode()
+            } else if (mediaItem.mediaId != videoModeMediaId) {
+                // Sigue en vídeo, pero es OTRA pista: hay que resolver y colocar SU stream de vídeo, y
+                // devolver a audio la que se acaba de dejar (eso lo hace applyVideoToCurrent con su
+                // restoreVideoTracksExcept). `stickyVideoPreferred` queda marcado para que una pista
+                // intermedia SIN vídeo no rompa la cadena: baja a audio y el siguiente vídeo vuelve.
+                videoCoordinator.stickyVideoPreferred = true
+                videoCoordinator.applyVideoToCurrent(armModeWhenReady = true)
             }
         } else if (
             // Owner: tapping a VIDEO starts playback IN video mode (manual SEEK / new queue only —
