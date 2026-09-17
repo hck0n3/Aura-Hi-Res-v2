@@ -224,7 +224,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             if (reason != Player.DISCONTINUITY_REASON_SEEK) return
             val state = session.state.value
             if (!state.inRoom || !state.isHost || applyingRemote) return
-            val progress = newPosition.positionMs
+            // Mismo criterio que [safePosition]: se publica lo que se OYE. Este sitio no pasa por
+            // ese embudo porque la posición la trae el propio evento de salto.
+            val service = serviceFlow.value
+            val progress = (newPosition.positionMs - (service?.let { outputLatencyMs(it) } ?: 0))
+                .coerceAtLeast(0L)
             Timber.tag(TAG).i("Host publishing SEEK to %d", progress)
             session.sendPlaybackAction(
                 action = PlaybackActions.SEEK,
@@ -348,8 +352,15 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // eligió — se vuelve a leer aquí para que un cambio suyo a mitad de sala se recoja solo,
             // en vez de que se lo pisemos con el valor que capturamos al entrar.
             val userTempo = syncUserTempo ?: player.playbackParameters.speed
+            // El anfitrión ya publicó lo que OYE, así que aquí se compara contra lo que oigo yo:
+            // resto el retardo de mi propia salida. Ver [OutputLatency] — así los dos extremos se
+            // compensan solos y el caso "los dos por Bluetooth" no sobrecorrige.
             val action = SyncCorrection.correct(
-                errorMs = player.currentPosition - corrected,
+                errorMs = OutputLatency.syncErrorMs(
+                    myPositionMs = player.currentPosition,
+                    hostPositionMs = corrected,
+                    myLatencyMs = outputLatencyMs(service),
+                ),
                 targetMs = corrected,
             )
             if (action is SyncAction.Resync) player.seekTo(action.positionMs)
@@ -754,8 +765,36 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             digest.take(3).joinToString("") { b -> "%02x".format(b) }
         }.getOrDefault("?")
 
+    /**
+     * La posición que el anfitrión PUBLICA: lo que está oyendo, no lo que decodifica.
+     *
+     * 🔴 (2026-09-17) Ver [OutputLatency]. Entre el decodificador y el altavoz hay un retardo real —
+     * 150-250 ms por Bluetooth — y publicar la posición cruda hace que un invitado por altavoz oiga
+     * la música antes que el propio anfitrión. Restar aquí el retardo de MI salida es lo que permite
+     * que cada extremo compense lo suyo sin tener que saber nada del otro, y sin un campo nuevo en
+     * el protocolo: es otro número en el campo de posición que ya existía.
+     *
+     * Único embudo a propósito: todos los sitios donde el anfitrión publica una posición pasan por
+     * aquí, así que la compensación no se puede olvidar en uno de ellos.
+     */
     private fun safePosition(service: MusicService): Long =
-        runCatching { service.player.currentPosition }.getOrDefault(0L)
+        runCatching { service.player.currentPosition - outputLatencyMs(service) }
+            .getOrDefault(0L)
+            .coerceAtLeast(0L)
+
+    /**
+     * Lo que tarda el audio en salir por la salida activa de ESTE aparato.
+     *
+     * Se resuelve en cada llamada en vez de cachearse: el usuario conecta y desconecta el Bluetooth
+     * a mitad de sala, y un valor cacheado dejaría la compensación puesta (o quitada) justo cuando
+     * cambia lo único que la justifica.
+     */
+    private fun outputLatencyMs(context: android.content.Context): Int =
+        runCatching {
+            OutputLatency.defaultMsFor(
+                iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(context),
+            )
+        }.getOrDefault(0)
 
     private fun safeDuration(service: MusicService): Long =
         runCatching { service.player.duration }.getOrDefault(0L).coerceAtLeast(0L)
