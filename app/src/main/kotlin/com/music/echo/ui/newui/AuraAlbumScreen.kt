@@ -122,6 +122,10 @@ import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AlbumViewModel
 import java.util.Locale
 import kotlinx.coroutines.launch
+import dev.chrisbanes.haze.HazeProgressive
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 
 /**
  * # Álbum — "Interfaz nueva"
@@ -686,32 +690,68 @@ private fun AuraAlbumHero(
                     alpha = (1f - scrolled / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
                 },
         ) {
-            AuraCover(
-                thumbnailUrl = thumbnailUrl,
-                size = heroWidth,
-                seed = thumbnailUrl,
-                shape = androidx.compose.ui.graphics.RectangleShape,
-                decodeTo = 1200,
-                ratio = if (isWideHero) heroWidth / 320.dp else 1f,
-            )
-
-            if (canvasEnabled && (canvasPrimaryUrl != null || canvasFallbackUrl != null)) {
-                CanvasArtworkPlayer(
-                    primaryUrl = canvasPrimaryUrl,
-                    fallbackUrl = canvasFallbackUrl,
-                    // HALLAZGO-059: this was hardcoded to `true`, so the canvas ExoPlayer kept
-                    // decoding video while the music was paused. The video must pause with the music.
-                    isPlaying = isPlaying,
-                    modifier = Modifier.fillMaxSize(),
+            // 🔴 EL MISMO CRISTAL QUE LA PORTADA DE ARTISTA (dueño, 2026-09-17, punto 8:
+            // *"aplicar el mismo estilo y efecto de cristal borroso que tienen las portadas de los
+            // artistas a las portadas de los álbumes"*).
+            //
+            // Es la receta de `AuraArtistHero`, literal: la capa de medios es la FUENTE del haze y una
+            // banda de 200 dp la muestrea con `progressive`, así que el radio CRECE hacia abajo en vez
+            // de ser uniforme con la opacidad en rampa — esa diferencia es la que se ve "como cristal".
+            //
+            // Aquí decía *"un degradado, nunca un desenfoque: un blur a pantalla completa es lo que
+            // prohíbe el contrato térmico"*. Ese contrato se respeta igual y por el mismo motivo que en
+            // la de artista: el desenfoque **no** es a pantalla completa, se queda en una banda de
+            // 200 dp para que su coste no crezca con el alto de la portada, mientras el oscurecido
+            // — que es solo color — dispone del 70 % para subir. Una rampa corta obliga a una pendiente
+            // de opacidad fuerte, y una pendiente fuerte ES el borde visible que se intenta evitar.
+            //
+            // El canvas (vídeo de fondo) queda DENTRO de la fuente a propósito: así se desenfoca
+            // también, que es justo lo que la primera versión de la de artista no podía hacer y por lo
+            // que había que saltarse el efecto mientras el vídeo sonaba.
+            val heroHaze = remember { HazeState() }
+            Box(modifier = Modifier.fillMaxSize().hazeSource(heroHaze)) {
+                AuraCover(
+                    thumbnailUrl = thumbnailUrl,
+                    size = heroWidth,
+                    seed = thumbnailUrl,
+                    shape = androidx.compose.ui.graphics.RectangleShape,
+                    decodeTo = 1200,
+                    ratio = if (isWideHero) heroWidth / 320.dp else 1f,
                 )
+
+                if (canvasEnabled && (canvasPrimaryUrl != null || canvasFallbackUrl != null)) {
+                    CanvasArtworkPlayer(
+                        primaryUrl = canvasPrimaryUrl,
+                        fallbackUrl = canvasFallbackUrl,
+                        // HALLAZGO-059: this was hardcoded to `true`, so the canvas ExoPlayer kept
+                        // decoding video while the music was paused. The video must pause with the music.
+                        isPlaying = isPlaying,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
 
-            // The hand-over to the ground. A gradient, never a blur: a live full-screen blur is what
-            // the thermal contract forbids.
+            // El desenfoque progresivo. 200 dp y radio 32 dp, los valores del original.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
+                    .align(Alignment.BottomCenter)
+                    .hazeEffect(heroHaze) {
+                        blurRadius = 32.dp
+                        progressive = HazeProgressive.verticalGradient(
+                            startIntensity = 0f,
+                            endIntensity = 1f,
+                        )
+                    },
+            )
+
+            // El oscurecido, en una caja APARTE y MÁS ALTA que el desenfoque — ver el comentario de
+            // arriba: es el detalle que más se nota.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height((if (isWideHero) 320.dp else heroWidth) * 0.7f)
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(

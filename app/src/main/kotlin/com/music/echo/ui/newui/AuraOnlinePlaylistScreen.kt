@@ -99,7 +99,6 @@ import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import iad1tya.echo.music.ui.menu.YouTubeSelectionSongMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
-import iad1tya.echo.music.ui.utils.rememberIsWideLayout
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.OnlinePlaylistViewModel
@@ -107,6 +106,15 @@ import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import dev.chrisbanes.haze.HazeProgressive
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 
 /**
  * # Lista de YouTube Music — "Interfaz nueva"
@@ -696,7 +704,6 @@ private fun AuraOnlinePlaylistHeader(
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val isTvOrCar = rememberIsTvOrCar()
-    val isWideLayout = rememberIsWideLayout()
 
     val saved = dbPlaylist?.playlist?.bookmarkedAt != null
     val playingThisPlaylist = isPlaying && mediaMetadata?.album?.id == playlist.id
@@ -709,24 +716,78 @@ private fun AuraOnlinePlaylistHeader(
             .padding(bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(56.dp))
+        // 🔴 LA PORTADA, DE LADO A LADO (dueño, 2026-09-17, punto 6: *"hacer que la portada ocupe
+        // todo el ancho de la pantalla, de lado a lado, sin orillas, manteniendo el efecto de cristal
+        // borroso en la parte inferior para crear un diseño en armonía y que se vea completa, similar
+        // a las portadas de los artistas"*).
+        //
+        // Era una tarjeta CENTRADA de 260/320 dp con 48 dp de margen a cada lado y esquinas
+        // redondeadas. Ahora es la receta del héroe de artista: ancho completo, cuadrada, y con el
+        // mismo cristal de abajo — la capa de la portada es la FUENTE del haze y una banda de 200 dp
+        // la muestrea con `progressive`, así que el radio CRECE hacia abajo en vez de ser uniforme con
+        // la opacidad en rampa. Esa diferencia es la que se lee "como cristal".
+        //
+        // El espaciador de 56 dp se va con la tarjeta: existía para despegarla de la barra superior, y
+        // "sin orillas" significa precisamente que la imagen llega al borde de arriba — igual que la de
+        // artista, que tampoco lo tiene.
+        //
+        // El contrato térmico se respeta igual: el desenfoque NO es a pantalla completa, se queda en
+        // 200 dp para que su coste no crezca con el alto de la portada, mientras el oscurecido — que es
+        // solo color — dispone del 70 % para subir. Una rampa corta obliga a una pendiente de opacidad
+        // fuerte, y una pendiente fuerte ES el borde visible que se intenta evitar.
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // Izado: dentro del Box de dentro el receptor implícito más cercano es BoxScope, no
+            // BoxWithConstraintsScope, así que `maxWidth` no se alcanza ahí sin receptor explícito.
+            val heroWidth = maxWidth
+            val isWideHero = heroWidth >= 840.dp
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (isWideHero) Modifier.height(320.dp) else Modifier.aspectRatio(1f)),
+            ) {
+                val heroHaze = remember { HazeState() }
+                Box(modifier = Modifier.fillMaxSize().hazeSource(heroHaze)) {
+                    AuraCover(
+                        thumbnailUrl = playlist.thumbnail,
+                        size = heroWidth,
+                        seed = playlist.id,
+                        shape = RectangleShape,
+                        decodeTo = 1200,
+                        ratio = if (isWideHero) heroWidth / 320.dp else 1f,
+                    )
+                }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 48.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            AuraCover(
-                thumbnailUrl = playlist.thumbnail,
-                size = if (isWideLayout) 320.dp else 260.dp,
-                seed = playlist.id,
-                shape = AuraShapes.PlayerArtwork,
-                decodeTo = 512,
-            )
+                // El desenfoque progresivo. 200 dp y radio 32 dp, los valores del original.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .align(Alignment.BottomCenter)
+                        .hazeEffect(heroHaze) {
+                            blurRadius = 32.dp
+                            progressive = HazeProgressive.verticalGradient(
+                                startIntensity = 0f,
+                                endIntensity = 1f,
+                            )
+                        },
+                )
+
+                // El oscurecido, APARTE y más alto que el desenfoque — ver arriba.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((if (isWideHero) 320.dp else heroWidth) * 0.7f)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, AuraPalette.Ground),
+                            ),
+                        ),
+                )
+            }
         }
 
-        Spacer(Modifier.height(26.dp))
+        Spacer(Modifier.height(18.dp))
 
         Text(
             text = playlist.title,
