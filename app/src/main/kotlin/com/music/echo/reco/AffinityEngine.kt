@@ -86,6 +86,31 @@ object AffinityEngine {
         val byName = HashMap<String, Double>()
         val lane = HashMap<String, Double>()
         val genre = HashMap<String, Double>()
+        // 🔴 "NO ME GUSTA" AHORA ENSEÑA AL MODELO (punto 10 del dueño, 2026-09-17: "verificar el
+        // algoritmo de predicción").
+        //
+        // El fallo: el disgusto era SOLO un filtro de salida. `score(song)` devolvía AVOID para una
+        // canción/álbum/artista marcado, pero los pesos se seguían acumulando igual — y el peso es lo
+        // que ve `scoreNames`, que es la ruta de TODO lo remoto: la radio infinita, los estantes de
+        // Inicio y el aleatorio inteligente. O sea que un artista al que él le dio "No me gusta"
+        // después de escucharlo mucho conservaba su afinidad alta y seguía puntuando como un favorito;
+        // solo dejaba de verse allí donde alguien se acordaba de filtrar por id aparte.
+        //
+        // Y el filtro por id tiene un agujero real: en la radio es
+        // `m.artists.none { it.id != null && it.id in disliked.artists }`, así que un candidato de
+        // YouTube cuyo artista llega SIN id no se filtraba — y encima puntuaba alto por nombre.
+        //
+        // Aquí se arregla en el sitio donde el modelo se construye: una escucha de algo marcado no
+        // suma NADA (ni al artista, ni a su género, ni a su carril), y los nombres de los artistas
+        // marcados se guardan para que `scoreNames` los pueda hundir aunque no traigan id. Lo que no
+        // cambia: el disgusto no RESTA (no se inventa un castigo retroactivo sobre lo demás), solo
+        // deja de sumar — y las tres rutas de filtrado que ya existían siguen donde estaban.
+        val dislikedArtistNames = HashSet<String>()
+        fun isDislikedArtist(id: String, name: String): Boolean {
+            val hard = id in disliked.artists
+            if (hard && name.isNotBlank()) dislikedArtistNames.add(name.lowercase())
+            return hard
+        }
         val ln2 = ln(2.0)
         val nowHour = runCatching {
             Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).hour
@@ -113,7 +138,14 @@ object AffinityEngine {
             var w = decay * quality * timeBoost
             if (song.song.liked) w += decay * 0.5
 
-            song.artists.forEach { a ->
+            // Nada marcado con "No me gusta" alimenta el modelo (ver [dislikedArtistNames]): ni la
+            // canción, ni su álbum, ni los artistas marcados — y si TODOS sus artistas lo están, el
+            // carril tampoco, porque sería contar la misma escucha por la puerta de atrás.
+            if (song.song.id in disliked.songs) return@forEach
+            if (song.song.albumId?.let { it in disliked.albums } == true) return@forEach
+            val usableArtists = song.artists.filterNot { isDislikedArtist(it.id, it.name) }
+            if (song.artists.isNotEmpty() && usableArtists.isEmpty()) return@forEach
+            usableArtists.forEach { a ->
                 byId.merge(a.id, w, Double::plus)
                 if (a.name.isNotBlank()) {
                     byName.merge(a.name.lowercase(), w, Double::plus)
@@ -139,7 +171,12 @@ object AffinityEngine {
             val libLane = HashMap<String, Double>()
             librarySongs.asSequence().take(MAX_LIBRARY).forEach { s ->
                 val w = if (s.song.liked) LIBRARY_LIKED_SEED else LIBRARY_SEED
-                s.artists.forEach { a ->
+                // Misma regla que arriba: una canción guardada pero marcada no es una señal de gusto.
+                if (s.song.id in disliked.songs) return@forEach
+                if (s.song.albumId?.let { it in disliked.albums } == true) return@forEach
+                val usable = s.artists.filterNot { isDislikedArtist(it.id, it.name) }
+                if (s.artists.isNotEmpty() && usable.isEmpty()) return@forEach
+                usable.forEach { a ->
                     libById.merge(a.id, w, Double::plus)
                     if (a.name.isNotBlank()) {
                         libByName.merge(a.name.lowercase(), w, Double::plus)
@@ -165,6 +202,8 @@ object AffinityEngine {
         // Seed followed/subscribed artists: a real taste signal even with zero plays, so subscribing to an
         // artist immediately shapes Home/radio/quick-picks (and its genre affinity when known via GenreCache).
         followedArtists.forEach { a ->
+            // Seguido Y marcado: el disgusto es la señal más reciente y explícita de las dos.
+            if (isDislikedArtist(a.id, a.name)) return@forEach
             byId.merge(a.id, FOLLOWED_ARTIST_SEED, Double::plus)
             if (a.name.isNotBlank()) {
                 byName.merge(a.name.lowercase(), FOLLOWED_ARTIST_SEED, Double::plus)
@@ -180,9 +219,17 @@ object AffinityEngine {
         // (local primary); on a cold start they seed. Mirrors the LIBRARY_KEY_CAP merge shape above.
         externalArtistWeights.forEach { (k, v) -> byName.merge(k, min(v, LASTFM_KEY_CAP), Double::plus) }
 
+        // Los artistas marcados salen de los mapas por si algún otro camino los dejó entrar (una
+        // colaboración donde el marcado es el secundario, por ejemplo), para que no queden pesos
+        // fantasma que luego `scoreNames` leería como afinidad.
+        disliked.artists.forEach { byId.remove(it) }
+        dislikedArtistNames.forEach { byName.remove(it) }
         val maxW = byId.values.maxOrNull()?.takeIf { it > 0 } ?: 1.0
         val maxG = genre.values.maxOrNull()?.takeIf { it > 0 } ?: 1.0
-        return TasteProfile(byId, byName, lane, genre, artistGenres, disliked, maxW, maxG)
+        return TasteProfile(
+            byId, byName, lane, genre, artistGenres, disliked, maxW, maxG,
+            dislikedArtistNames = dislikedArtistNames,
+        )
     }
 
     /** Smallest distance between two hours on a 24h clock (0..12). */
@@ -205,6 +252,14 @@ class TasteProfile internal constructor(
     private val disliked: DislikeStore.Disliked,
     private val maxArtistWeight: Double,
     private val maxGenreWeight: Double,
+    /**
+     * Nombres (en minúscula) de los artistas con "No me gusta" que el modelo llegó a ver mientras se
+     * construía. Existen porque el disgusto duro se guarda por **id** y [scoreNames] solo tiene
+     * nombres: sin esto, un candidato de YouTube cuyo artista llega sin id se colaba por las dos
+     * puertas a la vez — no lo filtraba el id y puntuaba alto por nombre. Ver el comentario de
+     * `dislikedArtistNames` en [AffinityEngine.buildProfile].
+     */
+    private val dislikedArtistNames: Set<String> = emptySet(),
 ) {
     /** Score a locally-known song (best signal: we have its real artist ids). */
     fun score(song: Song): Double {
@@ -212,6 +267,7 @@ class TasteProfile internal constructor(
         if (e.id in disliked.songs) return AVOID
         if (e.albumId != null && e.albumId in disliked.albums) return AVOID
         if (song.artists.any { it.id in disliked.artists }) return AVOID
+        if (song.artists.any { it.name.trim().lowercase() in dislikedArtistNames }) return AVOID
         val names = song.artists.map { it.name }
         val raw = song.artists.maxOfOrNull {
             artistWeightById[it.id] ?: artistWeightByName[it.name.lowercase()] ?: 0.0
@@ -225,6 +281,11 @@ class TasteProfile internal constructor(
 
     /** Score a remote item (YouTube) by artist name + title, when we only have text. */
     fun scoreNames(artistNames: List<String>, title: String?): Double {
+        // Marcado con "No me gusta" → al fondo, igual que en [score]. Es la única puerta por la que
+        // un candidato remoto sin id de artista podía entrar como favorito.
+        if (dislikedArtistNames.isNotEmpty() &&
+            artistNames.any { it.trim().lowercase() in dislikedArtistNames }
+        ) return AVOID
         val raw = artistNames.maxOfOrNull { artistWeightByName[it.lowercase()] ?: 0.0 } ?: 0.0
         var s = norm(raw)
         s += genreScore(artistNames)
@@ -234,11 +295,17 @@ class TasteProfile internal constructor(
 
     /**
      * True when [name]'s artist is already part of the taste profile (a positive-weight key in the per-name
-     * affinity map). The exploration quota uses the inverse — an artist we DON'T know — to reserve ~1-in-5
-     * radio slots for discovery, so radio isn't pure exploit. Cold start (empty profile) → nothing is known.
+     * affinity map). The exploration quota uses the inverse — an artist we DON'T know — to reserve a slot for
+     * discovery ([RadioQueueShaping.withExplorationQuota], 1 in 15; el "~1 de cada 5" que decía aquí es de dos
+     * cadencias atrás y ya no existe, y además la continuación AUTOMÁTICA no aplica la cuota en absoluto desde
+     * la orden del dueño de 2026-09-13 "que la cola infinita no cambie ni improvise"). Cold start (empty
+     * profile) → nothing is known.
      */
     fun isKnownArtist(name: String): Boolean {
         if (name.isBlank()) return false
+        // Un artista marcado no es "conocido" para la cuota de descubrimiento: sería reservarle un
+        // hueco garantizado a lo que él ya dijo que no quiere.
+        if (name.trim().lowercase() in dislikedArtistNames) return false
         return (artistWeightByName[name.lowercase()] ?: 0.0) > 0.0
     }
 

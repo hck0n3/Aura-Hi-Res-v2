@@ -4686,8 +4686,8 @@ class MusicService :
             withContext(Dispatchers.IO) { iad1tya.echo.music.reco.GenreCache.snapshot(this@MusicService) }
         }.getOrDefault(emptyMap())
         // EXPLORATION GUARD (the amplifier behind the owner's "una de un género, otra de otro"):
-        // withExplorationQuota runs AFTER the sort and hands ~1 slot in 5 to an artist the taste profile
-        // does not know — and a candidate we have no genre for is "fresh" almost by definition, so the
+        // withExplorationQuota runs AFTER the sort and hands a reserved slot (1 in 15 hoy; el "1 de cada 5"
+        // es de dos cadencias atrás) to an artist the taste profile does not know — and a candidate we have no genre for is "fresh" almost by definition, so the
         // quota lifted exactly the candidates the steer had just pushed back, straight to the front. That
         // is the ~1-in-5 cadence he described. The codebase already knew this hazard for the CTX_SINK
         // group (the +1000 offset below exists because of it) and simply never closed it for the ordinary
@@ -4755,7 +4755,7 @@ class MusicService :
             val heard = m != null && (m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory)
             Triple(mi, key, heard)
         }
-        // Phase B #4 — exploration quota: reserve ~1-in-5 slots for a FRESH artist (not yet in the taste profile)
+        // Phase B #4 — exploration quota: reserve 1-in-15 slots for a FRESH artist (not yet in the taste profile)
         // so radio isn't pure exploit. Runs BEFORE spacing so the final spacedByArtist pass still guarantees no
         // same-artist streaks. Phase A #3 — artist-diversity: applied LAST to the unheard pool only (not the
         // heardTail fallback below), so neither taste nor exploration can re-cluster an artist. Both passes are
