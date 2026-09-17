@@ -1223,7 +1223,7 @@ object YTPlayerUtils {
         val pipe = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             adaptiveVideoStreamNewPipe(videoId, connectivityManager, videoMaxHeight)
         }
-        val pipeUrl = pipe.getOrNull()?.first
+        val pipeUrl = pipe.getOrNull()?.url
         if (!pipeUrl.isNullOrBlank()) return Result.success(pipeUrl)
         Timber.tag(logTag).w(
             "NewPipe video resolve failed for export (videoId=$videoId): " +
@@ -1245,32 +1245,54 @@ object YTPlayerUtils {
      * which carries audio. Returns (streamUrl, isMuxed); callers register muxed results so the
      * MediaSource factory skips the audio merge.
      */
+    /**
+     * Lo que [adaptiveVideoStreamNewPipe] elegió. El **itag** viaja con la URL porque sin él no se puede
+     * DESCARTAR un formato que ya reventó: el modo video reintentaba el mismo itag 136 tres veces
+     * (registro del dueño 2026-09-16) y los tres intentos eran el mismo intento. Ver [iad1tya.echo.music.playback.VideoFormatFallback].
+     */
+    data class PickedVideo(val url: String, val isMuxed: Boolean, val itag: Int)
+
+    /**
+     * @param excludeItags itags que NO se pueden volver a elegir para este video (ya fallaron el sniff
+     *        del contenedor en esta sesión). Si los excluidos se comen todos los video-only, cae solo
+     *        al muxed — que es exactamente el siguiente peldaño de la escalera.
+     * @param forceMuxed salta directamente al progresivo 22/18, el peldaño final: lleva el audio dentro
+     *        y es el que más veces sobrevive cuando los adaptativos no se dejan leer.
+     */
     fun adaptiveVideoStreamNewPipe(
         videoId: String,
         connectivityManager: ConnectivityManager,
         maxHeight: Int? = null,
-    ): Result<Pair<String, Boolean>> = runCatching {
+        excludeItags: Set<Int> = emptySet(),
+        forceMuxed: Boolean = false,
+    ): Result<PickedVideo> = runCatching {
         val streams = NewPipeExtractor.newPipePlayer(videoId)
         val itags = streams.map { it.first }
         Timber.tag(logTag).d("PipePipe video fallback lookup returned itags=$itags")
         // Video-only H.264 (avc1) itags → real pixel height, per YouTube's format table.
         val avcHeights = mapOf(138 to 2160, 137 to 1080, 136 to 720, 135 to 480, 134 to 360, 133 to 240, 160 to 144)
         val candidates = streams
+            .filterNot { it.first in excludeItags }
             .mapNotNull { s -> avcHeights[s.first]?.let { h -> Triple(s.first, h, s.second) } }
             .sortedByDescending { it.second }
         val cap = maxHeight ?: if (connectivityManager.isActiveNetworkMetered) 360 else 720
         // Best stream that fits the cap; if the network cap is below every available format, take the
         // smallest one instead of failing (video always plays, never above the bandwidth budget).
-        val pick = candidates.firstOrNull { it.second <= cap } ?: candidates.lastOrNull()
+        val pick = if (forceMuxed) null else (candidates.firstOrNull { it.second <= cap } ?: candidates.lastOrNull())
         if (pick != null) {
-            Timber.tag(logTag).i("PipePipe adaptive video picked itag=${pick.first} (${pick.second}p, cap=${cap}p)")
-            pick.third to false
+            val excludedNote = if (excludeItags.isEmpty()) "" else ", excluding=$excludeItags"
+            Timber.tag(logTag).i(
+                "PipePipe adaptive video picked itag=${pick.first} (${pick.second}p, cap=${cap}p$excludedNote)",
+            )
+            PickedVideo(pick.third, isMuxed = false, itag = pick.first)
         } else {
-            val url = streams.firstOrNull { it.first == 22 }?.second
-                ?: streams.firstOrNull { it.first == 18 }?.second
+            val muxed = iad1tya.echo.music.playback.VideoFormatFallback.MUXED_ITAGS
+                .filterNot { it in excludeItags }
+                .firstNotNullOfOrNull { want -> streams.firstOrNull { it.first == want }?.let { want to it.second } }
                 ?: throw IllegalStateException("PipePipe returned no usable video stream (itags=$itags)")
-            Timber.tag(logTag).i("PipePipe adaptive video fell back to muxed itag (no video-only formats)")
-            url to true
+            val why = if (forceMuxed) "last rung of the fallback ladder" else "no video-only formats left"
+            Timber.tag(logTag).i("PipePipe adaptive video fell back to muxed itag=${muxed.first} ($why)")
+            PickedVideo(muxed.second, isMuxed = true, itag = muxed.first)
         }
     }
 

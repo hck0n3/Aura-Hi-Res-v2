@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -50,6 +51,7 @@ import iad1tya.echo.music.ui.newui.auraFloatingContentColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.ui.newui.shellGlass
+import iad1tya.echo.music.ui.newui.rememberAuraSheetMaxHeight
 
 val LocalBottomSheetPageState = compositionLocalOf { BottomSheetPageState() }
 
@@ -129,6 +131,7 @@ fun BottomSheetPage(
                         detectTapGestures { focusManager.clearFocus(); state.dismiss() }
                     },
             ) {
+                val sheetMaxHeight = rememberAuraSheetMaxHeight()
                 androidx.compose.animation.AnimatedVisibility(
                     visible = visible,
                     enter = slideInVertically(animationSpec = tween(220)) { it } +
@@ -138,11 +141,23 @@ fun BottomSheetPage(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .fillMaxHeight(fraction = if (state.fullScreen) 1f else 0.85f),
+                        // A pantalla completa se llena de verdad (la búsqueda rápida la pide así, con
+                        // el teclado arriba). En el resto el 85 % pasa a ser TOPE y no objetivo: una
+                        // página con poco contenido sube solo lo que necesita. Ver
+                        // [rememberAuraSheetMaxHeight].
+                        .then(
+                            if (state.fullScreen) {
+                                Modifier.fillMaxHeight()
+                            } else {
+                                Modifier.heightIn(max = sheetMaxHeight)
+                            },
+                        ),
                 ) {
                     Column(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .then(
+                                if (state.fullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth(),
+                            )
                             // AUDIT P4: clip BEFORE the glass (an interior clip leaves the
                             // effect drawing with square corners over a rounded-content panel).
                             .clip(if (state.fullScreen) RectangleShape else AuraShapes.Sheet)
@@ -212,7 +227,10 @@ fun BottomSheetPage(
                     ),
             )
         },
-        modifier = modifier.fillMaxHeight(),
+        // CLÁSICO: sin `fillMaxHeight()`. Lo forzaba a pantalla casi completa aunque la página
+        // tuviera dos filas — el mismo defecto que arriba, y la misma queja. Una `ModalBottomSheet`
+        // de Material se ajusta sola a su contenido y se desplaza por dentro cuando no cabe.
+        modifier = modifier,
     ) {
         CompositionLocalProvider(LocalAuraFloatingChrome provides premium) {
             Column(

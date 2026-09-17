@@ -18,6 +18,11 @@
     <string name="offline_mode_off">Modo sin conexión desactivado</string>
     <string name="offline_disable">Volver online</string>
     <string name="offline_banner_hint">Solo descargas. La reproducción no usará internet.</string>
+    <string name="offline_auto_title">Sin conexión</string>
+    <string name="offline_auto_hint">Te muestro tu música descargada. Vuelve solo en cuanto haya red.</string>
+    <string name="offline_auto_setting_title">Modo sin conexión automático</string>
+    <string name="offline_auto_setting_desc">Sin red, mostrar solo la música descargada y volver solo al recuperarla.</string>
+    <string name="offline_auto_novedades">Las novedades necesitan conexión. Vuelve solo en cuanto haya red.</string>
     <string name="offline_empty_downloads">Aún no tienes canciones descargadas. Descárgalas con internet para escucharlas aquí.</string>
     <string name="error_offline_not_downloaded">Modo sin conexión: esta canción no está descargada por completo.</string>
     <string name="mood_and_genres">Estado de ánimo y géneros</string>

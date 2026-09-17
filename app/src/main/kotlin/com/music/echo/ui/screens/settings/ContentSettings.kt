@@ -196,6 +196,10 @@ fun ContentSettings(
         iad1tya.echo.music.constants.OfflineModeKey,
         defaultValue = false
     )
+    val (autoOfflineMode, onAutoOfflineModeChange) = rememberPreference(
+        iad1tya.echo.music.constants.AutoOfflineModeKey,
+        defaultValue = true,
+    )
     val (ipVersion, onIpVersionChange) = rememberEnumPreference(
         IpVersionKey,
         defaultValue = IpVersion.AUTO
@@ -1314,6 +1318,30 @@ fun ContentSettings(
                         )
                     },
                     onClick = { onOfflineModeChange(!offlineMode) }
+                ),
+                // Punto 4 del dueño (2026-09-17): "modo offline automático". Va justo debajo del
+                // manual porque es su automatización, y NO lo escribe: mientras no haya red la
+                // interfaz se pone en local y vuelve sola. Ver `AutoOfflinePolicy`.
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.offline),
+                    title = { Text(stringResource(R.string.offline_auto_setting_title)) },
+                    description = { Text(stringResource(R.string.offline_auto_setting_desc)) },
+                    trailingContent = {
+                        Switch(
+                            checked = autoOfflineMode,
+                            onCheckedChange = onAutoOfflineModeChange,
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (autoOfflineMode) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        )
+                    },
+                    onClick = { onAutoOfflineModeChange(!autoOfflineMode) }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.battery_charging),

@@ -246,6 +246,8 @@ import iad1tya.echo.music.ui.component.rememberBottomSheetState
 import iad1tya.echo.music.ui.component.shimmer.ShimmerTheme
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.ui.newui.AuraGlobalActions
+import iad1tya.echo.music.ui.newui.HomeShortcut
+import iad1tya.echo.music.ui.newui.LocalAuraHomeShortcut
 import iad1tya.echo.music.ui.newui.AuraNavBarHeight
 import iad1tya.echo.music.ui.newui.AuraNavigationBar
 import iad1tya.echo.music.ui.newui.AuraPalette
@@ -1655,7 +1657,27 @@ class MainActivity : ComponentActivity() {
                 val ringtoneViewModel: RingtoneViewModel = hiltViewModel()
                 val ringtoneUiState by ringtoneViewModel.uiState.collectAsState()
 
+                // 🔴 EL ATAJO A INICIO del minirreproductor (punto 1 del dueño, 2026-09-17).
+                //
+                // Se decide AQUÍ porque los dos datos que lo gobiernan viven aquí: la ruta actual y si
+                // la barra de abajo se dibuja. `null` = el botón no existe, y es lo que pasa en cuanto
+                // la barra vuelve a estar visible — *"el botón desaparece y el mini reproductor vuelve a
+                // la normalidad"*. La condición es **el mismo** `shouldShowNavigationBar` que esconde la
+                // barra, así que no hay ni un fotograma con dos botones de Inicio.
+                //
+                // `showRail` también lo apaga: en disposición ancha la navegación vive en el raíl
+                // lateral, que siempre está a la vista, y ahí el atajo no resuelve nada.
+                val auraHomeShortcut: (() -> Unit)? = remember(
+                    newUiShell, shouldShowNavigationBar, showRail, navController,
+                ) {
+                    if (newUiShell && !shouldShowNavigationBar && !showRail) {
+                        { navController.goHomeAlways() }
+                    } else {
+                        null
+                    }
+                }
                 CompositionLocalProvider(
+                    LocalAuraHomeShortcut provides auraHomeShortcut,
                     LocalRingtoneViewModel provides ringtoneViewModel,
                     LocalDatabase provides database,
                     LocalContentColor provides if (pureBlack) Color.White else contentColorFor(MaterialTheme.colorScheme.surface),
@@ -2057,6 +2079,20 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
+                                    // 🔴 EL ATAJO A INICIO SE MUDÓ AL MINIRREPRODUCTOR (punto 1 del
+                                    // dueño, 2026-09-17: *"ubicarlo dentro del mini reproductor al
+                                    // final de los controles, y que cuando aparezca el contenido se
+                                    // auto compacte de manera animada"*).
+                                    //
+                                    // Aquí vivía un círculo flotante abajo a la izquierda. Se va
+                                    // entero: un botón dentro de la píldora no puede tapar contenido
+                                    // — es la razón por la que él lo pidió ahí — y además la píldora
+                                    // ya se esconde sola con el reproductor abierto, así que toda la
+                                    // lógica de cuándo ocultarlo desaparece con él.
+                                    //
+                                    // Lo único que queda en MainActivity es DECIDIR si existe, que es
+                                    // lo que sabe esta capa: ver [LocalAuraHomeShortcut], provisto
+                                    // más abajo junto al resto del cromo del shell.
                                     // IMMERSIVE: an opaque `baseBg` rectangle over the gesture-nav strip.
                                     // It cut the ambient bloom dead along the bottom edge of every new
                                     // screen. With the new shell the [AuraNavigationBar] already paints its
@@ -2998,6 +3034,53 @@ private const val SCROLL_HAPTIC_THROTTLE_MS = 100L
  * raw today and will poison the same saved deque; they must route through here rather than re-type the
  * options and get one of the three wrong.
  */
+/**
+ * 🔴 A INICIO, SÍ O SÍ (dueño, 2026-09-17: *"sin importar dónde esté, el botón de inicio del mini
+ * reproductor tiene que mandarlo a la pantalla de inicio sí o sí"*).
+ *
+ * El atajo llamaba directamente a [navigateAsTab], y eso es UN intento: si ese intento no cambia de
+ * pantalla, el botón se queda muerto y él se queda mirándolo — que es exactamente lo que reportó en
+ * álbum y playlist. Aquí hay una escalera de tres peldaños y el último no puede fallar; las reglas de
+ * cuándo pasar al siguiente están en [HomeShortcut], aparte y con pruebas.
+ *
+ * Por qué [navigateAsTab] solo no basta: hace `popUpTo(graph.startDestinationId)`, y **el destino
+ * inicial del grafo no siempre es Inicio** — lo elige su ajuste de "pestaña al abrir", así que con
+ * Biblioteca como pestaña de arranque la operación no es la que parece. Y `restoreState = true`
+ * restaura una pila guardada que puede volver a dejarle en una pantalla interior. El peldaño de
+ * `popBackStack` cubre el caso normal sin depender de nada de eso, y el de forzar cubre el resto.
+ *
+ * Cada llamada envuelta en `runCatching`: una excepción del navegador en el peldaño 2 no puede
+ * impedir que corra el 3. Un botón que no hace nada es el fallo que estamos arreglando.
+ *
+ * El registro (una línea por toque, con NOMBRE DE PANTALLA y nunca la ruta entera — regla 4 de
+ * AGENTS: "album/OLAK5uy…" lleva el id de lo que estaba escuchando) dice en qué peldaño se resolvió,
+ * que es lo único que hace falta si algún día vuelve a fallar.
+ */
+internal fun NavController.goHomeAlways() {
+    val home = Screens.Home.route
+    val from = currentDestination?.route
+    if (!HomeShortcut.needsNavigation(from, home)) {
+        Timber.tag("AuraShell").i("HOME_SHORTCUT tap from=%s step=already", HomeShortcut.screenName(from))
+        return
+    }
+    val popped = runCatching { popBackStack(home, inclusive = false) }.getOrDefault(false)
+    if (!popped) {
+        runCatching { navigateAsTab(home) }
+    }
+    val forced = HomeShortcut.forceNeeded(currentDestination?.route, home)
+    if (forced) {
+        // Último recurso: a pelo. Puede dejar una entrada de más en la pila, y eso es infinitamente
+        // preferible a un botón que no hace nada.
+        runCatching { navigate(home) { launchSingleTop = true } }
+    }
+    Timber.tag("AuraShell").i(
+        "HOME_SHORTCUT tap from=%s step=%s now=%s",
+        HomeShortcut.screenName(from),
+        if (forced) "forced" else if (popped) "pop" else "tab",
+        HomeShortcut.screenName(currentDestination?.route),
+    )
+}
+
 internal fun NavController.navigateAsTab(route: String) {
     navigate(route) {
         popUpTo(graph.startDestinationId) {

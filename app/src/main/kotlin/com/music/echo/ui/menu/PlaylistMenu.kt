@@ -1051,6 +1051,62 @@ fun PlaylistMenu(
                             }
                         )
                     }
+                    // 🔴 DESCARGA AUTOMÁTICA DE LA LISTA (punto 3 del dueño, 2026-09-17: *"agregar un
+                    // interruptor en el menú de cada lista de reproducción; si está activo, todo el
+                    // contenido actual y cualquier canción que se agregue en el futuro a esa lista se
+                    // descargará automáticamente"*).
+                    //
+                    // Solo para listas REALES de la base: el interruptor es una columna de `playlist`, y
+                    // las listas automáticas (`autoPlaylist`) no tienen fila que guardarlo.
+                    if (autoPlaylist != true) {
+                        val autoDownloadOn = playlist.playlist.autoDownload
+                        add(
+                            Material3MenuItemData(
+                                title = { Text(text = stringResource(R.string.auto_download_playlist)) },
+                                description = {
+                                    Text(text = stringResource(R.string.auto_download_playlist_desc))
+                                },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.download),
+                                        contentDescription = null,
+                                        tint = if (autoDownloadOn) {
+                                            iad1tya.echo.music.ui.newui.AuraPalette.Teal
+                                        } else {
+                                            androidx.compose.material3.LocalContentColor.current
+                                        },
+                                    )
+                                },
+                                trailingContent = {
+                                    androidx.compose.material3.Switch(
+                                        checked = autoDownloadOn,
+                                        onCheckedChange = null,
+                                    )
+                                },
+                                onClick = {
+                                    val turningOn = !autoDownloadOn
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        database.update(
+                                            playlist.playlist.copy(autoDownload = turningOn),
+                                        )
+                                        // Apagar NO borra nada: quitar ficheros que el usuario puede
+                                        // estar oyendo sin conexión, porque tocó un interruptor que dice
+                                        // "descargar", sería una pérdida de datos silenciosa. Ver
+                                        // [PlaylistAutoDownload].
+                                        if (turningOn) {
+                                            iad1tya.echo.music.playback.PlaylistAutoDownload.reconcile(
+                                                context = context,
+                                                database = database,
+                                                stateById = downloadUtil.downloads.value
+                                                    .mapValues { it.value.state },
+                                            )
+                                        }
+                                    }
+                                    onDismiss()
+                                }
+                            )
+                        )
+                    }
                     if (autoPlaylist != true && !isGuest) {
                         add(
                             Material3MenuItemData(

@@ -48,6 +48,33 @@ class AudioOffloadGateTest {
     }
 
     /**
+     * Una sala de Escuchar juntos también veta, y no por DSP.
+     *
+     * 🔴 (2026-09-17) El invitado se alinea con el anfitrión ajustando la VELOCIDAD en vez de saltar
+     * (`SyncCorrection`). Una velocidad distinta de 1.0 hace que `setOffloadEnabled` pida soporte de
+     * cambio de velocidad, y en un teléfono cuyo HAL no lo tenga eso es una reselección de pista —
+     * audible — en cada cruce entre "corrigiendo" y "ya alineado", varias veces por canción. Vetarlo
+     * mientras dura la sala cambia esas muchas reconfiguraciones por una sola al entrar.
+     *
+     * Va el ÚLTIMO en el orden de motivos a propósito: ponerlo antes cambiaría el motivo que ya se
+     * muestra hoy para configuraciones que no han cambiado, y por eso se comprueba que una sala
+     * sobre una cadena limpia da LISTEN_TOGETHER mientras que una sala con el EQ puesto sigue
+     * diciendo EQUALIZER.
+     */
+    @Test
+    fun `una sala de escuchar juntos veta el offload sin robarle el motivo a las demas`() {
+        val enSala = passthrough.copy(listenTogetherActive = true)
+        assertFalse(AudioOffloadGate.allowOffload(enSala))
+        assertEquals(BlockReason.LISTEN_TOGETHER, AudioOffloadGate.blockReason(enSala))
+        assertEquals(
+            BlockReason.EQUALIZER,
+            AudioOffloadGate.blockReason(enSala.copy(equalizerActive = true)),
+        )
+        // Y fuera de la sala no cambia nada de lo de antes.
+        assertEquals(null, AudioOffloadGate.blockReason(passthrough))
+    }
+
+    /**
      * The EQ term is "a profile is applied", not "the profile is audibly non-flat", because the preamp
      * and the de-esser both run inside the native runEq branch. A flat profile still processes.
      */

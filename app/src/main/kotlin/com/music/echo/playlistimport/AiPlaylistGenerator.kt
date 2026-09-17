@@ -1,6 +1,7 @@
 package iad1tya.echo.music.playlistimport
 
 import com.music.innertube.YouTube
+import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.SongItem
 import iad1tya.echo.music.api.AiPlaylistConstraints
 import iad1tya.echo.music.api.AiPlaylistService
@@ -10,6 +11,7 @@ import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.toMediaMetadata
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -94,6 +96,48 @@ object AiPlaylistGenerator {
     // slow refill can never cancel the whole AI flow and throw a good first pass into "sin IA".
     internal const val MIN_TOP_UP_MS = 20_000L
 
+    /**
+     * Correa de la IA en "pedir música". No es el presupuesto de [AI_BUDGET_MS] (90 s): aquí la
+     * búsqueda corre en paralelo y responde en uno o dos segundos, así que la IA solo vale la pena
+     * mientras pueda llegar antes de que él se canse. 25 s cubre de sobra a un proveedor con clave
+     * propia (2-6 s) y corta en seco al Worker atascado, que es lo que le arruinaba la función.
+     */
+    internal const val MUSIC_REQUEST_AI_LEASH_MS = 25_000L
+
+    /**
+     * Techo de la búsqueda en "pedir música". Son 1-3 peticiones a YouTube Music; si en 20 s no han
+     * vuelto, la red está para pocas alegrías y es mejor decirlo que seguir girando.
+     */
+    internal const val MUSIC_REQUEST_SEARCH_BUDGET_MS = 20_000L
+
+    /**
+     * Cuántas listas se miran por filtro antes de elegir. Seis: más allá de eso el buscador ya está
+     * devolviendo cosas que solo comparten una palabra con la petición, y mirarlas solo aumenta la
+     * probabilidad de aceptar una que no toca.
+     */
+    internal const val PLAYLIST_CANDIDATES = 6
+
+    /**
+     * Cuántas candidatas se juntan antes de elegir. Sesenta salen de dos páginas de lista, que es lo
+     * que ya se descarga de todas formas: el montón no cuesta red, cuesta memoria durante un segundo.
+     * Más allá de esto ya no mejora la elección — solo se añaden candidatas que el propio origen
+     * colocó al final por algo.
+     */
+    internal const val POOL_TARGET = 60
+
+    /**
+     * Cuántas listas se usan. Dos, no una: dos curadores distintos dan más variedad que uno, y las dos
+     * han pasado la misma prueba. Tres empieza a mezclar criterios y el resultado deja de parecerse a
+     * lo que pidió.
+     */
+    internal const val PLAYLISTS_USED = 2
+
+    /** Doce horas. La taxonomía de estados de ánimo y géneros cambia como mucho cada varios meses. */
+    internal const val MOODS_TTL_MS = 12 * 60 * 60 * 1000L
+
+    @Volatile private var cachedMoods: List<com.music.innertube.pages.MoodAndGenres>? = null
+    @Volatile private var cachedMoodsAt = 0L
+
     /** Scaled per-ask cap for the KEYLESS chain — see [AI_ASK_CAP_MS] for the rationale. */
     internal fun keylessAskCapMs(requestCount: Int): Long =
         (ASK_BASE_MS + ASK_PER_TRACK_MS * requestCount)
@@ -110,6 +154,202 @@ object AiPlaylistGenerator {
 
     class EmptyResultException : Exception("No tracks could be resolved")
 
+    /**
+     * Lo que una petición produjo ANTES de decidir qué se hace con ello.
+     *
+     * Existe porque hay dos consumidores con necesidades distintas y una sola cadena que vale la pena
+     * mantener: [generate] guarda una playlist en la biblioteca (y ahí el origen SÍ se etiqueta), y
+     * [produce] solo quiere canciones para ponerlas a sonar.
+     *
+     * [fromAi] es para el LOG, no para la pantalla. Ver [produce].
+     */
+    data class Produced(
+        val name: String,
+        val songs: List<MediaMetadata>,
+        val fromAi: Boolean,
+    )
+
+    /**
+     * HÍBRIDO SILENCIOSO — la cadena completa, sin guardar nada y sin decir por dónde vino.
+     *
+     * 🔴 Orden del dueño (2026-09-17): *"puedes hacer un híbrido que lleve la IA y cuando no detecte
+     * que la IA está disponible lo haga de manera gratuita sin IA, pero que no haga referencia si lo
+     * hizo o no lo hizo con IA; cuando dé la respuesta a la hora de pedir música que solo entregue el
+     * resultado"*.
+     *
+     * Y tiene razón para ESTE caso, aunque sea lo contrario de lo que hace [generate]. La etiqueta
+     * "(sin IA)" nació de una queja concreta suya de 2026-09-03: una playlist GUARDADA que no se
+     * parecía a lo que pidió quedaba en la biblioteca indistinguible de una curada, y la etiqueta es
+     * lo que convierte esa sorpresa en información. Pedir música no guarda nada: suena y ya. Ahí la
+     * etiqueta no informa de nada accionable — solo interrumpe con detalle de implementación a alguien
+     * que pidió canciones.
+     *
+     * Lo que NO se pierde: el origen se registra en el log (`MUSIC_REQUEST source=…`). Sin esa línea,
+     * si su Worker de Cloudflare se cayera, la función seguiría "funcionando" con la ruta de búsqueda
+     * y **nadie se enteraría nunca** de que la IA lleva semanas muerta — que es exactamente cómo murió
+     * Pollinations sin que nadie lo notara hasta sondearlo en vivo. Silencioso en pantalla no puede
+     * significar invisible en el diagnóstico.
+     *
+     * No persiste NADA: ni playlist ni canciones. El reproductor guarda lo que hace falta al sonar.
+     */
+    suspend fun produce(
+        database: MusicDatabase,
+        prompt: String,
+        count: Int,
+        provider: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        onResolveProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+        /**
+         * El perfil de gusto del usuario, o null. Lo construye el llamante **en paralelo** con esta
+         * llamada (ver `MusicRequestViewModel`), así que no cuesta tiempo de espera; aquí solo se usa
+         * para ELEGIR entre las candidatas que ya se han traído. Null = sin personalizar, y entonces
+         * el resultado es exactamente el orden de origen.
+         */
+        taste: iad1tya.echo.music.reco.TasteProfile? = null,
+    ): Produced? {
+        val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
+        val startedAt = System.currentTimeMillis()
+        val produced = produceRacing(
+            database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress, taste,
+        )
+        timber.log.Timber.i(
+            "MUSIC_REQUEST source=%s tracks=%d tookMs=%d",
+            when {
+                produced == null -> "none"
+                produced.fromAi -> "ai"
+                else -> "search"
+            },
+            produced?.songs?.size ?: 0,
+            System.currentTimeMillis() - startedAt,
+        )
+        return produced
+    }
+
+    /**
+     * 🔴 QUIEN ESTÉ LISTO, MANDA — la escalera de "pedir música", que corre en PARALELO en vez de en
+     * fila (dueño, 2026-09-17: *"nunca funcionó […] y que el máximo de canciones que busque sean 10
+     * para que responda más rápido"*).
+     *
+     * La escalera en fila de [produceInternal] es correcta para GUARDAR una playlist y es un desastre
+     * para pedir música: primero agota hasta [AI_BUDGET_MS] (90 s) esperando a la IA y solo entonces
+     * empieza a buscar — así que con el Worker lento o caído él se quedaba mirando un indicador
+     * durante minuto y medio antes de ver nada. Eso es lo que vivió como "nunca funcionó".
+     *
+     * Aquí las dos rutas salen a la vez y gana **la que esté lista**, con el desempate a favor de la
+     * IA:
+     *  · la búsqueda tarda uno o dos segundos → normalmente responde ella, que es la velocidad que
+     *    pidió;
+     *  · si la IA contesta ANTES (pasa con clave propia y un proveedor rápido), manda la IA, que es
+     *    el híbrido que él encargó — y se sigue sin decir cuál fue;
+     *  · si la búsqueda vuelve vacía, entonces sí se espera a la IA hasta [MUSIC_REQUEST_AI_LEASH_MS],
+     *    porque ahí esperar es la única opción que queda antes de decir "no encontré nada".
+     *
+     * [generate] NO usa esto: guardar una playlist de IA es otra promesa, más lenta a propósito, y él
+     * no se ha quejado de ella.
+     */
+    private suspend fun produceRacing(
+        database: MusicDatabase,
+        prompt: String,
+        target: Int,
+        soloArtist: String?,
+        provider: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        onResolveProgress: (done: Int, total: Int) -> Unit,
+        taste: iad1tya.echo.music.reco.TasteProfile?,
+    ): Produced? = coroutineScope {
+        val aiJob = async {
+            runCatching {
+                withTimeoutOrNull(MUSIC_REQUEST_AI_LEASH_MS) {
+                    aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
+                }
+            }.getOrNull()
+        }
+        val search = runCatching {
+            withTimeoutOrNull(MUSIC_REQUEST_SEARCH_BUDGET_MS) {
+                searchFallbackPlaylist(prompt, soloArtist, target, taste)
+            }
+        }.getOrNull().orEmpty()
+
+        // QUE NO IMPROVISE (dueño, 2026-09-17), y aquí está la regla que lo decide entre las dos
+        // rutas: cuando la petición trae algo **comprobable** — una década — gana la ruta que lo ha
+        // COMPROBADO. La búsqueda llega por una lista cuyo título nombra esa década
+        // ([MusicRequestMatch]); la IA devuelve títulos y artistas sin año, así que nadie puede
+        // verificar que sean de los 80: con un modelo flojo, "80s" se convierte en "lo que al modelo
+        // le suena a antiguo". Sigue sin decirse cuál de las dos fue — el híbrido es de dónde salen
+        // las canciones, no de qué se le cuenta a él.
+        val verifiable = MusicRequestQuery.build(prompt).decade != null
+        if (verifiable && search.isNotEmpty()) {
+            aiJob.cancel()
+            return@coroutineScope Produced(
+                name = prompt.trim().take(MAX_NAME_LENGTH),
+                songs = search,
+                fromAi = false,
+            )
+        }
+
+        // Desempate a favor de la IA: solo si YA terminó. Esperarla aquí sería volver a la fila.
+        val aiEarly = if (aiJob.isCompleted) runCatching { aiJob.await() }.getOrNull() else null
+        if (aiEarly != null && aiEarly.songs.isNotEmpty()) {
+            return@coroutineScope aiEarly
+        }
+        if (search.isNotEmpty()) {
+            aiJob.cancel()
+            return@coroutineScope Produced(
+                name = prompt.trim().take(MAX_NAME_LENGTH),
+                songs = search,
+                fromAi = false,
+            )
+        }
+        // La búsqueda no dio nada: ahora sí merece la pena esperar a la IA hasta su correa.
+        val aiLate = runCatching { aiJob.await() }.getOrNull()
+        if (aiLate != null && aiLate.songs.isNotEmpty()) aiLate else null
+    }
+
+    /**
+     * La cadena en sí: IA primero, búsqueda si la IA no está o no sirvió. Compartida por [generate] y
+     * [produce] a propósito — dos copias de esta escalera acabarían divergiendo en el peldaño que
+     * menos se prueba, que es justo el de la caída.
+     */
+    private suspend fun produceInternal(
+        database: MusicDatabase,
+        prompt: String,
+        target: Int,
+        soloArtist: String?,
+        provider: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        onResolveProgress: (done: Int, total: Int) -> Unit,
+    ): Produced? {
+        // UNA ventana de presupuesto para TODA la fase de IA (pedir + resolver + rellenar), directiva
+        // del dueño 2026-08-31 ("las respuestas de IA son MUY lentas"). El código viejo abría una
+        // ventana FRESCA por fase, así que pedir + rellenar podían sumar ~120 s mientras su propio
+        // comentario decía "el MISMO presupuesto de 60 s" — el comentario era un placebo.
+        val ai = withTimeoutOrNull(AI_BUDGET_MS) {
+            aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
+        }
+        if (ai != null) return ai
+
+        // RED DE SEGURIDAD SIN IA (directiva 2026-08-29: "la IA nunca puede terminar en un error").
+        // Se llega aquí cuando el presupuesto expiró, la cadena de IA no está disponible (Worker
+        // limitado, sin clave del usuario) o sus temas no resolvieron. Canciones REALES de la búsqueda
+        // de YouTube Music para su descripción — el mismo enfoque sin LLM que usan InnerTune,
+        // OuterTune y Metrolist para sus playlists automáticas.
+        val fallback = withTimeoutOrNull(AI_BUDGET_MS) {
+            searchFallbackPlaylist(prompt, soloArtist, target)
+        }
+        if (fallback.isNullOrEmpty()) return null
+        return Produced(
+            name = prompt.trim().take(MAX_NAME_LENGTH),
+            songs = fallback,
+            fromAi = false,
+        )
+    }
+
     suspend fun generate(
         database: MusicDatabase,
         prompt: String,
@@ -123,31 +363,65 @@ object AiPlaylistGenerator {
         val target = count
         val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
 
-        // ONE shared budget window for the WHOLE AI phase (ask + resolve + top-up), owner directive
-        // 2026-08-31 ("AI answers are VERY slow"). The old code opened a FRESH 60s window per phase,
-        // so ask + top-up could legally stack to ~120s while its own comment claimed "the SAME 60s
-        // budget" — the comment was a placebo. A single deadline makes the worst case 60s ONCE and
-        // gives every phase a real view of how much time is left. On timeout the AI flow yields
-        // nothing and the honest non-AI fallback runs — never a spinner watching a dead endpoint.
-        val aiOutcome = withTimeoutOrNull(AI_BUDGET_MS) {
-            aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
-        }
-        if (aiOutcome != null) return aiOutcome
+        // La escalera (IA → búsqueda) vive en [produceInternal], compartida con [produce]. Lo que
+        // queda aquí es lo propio de GUARDAR una playlist: la etiqueta honesta del origen y la
+        // transacción.
+        val produced = produceInternal(
+            database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress,
+        ) ?: return kotlin.Result.failure(EmptyResultException())
 
-        // NON-AI SAFETY NET (owner directive 2026-08-29: "AI must never dead-end on an error").
-        // Reached when the budget expired, the AI chain is unavailable (Aura Worker rate-limited,
-        // Pollinations gone, no user key) or its tracks didn't resolve. Build the playlist from REAL
-        // YouTube Music search results for the user's description — the same approach
-        // InnerTune/OuterTune/Metrolist use for their auto-playlists (Innertune search/radio, no LLM)
-        // — honestly labeled "generated without AI" via [Result.generatedWithoutAi], instead of the
-        // old dead-end "No songs were found for that idea".
-        return generateWithoutAi(database, prompt, target, soloArtist)
+        // ETIQUETA PERSISTENTE DEL ORIGEN (directiva del dueño 2026-09-03: "cuando las crea no se basa
+        // en lo que pido"): una playlist GUARDADA que no se parece a lo que pidió quedaba en la
+        // biblioteca indistinguible de una curada, y eso es justo por lo que un resultado flojo se leía
+        // como "la IA me ignoró". El prompt se recorta a MAX_NAME_LENGTH menos los 9 caracteres de la
+        // etiqueta para que "(sin IA)" sobreviva SIEMPRE al corte (hallazgo #4 de la auditoría
+        // adversarial: añadir primero y recortar después la borraba en los prompts largos, que es el
+        // caso donde más probable es caer a la búsqueda).
+        //
+        // Esta etiqueta es de [generate] y NO de [produce] — ver el KDoc de [produce] para el por qué.
+        val name = if (produced.fromAi) {
+            produced.name
+        } else {
+            prompt.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH - 9) + " (sin IA)"
+        }
+        val playlist = PlaylistEntity(
+            name = name,
+            bookmarkedAt = LocalDateTime.now(),
+            isEditable = true,
+            isLocal = true,
+        )
+        // Single transaction: create the playlist, persist songs, map them in order (atomic).
+        database.transaction {
+            insert(playlist)
+            produced.songs.forEachIndexed { index, metadata ->
+                insert(metadata)
+                insert(
+                    PlaylistSongMap(
+                        playlistId = playlist.id,
+                        songId = metadata.id,
+                        position = index,
+                    ),
+                )
+            }
+        }
+        return kotlin.Result.success(
+            Result(
+                playlistId = playlist.id,
+                name = name,
+                total = target,
+                resolved = produced.songs.size,
+                generatedWithoutAi = !produced.fromAi,
+            ),
+        )
     }
 
     /**
      * The AI-backed path, in the caller's [AI_BUDGET_MS] window: ask → parallel resolve →
      * conditional top-up. Returns null ONLY when nothing AI-usable survived; the caller then runs
      * the honest non-AI fallback.
+     *
+     * Devuelve [Produced] y **no guarda nada**: quién persiste (o no) es decisión del llamante —
+     * [generate] crea la playlist, [produce] solo pone a sonar.
      */
     private suspend fun aiFlow(
         database: MusicDatabase,
@@ -159,7 +433,7 @@ object AiPlaylistGenerator {
         baseUrl: String,
         model: String,
         onResolveProgress: (done: Int, total: Int) -> Unit,
-    ): kotlin.Result<Result>? {
+    ): Produced? {
         // Ask the AI (user key → Aura Worker). getOrNull() so a total
         // failure doesn't dead-end — the caller falls back to a non-AI playlist, not an error.
         // Thin pad (target + PAD_OVER_TARGET) instead of the old 1.5×: the row-198 anti-hallucination
@@ -238,35 +512,7 @@ object AiPlaylistGenerator {
         // The AI proposes a short name; fall back to the user's prompt (also used for the non-AI
         // playlist) when the model omitted or blanked it.
         val name = spec.name.ifBlank { prompt }.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH)
-        val playlist = PlaylistEntity(
-            name = name,
-            bookmarkedAt = LocalDateTime.now(),
-            isEditable = true,
-            isLocal = true,
-        )
-        // Single transaction: create the playlist, persist songs, map them in order (atomic).
-        database.transaction {
-            insert(playlist)
-            ordered.forEachIndexed { index, metadata ->
-                insert(metadata)
-                insert(
-                    PlaylistSongMap(
-                        playlistId = playlist.id,
-                        songId = metadata.id,
-                        position = index,
-                    ),
-                )
-            }
-        }
-
-        return kotlin.Result.success(
-            Result(
-                playlistId = playlist.id,
-                name = name,
-                total = target,
-                resolved = ordered.size,
-            ),
-        )
+        return Produced(name = name, songs = ordered, fromAi = true)
     }
 
     /**
@@ -352,99 +598,137 @@ object AiPlaylistGenerator {
     }
 
     /**
-     * The honest non-AI safety net, shared by the budget-expired and chain-unavailable paths: REAL
-     * songs from YouTube Music search for the user's description (searchFallbackPlaylist), labeled
-     * "generated without AI" via [Result.generatedWithoutAi].
-     */
-    private suspend fun generateWithoutAi(
-        database: MusicDatabase,
-        prompt: String,
-        target: Int,
-        soloArtist: String?,
-    ): kotlin.Result<Result> {
-        val fallback = withTimeoutOrNull(AI_BUDGET_MS) {
-            searchFallbackPlaylist(prompt, soloArtist, target)
-        }
-        if (fallback.isNullOrEmpty()) {
-            return kotlin.Result.failure(EmptyResultException())
-        }
-        val ordered = fallback
-        // PERSISTENT honest label (owner directive 2026-09-03: "cuando las crea no se basa en lo que
-        // pido"): the old name-only flow labeled nothing in the library — the "(sin IA)" playlist looked
-        // exactly like a curated one, which is precisely why un-curated results read as "the AI ignored
-        // me". Truncate the PROMPT to MAX_NAME_LENGTH minus the label's 9 chars so "(sin IA)" always
-        // survives the cut (adversarial audit finding #4: appending first and then taking 40 dropped
-        // the label exactly on long prompts — the case where the fallback is most likely).
-        val name = (prompt.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH - 9) + " (sin IA)")
-        val playlist = PlaylistEntity(
-            name = name,
-            bookmarkedAt = LocalDateTime.now(),
-            isEditable = true,
-            isLocal = true,
-        )
-        // Single transaction: create the playlist, persist songs, map them in order (atomic).
-        database.transaction {
-            insert(playlist)
-            ordered.forEachIndexed { index, metadata ->
-                insert(metadata)
-                insert(
-                    PlaylistSongMap(
-                        playlistId = playlist.id,
-                        songId = metadata.id,
-                        position = index,
-                    ),
-                )
-            }
-        }
-        return kotlin.Result.success(
-            Result(
-                playlistId = playlist.id,
-                name = name,
-                total = target,
-                resolved = ordered.size,
-                generatedWithoutAi = true,
-            ),
-        )
-    }
-
-    /**
      * The non-AI safety net behind the AI chain: REAL songs from YouTube Music search for the user's
      * description, so "AI playlists" never dead-end on "servicio ocupado" (owner directive
      * 2026-08-29). This is the no-LLM approach InnerTune/OuterTune/Metrolist use for auto playlists:
      * the search itself IS the recommender.
      *
-     * Query ladder: the raw prompt (truncated to YouTube's practical query length) → song filter,
-     * then progressively looser passes (no filter, video filter) → finally a top-up from YouTube
-     * MUSIC search filtered to the solo artist when the user asked for one. De-duplicated by video id;
-     * every result is a real, playable [SongItem] straight from the catalog the app already plays.
+     * La escalera, de más fiable a menos, y todo de-duplicado por id: **categoría oficial** de
+     * YouTube Music ([MusicRequestMoods] — la categoría ES la prueba) → **listas de la búsqueda que
+     * demuestran por título** que corresponden ([MusicRequestMatch], las dos mejores) → canciones
+     * sueltas → vídeos, que solo se tocan si no hay nada. Cada peldaño no llena el cupo: llena un
+     * MONTÓN ([POOL_TARGET]) del que al final se ELIGE ([MusicRequestRanking]) con el gusto del
+     * usuario empujando sobre el orden de origen. Todo lo que sale es un [SongItem] real y reproducible
+     * del mismo catálogo que ya suena en la app.
      */
     private suspend fun searchFallbackPlaylist(
         prompt: String,
         soloArtist: String?,
         target: Int,
+        taste: iad1tya.echo.music.reco.TasteProfile? = null,
     ): List<MediaMetadata> {
+        val parsed = MusicRequestQuery.build(prompt)
+        val query = parsed.query.ifBlank { prompt.trim().take(80) }
+        if (query.isBlank()) return emptyList()
+
+        // UN MONTÓN Y LUEGO ELEGIR (dueño, 2026-09-17). Antes se aceptaban canciones por orden hasta
+        // llenar el cupo, así que la primera fuente que pasara el filtro decidía el resultado entero.
+        // Una sola página de lista ya trae cincuenta y pico, o sea que juntar candidatas NO cuesta ni
+        // una llamada más — lo que cambia es que al final se puede elegir. Ver [MusicRequestRanking].
+        val pool = ArrayList<SongItem>()
         val seen = HashSet<String>()
-        val out = ArrayList<MediaMetadata>()
-        suspend fun absorb(items: List<SongItem>) {
+        fun absorb(items: List<SongItem>) {
             for (item in items) {
-                if (out.size >= target) return
-                if (seen.add(item.id)) {
-                    if (soloPrimaryMatch(item.artists.map { it.name }, soloArtist)) {
-                        out += item.toMediaMetadata()
-                    }
+                if (pool.size >= POOL_TARGET) return
+                if (seen.add(item.id) && soloPrimaryMatch(item.artists.map { it.name }, soloArtist)) {
+                    pool += item
                 }
             }
         }
-        val query = prompt.trim().take(80)
-        if (query.isBlank()) return out
 
-        YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
-            ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
-        if (out.size < target) {
+        if (parsed.preferPlaylists && soloArtist == null) {
+            // Peldaño 1 — EL CATÁLOGO PROPIO DE YOUTUBE MUSIC. Sus categorías ("Años 80",
+            // "Concentración") entregan listas editoriales suyas, y ahí la categoría ES la prueba: no
+            // hace falta verificar por título porque el contenido lo garantiza la casa. Ver
+            // [MusicRequestMoods] para por qué sus palabras no coinciden con los nombres de categoría.
+            moodCategoryPlaylists(prompt, parsed).take(PLAYLISTS_USED).forEach { pl ->
+                if (pool.size < POOL_TARGET) {
+                    YouTube.playlist(pl.id).getOrNull()?.songs?.let { absorb(it) }
+                }
+            }
+
+            // Peldaño 2 — listas de la búsqueda, y solo las que DEMUESTRAN por título que
+            // corresponden ([MusicRequestMatch]). Ahora se usan las DOS mejores en vez de una: dos
+            // curadores distintos dan más variedad que uno, y las dos han pasado la misma prueba.
+            if (pool.size < POOL_TARGET) {
+                val candidates = ArrayList<PlaylistItem>()
+                YouTube.search(query, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST).getOrNull()
+                    ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)
+                    ?.let { candidates += it }
+                YouTube.search(query, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST).getOrNull()
+                    ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)
+                    ?.let { candidates += it }
+                MusicRequestMatch.rankedIndices(candidates.map { it.title }, parsed)
+                    .take(PLAYLISTS_USED)
+                    .forEach { index ->
+                        if (pool.size < POOL_TARGET) {
+                            YouTube.playlist(candidates[index].id).getOrNull()?.songs?.let { absorb(it) }
+                        }
+                    }
+            }
+        }
+
+        // Peldaño 3 — canciones sueltas del buscador.
+        if (pool.size < POOL_TARGET) {
+            YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+        }
+        // Peldaño 4 — los VÍDEOS son lo menos fiable (recopilaciones de una hora, versiones de
+        // aficionado): en una petición de época o momento solo se tocan si no hay NADA.
+        val videosAllowed = if (parsed.preferPlaylists) pool.isEmpty() else pool.size < target
+        if (videosAllowed) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
         }
-        return out
+        // Red de seguridad: si la consulta construida no dio nada, se prueba su petición TAL CUAL.
+        if (pool.isEmpty() && query != prompt.trim().take(80)) {
+            YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+        }
+
+        // Y ahora se elige: orden de origen como esqueleto, el gusto empuja unos puestos, lo marcado
+        // con "No me gusta" se cae y no hay dos seguidas del mismo artista. Sin perfil ([taste] null)
+        // el empujón es cero y esto devuelve exactamente el orden de origen.
+        return MusicRequestRanking.pick(
+            candidates = pool,
+            target = target,
+            artistOf = { it.artists.firstOrNull()?.name },
+            tasteOf = { item ->
+                taste?.scoreNames(item.artists.map { a -> a.name }, item.title) ?: 0.0
+            },
+            avoidScore = iad1tya.echo.music.reco.TasteProfile.AVOID,
+        ).map { it.toMediaMetadata() }
+    }
+
+    /**
+     * Las listas editoriales de la categoría de YouTube Music que corresponde a su petición, o vacío
+     * si ninguna corresponde claramente — y entonces la escalera sigue por la búsqueda, que es lo
+     * honesto: usar una categoría que no es sería inventarse la respuesta.
+     *
+     * La taxonomía se cachea [MOODS_TTL_MS] porque cambia como mucho cada varios meses y pedirla en
+     * cada petición sería una llamada de red a cambio de nada.
+     */
+    private suspend fun moodCategoryPlaylists(
+        prompt: String,
+        parsed: MusicRequestQuery.Parsed,
+    ): List<PlaylistItem> {
+        val cached = cachedMoods
+        val now = System.currentTimeMillis()
+        val sections = if (cached != null && now - cachedMoodsAt < MOODS_TTL_MS) {
+            cached
+        } else {
+            YouTube.moodAndGenres().getOrNull()?.also {
+                cachedMoods = it
+                cachedMoodsAt = now
+            } ?: return emptyList()
+        }
+        val items = sections.flatMap { it.items }
+        if (items.isEmpty()) return emptyList()
+        val index = MusicRequestMoods.pickCategory(items.map { it.title }, prompt, parsed)
+            ?: return emptyList()
+        val endpoint = items[index].endpoint
+        val browse = YouTube.browse(endpoint.browseId, endpoint.params).getOrNull() ?: return emptyList()
+        return browse.items.flatMap { it.items }.filterIsInstance<PlaylistItem>()
     }
 
     private fun filterTracksForSoloArtist(

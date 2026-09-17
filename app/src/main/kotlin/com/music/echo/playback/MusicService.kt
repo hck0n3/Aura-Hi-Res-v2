@@ -1394,6 +1394,21 @@ class MusicService :
         get() = playbackState.videoModeIsMuxedPodcast
         set(value) { playbackState.videoModeIsMuxedPodcast = value }
 
+    // ÚLTIMO FALLO DE VIDEO, para que el ECO no se disfrace de audio corrupto.
+    //
+    // Un `MergingMediaSource` (video-only + audio) reporta el mismo 3003 DOS veces, con ~200 ms entre
+    // medias. El primero se reconocía como fallo de video y limpiaba `_videoMode`/`videoModeMediaId`/
+    // `videoModeItems` — y el segundo, ya sin ese estado, entraba por la rama de CONTENEDOR CORRUPTO y
+    // ejecutaba `performAggressiveCacheClear` sobre los bytes BUENOS del audio, encadenando 2000 →
+    // reintentos → canción saltada (registro del dueño 2026-09-16, 20:29:27–38, `f6f0dqs4Ax4`; el
+    // `io_unspecified (2000)` que él ve en pantalla es el último eslabón, no la causa).
+    // La ventana la decide [VideoFormatFallback.stillVideoFailure].
+    @Volatile
+    private var lastVideoFailureId: String? = null
+
+    @Volatile
+    private var lastVideoFailureAtMs: Long = 0L
+
     internal var userHasUsedVideo: Boolean
         get() = playbackState.userHasUsedVideo
         set(value) { playbackState.userHasUsedVideo = value }
@@ -2681,8 +2696,16 @@ class MusicService :
                 dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f }.distinctUntilChanged(),
-            ) { spatial, tidal, compressor, speaker, width -> spatial || tidal || compressor || speaker || width },
-        ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, spatialOrTidal ->
+            ) { spatial, tidal, compressor, speaker, width -> spatial || tidal || compressor || speaker || width }
+                // Emparejado con la sala en vez de como sexta fuente: `combine` se queda sin
+                // sobrecargas en cinco, y el par mantiene el bloque de arriba tal cual estaba.
+                .let { dsp ->
+                    combine(
+                        dsp,
+                        listenTogetherManager.session.state.map { it.inRoom }.distinctUntilChanged(),
+                    ) { anyDsp, inRoom -> anyDsp to inRoom }
+                },
+        ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, (spatialOrTidal, inRoom) ->
             AudioOffloadGate.allowOffload(
                 AudioOffloadGate.Inputs(
                     userWantsOffload = offloadPref,
@@ -2691,6 +2714,7 @@ class MusicService :
                     safeVolumeEnabled = safeVolume,
                     equalizerActive = eqActive,
                     spatialEnabled = spatialOrTidal,
+                    listenTogetherActive = inRoom,
                 ),
             )
         }.distinctUntilChanged()
@@ -4662,8 +4686,8 @@ class MusicService :
             withContext(Dispatchers.IO) { iad1tya.echo.music.reco.GenreCache.snapshot(this@MusicService) }
         }.getOrDefault(emptyMap())
         // EXPLORATION GUARD (the amplifier behind the owner's "una de un género, otra de otro"):
-        // withExplorationQuota runs AFTER the sort and hands ~1 slot in 5 to an artist the taste profile
-        // does not know — and a candidate we have no genre for is "fresh" almost by definition, so the
+        // withExplorationQuota runs AFTER the sort and hands a reserved slot (1 in 15 hoy; el "1 de cada 5"
+        // es de dos cadencias atrás) to an artist the taste profile does not know — and a candidate we have no genre for is "fresh" almost by definition, so the
         // quota lifted exactly the candidates the steer had just pushed back, straight to the front. That
         // is the ~1-in-5 cadence he described. The codebase already knew this hazard for the CTX_SINK
         // group (the +1000 offset below exists because of it) and simply never closed it for the ordinary
@@ -4731,7 +4755,7 @@ class MusicService :
             val heard = m != null && (m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory)
             Triple(mi, key, heard)
         }
-        // Phase B #4 — exploration quota: reserve ~1-in-5 slots for a FRESH artist (not yet in the taste profile)
+        // Phase B #4 — exploration quota: reserve 1-in-15 slots for a FRESH artist (not yet in the taste profile)
         // so radio isn't pure exploit. Runs BEFORE spacing so the final spacedByArtist pass still guarantees no
         // same-artist streaks. Phase A #3 — artist-diversity: applied LAST to the unheard pool only (not the
         // heardTail fallback below), so neither taste nor exploration can re-cluster an artist. Both passes are
@@ -5714,6 +5738,12 @@ class MusicService :
         // NOTE: SponsorBlock is fetched from applyAutoAdvanceSideEffects() below (shared with the crossfade
         // swap path) — calling it here too issued TWO fetches per track against a free community API.
         runCatching { flushAllPendingSongDownloads(this) }
+        // 🔴 Otra canción, otra historia: el "me rendí" del modo vídeo es POR PISTA y no puede
+        // sobrevivir a un cambio de pista, o una canción que falló hoy quedaría sin vídeo para toda la
+        // sesión. Ver [VideoModeCoordinator.clearVideoGiveUp].
+        if (mediaItem != null && mediaItem.mediaId != videoModeMediaId) {
+            videoCoordinator.clearVideoGiveUp(mediaItem.mediaId)
+        }
         // Sticky video mode. On a track change while video mode is on:
         //  - FAST PATH: if the incoming track was PRE-BUILT as a video (Merging) source ahead of time
         //    (prebuildNextVideoItem), ADOPT it with NO replaceMediaItem/prepare on the now-running track —
@@ -5727,8 +5757,28 @@ class MusicService :
             // MUSIC FIRST (owner directive 2026-09-14: "la prioridad del reproductor sea sí o sí la música
             // primero antes que el video"): video belongs only to the track the user switched to Video.
             // Any other track plays as music, so moving to it leaves video mode (restores audio sources).
-            if (mediaItem.mediaId != videoModeMediaId) {
+            //
+            // 🔴 MATIZADO (dueño, 2026-09-17): *"las playlist que solo contienen video, cuando intento
+            // cambiar al siguiente no me cambia al siguiente video que sigue dentro de la playlist […]
+            // como si no detectara las colas"*. La cola estaba bien — lo que pasaba es que CADA cambio
+            // de pista salía de vídeo, así que en una lista donde todo es vídeo había que volver a
+            // tocar Vídeo en cada una. La directiva de "música primero" se conserva entera para el
+            // caso que la motivó (una canción suelta puesta en vídeo no secuestra la siguiente): si la
+            // pista entrante NO es un vídeo, se baja a audio igual que antes. Ver
+            // [VideoModePlanning.keepVideoOnTrackChange].
+            val keepVideo = VideoModePlanning.keepVideoOnTrackChange(
+                incomingIsVideoSong = mediaItem.metadata?.isVideoSong == true,
+                sameTrack = mediaItem.mediaId == videoModeMediaId,
+            )
+            if (!keepVideo) {
                 videoCoordinator.exitVideoMode()
+            } else if (mediaItem.mediaId != videoModeMediaId) {
+                // Sigue en vídeo, pero es OTRA pista: hay que resolver y colocar SU stream de vídeo, y
+                // devolver a audio la que se acaba de dejar (eso lo hace applyVideoToCurrent con su
+                // restoreVideoTracksExcept). `stickyVideoPreferred` queda marcado para que una pista
+                // intermedia SIN vídeo no rompa la cadena: baja a audio y el siguiente vídeo vuelve.
+                videoCoordinator.stickyVideoPreferred = true
+                videoCoordinator.applyVideoToCurrent(armModeWhenReady = true)
             }
         } else if (
             // Owner: tapping a VIDEO starts playback IN video mode (manual SEEK / new queue only —
@@ -5900,8 +5950,25 @@ class MusicService :
         // Still guarded: only the very last item to PLAY (shuffle/repeat-aware, so the list is never truncated),
         // only while actually playing, never twice for the same end (radioSeedInFlight), and skipped while the
         // first block already handles continuation (next page).
+        // 🔴 SOLO en un avance NATURAL (o en una cola que nace en su último elemento).
+        //
+        // Esto se disparaba con cualquier motivo menos REPEAT, **incluido un SEEK manual**, y por eso
+        // saltar a mano hasta la última canción de un álbum le metía ahí mismo una tanda de canciones
+        // ajenas: *"de la nada me reproduce música de otro artista o otra canción que no corresponde a
+        // la cola actual"* (dueño, 2026-09-17, y ya lo había reportado antes). Con el aleatorio
+        // encendido es peor, porque `hasNextMediaItem()` mira el orden ALEATORIO y un salto puede caer
+        // en "el último que toca sonar" habiendo escuchado tres de quince.
+        //
+        // Restringirlo es seguro porque esta siembra es solo un ADELANTO para no dejar hueco en el
+        // empalme: la red que garantiza que la música nunca se pare es la de `STATE_ENDED` con
+        // `!hasNextMediaItem()`, que está siempre activa y cuyo comentario ya dice que existe porque
+        // este adelanto "puede no dispararse (en pausa, salto manual a la última pista, semilla
+        // vacía)". El razonamiento completo está en [RadioQueueShaping.mayPreSeedRadio].
         if (autoLoadMoreHint &&
-            reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT &&
+            RadioQueueShaping.mayPreSeedRadio(
+                isAuto = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO,
+                isPlaylistChanged = reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED,
+            ) &&
             player.playWhenReady &&
             !radioSeedInFlight &&
             !currentQueue.hasNextPage() &&
@@ -7288,12 +7355,26 @@ class MusicService :
             videoModeOn = _videoMode.value,
             videoModeMediaId = videoModeMediaId,
             isTrackedVideoItem = mediaId != null && videoCoordinator.videoModeItems.containsKey(mediaId)
-        )
+        ) ||
+            // El eco del mismo fallo, ya con el estado de video limpiado. Ver [lastVideoFailureId].
+            VideoFormatFallback.stillVideoFailure(
+                mediaId = mediaId,
+                lastVideoFailureId = lastVideoFailureId,
+                lastVideoFailureAtMs = lastVideoFailureAtMs,
+                nowMs = System.currentTimeMillis(),
+            )
         if (isVideoFailure) {
             if (mediaId != null) {
+                lastVideoFailureId = mediaId
+                lastVideoFailureAtMs = System.currentTimeMillis()
                 videoUrlCache.remove(mediaId)
                 videoCoordinator.newPipeMuxedVideoIds.remove(mediaId)
                 resetRetryCount(mediaId)
+                // ESCALERA DE FORMATOS antes que rendirse: el audio de esta canción está perfecto, lo
+                // único roto es el contenedor del video, así que se prueba OTRO formato (otro itag →
+                // InnerTube → muxed 22/18) mientras el audio sigue sonando. Solo cuando no queda ningún
+                // peldaño se vuelve a audio — y ni siquiera entonces se salta la canción.
+                if (videoCoordinator.retryVideoWithAnotherFormat(mediaId)) return
             }
             exitVideoMode()
             Toast.makeText(this, "Video no disponible — volviendo a audio", Toast.LENGTH_SHORT).show()
@@ -10209,14 +10290,28 @@ class MusicService :
     /**
      * AIMP-style smooth entry: wait until audio is actually rendering, then a short ~400ms sine ramp
      * so the skip is not a slam. Owner: songs were taking too long to start — the old 1.6s quieterstep
-     * swell (first quarter almost silent) felt like the track had not begun. Volume-only. The finally
-     * ALWAYS restores the exact user volume (mute-aware), so a cancelled ramp can never strand it low.
+     * swell (first quarter almost silent) felt like the track had not begun. Volume-only.
+     *
+     * 🔴 2026-09-17 — *"a veces las canciones inician cortadas cuando cambio a mano, y en Android
+     * Auto también"*. Eran DOS agujeros de esta función, los dos con el volumen como víctima; el
+     * razonamiento completo y los umbrales están en [ManualFadeIn]:
+     *
+     *  - la espera muda miraba `isPlaying`, que es FALSO mientras el foco está suprimido (ducking, un
+     *    aviso del coche) aunque ya esté saliendo audio, y aguantaba hasta 8 s con el volumen en 0 —
+     *    hasta ocho segundos de canción sonando a cero, y encima al agotarse rampaba desde cero otra
+     *    vez. Ahora mira el estado real y la espera muda dura poco más de un segundo; si se agota se
+     *    devuelve el volumen ENTERO de golpe, porque perder el fundido es mejor que perder la entrada;
+     *  - la rampa cortaba con `if (isCrossfading) break` y el `finally` restauraba solo
+     *    `if (!isCrossfading)`: la MISMA condición, así que un crossfade encima dejaba el volumen
+     *    clavado en el escalón que tocara. Ahora se restaura siempre (salvo que una entrada más nueva
+     *    ya sea la dueña del volumen); el crossfade fija el suyo en su primer tic, así que no le quita
+     *    nada.
      */
     private fun fadeInOnManualChange() {
         manualFadeInJob?.cancel()
         if (!::playerVolume.isInitialized) return
-        val target = if (isMuted.value) 0f else playerVolume.value
-        if (target <= 0f) return
+        if (!ManualFadeIn.worthFading(isMuted.value, playerVolume.value)) return
+        val target = playerVolume.value
         lateinit var self: Job
         self = scope.launch {
             try {
@@ -10224,23 +10319,34 @@ class MusicService :
                 // WAIT for the audio to actually RENDER before ramping (bounded): a wall-clock ramp from
                 // the transition callback finished into SILENCE and the real audio then slammed in.
                 var waited = 0L
-                while (isActive && waited < 8_000L &&
-                    !(player.isPlaying && player.playbackState == Player.STATE_READY)
+                while (isActive &&
+                    ManualFadeIn.shouldKeepWaiting(
+                        waitedMs = waited,
+                        audible = ManualFadeIn.audible(
+                            ready = player.playbackState == Player.STATE_READY,
+                            playWhenReady = player.playWhenReady,
+                        ),
+                    )
                 ) {
-                    delay(40)
-                    waited += 40
+                    delay(ManualFadeIn.WAIT_POLL_MS)
+                    waited += ManualFadeIn.WAIT_POLL_MS
                 }
-                if (!isActive || !player.isPlaying) return@launch
+                // Se agotó la espera: la canción ya lleva sonando un rato y rampar desde cero AHORA es
+                // exactamente el corte del que se queja. El `finally` devuelve el volumen entero.
+                if (!isActive ||
+                    !ManualFadeIn.audible(
+                        ready = player.playbackState == Player.STATE_READY,
+                        playWhenReady = player.playWhenReady,
+                    )
+                ) {
+                    return@launch
+                }
                 // Audible on the first step (~−12 dB), full level in ~400ms. Equal-power sine, no
                 // smootherstep hold-at-silence.
-                val steps = 16
-                val stepTime = 400L / steps
-                for (i in 1..steps) {
-                    if (!isActive || isCrossfading) break
-                    val p = i / steps.toFloat()
-                    val floor = 0.25f
-                    player.volume = target * (floor + (1f - floor) *
-                        kotlin.math.sin(p * (Math.PI / 2.0).toFloat()))
+                val stepTime = ManualFadeIn.RAMP_MS / ManualFadeIn.STEPS
+                for (i in 1..ManualFadeIn.STEPS) {
+                    if (!isActive) break
+                    player.volume = target * ManualFadeIn.stepGain(i)
                     delay(stepTime)
                 }
             } finally {
@@ -10249,8 +10355,12 @@ class MusicService :
                     // IDENTITY guard: on rapid skips a NEWER fade may already own the volume (it just set
                     // 0f); a cancelled older job restoring FULL volume after that would kill the new
                     // fade-in. Only the job still registered as current restores.
-                    if (manualFadeInJob === self && !isCrossfading && ::playerVolume.isInitialized) {
-                        player.volume = if (isMuted.value) 0f else playerVolume.value
+                    if (::playerVolume.isInitialized) {
+                        ManualFadeIn.finalVolume(
+                            isCurrentJob = manualFadeInJob === self,
+                            muted = isMuted.value,
+                            userVolume = playerVolume.value,
+                        )?.let { player.volume = it }
                     }
                 }
             }
@@ -11076,7 +11186,20 @@ class MusicService :
             val durOut = CrossfadePlanning.outgoingFadeDurationMs(configured, fpRemaining)
             val durIn = configured
             val curve = try { dataStore.get(CrossfadeCurveKey, 4) } catch (e: Exception) { 4 }
-            val startVolume = try { fadingPlayer?.volume ?: 1f } catch(e:Exception) { 1f }
+            // NIVEL BASE DEL BLEND = el volumen DEL USUARIO, no el que tuviera el reproductor saliente.
+            //
+            // Leía `fadingPlayer.volume`, y ese valor podía venir de una rampa de entrada manual
+            // abandonada a medias (ver [fadeInOnManualChange]): entonces las DOS rampas se escalaban por,
+            // digamos, 0.3, y la canción ENTRANTE sonaba a un tercio durante toda la mezcla — el "empieza
+            // cortada" pegándose de una canción a la siguiente. El volumen del usuario es lo que ese
+            // `fadingPlayer.volume` pretendía leer siempre; ahora se lee de donde vive de verdad.
+            val startVolume = try {
+                if (::playerVolume.isInitialized) {
+                    if (isMuted.value) 0f else playerVolume.value
+                } else {
+                    fadingPlayer?.volume ?: 1f
+                }
+            } catch (e: Exception) { 1f }
             // Because LUFS Normalization is fixed and active, tracks play at roughly -14 LUFS,
             // leaving massive natural headroom. Thus, two tracks summing during an equal-power crossfade
             // will NEVER clip the Android mixer (they'll sum to ~-11 LUFS). We can safely remove the

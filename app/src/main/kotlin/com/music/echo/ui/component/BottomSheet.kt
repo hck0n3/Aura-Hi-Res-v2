@@ -56,6 +56,27 @@ fun BottomSheet(
     onDismiss: (() -> Unit)? = null,
     collapsedContent: @Composable BoxScope.() -> Unit,
     isExpandable: Boolean = true,
+    /**
+     * 🔴 false cuando [collapsedContent] es una **barra de botones** y no una superficie que se
+     * arrastra (dueño, 2026-09-17: *"el botón de cast cuesta que me funcione, tengo que tocarlo varias
+     * veces para que quede"*).
+     *
+     * El detector de arrastre vertical está sobre un `fillMaxSize()`, o sea que cubre TAMBIÉN la barra
+     * colapsada. `detectVerticalDragGestures` no exige que el toque llegue sin consumir, así que compite
+     * de tú a tú con el `clickable` de cada botón: en cuanto el dedo se mueve unos píxeles durante el
+     * toque — lo normal con un dedo real sobre un objetivo de 40 dp — el arrastre reclama el gesto y el
+     * clic **nunca llega**. De ahí "tengo que tocarlo varias veces".
+     *
+     * Con `false` el arrastre solo existe mientras la hoja **no** está colapsada, así que:
+     *  - colapsada → los botones reciben todos los toques;
+     *  - expandida → se sigue pudiendo arrastrar para cerrarla.
+     *
+     * No se pierde forma de abrirla: el `clickable` de [collapsedContent] (más abajo) sigue expandiendo
+     * al tocar la barra, y la barra de la cola tiene además su propio botón de "cola". Por eso este
+     * parámetro es opt-in y **no** el comportamiento por defecto: la píldora del minirreproductor SÍ
+     * es una superficie que se arrastra hacia arriba, y ahí el arrastre tiene que seguir cubriéndola.
+     */
+    dragCollapsedContent: Boolean = true,
     // Height of the docked strip this sheet hands to [collapsedContent].
     //
     // It used to be [MiniPlayerHeight], hard-coded, for EVERY sheet. That is right for a mini player
@@ -99,8 +120,10 @@ fun BottomSheet(
                     .coerceAtLeast(0f)
                 translationY = y
             }
-            .pointerInput(state, isExpandable) {
+            .pointerInput(state, isExpandable, dragCollapsedContent, state.isCollapsed) {
                 if (!isExpandable) return@pointerInput
+                // Ver [dragCollapsedContent]: sobre una barra de botones el arrastre le roba el clic.
+                if (!dragCollapsedContent && state.isCollapsed) return@pointerInput
                 val velocityTracker = VelocityTracker()
 
                 detectVerticalDragGestures(

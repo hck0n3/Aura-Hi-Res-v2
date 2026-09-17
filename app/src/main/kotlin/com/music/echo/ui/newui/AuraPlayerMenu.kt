@@ -1,6 +1,5 @@
 package iad1tya.echo.music.ui.newui
 
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -83,16 +82,13 @@ import iad1tya.echo.music.ui.player.rememberHidePlayerVolume
 import iad1tya.echo.music.ui.player.showPlayerVolumeControl
 import iad1tya.echo.music.ui.utils.ExportFormat
 import iad1tya.echo.music.ui.utils.ExportFormatChooserDialog
-import iad1tya.echo.music.utils.ShareLinks
+import iad1tya.echo.music.utils.shareSong
 import iad1tya.echo.music.utils.isLocalMediaId
-import iad1tya.echo.music.utils.lookupExportedFileUri
 import iad1tya.echo.music.utils.needsOnlineBrowseResolution
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.resolveOnlineAlbumBrowseId
 import iad1tya.echo.music.utils.resolveOnlineArtistBrowseId
-import iad1tya.echo.music.utils.shareContentUri
-import iad1tya.echo.music.utils.shareLocalAudio
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -706,30 +702,17 @@ fun AuraPlayerMenu(
                     label = stringResource(R.string.share),
                     onClick = {
                         coroutineScope.launch {
-                            if (isLocalTrack) {
-                                shareLocalAudio(context, mediaMetadata.id)
-                                onDismiss()
-                                return@launch
-                            }
-                            if (isExported) {
-                                val uri = lookupExportedFileUri(context, mediaMetadata.id)
-                                if (uri != null &&
-                                    shareContentUri(
-                                        context,
-                                        uri,
-                                        if (isExportedVideo) "video/mp4" else "audio/mpeg",
-                                    )
-                                ) {
-                                    onDismiss()
-                                    return@launch
-                                }
-                            }
-                            val intent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, ShareLinks.songShareText(mediaMetadata.id, mediaMetadata.title, mediaMetadata.artists.map { it.name }))
-                            }
-                            context.startActivity(Intent.createChooser(intent, null))
+                            // Cuerpo compartido con el botón de compartir del reproductor a pantalla
+                            // completa (local → exportado → enlace). Ver [shareSong].
+                            shareSong(
+                                context = context,
+                                songId = mediaMetadata.id,
+                                title = mediaMetadata.title,
+                                artists = mediaMetadata.artists.map { it.name },
+                                isLocalTrack = isLocalTrack,
+                                isExported = isExported,
+                                isExportedVideo = isExportedVideo,
+                            )
                             onDismiss()
                         }
                     },

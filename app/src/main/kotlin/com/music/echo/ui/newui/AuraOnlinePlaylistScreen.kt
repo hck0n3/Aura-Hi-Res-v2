@@ -60,11 +60,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.exoplayer.offline.Download
-import androidx.media3.exoplayer.offline.DownloadRequest
-import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
 import com.music.innertube.models.AlbumItem
 import com.music.innertube.models.ArtistItem
@@ -84,7 +81,6 @@ import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.models.toMediaMetadata
-import iad1tya.echo.music.playback.ExoDownloadService
 import iad1tya.echo.music.playback.ShuffleContexts
 import iad1tya.echo.music.playback.queues.YouTubePlaylistQueue
 import iad1tya.echo.music.playback.queues.YouTubeQueue
@@ -99,7 +95,6 @@ import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import iad1tya.echo.music.ui.menu.YouTubeSelectionSongMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
-import iad1tya.echo.music.ui.utils.rememberIsWideLayout
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.OnlinePlaylistViewModel
@@ -107,6 +102,15 @@ import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import dev.chrisbanes.haze.HazeProgressive
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 
 /**
  * # Lista de YouTube Music — "Interfaz nueva"
@@ -696,7 +700,6 @@ private fun AuraOnlinePlaylistHeader(
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val isTvOrCar = rememberIsTvOrCar()
-    val isWideLayout = rememberIsWideLayout()
 
     val saved = dbPlaylist?.playlist?.bookmarkedAt != null
     val playingThisPlaylist = isPlaying && mediaMetadata?.album?.id == playlist.id
@@ -709,24 +712,78 @@ private fun AuraOnlinePlaylistHeader(
             .padding(bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(56.dp))
+        // 🔴 LA PORTADA, DE LADO A LADO (dueño, 2026-09-17, punto 6: *"hacer que la portada ocupe
+        // todo el ancho de la pantalla, de lado a lado, sin orillas, manteniendo el efecto de cristal
+        // borroso en la parte inferior para crear un diseño en armonía y que se vea completa, similar
+        // a las portadas de los artistas"*).
+        //
+        // Era una tarjeta CENTRADA de 260/320 dp con 48 dp de margen a cada lado y esquinas
+        // redondeadas. Ahora es la receta del héroe de artista: ancho completo, cuadrada, y con el
+        // mismo cristal de abajo — la capa de la portada es la FUENTE del haze y una banda de 200 dp
+        // la muestrea con `progressive`, así que el radio CRECE hacia abajo en vez de ser uniforme con
+        // la opacidad en rampa. Esa diferencia es la que se lee "como cristal".
+        //
+        // El espaciador de 56 dp se va con la tarjeta: existía para despegarla de la barra superior, y
+        // "sin orillas" significa precisamente que la imagen llega al borde de arriba — igual que la de
+        // artista, que tampoco lo tiene.
+        //
+        // El contrato térmico se respeta igual: el desenfoque NO es a pantalla completa, se queda en
+        // 200 dp para que su coste no crezca con el alto de la portada, mientras el oscurecido — que es
+        // solo color — dispone del 70 % para subir. Una rampa corta obliga a una pendiente de opacidad
+        // fuerte, y una pendiente fuerte ES el borde visible que se intenta evitar.
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // Izado: dentro del Box de dentro el receptor implícito más cercano es BoxScope, no
+            // BoxWithConstraintsScope, así que `maxWidth` no se alcanza ahí sin receptor explícito.
+            val heroWidth = maxWidth
+            val isWideHero = heroWidth >= 840.dp
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (isWideHero) Modifier.height(320.dp) else Modifier.aspectRatio(1f)),
+            ) {
+                val heroHaze = remember { HazeState() }
+                Box(modifier = Modifier.fillMaxSize().hazeSource(heroHaze)) {
+                    AuraCover(
+                        thumbnailUrl = playlist.thumbnail,
+                        size = heroWidth,
+                        seed = playlist.id,
+                        shape = RectangleShape,
+                        decodeTo = 1200,
+                        ratio = if (isWideHero) heroWidth / 320.dp else 1f,
+                    )
+                }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 48.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            AuraCover(
-                thumbnailUrl = playlist.thumbnail,
-                size = if (isWideLayout) 320.dp else 260.dp,
-                seed = playlist.id,
-                shape = AuraShapes.PlayerArtwork,
-                decodeTo = 512,
-            )
+                // El desenfoque progresivo. 200 dp y radio 32 dp, los valores del original.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .align(Alignment.BottomCenter)
+                        .hazeEffect(heroHaze) {
+                            blurRadius = 32.dp
+                            progressive = HazeProgressive.verticalGradient(
+                                startIntensity = 0f,
+                                endIntensity = 1f,
+                            )
+                        },
+                )
+
+                // El oscurecido, APARTE y más alto que el desenfoque — ver arriba.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((if (isWideHero) 320.dp else heroWidth) * 0.7f)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, AuraPalette.Ground),
+                            ),
+                        ),
+                )
+            }
         }
 
-        Spacer(Modifier.height(26.dp))
+        Spacer(Modifier.height(18.dp))
 
         Text(
             text = playlist.title,
@@ -929,45 +986,15 @@ private fun AuraOnlinePlaylistHeader(
                 enabled = songs.isNotEmpty() || dbPlaylist != null,
                 modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
             )
-            AuraHeaderCircleButton(
-                icon = AuraIcons.Download,
-                contentDescription = when (downloadState) {
-                    Download.STATE_COMPLETED -> stringResource(R.string.remove_download)
-                    Download.STATE_DOWNLOADING -> stringResource(R.string.downloading)
-                    else -> stringResource(R.string.action_download)
-                },
-                onClick = {
-                    when (downloadState) {
-                        Download.STATE_COMPLETED, Download.STATE_DOWNLOADING -> songs.forEach { song ->
-                            DownloadService.sendRemoveDownload(
-                                context,
-                                ExoDownloadService::class.java,
-                                song.id,
-                                false,
-                            )
-                        }
-
-                        else -> songs.forEach { song ->
-                            val downloadRequest = DownloadRequest
-                                .Builder(song.id, song.id.toUri())
-                                .setCustomCacheKey(song.id)
-                                .setData(song.title.toByteArray())
-                                .build()
-                            DownloadService.sendAddDownload(
-                                context,
-                                ExoDownloadService::class.java,
-                                downloadRequest,
-                                false,
-                            )
-                        }
-                    }
-                },
-                accent = false,
-                // Both branches iterate `songs`, so a tap before they arrive did nothing at all while
-                // looking enabled.
-                enabled = songs.isNotEmpty(),
-                modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
-            )
+            // 🔴 EL BOTÓN DE DESCARGA SE FUE AL MENÚ (punto 5 del dueño, 2026-09-17: *"eliminar el
+            // botón de descarga principal de la vista y mover esta función exclusivamente dentro del
+            // menú desplegable de los tres puntos"*).
+            //
+            // Nada se pierde: el menú ⋮ de esta pantalla YA tenía "Descargar" con su descripción
+            // (`YouTubePlaylistMenu`), y esa entrada es la que hace el mismo trabajo. Este círculo era
+            // un duplicado que ocupaba un sitio de la fila de acciones — la misma razón por la que en
+            // 2026-09-13 quitó Ajustes de la barra de abajo: *"no me gusta el que está en la barra,
+            // elíminalo y solo deja el de arriba"*.
             AuraHeaderCircleButton(
                 icon = AuraIcons.Share,
                 contentDescription = stringResource(R.string.share),

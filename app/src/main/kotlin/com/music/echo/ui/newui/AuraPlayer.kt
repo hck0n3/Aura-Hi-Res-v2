@@ -14,7 +14,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -200,6 +202,7 @@ import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceTier
 import iad1tya.echo.music.utils.isLocalMediaId
+import iad1tya.echo.music.utils.shareSong
 import iad1tya.echo.music.utils.makeTimeString
 import iad1tya.echo.music.utils.needsOnlineBrowseResolution
 import iad1tya.echo.music.utils.rememberDeviceThrottle
@@ -924,6 +927,10 @@ private fun AuraPlayerShape(
                 positionState = positionState,
                 durationState = durationState,
                 shouldBindVideoSurface = state.isCollapsed && !LocalIsInPipMode.current,
+                // Mismo criterio que la superficie de vídeo: mientras la hoja está expandida esta
+                // píldora es una franja invisible arriba, y sus gestos no deben existir. Ver
+                // [AuraMiniPlayer.gesturesEnabled].
+                gesturesEnabled = state.isCollapsed,
             )
         },
     ) {
@@ -1306,6 +1313,74 @@ private fun AuraPlayerShape(
                     )
                     if (meta.artists.any { it.name.isNotBlank() }) {
                         val artistText = meta.artists.joinToString(", ") { it.name }
+                        // 🔴 Petición del dueño (2026-09-17): *"al tocar donde salen los nombres de
+                        // los artistas, debe aparecer justo debajo la opción de ir directamente al
+                        // álbum"*.
+                        //
+                        // Tocar los nombres **revela** las acciones en vez de navegar directo. Y el
+                        // «Ir al artista» entra en esa misma fila a propósito: era lo que este toque
+                        // hacía hasta ahora, y dejarlo fuera habría cambiado una función por otra en vez
+                        // de añadir la que pidió. La navegación al álbum es **la misma** que el título ya
+                        // tenía (resolver el browseId en línea si hace falta, y caer a la búsqueda si no
+                        // resuelve): extraída a una lambda para que no existan dos implementaciones que
+                        // se separen en el peldón que menos se prueba.
+                        //
+                        // `remember(meta.id)` y no un `remember` suelto: la fila se cierra sola al cambiar
+                        // de canción. Si no, quedaría abierta apuntando al álbum de la canción anterior.
+                        var showArtistActions by remember(meta.id) { mutableStateOf(false) }
+                        val goToAlbumFromArtists: () -> Unit = {
+                            resolvedAlbum?.let { album ->
+                                coroutineScope.launch {
+                                    val browseId = if (needsOnlineBrowseResolution(album.id)) {
+                                        val query = listOfNotNull(
+                                            album.title.takeIf { it.isNotBlank() },
+                                            meta.artists.joinToString(" ") { it.name }
+                                                .takeIf { it.isNotBlank() },
+                                        ).joinToString(" ")
+                                        withContext(Dispatchers.IO) {
+                                            resolveOnlineAlbumBrowseId(query)
+                                        }
+                                    } else {
+                                        album.id
+                                    }
+                                    if (!browseId.isNullOrBlank()) {
+                                        navController.navigate("album/$browseId")
+                                        state.collapseSoft()
+                                    } else if (album.title.isNotBlank()) {
+                                        navController.navigate(
+                                            "search/${URLEncoder.encode(album.title, "UTF-8")}"
+                                        )
+                                        state.collapseSoft()
+                                    }
+                                }
+                            }
+                        }
+                        val goToArtist: () -> Unit = {
+                            val named = meta.artists.filter { it.name.isNotBlank() }
+                            if (named.size > 1) {
+                                showSelectArtistDialog = true
+                            } else if (named.isNotEmpty()) {
+                                val artist = named.first()
+                                coroutineScope.launch {
+                                    val browseId = if (needsOnlineBrowseResolution(artist.id)) {
+                                        withContext(Dispatchers.IO) {
+                                            resolveOnlineArtistBrowseId(artist.name)
+                                        }
+                                    } else {
+                                        artist.id
+                                    }
+                                    if (!browseId.isNullOrBlank()) {
+                                        navController.navigate("artist/$browseId")
+                                        state.collapseSoft()
+                                    } else {
+                                        navController.navigate(
+                                            "search/${URLEncoder.encode(artist.name, "UTF-8")}"
+                                        )
+                                        state.collapseSoft()
+                                    }
+                                }
+                            }
+                        }
                         Text(
                             text = artistText,
                             style = AuraType.PlayerArtist,
@@ -1326,30 +1401,8 @@ private fun AuraPlayerShape(
                                     interactionSource = remember { MutableInteractionSource() },
                                     role = Role.Button,
                                     onClick = {
-                                        val named = meta.artists.filter { it.name.isNotBlank() }
-                                        if (named.isEmpty()) return@combinedClickable
-                                        if (named.size > 1) {
-                                            showSelectArtistDialog = true
-                                            return@combinedClickable
-                                        }
-                                        val artist = named.first()
-                                        coroutineScope.launch {
-                                            val browseId = if (needsOnlineBrowseResolution(artist.id)) {
-                                                withContext(Dispatchers.IO) {
-                                                    resolveOnlineArtistBrowseId(artist.name)
-                                                }
-                                            } else {
-                                                artist.id
-                                            }
-                                            if (!browseId.isNullOrBlank()) {
-                                                navController.navigate("artist/$browseId")
-                                                state.collapseSoft()
-                                            } else {
-                                                navController.navigate(
-                                                    "search/${URLEncoder.encode(artist.name, "UTF-8")}"
-                                                )
-                                                state.collapseSoft()
-                                            }
+                                        if (meta.artists.any { it.name.isNotBlank() }) {
+                                            showArtistActions = !showArtistActions
                                         }
                                     },
                                     // GESTURE: long-press copies the artist.
@@ -1360,6 +1413,38 @@ private fun AuraPlayerShape(
                                     },
                                 ),
                         )
+                        AnimatedVisibility(
+                            visible = showArtistActions,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut(),
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                // El álbum solo cuando hay uno que resolver: un chip que no lleva a
+                                // ningún sitio es el placebo que este repo prohíbe.
+                                if (resolvedAlbum != null) {
+                                    AuraChip(
+                                        text = stringResource(R.string.view_album),
+                                        selected = false,
+                                        onClick = {
+                                            showArtistActions = false
+                                            goToAlbumFromArtists()
+                                        },
+                                    )
+                                }
+                                AuraChip(
+                                    text = stringResource(R.string.view_artist),
+                                    selected = false,
+                                    onClick = {
+                                        showArtistActions = false
+                                        goToArtist()
+                                    },
+                                )
+                            }
+                        }
                     }
                     }
                     val titleRowLiked = currentSong?.song?.liked == true
@@ -1611,7 +1696,15 @@ private fun AuraPlayerShape(
                 //
                 // FIVE: like, no me gusta, añadir a playlist, descargar, lupa. Biblioteca removed by
                 // owner (still in [AuraPlayerMenu]); lupa is the more useful fifth slot.
-                // Compartir / Ecualizador / Vídeo live in [AuraQueueBar]'s bottom row instead.
+                // Ecualizador / Vídeo live in [AuraQueueBar]'s bottom row instead.
+                //
+                // COMPARTIR, el sexto (dueño, 2026-09-17: *"en el reproductor en pantalla completa
+                // necesito el botón de compartir"*, con la condición expresa de *"no vayas a dañar el
+                // diseño del reproductor ni dañar la estética agregando el botón"*). Por eso entra AQUÍ
+                // y no como chrome nuevo: es un glifo más, del mismo tamaño, con el mismo tinte y el
+                // mismo foco de TV que los otros cinco, en una fila que ya reparte el ancho sola
+                // (SpaceEvenly) — no hay color nuevo, ni fondo nuevo, ni nada que se mueva de sitio.
+                // Compartir seguía existiendo solo dentro del menú “Más”, a dos toques.
                 Spacer(Modifier.height(if (dense) 2.dp else 6.dp))
                 val liked = currentSong?.song?.liked == true
                 val quickAccessGlyph = if (dense) 20.dp else 22.dp
@@ -1778,6 +1871,29 @@ private fun AuraPlayerShape(
                                         state.collapseSoft()
                                     },
                                     isListenTogetherGuest = isListenTogetherGuest,
+                                )
+                            }
+                        },
+                        size = quickAccessGlyph,
+                        tint = AuraPalette.OnGround.copy(alpha = 0.7f),
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                    )
+                    AuraIconButton(
+                        icon = AuraIcons.Share,
+                        contentDescription = stringResource(R.string.share),
+                        onClick = {
+                            coroutineScope.launch {
+                                // Mismo cuerpo que el menú “Más” (local → exportado → enlace): una sola
+                                // implementación, para que no acaben compartiendo cosas distintas.
+                                shareSong(
+                                    context = context,
+                                    songId = meta.id,
+                                    title = meta.title,
+                                    artists = meta.artists.map { it.name },
+                                    isLocalTrack = isLocalTrack,
+                                    isExported = exportedSongIds.split(',').any { it.trim() == meta.id } ||
+                                        exportedVideoIds.split(',').any { it.trim() == meta.id },
+                                    isExportedVideo = exportedVideoIds.split(',').any { it.trim() == meta.id },
                                 )
                             }
                         },

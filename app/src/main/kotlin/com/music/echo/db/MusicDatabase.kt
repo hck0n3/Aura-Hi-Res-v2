@@ -118,7 +118,7 @@ class MusicDatabase(
         SortedSongAlbumMap::class,
         PlaylistSongMapPreview::class,
     ],
-    version = 42,
+    version = 43,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 2, to = 3),
@@ -167,6 +167,12 @@ class MusicDatabase(
         // separately, and forgetting the Hilt one is what crashed every install on 0.6.117.
         AutoMigration(from = 40, to = 41),
         AutoMigration(from = 41, to = 42),
+        // 42 -> 43: additive `playlist.autoDownload` INTEGER NOT NULL DEFAULT 0 (punto 3 del dueño,
+        // 2026-09-17: descarga automática por lista). Declarada AQUÍ y no como `Migration` a mano por
+        // el mismo motivo escrito arriba para 40 -> 41: las auto-migraciones viajan con la anotación y
+        // por tanto se aplican a los DOS builders, mientras que una a mano hay que registrarla en cada
+        // uno — y olvidar el de Hilt es lo que rompió todas las instalaciones en 0.6.117.
+        AutoMigration(from = 42, to = 43),
     ],
 )
 @TypeConverters(Converters::class)

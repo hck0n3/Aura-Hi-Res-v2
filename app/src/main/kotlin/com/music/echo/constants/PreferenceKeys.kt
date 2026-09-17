@@ -36,6 +36,11 @@ val HomeRichLayoutKey = booleanPreferencesKey("homeRichLayout")
 //    no YouTube playerResponse, no radio/automix seed).
 // Toggle lives on the offline banner itself AND Settings → Contenido / top cloud icon. Default OFF.
 val OfflineModeKey = booleanPreferencesKey("offline_mode")
+// "Modo sin conexión automático": si NO hay red, la interfaz se pone en local sola (Inicio,
+// Novedades, Biblioteca, Buscar) y vuelve sola en cuanto la red vuelve. ON por defecto.
+// NO escribe [OfflineModeKey] — es una capa calculada encima, que no se guarda y no toca el
+// reproductor; el porqué de las dos cosas está en [iad1tya.echo.music.utils.AutoOfflinePolicy].
+val AutoOfflineModeKey = booleanPreferencesKey("auto_offline_mode")
 // Optional genres the user picked during onboarding (CSV), a soft taste signal.
 val OnboardingGenresKey = stringPreferencesKey("onboardingGenres")
 // "No me gusta": disliked song/artist/album/playlist ids (JSON {songs:[],artists:[],albums:[],playlists:[]}).

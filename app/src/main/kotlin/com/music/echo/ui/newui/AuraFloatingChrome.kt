@@ -33,6 +33,8 @@ import iad1tya.echo.music.utils.DeviceTier
 import iad1tya.echo.music.utils.PrefsBridge
 import iad1tya.echo.music.utils.isWindowBlurSupported
 import iad1tya.echo.music.utils.rememberPreference
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
 
 /**
  * Alpha of the veil behind a premium floating plate (sheet scrim / dialog dim). With real
@@ -75,6 +77,45 @@ private fun glassForcedPreference(): Boolean =
  * backdrop blur; everywhere else [AuraPalette.FrostFill] falls back to an opaque plate. Account
  * sheet uses the same frost plate ([SettingDialoge] → [AuraFloatingSurface]).
  */
+/**
+ * El TOPE de altura de una hoja que sube desde abajo — **tope, no objetivo**.
+ *
+ * 🔴 Reporte del dueño (2026-09-17): *"las ventanas que se desplazan hacia arriba, por ejemplo
+ * cuando toco el botón cast, la ventana se desplaza muy alto, y quiero que se desplacen según su
+ * contenido: si su contenido es poco que se desplace solo hasta mostrar todo el contenido y no más
+ * […] y así sucesivamente con las ventanas que se desplazan de esa manera"*.
+ *
+ * Tenía razón y la causa era literal: los contenedores compartidos de hojas y menús pedían
+ * `fillMaxHeight(fraction = 0.85f)` y dentro un `Column(fillMaxSize())`. Eso no es "hasta donde llegue
+ * el contenido", es **siempre el 85 % de la pantalla**, tenga la hoja tres opciones o treinta — y la
+ * tarjeta de salida de audio, que es la que él nombra, tiene tres.
+ *
+ * El arreglo es cambiar el 85 % de objetivo a límite: la hoja mide lo que mide su contenido y solo deja
+ * de crecer al llegar aquí. Nada se pierde por arriba: un `LazyColumn` o un `verticalScroll` dentro
+ * recibe este valor como altura máxima acotada y se desplaza igual que antes; y una hoja larga sin
+ * desplazamiento se recorta en el mismo sitio donde ya se recortaba.
+ *
+ * El 85 % se conserva tal cual porque es lo que hay que dejar libre para que se vea que hay app
+ * detrás y para que el toque fuera cierre la hoja.
+ */
+const val AuraSheetMaxHeightFraction = 0.85f
+
+/**
+ * El tope en dp para una ventana de [screenHeightDp] de alto.
+ *
+ * Separado de la función composable para poder fijarlo por test: lo que hay que impedir que vuelva no
+ * es el cálculo, es que alguien cambie el tope por un alto FIJO y todas las hojas vuelvan a medir lo
+ * mismo pase lo que pase con su contenido.
+ */
+fun auraSheetMaxHeightDp(screenHeightDp: Int): Float = screenHeightDp * AuraSheetMaxHeightFraction
+
+/** El [AuraSheetMaxHeightFraction] de la altura de la ventana, en dp. */
+@Composable
+fun rememberAuraSheetMaxHeight(): Dp {
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp
+    return remember(screenHeightDp) { auraSheetMaxHeightDp(screenHeightDp).dp }
+}
+
 object AuraFloating {
     val BlurRadiusPx = 56
     val Shape: CornerBasedShape get() = AuraShapes.Card

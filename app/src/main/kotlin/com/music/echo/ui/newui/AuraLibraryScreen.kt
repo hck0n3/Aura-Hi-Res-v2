@@ -59,13 +59,13 @@ import iad1tya.echo.music.constants.LibraryFilter
 import iad1tya.echo.music.constants.MiniPlayerBottomSpacing
 import iad1tya.echo.music.constants.MiniPlayerHeight
 import iad1tya.echo.music.constants.NavigationBarHeight
-import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.ui.component.AiPlaylistDialog
 import iad1tya.echo.music.ui.component.CreatePlaylistDialog
 import iad1tya.echo.music.ui.component.TextFieldDialog
 import iad1tya.echo.music.ui.screens.DownloadedOnlyView
 import iad1tya.echo.music.ui.screens.library.LocalSongScreen
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
 
 /**
@@ -91,9 +91,10 @@ import iad1tya.echo.music.utils.rememberPreference
  */
 @Composable
 fun AuraLibraryScreen(navController: NavController) {
-    val offlineMode by rememberPreference(OfflineModeKey, false)
-    if (offlineMode) {
-        DownloadedOnlyView(navController = navController)
+    // Sin conexión = el interruptor manual o el automático sin red (punto 4, 2026-09-17).
+    val offlineState = rememberOfflineState()
+    if (offlineState.offline) {
+        DownloadedOnlyView(navController = navController, automatic = offlineState.automatic)
         return
     }
 
@@ -566,6 +567,26 @@ private fun AuraFab(
     // chrome (the row-196 crash was the descendant pattern, gone; haze 1.7.2 carries the Samsung
     // shader fix; SimpMusic production pattern). No source (glass OFF / classic / previews) →
     // the opaque FloatingFill plate, hairline and glyph, byte-identical to before.
+    // 🔴 EL CRISTAL INTERACTIVO AQUÍ CIERRA LA APP — NO VOLVER A INTENTARLO ASÍ.
+    //
+    // El punto 2 del dueño (2026-09-17) pedía *"aplicar un diseño interactivo estilo liquid glass"* a
+    // este botón, y lo puse. La beta 2.0.45 se cerraba **al entrar a la biblioteca**.
+    //
+    // La causa es estructural y estaba media escrita aquí abajo: `MainActivity` aplica
+    // `Modifier.layerBackdrop(appBackdrop)` **al NavHost**, y este FAB vive DENTRO del NavHost. La
+    // receta `liquidGlassInteractive` llama a `drawBackdrop(LocalAppBackdrop.current)`, o sea que un
+    // descendiente de la capa grabada intenta muestrear **la capa de la que él mismo forma parte** —
+    // una recursión de dibujo. Con `shellGlass` el mismo caso es un no-op silencioso (por eso la nota
+    // de abajo solo habla de "glifos desnudos"); con `drawBackdrop` se cae.
+    //
+    // Para que este botón tuviera cristal interactivo de verdad habría que darle a esta pantalla su
+    // PROPIA capa de fondo y leerla desde fuera de ella (el FAB ya es hermano del contenido, no
+    // descendiente), que es exactamente por qué la barra de navegación y el minirreproductor sí
+    // pueden: viven al nivel del shell y leen la capa del NavHost.
+    //
+    // 🔴 CERRADO POR EL DUEÑO (2026-09-17): *"el punto dos omítelo"*. Después de que esto le cerrara
+    // la app al entrar en la biblioteca en la beta 2.0.45-beta2, decidió quitarlo de la lista. No se
+    // vuelve a intentar salvo que él lo pida: queda con la placa + haze de siempre.
     val shellHazeState = LocalShellHazeState.current
     val base = modifier
         .height(52.dp)

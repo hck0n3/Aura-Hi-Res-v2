@@ -40,6 +40,7 @@ import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSong
 import iad1tya.echo.music.db.entities.PlaylistSongMap
+import iad1tya.echo.music.db.entities.SongIdTitle
 import iad1tya.echo.music.db.entities.RecognitionHistory
 import iad1tya.echo.music.db.entities.RelatedSongMap
 import iad1tya.echo.music.db.entities.ReleaseRadarItem
@@ -1192,6 +1193,24 @@ interface DatabaseDao {
         playlistId: String,
         songIds: List<String>,
     ): List<String>
+
+    /**
+     * Listas con descarga automática encendida. Ver [iad1tya.echo.music.playback.PlaylistAutoDownload].
+     *
+     * Lectura de UNA vez y no un `Flow`: quien la usa es el reconciliador, que corre en momentos
+     * concretos (al encender el interruptor, al añadir canciones, al terminar una sincronización) y no
+     * quiere quedarse suscrito a la tabla.
+     */
+    @Query("SELECT * FROM playlist WHERE autoDownload = 1")
+    fun autoDownloadPlaylists(): List<PlaylistEntity>
+
+    /** Los ids de las canciones de una lista, de una vez y en orden. */
+    @Query("SELECT songId FROM playlist_song_map WHERE playlistId = :playlistId ORDER BY position")
+    fun playlistSongIdsOnce(playlistId: String): List<String>
+
+    /** Los títulos que la notificación de descarga necesita, sin traerse la fila entera. */
+    @Query("SELECT id, title FROM song WHERE id IN (:songIds)")
+    fun songTitlesFor(songIds: List<String>): List<SongIdTitle>
 
     @Transaction
     fun addSongToPlaylist(playlist: Playlist, songIds: List<String>) {

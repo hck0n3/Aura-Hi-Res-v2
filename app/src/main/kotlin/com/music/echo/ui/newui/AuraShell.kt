@@ -9,12 +9,16 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -58,6 +62,9 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -178,6 +185,25 @@ val AuraNavCapsuleInset: Dp = 6.dp
  * [AuraTopActions] draws nothing.
  */
 val LocalAuraTopActions = compositionLocalOf<(@Composable () -> Unit)?> { null }
+
+/**
+ * El atajo a INICIO que el minirreproductor dibuja al final de sus controles, o `null`.
+ *
+ * 🔴 Punto 1 del dueño (2026-09-17): *"botón flotante de inicio: ubicarlo dentro del mini reproductor
+ * al final de los controles, y que cuando aparezca el contenido se auto compacte de manera animada
+ * para mostrar el botón de inicio desde allí; y luego cuando uno esté donde la barra de abajo aparezca
+ * visible, el botón desaparece y el mini reproductor vuelve a la normalidad"*.
+ *
+ * Es un `CompositionLocal` y no un parámetro por una razón concreta: los dos datos que deciden si el
+ * botón existe — la ruta actual y si la barra de abajo se dibuja — viven en `MainActivity`, y el
+ * minirreproductor está tres composables más abajo (`BottomSheetPlayerHost` → `AuraPlayer` →
+ * `collapsedContent`). Enhebrar un parámetro por esos tres solo para esto añade tres firmas que nadie
+ * más usa; este local es el mismo patrón que [LocalAuraTopActions], que existe por lo mismo.
+ *
+ * `null` = no dibujar nada, y es el valor por defecto: con la barra de abajo visible ya hay un botón de
+ * Inicio ahí, y dos a la vez sería peor que ninguno.
+ */
+val LocalAuraHomeShortcut = compositionLocalOf<(() -> Unit)?> { null }
 
 /** Renders [LocalAuraTopActions], or nothing. Put it in `AuraScreenHeader(trailing = ...)`. */
 @Composable
@@ -353,6 +379,11 @@ fun AuraGlobalActions(
 // global, source-of-truth registry both sides already share.
 @Composable
 private fun rememberShellScrollActive(): Boolean = ShellScrollBus.active.value
+
+// 🔴 `AuraHomeFab` (el círculo flotante abajo a la izquierda) SE RETIRÓ el 2026-09-17: el dueño pidió
+// el atajo a Inicio *"dentro del mini reproductor al final de los controles"*, y un botón dentro de la
+// píldora no puede tapar contenido — que era la única preocupación real del círculo suelto. Lo que
+// queda de esa petición es [LocalAuraHomeShortcut] y la celda animada del final de los controles.
 
 @Composable
 fun AuraNavigationBar(
@@ -784,6 +815,19 @@ fun AuraMiniPlayer(
     durationState: MutableLongState,
     modifier: Modifier = Modifier,
     shouldBindVideoSurface: Boolean = true,
+    /**
+     * 🔴 false mientras la píldora NO es el minirreproductor visible (dueño, 2026-09-17: *"si lo
+     * toco seguido me cambia la canción porque se confunde con el gesto de cambiar canción"*).
+     *
+     * El `collapsedContent` de la hoja del reproductor está **precompuesto y siempre presente** — a
+     * propósito, porque componerlo al terminar la expansión era un tión visible en cada gesto de
+     * volver (HALLAZGO-027). Su `clickable` SÍ se apaga con la hoja expandida, y el comentario de
+     * `BottomSheet` dice literalmente que es *"para que la franja invisible de arriba de la hoja
+     * expandida no dibuje ni robe toques"*. **Al gesto de deslizar se le olvidó esa misma regla**:
+     * seguía vivo sobre una franja con alfa 0, y deslizar ahí — o un toque que se mueve unos píxeles —
+     * cambia de canción sin que nada visible lo explique.
+     */
+    gesturesEnabled: Boolean = true,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
 
@@ -808,7 +852,7 @@ fun AuraMiniPlayer(
     // ── Swipe to change track — the classic gesture, verbatim ─────────────────────────────────────
     val swipeThumbnailPref by rememberPreference(SwipeThumbnailKey, true)
     val swipeSensitivity by rememberPreference(SwipeSensitivityKey, 0.73f)
-    val swipeEnabled = swipeThumbnailPref && !isListenTogetherGuest
+    val swipeEnabled = swipeThumbnailPref && !isListenTogetherGuest && gesturesEnabled
     val offsetX = remember { Animatable(0f) }
     var dragStartTime by remember { mutableLongStateOf(0L) }
     var totalDrag by remember { mutableFloatStateOf(0f) }
@@ -1088,6 +1132,7 @@ fun AuraMiniPlayer(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
+                modifier = Modifier.shieldTapsFromAncestorDrags(),
             ) {
                 AuraIconButton(
                     icon = AuraIcons.SkipPrevious,
@@ -1138,8 +1183,121 @@ fun AuraMiniPlayer(
                     enabled = canSkipNext && !isListenTogetherGuest,
                     size = 22.dp,
                 )
+
+                // 🔴 INICIO, al final de los controles y solo donde la barra de abajo no está (punto 1
+                // del dueño, 2026-09-17). Ver [LocalAuraHomeShortcut] para por qué llega por un local.
+                //
+                // `AnimatedVisibility` con `expandHorizontally` es lo que da el *"que el contenido se
+                // auto compacte de manera animada"*: la columna del título lleva `weight(1f)`, así que
+                // cuando esta celda crece desde 0 el texto cede el ancho **animado** por el propio
+                // sistema de layout, sin un segundo animador que pueda desincronizarse del primero. Y
+                // al desaparecer el ancho vuelve solo: *"el mini reproductor vuelve a la normalidad"*.
+                val homeShortcut = LocalAuraHomeShortcut.current
+                AnimatedVisibility(
+                    visible = homeShortcut != null,
+                    enter = expandHorizontally() + fadeIn(),
+                    exit = shrinkHorizontally() + fadeOut(),
+                ) {
+                    AuraIconButton(
+                        icon = AuraIcons.Home,
+                        contentDescription = stringResource(R.string.home),
+                        // 🔴 SÍ O SÍ (dueño, 2026-09-17). Ver [unstealableClick]: este botón no se
+                        // fía del `clickable` de dentro, se queda el gesto en la pasada INICIAL.
+                        modifier = Modifier.unstealableClick { homeShortcut?.invoke() },
+                        // El valor se captura ARRIBA y no se lee aquí: `CompositionLocal.current` solo
+                        // existe en contexto composable, y este `onClick` es una lambda normal. Y
+                        // `?.invoke()` en vez de `!!` porque dentro de `AnimatedVisibility` el contenido
+                        // sobrevive a la salida mientras se anima, y ahí ya puede ser null.
+                        onClick = { homeShortcut?.invoke() },
+                        size = 20.dp,
+                        tint = AuraPalette.OnGround.copy(alpha = 0.85f),
+                    )
+                }
             }
         }
+    }
+}
+
+/**
+ * 🔴 UN TOQUE QUE NO SE LO PUEDE ROBAR NADIE (dueño, 2026-09-17: *"sin importar dónde esté, el botón
+ * de inicio del mini reproductor tiene que mandarlo a la pantalla de inicio sí o sí"*).
+ *
+ * [shieldTapsFromAncestorDrags] ya impide que los dos arrastres ancestros reclamen el gesto, y con eso
+ * debería bastar. Esto es el cinturón encima de los tirantes, porque él pidió "sí o sí" y porque el
+ * escudo depende de un detalle del reparto de eventos (la pasada Main va de dentro hacia fuera) que yo
+ * no puedo verificar aquí sin un dispositivo.
+ *
+ * Aquí el botón se queda el gesto en la pasada **INICIAL**, que va de fuera hacia dentro y llega antes
+ * que cualquier detector: consume desde el primer evento, así que ni el arrastre de la hoja, ni el de
+ * cambiar canción, ni el `clickable` de la píldora pueden verlo siquiera. Y dispara al **levantar el
+ * dedo dentro del botón**, sin exigir que no se haya movido — que es justo lo que hacía fallar al
+ * `clickable` normal cuando el dedo rodaba unos píxeles.
+ *
+ * El `clickable` de dentro de [AuraIconButton] se queda: ya no recibe el toque (llega consumido), pero
+ * sigue siendo el que aporta la semántica de accesibilidad, y TalkBack invoca esa acción, no el gesto.
+ * Los dos caminos llaman a lo mismo, y `goHomeAlways` no hace nada si ya estamos en Inicio, así que un
+ * doble disparo sería inofensivo.
+ */
+private fun Modifier.unstealableClick(onClick: () -> Unit): Modifier = pointerInput(onClick) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        down.consume()
+        var released: PointerInputChange? = null
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            event.changes.forEach { it.consume() }
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            if (!change.pressed) {
+                released = change
+                break
+            }
+        }
+        val up = released ?: return@awaitEachGesture
+        // Levantar fuera del botón es cancelar, como en cualquier botón del sistema.
+        val inside = up.position.x >= 0f && up.position.y >= 0f &&
+            up.position.x <= size.width && up.position.y <= size.height
+        if (inside) onClick()
+    }
+}
+
+/**
+ * 🔴 EL ESCUDO DE LOS BOTONES DE LA PÍLDORA (dueño, 2026-09-17: *"el botón home que sale en algunas
+ * pantallas, en el reproductor mini a veces no funciona"*).
+ *
+ * Sobre esos cuatro botones hay **dos detectores de arrastre**, y los dos son ANCESTROS suyos:
+ *  1. el arrastre vertical de la hoja del reproductor (`BottomSheet`, sobre un `fillMaxSize()` que
+ *     cubre también la franja colapsada — de ahí `dragCollapsedContent`), y
+ *  2. el deslizar horizontal de cambiar canción, sobre la raíz de esta píldora.
+ *
+ * Y así es como le roban el clic, que es EXACTAMENTE lo mismo que le pasaba al botón de cast:
+ * `Modifier.clickable` no cancela por moverse — mantiene la pulsación y dispara al levantar — pero
+ * sí cancela si **alguien consume** el evento. Los dos detectores arrancan con
+ * `awaitFirstDown(requireUnconsumed = false)`, o sea que el `consume()` del propio botón no les
+ * estorba, y en cuanto el dedo recorre el touch slop (unos 8 dp: lo normal con un pulgar sobre un
+ * glifo de 20 dp) uno de ellos reclama el gesto, consume el movimiento y el `clickable` se cancela.
+ * El clic **nunca llega**: "a veces no funciona".
+ *
+ * El arreglo usa el orden de reparto de Compose en la pasada Main, que va de dentro hacia fuera:
+ * este modificador está en la fila de controles, así que los botones (más adentro) ya han visto el
+ * evento cuando esta fila lo consume, y los dos detectores (más afuera) lo ven ya consumido — su
+ * `awaitPointerSlopOrCancellation` devuelve null y el arrastre no arranca. Resultado: el botón
+ * dispara aunque el dedo se mueva, la píldora no da el tirón y tampoco cambia de canción sola.
+ *
+ * Lo que NO se pierde: la píldora se sigue arrastrando hacia arriba para abrir el reproductor y se
+ * sigue deslizando para cambiar canción — desde la portada y desde el título, que es casi toda su
+ * superficie. Solo la fila de botones deja de ser zona de arrastre, y ahí el arrastre nunca fue una
+ * función: era el fallo.
+ */
+private fun Modifier.shieldTapsFromAncestorDrags(): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        // `requireUnconsumed = false`: el `clickable` del botón consume el down antes de llegar aquí
+        // (está más adentro), y si lo exigiéramos limpio el escudo no se armaría nunca.
+        awaitFirstDown(requireUnconsumed = false)
+        var event: PointerEvent
+        do {
+            event = awaitPointerEvent()
+            event.changes.forEach { it.consume() }
+        } while (event.changes.any { it.pressed })
     }
 }
 

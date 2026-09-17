@@ -28,6 +28,11 @@
     <string name="offline_mode_off">Offline mode disabled</string>
     <string name="offline_disable">Go online</string>
     <string name="offline_banner_hint">Downloads only. Playback will not use the network.</string>
+    <string name="offline_auto_title">No connection</string>
+    <string name="offline_auto_hint">Showing your downloaded music. It goes back online by itself.</string>
+    <string name="offline_auto_setting_title">Automatic offline mode</string>
+    <string name="offline_auto_setting_desc">With no network, show only downloaded music, and go back online by itself.</string>
+    <string name="offline_auto_novedades">New releases need a connection. It comes back by itself.</string>
     <string name="offline_empty_downloads">No downloads yet. Download songs while online to play them here.</string>
     <string name="error_offline_not_downloaded">Offline mode: this track is not fully downloaded.</string>
     <string name="mood_and_genres">Mood and Genres</string>

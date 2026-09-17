@@ -33,6 +33,7 @@ import iad1tya.echo.music.db.MusicDatabaseEntryPoint
 import iad1tya.echo.music.di.ApplicationScope
 import iad1tya.echo.music.extensions.toEnum
 import iad1tya.echo.music.extensions.toInetSocketAddress
+import iad1tya.echo.music.utils.NetworkState
 import iad1tya.echo.music.utils.CrashHandler
 import iad1tya.echo.music.utils.cipher.CipherDeobfuscator
 import iad1tya.echo.music.utils.SyncUtils
@@ -141,6 +142,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
 
 
         CrashHandler.install(this)
+
+        // ¿Hay red? Una sola respuesta para todo el proceso, y desde el arranque, porque el modo sin
+        // conexión automático (punto 4 del dueño) la lee desde la interfaz. Registrar el callback aquí
+        // y no en cada pantalla evita tener cuatro observadores diciendo lo mismo.
+        NetworkState.start(this)
 
         // Deterministic safety net for the media3 ForegroundServiceStartNotAllowedException crash (async
         // notification-bitmap startForeground on the main looper, which the MediaSessionService.Listener

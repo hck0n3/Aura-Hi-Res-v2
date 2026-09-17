@@ -1332,4 +1332,23 @@
     <string name="listen_together_how_step3_desc">The host controls the music. Everyone listens in perfect sync!</string>
     <!-- Badge on a playlist row in the "add to playlist" picker: this playlist already has the song. -->
     <string name="playlist_already_has_song">Added</string>
+    <!-- Sincronización de biblioteca como trabajo de primer plano (YtmSyncWorker) -->
+    <string name="sync_channel_name">Library sync</string>
+    <string name="sync_notification_title">Syncing your library</string>
+    <string name="sync_notification_text">Keeping Aura and your YouTube Music account in step. You can close the app.</string>
+    <!-- Descarga automática por lista (punto 3 del dueño, 2026-09-17) -->
+    <string name="auto_download_playlist">Download automatically</string>
+    <string name="auto_download_playlist_desc">Keeps this playlist downloaded, including songs added later.</string>
+    <!-- Pedir música (punto 11 del dueño, 2026-09-17) -->
+    <string name="music_request_label">Ask for music</string>
+    <string name="music_request_hint">Something calm to study to…</string>
+    <string name="music_request_empty">Nothing came up for that. Try describing it another way.</string>
+    <string name="music_request_card_subtitle">Describe a moment and it starts playing</string>
+    <string name="music_request_working">Looking for music…</string>
+    <string name="music_request_working_count">%1$d of %2$d ready</string>
+    <string name="music_request_suggestion_study">Something calm to study to</string>
+    <string name="music_request_suggestion_gym">For the gym</string>
+    <string name="music_request_suggestion_sleep">To fall asleep</string>
+    <string name="music_request_suggestion_drive">For a long drive</string>
+    <string name="music_request_suggestion_party">To get the party going</string>
 </resources>

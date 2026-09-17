@@ -123,6 +123,7 @@ import iad1tya.echo.music.utils.anySyncActive
 import iad1tya.echo.music.utils.isInternetAvailable
 import iad1tya.echo.music.constants.AiRecommendedPlaylistKey
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.HomeViewModel
 import java.time.LocalTime
@@ -203,7 +204,12 @@ fun AuraHomeScreen(
     val hasPlayHistory by viewModel.hasPlayHistory.collectAsState()
 
     val perfOn by rememberPreference(HighPerformanceModeKey, false)
-    var offlineMode by rememberPreference(OfflineModeKey, false)
+    // 🔴 SIN CONEXIÓN = el interruptor manual **o** el automático cuando no hay red (punto 4 del
+    // dueño, 2026-09-17). `offlineModePref` se queda porque el botón "continuar sin conexión" de más
+    // abajo lo ESCRIBE; para decidir qué dibujar se usa `offlineMode`, que es el efectivo.
+    var offlineModePref by rememberPreference(OfflineModeKey, false)
+    val offlineState = rememberOfflineState()
+    val offlineMode = offlineState.offline
     val (randomizeHomeOrder) = rememberPreference(RandomizeHomeOrderKey, false)
     val (showSpeedDial) = rememberPreference(ShowSpeedDialKey, true)
     val (tasteOnlyHome) = rememberPreference(HomeTasteOnlyKey, true)
@@ -393,7 +399,7 @@ fun AuraHomeScreen(
     if (offlineMode) {
         // Offline mode ON: the downloaded-only home replaces the whole body, exactly as in the classic
         // Home. It is its own inventory section (10.1) and is reused verbatim.
-        DownloadedOnlyView(navController = navController)
+        DownloadedOnlyView(navController = navController, automatic = offlineState.automatic)
         return
     }
 
@@ -466,6 +472,24 @@ fun AuraHomeScreen(
                                 color = AuraPalette.OnGroundMuted,
                             )
                         }
+                    }
+                }
+
+                // 🔴 PEDIR MÚSICA (dueño, 2026-09-17: *"el apartado de pedir música lo quiero en el
+                // apartado de inicio, así como YouTube Music, y una apariencia a ese estilo también"*).
+                //
+                // Va ARRIBA, justo debajo del saludo y antes de los estantes, que es donde YouTube
+                // Music lo pone: es una invitación a empezar, y debajo de tres carruseles dejaría de
+                // serlo. Solo en línea, porque sin red no hay catálogo del que sacar nada y una
+                // tarjeta que no puede responder es peor que no estar. La forma (tarjeta aquí, campo y
+                // sugerencias en una hoja) está razonada en [AuraMusicRequestCard].
+                if (!offlineMode) {
+                    item(key = "aura_home_music_request", contentType = "aura_home_music_request") {
+                        AuraMusicRequestCard(
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = AuraSpacing.Gutter, vertical = 4.dp),
+                        )
                     }
                 }
 
@@ -1381,7 +1405,7 @@ fun AuraHomeScreen(
                         .clip(AuraShapes.Pill)
                         .background(AuraPalette.PlayButtonGradient)
                         .auraClickableInternal(
-                            onClick = { offlineMode = true },
+                            onClick = { offlineModePref = true },
                             contentDescription = stringResource(R.string.home_offline_continue),
                         )
                         .padding(horizontal = 22.dp, vertical = 12.dp),

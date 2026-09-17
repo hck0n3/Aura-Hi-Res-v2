@@ -34,7 +34,21 @@ data class PlaylistEntity(
     @ColumnInfo(name = "isLocal", defaultValue = false.toString())
     val isLocal: Boolean = false,
     @ColumnInfo(name = "isAutoSync", defaultValue = false.toString())
-    val isAutoSync: Boolean = false
+    val isAutoSync: Boolean = false,
+    /**
+     * Descarga automática de TODA la lista, presente y futura.
+     *
+     * 🔴 Punto 3 del dueño (2026-09-17): *"agregar un interruptor (toggle) en el menú de cada lista de
+     * reproducción. Si está activo, todo el contenido actual y cualquier canción que se agregue en el
+     * futuro a esa lista se descargará automáticamente"*.
+     *
+     * Vive en la LISTA y no en un ajuste global porque eso es exactamente lo que pidió: por lista.
+     * Con `defaultValue` en SQL para que la migración la genere Room sola — ver la nota de la
+     * migración 40→41 en `MusicDatabase`: una `Migration` a mano hay que registrarla en los DOS
+     * builders, y olvidar el de Hilt es lo que rompió todas las instalaciones en 0.6.117.
+     */
+    @ColumnInfo(name = "autoDownload", defaultValue = false.toString())
+    val autoDownload: Boolean = false,
 ) {
     companion object {
         const val LIKED_PLAYLIST_ID = "LP_LIKED"
