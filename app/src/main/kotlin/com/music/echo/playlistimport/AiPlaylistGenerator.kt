@@ -110,6 +110,113 @@ object AiPlaylistGenerator {
 
     class EmptyResultException : Exception("No tracks could be resolved")
 
+    /**
+     * Lo que una petición produjo ANTES de decidir qué se hace con ello.
+     *
+     * Existe porque hay dos consumidores con necesidades distintas y una sola cadena que vale la pena
+     * mantener: [generate] guarda una playlist en la biblioteca (y ahí el origen SÍ se etiqueta), y
+     * [produce] solo quiere canciones para ponerlas a sonar.
+     *
+     * [fromAi] es para el LOG, no para la pantalla. Ver [produce].
+     */
+    data class Produced(
+        val name: String,
+        val songs: List<MediaMetadata>,
+        val fromAi: Boolean,
+    )
+
+    /**
+     * HÍBRIDO SILENCIOSO — la cadena completa, sin guardar nada y sin decir por dónde vino.
+     *
+     * 🔴 Orden del dueño (2026-09-17): *"puedes hacer un híbrido que lleve la IA y cuando no detecte
+     * que la IA está disponible lo haga de manera gratuita sin IA, pero que no haga referencia si lo
+     * hizo o no lo hizo con IA; cuando dé la respuesta a la hora de pedir música que solo entregue el
+     * resultado"*.
+     *
+     * Y tiene razón para ESTE caso, aunque sea lo contrario de lo que hace [generate]. La etiqueta
+     * "(sin IA)" nació de una queja concreta suya de 2026-09-03: una playlist GUARDADA que no se
+     * parecía a lo que pidió quedaba en la biblioteca indistinguible de una curada, y la etiqueta es
+     * lo que convierte esa sorpresa en información. Pedir música no guarda nada: suena y ya. Ahí la
+     * etiqueta no informa de nada accionable — solo interrumpe con detalle de implementación a alguien
+     * que pidió canciones.
+     *
+     * Lo que NO se pierde: el origen se registra en el log (`MUSIC_REQUEST source=…`). Sin esa línea,
+     * si su Worker de Cloudflare se cayera, la función seguiría "funcionando" con la ruta de búsqueda
+     * y **nadie se enteraría nunca** de que la IA lleva semanas muerta — que es exactamente cómo murió
+     * Pollinations sin que nadie lo notara hasta sondearlo en vivo. Silencioso en pantalla no puede
+     * significar invisible en el diagnóstico.
+     *
+     * No persiste NADA: ni playlist ni canciones. El reproductor guarda lo que hace falta al sonar.
+     */
+    suspend fun produce(
+        database: MusicDatabase,
+        prompt: String,
+        count: Int,
+        provider: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        onResolveProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): Produced? {
+        val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
+        val startedAt = System.currentTimeMillis()
+        val produced = produceInternal(
+            database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress,
+        )
+        timber.log.Timber.i(
+            "MUSIC_REQUEST source=%s tracks=%d tookMs=%d",
+            when {
+                produced == null -> "none"
+                produced.fromAi -> "ai"
+                else -> "search"
+            },
+            produced?.songs?.size ?: 0,
+            System.currentTimeMillis() - startedAt,
+        )
+        return produced
+    }
+
+    /**
+     * La cadena en sí: IA primero, búsqueda si la IA no está o no sirvió. Compartida por [generate] y
+     * [produce] a propósito — dos copias de esta escalera acabarían divergiendo en el peldaño que
+     * menos se prueba, que es justo el de la caída.
+     */
+    private suspend fun produceInternal(
+        database: MusicDatabase,
+        prompt: String,
+        target: Int,
+        soloArtist: String?,
+        provider: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        onResolveProgress: (done: Int, total: Int) -> Unit,
+    ): Produced? {
+        // UNA ventana de presupuesto para TODA la fase de IA (pedir + resolver + rellenar), directiva
+        // del dueño 2026-08-31 ("las respuestas de IA son MUY lentas"). El código viejo abría una
+        // ventana FRESCA por fase, así que pedir + rellenar podían sumar ~120 s mientras su propio
+        // comentario decía "el MISMO presupuesto de 60 s" — el comentario era un placebo.
+        val ai = withTimeoutOrNull(AI_BUDGET_MS) {
+            aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
+        }
+        if (ai != null) return ai
+
+        // RED DE SEGURIDAD SIN IA (directiva 2026-08-29: "la IA nunca puede terminar en un error").
+        // Se llega aquí cuando el presupuesto expiró, la cadena de IA no está disponible (Worker
+        // limitado, sin clave del usuario) o sus temas no resolvieron. Canciones REALES de la búsqueda
+        // de YouTube Music para su descripción — el mismo enfoque sin LLM que usan InnerTune,
+        // OuterTune y Metrolist para sus playlists automáticas.
+        val fallback = withTimeoutOrNull(AI_BUDGET_MS) {
+            searchFallbackPlaylist(prompt, soloArtist, target)
+        }
+        if (fallback.isNullOrEmpty()) return null
+        return Produced(
+            name = prompt.trim().take(MAX_NAME_LENGTH),
+            songs = fallback,
+            fromAi = false,
+        )
+    }
+
     suspend fun generate(
         database: MusicDatabase,
         prompt: String,
@@ -123,31 +230,65 @@ object AiPlaylistGenerator {
         val target = count
         val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
 
-        // ONE shared budget window for the WHOLE AI phase (ask + resolve + top-up), owner directive
-        // 2026-08-31 ("AI answers are VERY slow"). The old code opened a FRESH 60s window per phase,
-        // so ask + top-up could legally stack to ~120s while its own comment claimed "the SAME 60s
-        // budget" — the comment was a placebo. A single deadline makes the worst case 60s ONCE and
-        // gives every phase a real view of how much time is left. On timeout the AI flow yields
-        // nothing and the honest non-AI fallback runs — never a spinner watching a dead endpoint.
-        val aiOutcome = withTimeoutOrNull(AI_BUDGET_MS) {
-            aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
-        }
-        if (aiOutcome != null) return aiOutcome
+        // La escalera (IA → búsqueda) vive en [produceInternal], compartida con [produce]. Lo que
+        // queda aquí es lo propio de GUARDAR una playlist: la etiqueta honesta del origen y la
+        // transacción.
+        val produced = produceInternal(
+            database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress,
+        ) ?: return kotlin.Result.failure(EmptyResultException())
 
-        // NON-AI SAFETY NET (owner directive 2026-08-29: "AI must never dead-end on an error").
-        // Reached when the budget expired, the AI chain is unavailable (Aura Worker rate-limited,
-        // Pollinations gone, no user key) or its tracks didn't resolve. Build the playlist from REAL
-        // YouTube Music search results for the user's description — the same approach
-        // InnerTune/OuterTune/Metrolist use for their auto-playlists (Innertune search/radio, no LLM)
-        // — honestly labeled "generated without AI" via [Result.generatedWithoutAi], instead of the
-        // old dead-end "No songs were found for that idea".
-        return generateWithoutAi(database, prompt, target, soloArtist)
+        // ETIQUETA PERSISTENTE DEL ORIGEN (directiva del dueño 2026-09-03: "cuando las crea no se basa
+        // en lo que pido"): una playlist GUARDADA que no se parece a lo que pidió quedaba en la
+        // biblioteca indistinguible de una curada, y eso es justo por lo que un resultado flojo se leía
+        // como "la IA me ignoró". El prompt se recorta a MAX_NAME_LENGTH menos los 9 caracteres de la
+        // etiqueta para que "(sin IA)" sobreviva SIEMPRE al corte (hallazgo #4 de la auditoría
+        // adversarial: añadir primero y recortar después la borraba en los prompts largos, que es el
+        // caso donde más probable es caer a la búsqueda).
+        //
+        // Esta etiqueta es de [generate] y NO de [produce] — ver el KDoc de [produce] para el por qué.
+        val name = if (produced.fromAi) {
+            produced.name
+        } else {
+            prompt.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH - 9) + " (sin IA)"
+        }
+        val playlist = PlaylistEntity(
+            name = name,
+            bookmarkedAt = LocalDateTime.now(),
+            isEditable = true,
+            isLocal = true,
+        )
+        // Single transaction: create the playlist, persist songs, map them in order (atomic).
+        database.transaction {
+            insert(playlist)
+            produced.songs.forEachIndexed { index, metadata ->
+                insert(metadata)
+                insert(
+                    PlaylistSongMap(
+                        playlistId = playlist.id,
+                        songId = metadata.id,
+                        position = index,
+                    ),
+                )
+            }
+        }
+        return kotlin.Result.success(
+            Result(
+                playlistId = playlist.id,
+                name = name,
+                total = target,
+                resolved = produced.songs.size,
+                generatedWithoutAi = !produced.fromAi,
+            ),
+        )
     }
 
     /**
      * The AI-backed path, in the caller's [AI_BUDGET_MS] window: ask → parallel resolve →
      * conditional top-up. Returns null ONLY when nothing AI-usable survived; the caller then runs
      * the honest non-AI fallback.
+     *
+     * Devuelve [Produced] y **no guarda nada**: quién persiste (o no) es decisión del llamante —
+     * [generate] crea la playlist, [produce] solo pone a sonar.
      */
     private suspend fun aiFlow(
         database: MusicDatabase,
@@ -159,7 +300,7 @@ object AiPlaylistGenerator {
         baseUrl: String,
         model: String,
         onResolveProgress: (done: Int, total: Int) -> Unit,
-    ): kotlin.Result<Result>? {
+    ): Produced? {
         // Ask the AI (user key → Aura Worker). getOrNull() so a total
         // failure doesn't dead-end — the caller falls back to a non-AI playlist, not an error.
         // Thin pad (target + PAD_OVER_TARGET) instead of the old 1.5×: the row-198 anti-hallucination
@@ -238,35 +379,7 @@ object AiPlaylistGenerator {
         // The AI proposes a short name; fall back to the user's prompt (also used for the non-AI
         // playlist) when the model omitted or blanked it.
         val name = spec.name.ifBlank { prompt }.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH)
-        val playlist = PlaylistEntity(
-            name = name,
-            bookmarkedAt = LocalDateTime.now(),
-            isEditable = true,
-            isLocal = true,
-        )
-        // Single transaction: create the playlist, persist songs, map them in order (atomic).
-        database.transaction {
-            insert(playlist)
-            ordered.forEachIndexed { index, metadata ->
-                insert(metadata)
-                insert(
-                    PlaylistSongMap(
-                        playlistId = playlist.id,
-                        songId = metadata.id,
-                        position = index,
-                    ),
-                )
-            }
-        }
-
-        return kotlin.Result.success(
-            Result(
-                playlistId = playlist.id,
-                name = name,
-                total = target,
-                resolved = ordered.size,
-            ),
-        )
+        return Produced(name = name, songs = ordered, fromAi = true)
     }
 
     /**
@@ -349,62 +462,6 @@ object AiPlaylistGenerator {
             }
         }
         return proposed.indices.mapNotNull { byIndex[it] }
-    }
-
-    /**
-     * The honest non-AI safety net, shared by the budget-expired and chain-unavailable paths: REAL
-     * songs from YouTube Music search for the user's description (searchFallbackPlaylist), labeled
-     * "generated without AI" via [Result.generatedWithoutAi].
-     */
-    private suspend fun generateWithoutAi(
-        database: MusicDatabase,
-        prompt: String,
-        target: Int,
-        soloArtist: String?,
-    ): kotlin.Result<Result> {
-        val fallback = withTimeoutOrNull(AI_BUDGET_MS) {
-            searchFallbackPlaylist(prompt, soloArtist, target)
-        }
-        if (fallback.isNullOrEmpty()) {
-            return kotlin.Result.failure(EmptyResultException())
-        }
-        val ordered = fallback
-        // PERSISTENT honest label (owner directive 2026-09-03: "cuando las crea no se basa en lo que
-        // pido"): the old name-only flow labeled nothing in the library — the "(sin IA)" playlist looked
-        // exactly like a curated one, which is precisely why un-curated results read as "the AI ignored
-        // me". Truncate the PROMPT to MAX_NAME_LENGTH minus the label's 9 chars so "(sin IA)" always
-        // survives the cut (adversarial audit finding #4: appending first and then taking 40 dropped
-        // the label exactly on long prompts — the case where the fallback is most likely).
-        val name = (prompt.trim().ifBlank { prompt }.take(MAX_NAME_LENGTH - 9) + " (sin IA)")
-        val playlist = PlaylistEntity(
-            name = name,
-            bookmarkedAt = LocalDateTime.now(),
-            isEditable = true,
-            isLocal = true,
-        )
-        // Single transaction: create the playlist, persist songs, map them in order (atomic).
-        database.transaction {
-            insert(playlist)
-            ordered.forEachIndexed { index, metadata ->
-                insert(metadata)
-                insert(
-                    PlaylistSongMap(
-                        playlistId = playlist.id,
-                        songId = metadata.id,
-                        position = index,
-                    ),
-                )
-            }
-        }
-        return kotlin.Result.success(
-            Result(
-                playlistId = playlist.id,
-                name = name,
-                total = target,
-                resolved = ordered.size,
-                generatedWithoutAi = true,
-            ),
-        )
     }
 
     /**

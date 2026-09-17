@@ -25,7 +25,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.nio.ByteOrder
@@ -39,10 +41,20 @@ object MusicRecognitionService {
     private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
 
 
-    // First pass: the proven ~10s window. Re-capture pass (only on a clean NoMatch): a longer ~12s
-    // window catches what a short/noisy first grab missed. Bounded to ONE extra pass (battery/heat rule).
-    private const val RECORDING_DURATION_FIRST_MS = 10000L
-    private const val RECORDING_DURATION_RETRY_MS = 12000L
+    // 🔴 IDENTIFICACIÓN PROGRESIVA (dueño, 2026-09-17: *"la manera en que YouTube Music
+    // identifica una canción es más rápida que la función que ofrezco yo, y no solo es más rápida:
+    // se siente más efectiva"*, y después *"mejóralo bajo tus recomendaciones, sin que sufra daños
+    // pero que acelere la detección"*).
+    //
+    // Aquí vivían `RECORDING_DURATION_FIRST_MS = 10000` y `RECORDING_DURATION_RETRY_MS = 12000`:
+    // grabar 10 s fijos SIN mandar nada, una consulta, y si no había coincidencia volver a grabar
+    // 12 s DESDE CERO y consultar otra vez. 10 s en el mejor caso, 22 s y dos viajes en el peor, y
+    // **un solo intento por captura** — un primer segundo con ruido condenaba la huella entera, que
+    // es la mitad de por qué además de lenta se sentía menos certera.
+    //
+    // La agenda ahora está en [ProgressiveRecognition.CHECKPOINTS_MS] y su último punto son los
+    // mismos 12 s: la ventana más larga que ya se sabía que funcionaba. No se le pide al micrófono
+    // nada que no hiciera antes — solo se pregunta antes y más veces.
     
     private val _recognitionStatus = MutableStateFlow<RecognitionStatus>(RecognitionStatus.Ready)
     val recognitionStatus: StateFlow<RecognitionStatus> = _recognitionStatus.asStateFlow()
@@ -106,19 +118,7 @@ object MusicRecognitionService {
         _recognitionStatus.value = RecognitionStatus.Listening
 
         try {
-            // Attempt 1: proven ~10s window.
-            var result = runRecognitionPass(context, RECORDING_DURATION_FIRST_MS)
-
-            // Re-capture ONCE on a clean NoMatch: record FRESH audio (never resend the same signature)
-            // with a longer window and try again. Bounded to a single extra pass — battery/heat rule.
-            // Network/service errors are NOT re-captured here: the Shazam layer already retries those
-            // (and the provider cascade already tried the relay), so re-recording wouldn't help.
-            ensureActive()
-            if (result is RecognitionStatus.NoMatch) {
-                _recognitionStatus.value = RecognitionStatus.Listening
-                result = runRecognitionPass(context, RECORDING_DURATION_RETRY_MS)
-            }
-
+            val result = runProgressiveRecognition(context)
             _recognitionStatus.value = result
             result
         } catch (e: CancellationException) {
@@ -135,42 +135,154 @@ object MusicRecognitionService {
     }
     
     /**
-     * One recognition pass: record [durationMs] of fresh audio → resample → signature → provider
-     * cascade. Returns a terminal [RecognitionStatus] (Success / NoMatch / Error). Publishes the
-     * intermediate Processing state itself; the caller owns the surrounding Listening state and the
-     * final publish. Kept separate so the NoMatch re-capture can run it a second time cheaply.
+     * UNA grabación, VARIAS consultas — la agenda vive en [ProgressiveRecognition].
+     *
+     * El micrófono arranca una sola vez y **no se detiene mientras una consulta viaja**: esa es la
+     * mitad que hace que esto sea rápido de verdad. Cuando la respuesta de los 3 s vuelve (medio
+     * segundo, un segundo), la ventana de los 5 s ya está grabada y se puede preguntar en el acto, en
+     * vez de empezar a grabar otros cinco segundos desde cero.
+     *
+     * Grabar y consultar son coroutines distintas a propósito. Hacer la consulta DENTRO del bucle de
+     * lectura del `AudioRecord` habría dejado el micrófono sin leerse durante todo el viaje de red, y
+     * su búfer interno es pequeño: se habría desbordado y esos cientos de milisegundos de audio
+     * perdidos salen justo en medio de la ventana siguiente. La grabación escribe en un búfer
+     * compartido y las consultas leen instantáneas recortadas al punto que les toca.
+     *
+     * Qué resultado gana:
+     *  - la PRIMERA coincidencia corta todo (se cancela el micrófono y se devuelve);
+     *  - un "no encontrado" intermedio **no** es definitivo: solo lo es el del último punto;
+     *  - un ERROR de red intermedio tampoco corta — se guarda y se sigue, porque el punto siguiente
+     *    puede tener mejor suerte. Pero se guarda **con preferencia sobre un "no encontrado"**: si
+     *    todas las consultas murieron por red, decirle "no se encontró la canción" sería mentira y
+     *    encima le haría culpar a la música en vez de a su conexión.
      */
-    private suspend fun runRecognitionPass(context: Context, durationMs: Long): RecognitionStatus {
-        val audioData = recordAudio(context, durationMs)
+    private suspend fun runProgressiveRecognition(context: Context): RecognitionStatus = coroutineScope {
+        val capture = RecordingBuffer()
+        val recorder = launch(Dispatchers.IO) {
+            try {
+                recordInto(context, capture, ProgressiveRecognition.MAX_RECORDING_MS)
+            } catch (e: CancellationException) {
+                // Una coincidencia temprana cancela al grabador a propósito: eso no es un fallo de
+                // captura y NO debe quedar registrado como tal (marcarlo haría que el consumidor
+                // lanzara la cancelación como si el micrófono se hubiera roto).
+                throw e
+            } catch (e: Exception) {
+                capture.fail(e)
+            } finally {
+                capture.finish()
+            }
+        }
 
-        // If we were cancelled mid-recording, recordAudio() returns partial data without throwing
-        // (its loop just exits on !isActive) — bail out before publishing bogus "Processing" state.
-        currentCoroutineContext().ensureActive()
+        var lastNoMatch: RecognitionStatus.NoMatch? = null
+        var lastError: RecognitionStatus.Error? = null
+        try {
+            for (checkpointMs in ProgressiveRecognition.CHECKPOINTS_MS) {
+                // Esperar a que haya audio suficiente para ESTE punto (o a que la grabación acabe).
+                while (
+                    !ProgressiveRecognition.readyToQuery(
+                        bufferedBytes = capture.size(),
+                        checkpointMs = checkpointMs,
+                        sampleRate = RECORDING_SAMPLE_RATE,
+                        recordingFinished = capture.isFinished(),
+                    )
+                ) {
+                    currentCoroutineContext().ensureActive()
+                    capture.failure()?.let { throw it }
+                    if (capture.isFinished()) break
+                    delay(BUFFER_POLL_MS)
+                }
+                currentCoroutineContext().ensureActive()
+                capture.failure()?.let { throw it }
 
-        _recognitionStatus.value = RecognitionStatus.Processing
+                val bytes = capture.snapshot(
+                    ProgressiveRecognition.bytesFor(checkpointMs, RECORDING_SAMPLE_RATE),
+                )
+                if (bytes.size < ProgressiveRecognition.MIN_QUERYABLE_BYTES) {
+                    // Sin audio utilizable y la grabación ya terminó: el micrófono no entregó nada.
+                    if (capture.isFinished()) break else continue
+                }
 
+                // El indicador solo pasa a "procesando" en el ÚLTIMO punto. En los intermedios el
+                // micrófono sigue abierto de verdad, así que decir "escuchando" es lo que está pasando
+                // — y alternar entre los dos estados cuatro veces sería un parpadeo sin información.
+                if (ProgressiveRecognition.isFinal(checkpointMs)) {
+                    _recognitionStatus.value = RecognitionStatus.Processing
+                }
+
+                when (val outcome = queryWindow(bytes)) {
+                    is RecognitionStatus.Success -> {
+                        recorder.cancel()
+                        return@coroutineScope outcome
+                    }
+                    is RecognitionStatus.NoMatch -> lastNoMatch = outcome
+                    is RecognitionStatus.Error -> lastError = outcome
+                    else -> Unit
+                }
+                if (capture.isFinished() && capture.size() <= bytes.size) break
+            }
+        } finally {
+            recorder.cancel()
+        }
+
+        // Un error de red pesa más que un "no encontrado": ver el KDoc.
+        lastError
+            ?: lastNoMatch
+            ?: RecognitionStatus.Error("No se pudo capturar audio del micrófono")
+    }
+
+    /** Cada cuánto se mira si el búfer ya llegó al punto siguiente. */
+    private const val BUFFER_POLL_MS = 60L
+
+    /**
+     * Búfer compartido entre la coroutine que graba y la que consulta.
+     *
+     * `synchronized` y no un `Channel`: el consumidor no quiere el flujo, quiere una FOTO de todo lo
+     * grabado hasta ahora, y eso es exactamente lo que un canal no da. El coste es un candado por
+     * lectura del micrófono, que ya venía haciendo E/S mucho más cara que eso.
+     */
+    private class RecordingBuffer {
+        private val lock = Any()
+        private val stream = ByteArrayOutputStream()
+        @Volatile private var finished = false
+        @Volatile private var error: Throwable? = null
+
+        fun write(data: ByteArray, length: Int) = synchronized(lock) { stream.write(data, 0, length) }
+        fun size(): Int = synchronized(lock) { stream.size() }
+        fun finish() { finished = true }
+        fun isFinished(): Boolean = finished
+        fun fail(t: Throwable) { error = t }
+        fun failure(): Throwable? = error
+
+        /** Los primeros [maxBytes] grabados; todo lo que haya si aún no llega. Siempre par. */
+        fun snapshot(maxBytes: Int): ByteArray = synchronized(lock) {
+            val all = stream.toByteArray()
+            val take = minOf(all.size, maxBytes).let { it - (it % 2) }
+            if (take == all.size) all else all.copyOf(take)
+        }
+    }
+
+    /** Remuestrea, genera la huella y pregunta. Devuelve un estado TERMINAL, nunca lanza por un no-match. */
+    private suspend fun queryWindow(audioData: ByteArray): RecognitionStatus {
         val decodedAudio = DecodedAudio(
             data = audioData,
             channelCount = 1,
             sampleRate = RECORDING_SAMPLE_RATE,
-            pcmEncoding = AUDIO_FORMAT
+            pcmEncoding = AUDIO_FORMAT,
         )
+        val resampledAudio = AudioResampler.resample(decodedAudio, VibraSignature.REQUIRED_SAMPLE_RATE)
+            .getOrElse { error -> return RecognitionStatus.Error("Failed to resample audio: ${error.message}") }
 
-        val resampledAudio = AudioResampler.resample(
-            decodedAudio,
-            VibraSignature.REQUIRED_SAMPLE_RATE
-        ).getOrElse { error ->
-            return RecognitionStatus.Error("Failed to resample audio: ${error.message}")
+        if (resampledAudio.channelCount != 1 ||
+            resampledAudio.sampleRate != VibraSignature.REQUIRED_SAMPLE_RATE ||
+            resampledAudio.pcmEncoding != AudioFormat.ENCODING_PCM_16BIT ||
+            ByteOrder.nativeOrder() != ByteOrder.LITTLE_ENDIAN ||
+            resampledAudio.data.isEmpty() ||
+            resampledAudio.data.size % 2 != 0
+        ) {
+            // `require` habría lanzado y matado la sesión entera por una ventana mala; aquí una ventana
+            // que no cuadra solo se salta y el punto siguiente sigue teniendo su oportunidad.
+            return RecognitionStatus.Error("Invalid audio format for fingerprint generation")
         }
-
-        require(
-            resampledAudio.channelCount == 1 &&
-                resampledAudio.sampleRate == VibraSignature.REQUIRED_SAMPLE_RATE &&
-                resampledAudio.pcmEncoding == AudioFormat.ENCODING_PCM_16BIT &&
-                ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN &&
-                resampledAudio.data.isNotEmpty() &&
-                resampledAudio.data.size % 2 == 0
-        ) { "Invalid audio format for fingerprint generation" }
 
         val signature = try {
             VibraSignature.fromI16(resampledAudio.data)
@@ -180,11 +292,8 @@ object MusicRecognitionService {
 
         val sampleDurationMs = (resampledAudio.data.size / 2) * 1000L / VibraSignature.REQUIRED_SAMPLE_RATE
 
-        // Provider cascade: direct amp.shazam.com → Aura Worker relay probe (inert until deployed).
-        val result = Shazam.recognizeWithFallback(signature, sampleDurationMs)
-
-        return result.fold(
-            onSuccess = { recognitionResult -> RecognitionStatus.Success(recognitionResult) },
+        return Shazam.recognizeWithFallback(signature, sampleDurationMs).fold(
+            onSuccess = { RecognitionStatus.Success(it) },
             onFailure = { error ->
                 val message = error.message ?: "Unknown error"
                 if (message.contains("No match", ignoreCase = true)) {
@@ -192,12 +301,22 @@ object MusicRecognitionService {
                 } else {
                     RecognitionStatus.Error(message)
                 }
-            }
+            },
         )
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun recordAudio(context: Context, durationMs: Long): ByteArray = withContext(Dispatchers.IO) {
+    /**
+     * Graba hasta [durationMs] escribiendo en [sink] **según va leyendo**, no al final.
+     *
+     * Antes devolvía el `ByteArray` entero al terminar, que es lo que obligaba a esperar los diez
+     * segundos completos antes de poder preguntar nada. Escribir en un búfer compartido es lo que
+     * permite que las consultas de [runProgressiveRecognition] vayan saliendo mientras el micrófono
+     * sigue abierto. La captura en sí — fuente sin procesar, AGC y supresor de ruido desactivados,
+     * 44.1 kHz mono 16-bit — es **idéntica**: esa parte estaba bien y tocarla habría sido cambiar la
+     * calidad de la huella, que es justo lo que pidió que no sufriera.
+     */
+    private suspend fun recordInto(context: Context, sink: RecordingBuffer, durationMs: Long): Unit = withContext(Dispatchers.IO) {
         val bufferSize = AudioRecord.getMinBufferSize(
             RECORDING_SAMPLE_RATE,
             CHANNEL_CONFIG,
@@ -220,7 +339,6 @@ object MusicRecognitionService {
         val agc = disableAutomaticGainControl(audioRecord.audioSessionId)
         val ns = disableNoiseSuppressor(audioRecord.audioSessionId)
 
-        val outputStream = ByteArrayOutputStream()
         val buffer = ByteArray(bufferSize)
         val startTime = System.currentTimeMillis()
 
@@ -230,7 +348,7 @@ object MusicRecognitionService {
             while (System.currentTimeMillis() - startTime < durationMs && isActive) {
                 val bytesRead = audioRecord.read(buffer, 0, bufferSize)
                 if (bytesRead > 0) {
-                    outputStream.write(buffer, 0, bytesRead)
+                    sink.write(buffer, bytesRead)
                 } else if (bytesRead < 0) {
                     // AudioRecord.ERROR_* — stop instead of spinning uselessly on empty reads.
                     break
@@ -242,8 +360,6 @@ object MusicRecognitionService {
             runCatching { agc?.release() }
             runCatching { ns?.release() }
         }
-
-        outputStream.toByteArray()
     }
 
     /**
