@@ -750,6 +750,11 @@ constructor(
                     shuffle = isShuffleAction,
                     expectedCount = resolved.mediaItems.size,
                     expectedFirstId = resolved.mediaItems.firstOrNull()?.mediaId,
+                    // Los items van AQUÍ porque son la mitad del arreglo del coche: sin ellos el servicio
+                    // se quedaba con la cola que la app dejó puesta y le paginaba OTRA colección encima
+                    // a la que el dueño acababa de elegir. Ver el porqué completo en adoptExternalQueue.
+                    items = resolved.mediaItems,
+                    startIndex = resolved.startIndex,
                 )
             }
             resolved

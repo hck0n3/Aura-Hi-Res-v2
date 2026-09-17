@@ -4865,6 +4865,10 @@ class MusicService :
     fun playNext(items: List<MediaItem>) {
         
         if (player.mediaItemCount == 0 || player.playbackState == STATE_IDLE) {
+            // Con el reproductor vacío esto NO es un "poner a continuación": construye una cola nueva
+            // entera, así que la cola anterior tiene que dejar de mandar. Sin esto, el servicio le
+            // paginaba encima la colección que estuviera puesta antes — ver [adoptDirectQueue].
+            adoptDirectQueue(items = items, title = null)
             player.setMediaItems(items)
             player.prepare()
             
@@ -5413,6 +5417,37 @@ class MusicService :
     @Volatile private var externalExpectedFirstId: String? = null
 
     /**
+     * La línea de tiempo del reproductor se acaba de reemplazar **sin pasar por [playQueue]** — dile al
+     * servicio de qué cola se trata.
+     *
+     * [currentQueue] no es decorativo: a cinco canciones del final, `onMediaItemTransition` hace
+     * `currentQueue.nextPage()` y lo añade, y el traspaso a la radio infinita exige
+     * `!currentQueue.hasNextPage()`. Quien reemplaza la línea de tiempo y NO actualiza esto deja viva la
+     * cola anterior, así que el servicio pagina una colección que ya no suena dentro de la que sí suena,
+     * y además nunca entrega el mando a la radio infinita al terminar. Eso es exactamente lo que el dueño
+     * reportó en Android Auto (2026-09-17); lo escribo aquí, en el punto único, porque los tres sitios que
+     * reemplazan la línea de tiempo por fuera de [playQueue] tenían el mismo agujero y repetir la
+     * asignación en tres sitios es cómo vuelve a abrirse uno.
+     *
+     * Siempre una [ListQueue]: estas colas **son** listas finitas, y `hasNextPage()` false es justo lo que
+     * apaga la paginación ajena y enciende el traspaso a la radio al final.
+     */
+    fun adoptDirectQueue(
+        items: List<MediaItem>,
+        title: String?,
+        contextId: String? = null,
+        startIndex: Int = 0,
+    ) {
+        currentQueue = ListQueue(
+            title = title,
+            items = items,
+            startIndex = startIndex,
+            contextId = contextId,
+        )
+        queueTitle = title
+    }
+
+    /**
      * Adopts a queue that did NOT come through [playQueue].
      *
      * `onSetMediaItems` returns items straight to media3, so the service never learned about them:
@@ -5427,7 +5462,49 @@ class MusicService :
         shuffle: Boolean,
         expectedCount: Int = 0,
         expectedFirstId: String? = null,
+        items: List<MediaItem> = emptyList(),
+        startIndex: Int = 0,
     ) {
+        // 🔴 REPORTE DEL DUEÑO (2026-09-17, Android Auto): *"me meto a un playlist o álbum y empiezo a
+        // reproducir, y de la nada después de la canción que selecciono me pone otra cosa […] si el
+        // aleatorio estuviese activado debe poner canción DENTRO del playlist o álbum, y para cuando
+        // termine deberá seguir con la cola infinita"*.
+        //
+        // ## La causa, y es una sola para los dos síntomas
+        // [currentQueue] solo se asignaba dentro de `playQueue` y en los sitios de radio. Una cola que
+        // llega de un controlador EXTERNO no pasa por `playQueue` — `onSetMediaItems` le entrega los
+        // items a media3 directamente — así que `currentQueue` **seguía siendo la cola que la app dejó
+        // puesta la última vez**. Y esa cola vieja sigue viva para dos cosas:
+        //
+        //  1. **La paginación.** `onMediaItemTransition` hace, a cinco canciones del final en orden de
+        //     reproducción: `if (autoLoadMoreHint && … && currentQueue.hasNextPage()) currentQueue.nextPage()`
+        //     y lo añade a la cola del coche. O sea que mientras suena el álbum que él eligió, el
+        //     servicio le iba pegando **la página siguiente de otra colección**. Con el aleatorio
+        //     encendido es peor todavía: `applyShuffleOrder` se rehace sobre la línea de tiempo ya
+        //     contaminada, así que esa canción ajena puede caer justo detrás de la que está sonando —
+        //     literalmente *"después de la canción que selecciono me pone otra cosa"*.
+        //  2. **El traspaso a la radio infinita.** El salto a la cola infinita exige
+        //     `!currentQueue.hasNextPage()`. Con una cola vieja que SÍ tiene páginas, esa condición es
+        //     falsa y el traspaso nunca ocurre: al acabar el álbum no arranca la cola infinita, arranca
+        //     la paginación de lo ajeno. Los dos síntomas que él describe son la misma línea.
+        //
+        // Por qué se notaba "de la nada" y no siempre: `EmptyQueue.hasNextPage()` es `false`, así que en
+        // un proceso recién arrancado no pasa nada. Hace falta haber usado la app antes — y entonces
+        // depende de qué cola quedó puesta.
+        //
+        // ## El arreglo
+        // La cola externa **es** una lista finita, así que se representa como tal. `ListQueue` no pagina
+        // (`hasNextPage()` siempre `false`), con lo que (1) desaparece y (2) pasa a cumplirse: al acabar
+        // el álbum el servicio entrega el mando a la radio infinita, que es justo lo que él pide.
+        //
+        // Se le pasa el `contextId` a propósito en vez de usar [EmptyQueue]: es lo que `toPersistQueue`
+        // guarda en disco, y es lo que hace que la memoria de "aleatorio mejorado" de ESE álbum
+        // sobreviva a un reinicio. Con EmptyQueue se guardaría null, y hoy se guarda algo peor —el
+        // contexto de la colección ANTERIOR—, así que este es el único valor honesto de los tres.
+        //
+        // `queueTitle` se limpia por lo mismo: es el título que se persiste con la cola, y el nombre de
+        // la playlist anterior sobre el álbum que suena en el coche es sencillamente falso.
+        adoptDirectQueue(items = items, title = null, contextId = contextId, startIndex = startIndex)
         shuffleContextId = contextId
         pendingExternalShuffle = shuffle
         pendingExternalShuffleAt = android.os.SystemClock.elapsedRealtime()

@@ -344,7 +344,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         withContext(Dispatchers.Main.immediate) {
             val items = ordered.map { it.toRoomMediaItem() }
             val player = runCatching { service.player }.getOrNull() ?: return@withContext
-            service.queueTitle = "Listen Together"
+            // La cola de la sala la manda el ANFITRIÓN, así que el servicio tiene que saber que la suya
+            // ya no es la que estaba puesta antes. Si no, a cinco canciones del final paginaba la cola
+            // anterior del invitado DENTRO de la sala — canciones que el anfitrión nunca puso. Es el mismo
+            // agujero que el dueño reportó en Android Auto (2026-09-17); ver `adoptDirectQueue`, que
+            // además fija el título en el mismo sitio.
+            service.adoptDirectQueue(items = items, title = "Listen Together")
             player.setMediaItems(items, 0, keepPosition.coerceAtLeast(0L))
             // prepare() + the intent decided by the caller, in that order and BEFORE anything can
             // observe the player: `setMediaItems` alone leaves an idle player idle (nothing ever
