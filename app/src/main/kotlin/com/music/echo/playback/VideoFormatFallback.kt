@@ -61,6 +61,22 @@ object VideoFormatFallback {
         PIPEPIPE_MUXED,
     }
 
+    /**
+     * Tope DURO de intentos por id y por sesión, independiente del peldaño de la escalera.
+     *
+     * 🔴 Existe por una regresión mía que el dueño vio en la beta 2.0.44 (*"empieza a fallar el
+     * programa de forma que nunca se detiene"*): tres cosas correctas por separado — el sticky, el
+     * reinicio del contador en `exitVideoMode` y el camino de caché de disco — formaban un ciclo que
+     * daba decenas de vueltas por segundo. Cada una está arreglada en su sitio, y **esto es lo que
+     * hace que el fallo sea imposible de repetir por un camino que no se me haya ocurrido**.
+     *
+     * No sustituye a la escalera: la escalera decide QUÉ probar y este número decide CUÁNDO parar de
+     * probar, pase lo que pase con el resto del estado. Ocho y no cuatro (el largo de la escalera)
+     * porque un reintento legítimo puede repetir un peldaño cuando cambia la red; y ocho y no
+     * ochenta porque a partir de ahí ya no es un reintento, es un bucle.
+     */
+    const val HARD_TRY_CAP = 8
+
     /** Itags progresivos (llevan imagen y sonido en el mismo fichero), de mejor a peor. */
     val MUXED_ITAGS = listOf(22, 18)
 

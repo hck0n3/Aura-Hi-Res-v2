@@ -103,6 +103,55 @@ class VideoModeCoordinator(private val service: MusicService) {
     /** Ids con un peldaño de la escalera en marcha: el eco del mismo fallo no arranca un segundo. */
     private val videoFallbackInFlight = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
+    /**
+     * Ids que AGOTARON la escalera: para ellos el modo vídeo no se vuelve a intentar solo.
+     *
+     * 🔴 REGRESIÓN MÍA, encontrada en su log del 2026-09-17 07:51 (beta 2.0.44): *"empieza a fallar el
+     * programa de forma que nunca se detiene"*. Con la escalera de formatos recién puesta, el vídeo
+     * `f6f0dqs4Ax4` entraba en un **bucle infinito** de 3003 — decenas de vueltas por segundo — y el
+     * log deja las tres causas a la vista, las tres mías:
+     *
+     *  1. `retryVideoWithAnotherFormat` marcaba `stickyVideoPreferred = true`, así que al agotarse la
+     *     escalera y salir a audio algo volvía a armar vídeo enseguida;
+     *  2. `exitVideoMode` **limpia `videoFormatAttempts`**, con lo que esa re-entrada empezaba en
+     *     `attempt=1` otra vez — en el log se ve el contador reiniciarse a 1 una y otra vez;
+     *  3. y el camino de caché de disco (*"served from listen cache (no resolve)"*) se salta la
+     *     escalera ENTERA, así que cada vuelta volvía a servir los MISMOS bytes malos y `failedItag`
+     *     salía `null` — las exclusiones no aprendían nada.
+     *
+     * Las tres juntas son un ciclo perfecto. Este conjunto lo corta: es la memoria que sobrevive a
+     * `exitVideoMode` y que hace que "agotado" signifique agotado.
+     *
+     * Se limpia en dos sitios, y ninguno es automático: al cambiar de pista (otra canción, otra
+     * historia) y cuando el usuario **toca Vídeo a mano** — si lo pide explícitamente tiene derecho a
+     * que se reintente, aunque la vez anterior fallara.
+     */
+    private val videoFallbackGaveUp = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    /**
+     * Intentos TOTALES de la escalera por id, sin reiniciarse nunca dentro de la sesión.
+     *
+     * El contador de peldaños ([videoFormatAttempts]) se limpia al salir de modo vídeo, y eso es
+     * correcto para que volver a entrar empiece por el camino rápido. Este NO se limpia: es el que
+     * cuenta cuántas veces se ha intentado en total, y con [VideoFormatFallback.HARD_TRY_CAP] hace
+     * que un bucle sea imposible aunque el resto del estado se reinicie por un camino que no haya
+     * previsto. Solo un toque explícito del usuario lo pone a cero.
+     */
+    private val videoFallbackTotalTries = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /** Olvida el "me rendí" de [id] (o de todos con null): un toque explícito o un cambio de pista. */
+    internal fun clearVideoGiveUp(id: String?) {
+        if (id == null) {
+            videoFallbackGaveUp.clear()
+            videoFormatAttempts.clear()
+            videoFallbackTotalTries.clear()
+        } else {
+            videoFallbackGaveUp.remove(id)
+            videoFormatAttempts.remove(id)
+            videoFallbackTotalTries.remove(id)
+        }
+    }
+
     /** One re-prepare per [mediaId] when video stalls in BUFFERING/IDLE (debounced). */
     private val videoStuckRecoveryAttemptedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
     internal var videoStuckRecoveryJob: Job? = null
@@ -172,6 +221,11 @@ class VideoModeCoordinator(private val service: MusicService) {
         }
         service.userExplicitlyExitedVideo = false
         service.userHasUsedVideo = true
+        // 🔴 Un toque EXPLÍCITO borra el "me rendí": si lo pide a mano tiene derecho a que se
+        // reintente aunque la vez anterior se agotara la escalera. Las EXCLUSIONES no se borran —
+        // sobreviven a propósito, así que el reintento arranca sin los formatos que ya se sabe que
+        // revientan y sin volver a servir los bytes malos del disco. Ver [videoFallbackGaveUp].
+        service.player.currentMediaItem?.mediaId?.let { clearVideoGiveUp(it) }
         // MUSIC FIRST (owner directive 2026-09-14): video is never carried to the next track.
         stickyVideoPreferred = false
         service.player.currentMediaItem?.mediaId?.let { service.resetRetryCount(it) }
@@ -292,6 +346,15 @@ class VideoModeCoordinator(private val service: MusicService) {
     ) {
         val item = service.player.currentMediaItem ?: return
         val id = item.mediaId
+        // 🔴 Un id que ya agotó la escalera NO se reintenta solo: se queda en audio y listo, que es
+        // exactamente lo que él pidió (*"si detecta el error en video que pase al modo música y
+        // listo"*). Sin esta guarda, cualquier re-armado — el sticky, un cambio de pista, el
+        // pre-build — vuelve a arrancar el ciclo. Ver [videoFallbackGaveUp].
+        if (id in videoFallbackGaveUp) {
+            Timber.tag(MusicService.TAG).d("Video gave up for ${id.take(11)} — staying on audio")
+            disarmVideoModeKeepAudio()
+            return
+        }
         // Restore any OTHER tracked video items (the previous track, or a stale pre-built one) to audio;
         // the current id is about to be (re)swapped to video below.
         restoreVideoTracksExcept(id)
@@ -323,7 +386,14 @@ class VideoModeCoordinator(private val service: MusicService) {
             !snapshot.videoDownloaded &&
             !snapshot.isHttpOrLocalId
         ) {
-            service.fullyCachedVideoUri(id)?.let { (diskUrl, muxed) ->
+            // ⚠️ Y SOLO si este id no ha fallado ya. Los bytes en disco son un CONTENEDOR concreto: si
+            // reventaron una vez, volver a servirlos es repetir el intento — y este camino corre ANTES
+            // de la escalera, así que era la tercera pata del bucle infinito de su log. Además no
+            // conoce el itag, con lo que ni siquiera dejaba aprender la exclusión (`failedItag=null`
+            // en cada vuelta). Ver [videoFallbackGaveUp].
+            service.fullyCachedVideoUri(id)
+                ?.takeIf { videoFormatAttempts[id] == null && excludedVideoItags[id].isNullOrEmpty() }
+                ?.let { (diskUrl, muxed) ->
                 Timber.tag(MusicService.TAG).i("Video mode: served from listen cache (no resolve)")
                 if (muxed) newPipeMuxedVideoIds.add(id) else newPipeMuxedVideoIds.remove(id)
                 if (armModeWhenReady) service._videoMode.value = true
@@ -488,8 +558,24 @@ class VideoModeCoordinator(private val service: MusicService) {
         }
         val failedItag = videoItagForId[mediaId]
         val nextAttempt = (videoFormatAttempts[mediaId] ?: 0) + 1
+        // RED DURA, independiente del peldaño: ver [VideoFormatFallback.HARD_TRY_CAP]. Esto es lo que
+        // hace imposible el bucle de su log aunque el resto del estado se reinicie por un camino que
+        // no haya previsto.
+        val totalTries = videoFallbackTotalTries.merge(mediaId, 1, Int::plus) ?: 1
+        if (totalTries > VideoFormatFallback.HARD_TRY_CAP) {
+            videoFallbackInFlight.remove(mediaId)
+            videoFallbackGaveUp.add(mediaId)
+            Timber.tag(MusicService.TAG).w(
+                "Video fallback HARD CAP for ${mediaId.take(11)} ($totalTries tries) — staying on audio",
+            )
+            return false
+        }
         if (!VideoFormatFallback.hasNextSource(nextAttempt)) {
             videoFallbackInFlight.remove(mediaId)
+            // AGOTADO de verdad: se RECUERDA. `exitVideoMode` limpia el contador de intentos, así que
+            // sin esta marca la siguiente re-entrada empezaría en attempt=1 — el bucle infinito de su
+            // log. Ver [videoFallbackGaveUp].
+            videoFallbackGaveUp.add(mediaId)
             Timber.tag(MusicService.TAG).w("Video fallback exhausted for ${mediaId.take(11)} — staying on audio")
             return false
         }
@@ -507,9 +593,13 @@ class VideoModeCoordinator(private val service: MusicService) {
         // Volver a AUDIO ya mismo: la canción no puede callarse mientras se busca otro formato.
         restoreVideoTracksExcept(null)
         // Seguimos armados — el usuario pidió video y lo va a tener en cuanto un formato entre.
+        //
+        // `stickyVideoPreferred` NO se toca aquí: ponerlo a true era la primera pata del bucle
+        // infinito de su log — al agotarse la escalera y salir a audio, el sticky volvía a armar vídeo
+        // enseguida. El sticky existe para que una pista intermedia SIN vídeo no rompa la cadena de
+        // una lista de vídeos; no tiene nada que ver con reintentar la MISMA pista, que es lo de aquí.
         service._videoMode.value = true
         service._videoUrl.value = null
-        stickyVideoPreferred = true
         val generation = videoSwapGeneration.incrementAndGet()
         applyVideoToCurrent(armModeWhenReady = false, swapGeneration = generation, forceExplicit = true)
         return true

@@ -60,11 +60,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.exoplayer.offline.Download
-import androidx.media3.exoplayer.offline.DownloadRequest
-import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
 import com.music.innertube.models.AlbumItem
 import com.music.innertube.models.ArtistItem
@@ -84,7 +81,6 @@ import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.models.toMediaMetadata
-import iad1tya.echo.music.playback.ExoDownloadService
 import iad1tya.echo.music.playback.ShuffleContexts
 import iad1tya.echo.music.playback.queues.YouTubePlaylistQueue
 import iad1tya.echo.music.playback.queues.YouTubeQueue
@@ -990,45 +986,15 @@ private fun AuraOnlinePlaylistHeader(
                 enabled = songs.isNotEmpty() || dbPlaylist != null,
                 modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
             )
-            AuraHeaderCircleButton(
-                icon = AuraIcons.Download,
-                contentDescription = when (downloadState) {
-                    Download.STATE_COMPLETED -> stringResource(R.string.remove_download)
-                    Download.STATE_DOWNLOADING -> stringResource(R.string.downloading)
-                    else -> stringResource(R.string.action_download)
-                },
-                onClick = {
-                    when (downloadState) {
-                        Download.STATE_COMPLETED, Download.STATE_DOWNLOADING -> songs.forEach { song ->
-                            DownloadService.sendRemoveDownload(
-                                context,
-                                ExoDownloadService::class.java,
-                                song.id,
-                                false,
-                            )
-                        }
-
-                        else -> songs.forEach { song ->
-                            val downloadRequest = DownloadRequest
-                                .Builder(song.id, song.id.toUri())
-                                .setCustomCacheKey(song.id)
-                                .setData(song.title.toByteArray())
-                                .build()
-                            DownloadService.sendAddDownload(
-                                context,
-                                ExoDownloadService::class.java,
-                                downloadRequest,
-                                false,
-                            )
-                        }
-                    }
-                },
-                accent = false,
-                // Both branches iterate `songs`, so a tap before they arrive did nothing at all while
-                // looking enabled.
-                enabled = songs.isNotEmpty(),
-                modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
-            )
+            // 🔴 EL BOTÓN DE DESCARGA SE FUE AL MENÚ (punto 5 del dueño, 2026-09-17: *"eliminar el
+            // botón de descarga principal de la vista y mover esta función exclusivamente dentro del
+            // menú desplegable de los tres puntos"*).
+            //
+            // Nada se pierde: el menú ⋮ de esta pantalla YA tenía "Descargar" con su descripción
+            // (`YouTubePlaylistMenu`), y esa entrada es la que hace el mismo trabajo. Este círculo era
+            // un duplicado que ocupaba un sitio de la fila de acciones — la misma razón por la que en
+            // 2026-09-13 quitó Ajustes de la barra de abajo: *"no me gusta el que está en la barra,
+            // elíminalo y solo deja el de arriba"*.
             AuraHeaderCircleButton(
                 icon = AuraIcons.Share,
                 contentDescription = stringResource(R.string.share),

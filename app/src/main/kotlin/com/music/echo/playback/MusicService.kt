@@ -5738,6 +5738,12 @@ class MusicService :
         // NOTE: SponsorBlock is fetched from applyAutoAdvanceSideEffects() below (shared with the crossfade
         // swap path) — calling it here too issued TWO fetches per track against a free community API.
         runCatching { flushAllPendingSongDownloads(this) }
+        // 🔴 Otra canción, otra historia: el "me rendí" del modo vídeo es POR PISTA y no puede
+        // sobrevivir a un cambio de pista, o una canción que falló hoy quedaría sin vídeo para toda la
+        // sesión. Ver [VideoModeCoordinator.clearVideoGiveUp].
+        if (mediaItem != null && mediaItem.mediaId != videoModeMediaId) {
+            videoCoordinator.clearVideoGiveUp(mediaItem.mediaId)
+        }
         // Sticky video mode. On a track change while video mode is on:
         //  - FAST PATH: if the incoming track was PRE-BUILT as a video (Merging) source ahead of time
         //    (prebuildNextVideoItem), ADOPT it with NO replaceMediaItem/prepare on the now-running track —

@@ -103,4 +103,30 @@ class VideoFormatFallbackTest {
     fun `el peldano muxed tiene formatos que ofrecer`() {
         assertEquals(listOf(22, 18), VideoFormatFallback.MUXED_ITAGS)
     }
+
+    /**
+     * 🔴 LA RED DURA, y existe por una regresión mía que el dueño vio en la beta 2.0.44: *"empieza a
+     * fallar el programa de forma que nunca se detiene"*.
+     *
+     * Tres cosas correctas por separado — el sticky que re-armaba vídeo, el reinicio del contador de
+     * peldaños en `exitVideoMode`, y el camino de caché de disco que se salta la escalera entera —
+     * formaban un ciclo que daba decenas de vueltas por segundo. Cada una está arreglada en su sitio,
+     * y este tope es lo que hace que un bucle sea imposible **por un camino que no se me haya
+     * ocurrido**. Por eso el test mira la relación con el largo de la escalera y no solo el número.
+     */
+    @Test
+    fun `el tope duro deja sitio a la escalera pero no a un bucle`() {
+        assertTrue(
+            "tiene que permitir al menos una escalera completa",
+            VideoFormatFallback.HARD_TRY_CAP >= VideoFormatFallback.MAX_ATTEMPTS,
+        )
+        assertTrue(
+            "y dejar margen para repetir un peldaño cuando cambia la red",
+            VideoFormatFallback.HARD_TRY_CAP > VideoFormatFallback.MAX_ATTEMPTS,
+        )
+        assertTrue(
+            "pero a partir de cierto punto ya no es un reintento, es un bucle",
+            VideoFormatFallback.HARD_TRY_CAP <= 3 * VideoFormatFallback.MAX_ATTEMPTS,
+        )
+    }
 }
