@@ -1,48 +1,37 @@
-# Aura Hi-Res v2.0.43 — Liquid Glass interactivo, la biblioteca al instante y la cola del coche arreglada
+# Aura Hi-Res v2.0.44 (beta 1) — Vídeo sin errores, canciones que no empiezan cortadas y la sincronización que sí termina
 
-Versión estable (v2.0.43 / versionCode 1004). Actualización directa sobre cualquier versión de la
-identidad v2: mismo paquete (iad1tya.aura.music) y misma firma (CN=Aura Hi-Res v2), conserva tus datos,
-tu sesión y tus ajustes.
+BETA para probar antes de decidir si sale para todos (v2.0.44 / versionCode 1005). Se instala encima de
+tu 2.0.43 sin perder nada: mismo paquete (iad1tya.aura.music) y misma firma (CN=Aura Hi-Res v2), conserva
+tus datos, tu sesión y tus ajustes. No se le ofrece a nadie más — GitHub excluye las betas del canal de
+actualización de la app.
 
-## Android Auto
+## Modo vídeo
 
-- **Arreglada la cola al reproducir desde el coche:** al abrir un álbum o una lista y elegir una canción, después sonaba algo de otra colección. El servicio seguía paginando la última cola que habías dejado puesta en el móvil y la iba metiendo encima de la que estabas escuchando.
-- **Al terminar el álbum o la lista ahora sí entra la cola infinita**, en vez de continuar con canciones de una colección que ya no sonaba.
-- El mismo fallo estaba en **Escuchar juntos** (al invitado le entraban canciones que el anfitrión nunca puso) y al usar **Reproducir a continuación** con el reproductor vacío. Corregidos los tres.
-
-## Liquid Glass
-
-- **Nuevo «Cristal interactivo»** (Ajustes ▸ Apariencia ▸ Liquid Glass): el cristal reacciona al tacto y se mueve con la misma física que SimpMusic — se deforma al cambiar de pestaña en vez de limitarse a desplazarse.
-- **En teléfonos de gama alta viene activado de fábrica**, junto con Liquid Glass, para que la experiencia visual sea la mejor desde el primer arranque. En cualquier momento puedes apagarlo, y tu elección manda a partir de entonces.
-- **Con el cristal interactivo activado, la barra inferior pasa a ser una cápsula flotante de solo iconos.** Al dejar de tapar una banda entera de pantalla, el efecto refracta lo que se mueve por debajo y se lee de verdad como cristal.
-- **Corregidas las esquinas del minirreproductor**, que se veían cuadradas en vez de seguir su forma redondeada.
-
-## Biblioteca
-
-- **Al iniciar sesión, tus listas y suscripciones aparecen enseguida.** Iban las últimas en la cola de sincronización, detrás de las dos pasadas más largas; ahora van primero.
-- **Mientras sincroniza, la biblioteca lo dice en vez de afirmar que no tienes nada.** Antes, una pestaña vacía aseguraba «no tienes artistas» justo cuando era falso, y la pestaña de listas ni siquiera mostraba nada.
-
-## Artistas
-
-- **La parte de abajo de la portada del artista ahora se desenfoca como un cristal**, con el desenfoque creciendo hacia abajo, para que el nombre, los suscriptores y las visualizaciones se lean mejor. Funciona también sobre el vídeo de fondo.
-
-## Búsqueda
-
-- **Las sugerencias mientras escribes ya no esperan a la red.** El historial local aparece al instante y los resultados en línea se añaden cuando llegan.
-
-## Fluidez
-
-- **Navegación entre pestañas con el barrido completo**: Inicio, Novedades, Biblioteca y Buscar se desplazan de lado a lado a alta velocidad en vez de dar un pequeño empujón.
-- **Scroll más fluido en la interfaz nueva**: cada sección declara su tipo, así que el sistema deja de hacer trabajo inútil en cada frontera de sección al desplazarte.
-- **Perfil de arranque incluido en el APK** para que el primer scroll, el primer reproductor y la primera ficha de artista vayan compilados en vez de interpretados.
+- **Ninguna canción con vídeo debería volver a dar error.** Cuando el formato que YouTube devuelve no se deja leer, la app ya no se queda atascada pidiendo el mismo: prueba otro formato, luego otro proveedor y por último uno progresivo. Cuatro caminos antes de rendirse.
+- **Y si ninguno funciona, la canción NO se salta.** Se queda sonando en audio con la música intacta. Antes el fallo del vídeo arrastraba al audio y acababa saltándose la canción entera — ese `io_unspecified (2000)` que veías en pantalla era el último eslabón, no la causa.
+- Un formato que ya falló para un vídeo no se vuelve a elegir en toda la sesión, ni siquiera al preparar la siguiente canción.
 
 ## Reproducción
 
-- **Cambiar entre música y vídeo vuelve a ser instantáneo pasado un rato.** El presupuesto de pre-resolución era un contador de por vida: tras ocho cambios no volvía a adelantarse nada en toda la sesión.
-- **Si tu sesión caduca, la app lo dice.** Antes mostraba «Este contenido no está disponible», que culpa a la canción, cuando lo que hacía falta era volver a iniciar sesión.
-- **Letras con artistas invitados:** mejorada la búsqueda cuando el tema viene acreditado a varios artistas.
+- **Arregladas las canciones que empezaban cortadas** al cambiar de canción a mano y en Android Auto. La entrada suave esperaba a que el audio «estuviera sonando» con el volumen en cero, y esa condición es falsa mientras el coche o el navegador bajan el volumen un momento — así que el principio de la canción se perdía. Ahora esa espera dura poco más de un segundo y, si se agota, vuelve el volumen entero de golpe: mejor sin fundido que sin el principio.
+- **Y arreglado que una canción se quedara sonando a medio volumen** el resto de la mezcla cuando un crossfade empezaba justo encima del cambio.
 
-## Ajustes
+## Biblioteca
 
-- **Todas las opciones de Apariencia funcionan en las dos interfaces**, la clásica y la nueva.
-- **Tus preferencias no se pierden al actualizar:** auditado y fijado con pruebas para que ningún cambio futuro pueda borrarlas en silencio.
+- **La sincronización con tu cuenta ahora llega hasta el final.** Era una tarea normal de Android, y esas las corta el sistema a los diez minutos; como cada intento empezaba desde el principio, una biblioteca grande nunca terminaba. Ahora es una tarea de primer plano, sin ese límite, y con una notificación silenciosa para que veas que sigue trabajando aunque cierres la app.
+- **Deja de insistir cuando YouTube no acepta más suscripciones.** Tu cuenta tiene un límite y estaba rechazando decenas de artistas seguidos; la app los reintentaba en bucle sin decírtelo. Ahora para y lo intenta más tarde.
+
+## Interfaz
+
+- **Botón de compartir en el reproductor a pantalla completa**, en la misma fila de accesos rápidos, sin cambiar nada del diseño.
+- **Botón flotante para volver al inicio** en todas las pantallas donde la barra de abajo está oculta, para no tener que dar atrás muchas veces. Abajo a la izquierda, por encima del minirreproductor y fuera del camino.
+- **Las ventanas que suben desde abajo ahora miden lo que mide su contenido.** La tarjeta de salida de audio y los menús subían al 85 % de la pantalla tuvieran tres opciones o treinta.
+
+## Escuchar juntos
+
+- **Sincronización al estilo Sonos/AirPlay:** en vez de dar saltos, el invitado se alinea estirando el tiempo un 2 % como mucho. Como el tono se conserva, no se oye ni un corte.
+- **Compensación de la latencia de salida:** cada teléfono descuenta lo que su propio altavoz o su Bluetooth retrasan, así que dos aparatos con salidas distintas dejan de sonar desfasados.
+
+## Diagnóstico
+
+- El log compartido ahora registra las descargas para escuchar sin conexión (en cola, detenida, terminada, fallida y por qué). Antes solo escribía cuando una fallaba del todo, así que una descarga que no arrancaba no dejaba ningún rastro.
