@@ -177,6 +177,7 @@ import iad1tya.echo.music.utils.anySyncActive
 import iad1tya.echo.music.utils.isInternetAvailable
 import iad1tya.echo.music.utils.listItemShape
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.constants.AiRecommendedPlaylistKey
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.CommunityPlaylistItem
@@ -815,6 +816,11 @@ fun HomeScreen(
     // Manual "Modo sin conexión": when ON the home shows ONLY downloaded songs (no network feed).
     // Reversible from Settings → Contenido. Read as a var so the "Continuar offline" CTA can flip it on.
     var offlineMode by rememberPreference(iad1tya.echo.music.constants.OfflineModeKey, false)
+    // Combined manual+automatic state (this screen previously read only the manual flag above, so it
+    // never reacted when the automatic "sin conexión" switch kicked in with no network — see
+    // rememberOfflineState's doc). Used for every READ below; `offlineMode` stays the write path for the
+    // "Continuar offline" CTA, which must only ever set the manual switch.
+    val offlineState = rememberOfflineState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val isRandomizing by viewModel.isRandomizing.collectAsState()
     val pullRefreshState = rememberPullToRefreshState()
@@ -1107,10 +1113,13 @@ fun HomeScreen(
         forgottenFavoritesLazyGridState.scrollToItem(0)
     }
 
-    if (offlineMode) {
-        // Offline mode ON: swap the whole network home for the downloaded-only list. The online home
-        // (homeSections, carousels, etc.) above is fully preserved and returns when offline mode is off.
-        DownloadedOnlyView(navController = navController)
+    if (offlineState.offline) {
+        // Offline mode ON (manual or automatic — no network): swap the whole network home for the
+        // downloaded-only list. The online home (homeSections, carousels, etc.) above is fully
+        // preserved and returns when offline mode is off.
+        // `automatic`: which banner to show — "desactivar" only makes sense for the manual switch;
+        // the automatic one explains itself and comes back on its own once there's network again.
+        DownloadedOnlyView(navController = navController, automatic = offlineState.automatic)
     } else PullToRefreshBox(
         state = pullRefreshState,
         isRefreshing = isRefreshing,
@@ -2596,7 +2605,7 @@ fun HomeScreen(
             // quickPicks being empty (locally-seeded quick picks are almost always present for returning
             // users, which previously hid this prompt). An opaque background covers any stale/broken-cover
             // content behind it. Reconnecting auto-reloads (NetworkReload) so this disappears on its own.
-            if (!offlineMode && !isLoading && homePage == null && !isInternetAvailable(context)) {
+            if (!offlineState.offline && !isLoading && homePage == null && !isInternetAvailable(context)) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
