@@ -129,12 +129,15 @@ fun CastButton(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(40.dp)
+                    // 48dp: Android's minimum recommended touch target (was 40dp — still under it, so
+                    // taps near the edge kept missing and leaking to gestures underneath, per owner
+                    // report). The drawn icon stays 24dp, centred the same way; only the hit area grows.
+                    .size(48.dp)
                     .align(Alignment.Center)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(24.dp))
                     // TV/car: visible D-pad focus ring observing the .clickable below (same pattern as the
                     // player's transport buttons) — the button is pinned top-right of the expanded player.
-                    .tvFocusable(iad1tya.echo.music.ui.utils.rememberIsTvOrCar(), RoundedCornerShape(20.dp))
+                    .tvFocusable(iad1tya.echo.music.ui.utils.rememberIsTvOrCar(), RoundedCornerShape(24.dp))
                     .clickable {
                     if (currentMetadata == null && !isCasting) {
                         Toast.makeText(context, "Play a song first to cast", Toast.LENGTH_SHORT).show()

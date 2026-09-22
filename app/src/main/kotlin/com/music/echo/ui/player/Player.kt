@@ -3134,8 +3134,14 @@ fun BottomSheetPlayer(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.End))
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .size(24.dp),
+                    // This classic-player Cast button never got the touch-target fix applied to the new
+                    // UI's (AuraPlayer.kt): the clickable circle inside [CastButton] is 48 dp (Android's
+                    // minimum), but this outer box was only 24 dp — Compose does not hit-test past a
+                    // node's bounds, so barely a quarter of the circle ever answered a tap. Matching the
+                    // outer box to 48 dp fixes that; padding trimmed so it doesn't sit further from the
+                    // edge than before.
+                    .padding(horizontal = 8.dp, vertical = 0.dp)
+                    .size(48.dp),
                 tintColor = TextBackgroundColor,
             )
         }
