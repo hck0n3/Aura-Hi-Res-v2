@@ -410,6 +410,20 @@ class PlayerConnection(
         }
     }
 
+    /** See [MusicService.extendQueueForContext]. */
+    fun extendQueueForContext(contextId: String, items: List<MediaItem>) {
+        if (shouldBlockPlaybackChanges?.invoke() == true) {
+            Timber.tag("PlayerConnection").d("extendQueueForContext blocked - Listen Together guest")
+            return
+        }
+        try {
+            service.extendQueueForContext(contextId, items)
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Error in extendQueueForContext")
+            throw e
+        }
+    }
+
     fun toggleLike() {
         try {
             service.toggleLike()

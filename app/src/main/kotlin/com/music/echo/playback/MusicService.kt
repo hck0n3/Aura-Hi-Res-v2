@@ -5012,8 +5012,35 @@ class MusicService :
             applyShuffleOrder(player.currentMediaItemIndex, player.mediaItemCount, shufflePlaylistFirst)
         }
         player.prepare()
-        
+
         preloadUpcomingItems()
+    }
+
+    /**
+     * Appends more songs to the CURRENTLY PLAYING queue when it is still the same collection
+     * identified by [contextId] — "pedir música" starts playing with a small first batch
+     * (owner report 2026-09-22: "que siempre reproduzca de inmediato") and fills the rest of its
+     * seed up to the full target in the background; this is how that fill lands. No-ops if the
+     * user has since switched to a different queue/context, so a slow background fill can never
+     * inject songs into whatever is playing now.
+     *
+     * Deliberately more than [addToQueue] + done: extending only the player timeline would leave
+     * [contextCoverageSize] at the smaller original count, so "this collection finished" could fire
+     * after just the first batch instead of the full one (the same class of bug as registry row
+     * 94(e)) — and [radioSeedPool] would keep the smaller sample, so the infinite continuation that
+     * follows would not reflect the request's full style. This mirrors the THREE things playQueue
+     * sets up for a fresh ListQueue, extending them instead of replacing them.
+     */
+    fun extendQueueForContext(contextId: String, items: List<MediaItem>) {
+        if (items.isEmpty()) return
+        if (shuffleContextId != contextId || contextCoverageId != contextId) return
+        addToQueue(items)
+        if (radioSeedPool.isNotEmpty()) {
+            val existingIds = radioSeedPool.mapTo(HashSet()) { it.id }
+            radioSeedPool = radioSeedPool + items.mapNotNull { it.metadata }.filter { it.id !in existingIds }
+        }
+        contextCoverageSize += items.size
+        sessionPlayedIds.addAll(items.mapNotNull { it.mediaId })
     }
 
     fun toggleLibrary() {

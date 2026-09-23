@@ -89,10 +89,21 @@ fun AuraMusicRequestCard(
             ListQueue(
                 title = result.title,
                 items = result.songs.map { it.toMediaItem() },
+                contextId = result.contextId,
             ),
         )
         viewModel.reset()
         sheetOpen = false
+    }
+
+    // EL RELLENO EN SEGUNDO PLANO llega por su propio canal (no por `state`, que ya volvió a Idle
+    // arriba) — ver MusicRequestViewModel.fillInBackground. Vive fuera de `sheetOpen`/`ready` a
+    // propósito: la hoja ya se cerró para cuando esto llega, pero la música sigue sonando y es a esa
+    // cola a la que hay que sumarle el resto.
+    LaunchedEffect(Unit) {
+        viewModel.extend.collect { event ->
+            playerConnection.extendQueueForContext(event.contextId, event.songs.map { it.toMediaItem() })
+        }
     }
 
     Row(
