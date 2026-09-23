@@ -81,6 +81,7 @@ import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
@@ -482,6 +483,7 @@ fun BottomSheetPlayer(
     val repeatMode by playerConnection.repeatMode.collectAsState()
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
+    val isAdvancingIntoRadio by playerConnection.isAdvancingIntoRadio.collectAsState()
     val isMuted by playerConnection.isMuted.collectAsState()
     val playerVolume by playerConnection.service.playerVolume.collectAsState()
 
@@ -2317,11 +2319,23 @@ fun BottomSheetPlayer(
                                     .weight(nextButtonWeight)
                                     .tvFocusable(isTvOrCar)
                             ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.skip_next),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(32.dp)
-                                )
+                                if (isAdvancingIntoRadio) {
+                                    // Round 3 owner report: Next at the end of a finite queue kicks off a
+                                    // real network round trip (radio seed) with nothing else acknowledging
+                                    // the tap, so it looked frozen. This spinner is the only change — the
+                                    // tap itself and its timing are untouched.
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        color = sideButtonContentColor,
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Icon(
+                                        painter = painterResource(R.drawable.skip_next),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -2405,18 +2419,32 @@ fun BottomSheetPlayer(
                             Spacer(Modifier.width(8.dp))
 
                             Box(modifier = Modifier.weight(1f)) {
-                                ResizableIconButton(
-                                    icon = R.drawable.apple_skip_next,
-                                    enabled = canSkipNext && !isListenTogetherGuest,
-                                    color = TextBackgroundColor,
-                                    modifier =
-                                Modifier
-                                    .size(48.dp)
-                                    .align(Alignment.Center)
-                                    .alpha(if (isListenTogetherGuest) 0.5f else 1f)
-                                    .tvFocusable(isTvOrCar),
-                                    onClick = playerConnection::seekToNext,
-                                )
+                                if (isAdvancingIntoRadio) {
+                                    // Round 3 owner report: Next at the end of a finite queue kicks off a
+                                    // real network round trip (radio seed) with nothing else acknowledging
+                                    // the tap, so it looked frozen. This spinner is the only change — the
+                                    // tap itself and its timing are untouched.
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .align(Alignment.Center),
+                                        color = TextBackgroundColor,
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    ResizableIconButton(
+                                        icon = R.drawable.apple_skip_next,
+                                        enabled = canSkipNext && !isListenTogetherGuest,
+                                        color = TextBackgroundColor,
+                                        modifier =
+                                    Modifier
+                                        .size(48.dp)
+                                        .align(Alignment.Center)
+                                        .alpha(if (isListenTogetherGuest) 0.5f else 1f)
+                                        .tvFocusable(isTvOrCar),
+                                        onClick = playerConnection::seekToNext,
+                                    )
+                                }
                             }
                         }
 

@@ -24,11 +24,15 @@ import iad1tya.echo.music.playback.queues.Queue
 import iad1tya.echo.music.utils.reportException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import androidx.lifecycle.Lifecycle
@@ -45,7 +49,10 @@ class PlayerConnection(
 ) : Player.Listener, DefaultLifecycleObserver {
     private companion object {
         private const val TAG = "PlayerConnection"
-        private const val PLAYER_INIT_TIMEOUT_MS = 5000L 
+        private const val PLAYER_INIT_TIMEOUT_MS = 5000L
+        // Comfortably above MusicService's own internal seed bounds (15s) so the watchdog never clears
+        // isAdvancingIntoRadio while a seed already in flight is still genuinely working.
+        private const val ADVANCE_INTO_RADIO_TIMEOUT_MS = 20_000L
     }
 
     val service = binder.service
@@ -206,6 +213,19 @@ class PlayerConnection(
 
     val canSkipPrevious = MutableStateFlow(true)
     val canSkipNext = MutableStateFlow(true)
+
+    /**
+     * True from the moment Next is pressed at the end of a finite queue (no radio item appended yet)
+     * until the song actually changes, or a bound expires. [updateCanSkipPreviousAndNext] deliberately
+     * keeps [canSkipNext] true in this state so the tap can start the radio at all — which meant the tap
+     * had NO visible acknowledgment while [MusicService.startRadioSeamlessly] ran its real network round
+     * trip (YouTube lookup + radio/related fetch, genre profiling — several seconds on a normal
+     * connection). Owner report, round 3: "le doy cambiar [y] cuesta mucho que reaccione". The UI can
+     * show a brief loading state on the Next control while this is true instead of looking frozen.
+     */
+    val isAdvancingIntoRadio: StateFlow<Boolean> get() = _isAdvancingIntoRadio
+    private val _isAdvancingIntoRadio = MutableStateFlow(false)
+    private var advanceIntoRadioWatchdog: Job? = null
 
     val error = MutableStateFlow<PlaybackException?>(null)
     val isMuted = service.isMuted
@@ -591,6 +611,7 @@ class PlayerConnection(
                 if (!service.isRadioSeedInFlight) {
                     startRadioSeamlessly()
                 }
+                armAdvanceIntoRadioWatchdog()
             }
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Error in seekToNextOrStartRadio")
@@ -599,6 +620,29 @@ class PlayerConnection(
 
     fun seekToNext() {
         seekToNextOrStartRadio()
+    }
+
+    /**
+     * Polls (bounded, [ADVANCE_INTO_RADIO_TIMEOUT_MS]) for the current song to actually change after a
+     * manual Next at the end of a finite queue, publishing [isAdvancingIntoRadio] for the UI meanwhile.
+     * Polling — not a listener callback — because what this measures is specifically "did the SONG the
+     * user is hearing change", which is exactly what MusicService's own appendSeed does synchronously
+     * (seekTo the new song + play) once the radio lands; a plain timeline/media-item-transition callback
+     * would also fire for the B3 head-start's own background append, which changes nothing audible yet.
+     * service.scope, not a local one: this outlives the composable that triggered it.
+     */
+    private fun armAdvanceIntoRadioWatchdog() {
+        advanceIntoRadioWatchdog?.cancel()
+        val startingMediaId = player.currentMediaItem?.mediaId
+        _isAdvancingIntoRadio.value = true
+        advanceIntoRadioWatchdog = service.scope.launch {
+            var waited = 0L
+            while (isActive && waited < ADVANCE_INTO_RADIO_TIMEOUT_MS && player.currentMediaItem?.mediaId == startingMediaId) {
+                delay(150)
+                waited += 150
+            }
+            _isAdvancingIntoRadio.value = false
+        }
     }
 
     var onRestartSong: (() -> Unit)? = null

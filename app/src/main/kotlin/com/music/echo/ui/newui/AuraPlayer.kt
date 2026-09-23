@@ -442,6 +442,7 @@ private fun AuraPlayerShape(
 
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
+    val isAdvancingIntoRadio by playerConnection.isAdvancingIntoRadio.collectAsState()
     val isMuted by playerConnection.isMuted.collectAsState()
     // "No me gusta" is now a button ON the player, not only a row inside the merged menu. Same flow the
     // menu reads (AuraPlayerMenu.kt:146) and the same flow the classic like/dislike pill reads
@@ -1654,15 +1655,29 @@ private fun AuraPlayerShape(
                         fill = if (dense) playButtonFill else SolidColor(Color.Transparent),
                         ink = if (dense) playButtonInk else AuraPalette.OnGround,
                     )
-                    AuraIconButton(
-                        icon = AuraIcons.SkipNext,
-                        contentDescription = stringResource(R.string.next),
-                        onClick = playerConnection::seekToNext,
-                        enabled = canSkipNext && !isListenTogetherGuest,
-                        size = if (dense) 30.dp else 34.dp,
-                        tint = AuraPalette.OnGround.copy(alpha = 0.9f),
-                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        if (isAdvancingIntoRadio) {
+                            // Round 3 owner report: Next at the end of a finite queue kicks off a real
+                            // network round trip (radio seed) with nothing else acknowledging the tap, so
+                            // it looked frozen. This spinner is the only change — the tap itself and its
+                            // timing are untouched.
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(if (dense) 22.dp else 24.dp),
+                                color = AuraPalette.OnGround.copy(alpha = 0.9f),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            AuraIconButton(
+                                icon = AuraIcons.SkipNext,
+                                contentDescription = stringResource(R.string.next),
+                                onClick = playerConnection::seekToNext,
+                                enabled = canSkipNext && !isListenTogetherGuest,
+                                size = if (dense) 30.dp else 34.dp,
+                                tint = AuraPalette.OnGround.copy(alpha = 0.9f),
+                                modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                            )
+                        }
+                    }
                     Box(contentAlignment = Alignment.Center) {
                         AuraIconButton(
                             icon = AuraIcons.Repeat,
