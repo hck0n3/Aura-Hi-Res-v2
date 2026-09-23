@@ -419,7 +419,19 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
                 // the user dragged EQ sliders (owner: "muevo las barras y cambia el volumen"). Peaks are
                 // caught by the gentle -3 dBFS limiter + true-peak path instead — perceived loudness stays
                 // with the user's preamp; only the shape changes.
-                setPreamp(ptr, effectivePreampDb(profile).toFloat())
+                val effectivePreamp = effectivePreampDb(profile)
+                // Ronda 2, punto 10 del dueño: sigue reportando que mover una banda le cambia el volumen
+                // tras esta beta. No se encontró en el código ningún mecanismo, además del ya corregido
+                // arriba, que ligue mover una banda a un cambio de preamp — por eso se instrumenta en vez
+                // de adivinar (regla AGENTS.md #2/#3): si vuelve a pasar, este log (solo números, sin
+                // datos de usuario, regla #4) muestra si `effectivePreamp` cambió de verdad en ese momento.
+                Timber.tag("EqualizerAudioProcessor").i(
+                    "applyProfile: rawPreamp=%.2f autoHeadroom=%b effectivePreamp=%.2f",
+                    profile.preamp,
+                    autoHeadroom,
+                    effectivePreamp,
+                )
+                setPreamp(ptr, effectivePreamp.toFloat())
 
                 allBands.forEachIndexed { index, band ->
                     if (bandActive(band)) {
