@@ -1895,9 +1895,10 @@ private fun auraLocalThumbnail(item: LocalItem): String? = when (item) {
     is Playlist -> item.playlist.thumbnailUrl
 }
 
-/** Initial / mood-chip loading: cover shelf placeholders matching typed album width. */
+/** Initial / mood-chip loading: cover shelf placeholders matching typed album width. Also reused by
+ *  AuraNovedadesScreen for its own initial-load skeleton — same shelf shape, so `internal`. */
 @Composable
-private fun AuraHomeShelfSkeleton(cardScale: Float) {
+internal fun AuraHomeShelfSkeleton(cardScale: Float) {
     val cover = 156.dp * cardScale
     Column(
         modifier = Modifier
