@@ -231,19 +231,18 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1012
-        // BETA 2.0.51-beta1 — SOLO EL DUEÑO (ronda 3 + ronda 4 de reportes del 2026-09-23, tras probar
-        // 2.0.50-beta1: cola persistida que no resumía tras actualizar, swipe con dos paradas a la
-        // derecha (me gusta / agregar a playlist) y no-me-gusta directo a la izquierda, papelera
-        // progresiva al deslizar en playlists propias, spinner en "siguiente" mientras arranca la cola
-        // infinita, y modo sin conexión que ahora salta solo a una canción ya disponible offline en vez
-        // de quedarse esperando la red — ver RELEASE_INFO.md).
+        versionCode = 1013
+        // BETA 2.0.52-beta1 — SOLO EL DUEÑO (ronda 5 de reportes del 2026-09-23, tras probar
+        // 2.0.51-beta1: haptics en los gestos de swipe, shimmer de carga en Novedades, transición
+        // "hero" de portada Inicio -> Álbum, arreglo del crash al entrar a una playlist propia
+        // (requireOffset() leído antes de que el swipe tuviera sus anclas listas) y arreglo del botón
+        // Cast que a veces no reaccionaba al primer toque — ver RELEASE_INFO.md).
         // El sufijo `-beta1` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño entrando a la página de releases (o a la función de "recibir versiones beta" del
         // actualizador dentro de la app, si la tiene activada). Publicar el tag requiere su permiso
         // explícito en el momento (AGENTS.md) — no se hace solo por dejar esto compilado.
-        versionName = "2.0.51-beta1"
+        versionName = "2.0.52-beta1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
