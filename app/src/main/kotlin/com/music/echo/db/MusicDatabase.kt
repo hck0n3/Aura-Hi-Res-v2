@@ -118,7 +118,7 @@ class MusicDatabase(
         SortedSongAlbumMap::class,
         PlaylistSongMapPreview::class,
     ],
-    version = 43,
+    version = 44,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 2, to = 3),
@@ -173,6 +173,11 @@ class MusicDatabase(
         // por tanto se aplican a los DOS builders, mientras que una a mano hay que registrarla en cada
         // uno — y olvidar el de Hilt es lo que rompió todas las instalaciones en 0.6.117.
         AutoMigration(from = 42, to = 43),
+        // 43 -> 44: hand-written (like 37->38/38->39/39->40 above), NOT an AutoMigration — Room's
+        // AutoMigration diffs against the PRIOR version's exported schema JSON, and 43.json was never
+        // committed to app/schemas (version 43 itself only needed 42.json, since it was the one being
+        // generated), so there is nothing on disk for 44 to diff against. A single additive column is a
+        // one-line ALTER TABLE either way; see MIGRATION_43_44 below.
     ],
 )
 @TypeConverters(Converters::class)
@@ -197,6 +202,7 @@ abstract class InternalDatabase : RoomDatabase() {
                         MIGRATION_37_38,
                         MIGRATION_38_39,
                         MIGRATION_39_40,
+                        MIGRATION_43_44,
                     )
 
                     .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
@@ -861,5 +867,12 @@ val MIGRATION_39_40 =
             db.execSQL("ALTER TABLE `artist` ADD COLUMN `followedByUserAt` INTEGER")
             db.execSQL("ALTER TABLE `artist` ADD COLUMN `ytmSyncedAt` INTEGER")
             db.execSQL("ALTER TABLE `artist` ADD COLUMN `unfollowedByUserAt` INTEGER")
+        }
+    }
+
+val MIGRATION_43_44 =
+    object : Migration(43, 44) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `song` ADD COLUMN `videoFormatIncompatible` INTEGER NOT NULL DEFAULT 0")
         }
     }

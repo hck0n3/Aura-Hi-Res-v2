@@ -90,6 +90,8 @@ object AppModule {
             // bookmark, and the subscription upload state). Same rule as above — THIS is the builder
             // Hilt injects, so a migration missing here is a universal "migration not found" crash.
             iad1tya.echo.music.db.MIGRATION_39_40,
+            // v43->v44: song.videoFormatIncompatible. Same rule as above.
+            iad1tya.echo.music.db.MIGRATION_43_44,
         )
 
         .setJournalMode(androidx.room.RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)

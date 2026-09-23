@@ -52,7 +52,13 @@ data class SongEntity(
     @ColumnInfo(name = "isUploaded", defaultValue = false.toString())
     val isUploaded: Boolean = false,
     @ColumnInfo(name = "isVideo", defaultValue = false.toString())
-    val isVideo: Boolean = false
+    val isVideo: Boolean = false,
+    // Set once the video fallback ladder (VideoModeCoordinator) has exhausted every source for this
+    // song's video stream — persisted so the "switch to video" toggle stops being offered for it on
+    // future encounters (queue rebuilds, re-opening the song, app restart), not just for the rest of
+    // the current playback session. See MediaMetadata.hasCompatibleVideo.
+    @ColumnInfo(defaultValue = "0")
+    val videoFormatIncompatible: Boolean = false
 ) {
     fun localToggleLike() = copy(
         liked = !liked,

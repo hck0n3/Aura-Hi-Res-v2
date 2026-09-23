@@ -7,6 +7,7 @@ import com.music.innertube.models.SongItem
 import com.music.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_ATV
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.db.entities.SongEntity
+import iad1tya.echo.music.playback.VideoCompatibility
 import iad1tya.echo.music.ui.utils.resize
 import java.io.Serializable
 import java.time.LocalDateTime
@@ -36,9 +37,21 @@ data class MediaMetadata(
      * MediaItem and rebuilds its source) while keeping every real field intact for the UI.
      */
     val videoSwapNonce: Long? = null,
+    /**
+     * True once the video fallback ladder already exhausted every source for THIS id (persisted DB
+     * flag when known locally, otherwise the in-session [VideoCompatibility] cache) — the "switch to
+     * video" control stops being offered so tapping it can't error again on a song already proven
+     * incompatible. Never true for a song never yet attempted: there is no cheap way to know that in
+     * advance without resolving the stream for real (see VideoModeCoordinator).
+     */
+    val videoFormatIncompatible: Boolean = false,
 ) : Serializable {
     val isVideoSong: Boolean
         get() = musicVideoType != null && musicVideoType != MUSIC_VIDEO_TYPE_ATV
+
+    /** The single source of truth the UI should check instead of raw [isVideoSong] (Player.kt et al). */
+    val hasCompatibleVideo: Boolean
+        get() = isVideoSong && !videoFormatIncompatible && !VideoCompatibility.isKnownIncompatible(id)
 
     data class Artist(
         val id: String?,
@@ -94,9 +107,10 @@ fun Song.toMediaMetadata() =
             )
         },
         explicit = song.explicit,
-        
+
         musicVideoType = if (song.isVideo) "MUSIC_VIDEO_TYPE_OMV" else null,
         suggestedBy = null,
+        videoFormatIncompatible = song.videoFormatIncompatible,
     )
 
 fun SongItem.toMediaMetadata() =

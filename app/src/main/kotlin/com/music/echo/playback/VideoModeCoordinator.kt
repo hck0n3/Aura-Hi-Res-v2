@@ -139,6 +139,28 @@ class VideoModeCoordinator(private val service: MusicService) {
      */
     private val videoFallbackTotalTries = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
+    /**
+     * Ronda 2, punto 6 del dueño: una vez que la escalera de formatos se agota de verdad para [id], no
+     * se vuelve a ofrecer el botón de cambiar a vídeo — ni ahora ni en futuros encuentros con esa
+     * canción (otra sesión de "pedir música", la cola, la biblioteca). Dos capas, deliberadamente
+     * distintas de [videoFallbackGaveUp] (que SÍ se olvida con un toque explícito, ver
+     * [clearVideoGiveUp] — esta marca no, el dueño pidió "sin poderse cambiar" sin excepción):
+     *  - [VideoCompatibility]: en memoria, cubre YA MISMO cualquier otra fila en pantalla con este id
+     *    (listas de "pedir música"/búsqueda construidas desde SongItem, que no tienen fila en Room).
+     *  - `song.videoFormatIncompatible`: persistido, para que una canción que SÍ está en la base local
+     *    (biblioteca, playlist, ya reproducida) lo recuerde también tras reiniciar la app.
+     */
+    private fun markVideoFormatIncompatible(id: String) {
+        VideoCompatibility.markIncompatible(id)
+        service.database.query {
+            getSongByIdBlocking(id)?.let { song ->
+                if (!song.song.videoFormatIncompatible) {
+                    update(song.song.copy(videoFormatIncompatible = true))
+                }
+            }
+        }
+    }
+
     /** Olvida el "me rendí" de [id] (o de todos con null): un toque explícito o un cambio de pista. */
     internal fun clearVideoGiveUp(id: String?) {
         if (id == null) {
@@ -458,6 +480,10 @@ class VideoModeCoordinator(private val service: MusicService) {
                 if (videoSwapGeneration.get() != swapGeneration) return@withContext
                 if (service.player.currentMediaItem?.mediaId != id) return@withContext
                 if (resolved == null) {
+                    // The ladder was exhausted on the FIRST-EVER attempt for this id (as opposed to
+                    // retryVideoWithAnotherFormat below, which handles a mid-playback failure) — either
+                    // way, no source has a usable format, so remember it the same way.
+                    markVideoFormatIncompatible(id)
                     if (!armModeWhenReady) {
                         disarmVideoModeKeepAudio()
                         val ex = outcome.innerTubeError
@@ -565,6 +591,7 @@ class VideoModeCoordinator(private val service: MusicService) {
         if (totalTries > VideoFormatFallback.HARD_TRY_CAP) {
             videoFallbackInFlight.remove(mediaId)
             videoFallbackGaveUp.add(mediaId)
+            markVideoFormatIncompatible(mediaId)
             Timber.tag(MusicService.TAG).w(
                 "Video fallback HARD CAP for ${mediaId.take(11)} ($totalTries tries) — staying on audio",
             )
@@ -576,6 +603,7 @@ class VideoModeCoordinator(private val service: MusicService) {
             // sin esta marca la siguiente re-entrada empezaría en attempt=1 — el bucle infinito de su
             // log. Ver [videoFallbackGaveUp].
             videoFallbackGaveUp.add(mediaId)
+            markVideoFormatIncompatible(mediaId)
             Timber.tag(MusicService.TAG).w("Video fallback exhausted for ${mediaId.take(11)} — staying on audio")
             return false
         }

@@ -1462,7 +1462,7 @@ private fun AuraPlayerShape(
                     // techInfo.chips is already empty when "mostrar códec" is off (see the read site
                     // above). The crossfade chip is NOT codec data — the classic player shows it
                     // independently of that switch — so it keeps its own condition.
-                    val hasVideo = meta.isVideoSong || !meta.podcastVideoUrl.isNullOrEmpty()
+                    val hasVideo = meta.hasCompatibleVideo || !meta.podcastVideoUrl.isNullOrEmpty()
                     if (techInfo.chips.isNotEmpty() || isCrossfading || hasVideo) {
                         Spacer(Modifier.height(if (dense) 6.dp else 10.dp))
                         Row(

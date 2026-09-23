@@ -1986,7 +1986,7 @@ fun BottomSheetPlayer(
                     }) {
                         Icon(painterResource(R.drawable.graphic_eq), null, tint = textButtonColor, modifier = Modifier.size(24.dp))
                     }
-                    if ((!highPerfMode || wantsHiResBackdrop) && (mediaMetadata?.isVideoSong == true || mediaMetadata?.podcastVideoUrl.isNullOrEmpty() == false)) {
+                    if ((!highPerfMode || wantsHiResBackdrop) && (mediaMetadata?.hasCompatibleVideo == true || mediaMetadata?.podcastVideoUrl.isNullOrEmpty() == false)) {
                         PlayerActionChip(
                             label = if (videoMode) "Canción" else "Video",
                             tint = textButtonColor,
