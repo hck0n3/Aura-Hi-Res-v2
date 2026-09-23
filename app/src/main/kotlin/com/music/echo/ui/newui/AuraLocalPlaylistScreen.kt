@@ -910,9 +910,25 @@ fun AuraLocalPlaylistScreen(
                                             // (fase de dibujo, como AuraSwipeActionBackground) para que
                                             // el fundido siga cada píxel del arrastre sin recomponer en
                                             // cada uno; el umbral real de borrado no cambia.
+                                            //
+                                            // Reporte de crash del dueño (2026-09-23, v2.0.51-beta1, al
+                                            // entrar a una playlist propia): "IllegalStateException: The
+                                            // offset was read before being initialized" desde este
+                                            // requireOffset() sin protección. Los anchors de
+                                            // dismissBoxState los fija SU PROPIO layout, y en el primer
+                                            // frame de una fila recién compuesta (al entrar a la lista,
+                                            // por ejemplo) este graphicsLayer puede dibujarse antes de que
+                                            // ese layout termine para ESTA instancia — requireOffset()
+                                            // lanza en vez de devolver un valor provisional. runCatching ->
+                                            // 0f es la solución correcta, no solo un parche: 0f es
+                                            // exactamente lo que "todavía no se deslizó" ya significaba
+                                            // para este fundido, así que el primer frame se ve idéntico a
+                                            // antes, y cada frame posterior (estado ya inicializado) se
+                                            // comporta exactamente como estaba diseñado.
                                             .graphicsLayer {
                                                 val revealPx = 96.dp.toPx()
-                                                alpha = (abs(dismissBoxState.requireOffset()) / revealPx).coerceIn(0f, 1f)
+                                                val offset = runCatching { dismissBoxState.requireOffset() }.getOrDefault(0f)
+                                                alpha = (abs(offset) / revealPx).coerceIn(0f, 1f)
                                             }
                                             .background(darkColorScheme().errorContainer)
                                             .padding(horizontal = 20.dp),

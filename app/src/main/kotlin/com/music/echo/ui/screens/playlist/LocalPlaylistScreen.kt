@@ -941,9 +941,23 @@ fun LocalPlaylistScreen(
                                         // AuraSwipeActionBackground) so this ramps every drag pixel
                                         // without recomposing on each one — a fixed, modest reveal
                                         // distance drives the fade-in; the commit distance is untouched.
+                                        //
+                                        // Owner crash report (2026-09-23, v2.0.51-beta1, entering one of
+                                        // his own playlists): "IllegalStateException: The offset was read
+                                        // before being initialized" from requireOffset() called bare here.
+                                        // dismissBoxState's anchors are set by ITS OWN layout pass, and on
+                                        // a row's very first frame (freshly composed, e.g. scrolled into
+                                        // view in the LazyColumn) this graphicsLayer's draw can run before
+                                        // that layout has completed for THIS state instance — requireOffset
+                                        // throws instead of returning a placeholder. runCatching -> 0f is
+                                        // the exact correct fallback, not just a guard: 0f is what "not
+                                        // dragged yet" already means for this alpha ramp, so the very first
+                                        // frame renders identically to before, and every later frame (state
+                                        // now initialized) behaves exactly as already designed.
                                         .graphicsLayer {
                                             val revealPx = 96.dp.toPx()
-                                            alpha = (abs(dismissBoxState.requireOffset()) / revealPx).coerceIn(0f, 1f)
+                                            val offset = runCatching { dismissBoxState.requireOffset() }.getOrDefault(0f)
+                                            alpha = (abs(offset) / revealPx).coerceIn(0f, 1f)
                                         }
                                         .background(MaterialTheme.colorScheme.errorContainer)
                                         .padding(horizontal = 20.dp),
