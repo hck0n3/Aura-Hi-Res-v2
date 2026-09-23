@@ -16,13 +16,16 @@ import org.junit.Test
 class VideoFormatFallbackTest {
 
     @Test
-    fun `la escalera baja por cuatro fuentes distintas y luego se acaba`() {
+    fun `la escalera baja por cinco fuentes distintas y luego se acaba`() {
         assertEquals(VideoFormatFallback.Source.PIPEPIPE_ADAPTIVE, VideoFormatFallback.sourceForAttempt(0))
         assertEquals(VideoFormatFallback.Source.PIPEPIPE_ADAPTIVE_EXCLUDING, VideoFormatFallback.sourceForAttempt(1))
         assertEquals(VideoFormatFallback.Source.INNERTUBE, VideoFormatFallback.sourceForAttempt(2))
         assertEquals(VideoFormatFallback.Source.PIPEPIPE_MUXED, VideoFormatFallback.sourceForAttempt(3))
-        assertNull(VideoFormatFallback.sourceForAttempt(4))
-        assertEquals(4, VideoFormatFallback.MAX_ATTEMPTS)
+        // Ronda 2, punto 6: último recurso VP9/AV1, gateado por decoder de hardware en el llamante
+        // (VideoModeCoordinator.pipePipeBroadFormat) — la escalera en sí solo sabe que hay un peldaño más.
+        assertEquals(VideoFormatFallback.Source.PIPEPIPE_VP9_AV1, VideoFormatFallback.sourceForAttempt(4))
+        assertNull(VideoFormatFallback.sourceForAttempt(5))
+        assertEquals(5, VideoFormatFallback.MAX_ATTEMPTS)
     }
 
     /** Ningún peldaño repite fuente: si dos coincidieran, la escalera gastaría un intento en nada. */

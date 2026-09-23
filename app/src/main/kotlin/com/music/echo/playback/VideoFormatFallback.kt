@@ -59,6 +59,17 @@ object VideoFormatFallback {
 
         /** Progresivo 22/18: lleva audio dentro, es lo que más veces sobrevive a un sniff. */
         PIPEPIPE_MUXED,
+
+        /**
+         * ÚLTIMO recurso (ronda 2, punto 6 del dueño: "dar más compatibilidad de formatos"). VP9/AV1
+         * video-only — YouTube los sirve para muchos videos que NO tienen ninguna rendición H.264 en
+         * absoluto. Nunca compite con los cuatro peldaños de arriba: solo se prueba cuando los cuatro
+         * ya fallaron, y solo si [iad1tya.echo.music.utils.HardwareVideoDecoders] confirma que el
+         * dispositivo decodifica ese códec por hardware (si no, el llamante salta este peldaño entero
+         * y la escalera termina en muxed exactamente como antes — cero cambio de comportamiento en un
+         * dispositivo sin esos decoders).
+         */
+        PIPEPIPE_VP9_AV1,
     }
 
     /**
@@ -89,6 +100,7 @@ object VideoFormatFallback {
         1 -> Source.PIPEPIPE_ADAPTIVE_EXCLUDING
         2 -> Source.INNERTUBE
         3 -> Source.PIPEPIPE_MUXED
+        4 -> Source.PIPEPIPE_VP9_AV1
         else -> null
     }
 

@@ -10,6 +10,7 @@ import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.extensions.currentMetadata
 import iad1tya.echo.music.extensions.metadata
+import iad1tya.echo.music.utils.HardwareVideoDecoders
 import iad1tya.echo.music.utils.YTPlayerUtils
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.exportedFileUriExists
@@ -524,6 +525,16 @@ class VideoModeCoordinator(private val service: MusicService) {
                 ?.takeIf { it.url.isNotEmpty() }
                 ?.let { ResolvedVideo(it.url, it.isMuxed, it.itag) }
 
+        fun pipePipeBroadFormat(exclude: Set<Int>): ResolvedVideo? {
+            val hasHardwareDecoder = HardwareVideoDecoders.supportsHardwareDecode(HardwareVideoDecoders.MIME_VP9) ||
+                HardwareVideoDecoders.supportsHardwareDecode(HardwareVideoDecoders.MIME_AV1)
+            if (!hasHardwareDecoder) return null
+            return YTPlayerUtils.adaptiveVideoStreamNewPipeBroadFormat(id, service.connectivityManager, maxH, exclude)
+                .getOrNull()
+                ?.takeIf { it.url.isNotEmpty() }
+                ?.let { ResolvedVideo(it.url, it.isMuxed, it.itag) }
+        }
+
         suspend fun innerTube(): ResolvedVideo? {
             var result = runCatching { YTPlayerUtils.videoStreamUrlDiag(id, service.connectivityManager, maxH) }
                 .getOrElse { Result.failure(it) }
@@ -549,6 +560,7 @@ class VideoModeCoordinator(private val service: MusicService) {
                 VideoFormatFallback.Source.PIPEPIPE_ADAPTIVE_EXCLUDING -> pipePipe(excluded, forceMuxed = false)
                 VideoFormatFallback.Source.INNERTUBE -> innerTube()
                 VideoFormatFallback.Source.PIPEPIPE_MUXED -> pipePipe(excluded, forceMuxed = true)
+                VideoFormatFallback.Source.PIPEPIPE_VP9_AV1 -> pipePipeBroadFormat(excluded)
             }
             if (resolved != null) {
                 videoFormatAttempts[id] = attempt
