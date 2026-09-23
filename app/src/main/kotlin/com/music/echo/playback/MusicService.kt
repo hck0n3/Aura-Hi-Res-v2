@@ -5143,6 +5143,9 @@ class MusicService :
     fun dislikeCurrentSong() {
         val mediaId = player.currentMediaItem?.mediaId ?: return
         scope.launch {
+            // See the matching comment on SongEntity.toggleLike: timestamp only, for correlating
+            // against a possible subscribeChannel call if the owner's report reproduces.
+            Timber.i("SONG_DISLIKE_TOGGLE")
             runCatching { dislikeStore.dislikeSong(mediaId) }
             // If it was liked, drop the like (a dislike contradicts it).
             runCatching {

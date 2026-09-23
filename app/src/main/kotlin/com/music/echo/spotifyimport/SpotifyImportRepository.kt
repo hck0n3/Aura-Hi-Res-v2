@@ -1088,6 +1088,11 @@ class SpotifyImportRepository @Inject constructor(
         }
 
         if (channelId.isNotEmpty()) {
+            // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a song
+            // appears to also subscribe its artist. This is the explicit Spotify-import follow path,
+            // not that flow — timestamp only (regla 4), for correlating against a like/dislike log
+            // line if the report reproduces during an import.
+            timber.log.Timber.i("ARTIST_SUBSCRIBE_IMPORT")
             runCatching { YouTube.subscribeChannel(channelId, true) }
                 .onSuccess {
                     // Confirmed on the account — record it so the library upload sync treats this

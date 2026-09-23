@@ -170,6 +170,11 @@ data class ArtistEntity(
             val subscribing = followedByUserAt == null
             val targetChannelId = channelId ?: YouTube.getChannelId(id)
             if (targetChannelId.isEmpty()) return@launch
+            // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a SONG
+            // appears to also subscribe its artist. This call site is the explicit follow button and
+            // is meant to reach the account — timestamp only (regla 4), so a like/dislike log line at
+            // the same moment in app.log would be the real evidence a static read alone can't give.
+            timber.log.Timber.i("ARTIST_SUBSCRIBE_CALL subscribing=%b", subscribing)
             val confirmedByAccount = YouTube.subscribeChannel(targetChannelId, subscribing).isSuccess
 
             // The instruction has been carried out, so it stops being an instruction. `toggled` is the

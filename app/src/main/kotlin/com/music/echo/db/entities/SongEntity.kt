@@ -64,6 +64,13 @@ data class SongEntity(
         likedDate = if (!liked) LocalDateTime.now() else null,
         inLibrary = if (!liked) inLibrary ?: LocalDateTime.now() else inLibrary
     ).also {
+        // Owner report 2026-09-22 (unconfirmed by static reading — this endpoint is `like/like`,
+        // never `subscription/subscribe`): liking/disliking a song appears to also subscribe the
+        // artist on the real YouTube account. Timestamp only, no ids/titles (regla 4 de AGENTS.md):
+        // if it happens again, this line lets the next app.log show whether a subscribeChannel call
+        // (ArtistEntity.toggleLike, LibraryUploadSync, SpotifyImportRepository — the only 3 real
+        // call sites) landed at the same moment, which static reading alone could not confirm.
+        timber.log.Timber.i("SONG_LIKE_TOGGLE liked=%b", !liked)
         CoroutineScope(Dispatchers.IO).launch {
             YouTube.likeVideo(id, !liked)
         }
