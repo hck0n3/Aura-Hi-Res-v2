@@ -105,8 +105,18 @@ fun CastButton(
     // click and then kept live by a discovery callback registered ONLY while the CastPickerSheet is
     // open (see the DisposableEffect inside menuState.show below).
 
-    // Show the button if Cast is enabled and SDK is available
-    if (enableGoogleCast && castAvailable) {
+    // Owner report (ronda 5): "a veces tengo que tocar varias veces el botón cast para que
+    // reaccione". Causa: este Box entero solo se componía cuando `castAvailable` ya era true, y
+    // esa bandera la pone el LaunchedEffect de arriba DESPUÉS de que CastContext.getSharedInstance()
+    // termine — una llamada real a Play Services, no instantánea. Cada vez que se abre el
+    // reproductor completo (donde vive este botón) ese efecto vuelve a correr desde cero, así que
+    // durante esa ventana el botón NO EXISTE — un toque ahí no falla ni se ignora, literalmente no
+    // hay nada que tocar, y el usuario lo repite hasta que por fin aparece. El botón ahora se
+    // compone siempre que el ajuste está encendido; el propio `.clickable` de abajo hace la
+    // inicialización en el momento si `LaunchedEffect` todavía no terminó, así que el primer toque
+    // SIEMPRE hace algo (abre el selector, o un aviso si Cast de verdad no está disponible) en vez de
+    // no reaccionar.
+    if (enableGoogleCast) {
         Box(
             modifier = modifier
         ) {
@@ -142,6 +152,27 @@ fun CastButton(
                     if (currentMetadata == null && !isCasting) {
                         Toast.makeText(context, "Play a song first to cast", Toast.LENGTH_SHORT).show()
                         return@clickable
+                    }
+
+                    // First tap can land before the LaunchedEffect above finishes its (real, non-
+                    // instant) CastContext.getSharedInstance() call — do the same setup right here so
+                    // this tap still does something instead of silently going nowhere. Cheap on every
+                    // later tap: the Cast SDK caches its own singleton, so this is then just a few
+                    // field reads.
+                    if (!castAvailable || mediaRouter == null || routeSelector == null) {
+                        runCatching {
+                            CastContext.getSharedInstance(context)
+                            mediaRouter = MediaRouter.getInstance(context)
+                            routeSelector = MediaRouteSelector.Builder()
+                                .addControlCategory(CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID))
+                                .build()
+                            playerConnection?.service?.castConnectionHandler?.initialize()
+                            castAvailable = true
+                        }.onFailure { e ->
+                            Timber.d("Cast not available: ${e.message}")
+                            Toast.makeText(context, "Cast no está disponible ahora mismo", Toast.LENGTH_SHORT).show()
+                            return@clickable
+                        }
                     }
 
                     // Refresh the route snapshot before showing the sheet (cheap — reads MediaRouter's
