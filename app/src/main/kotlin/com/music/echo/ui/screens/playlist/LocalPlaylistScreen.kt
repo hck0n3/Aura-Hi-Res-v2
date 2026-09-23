@@ -48,8 +48,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -81,6 +83,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -689,6 +692,12 @@ fun LocalPlaylistScreen(
                     val currentItem by rememberUpdatedState(song)
 
                     fun deleteFromPlaylist() {
+                        // Captured BEFORE the delete below mutates/removes the row, so Undo can
+                        // re-insert the same songId at the same local position. Only the local DB row is
+                        // restored on Undo — a remote (YouTube-synced) removal already sent above is not
+                        // un-sent, matching how every other undo-able action in this app works (local
+                        // state only, never a second network round-trip on the user's behalf).
+                        val removedMap = currentItem.map
                         database.transaction {
                             coroutineScope.launch {
                                 playlist?.playlist?.browseId?.let { browseId ->
@@ -709,6 +718,18 @@ fun LocalPlaylistScreen(
                             )
                             delete(currentItem.map.copy(position = Int.MAX_VALUE))
                             playlist?.playlist?.let { update(it.copy(lastUpdateTime = java.time.LocalDateTime.now())) }
+                        }
+                        coroutineScope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = context.getString(R.string.song_removed_from_playlist),
+                                actionLabel = context.getString(R.string.undo),
+                                duration = SnackbarDuration.Short,
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                database.query {
+                                    insert(removedMap.copy(id = 0))
+                                }
+                            }
                         }
                     }
 
@@ -869,10 +890,17 @@ fun LocalPlaylistScreen(
                                         .padding(horizontal = 20.dp),
                                     contentAlignment = alignment,
                                 ) {
+                                    // Icon opacity tracks the same at-rest/dragging state as the
+                                    // background color above — without this it stayed fully opaque even
+                                    // when the row was Settled (transparent background), so the trash
+                                    // icon showed on every song instead of only while swiping.
                                     Icon(
                                         painter = painterResource(R.drawable.delete),
                                         contentDescription = stringResource(R.string.remove_from_playlist),
                                         tint = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.alpha(
+                                            if (dismissBoxState.targetValue == SwipeToDismissBoxValue.Settled) 0f else 1f
+                                        ),
                                     )
                                 }
                             },
