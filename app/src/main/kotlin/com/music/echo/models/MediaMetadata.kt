@@ -56,12 +56,38 @@ data class MediaMetadata(
     data class Artist(
         val id: String?,
         val name: String,
-    ) : Serializable
+    ) : Serializable {
+        companion object {
+            // See MediaMetadata's own companion for why this is pinned.
+            private const val serialVersionUID: Long = 1L
+        }
+    }
 
     data class Album(
         val id: String,
         val title: String,
-    ) : Serializable
+    ) : Serializable {
+        companion object {
+            private const val serialVersionUID: Long = 1L
+        }
+    }
+
+    companion object {
+        // Owner report (ronda 3, 2026-09-23): "después de las actualizaciones del reproductor no
+        // continúa donde se quedó". Root cause — MediaMetadata travels inside PersistQueue.items,
+        // the object graph MusicService serializes to disk to resume playback across a restart. Kotlin/
+        // Java compute a class's serialVersionUID from its structure when none is declared, so adding
+        // [videoFormatIncompatible] last round silently changed it — a queue saved by the OLD app
+        // version threw InvalidClassException reading it back on the NEW one, which
+        // MusicService.onCreate's runCatching swallows and treats as "nothing to restore"
+        // (clearPersistedQueueFiles). PersistQueue.kt already pins its OWN UID for exactly this reason
+        // ("future additive fields deserialize old files with defaults instead of throwing"); this class
+        // sat one level deeper in the same graph without the same protection. Pinning it now means any
+        // FUTURE additive field (with a default value, same as this one) no longer breaks the resume —
+        // a file saved before this fix still fails to load once (same acceptable, one-time cost
+        // PersistQueue's own fix already accepted), never again after.
+        private const val serialVersionUID: Long = 1L
+    }
 
     fun toSongEntity() =
         SongEntity(
