@@ -3315,6 +3315,76 @@ class MusicService :
         consecutivePlaybackErr = 0
     }
 
+    /**
+     * Owner report (ronda 4): "el modo sin conexión no funciona automáticamente" — mientras se está
+     * reproduciendo y se pierde la red, la canción que sigue puede no estar descargada ni escuchada
+     * antes, y hasta ahora el único destino de la rama `!isNetworkConnected.value` de [onPlayerError]
+     * era [waitOnNetworkError] — pausar y ESPERAR a que vuelva la red, aunque una canción MÁS ADELANTE
+     * en la misma cola ya estuviera descargada o en el listen-cache y pudiera sonar ya mismo sin red.
+     *
+     * Reutiliza exactamente las mismas fuentes que el resolver ya trata como "reproducible sin red"
+     * (ver el Factory de arriba, ~línea 8259 en adelante): un downloadCache completo, un listen-cache
+     * completo ([fullyCachedListenUri]) o un URI exportado (AudioExportService) que aún exista en
+     * disco. Todos son lecturas locales de metadatos de caché — sin red, rápidas — así que recorrer
+     * toda la cola pendiente es barato.
+     *
+     * Camina la timeline en orden de REPRODUCCIÓN (`getNextWindowIndex`, respeta shuffle) desde la
+     * canción que acaba de fallar hacia ADELANTE — nunca hacia atrás, nunca vuelve a la que ya se sabe
+     * que no sirve. `REPEAT_MODE_OFF` fijo (igual que [maybeLoadMoreQueuePages]) para que el paseo NUNCA
+     * dé la vuelta y entre en bucle aunque el modo real de repetición sea "todo"; el tope
+     * `timeline.windowCount` es una cota dura sobre cuántos saltos puede dar.
+     */
+    private fun findNextOfflinePlayableIndex(): Int? {
+        val timeline = player.currentTimeline
+        var idx = player.currentMediaItemIndex
+        if (timeline.isEmpty || idx == C.INDEX_UNSET) return null
+
+        val exportedUris = runCatching {
+            runBlocking(Dispatchers.IO) {
+                parseExportedFileUriMap(dataStore.data.first()[ExportedFileUrisKey].orEmpty())
+            }
+        }.getOrDefault(emptyMap())
+
+        val window = Timeline.Window()
+        var hops = 0
+        while (hops < timeline.windowCount) {
+            idx = timeline.getNextWindowIndex(idx, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+            if (idx == C.INDEX_UNSET) return null
+            hops++
+            val mediaId = timeline.getWindow(idx, window).mediaItem.mediaId
+            if (isPlayableOffline(mediaId, exportedUris)) return idx
+        }
+        return null
+    }
+
+    /** Same "playable with zero network" test the resolver itself applies — see [findNextOfflinePlayableIndex]. */
+    private fun isPlayableOffline(mediaId: String, exportedUris: Map<String, String>): Boolean {
+        if (mediaId.isLocalMediaId()) return true
+        val cachedLength = androidx.media3.datasource.cache.ContentMetadata.getContentLength(downloadCache.getContentMetadata(mediaId))
+        val isFullyDownloaded = cachedLength != C.LENGTH_UNSET.toLong() && cachedLength > 0 &&
+            downloadCache.isCached(mediaId, 0, cachedLength)
+        if (isFullyDownloaded) return true
+        if (fullyCachedListenUri(mediaId, null) != null) return true
+        val exportedUri = exportedUris[mediaId]
+        return !exportedUri.isNullOrBlank() && exportedFileUriExists(this, exportedUri)
+    }
+
+    /** Jumps to a song [findNextOfflinePlayableIndex] already confirmed is playable with zero network. */
+    private fun skipToOfflinePlayableSong(index: Int) {
+        retryCount = 0
+        waitingForNetworkConnection.value = false
+        retryJob?.cancel()
+        deadEndRecheckJob?.cancel()
+        player.seekTo(index, C.TIME_UNSET)
+        player.prepare()
+        if (castConnectionHandler?.isCasting?.value != true) {
+            player.play()
+        }
+        runCatching {
+            Toast.makeText(this, getString(R.string.offline_skipped_to_cached_song), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun stopOnError() {
         // Mark that the imminent pause is OURS, so onPlayWhenReadyChanged keeps pausedByNetwork (whereas a
         // genuine user/external pause clears it and is therefore never auto-resumed).
@@ -7519,8 +7589,18 @@ class MusicService :
             }
 
             !isNetworkConnected.value -> {
-                // GENUINELY OFFLINE — wait for the network to come back. waitOnNetworkError() is already
-                // bounded (MAX_RETRY_COUNT, then a single-shot re-check), so this never loops forever.
+                // GENUINELY OFFLINE. Owner report (ronda 4): before jumping straight to "wait for the
+                // network", check whether a LATER song in this same queue is already playable with zero
+                // network (downloaded, fully listen-cached, or an exported file) — if so, skip to it
+                // instead of stalling. Only when nothing ahead can play offline do we fall back to
+                // waitOnNetworkError() (already bounded: MAX_RETRY_COUNT, then a single-shot re-check),
+                // so this never loops forever either way.
+                val offlineTargetIndex = findNextOfflinePlayableIndex()
+                if (offlineTargetIndex != null) {
+                    Timber.tag(TAG).d("Offline — skipping to next offline-playable song at index $offlineTargetIndex")
+                    skipToOfflinePlayableSong(offlineTargetIndex)
+                    return
+                }
                 Timber.tag(TAG).d("Offline — waiting for the network to return")
                 waitOnNetworkError()
                 return
