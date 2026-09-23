@@ -231,20 +231,16 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1009
-        // ESTABLE 2.0.48 — PARA TODOS (orden del dueño 2026-09-17: *"quiero que lances la estable
-        // para todos los usuarios, pero hasta que corrijas que sí o sí, sin importar dónde esté, el
-        // botón de inicio del mini reproductor tiene que mandarlo a la pantalla de inicio"*).
-        //
-        // Recoge las cuatro betas (2.0.44-beta1 … 2.0.47-beta4). El nombre de versión sigue LIMPIO,
-        // que aquí ya no es una precaución sino el caso normal: `compareVersions` parte por puntos y
-        // hace `toIntOrNull()`, así que cualquier sufijo se leería como 2.0.0 y al usuario le saldría
-        // una "actualización" que en realidad le baja de versión. Con el nombre limpio, 2.0.43 <
-        // 2.0.48 y la actualización se ofrece como lo que es.
-        //
-        // Esta SÍ entra en `releases/latest`, o sea que le llega a todo el mundo: el tag va sin
-        // `-beta` a propósito.
-        versionName = "2.0.48"
+        versionCode = 1010
+        // BETA 2.0.49-beta1 — SOLO EL DUEÑO (ronda de reportes del 2026-09-22: modo sin conexión
+        // automático, botón de Cast, swipe para eliminar de playlist, pedir música con voz +
+        // reproducción inmediata, links externos, ecualizador, cola/radio — ver RELEASE_INFO.md).
+        // El sufijo `-beta1` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
+        // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
+        // dueño entrando a la página de releases (o a la función de "recibir versiones beta" del
+        // actualizador dentro de la app, si la tiene activada). Publicar el tag requiere su permiso
+        // explícito en el momento (AGENTS.md) — no se hace solo por dejar esto compilado.
+        versionName = "2.0.49-beta1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
