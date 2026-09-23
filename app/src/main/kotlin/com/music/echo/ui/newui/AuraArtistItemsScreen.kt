@@ -27,8 +27,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -53,6 +57,7 @@ import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalSyncUtils
 import iad1tya.echo.music.ui.component.LocalMenuState
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.menu.YouTubeAlbumMenu
 import iad1tya.echo.music.ui.menu.YouTubeArtistMenu
 import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
@@ -61,6 +66,7 @@ import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusRestorer
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.viewmodels.ArtistItemsViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Artist section "ver todos" with a YouTube moreEndpoint (Singles & EPs, Videos, Live, Playlists…).
@@ -76,6 +82,7 @@ fun AuraArtistItemsScreen(
     navController: NavController,
     viewModel: ArtistItemsViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val menuState = LocalMenuState.current
     val database = LocalDatabase.current
     val syncUtils = LocalSyncUtils.current
@@ -215,6 +222,19 @@ fun AuraArtistItemsScreen(
                         key = { _, it -> it.id },
                     ) { index, item ->
                         val song = item as? SongItem ?: return@itemsIndexed
+                        var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+                        AddToPlaylistDialog(
+                            isVisible = showAddToPlaylistDialog,
+                            songIdsForMembership = listOf(song.id),
+                            onGetSong = {
+                                database.query {
+                                    insert(song.toMediaMetadata())
+                                }
+                                listOf(song.id)
+                            },
+                            onDismiss = { showAddToPlaylistDialog = false },
+                        )
+
                         AuraLibrarySwipeActionsBox(
                             modifier = Modifier.animateItem(),
                             onLike = {
@@ -230,14 +250,12 @@ fun AuraArtistItemsScreen(
                                     }
                                 }
                             },
-                            onOpenMenu = {
-                                menuState.show {
-                                    YouTubeSongMenu(
-                                        song = song,
-                                        navController = navController,
-                                        onDismiss = menuState::dismiss,
-                                    )
+                            onAddToPlaylist = { showAddToPlaylistDialog = true },
+                            onDislike = {
+                                coroutineScope.launch {
+                                    iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.id)
                                 }
+                                android.widget.Toast.makeText(context, "Se mostrará menos de esto", android.widget.Toast.LENGTH_SHORT).show()
                             },
                         ) {
                         AuraAppleListRowFrame(

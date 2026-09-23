@@ -2,7 +2,6 @@ package iad1tya.echo.music.ui.newui
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -62,10 +61,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.abs
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -115,6 +114,7 @@ import iad1tya.echo.music.ui.component.OverlayEditButton
 import iad1tya.echo.music.ui.component.TextFieldDialog
 import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
 import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.menu.LocalPlaylistMenu
 import iad1tya.echo.music.ui.menu.SelectionSongMenu
 import iad1tya.echo.music.ui.menu.SongMenu
@@ -845,9 +845,17 @@ fun AuraLocalPlaylistScreen(
                         modifier = Modifier.animateItem(),
                     ) {
                         if (!editable) {
-                            // Ronda 2, punto 3 del dueño: playlist ajena (no editable) — sin borrado
-                            // posible, el gesto aquí es me gusta / menú (no me gusta + agregar a
-                            // playlist), nunca el mismo swipe que las propias.
+                            // Ronda 2, punto 3 / ronda 3 del dueño: playlist ajena (no editable) — sin
+                            // borrado posible, el gesto aquí es me gusta + agregar a playlist a la
+                            // derecha, no me gusta a la izquierda (ronda 3: ya no abre el menú).
+                            var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+                            AddToPlaylistDialog(
+                                isVisible = showAddToPlaylistDialog,
+                                songIdsForMembership = listOf(song.song.id),
+                                onGetSong = { listOf(song.song.id) },
+                                onDismiss = { showAddToPlaylistDialog = false },
+                            )
+
                             AuraLibrarySwipeActionsBox(
                                 enabled = !inSelectMode,
                                 onLike = {
@@ -857,16 +865,12 @@ fun AuraLocalPlaylistScreen(
                                         syncUtils.likeSong(toggled)
                                     }
                                 },
-                                onOpenMenu = {
-                                    menuState.show {
-                                        SongMenu(
-                                            originalSong = song.song,
-                                            playlistSong = song,
-                                            playlistBrowseId = playlist?.playlist?.browseId,
-                                            navController = navController,
-                                            onDismiss = menuState::dismiss,
-                                        )
+                                onAddToPlaylist = { showAddToPlaylistDialog = true },
+                                onDislike = {
+                                    coroutineScope.launch {
+                                        iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.song.id)
                                     }
+                                    android.widget.Toast.makeText(context, "Se mostrará menos de esto", android.widget.Toast.LENGTH_SHORT).show()
                                 },
                             ) {
                                 row()
@@ -880,11 +884,6 @@ fun AuraLocalPlaylistScreen(
                                     // AuraPalette has no error/danger step (same reasoning as
                                     // AuraMigrationScreen's AuraWarnTone): always the DARK Material
                                     // error role regardless of ambient theme, never the ambient one.
-                                    val targetColor = when (dismissBoxState.targetValue) {
-                                        SwipeToDismissBoxValue.Settled -> Color.Transparent
-                                        else -> darkColorScheme().errorContainer
-                                    }
-                                    val color by animateColorAsState(targetColor, label = "swipeDeleteBg")
                                     val alignment = when (dismissBoxState.dismissDirection) {
                                         SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
                                         SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
@@ -893,21 +892,26 @@ fun AuraLocalPlaylistScreen(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .background(color)
+                                            // Ronda 3 del dueño: la papelera debe verse MIENTRAS se
+                                            // desliza, no solo al final. positionalThreshold (abajo) es
+                                            // a propósito el ancho completo — soltar antes de eso no
+                                            // borra — pero eso mismo dejaba a dismissBoxState.targetValue
+                                            // en Settled casi todo el gesto. Leído DENTRO de graphicsLayer
+                                            // (fase de dibujo, como AuraSwipeActionBackground) para que
+                                            // el fundido siga cada píxel del arrastre sin recomponer en
+                                            // cada uno; el umbral real de borrado no cambia.
+                                            .graphicsLayer {
+                                                val revealPx = 96.dp.toPx()
+                                                alpha = (abs(dismissBoxState.requireOffset()) / revealPx).coerceIn(0f, 1f)
+                                            }
+                                            .background(darkColorScheme().errorContainer)
                                             .padding(horizontal = 20.dp),
                                         contentAlignment = alignment,
                                     ) {
-                                        // Icon opacity tracks the same at-rest/dragging state as the
-                                        // background color above — without this it stayed fully opaque
-                                        // even when Settled (transparent background), so the trash icon
-                                        // showed on every song instead of only while swiping.
                                         Icon(
                                             painter = painterResource(R.drawable.delete),
                                             contentDescription = stringResource(R.string.remove_from_playlist),
                                             tint = darkColorScheme().onErrorContainer,
-                                            modifier = Modifier.alpha(
-                                                if (dismissBoxState.targetValue == SwipeToDismissBoxValue.Settled) 0f else 1f
-                                            ),
                                         )
                                     }
                                 },

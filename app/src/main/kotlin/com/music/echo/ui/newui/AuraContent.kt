@@ -1355,21 +1355,31 @@ fun AuraSwipeSongBox(
     }
 }
 
+/** Same two checkpoints as [LibrarySwipeActionsBox] (Items.kt) — kept in sync deliberately. */
+private const val AURA_LIKE_THRESHOLD = 200f
+private const val AURA_ADD_TO_PLAYLIST_THRESHOLD = 400f
+private const val AURA_DISLIKE_THRESHOLD = 200f
+
 /**
- * Ronda 2, punto 3 del dueño: en contenido de solo lectura (álbumes, singles de artista, playlists
- * ajenas) donde [AuraSwipeSongBox] no aplica — ese es "reproducir a continuación"/"añadir a la cola",
- * una acción de reproducción, no de biblioteca — y donde el borrado de [AuraLocalPlaylistScreen] tampoco
- * aplica (no hay nada que borrar en una lista que no es tuya). Decisión del dueño sobre cómo mostrar 3
- * acciones con solo 2 direcciones: una acción fija por dirección y el menú de tres puntos para el
- * resto. Derecha = me gusta. Izquierda = abre el mismo menú de tres puntos que ya tiene "no me gusta" y
- * "agregar a una playlist", así esta caja nunca duplica esa lógica.
+ * Ronda 2 punto 3 / ronda 3 del dueño: en contenido de solo lectura (álbumes, singles de artista,
+ * playlists ajenas) donde [AuraSwipeSongBox] no aplica — ese es "reproducir a continuación"/"añadir a
+ * la cola", una acción de reproducción, no de biblioteca — y donde el borrado de
+ * [AuraLocalPlaylistScreen] tampoco aplica (no hay nada que borrar en una lista que no es tuya).
+ *
+ * Ronda 3: el dueño pidió que la derecha también ofrezca "agregar a la lista" y que la izquierda
+ * dispare "no me gusta" directamente (antes abría el menú de tres puntos). Misma solución que en
+ * [LibrarySwipeActionsBox]: la derecha tiene dos paradas — soltar antes de
+ * [AURA_ADD_TO_PLAYLIST_THRESHOLD] da "me gusta", después da "agregar a una playlist" — con el ícono
+ * cambiando de corazón a "+playlist" al cruzar [AURA_LIKE_THRESHOLD]. La izquierda queda en un solo
+ * umbral, directo a "no me gusta".
  */
 @Composable
 fun AuraLibrarySwipeActionsBox(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onLike: () -> Unit,
-    onOpenMenu: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onDislike: () -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
     if (!enabled) {
@@ -1380,10 +1390,10 @@ fun AuraLibrarySwipeActionsBox(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val offset = remember { mutableFloatStateOf(0f) }
-    val threshold = 300f
 
     val dragState = rememberDraggableState { delta ->
-        offset.floatValue = (offset.floatValue + delta).coerceIn(-threshold, threshold)
+        offset.floatValue =
+            (offset.floatValue + delta).coerceIn(-AURA_DISLIKE_THRESHOLD, AURA_ADD_TO_PLAYLIST_THRESHOLD)
     }
 
     Box(
@@ -1394,7 +1404,12 @@ fun AuraLibrarySwipeActionsBox(
                 state = dragState,
                 onDragStopped = {
                     when {
-                        offset.floatValue >= threshold -> {
+                        offset.floatValue >= AURA_ADD_TO_PLAYLIST_THRESHOLD -> {
+                            onAddToPlaylist()
+                            auraResetSwipe(offset, scope)
+                        }
+
+                        offset.floatValue >= AURA_LIKE_THRESHOLD -> {
                             onLike()
                             android.widget.Toast
                                 .makeText(context, R.string.song_liked_toast, android.widget.Toast.LENGTH_SHORT)
@@ -1402,8 +1417,8 @@ fun AuraLibrarySwipeActionsBox(
                             auraResetSwipe(offset, scope)
                         }
 
-                        offset.floatValue <= -threshold -> {
-                            onOpenMenu()
+                        offset.floatValue <= -AURA_DISLIKE_THRESHOLD -> {
+                            onDislike()
                             auraResetSwipe(offset, scope)
                         }
 
@@ -1412,8 +1427,15 @@ fun AuraLibrarySwipeActionsBox(
                 },
             ),
     ) {
-        AuraSwipeActionBackground(offset = offset, threshold = threshold, goingRight = true, icon = AuraIcons.HeartFilled)
-        AuraSwipeActionBackground(offset = offset, threshold = threshold, goingRight = false, icon = AuraIcons.More)
+        AuraSwipeActionBackground(
+            offset = offset,
+            threshold = AURA_LIKE_THRESHOLD,
+            goingRight = true,
+            icon = AuraIcons.HeartFilled,
+            altIcon = AuraIcons.PlaylistAdd,
+            altIconThreshold = AURA_LIKE_THRESHOLD,
+        )
+        AuraSwipeActionBackground(offset = offset, threshold = AURA_DISLIKE_THRESHOLD, goingRight = false, icon = AuraIcons.ThumbDown)
 
         Box(
             modifier = Modifier
@@ -1428,6 +1450,10 @@ fun AuraLibrarySwipeActionsBox(
  * One of the two swipe backgrounds. Its opacity is a function of the live drag offset, evaluated
  * inside `graphicsLayer` — the draw phase — so it never recomposes and never invalidates layout. A
  * fully transparent layer is not drawn at all, which is the state of both boxes at rest.
+ *
+ * When [altIcon] is given, BOTH icons are always composed and each one's own `graphicsLayer` alpha
+ * decides which is visible — a draw-phase crossfade as [offset] crosses [altIconThreshold], same
+ * discipline as the two backgrounds themselves: no composition-time read of the drag offset anywhere.
  */
 @Composable
 private fun BoxScope.AuraSwipeActionBackground(
@@ -1435,6 +1461,8 @@ private fun BoxScope.AuraSwipeActionBackground(
     threshold: Float,
     goingRight: Boolean,
     icon: ImageVector = if (goingRight) AuraIcons.Queue else AuraIcons.Plus,
+    altIcon: ImageVector? = null,
+    altIconThreshold: Float = threshold,
 ) {
     Box(
         modifier = Modifier
@@ -1455,8 +1483,23 @@ private fun BoxScope.AuraSwipeActionBackground(
             tint = if (goingRight) AuraPalette.Teal else AuraPalette.Violet,
             modifier = Modifier
                 .padding(horizontal = 24.dp)
-                .alpha(0.9f),
+                .graphicsLayer {
+                    alpha = if (altIcon == null || abs(offset.floatValue) < altIconThreshold) 0.9f else 0f
+                },
         )
+        if (altIcon != null) {
+            AuraIconGlyph(
+                icon = altIcon,
+                contentDescription = null,
+                size = 22.dp,
+                tint = if (goingRight) AuraPalette.Teal else AuraPalette.Violet,
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .graphicsLayer {
+                        alpha = if (abs(offset.floatValue) >= altIconThreshold) 0.9f else 0f
+                    },
+            )
+        }
     }
 }
 

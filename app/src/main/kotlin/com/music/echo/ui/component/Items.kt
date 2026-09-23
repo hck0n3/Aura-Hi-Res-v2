@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -2076,21 +2077,35 @@ fun SwipeToSongBox(
 }
 
 
+/** Drag past this (right) releases "me gusta". Past [ADD_TO_PLAYLIST_THRESHOLD] releases "agregar a
+ *  una playlist" instead — same direction, two checkpoints, so both fit on one swipe side. */
+private const val LIKE_THRESHOLD = 200f
+private const val ADD_TO_PLAYLIST_THRESHOLD = 400f
+
+/** Drag past this (left, negative) releases "no me gusta". */
+private const val DISLIKE_THRESHOLD = 200f
+
 /**
- * Ronda 2, punto 3 del dueño: en contenido de solo lectura (álbumes, singles de artista, playlists
- * ajenas) donde no aplica el swipe-to-delete de una playlist propia ([SwipeToSongBox] tampoco aplica —
- * ese es "reproducir a continuación"/"añadir a la cola", una acción de reproducción, no de biblioteca).
- * Decisión del dueño sobre CÓMO mostrar 3 acciones con solo 2 direcciones: una acción fija por
- * dirección y el menú de tres puntos para el resto — no una fila de iconos revelados. Derecha = me
- * gusta (la más común, un toque). Izquierda = abre el mismo menú de tres puntos que ya tiene "no me
- * gusta" y "agregar a una playlist", así esta caja nunca duplica esa lógica.
+ * Ronda 2, punto 3 / ronda 3 del dueño: en contenido de solo lectura (álbumes, singles de artista,
+ * playlists ajenas) donde no aplica el swipe-to-delete de una playlist propia ([SwipeToSongBox]
+ * tampoco aplica — ese es "reproducir a continuación"/"añadir a la cola", una acción de reproducción,
+ * no de biblioteca).
+ *
+ * Tras probar la primera versión (derecha = me gusta, izquierda = abre el menú de tres puntos) el
+ * dueño pidió más: "también quiero que aparezca agregar a la lista" a la derecha, y que la izquierda
+ * dispare directamente "no me gusta" en vez de abrir el menú. Dos acciones en una sola dirección no
+ * caben en un swipe de un solo umbral, así que la derecha ahora tiene DOS paradas: soltar antes de
+ * [ADD_TO_PLAYLIST_THRESHOLD] da "me gusta" (la más común, más cerca); seguir deslizando y soltar
+ * después da "agregar a una playlist" — el ícono cambia de corazón a "+playlist" al cruzar la
+ * frontera, así se ve cuál se va a disparar antes de soltar. La izquierda queda en un solo umbral.
  */
 @Composable
 fun LibrarySwipeActionsBox(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onLike: () -> Unit,
-    onOpenMenu: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onDislike: () -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
     if (!enabled) {
@@ -2101,10 +2116,9 @@ fun LibrarySwipeActionsBox(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val offset = remember { mutableFloatStateOf(0f) }
-    val threshold = 300f
 
     val dragState = rememberDraggableState { delta ->
-        offset.floatValue = (offset.floatValue + delta).coerceIn(-threshold, threshold)
+        offset.floatValue = (offset.floatValue + delta).coerceIn(-DISLIKE_THRESHOLD, ADD_TO_PLAYLIST_THRESHOLD)
     }
 
     Box(
@@ -2115,14 +2129,19 @@ fun LibrarySwipeActionsBox(
                 state = dragState,
                 onDragStopped = {
                     when {
-                        offset.floatValue >= threshold -> {
+                        offset.floatValue >= ADD_TO_PLAYLIST_THRESHOLD -> {
+                            onAddToPlaylist()
+                            reset(offset, scope)
+                        }
+
+                        offset.floatValue >= LIKE_THRESHOLD -> {
                             onLike()
                             Toast.makeText(ctx, R.string.song_liked_toast, Toast.LENGTH_SHORT).show()
                             reset(offset, scope)
                         }
 
-                        offset.floatValue <= -threshold -> {
-                            onOpenMenu()
+                        offset.floatValue <= -DISLIKE_THRESHOLD -> {
+                            onDislike()
                             reset(offset, scope)
                         }
 
@@ -2131,40 +2150,33 @@ fun LibrarySwipeActionsBox(
                 }
             )
     ) {
-        if (offset.floatValue != 0f) {
-            val (iconRes, bg, tint, align) = if (offset.floatValue > 0)
-                Quadruple(
-                    R.drawable.favorite,
-                    MaterialTheme.colorScheme.error,
-                    MaterialTheme.colorScheme.onError,
-                    Alignment.CenterStart
-                ) else
-                Quadruple(
-                    R.drawable.more_vert,
-                    MaterialTheme.colorScheme.secondary,
-                    MaterialTheme.colorScheme.onSecondary,
-                    Alignment.CenterEnd
-                )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp)
-                    .align(Alignment.Center)
-                    .background(bg),
-                contentAlignment = align
-            ) {
-                Icon(
-                    painter = painterResource(id = iconRes),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp)
-                        .size(30.dp)
-                        .alpha(0.9f),
-                    tint = tint
-                )
-            }
-        }
+        // All three zones are always composed; each one's own graphicsLayer alpha (draw phase, not
+        // composition) decides whether it's the one showing, so a drag frame never recomposes this
+        // box or [content] — same discipline as SwipeToSongBox / AuraSwipeActionBackground.
+        LibrarySwipeZone(
+            offset = offset,
+            visible = { it > 0 && it < LIKE_THRESHOLD },
+            iconRes = R.drawable.favorite,
+            bg = MaterialTheme.colorScheme.error,
+            tint = MaterialTheme.colorScheme.onError,
+            align = Alignment.CenterStart,
+        )
+        LibrarySwipeZone(
+            offset = offset,
+            visible = { it >= LIKE_THRESHOLD },
+            iconRes = R.drawable.playlist_add,
+            bg = MaterialTheme.colorScheme.secondary,
+            tint = MaterialTheme.colorScheme.onSecondary,
+            align = Alignment.CenterStart,
+        )
+        LibrarySwipeZone(
+            offset = offset,
+            visible = { it < 0 },
+            iconRes = R.drawable.thumb_down,
+            bg = MaterialTheme.colorScheme.secondary,
+            tint = MaterialTheme.colorScheme.onSecondary,
+            align = Alignment.CenterEnd,
+        )
 
         Box(
             modifier = Modifier
@@ -2172,6 +2184,42 @@ fun LibrarySwipeActionsBox(
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface),
             content = content
+        )
+    }
+}
+
+/**
+ * One zone of [LibrarySwipeActionsBox]'s background: a colored strip with one icon, shown only while
+ * [visible] holds for the live drag offset. [visible] and the alpha it drives are evaluated inside
+ * `graphicsLayer` — the draw phase — so composed-but-inactive zones cost nothing and dragging never
+ * recomposes this box.
+ */
+@Composable
+private fun BoxScope.LibrarySwipeZone(
+    offset: MutableFloatState,
+    visible: (Float) -> Boolean,
+    iconRes: Int,
+    bg: Color,
+    tint: Color,
+    align: Alignment,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .align(Alignment.Center)
+            .graphicsLayer { alpha = if (visible(offset.floatValue)) 1f else 0f }
+            .background(bg),
+        contentAlignment = align
+    ) {
+        Icon(
+            painter = painterResource(id = iconRes),
+            contentDescription = null,
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .size(30.dp)
+                .alpha(0.9f),
+            tint = tint
         )
     }
 }

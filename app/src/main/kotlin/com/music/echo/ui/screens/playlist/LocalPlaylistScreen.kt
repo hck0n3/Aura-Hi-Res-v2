@@ -12,7 +12,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -83,7 +82,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.abs
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -153,6 +153,7 @@ import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
 import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
 import iad1tya.echo.music.ui.component.SortHeader
 import iad1tya.echo.music.ui.component.TextFieldDialog
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.menu.CustomThumbnailMenu
 import iad1tya.echo.music.ui.component.ExpandableText
 import iad1tya.echo.music.ui.menu.LocalPlaylistMenu
@@ -868,9 +869,17 @@ fun LocalPlaylistScreen(
                     // for — coupling it to the reorder lock meant it silently never appeared for a locked
                     // (the default) playlist even with the setting on.
                     if (!editable) {
-                        // Ronda 2, punto 3 del dueño: playlist ajena (no editable) — no hay borrado
-                        // posible, así que el gesto aquí es me gusta / menú (no me gusta + agregar a
-                        // playlist), nunca el mismo que arriba.
+                        // Ronda 2, punto 3 / ronda 3 del dueño: playlist ajena (no editable) — no hay
+                        // borrado posible, así que el gesto aquí es me gusta + agregar a playlist a la
+                        // derecha, no me gusta a la izquierda (ronda 3: ya no abre el menú).
+                        var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+                        AddToPlaylistDialog(
+                            isVisible = showAddToPlaylistDialog,
+                            songIdsForMembership = listOf(song.song.id),
+                            onGetSong = { listOf(song.song.id) },
+                            onDismiss = { showAddToPlaylistDialog = false },
+                        )
+
                         LibrarySwipeActionsBox(
                             modifier = Modifier.animateItem(),
                             enabled = !inSelectMode,
@@ -881,16 +890,12 @@ fun LocalPlaylistScreen(
                                     syncUtils.likeSong(toggled)
                                 }
                             },
-                            onOpenMenu = {
-                                menuState.show {
-                                    SongMenu(
-                                        originalSong = song.song,
-                                        playlistSong = song,
-                                        playlistBrowseId = playlist?.playlist?.browseId,
-                                        navController = navController,
-                                        onDismiss = menuState::dismiss,
-                                    )
+                            onAddToPlaylist = { showAddToPlaylistDialog = true },
+                            onDislike = {
+                                coroutineScope.launch {
+                                    iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.song.id)
                                 }
+                                android.widget.Toast.makeText(context, "Se mostrará menos de esto", android.widget.Toast.LENGTH_SHORT).show()
                             },
                         ) {
                             content()
@@ -903,11 +908,6 @@ fun LocalPlaylistScreen(
                         SwipeToDismissBox(
                             state = dismissBoxState,
                             backgroundContent = {
-                                val targetColor = when (dismissBoxState.targetValue) {
-                                    SwipeToDismissBoxValue.Settled -> Color.Transparent
-                                    else -> MaterialTheme.colorScheme.errorContainer
-                                }
-                                val color by animateColorAsState(targetColor, label = "swipeDeleteBg")
                                 val alignment = when (dismissBoxState.dismissDirection) {
                                     SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
                                     SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
@@ -916,21 +916,30 @@ fun LocalPlaylistScreen(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color)
+                                        // Ronda 3 del dueño: "quiero que se muestre la papelera mientras
+                                        // me voy desplazando... no que hasta que ya lo he dicho todo se
+                                        // elimina". positionalThreshold below is deliberately the FULL
+                                        // row width (a real accidental-delete guard — release before the
+                                        // end and it snaps back), but that same "full width" was also
+                                        // gating dismissBoxState.targetValue, which only leaves Settled
+                                        // in the last sliver of the drag — so the red background/icon
+                                        // effectively never showed until the swipe was nearly committed.
+                                        // Read INSIDE graphicsLayer (draw phase, like
+                                        // AuraSwipeActionBackground) so this ramps every drag pixel
+                                        // without recomposing on each one — a fixed, modest reveal
+                                        // distance drives the fade-in; the commit distance is untouched.
+                                        .graphicsLayer {
+                                            val revealPx = 96.dp.toPx()
+                                            alpha = (abs(dismissBoxState.requireOffset()) / revealPx).coerceIn(0f, 1f)
+                                        }
+                                        .background(MaterialTheme.colorScheme.errorContainer)
                                         .padding(horizontal = 20.dp),
                                     contentAlignment = alignment,
                                 ) {
-                                    // Icon opacity tracks the same at-rest/dragging state as the
-                                    // background color above — without this it stayed fully opaque even
-                                    // when the row was Settled (transparent background), so the trash
-                                    // icon showed on every song instead of only while swiping.
                                     Icon(
                                         painter = painterResource(R.drawable.delete),
                                         contentDescription = stringResource(R.string.remove_from_playlist),
                                         tint = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.alpha(
-                                            if (dismissBoxState.targetValue == SwipeToDismissBoxValue.Settled) 0f else 1f
-                                        ),
                                     )
                                 }
                             },

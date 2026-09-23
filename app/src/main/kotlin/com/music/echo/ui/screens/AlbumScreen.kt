@@ -129,6 +129,7 @@ import iad1tya.echo.music.ui.component.SongListItem
 import iad1tya.echo.music.ui.component.YouTubeGridItem
 import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
 import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.menu.AlbumMenu
 import iad1tya.echo.music.ui.menu.SelectionSongMenu
 import iad1tya.echo.music.ui.menu.SongMenu
@@ -772,6 +773,14 @@ fun AlbumScreen(
                         }
                     }
 
+                    var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+                    AddToPlaylistDialog(
+                        isVisible = showAddToPlaylistDialog,
+                        songIdsForMembership = listOf(song.id),
+                        onGetSong = { listOf(song.id) },
+                        onDismiss = { showAddToPlaylistDialog = false },
+                    )
+
                     LibrarySwipeActionsBox(
                         modifier = Modifier.animateItem(),
                         enabled = !inSelectMode,
@@ -782,14 +791,12 @@ fun AlbumScreen(
                                 syncUtils.likeSong(toggled)
                             }
                         },
-                        onOpenMenu = {
-                            menuState.show {
-                                SongMenu(
-                                    originalSong = song,
-                                    navController = navController,
-                                    onDismiss = menuState::dismiss,
-                                )
+                        onAddToPlaylist = { showAddToPlaylistDialog = true },
+                        onDislike = {
+                            coroutineScope.launch {
+                                iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.id)
                             }
+                            android.widget.Toast.makeText(context, "Se mostrará menos de esto", android.widget.Toast.LENGTH_SHORT).show()
                         },
                     ) {
                     SongListItem(
