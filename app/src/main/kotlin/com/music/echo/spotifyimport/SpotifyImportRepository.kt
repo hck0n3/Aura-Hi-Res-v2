@@ -753,21 +753,31 @@ class SpotifyImportRepository @Inject constructor(
         }
 
         val alternateQuery = SpotifyMapper.buildAlternateSearchQuery(track)
-        if (alternateQuery == primaryQuery) return primary
+        val alternate = if (alternateQuery != primaryQuery) {
+            searchAndScore(track, index, alternateQuery)
+        } else {
+            primary
+        }
+        if (alternate is MatchResult.Success) return alternate
 
-        val alternate = searchAndScore(track, index, alternateQuery)
-        return if (alternate is MatchResult.Success) alternate else primary
+        // Both song-filtered passes came up empty/low-score. YouTube Music sometimes classifies the
+        // real match as a Video (lyric videos, unusual distribution) — FILTER_SONG never surfaces it
+        // as a candidate, but a manual search (no type filter) does find it. Only tried once both
+        // song attempts already failed, so this never widens what a confident song match accepts.
+        val video = searchAndScore(track, index, primaryQuery, filter = YouTube.SearchFilter.FILTER_VIDEO)
+        return if (video is MatchResult.Success) video else alternate
     }
 
     private suspend fun searchAndScore(
         track: SpotifyTrack,
         index: Int,
         query: String,
+        filter: YouTube.SearchFilter = YouTube.SearchFilter.FILTER_SONG,
     ): MatchResult {
         val searchResult = searchWithRateLimitBackoff {
             YouTube.search(
                 query = query,
-                filter = YouTube.SearchFilter.FILTER_SONG,
+                filter = filter,
             )
         }.getOrElse { error ->
             if (error is CancellationException) {
@@ -821,21 +831,34 @@ class SpotifyImportRepository @Inject constructor(
     suspend fun matchExternalTracks(tracks: List<SpotifyTrack>, limit: Int = 100): List<MediaMetadata?> =
         coroutineScope {
             val semaphore = Semaphore(MAX_CONCURRENT_MATCHES)
-            tracks.take(limit).mapIndexed { index, track ->
+            val results = tracks.take(limit).mapIndexed { index, track ->
                 async {
                     semaphore.withPermit {
-                        val result = try {
+                        try {
                             matchTrack(track, index)
                         } catch (error: CancellationException) {
                             throw error
                         } catch (error: Throwable) {
                             reportException(error)
-                            null
+                            MatchResult.Failure(SpotifyImportFailureReason.SEARCH_ERROR)
                         }
-                        (result as? MatchResult.Success)?.matched?.metadata
                     }
                 }
             }.awaitAll()
+            // A silent null miss (no exception, just "nothing good enough") used to leave the exact
+            // same "no encontrado" with zero trace of WHY — no titles/artists here (regla 4 de
+            // AGENTS.md), just a tally by reason, so a real network/rate-limit run of misses reads
+            // differently in app.log from a run of genuine no-candidates/low-score misses.
+            val misses = results.filterIsInstance<MatchResult.Failure>()
+            if (misses.isNotEmpty()) {
+                timber.log.Timber.i(
+                    "EXTERNAL_LINK_MATCH misses=%d/%d reasons=%s",
+                    misses.size,
+                    results.size,
+                    misses.groupingBy { it.reason }.eachCount(),
+                )
+            }
+            results.map { (it as? MatchResult.Success)?.matched?.metadata }
         }
 
     /** Makes sure a Spotify token exists for reading public albums/playlists: the session one, else anonymous. */

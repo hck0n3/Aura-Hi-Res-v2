@@ -109,8 +109,23 @@ object ExternalMusicLinks {
             "track" -> {
                 val html = fetch(uri.toString())
                 val title = meta(html, "og:title") ?: return null
-                // og:description: "Artist · Album · Song · 1987"
-                val artist = meta(html, "og:description")?.substringBefore(" · ").orEmpty()
+                // og:description: "Artist · Album · Song · 1987" — but Spotify does not guarantee
+                // that exact shape, and `substringBefore` silently returns the WHOLE string
+                // unchanged when the separator isn't there, which used to hand the entire
+                // description (garbage) to the matcher as an "artist" and sink its score below
+                // MIN_MATCH_SCORE — reading as "no encontrado" for a song that really is on YTM.
+                // Empty is the safe fallback: the search still runs on the title alone.
+                val artist = meta(html, "og:description")
+                    ?.let { desc ->
+                        when {
+                            " · " in desc -> desc.substringBefore(" · ")
+                            " - " in desc -> desc.substringBefore(" - ")
+                            else -> null
+                        }
+                    }
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() && it.length <= 100 }
+                    .orEmpty()
                 Resolved.Tracks(Kind.TRACK, title, artist, listOf(track(id, title, artist)))
             }
             "album" -> {

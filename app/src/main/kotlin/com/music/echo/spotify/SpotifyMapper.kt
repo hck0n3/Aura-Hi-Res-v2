@@ -23,6 +23,17 @@ object SpotifyMapper {
     private val BRACKET_PATTERN = Regex("\\[.*?]")
     private val REMASTER_PATTERN = Regex("\\(.*?remaster.*?\\)", RegexOption.IGNORE_CASE)
     private val REMIX_PATTERN = Regex("\\(.*?remix.*?\\)", RegexOption.IGNORE_CASE)
+    // Release-variant noise that differs between Spotify and YTM titles for the SAME song and used to
+    // sink the Dice score below MIN_MATCH_SCORE (owner report: a real link read "no encontrado" while
+    // a manual search found the exact song). "- Live"/"- Single Version" are dash suffixes, so they
+    // must run before NON_ALNUM_PATTERN strips the dash.
+    private val LIVE_PATTERN = Regex("\\(.*?\\blive\\b.*?\\)", RegexOption.IGNORE_CASE)
+    private val RADIO_EDIT_PATTERN = Regex("\\(.*?radio edit.*?\\)", RegexOption.IGNORE_CASE)
+    private val SPED_UP_PATTERN = Regex("\\(.*?sped up.*?\\)", RegexOption.IGNORE_CASE)
+    private val DASH_SUFFIX_PATTERN = Regex(
+        "\\s*-\\s*(single|radio|album|mono|stereo)?\\s*(version|edit|live)\\s*$",
+        RegexOption.IGNORE_CASE,
+    )
     private val NON_ALNUM_PATTERN = Regex("[^a-z0-9\\s]")
     private val MULTI_SPACE_PATTERN = Regex("\\s+")
 
@@ -227,6 +238,10 @@ object SpotifyMapper {
             .replace(BRACKET_PATTERN, "")
             .replace(REMASTER_PATTERN, "")
             .replace(REMIX_PATTERN, "")
+            .replace(LIVE_PATTERN, "")
+            .replace(RADIO_EDIT_PATTERN, "")
+            .replace(SPED_UP_PATTERN, "")
+            .replace(DASH_SUFFIX_PATTERN, "")
             .replace(NON_ALNUM_PATTERN, "")
             .replace(MULTI_SPACE_PATTERN, " ")
             .trim()
