@@ -50,6 +50,8 @@ import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.playback.queues.YouTubeQueue
+import iad1tya.echo.music.LocalDatabase
+import iad1tya.echo.music.LocalSyncUtils
 import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.menu.YouTubeAlbumMenu
 import iad1tya.echo.music.ui.menu.YouTubeArtistMenu
@@ -75,6 +77,8 @@ fun AuraArtistItemsScreen(
     viewModel: ArtistItemsViewModel = hiltViewModel(),
 ) {
     val menuState = LocalMenuState.current
+    val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val haptic = LocalHapticFeedback.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
@@ -211,10 +215,34 @@ fun AuraArtistItemsScreen(
                         key = { _, it -> it.id },
                     ) { index, item ->
                         val song = item as? SongItem ?: return@itemsIndexed
+                        AuraLibrarySwipeActionsBox(
+                            modifier = Modifier.animateItem(),
+                            onLike = {
+                                // SongItem, not a DB Song: no local row guaranteed yet, so insert (IGNORE
+                                // on conflict — never clobbers an already-saved song's state) before the
+                                // toggle, same pattern as RecognitionScreen.toggleLikeResolved.
+                                database.query {
+                                    insert(song.toMediaMetadata())
+                                    getSongByIdBlocking(song.id)?.song?.let { entity ->
+                                        val toggled = entity.toggleLike()
+                                        update(toggled)
+                                        syncUtils.likeSong(toggled)
+                                    }
+                                }
+                            },
+                            onOpenMenu = {
+                                menuState.show {
+                                    YouTubeSongMenu(
+                                        song = song,
+                                        navController = navController,
+                                        onDismiss = menuState::dismiss,
+                                    )
+                                }
+                            },
+                        ) {
                         AuraAppleListRowFrame(
                             showDivider = index < pageItems.lastIndex,
                             dividerInset = AuraAppleCoverDividerInset,
-                            modifier = Modifier.animateItem(),
                         ) {
                             AuraSongRow(
                                 title = song.title,
@@ -252,6 +280,7 @@ fun AuraArtistItemsScreen(
                                     scaleFocused = 1f,
                                 ),
                             )
+                        }
                         }
                     }
                     if (itemsPage?.continuation != null) {

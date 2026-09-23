@@ -144,6 +144,7 @@ import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.ui.component.DraggableScrollbar
 import iad1tya.echo.music.ui.component.EmptyPlaceholder
 import iad1tya.echo.music.ui.component.IconButton
+import iad1tya.echo.music.ui.component.LibrarySwipeActionsBox
 import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.component.OverlayEditButton
 import iad1tya.echo.music.ui.component.SongListItem
@@ -186,6 +187,7 @@ fun LocalPlaylistScreen(
     val context = LocalContext.current
     val menuState = LocalMenuState.current
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val haptic = LocalHapticFeedback.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
@@ -865,7 +867,35 @@ fun LocalPlaylistScreen(
                     // reordering, and swiping to delete is a separate, deliberate gesture the owner asked
                     // for — coupling it to the reorder lock meant it silently never appeared for a locked
                     // (the default) playlist even with the setting on.
-                    if (!editable || inSelectMode || !swipeRemoveEnabled) {
+                    if (!editable) {
+                        // Ronda 2, punto 3 del dueño: playlist ajena (no editable) — no hay borrado
+                        // posible, así que el gesto aquí es me gusta / menú (no me gusta + agregar a
+                        // playlist), nunca el mismo que arriba.
+                        LibrarySwipeActionsBox(
+                            modifier = Modifier.animateItem(),
+                            enabled = !inSelectMode,
+                            onLike = {
+                                val toggled = song.song.song.toggleLike()
+                                database.query {
+                                    update(toggled)
+                                    syncUtils.likeSong(toggled)
+                                }
+                            },
+                            onOpenMenu = {
+                                menuState.show {
+                                    SongMenu(
+                                        originalSong = song.song,
+                                        playlistSong = song,
+                                        playlistBrowseId = playlist?.playlist?.browseId,
+                                        navController = navController,
+                                        onDismiss = menuState::dismiss,
+                                    )
+                                }
+                            },
+                        ) {
+                            content()
+                        }
+                    } else if (inSelectMode || !swipeRemoveEnabled) {
                         Box(modifier = Modifier.animateItem()) {
                             content()
                         }

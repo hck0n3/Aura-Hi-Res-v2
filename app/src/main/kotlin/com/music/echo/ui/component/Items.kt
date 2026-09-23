@@ -2076,6 +2076,106 @@ fun SwipeToSongBox(
 }
 
 
+/**
+ * Ronda 2, punto 3 del dueño: en contenido de solo lectura (álbumes, singles de artista, playlists
+ * ajenas) donde no aplica el swipe-to-delete de una playlist propia ([SwipeToSongBox] tampoco aplica —
+ * ese es "reproducir a continuación"/"añadir a la cola", una acción de reproducción, no de biblioteca).
+ * Decisión del dueño sobre CÓMO mostrar 3 acciones con solo 2 direcciones: una acción fija por
+ * dirección y el menú de tres puntos para el resto — no una fila de iconos revelados. Derecha = me
+ * gusta (la más común, un toque). Izquierda = abre el mismo menú de tres puntos que ya tiene "no me
+ * gusta" y "agregar a una playlist", así esta caja nunca duplica esa lógica.
+ */
+@Composable
+fun LibrarySwipeActionsBox(
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    onLike: () -> Unit,
+    onOpenMenu: () -> Unit,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    if (!enabled) {
+        Box(modifier = modifier.fillMaxWidth(), content = content)
+        return
+    }
+
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val offset = remember { mutableFloatStateOf(0f) }
+    val threshold = 300f
+
+    val dragState = rememberDraggableState { delta ->
+        offset.floatValue = (offset.floatValue + delta).coerceIn(-threshold, threshold)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .draggable(
+                orientation = Orientation.Horizontal,
+                state = dragState,
+                onDragStopped = {
+                    when {
+                        offset.floatValue >= threshold -> {
+                            onLike()
+                            Toast.makeText(ctx, R.string.song_liked_toast, Toast.LENGTH_SHORT).show()
+                            reset(offset, scope)
+                        }
+
+                        offset.floatValue <= -threshold -> {
+                            onOpenMenu()
+                            reset(offset, scope)
+                        }
+
+                        else -> reset(offset, scope)
+                    }
+                }
+            )
+    ) {
+        if (offset.floatValue != 0f) {
+            val (iconRes, bg, tint, align) = if (offset.floatValue > 0)
+                Quadruple(
+                    R.drawable.favorite,
+                    MaterialTheme.colorScheme.error,
+                    MaterialTheme.colorScheme.onError,
+                    Alignment.CenterStart
+                ) else
+                Quadruple(
+                    R.drawable.more_vert,
+                    MaterialTheme.colorScheme.secondary,
+                    MaterialTheme.colorScheme.onSecondary,
+                    Alignment.CenterEnd
+                )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .align(Alignment.Center)
+                    .background(bg),
+                contentAlignment = align
+            ) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .size(30.dp)
+                        .alpha(0.9f),
+                    tint = tint
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offset.floatValue.roundToInt(), 0) }
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface),
+            content = content
+        )
+    }
+}
+
 private fun reset(offset: MutableState<Float>, scope: CoroutineScope) {
     scope.launch {
         animate(

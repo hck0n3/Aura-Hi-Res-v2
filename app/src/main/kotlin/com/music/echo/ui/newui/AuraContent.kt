@@ -1356,6 +1356,75 @@ fun AuraSwipeSongBox(
 }
 
 /**
+ * Ronda 2, punto 3 del dueño: en contenido de solo lectura (álbumes, singles de artista, playlists
+ * ajenas) donde [AuraSwipeSongBox] no aplica — ese es "reproducir a continuación"/"añadir a la cola",
+ * una acción de reproducción, no de biblioteca — y donde el borrado de [AuraLocalPlaylistScreen] tampoco
+ * aplica (no hay nada que borrar en una lista que no es tuya). Decisión del dueño sobre cómo mostrar 3
+ * acciones con solo 2 direcciones: una acción fija por dirección y el menú de tres puntos para el
+ * resto. Derecha = me gusta. Izquierda = abre el mismo menú de tres puntos que ya tiene "no me gusta" y
+ * "agregar a una playlist", así esta caja nunca duplica esa lógica.
+ */
+@Composable
+fun AuraLibrarySwipeActionsBox(
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    onLike: () -> Unit,
+    onOpenMenu: () -> Unit,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    if (!enabled) {
+        Box(modifier = modifier.fillMaxWidth(), content = content)
+        return
+    }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val offset = remember { mutableFloatStateOf(0f) }
+    val threshold = 300f
+
+    val dragState = rememberDraggableState { delta ->
+        offset.floatValue = (offset.floatValue + delta).coerceIn(-threshold, threshold)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .draggable(
+                orientation = Orientation.Horizontal,
+                state = dragState,
+                onDragStopped = {
+                    when {
+                        offset.floatValue >= threshold -> {
+                            onLike()
+                            android.widget.Toast
+                                .makeText(context, R.string.song_liked_toast, android.widget.Toast.LENGTH_SHORT)
+                                .show()
+                            auraResetSwipe(offset, scope)
+                        }
+
+                        offset.floatValue <= -threshold -> {
+                            onOpenMenu()
+                            auraResetSwipe(offset, scope)
+                        }
+
+                        else -> auraResetSwipe(offset, scope)
+                    }
+                },
+            ),
+    ) {
+        AuraSwipeActionBackground(offset = offset, threshold = threshold, goingRight = true, icon = AuraIcons.HeartFilled)
+        AuraSwipeActionBackground(offset = offset, threshold = threshold, goingRight = false, icon = AuraIcons.More)
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offset.floatValue.roundToInt(), 0) }
+                .fillMaxWidth(),
+            content = content,
+        )
+    }
+}
+
+/**
  * One of the two swipe backgrounds. Its opacity is a function of the live drag offset, evaluated
  * inside `graphicsLayer` — the draw phase — so it never recomposes and never invalidates layout. A
  * fully transparent layer is not drawn at all, which is the state of both boxes at rest.
@@ -1365,6 +1434,7 @@ private fun BoxScope.AuraSwipeActionBackground(
     offset: MutableFloatState,
     threshold: Float,
     goingRight: Boolean,
+    icon: ImageVector = if (goingRight) AuraIcons.Queue else AuraIcons.Plus,
 ) {
     Box(
         modifier = Modifier
@@ -1379,7 +1449,7 @@ private fun BoxScope.AuraSwipeActionBackground(
         contentAlignment = if (goingRight) Alignment.CenterStart else Alignment.CenterEnd,
     ) {
         AuraIconGlyph(
-            icon = if (goingRight) AuraIcons.Queue else AuraIcons.Plus,
+            icon = icon,
             contentDescription = null,
             size = 22.dp,
             tint = if (goingRight) AuraPalette.Teal else AuraPalette.Violet,

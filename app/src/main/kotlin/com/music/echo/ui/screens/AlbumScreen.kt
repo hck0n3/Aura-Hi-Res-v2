@@ -107,6 +107,7 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
+import iad1tya.echo.music.LocalSyncUtils
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.HideExplicitKey
 import iad1tya.echo.music.constants.HideVideoSongsKey
@@ -120,6 +121,7 @@ import iad1tya.echo.music.playback.queues.LocalAlbumRadio
 import iad1tya.echo.music.ui.component.AlbumGradient
 import iad1tya.echo.music.ui.component.ExpandableText
 import iad1tya.echo.music.ui.component.IconButton
+import iad1tya.echo.music.ui.component.LibrarySwipeActionsBox
 import iad1tya.echo.music.ui.component.LinkSegment
 import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.component.NavigationTitle
@@ -150,6 +152,7 @@ fun AlbumScreen(
     val context = LocalContext.current
     val menuState = LocalMenuState.current
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val playerConnection = LocalPlayerConnection.current ?: return
@@ -769,6 +772,26 @@ fun AlbumScreen(
                         }
                     }
 
+                    LibrarySwipeActionsBox(
+                        modifier = Modifier.animateItem(),
+                        enabled = !inSelectMode,
+                        onLike = {
+                            val toggled = song.song.toggleLike()
+                            database.query {
+                                update(toggled)
+                                syncUtils.likeSong(toggled)
+                            }
+                        },
+                        onOpenMenu = {
+                            menuState.show {
+                                SongMenu(
+                                    originalSong = song,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+                        },
+                    ) {
                     SongListItem(
                         song = song,
 
@@ -805,7 +828,6 @@ fun AlbumScreen(
                         modifier =
                         Modifier
                             .fillMaxWidth()
-                            .animateItem()
                             .combinedClickable(
                                 onClick = {
                                     if (inSelectMode) {
@@ -834,6 +856,7 @@ fun AlbumScreen(
                                 },
                             ),
                     )
+                    }
                 }
             }
 

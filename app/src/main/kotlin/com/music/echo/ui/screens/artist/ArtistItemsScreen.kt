@@ -60,6 +60,9 @@ import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.ui.component.IconButton
+import iad1tya.echo.music.LocalDatabase
+import iad1tya.echo.music.LocalSyncUtils
+import iad1tya.echo.music.ui.component.LibrarySwipeActionsBox
 import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.component.YouTubeGridItem
 import iad1tya.echo.music.ui.component.YouTubeListItem
@@ -82,6 +85,8 @@ fun ArtistItemsScreen(
     viewModel: ArtistItemsViewModel = hiltViewModel(),
 ) {
     val menuState = LocalMenuState.current
+    val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val haptic = LocalHapticFeedback.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
@@ -175,6 +180,33 @@ fun ArtistItemsScreen(
                 items = itemsPage?.items.orEmpty().distinctBy { it.id },
                 key = { _, it -> it.id },
             ) { index, item ->
+                val songItem = item as? SongItem
+                LibrarySwipeActionsBox(
+                    enabled = songItem != null,
+                    onLike = {
+                        songItem?.let { s ->
+                            database.query {
+                                insert(s.toMediaMetadata())
+                                getSongByIdBlocking(s.id)?.song?.let { entity ->
+                                    val toggled = entity.toggleLike()
+                                    update(toggled)
+                                    syncUtils.likeSong(toggled)
+                                }
+                            }
+                        }
+                    },
+                    onOpenMenu = {
+                        songItem?.let { s ->
+                            menuState.show {
+                                YouTubeSongMenu(
+                                    song = s,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+                        }
+                    },
+                ) {
                 YouTubeListItem(
                     item = item,
                     isActive =
@@ -238,6 +270,7 @@ fun ArtistItemsScreen(
                             }
                         },
                 )
+                }
             }
 
             if (itemsPage?.continuation != null) {

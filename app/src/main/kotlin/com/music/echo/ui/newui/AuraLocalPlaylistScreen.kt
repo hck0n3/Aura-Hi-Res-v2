@@ -182,6 +182,7 @@ fun AuraLocalPlaylistScreen(
     val context = LocalContext.current
     val menuState = LocalMenuState.current
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val haptic = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
     val playerConnection = LocalPlayerConnection.current ?: return
@@ -843,7 +844,34 @@ fun AuraLocalPlaylistScreen(
                         dividerInset = AuraAppleCoverDividerInset,
                         modifier = Modifier.animateItem(),
                     ) {
-                        if (!canSwipeRemove) {
+                        if (!editable) {
+                            // Ronda 2, punto 3 del dueño: playlist ajena (no editable) — sin borrado
+                            // posible, el gesto aquí es me gusta / menú (no me gusta + agregar a
+                            // playlist), nunca el mismo swipe que las propias.
+                            AuraLibrarySwipeActionsBox(
+                                enabled = !inSelectMode,
+                                onLike = {
+                                    val toggled = song.song.song.toggleLike()
+                                    database.query {
+                                        update(toggled)
+                                        syncUtils.likeSong(toggled)
+                                    }
+                                },
+                                onOpenMenu = {
+                                    menuState.show {
+                                        SongMenu(
+                                            originalSong = song.song,
+                                            playlistSong = song,
+                                            playlistBrowseId = playlist?.playlist?.browseId,
+                                            navController = navController,
+                                            onDismiss = menuState::dismiss,
+                                        )
+                                    }
+                                },
+                            ) {
+                                row()
+                            }
+                        } else if (!canSwipeRemove) {
                             Box { row() }
                         } else {
                             SwipeToDismissBox(

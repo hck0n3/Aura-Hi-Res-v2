@@ -78,6 +78,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
 import iad1tya.echo.music.LocalDatabase
+import iad1tya.echo.music.LocalSyncUtils
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
@@ -174,6 +175,7 @@ fun AuraAlbumScreen(
 ) {
     val context = LocalContext.current
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val menuState = LocalMenuState.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
@@ -356,10 +358,29 @@ fun AuraAlbumScreen(
                             if (checked) selection.add(song.id) else selection.remove(song.id)
                         }
 
+                        AuraLibrarySwipeActionsBox(
+                            modifier = Modifier.animateItem(),
+                            enabled = !inSelectMode,
+                            onLike = {
+                                val toggled = song.song.toggleLike()
+                                database.query {
+                                    update(toggled)
+                                    syncUtils.likeSong(toggled)
+                                }
+                            },
+                            onOpenMenu = {
+                                menuState.show {
+                                    SongMenu(
+                                        originalSong = song,
+                                        navController = navController,
+                                        onDismiss = menuState::dismiss,
+                                    )
+                                }
+                            },
+                        ) {
                         AuraAppleListRowFrame(
                             showDivider = index < filteredSongs.lastIndex,
                             dividerInset = AuraAppleAlbumDividerInset,
-                            modifier = Modifier.animateItem(),
                         ) {
                             AuraAlbumTrackRow(
                                 trackNumber = auraAppleTrackNumber(
@@ -423,6 +444,7 @@ fun AuraAlbumScreen(
                                     scaleFocused = 1f,
                                 ),
                             )
+                        }
                         }
                     }
                 }
