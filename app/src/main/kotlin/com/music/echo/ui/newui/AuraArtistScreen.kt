@@ -737,6 +737,23 @@ fun AuraArtistScreen(
                                             "artist/${viewModel.artistId}/items" +
                                                 "?browseId=${more.browseId}&params=${more.params}",
                                         )
+                                    } else if (sectionItems.all { it is AlbumItem }) {
+                                        // Ronda 2, punto 9 del dueño: Álbumes/Singles sin moreEndpoint
+                                        // (frecuente, no solo en artistas grandes) caían al grid crudo de
+                                        // ArtistSectionBuffer sin pasar nunca por el motor de reconciliación
+                                        // con iTunes — la discografía se veía incompleta. Misma ruta que SÍ
+                                        // dispara ese motor, con un browseId centinela para que el
+                                        // ViewModel lea del buffer en vez de llamar a YouTube.artistItems.
+                                        ArtistSectionBuffer.open(section.title, sectionItems)
+                                        // Suffixed with the section index: the ViewModel's discography
+                                        // cache keys by artistId+browseId, and two buffered sections for
+                                        // the SAME artist (e.g. Albums AND Singles, both without a
+                                        // moreEndpoint) must not collide onto one shared cache entry — see
+                                        // the "Key by artist AND browse" comment in ArtistItemsViewModel.
+                                        navController.navigate(
+                                            "artist/${viewModel.artistId}/items" +
+                                                "?browseId=${ArtistSectionBuffer.DISCOGRAPHY_BUFFER_BROWSE_ID}_$sectionIndex",
+                                        )
                                     } else {
                                         ArtistSectionBuffer.open(section.title, sectionItems)
                                         navController.navigate("artist_section_buffer")

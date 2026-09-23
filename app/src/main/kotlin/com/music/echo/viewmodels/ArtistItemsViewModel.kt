@@ -15,6 +15,7 @@ import com.music.innertube.models.SongItem
 import com.music.innertube.models.YTItem
 import com.music.innertube.models.filterExplicit
 import com.music.innertube.models.filterVideoSongs
+import iad1tya.echo.music.ui.screens.artist.ArtistSectionBuffer
 import iad1tya.echo.music.utils.iTunesDiscography
 import iad1tya.echo.music.utils.systemRegionCode
 import iad1tya.echo.music.constants.HideExplicitKey
@@ -353,6 +354,17 @@ constructor(
 
     fun load() {
         hasFailed.value = false
+        // Ronda 2, punto 9 del dueño: cuando YouTube no da `moreEndpoint` para Álbumes/Singles, la
+        // pantalla ya guarda los items ya cargados en ArtistSectionBuffer y navega aquí con este
+        // browseId centinela — leer de ahí en vez de llamar a YouTube.artistItems es la ÚNICA
+        // diferencia con el camino normal; todo lo de abajo (completar contra iTunes, cachear, mergear
+        // paginación) es exactamente el mismo código que ya corre para el camino con moreEndpoint.
+        if (browseId.startsWith(ArtistSectionBuffer.DISCOGRAPHY_BUFFER_BROWSE_ID)) {
+            viewModelScope.launch {
+                onItemsLoaded(ArtistSectionBuffer.title, ArtistSectionBuffer.items, continuation = null)
+            }
+            return
+        }
         viewModelScope.launch {
             YouTube
                 .artistItems(
@@ -361,14 +373,23 @@ constructor(
                         params = params,
                     ),
                 ).onSuccess { artistItemsPage ->
+                    onItemsLoaded(artistItemsPage.title, artistItemsPage.items, artistItemsPage.continuation)
+                }.onFailure {
+                    reportException(it)
+                    hasFailed.value = true
+                }
+        }
+    }
+
+    private suspend fun onItemsLoaded(pageTitle: String?, items: List<YTItem>, continuation: String?) {
                     val hideExplicit = context.dataStore.get(HideExplicitKey, false)
                     val hideVideoSongs = context.dataStore.get(HideVideoSongsKey, false)
-                    title.value = artistItemsPage.title
+                    title.value = pageTitle.orEmpty()
                     // Is THIS see-all the Singles/EP section (vs Albums)? Drives which iTunes releases the
                     // completion targets, so Singles/EPs get completed too (the owner wants ALL of them).
                     val isSinglesSection =
-                        Regex("(?i)single|sencillo|\\bep\\b").containsMatchIn(artistItemsPage.title ?: "")
-                    val baseItems = artistItemsPage.items
+                        Regex("(?i)single|sencillo|\\bep\\b").containsMatchIn(pageTitle ?: "")
+                    val baseItems = items
                         .distinctBy { it.id }
                         .filterExplicit(hideExplicit)
                         .filterVideoSongs(hideVideoSongs)
@@ -377,7 +398,7 @@ constructor(
                     // of extra albums popping in seconds later. Other lists publish as-is.
                     // Show the YouTube list IMMEDIATELY (fast), then complete it against iTunes/Apple Music
                     // in the background and publish the full discography in ONE update (not in batches).
-                    itemsPage.value = ItemsPage(items = baseItems, continuation = artistItemsPage.continuation)
+                    itemsPage.value = ItemsPage(items = baseItems, continuation = continuation)
                     if (baseItems.any { it is AlbumItem }) {
                         // Key by artist AND browse: the same artist's Albums and Singles/EP see-all screens
                         // share artistId but differ by browseId. Keying by artistId alone made opening one
@@ -392,7 +413,7 @@ constructor(
                             val current = itemsPage.value
                             itemsPage.value = ItemsPage(
                                 items = mergeDiscography(cached.items, current?.items ?: emptyList()),
-                                continuation = current?.continuation ?: artistItemsPage.continuation,
+                                continuation = current?.continuation ?: continuation,
                             )
                             // ONLY AFTER that instant publish (no shimmer, no added latency, no network on
                             // this path): if the cached entry was built on a starved network it is stale-
@@ -423,17 +444,12 @@ constructor(
                                     val current = itemsPage.value
                                     itemsPage.value = ItemsPage(
                                         items = mergeDiscography(complete, current?.items ?: emptyList()),
-                                        continuation = current?.continuation ?: artistItemsPage.continuation,
+                                        continuation = current?.continuation ?: continuation,
                                     )
                                 }
                             }
                         }
                     }
-                }.onFailure {
-                    reportException(it)
-                    hasFailed.value = true
-                }
-        }
     }
 
     private suspend fun resolveArtistName(): String? {
