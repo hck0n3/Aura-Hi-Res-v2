@@ -75,7 +75,21 @@ constructor(
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             val album = database.album(albumId).first()
-            val hasSongs = database.albumWithSongs(albumId).first()?.songs?.isNotEmpty() == true
+            val cachedSongCount = database.albumWithSongs(albumId).first()?.songs?.size ?: 0
+            // A COUNT comparison against the album's own recorded songCount, not a bare "do we have
+            // ANY songs" boolean: a single song can already be cached for this album from an
+            // unrelated context (e.g. Novedades/new-release radar surfacing just its lead single)
+            // while the rest of the tracklist was never fetched. The old boolean read that as "fully
+            // cached" and the full fetch never ran again — the player queue then had just that one
+            // song, looked "exhausted" the instant it ended, and handed the album off to radio
+            // (unrelated artists) mid-album (owner report). `album.album.songCount` is trustworthy
+            // once set by a real withSongs=true fetch (see DatabaseDao.update's matching fix, which
+            // stopped a withSongs=false revisit from silently zeroing it back out); a brand-new
+            // album (no row yet, `album == null`) still always fetches the full song list, same as
+            // before.
+            val hasSongs = album != null &&
+                album.album.songCount > 0 &&
+                cachedSongCount >= album.album.songCount
             if (album?.description != null) {
                 description.value = album.description
             }
