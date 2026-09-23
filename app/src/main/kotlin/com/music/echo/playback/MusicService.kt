@@ -778,7 +778,13 @@ class MusicService :
     @Volatile private var outputDitherHint: Boolean = true
     @Volatile private var speakerBassProtectHint: Boolean = true
     @Volatile private var stereoWidthHint: Float = 1f
-    @Volatile private var autoHeadroomHint: Boolean = true
+    // Default OFF (owner report 2026-09-22): this trims the master preamp by the loudest active
+    // band's boost on every EQ recompute (each slider drag), so moving a band up perceptibly ducked
+    // the overall volume and moving it back down brought it back — read as "the EQ changes my
+    // volume". See effectivePreampDb in CustomEqualizerAudioProcessor for the mechanism. Still
+    // available as an opt-in in Ajustes → Sonido for anyone who wants real clipping protection when
+    // pushing several bands hard.
+    @Volatile private var autoHeadroomHint: Boolean = false
     // The offload request CURRENTLY PUBLISHED to the players (not merely the gate's latest verdict — an
     // approved enable can be waiting for a track boundary; see publishOffloadDecision). Read by
     // onPlaybackParametersChanged, which only re-publishes the speed requirement while offload is live.
@@ -2585,7 +2591,7 @@ class MusicService :
         scope.launch {
             combine(
                 dataStore.data.map { it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f },
-                dataStore.data.map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: true },
+                dataStore.data.map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: false },
             ) { width, headroom -> width to headroom }
                 .distinctUntilChanged()
                 .collect { (width, headroom) ->
