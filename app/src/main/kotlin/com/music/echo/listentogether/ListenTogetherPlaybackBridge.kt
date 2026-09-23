@@ -61,6 +61,9 @@ import timber.log.Timber
 
 private const val TAG = "ListenTogetherBridge"
 
+/** Same cadence as [ServerClock]'s own ping — see [ListenTogetherPlaybackBridge.guestPositionHeartbeat]. */
+private const val HEARTBEAT_INTERVAL_MS = 15_000L
+
 /** What the guest reacts to. A data class so `distinctUntilChanged` compares every field. */
 private data class RoomSnapshot(
     val track: TrackInfo?,
@@ -143,6 +146,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         Timber.tag(TAG).i("Playback bridge started")
         scope.launch { followPlayer() }
         scope.launch { watchRoomForGuests() }
+        scope.launch { guestPositionHeartbeat() }
         scope.launch { publishCurrentStateOnJoin() }
         scope.launch { publishStateWhenSomeoneArrives() }
         scope.launch { publishTrackChangesAsHost() }
@@ -307,6 +311,46 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     applyingRemote = false
                 }
             }
+    }
+
+    /**
+     * Ronda 2, punto 7 del dueño: "verifica que Escuchar Juntos esté lo mejor posible" — el registro
+     * (fila 261) ya documentaba el hueco: el anfitrión solo publica su posición por EVENTOS (cambio de
+     * pista, play/pausa, seek). En una canción larga sin ninguno de esos eventos, host e invitado
+     * "corren libres" sin que nada los corrija hasta el próximo evento real, y [SyncCorrection] nunca
+     * llega a actuar en ese tramo.
+     *
+     * Solución LOCAL, sin protocolo nuevo (el `.proto` es compartido con Metrolist/SimpMusic — no se
+     * inventan mensajes sin coordinarlo con ese servidor de terceros, tal como ya advertía esa fila del
+     * registro): cada [HEARTBEAT_INTERVAL_MS] se vuelve a llamar a [applyTransport] con la ÚLTIMA
+     * posición/estado conocidos de la sala (sin esperar un evento nuevo) — [session.positionAt] ya
+     * extrapola esa posición cruda contra el reloj del servidor, así que cuanto más tiempo pase desde
+     * el último evento real, más se corrige el reloj local hacia donde el anfitrión realmente va.
+     * Mismo camino de corrección que el evento-driven (SyncCorrection.correct, estiramiento ±2%),
+     * ningún mensaje de red nuevo — solo otro disparador para el mismo código.
+     *
+     * Cadencia moderada (regla de batería, AGENTS.md #7): mismo intervalo que el ping de
+     * [ServerClock] (15s). Vive tanto como [start] (mismo scope que las demás corrutinas de la
+     * sala), pero cada disparo es barato y no hace nada — ni siquiera calcula una posición corregida
+     * — salvo que [ListenTogetherSession.state] diga en ESE momento que se sigue a un anfitrión con
+     * la música sonando.
+     */
+    private suspend fun guestPositionHeartbeat() {
+        while (true) {
+            delay(HEARTBEAT_INTERVAL_MS)
+            val state = session.state.value
+            if (!state.inRoom || state.isHost) continue
+            val service = serviceFlow.value ?: continue
+            if (!state.isPlaying) continue
+            applyingRemote = true
+            try {
+                applyTransport(service, state.isPlaying, state.position)
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Heartbeat failed to re-apply room position")
+            } finally {
+                applyingRemote = false
+            }
+        }
     }
 
     /**
