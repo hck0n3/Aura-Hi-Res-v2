@@ -686,18 +686,29 @@ object AiPlaylistGenerator {
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
         }
 
+        // Ronda 2, punto 1 del dueño: pedir el mismo prompt dos veces por separado no puede devolver la
+        // MISMA lista — MusicRequestRanking.pick es determinístico a propósito dentro de una llamada
+        // (eso es correcto), así que lo que cambia es el POOL que le llega: se excluye lo servido
+        // recientemente por esta misma función antes de elegir. "Nunca vacío" se respeta igual que en
+        // pick(): si excluir dejara menos candidatas que target, se readmite lo necesario — mejor
+        // repetir alguna que devolver una lista corta.
+        val fresh = pool.filterNot { MusicRequestRecents.isRecent(it.id) }
+        val poolForRanking = if (fresh.size >= target) fresh else pool
+
         // Y ahora se elige: orden de origen como esqueleto, el gusto empuja unos puestos, lo marcado
         // con "No me gusta" se cae y no hay dos seguidas del mismo artista. Sin perfil ([taste] null)
         // el empujón es cero y esto devuelve exactamente el orden de origen.
-        return MusicRequestRanking.pick(
-            candidates = pool,
+        val picked = MusicRequestRanking.pick(
+            candidates = poolForRanking,
             target = target,
             artistOf = { it.artists.firstOrNull()?.name },
             tasteOf = { item ->
                 taste?.scoreNames(item.artists.map { a -> a.name }, item.title) ?: 0.0
             },
             avoidScore = iad1tya.echo.music.reco.TasteProfile.AVOID,
-        ).map { it.toMediaMetadata() }
+        )
+        MusicRequestRecents.markServed(picked.map { it.id })
+        return picked.map { it.toMediaMetadata() }
     }
 
     /**
