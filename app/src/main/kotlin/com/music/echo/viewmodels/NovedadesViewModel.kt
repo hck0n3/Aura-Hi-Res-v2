@@ -20,7 +20,11 @@ import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.ReleaseRadarItem
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.db.entities.UpcomingReleaseEntity
+import iad1tya.echo.music.dislike.DislikeStore
 import iad1tya.echo.music.extensions.filterExplicit
+import iad1tya.echo.music.playlistimport.MusicRequestRanking
+import iad1tya.echo.music.reco.AffinityEngine
+import iad1tya.echo.music.reco.TasteProfile
 import iad1tya.echo.music.releaseradar.ReleaseRadarWorker
 import iad1tya.echo.music.spotify.Spotify
 import iad1tya.echo.music.utils.dataStore
@@ -59,6 +63,7 @@ class NovedadesViewModel
 constructor(
     @ApplicationContext private val context: Context,
     private val database: MusicDatabase,
+    private val dislikeStore: DislikeStore,
 ) : ViewModel() {
 
     val radarReleases: StateFlow<List<ReleaseRadarItem>> =
@@ -138,6 +143,11 @@ constructor(
         }
     }
 
+    /** How many recent events feed the taste profile — a read, not the player's full 5-signal profile
+     *  (same budget as MusicRequestViewModel.TASTE_EVENTS: enough for artist/genre affinity, not a
+     *  second copy of the heavy Home profile). */
+    private val TASTE_EVENTS = 600
+
     private suspend fun loadFeeds() {
         val hideExplicit = context.dataStore.get(HideExplicitKey, false)
         coroutineScope {
@@ -149,13 +159,32 @@ constructor(
             val chartsJob = async { YouTube.getChartsPage().getOrNull() }
             val libraryJob = async { YouTube.library("FEmusic_liked_playlists").getOrNull() }
             val upcomingJob = async { scanUpcoming() }
+            // Ronda 2, punto 8 del dueño: el radar de Novedades solo filtraba binario (¿seguido/
+            // escuchado o no?) sin ordenar por cuánto te gusta CADA UNO dentro de ese conjunto ya
+            // filtrado. Mismo motor que "pedir música" (AffinityEngine + MusicRequestRanking: el orden
+            // de origen manda, el gusto empuja) — null si falla, y entonces el comportamiento es
+            // idéntico al de antes (orden de origen puro).
+            val tasteJob = async {
+                runCatching {
+                    val events = database.recentEventsWithSong(TASTE_EVENTS).first()
+                    AffinityEngine.buildProfile(events, dislikeStore.snapshot())
+                }.getOrNull()
+            }
 
             val albums = albumsJob.await()
             val keys = database.tasteArtistKeys()
-            _newAlbums.value = albums.filterToSubscribedArtists(keys).take(20)
+            val taste = tasteJob.await()
+            val filteredAlbums = albums.filterToSubscribedArtists(keys)
+            _newAlbums.value = MusicRequestRanking.pick(
+                candidates = filteredAlbums,
+                target = 20,
+                artistOf = { it.artists?.firstOrNull()?.name },
+                tasteOf = { item -> taste?.scoreNames(item.artists?.map { a -> a.name }.orEmpty(), item.title) ?: 0.0 },
+                avoidScore = TasteProfile.AVOID,
+            )
 
             val charts = chartsJob.await()
-            if (charts != null) applyCharts(charts, keys)
+            if (charts != null) applyCharts(charts, keys, taste)
             else {
                 _featuredSongs.value = emptyList()
                 _listening.value = emptyList()
@@ -168,13 +197,19 @@ constructor(
         }
     }
 
-    private fun applyCharts(page: ChartsPage, keys: SubscribedArtistKeys) {
+    private fun applyCharts(page: ChartsPage, keys: SubscribedArtistKeys, taste: TasteProfile?) {
         val songs = page.sections
             .flatMap { it.items }
             .filterIsInstance<SongItem>()
             .distinctBy { it.id }
             .filterSongsToTasteArtists(keys)
-        _featuredSongs.value = songs.take(12)
+        _featuredSongs.value = MusicRequestRanking.pick(
+            candidates = songs,
+            target = 12,
+            artistOf = { it.artists.firstOrNull()?.name },
+            tasteOf = { item -> taste?.scoreNames(item.artists.map { a -> a.name }, item.title) ?: 0.0 },
+            avoidScore = TasteProfile.AVOID,
+        )
         val featuredIds = _featuredSongs.value.map { it.id }.toSet()
         val mix = page.sections
             .firstOrNull { it.chartType == ChartsPage.ChartType.TRENDING || it.chartType == ChartsPage.ChartType.TOP }
