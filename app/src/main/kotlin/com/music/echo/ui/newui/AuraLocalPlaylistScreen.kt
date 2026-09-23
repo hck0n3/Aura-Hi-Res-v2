@@ -2,6 +2,7 @@ package iad1tya.echo.music.ui.newui
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -147,8 +149,10 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  *    playlist. The handle moved from the right of the row to its LEFT, where the redesigned queue
  *    already puts it; it appears under exactly the classic conditions (orden personalizado, lista
  *    desbloqueada, editable, sin buscar, sin selección).
- *  · **Deslizar para quitar** — kept, still behind `SwipeToRemoveSongKey` and still disabled while
- *    locked or selecting, with the same `removeFromPlaylist` + reposition transaction.
+ *  · **Deslizar para quitar** — kept, still behind `SwipeToRemoveSongKey` (now ON by default) and
+ *    disabled while selecting or on a non-editable playlist, with the same `removeFromPlaylist` +
+ *    reposition transaction. No longer coupled to the reorder lock (`locked`) — that toggle is about
+ *    accidental drag-reordering, not this deliberate gesture.
  *  · **Candado** — the sort row's trailing control.
  *  · **Editar portada** — the ✎ on the cover, running the SAME
  *    [rememberPlaylistCoverEditor] the classic header now runs (it was lifted out of it, not copied).
@@ -201,7 +205,7 @@ fun AuraLocalPlaylistScreen(
         true,
     )
     var locked by rememberPreference(PlaylistEditLockKey, defaultValue = true)
-    val swipeRemoveEnabled by rememberPreference(SwipeToRemoveSongKey, defaultValue = false)
+    val swipeRemoveEnabled by rememberPreference(SwipeToRemoveSongKey, defaultValue = true)
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -553,7 +557,11 @@ fun AuraLocalPlaylistScreen(
 
     val canDrag = sortType == PlaylistSongSortType.CUSTOM && !locked && !inSelectMode &&
         !isSearching && editable
-    val canSwipeRemove = swipeRemoveEnabled && !locked && !inSelectMode
+    // Deliberately NOT gated on `locked` (that toggle guards accidental drag-reordering only): swiping
+    // to delete is a separate, deliberate gesture, and coupling it to the reorder lock meant it never
+    // appeared for a locked (the default) playlist even with the setting on. Gated on `editable` so it
+    // never offers to delete from a read-only playlist reached through this same screen.
+    val canSwipeRemove = swipeRemoveEnabled && editable && !inSelectMode
 
     val bloom = rememberAuraBloom(mediaMetadata?.id)
     val rows = if (isSearching) filteredSongs else mutableSongs
@@ -820,7 +828,34 @@ fun AuraLocalPlaylistScreen(
                         } else {
                             SwipeToDismissBox(
                                 state = dismissBoxState,
-                                backgroundContent = {},
+                                backgroundContent = {
+                                    // AuraPalette has no error/danger step (same reasoning as
+                                    // AuraMigrationScreen's AuraWarnTone): always the DARK Material
+                                    // error role regardless of ambient theme, never the ambient one.
+                                    val targetColor = when (dismissBoxState.targetValue) {
+                                        SwipeToDismissBoxValue.Settled -> Color.Transparent
+                                        else -> darkColorScheme().errorContainer
+                                    }
+                                    val color by animateColorAsState(targetColor, label = "swipeDeleteBg")
+                                    val alignment = when (dismissBoxState.dismissDirection) {
+                                        SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                        SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                        SwipeToDismissBoxValue.Settled -> Alignment.Center
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(color)
+                                            .padding(horizontal = 20.dp),
+                                        contentAlignment = alignment,
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.delete),
+                                            contentDescription = stringResource(R.string.remove_from_playlist),
+                                            tint = darkColorScheme().onErrorContainer,
+                                        )
+                                    }
+                                },
                             ) { row() }
                         }
                     }

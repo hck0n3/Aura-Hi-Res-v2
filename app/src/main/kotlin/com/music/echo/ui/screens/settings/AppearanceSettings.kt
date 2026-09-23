@@ -295,9 +295,12 @@ fun AppearanceSettings(
         defaultValue = false
     )
 
+    // ON by default (owner request 2026-09-22): swipe-to-remove on your own playlists should just
+    // work without hunting through Settings first. Still a real, discoverable toggle for anyone who
+    // wants it off.
     val (swipeToRemoveSong, onSwipeToRemoveSongChange) = rememberPreference(
         SwipeToRemoveSongKey,
-        defaultValue = false
+        defaultValue = true
     )
 
     val (showLikedPlaylist, onShowLikedPlaylistChange) = rememberPreference(

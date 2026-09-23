@@ -12,7 +12,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -710,7 +712,7 @@ fun LocalPlaylistScreen(
                         }
                     }
 
-                    val swipeRemoveEnabled by rememberPreference(SwipeToRemoveSongKey, defaultValue = false)
+                    val swipeRemoveEnabled by rememberPreference(SwipeToRemoveSongKey, defaultValue = true)
                     val dismissBoxState =
                         rememberSwipeToDismissBoxState(
                             positionalThreshold = { totalDistance -> totalDistance }
@@ -745,6 +747,12 @@ fun LocalPlaylistScreen(
                             isActive = song.song.id == mediaMetadata?.id,
                             isPlaying = isPlaying,
                             showInLibraryIcon = true,
+                            // The outer SwipeToDismissBox below is this row's only horizontal gesture —
+                            // SongListItem's own swipe (the separate "reproducir a continuación"/"añadir a
+                            // la cola" gesture, SwipeToSongKey) would otherwise nest inside it and steal
+                            // the drag before it reaches the delete box when a user has that other
+                            // setting enabled too.
+                            isSwipeable = false,
                             playedInShuffle = song.song.id in shufflePlayedSet ||
                                 song.song.song.totalPlayTime > 0L,
                             shape = listItemShape(
@@ -830,14 +838,44 @@ fun LocalPlaylistScreen(
                         )
                     }
 
-                    if (locked || inSelectMode || !swipeRemoveEnabled) {
+                    // Delete-swipe only on playlists you can actually edit — never on a read-only
+                    // (someone else's / album-backed) list reached through this same screen. Deliberately
+                    // NOT gated on `locked`: that toggle is the drag-to-reorder guard against accidental
+                    // reordering, and swiping to delete is a separate, deliberate gesture the owner asked
+                    // for — coupling it to the reorder lock meant it silently never appeared for a locked
+                    // (the default) playlist even with the setting on.
+                    if (!editable || inSelectMode || !swipeRemoveEnabled) {
                         Box(modifier = Modifier.animateItem()) {
                             content()
                         }
                     } else {
                         SwipeToDismissBox(
                             state = dismissBoxState,
-                            backgroundContent = {},
+                            backgroundContent = {
+                                val targetColor = when (dismissBoxState.targetValue) {
+                                    SwipeToDismissBoxValue.Settled -> Color.Transparent
+                                    else -> MaterialTheme.colorScheme.errorContainer
+                                }
+                                val color by animateColorAsState(targetColor, label = "swipeDeleteBg")
+                                val alignment = when (dismissBoxState.dismissDirection) {
+                                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                    SwipeToDismissBoxValue.Settled -> Alignment.Center
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(color)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = alignment,
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.delete),
+                                        contentDescription = stringResource(R.string.remove_from_playlist),
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                }
+                            },
                             modifier = Modifier.animateItem()
                         ) {
                             content()
