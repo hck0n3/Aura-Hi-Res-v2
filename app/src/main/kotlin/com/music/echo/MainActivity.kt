@@ -1,4 +1,8 @@
 
+// Ronda 5: SharedTransitionLayout (transición hero de portada de álbum) toca el tipo experimental
+// SharedTransitionScope en el composable que envuelve el NavHost — opt-in a nivel de archivo en vez de
+// cazar esa función específica en un archivo de más de 2000 líneas.
+@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 
 package iad1tya.echo.music
 import iad1tya.echo.music.ui.screens.settings.RingtoneViewModel
@@ -2262,6 +2266,18 @@ class MainActivity : ComponentActivity() {
                                     )
                             ) {
 
+                                // Ronda 5 (premium UX, dueño): transición "hero" de la portada de
+                                // álbum, Inicio -> AlbumScreen (alcance acordado 2026-09-23). El
+                                // SharedTransitionScope solo existe dentro de este layout — se arma UNA
+                                // vez aquí, envolviendo el NavHost entero, y se pasa a
+                                // navigationBuilder como un valor simple (no es @Composable) para que
+                                // cada composable({ }) de destino lo publique con
+                                // ProvideNavSharedTransition solo donde participa (hoy: Inicio y
+                                // Álbum). No reemplaza ni reordena las transiciones de AuraNavMotion —
+                                // se anima ADEMÁS de ellas, sobre el mismo AnimatedContentScope que
+                                // NavHost ya le da a cada `composable { }`.
+                                androidx.compose.animation.SharedTransitionLayout {
+                                val sharedTransitionScope = this
                                 NavHost(
                                     navController = navController,
                                     startDestination = when (tabOpenedFromShortcut ?: defaultOpenTab) {
@@ -2369,8 +2385,10 @@ class MainActivity : ComponentActivity() {
                                         navController = navController,
                                         scrollBehavior = topAppBarScrollBehavior,
                                         activity = this@MainActivity,
-                                        snackbarHostState = snackbarHostState
+                                        snackbarHostState = snackbarHostState,
+                                        sharedTransitionScope = sharedTransitionScope,
                                     )
+                                }
                                 }
                             }
                             // Spotify-desktop-style persistent now-playing panel on genuinely-wide screens: while

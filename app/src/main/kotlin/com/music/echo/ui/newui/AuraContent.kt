@@ -550,6 +550,9 @@ fun AuraCoverCard(
     thumbnailUrl: String? = null,
     seed: String? = thumbnailUrl,
     width: Dp = 120.dp,
+    /** Ronda 5: modifier aplicado SOLO a la imagen (no al título/subtítulo) — así la transición hero
+     *  (ver AuraSharedTransition.kt) anima la portada sola, nunca la tarjeta completa. */
+    imageModifier: Modifier = Modifier,
     /** See [AuraCover.ratio]. 1:1 matches every classic grid item the new shelves replace. */
     ratio: Float = 1f,
     shape: Shape = AuraShapes.Artwork,
@@ -580,6 +583,7 @@ fun AuraCoverCard(
         AuraCover(
             thumbnailUrl = thumbnailUrl,
             size = width,
+            modifier = imageModifier,
             seed = seed ?: title,
             shape = shape,
             decodeTo = decodeTo,

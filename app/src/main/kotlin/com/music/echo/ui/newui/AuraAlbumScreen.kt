@@ -305,6 +305,7 @@ fun AuraAlbumScreen(
                 item(key = "aura_album_hero", contentType = "aura_album_hero") {
                     AuraAlbumHero(
                         thumbnailUrl = album.album.thumbnailUrl,
+                        albumId = album.album.id,
                         canvasPrimaryUrl = canvasArtwork?.animated,
                         canvasFallbackUrl = canvasArtwork?.videoUrl,
                         canvasEnabled = albumCanvasEnabled,
@@ -693,6 +694,7 @@ fun AuraAlbumScreen(
 @Composable
 private fun AuraAlbumHero(
     thumbnailUrl: String?,
+    albumId: String?,
     canvasPrimaryUrl: String?,
     canvasFallbackUrl: String?,
     canvasEnabled: Boolean,
@@ -742,6 +744,10 @@ private fun AuraAlbumHero(
                 AuraCover(
                     thumbnailUrl = thumbnailUrl,
                     size = heroWidth,
+                    // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
+                    modifier = if (albumId != null) {
+                        Modifier.auraSharedAlbumCoverElement(albumId)
+                    } else Modifier,
                     seed = thumbnailUrl,
                     shape = androidx.compose.ui.graphics.RectangleShape,
                     decodeTo = 1200,

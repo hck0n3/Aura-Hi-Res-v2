@@ -3,6 +3,8 @@
 package iad1tya.echo.music.ui.screens
 
 import android.app.Activity
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -61,6 +63,7 @@ import iad1tya.echo.music.ui.newui.ArtistScreenHost
 import iad1tya.echo.music.ui.newui.AutoPlaylistScreenHost
 import iad1tya.echo.music.ui.newui.CachePlaylistScreenHost
 import iad1tya.echo.music.ui.newui.HomeScreenHost
+import iad1tya.echo.music.ui.newui.ProvideNavSharedTransition
 import iad1tya.echo.music.ui.newui.LibraryScreenHost
 import iad1tya.echo.music.ui.newui.NovedadesScreenHost
 import iad1tya.echo.music.ui.newui.LocalPlaylistScreenHost
@@ -74,17 +77,21 @@ import iad1tya.echo.music.ui.newui.StatsScreenHost
 import iad1tya.echo.music.ui.newui.SettingsScreenHost
 import iad1tya.echo.music.ui.newui.TopPlaylistScreenHost
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 fun NavGraphBuilder.navigationBuilder(
     navController: NavHostController,
     scrollBehavior: TopAppBarScrollBehavior,
     activity: Activity,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    sharedTransitionScope: SharedTransitionScope,
 ) {
     composable(Screens.Home.route) {
         // "Interfaz nueva" beta: the Host picks the new Inicio when the flag is ON and a new
         // implementation exists, and falls back to this exact classic screen otherwise.
-        HomeScreenHost(navController = navController, snackbarHostState = snackbarHostState)
+        // Ronda 5: origen de la transición hero de portada de álbum — ver AuraSharedTransition.kt.
+        ProvideNavSharedTransition(sharedTransitionScope, this) {
+            HomeScreenHost(navController = navController, snackbarHostState = snackbarHostState)
+        }
     }
 
     composable(Screens.Novedades.route) {
@@ -218,7 +225,10 @@ fun NavGraphBuilder.navigationBuilder(
         // Reached from the NEW player's title, from Inicio, Biblioteca, Buscar and from every artist
         // and playlist screen. The Host picks the redesign when the flag is on; with the flag off this
         // is the same AlbumScreen(navController, scrollBehavior) call as before.
-        AlbumScreenHost(navController, scrollBehavior)
+        // Ronda 5: destino de la transición hero de portada de álbum — ver AuraSharedTransition.kt.
+        ProvideNavSharedTransition(sharedTransitionScope, this) {
+            AlbumScreenHost(navController, scrollBehavior)
+        }
     }
 
     composable(
