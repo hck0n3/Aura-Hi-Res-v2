@@ -723,6 +723,15 @@ fun AuraLocalPlaylistScreen(
                     val dismissBoxState = rememberSwipeToDismissBoxState(
                         positionalThreshold = { totalDistance -> totalDistance },
                     )
+                    // Ronda 5 (premium UX, dueño): un toque de vibración exactamente cuando el swipe
+                    // cruza el umbral de borrado — ver el mismo patrón en LocalPlaylistScreen.kt.
+                    var previousDismissTarget by remember { mutableStateOf(dismissBoxState.targetValue) }
+                    LaunchedEffect(dismissBoxState.targetValue) {
+                        if (dismissBoxState.targetValue != previousDismissTarget) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                        previousDismissTarget = dismissBoxState.targetValue
+                    }
                     var processedDismiss by remember { mutableStateOf(false) }
                     LaunchedEffect(dismissBoxState.currentValue) {
                         val dv = dismissBoxState.currentValue

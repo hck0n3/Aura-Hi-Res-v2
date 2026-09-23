@@ -68,7 +68,9 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -2086,6 +2088,18 @@ private const val ADD_TO_PLAYLIST_THRESHOLD = 400f
 private const val DISLIKE_THRESHOLD = 200f
 
 /**
+ * Which of the three zones [offset] is currently in, purely to detect a CROSSING (see the haptic tick
+ * in [LibrarySwipeActionsBox]) — not the release action itself, which the `when` in `onDragStopped`
+ * still decides on its own.
+ */
+private fun librarySwipeZoneOf(offset: Float): Int = when {
+    offset >= ADD_TO_PLAYLIST_THRESHOLD -> 2
+    offset >= LIKE_THRESHOLD -> 1
+    offset <= -DISLIKE_THRESHOLD -> -1
+    else -> 0
+}
+
+/**
  * Ronda 2, punto 3 / ronda 3 del dueño: en contenido de solo lectura (álbumes, singles de artista,
  * playlists ajenas) donde no aplica el swipe-to-delete de una playlist propia ([SwipeToSongBox]
  * tampoco aplica — ese es "reproducir a continuación"/"añadir a la cola", una acción de reproducción,
@@ -2114,11 +2128,21 @@ fun LibrarySwipeActionsBox(
     }
 
     val ctx = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val offset = remember { mutableFloatStateOf(0f) }
 
     val dragState = rememberDraggableState { delta ->
+        // Ronda 5 (premium UX, dueño): un toque de vibración cada vez que el dedo cruza la frontera de
+        // una zona — comparar la zona ANTES y DESPUÉS de aplicar delta en la misma llamada evita
+        // necesitar una variable de estado aparte, y como offset ya vuelve a 0 exacto tras soltar
+        // (reset() anima ese mismo estado), el primer delta del próximo gesto siempre arranca
+        // comparando desde zona 0 — sin arrastrar nada del gesto anterior.
+        val previousZone = librarySwipeZoneOf(offset.floatValue)
         offset.floatValue = (offset.floatValue + delta).coerceIn(-DISLIKE_THRESHOLD, ADD_TO_PLAYLIST_THRESHOLD)
+        if (librarySwipeZoneOf(offset.floatValue) != previousZone) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
     }
 
     Box(

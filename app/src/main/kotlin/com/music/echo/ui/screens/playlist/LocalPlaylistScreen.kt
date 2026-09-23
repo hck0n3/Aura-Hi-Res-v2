@@ -741,6 +741,19 @@ fun LocalPlaylistScreen(
                         rememberSwipeToDismissBoxState(
                             positionalThreshold = { totalDistance -> totalDistance }
                         )
+                    // Ronda 5 (premium UX, dueño): un toque de vibración exactamente cuando el swipe
+                    // cruza el umbral de borrado — targetValue (no currentValue) porque cambia EN el
+                    // cruce, antes de soltar, que es el momento en que el gesto "decide" borrar.
+                    // previousDismissTarget arranca en el valor YA vigente al montar la fila, así el
+                    // primer LaunchedEffect (que siempre corre una vez) no vibra sin que el usuario haya
+                    // tocado nada.
+                    var previousDismissTarget by remember { mutableStateOf(dismissBoxState.targetValue) }
+                    LaunchedEffect(dismissBoxState.targetValue) {
+                        if (dismissBoxState.targetValue != previousDismissTarget) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                        previousDismissTarget = dismissBoxState.targetValue
+                    }
                     var processedDismiss by remember { mutableStateOf(false) }
                     LaunchedEffect(dismissBoxState.currentValue) {
                         val dv = dismissBoxState.currentValue

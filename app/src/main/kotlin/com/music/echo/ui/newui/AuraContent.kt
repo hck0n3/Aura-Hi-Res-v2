@@ -57,7 +57,9 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -1360,6 +1362,14 @@ private const val AURA_LIKE_THRESHOLD = 200f
 private const val AURA_ADD_TO_PLAYLIST_THRESHOLD = 400f
 private const val AURA_DISLIKE_THRESHOLD = 200f
 
+/** Same purpose as [librarySwipeZoneOf] (Items.kt) — which zone [offset] is in, to detect a crossing. */
+private fun auraLibrarySwipeZoneOf(offset: Float): Int = when {
+    offset >= AURA_ADD_TO_PLAYLIST_THRESHOLD -> 2
+    offset >= AURA_LIKE_THRESHOLD -> 1
+    offset <= -AURA_DISLIKE_THRESHOLD -> -1
+    else -> 0
+}
+
 /**
  * Ronda 2 punto 3 / ronda 3 del dueño: en contenido de solo lectura (álbumes, singles de artista,
  * playlists ajenas) donde [AuraSwipeSongBox] no aplica — ese es "reproducir a continuación"/"añadir a
@@ -1388,12 +1398,19 @@ fun AuraLibrarySwipeActionsBox(
     }
 
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val offset = remember { mutableFloatStateOf(0f) }
 
     val dragState = rememberDraggableState { delta ->
+        // Ronda 5 (premium UX, dueño): mismo patrón que LibrarySwipeActionsBox (Items.kt) — un toque
+        // de vibración en cada cruce de zona, comparando antes/después dentro de la misma llamada.
+        val previousZone = auraLibrarySwipeZoneOf(offset.floatValue)
         offset.floatValue =
             (offset.floatValue + delta).coerceIn(-AURA_DISLIKE_THRESHOLD, AURA_ADD_TO_PLAYLIST_THRESHOLD)
+        if (auraLibrarySwipeZoneOf(offset.floatValue) != previousZone) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
     }
 
     Box(
