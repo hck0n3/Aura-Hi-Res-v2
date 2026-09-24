@@ -1,27 +1,38 @@
-# Aura Hi-Res v2.0.52-beta1 — Vibración al deslizar, carga con esqueleto en Novedades, transición al abrir un álbum, y dos arreglos reportados en la 2.0.51
+# Aura Hi-Res v2.0.53-beta1 — Me gusta que sabe si ya lo diste, álbum instantáneo, y pedir música más listo
 
-Beta encima de la 2.0.51. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.52. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Sensación al usar la app
+## Deslizar canciones
 
-- **Vibración corta al deslizar una canción.** En los gestos de deslizar (me gusta, agregar a
-  playlist, no me gusta, borrar de una playlist propia) ahora sientes un pequeño golpe de vibración
-  justo cuando el gesto cruza el punto en el que se va a activar una acción — así sabes que ya llegó
-  sin tener que mirar el ícono.
-- **Novedades ya no se ve vacía mientras carga.** Al abrir la pestaña o al deslizar para actualizar,
-  ahora se ve un esqueleto de carga (el mismo estilo que ya tenían Inicio, Buscar, Artista, Álbum y
-  Playlist) en vez de una pantalla en blanco por un momento.
-- **Transición al abrir un álbum desde Inicio.** La portada del álbum ahora se anima desde donde
-  estaba en la lista de Inicio hasta su lugar en la pantalla del álbum, en vez de aparecer de golpe.
-  Es la primera pantalla con este efecto — si se ve bien, lo llevamos a Artista, Playlist, Biblioteca
-  y Buscar.
+- **El deslizar de "me gusta" ahora sabe si ya lo diste.** Antes deslizar a la izquierda para "no me
+  gusta" no desmarcaba el corazón de una canción que ya tenías marcada — eso se arregló, y de paso se
+  simplificó el gesto: ahora un lado siempre alterna me-gusta/no-me-gusta según el estado real de la
+  canción (el ícono cambia solo), y el otro lado siempre abre "agregar a una playlist".
 
-## Arreglos de la 2.0.51
+## Álbumes
 
-- **Se arregló el cierre inesperado al entrar a una playlist propia.** Algunas veces, justo al abrir
-  una playlist tuya, la app se cerraba sola. Era un fallo introducido por el propio arreglo de la
-  papelera progresiva de la beta anterior, que a veces leía el estado del deslizar antes de que
-  estuviera listo.
-- **Se arregló el botón de Cast que a veces no reaccionaba al primer toque.** El botón tardaba en
-  aparecer del todo justo al abrir el reproductor completo, así que un toque en ese momento no hacía
-  nada y había que tocarlo varias veces. Ahora el botón siempre reacciona al primer toque.
+- **Un álbum que ya viste en esta sesión abre al instante.** Antes Álbum era la única pantalla (Artista
+  y Playlist ya lo hacían) que no recordaba nada entre visitas — volver a entrar a un álbum que abriste
+  hace un minuto lo recargaba todo desde cero. La primera vez que ves un álbum nuevo sigue tardando lo
+  normal (eso es la red, no se puede acelerar), pero las siguientes visitas en la misma sesión son
+  instantáneas.
+
+## Pedir música
+
+- **Ya no ignora el género cuando también pides una época.** "Reggae de los 90" devolvía éxitos
+  genéricos de los 90 sin nada de reggae — la petición completa se reemplazaba por una plantilla fija.
+  Ahora se combinan los dos.
+- **Repetir una petición, de un toque.** Un chip con tus últimas peticiones aparece al abrir la
+  ventana — tocarlo la vuelve a pedir sin escribir nada, y como nunca repite exactamente las mismas
+  canciones que ya sonaron, sirve también como "otra tanda" de la misma idea.
+- **"Lo que suena ahora" ya funciona de verdad.** Antes esa frase se buscaba tal cual (con poco
+  resultado); ahora se responde con los charts reales de tendencias de YouTube Music.
+
+## Verificado sin cambios
+
+- **La cola infinita inteligente**: se auditó a fondo cómo continúa la reproducción al terminar un
+  álbum, una playlist o una canción suelta. El algoritmo es preciso y no improvisa — la única pieza que
+  alguna vez metió un artista al azar ya se había quitado en una ronda anterior por pedido tuyo, y sigue
+  sin usarse. Lo único genuinamente más débil es la continuación de una canción suelta (tiene menos
+  información que un álbum o playlist completos para trabajar) — no es un error de código, es un límite
+  real de datos, así que no se tocó a ciegas.
