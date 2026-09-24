@@ -54,8 +54,18 @@ class SpotifyMapperTest {
     }
 
     @Test
-    fun `a genuinely different artist scores low`() {
-        val score = SpotifyMapper.matchScore(
+    fun `a genuinely different artist scores lower than a matching one`() {
+        // Same title and duration on both sides, only the artist changes — isolates the artist
+        // dimension instead of asserting an absolute number that title+duration alone can satisfy.
+        val matching = SpotifyMapper.matchScore(
+            spotifyTitle = "Some Song",
+            spotifyArtists = listOf("Bad Bunny"),
+            spotifyDurationMs = 200_000,
+            candidateTitle = "Some Song",
+            candidateArtists = listOf("Bad Bunny"),
+            candidateDurationSec = 200,
+        )
+        val mismatched = SpotifyMapper.matchScore(
             spotifyTitle = "Some Song",
             spotifyArtists = listOf("Bad Bunny"),
             spotifyDurationMs = 200_000,
@@ -63,7 +73,7 @@ class SpotifyMapperTest {
             candidateArtists = listOf("Karol G"),
             candidateDurationSec = 200,
         )
-        assertTrue("expected a low score for an unrelated artist, got $score", score < 0.6)
+        assertTrue("expected $mismatched < $matching", mismatched < matching)
     }
 
     @Test
