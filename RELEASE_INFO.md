@@ -1,4 +1,4 @@
-# Aura Hi-Res v2.0.54-beta1 — Ya no arranca solo, pedir música entiende géneros, y Spotify sí se sincroniza
+# Aura Hi-Res v2.0.55-beta1 — Ya no arranca solo, pedir música entiende géneros, Spotify se sincroniza y discografías más confiables
 
 Beta encima de la 2.0.53. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
@@ -24,3 +24,12 @@ Beta encima de la 2.0.53. Conserva tus datos, tu sesión y tus ajustes: mismo pa
   que solo se puede agregar pegando el link, no desde tu biblioteca) decía "sincronizado" pero nunca
   traía el contenido actualizado — en realidad nunca se volvía a consultar, ni con el botón manual ni
   con la sincronización automática. Ahora sí se vuelve a leer su contenido real de Spotify cada vez.
+
+## Discografías de artista
+
+- **Menos riesgo de mezclar un homónimo.** La discografía se completa contra Apple Music/iTunes, pero
+  antes solo comparaba el nombre del artista como texto — un homónimo o una banda tributo con el mismo
+  nombre exacto podía colarse. Ahora se verifica también el identificador real de artista de iTunes.
+- **Rechaza álbumes con una canción cortada.** Antes solo se detectaba un álbum donde TODAS las
+  canciones eran clips cortos; ahora también se descarta si una sola canción aparece claramente
+  truncada (un rip cortado, una vista previa subida por error) mezclada en un álbum por lo demás normal.
