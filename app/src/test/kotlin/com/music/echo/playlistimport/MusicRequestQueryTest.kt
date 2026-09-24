@@ -122,6 +122,25 @@ class MusicRequestQueryTest {
         assertFalse(MusicRequestQuery.build("canciones de Bad Bunny").preferPlaylists)
     }
 
+    /**
+     * Ronda 9 (dueño, auditoría del algoritmo): "música cristiana"/"quiero alabanza"/"worship" y
+     * "música romántica"/"canciones tristes" no activaban preferPlaylists aunque MusicRequestMoods
+     * sí reconoce esas familias — la petición se saltaba las categorías oficiales por completo.
+     */
+    @Test
+    fun `christian theme words alone prefer playlists`() {
+        assertTrue(MusicRequestQuery.build("musica cristiana").preferPlaylists)
+        assertTrue(MusicRequestQuery.build("quiero alabanza").preferPlaylists)
+        assertTrue(MusicRequestQuery.build("worship").preferPlaylists)
+    }
+
+    @Test
+    fun `romance and sad mood words alone prefer playlists`() {
+        assertTrue(MusicRequestQuery.build("musica romantica").preferPlaylists)
+        assertTrue(MusicRequestQuery.build("canciones tristes").preferPlaylists)
+        assertTrue(MusicRequestQuery.build("algo para el desamor").preferPlaylists)
+    }
+
     @Test
     fun `a number that is not a decade is not a decade`() {
         // "50 Cent" no es una petición de los años 50: hace falta el artículo o la ese.

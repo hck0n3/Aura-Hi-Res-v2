@@ -78,6 +78,12 @@ object MusicRequestQuery {
         "para el gimnasio", "para entrenar", "para trabajar", "para la fiesta", "para manejar",
         "para conducir", "para cocinar", "para leer", "de fondo", "para bailar",
         "to study", "to sleep", "to run", "for the gym", "to focus", "workout",
+        // Ronda 9 (dueño, auditoría del algoritmo): "música romántica"/"canciones tristes" no
+        // activaban preferPlaylists aunque MusicRequestMoods.FAMILIES sí reconoce esas dos familias
+        // ("Romance", "Sad") — la petición caía directo a búsqueda de texto libre sin curar, sin que
+        // ningún filtro la volviera a comprobar después. Mismas palabras que disparan esas familias.
+        "triste", "bajon", "melancol", "desamor", "sad",
+        "romantic", "romantica", "romantico", "amor", "cita", "love",
     )
 
     /** "lo que suena ahora" / tendencias — ver [Parsed.trending]. */
@@ -105,6 +111,11 @@ object MusicRequestQuery {
         // [residualBeyondCategory] y contaminando la detección de "esto es específico".
         "death metal", "black metal", "thrash metal", "power metal", "heavy metal", "doom metal",
         "nu metal", "metalcore", "hardcore", "emo",
+        // Ronda 9 (dueño, auditoría del algoritmo): "música cristiana"/"quiero alabanza"/"worship" no
+        // disparaban preferPlaylists — MusicRequestMoods.GENRE_FAMILIES/CHRISTIAN_TRIGGERS sí las
+        // reconoce ("gospel" ya estaba aquí, pero no sus sinónimos), así que la petición se saltaba
+        // moodCategoryPlaylists por completo y caía a búsqueda sin curar.
+        "cristiana", "cristiano", "alabanza", "worship",
     )
 
     /**

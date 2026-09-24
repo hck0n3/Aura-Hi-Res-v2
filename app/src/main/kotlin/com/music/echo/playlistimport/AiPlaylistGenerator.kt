@@ -276,13 +276,20 @@ object AiPlaylistGenerator {
         }.getOrNull().orEmpty()
 
         // QUE NO IMPROVISE (dueño, 2026-09-17), y aquí está la regla que lo decide entre las dos
-        // rutas: cuando la petición trae algo **comprobable** — una década — gana la ruta que lo ha
-        // COMPROBADO. La búsqueda llega por una lista cuyo título nombra esa década
-        // ([MusicRequestMatch]); la IA devuelve títulos y artistas sin año, así que nadie puede
-        // verificar que sean de los 80: con un modelo flojo, "80s" se convierte en "lo que al modelo
-        // le suena a antiguo". Sigue sin decirse cuál de las dos fue — el híbrido es de dónde salen
-        // las canciones, no de qué se le cuenta a él.
-        val verifiable = MusicRequestQuery.build(prompt).decade != null
+        // rutas: cuando la petición trae algo **comprobable** — una década o un idioma — gana la ruta
+        // que lo ha COMPROBADO. La búsqueda llega por una lista cuyo título nombra esa década/idioma
+        // ([MusicRequestMatch]); la IA devuelve títulos y artistas sin año ni idioma marcado, así que
+        // nadie puede verificar que sean de los 80 o que estén en inglés: con un modelo flojo, "80s"
+        // se convierte en "lo que al modelo le suena a antiguo", e "inglés" en lo que el modelo haya
+        // entendido. Sigue sin decirse cuál de las dos fue — el híbrido es de dónde salen las
+        // canciones, no de qué se le cuenta a él.
+        //
+        // Auditoría del algoritmo (ronda 9): el tema cristiano/gospel NO se agrega aquí a propósito —
+        // a diferencia de década/idioma, esa condición SÍ se puede comprobar sobre el resultado ya
+        // resuelto de la propia IA (ver el gate en [resolveBounded]), así que un resultado temprano de
+        // la IA ya viene filtrado y no hace falta preferir la búsqueda por esa razón.
+        val parsedForRace = MusicRequestQuery.build(prompt)
+        val verifiable = parsedForRace.decade != null || parsedForRace.language != null
         if (verifiable && search.isNotEmpty()) {
             aiJob.cancel()
             return@coroutineScope Produced(
@@ -460,8 +467,13 @@ object AiPlaylistGenerator {
             return null
         }
 
+        // Auditoría del algoritmo (ronda 9): el resto del generador trata el tema cristiano/gospel
+        // como rechazo duro cuando se pide explícitamente (MusicRequestMoods.requiresChristianContent),
+        // pero esta ruta (con IA) nunca lo comprobaba — solo se lo pedía al modelo en el prompt, sin
+        // verificar después. Ver el gate en [resolveBounded].
+        val requireChristian = MusicRequestMoods.requiresChristianContent(prompt)
         val proposed = filterTracksForSoloArtist(spec.tracks, soloArtist)
-        val firstPass = resolveBounded(database, proposed, soloArtist, target, onResolveProgress)
+        val firstPass = resolveBounded(database, proposed, soloArtist, target, requireChristian, onResolveProgress)
         var ordered = firstPass.distinctBy { it.id }.take(target)
 
         // Top-up ONLY when the first pass fell short of the target. With the thin pad and the
@@ -497,6 +509,7 @@ object AiPlaylistGenerator {
                     proposed = extraTracks,
                     soloArtist = soloArtist,
                     target = missing,
+                    requireChristian = requireChristian,
                     onResolveProgress = { done, _ ->
                         onResolveProgress((baseCount + done).coerceAtMost(target), target)
                     },
@@ -537,16 +550,34 @@ object AiPlaylistGenerator {
         proposed: List<TrackQuery>,
         soloArtist: String?,
         target: Int,
+        // Auditoría del algoritmo (ronda 9): la ruta de IA (aiFlow) no aplicaba NINGUNO de los
+        // rechazos duros que sí aplica la ruta de búsqueda (searchFallbackPlaylist) — ni tema
+        // cristiano, ni idioma. Un LLM puede "olvidar" una instrucción del prompt igual que el
+        // buscador puede devolver ruido; el prompt a la IA (AiPlaylistPrompt) le PIDE que respete
+        // tema/idioma, pero pedir no es comprobar. requireChristian sí se puede comprobar de verdad
+        // sobre el título/artista YA RESUELTO (real, del catálogo) — mismo mecanismo que
+        // [searchFallbackPlaylist]'s christianOnly, aplicado aquí en el gate de aceptación para que
+        // el top-up de abajo compense naturalmente lo que se rechace, igual que ya hace con el
+        // artista. El idioma NO se agrega aquí: no hay una señal fiable de idioma por canción (a
+        // diferencia del tema, que SÍ tiene palabras reconocibles en título/artista) — inventar un
+        // detector de idioma sería la misma improvisación que esto existe para evitar.
+        requireChristian: Boolean,
         onResolveProgress: (done: Int, total: Int) -> Unit,
     ): List<MediaMetadata> = resolveBoundedOrdered(
         proposed = proposed,
         resolveArtistFor = { track -> soloArtist?.takeIf { it.isNotBlank() } ?: track.artist },
         resolveOne = { title, artist -> SongResolver.resolve(database, title, artist) },
-        accept = { mm -> acceptsResolvedSoloPrimary(mm, soloArtist) },
+        accept = { mm ->
+            acceptsResolvedSoloPrimary(mm, soloArtist) && (!requireChristian || looksChristianResolved(mm))
+        },
         target = target,
         concurrency = RESOLVE_CONCURRENCY,
         onResolveProgress = onResolveProgress,
     )
+
+    /** Igual que [MusicRequestMoods.looksChristian] pero sobre un [MediaMetadata] ya resuelto. */
+    private fun looksChristianResolved(mm: MediaMetadata): Boolean =
+        MusicRequestMoods.looksChristian(mm.title) || mm.artists.any { MusicRequestMoods.looksChristian(it.name) }
 
     /**
      * Pure orchestration core of [resolveBounded], with every effect injected (the project's
@@ -697,17 +728,25 @@ object AiPlaylistGenerator {
             // el peldaño 1: no se le pide a la búsqueda ni a un LLM que ADIVINE qué está de moda —
             // se piden los charts reales de YouTube Music, que es la única fuente que de verdad lo
             // sabe. Si el usuario no pidió tendencias, esto no hace ninguna llamada de más.
+            //
+            // christianOnly aquí también (auditoría del algoritmo, ronda 9): el chart de tendencias
+            // no tiene forma de saber si pediste tema cristiano — a diferencia de una lista curada
+            // por título (peldaños 1-2), donde SÍ se confía en que el título es la prueba, un chart
+            // general no demuestra nada sobre tema. Sin la palabra clave, sigue sin filtrar nada.
             if (parsed.trending && pool.size < POOL_TARGET) {
-                absorb(trendingSongs())
+                absorb(christianOnly(trendingSongs()))
             }
 
             // Peldaño 1 — EL CATÁLOGO PROPIO DE YOUTUBE MUSIC. Sus categorías ("Años 80",
-            // "Concentración") entregan listas editoriales suyas, y ahí la categoría ES la prueba: no
-            // hace falta verificar por título porque el contenido lo garantiza la casa. Ver
-            // [MusicRequestMoods] para por qué sus palabras no coinciden con los nombres de categoría.
+            // "Concentración") entregan listas editoriales suyas, y ahí la categoría ES la prueba para
+            // década/género/momento — pickCategory ya exige que el título de la categoría los
+            // demuestre. Pero el TEMA CRISTIANO no forma parte de esa prueba salvo que exista una
+            // categoría dedicada ("Bachata Cristiana"): una categoría genérica que matcheó por
+            // género/década (p. ej. "Bachata") no garantiza que cada canción suya sea cristiana, así
+            // que christianOnly se aplica igual que en el resto de peldaños sin verificación de tema.
             moodCategoryPlaylists(prompt, parsed).take(PLAYLISTS_USED).forEach { pl ->
                 if (pool.size < POOL_TARGET) {
-                    YouTube.playlist(pl.id).getOrNull()?.songs?.let { absorb(it) }
+                    YouTube.playlist(pl.id).getOrNull()?.songs?.let { absorb(christianOnly(it)) }
                 }
             }
 

@@ -51,6 +51,29 @@ class MusicRequestMoodsTest {
         assertEquals(catalogo.indexOf("Años 80"), pick("música de los 80 para el gimnasio"))
     }
 
+    /**
+     * Ronda 9 (dueño): "reggae de los 90" traía "Éxitos de los 90" genéricos — la rama de década
+     * ignoraba el género por completo. Ahora, si además hay un género reconocido, la categoría tiene
+     * que demostrar los dos a la vez, igual que ya exigía la otra rama para género+tema.
+     */
+    @Test
+    fun `a decade plus genre request needs a category that proves both`() {
+        val soloDecada = listOf("Años 90", "Reggaetón", "Salsa")
+        val prompt = "reggae de los 90"
+        assertNull(MusicRequestMoods.pickCategory(soloDecada, prompt, MusicRequestQuery.build(prompt)))
+
+        val conAmbos = listOf("Años 90", "Reggae de los 90", "Salsa")
+        assertEquals(
+            conAmbos.indexOf("Reggae de los 90"),
+            MusicRequestMoods.pickCategory(conAmbos, prompt, MusicRequestQuery.build(prompt)),
+        )
+    }
+
+    @Test
+    fun `a decade without a genre still ignores the moment, unaffected by the genre fix`() {
+        assertEquals(catalogo.indexOf("Años 80"), pick("música de los 80 para el gimnasio"))
+    }
+
     @Test
     fun `a decade the catalogue does not have picks nothing`() {
         // No se cae a otra categoría: daría una lista de otra cosa. Sin categoría, se busca.

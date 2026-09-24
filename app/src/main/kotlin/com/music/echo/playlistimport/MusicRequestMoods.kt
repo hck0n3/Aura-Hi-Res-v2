@@ -142,15 +142,18 @@ object MusicRequestMoods {
      * separa cada familia que matchea en su propio grupo para que la categoría elegida tenga que
      * demostrar TODAS las familias pedidas a la vez, no una cualquiera de ellas.
      */
+    /** Los grupos de conceptos de GÉNERO (no momento/actividad) que [prompt] dispara, ya normalizado. */
+    private fun genreGroupsFor(folded: String): List<List<String>> =
+        GENRE_FAMILIES.mapNotNull { (triggers, concepts) -> concepts.takeIf { triggers.any { t -> folded.contains(t) } } }
+
+    private fun momentGroupsFor(folded: String): List<List<String>> =
+        FAMILIES.mapNotNull { (triggers, concepts) -> concepts.takeIf { triggers.any { t -> folded.contains(t) } } }
+
     internal fun conceptGroupsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<List<String>> {
         val folded = fold(prompt)
         val groups = ArrayList<List<String>>()
-        FAMILIES.forEach { (triggers, concepts) ->
-            if (triggers.any { folded.contains(it) }) groups += concepts
-        }
-        GENRE_FAMILIES.forEach { (triggers, concepts) ->
-            if (triggers.any { folded.contains(it) }) groups += concepts
-        }
+        groups += momentGroupsFor(folded)
+        groups += genreGroupsFor(folded)
         if (parsed.decade != null) groups += MusicRequestMatch.decadeTokens(parsed.decade)
         return groups
     }
@@ -158,8 +161,13 @@ object MusicRequestMoods {
     /**
      * El índice de la categoría que corresponde, o null si ninguna lo hace de forma clara.
      *
-     * Una década manda sobre el momento: "música de los 80 para el gimnasio" es, ante todo, de los 80 —
-     * la década es comprobable y el momento es interpretación.
+     * Una década manda sobre el MOMENTO: "música de los 80 para el gimnasio" es, ante todo, de los
+     * 80 — la década es comprobable y el momento es interpretación. Pero NO manda sobre el GÉNERO
+     * (ronda 9, dueño: "reggae de los 90" traía "Éxitos de los 90" genéricos, ignorando "reggae" por
+     * completo). Antes de este arreglo la rama de década descartaba conceptGroupsFor entero — géneros
+     * incluidos — así que cualquier categoría con la década alcanzaba, sin importar el género pedido.
+     * Ahora, si además hay un género reconocido, la categoría tiene que demostrar los dos a la vez,
+     * igual que ya exige la rama de abajo para género+tema.
      */
     fun pickCategory(
         categoryTitles: List<String>,
@@ -168,13 +176,14 @@ object MusicRequestMoods {
     ): Int? {
         if (categoryTitles.isEmpty()) return null
         if (parsed.decade != null) {
-            val tokens = MusicRequestMatch.decadeTokens(parsed.decade)
+            val requiredGroups = listOf(MusicRequestMatch.decadeTokens(parsed.decade)) + genreGroupsFor(fold(prompt))
             categoryTitles.forEachIndexed { index, title ->
                 val t = fold(title)
-                if (tokens.any { containsToken(t, it) }) return index
+                if (requiredGroups.all { group -> group.any { containsToken(t, it) } }) return index
             }
-            // Pidió una década y el catálogo no la tiene como categoría: NO se cae al momento, que
-            // daría una lista de otra cosa. Sin categoría, la escalera sigue por la búsqueda.
+            // Pidió una década (y, si la hay, un género) y el catálogo no tiene una categoría que
+            // demuestre todo a la vez: NO se cae al momento, que daría una lista de otra cosa. Sin
+            // categoría, la escalera sigue por la búsqueda.
             return null
         }
         val groups = conceptGroupsFor(prompt, parsed)
