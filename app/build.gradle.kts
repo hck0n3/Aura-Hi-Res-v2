@@ -231,25 +231,24 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1018
-        // BETA 2.0.57-beta1 — SOLO EL DUEÑO (sub-ronda del 2026-09-24, sobre 2.0.56-beta1).
-        // ⚠️ Incluye un fix URGENTE de regresión: la 2.0.56-beta1 dejaba de reproducir CUALQUIER
-        // canción no cacheada/descargada/local en cuanto se activaba el wifi (con datos móviles sí
-        // andaba) — NetworkConnectivityObserver leía "sin internet" al perder la red de datos que
-        // Android apaga al preferir wifi, aunque wifi siguiera perfectamente conectada. Corregido en
-        // dos capas (el observer ya seguía el conjunto de redes activas, no una sola; el gate
-        // estricto de offline ahora pregunta al sistema en vivo en vez de confiar en ese estado).
-        // También en esta sub-ronda: "pedir música" exige idioma y tema cristiano/gospel como
-        // condición dura (no solo puntaje), la comparación de artistas para links externos
-        // (Spotify/Amazon/Apple Music) ya no diluye el puntaje con artistas invitados, y pedir una
-        // canción o artista específico ya no llena la cola con 20-25 copias de lo mismo — ver
-        // RELEASE_INFO.md.
+        versionCode = 1019
+        // BETA 2.0.58-beta1 — SOLO EL DUEÑO (sub-ronda del 2026-09-24, sobre 2.0.57-beta1).
+        // Desde la 2.0.57-beta1 (ya publicada): pedir una canción/artista específico junto a un
+        // género ("death metal Raining Blood Slayer") ya prioriza lo específico en vez de dejar que
+        // el género genérico llene la cola primero; los links externos (Amazon Music, SoundCloud, ...)
+        // ahora también prueban un User-Agent de link-preview antes del scraping normal, con logging
+        // de diagnóstico nuevo, y se resuelven primero contra el catálogo cruzado de Odesli/song.link
+        // cuando este ya tiene el id exacto de YouTube Music; el badge de "ya está en una lista" ahora
+        // dice "En lista"; y las discografías de artista ahora sí completan más allá de los topes de
+        // 60/80 (la corrida se marca degradada y se repara con topes más anchos), separan Álbumes de
+        // Singles/EPs sin mezclarlos ni duplicarlos, y se ordenan igual que iTunes/Apple Music (más
+        // nuevo primero) — ver RELEASE_INFO.md.
         // El sufijo `-beta1` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño entrando a la página de releases (o a la función de "recibir versiones beta" del
         // actualizador dentro de la app, si la tiene activada). Publicar el tag requiere su permiso
         // explícito en el momento (AGENTS.md) — no se hace solo por dejar esto compilado.
-        versionName = "2.0.57-beta1"
+        versionName = "2.0.58-beta1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

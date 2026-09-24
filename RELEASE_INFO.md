@@ -1,33 +1,32 @@
-# Aura Hi-Res v2.0.57-beta1 — Arregla que el wifi cortara la música, pedir música más estricto
+# Aura Hi-Res v2.0.58-beta1 — Discografías completas, links externos más certeros, pedir música más preciso
 
-Beta encima de la 2.0.56. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.57-beta1. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## ⚠️ Arreglo urgente
+## Discografías de artista
 
-- **El wifi ya no corta la reproducción de canciones online.** La 2.0.56-beta1 dejaba de reproducir
-  cualquier canción que no estuviera en caché, descargada o guardada localmente en cuanto se activaba
-  el wifi (con datos móviles sí funcionaba). La causa: al preferir wifi, el teléfono apaga la conexión
-  de datos que ya no necesita, y eso se leía por error como "sin internet en general" aunque el wifi
-  siguiera perfectamente conectado. Corregido en dos capas, para que no vuelva a pasar por una causa
-  parecida: la señal de conectividad ahora sigue todas las redes activas a la vez, y el freno que
-  bloquea la reproducción sin red pregunta directo al sistema en el momento, en vez de confiar en un
-  estado que puede quedar desactualizado.
+- **Ahora sí completan más allá de los topes de 60 álbumes / 80 lanzamientos.** Esos límites (para no
+  quemar batería) existían, pero cuando de verdad truncaban un catálogo grande no quedaba registrado, así
+  que la reparación automática en segundo plano nunca se disparaba y la discografía se quedaba incompleta
+  para siempre. Ahora sí queda marcada, y esa reparación corre con topes bastante más altos (150/250) para
+  avanzar de verdad en catálogos grandes (muy común en artistas latinos/regionales/de alabanza).
+- **Álbumes y Singles/EPs ya no se mezclan ni se duplican entre las dos pantallas.** Cada lanzamiento de
+  iTunes/Apple Music ahora es candidato para una sola sección, nunca las dos.
+- **El orden ahora sigue el de iTunes/Apple Music** (más nuevo primero), en vez de un orden sin criterio.
 
 ## Pedir música
 
-- **El idioma y el tema cristiano/gospel que pedís ahora se respetan siempre, no solo cuando conviene.**
-  Pedir "trap cristiano en inglés" podía devolver resultados en español, y "reggae cristiano" podía
-  traer artistas que no son cristianos — el idioma y el tema religioso antes solo sumaban puntos a un
-  resultado, no lo descartaban si faltaban. Ahora son una condición dura: si los pedís explícitamente,
-  tienen que cumplirse.
-- **Pedir una canción o artista específico ya no llena la cola con 20-25 copias de lo mismo.** Distintas
-  subidas de la misma canción a YouTube ("Video Oficial", "Lyrics", "Audio") contaban como canciones
-  distintas. Ahora se detectan como la misma, y si la cola queda corta, se completa con canciones reales
-  del mismo artista en vez de repetir lo poco que había.
+- **Pedir un género junto a una canción/artista específico ya no ignora lo específico.** Por ejemplo,
+  "death metal Raining Blood Slayer" reproducía género genérico en vez de la canción exacta pedida — el
+  mismo problema podía pasar con cualquier género. Ahora lo específico se prioriza siempre que se detecte.
+- **El aviso de "ya está en una lista" ahora dice "En lista".**
 
 ## Enlaces externos
 
-- **Spotify, Amazon Music y demás: menos "no encontrado" por artistas invitados.** Comparar todos los
-  artistas acreditados como una sola cadena de texto castigaba cualquier canción con un featuring que
-  las dos plataformas no acreditan exactamente igual — muy común en reggaetón y bachata. Ahora se
-  compara cada artista por separado y se usa la mejor coincidencia.
+- **Se agregó una fuente de resolución más precisa (Odesli/song.link).** Cuando un link de Spotify, Apple
+  Music, Amazon Music, etc. ya tiene mapeo conocido hacia YouTube Music, se usa ese id exacto en vez de
+  adivinar por búsqueda — más rápido y más certero.
+- **Sitios tipo app (Amazon Music, SoundCloud) que antes no daban ningún dato para buscar** ahora también
+  se prueban con el mismo User-Agent que usan las vistas previas de enlaces (Facebook/Twitter/Discord),
+  que muchos de estos sitios sí atienden aunque a un navegador normal no le den nada.
+- **Se agregó registro de diagnóstico** (sin títulos, artistas ni URLs completas) para que un próximo
+  reporte de "no encontrado" venga con datos reales del `app.log` en vez de otra suposición a ciegas.
