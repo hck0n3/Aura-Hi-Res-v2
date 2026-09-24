@@ -396,6 +396,15 @@ class MusicService :
     // Set true by stopOnError() immediately before its player.pause(), so the resulting onPlayWhenReadyChanged
     // can tell OUR error-pause (keep pausedByNetwork) from a real user/external pause (clear pausedByNetwork).
     private var expectingOwnStopPause = false
+    // Ronda 7 (dueño): "salgo de TikTok y el reproductor arranca de la nada". Causa: handleAudioFocusChange's
+    // own player.pause() on FOCUS_LOSS reports the same onPlayWhenReadyChanged() reason as a real user pause,
+    // so nothing ever told wasPlayingBeforeAudioFocusLoss apart from an actual manual/external pause — it only
+    // cleared inside the 300ms scheduled-resume window, never on a plain pause. If the user paused manually
+    // while that sticky flag was still true from an earlier, unrelated focus cycle, it stayed true indefinitely
+    // (the service can live for hours), and a LATER app's focus loss/gain (TikTok) inherited it and resumed
+    // playback the user never asked for. Same pattern as expectingOwnStopPause above: set immediately before
+    // OUR focus-triggered player.pause(), so onPlayWhenReadyChanged can tell it apart from any other pause.
+    private var expectingOwnFocusPause = false
     /** Auto wireless: media3 paused us via AUDIO_BECOMING_NOISY — resume when the car route returns. */
     private var pausedByNoisy = false
     private var pausedByNoisyAtMs = 0L
@@ -3155,6 +3164,7 @@ class MusicService :
         hasAudioFocus = decision.hasAudioFocus
         wasPlayingBeforeAudioFocusLoss = decision.wasPlayingBeforeLoss
         if (decision.pause) {
+            expectingOwnFocusPause = true
             player.pause()
         }
         decision.volume?.let { player.volume = it }
@@ -6639,6 +6649,16 @@ class MusicService :
                 expectingOwnStopPause = false
             } else {
                 pausedByNetwork = false
+            }
+            // Ronda 7: any pause we did NOT cause via handleAudioFocusChange's own player.pause()
+            // invalidates the sticky "resume when focus returns" intent — same reasoning as
+            // pausedByNetwork above. Without this, a manual pause left the flag from a stale, already-
+            // resolved focus cycle sitting at true, ready to fire on a completely unrelated app's
+            // later focus gain (see expectingOwnFocusPause's declaration for the full story).
+            if (expectingOwnFocusPause) {
+                expectingOwnFocusPause = false
+            } else {
+                wasPlayingBeforeAudioFocusLoss = false
             }
         } else {
             expectingOwnStopPause = false
