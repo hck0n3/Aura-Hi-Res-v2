@@ -67,18 +67,6 @@ object SpotifyMapper {
     )
 
     /**
-     * Pre-computed data for one side of a match comparison.
-     * Created once per Spotify track and reused across all candidates.
-     */
-    data class PrecomputedTrack(
-        val normalizedTitle: String,
-        val titleBigrams: Set<String>,
-        val normalizedArtist: String,
-        val artistBigrams: Set<String>,
-        val durationMs: Int,
-    )
-
-    /**
      * Builds a YouTube search query from a Spotify track.
      * The query is optimized for finding the matching song on YouTube Music.
      */
@@ -120,80 +108,56 @@ object SpotifyMapper {
     }
 
     /**
-     * Pre-computes normalized title/artist and their bigrams for a Spotify track.
-     * Call once before scoring against multiple candidates to avoid redundant work.
-     */
-    fun precompute(
-        title: String,
-        artist: String,
-        durationMs: Int,
-    ): PrecomputedTrack {
-        val normTitle = cachedNormalize(title)
-        val normArtist = cachedNormalize(artist)
-        return PrecomputedTrack(
-            normalizedTitle = normTitle,
-            titleBigrams = cachedBigrams(normTitle),
-            normalizedArtist = normArtist,
-            artistBigrams = cachedBigrams(normArtist),
-            durationMs = durationMs,
-        )
-    }
-
-    /**
      * Computes a match confidence score (0.0 - 1.0) between a Spotify track and
      * a candidate result based on title, artist, and duration similarity.
      */
     fun matchScore(
         spotifyTitle: String,
-        spotifyArtist: String,
+        spotifyArtists: List<String>,
         spotifyDurationMs: Int,
         candidateTitle: String,
-        candidateArtist: String,
+        candidateArtists: List<String>,
         candidateDurationSec: Int?,
     ): Double {
         val normSpotifyTitle = cachedNormalize(spotifyTitle)
         val normCandidateTitle = cachedNormalize(candidateTitle)
-        val normSpotifyArtist = cachedNormalize(spotifyArtist)
-        val normCandidateArtist = cachedNormalize(candidateArtist)
 
         val titleScore = bigramSimilarity(
             normSpotifyTitle, cachedBigrams(normSpotifyTitle),
             normCandidateTitle, cachedBigrams(normCandidateTitle),
         )
-        val artistScore = bigramSimilarity(
-            normSpotifyArtist, cachedBigrams(normSpotifyArtist),
-            normCandidateArtist, cachedBigrams(normCandidateArtist),
-        )
+        val artistScore = bestArtistSimilarity(spotifyArtists, candidateArtists)
 
         val durationScore = durationScore(spotifyDurationMs, candidateDurationSec)
         return titleScore * 0.45 + artistScore * 0.35 + durationScore * 0.20
     }
 
     /**
-     * Scores a candidate against pre-computed Spotify track data.
-     * This is the fast path: normalization and bigrams for the Spotify side
-     * are computed once and reused across all candidates.
+     * Ronda 9 (dueño, tercer reporte de "no encontrado" en links externos): comparar TODOS los
+     * artistas acreditados como una sola cadena unida castigaba cualquier canción con artista
+     * invitado ("feat.") — muy común en reggaetón/bachata — porque Spotify y YouTube Music no
+     * siempre acreditan exactamente los mismos nombres, en el mismo orden, o el mismo número de
+     * ellos, y el Dice de la cadena larga se diluye con cada nombre de más en cualquiera de los dos
+     * lados: "Bad Bunny" (candidato) contra "Bad Bunny Chencho Corleone" (Spotify) puntuaba bajo
+     * pese a que el artista principal coincide del todo. Ahora se compara CADA PAR de nombres (uno
+     * de cada lado) y se toma la MEJOR coincidencia — basta con que un artista coincida bien para
+     * que un featuring que el otro lado no acreditó igual no hunda esta parte del puntaje.
      */
-    fun matchScorePrecomputed(
-        precomputed: PrecomputedTrack,
-        candidateTitle: String,
-        candidateArtist: String,
-        candidateDurationSec: Int?,
-    ): Double {
-        val normCandidateTitle = cachedNormalize(candidateTitle)
-        val normCandidateArtist = cachedNormalize(candidateArtist)
-
-        val titleScore = bigramSimilarity(
-            precomputed.normalizedTitle, precomputed.titleBigrams,
-            normCandidateTitle, cachedBigrams(normCandidateTitle),
-        )
-        val artistScore = bigramSimilarity(
-            precomputed.normalizedArtist, precomputed.artistBigrams,
-            normCandidateArtist, cachedBigrams(normCandidateArtist),
-        )
-
-        val durationScore = durationScore(precomputed.durationMs, candidateDurationSec)
-        return titleScore * 0.45 + artistScore * 0.35 + durationScore * 0.20
+    private fun bestArtistSimilarity(spotifyArtists: List<String>, candidateArtists: List<String>): Double {
+        val spotifyNames = spotifyArtists.filter { it.isNotBlank() }
+        val candidateNames = candidateArtists.filter { it.isNotBlank() }
+        if (spotifyNames.isEmpty() || candidateNames.isEmpty()) return 0.0
+        var best = 0.0
+        for (s in spotifyNames) {
+            val normS = cachedNormalize(s)
+            val bigramsS = cachedBigrams(normS)
+            for (c in candidateNames) {
+                val normC = cachedNormalize(c)
+                val score = bigramSimilarity(normS, bigramsS, normC, cachedBigrams(normC))
+                if (score > best) best = score
+            }
+        }
+        return best
     }
 
     /** Threshold above which we consider a match good enough to skip remaining candidates. */

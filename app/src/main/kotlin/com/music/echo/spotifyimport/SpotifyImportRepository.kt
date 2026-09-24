@@ -841,10 +841,10 @@ class SpotifyImportRepository @Inject constructor(
             .map { candidate ->
                 candidate to SpotifyMapper.matchScore(
                     spotifyTitle = track.name,
-                    spotifyArtist = track.artists.joinToString(" ") { it.name },
+                    spotifyArtists = track.artists.map { it.name },
                     spotifyDurationMs = track.durationMs,
                     candidateTitle = candidate.title,
-                    candidateArtist = candidate.artists.joinToString(" ") { it.name },
+                    candidateArtists = candidate.artists.map { it.name },
                     candidateDurationSec = candidate.duration,
                 )
             }

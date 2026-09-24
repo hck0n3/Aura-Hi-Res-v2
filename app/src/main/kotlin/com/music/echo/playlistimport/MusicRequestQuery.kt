@@ -156,7 +156,15 @@ object MusicRequestQuery {
             decade != null && language == "en" -> "${decadeLabel(decade)}s hits english"
             decade != null && language == "es" -> "exitos de los ${decadeLabel(decade)} en espanol"
             decade != null -> "exitos de los ${decadeLabel(decade)}"
-            // Sin década: su propia petición, sin muletillas. Nunca peor que mandar la frase entera.
+            // Ronda 9 (dueño): "trap cristiano en inglés" mandaba la frase TAL CUAL, con "en ingles"
+            // como texto literal — el buscador no lo lee como un filtro de idioma, así que no sesgaba
+            // el resultado en absoluto (ya se resolvía para década sola / década+género; sin década
+            // se quedaba sin arreglar). Mismo tratamiento: se quita la pista cruda y se añade el
+            // sufijo que el buscador sí entiende.
+            language == "en" -> "${stripLanguageHint(withoutLeadIn)} english".trim()
+            language == "es" -> "${stripLanguageHint(withoutLeadIn)} en espanol".trim()
+            // Sin década ni idioma: su propia petición, sin muletillas. Nunca peor que mandar la
+            // frase entera.
             else -> withoutLeadIn
         }
 
@@ -185,13 +193,20 @@ object MusicRequestQuery {
         stripped = DECADE_DIGITS.replace(stripped) { m ->
             if (m.groupValues[2] == decade) " " else m.value
         }
-        (ENGLISH_HINTS + SPANISH_HINTS).forEach { hint ->
-            stripped = stripped.replace(Regex("""\b${Regex.escape(hint)}\b"""), " ")
-        }
+        stripped = stripLanguageHint(stripped)
         return stripped.split(Regex("\\s+"))
             .filter { it.isNotBlank() && it !in CONNECTOR_WORDS }
             .joinToString(" ")
             .trim()
+    }
+
+    /** Quita la pista de idioma cruda ("en ingles", "in spanish"…) — no aporta nada a una búsqueda literal. */
+    private fun stripLanguageHint(text: String): String {
+        var stripped = text
+        (ENGLISH_HINTS + SPANISH_HINTS).forEach { hint ->
+            stripped = stripped.replace(Regex("""\b${Regex.escape(hint)}\b"""), " ")
+        }
+        return stripped.replace(Regex("\\s+"), " ").trim()
     }
 
     /** "80" → "80"; "1980"/"2000" → "80"/"2000" tal y como se buscan de verdad. */

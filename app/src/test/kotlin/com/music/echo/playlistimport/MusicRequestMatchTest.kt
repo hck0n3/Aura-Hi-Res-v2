@@ -41,10 +41,13 @@ class MusicRequestMatchTest {
     }
 
     @Test
-    fun `the requested language wins the tie`() {
+    fun `an explicit language request is a hard requirement, not just a tiebreaker`() {
+        // Ronda 9 (dueño): "que respete lo que pido siempre" — un título sin marca de idioma se
+        // rechaza directamente cuando el idioma se pidió explícitamente, igual que una década ausente.
         val english = MusicRequestMatch.score("80s Hits English", eightiesEnglish)
         val spanish = MusicRequestMatch.score("Éxitos de los 80", eightiesEnglish)
-        assertTrue(english > spanish)
+        assertTrue(english > 0)
+        assertEquals(MusicRequestMatch.REJECT, spanish)
     }
 
     @Test

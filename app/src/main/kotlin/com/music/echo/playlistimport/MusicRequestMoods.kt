@@ -96,6 +96,29 @@ object MusicRequestMoods {
             listOf("cristiana", "cristiano", "gospel", "worship"),
     )
 
+    /**
+     * Ronda 9 (dueño): "pedí reggae cristiano y me salió un artista que no es cristiano... si al
+     * final va la palabra cristiano, tiene que respetar eso sí o sí — mientras no se mencione, puede
+     * poner lo que considere mejor". A diferencia del género (donde una interpretación floja es
+     * aceptable), el tema religioso es una condición DURA cuando se pide: a diferencia de una lista
+     * (verificable por título vía [conceptGroupsFor]/[MusicRequestMatch]), una canción suelta sin
+     * verificar no pasaba por ningún filtro — [AiPlaylistGenerator] usa esto para descartarla si ni
+     * su título ni su artista demuestran el tema, en vez de aceptar cualquier resultado del buscador.
+     */
+    private val CHRISTIAN_TRIGGERS = listOf("gospel", "cristiana", "cristiano", "alabanza", "worship")
+    private val CHRISTIAN_CONCEPTS =
+        listOf("cristiana", "cristiano", "gospel", "worship", "alabanza", "adoracion", "jesus", "dios")
+
+    /** true si [prompt] pidió explícitamente música cristiana/gospel — ver [CHRISTIAN_TRIGGERS]. */
+    fun requiresChristianContent(prompt: String): Boolean =
+        CHRISTIAN_TRIGGERS.any { fold(prompt).contains(it) }
+
+    /** true si [text] (título, nombre de artista…) muestra una señal cristiana/gospel reconocible. */
+    fun looksChristian(text: String): Boolean {
+        val t = fold(text)
+        return CHRISTIAN_CONCEPTS.any { containsToken(t, it) }
+    }
+
     /** Los nombres que puede tener la categoría que él busca, o vacío si no cae en ninguna familia. */
     fun conceptsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<String> =
         conceptGroupsFor(prompt, parsed).flatten().distinct()

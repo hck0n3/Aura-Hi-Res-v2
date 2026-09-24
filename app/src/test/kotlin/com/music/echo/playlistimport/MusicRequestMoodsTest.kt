@@ -1,6 +1,7 @@
 package iad1tya.echo.music.playlistimport
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -104,6 +105,28 @@ class MusicRequestMoodsTest {
             conAmbos.indexOf("Bachata Cristiana"),
             MusicRequestMoods.pickCategory(conAmbos, prompt, MusicRequestQuery.build(prompt)),
         )
+    }
+
+    /**
+     * Ronda 9 (dueño): "reggae cristiano" ponía artistas que no son cristianos — [requiresChristianContent]
+     * / [looksChristian] son el filtro duro que aplica el generador a canciones sueltas sin verificar
+     * (ver AiPlaylistGenerator). Solo se activa cuando la petición lo menciona explícitamente.
+     */
+    @Test
+    fun `christian content detection only fires when the word is actually requested`() {
+        assertTrue(MusicRequestMoods.requiresChristianContent("reggae cristiano"))
+        assertTrue(MusicRequestMoods.requiresChristianContent("trap cristiano en ingles"))
+        assertTrue(MusicRequestMoods.requiresChristianContent("gospel music"))
+        assertFalse(MusicRequestMoods.requiresChristianContent("reggae"))
+        assertFalse(MusicRequestMoods.requiresChristianContent("bachata romantica"))
+    }
+
+    @Test
+    fun `looksChristian matches the recognizable signal words`() {
+        assertTrue(MusicRequestMoods.looksChristian("Reggae Cristiano Mix"))
+        assertTrue(MusicRequestMoods.looksChristian("Grupo Alabanza y Adoracion"))
+        assertFalse(MusicRequestMoods.looksChristian("Bad Bunny"))
+        assertFalse(MusicRequestMoods.looksChristian("Reggae Romantico"))
     }
 
     @Test

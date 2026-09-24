@@ -92,9 +92,12 @@ object MusicRequestMatch {
             score += 3
         }
 
+        // Ronda 9 (dueño): "que respete lo que pido siempre" — el idioma explícito deja de ser un
+        // simple empuje de puntaje y pasa a ser una condición dura, igual que la década: si pidió
+        // inglés y el título no lo demuestra, se rechaza — no se acepta con menos puntos.
         when (parsed.language) {
-            "en" -> if (ENGLISH_MARKERS.any { containsToken(t, it) }) score += 2
-            "es" -> if (SPANISH_MARKERS.any { containsToken(t, it) }) score += 2
+            "en" -> if (ENGLISH_MARKERS.any { containsToken(t, it) }) score += 2 else return REJECT
+            "es" -> if (SPANISH_MARKERS.any { containsToken(t, it) }) score += 2 else return REJECT
         }
 
         if (groups.size >= 2) {

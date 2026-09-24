@@ -637,6 +637,26 @@ object AiPlaylistGenerator {
             }
         }
 
+        // Ronda 9 (dueño): "pedí reggae cristiano y me salió un artista que no es cristiano... si al
+        // final va la palabra cristiano, tiene que respetar eso sí o sí". Las listas de los peldaños
+        // 1-2 ya se verifican por TÍTULO DE LISTA ([MusicRequestMatch]/[MusicRequestMoods]) — la lista
+        // entera es la prueba, así que filtrar cada canción suya otra vez por su propio título sería
+        // incorrecto (una canción cristiana real casi nunca dice "cristiano" en su propio título).
+        // Solo los peldaños 3-4 (canciones/vídeos sueltos del buscador) no pasan por ninguna
+        // verificación hoy — ahí sí hace falta este filtro. Solo se activa si la petición lo
+        // menciona: sin la palabra, sigue sin haber ningún filtro extra ("puede poner lo que
+        // considere mejor").
+        val requireChristian = MusicRequestMoods.requiresChristianContent(prompt)
+        fun christianOnly(items: List<SongItem>): List<SongItem> =
+            if (!requireChristian) {
+                items
+            } else {
+                items.filter { item ->
+                    MusicRequestMoods.looksChristian(item.title) ||
+                        item.artists.any { MusicRequestMoods.looksChristian(it.name) }
+                }
+            }
+
         if (parsed.preferPlaylists && soloArtist == null) {
             // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
             // el peldaño 1: no se le pide a la búsqueda ni a un LLM que ADIVINE qué está de moda —
@@ -681,19 +701,19 @@ object AiPlaylistGenerator {
         // Peldaño 3 — canciones sueltas del buscador.
         if (pool.size < POOL_TARGET) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
-                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
         }
         // Peldaño 4 — los VÍDEOS son lo menos fiable (recopilaciones de una hora, versiones de
         // aficionado): en una petición de época o momento solo se tocan si no hay NADA.
         val videosAllowed = if (parsed.preferPlaylists) pool.isEmpty() else pool.size < target
         if (videosAllowed) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
-                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
         }
         // Red de seguridad: si la consulta construida no dio nada, se prueba su petición TAL CUAL.
         if (pool.isEmpty() && query != prompt.trim().take(80)) {
             YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
-                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
         }
 
         // Ronda 2, punto 1 del dueño: pedir el mismo prompt dos veces por separado no puede devolver la

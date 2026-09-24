@@ -143,6 +143,26 @@ class MusicRequestQueryTest {
         assertFalse(p.preferPlaylists)
     }
 
+    /**
+     * Ronda 9 (dueño): "pedí trap cristiano en inglés y me puso trap cristiano en español — que
+     * respete lo que pido siempre". Sin década, "en ingles" se mandaba tal cual dentro de la consulta
+     * — el buscador no lo lee como un filtro, así que no sesgaba el idioma del resultado en absoluto.
+     */
+    @Test
+    fun `a genre plus theme request in english strips the raw hint and adds a search-friendly suffix`() {
+        val p = MusicRequestQuery.build("trap cristiano en ingles")
+        assertNull(p.decade)
+        assertEquals("en", p.language)
+        assertEquals("trap cristiano english", p.query)
+    }
+
+    @Test
+    fun `a no-decade request in spanish normalizes whatever hint phrasing was used`() {
+        val p = MusicRequestQuery.build("bachata in spanish")
+        assertEquals("es", p.language)
+        assertEquals("bachata en espanol", p.query)
+    }
+
     @Test
     fun `the query never exceeds the practical search length`() {
         val long = "quiero música de los 80s en inglés " + "muy larga ".repeat(20)
