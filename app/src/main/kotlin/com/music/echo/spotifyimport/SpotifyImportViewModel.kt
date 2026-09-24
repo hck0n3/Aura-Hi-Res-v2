@@ -164,6 +164,10 @@ class SpotifyImportViewModel @Inject constructor(
                     if (sources.none { it.id == source.id }) {
                         sources = sources + source
                     }
+                    // Ronda 7 (dueño): sin esto, la playlist agregada por enlace solo vivía en memoria
+                    // de este ViewModel y loadSources() nunca la volvía a devolver — ni el sync manual
+                    // ni el automático la volvían a traer nunca. Ver SpotifyImportRepository.loadSources.
+                    runCatching { repository.rememberLinkedPlaylist(source.spotifyId) }
                     _uiState.update { state ->
                         state.copy(
                             isAuthenticated = true,

@@ -27,6 +27,7 @@ import iad1tya.echo.music.constants.SpotifyAccessTokenExpiresAtKey
 import iad1tya.echo.music.constants.SpotifyAccessTokenKey
 import iad1tya.echo.music.constants.SpotifyAccountAvatarUrlKey
 import iad1tya.echo.music.constants.SpotifyAccountNameKey
+import iad1tya.echo.music.constants.SpotifyLinkedPlaylistIdsKey
 import iad1tya.echo.music.constants.SpotifySpDcKey
 import iad1tya.echo.music.constants.SpotifySpKeyKey
 import iad1tya.echo.music.db.MusicDatabase
@@ -176,6 +177,14 @@ class SpotifyImportRepository @Inject constructor(
                 spotifyCallWithTokenRetry { Spotify.mySavedAlbums(limit = 1, offset = 0).getOrThrow() }.total
             }.getOrDefault(0)
             val playlists = fetchAllPlaylists()
+            // Ronda 7 (dueño): una playlist agregada por "Agregar por enlace" (p. ej. su Radar de
+            // Novedades, que Spotify solo ofrece a través de un link, no en `myPlaylists()`) solo vivía
+            // en memoria del ViewModel — nunca volvía a aparecer acá, así que ni el sync manual ni el
+            // automático (que solo conoce lo que loadSources() devuelve) la volvían a traer. Se re-
+            // resuelven las persistidas en [SpotifyLinkedPlaylistIdsKey], igual que las de la biblioteca
+            // propia — así "sincronizar" sí vuelve a leer su contenido actual de Spotify.
+            val ownPlaylistIds = playlists.mapTo(HashSet()) { it.id }
+            val linkedPlaylists = fetchLinkedPlaylists(excludingIds = ownPlaylistIds)
 
             buildList {
                 add(
@@ -205,8 +214,40 @@ class SpotifyImportRepository @Inject constructor(
                         add(SpotifyImportSource.Playlist(playlist))
                     }
                 }
+                linkedPlaylists.forEach { add(it) }
             }
         }
+
+    /**
+     * Re-resolves the playlists previously added via [fetchPlaylistByLink] (persisted by spotify id in
+     * [SpotifyLinkedPlaylistIdsKey]) so [loadSources] always reflects their CURRENT Spotify content, not
+     * a snapshot from whenever the link was first pasted. A ref that fails to resolve (deleted, made
+     * private) is dropped silently — the same as it just not being offered any more.
+     */
+    private suspend fun fetchLinkedPlaylists(excludingIds: Set<String>): List<SpotifyImportSource.Playlist> {
+        val linkedIds = context.dataStore.data.first()[SpotifyLinkedPlaylistIdsKey]
+            ?.split(',')
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
+        if (linkedIds.isEmpty()) return emptyList()
+        return linkedIds.filter { it !in excludingIds }.mapNotNull { id ->
+            runCatching {
+                ensurePublicReadToken()
+                val playlist = spotifyCallWithTokenRetry { Spotify.playlist(id).getOrThrow() }
+                if (playlist.id.isBlank()) null else SpotifyImportSource.Playlist(playlist)
+            }.getOrNull()
+        }
+    }
+
+    /** Remembers a playlist added via "Agregar por enlace" so [loadSources] keeps re-resolving it. */
+    suspend fun rememberLinkedPlaylist(spotifyId: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[SpotifyLinkedPlaylistIdsKey]?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+            if (spotifyId !in current) {
+                prefs[SpotifyLinkedPlaylistIdsKey] = (current + spotifyId).joinToString(",")
+            }
+        }
+    }
 
     /**
      * Resolve a pasted Spotify playlist link / URI / raw id into an importable source — including PUBLIC
