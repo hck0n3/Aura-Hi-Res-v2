@@ -868,7 +868,8 @@ fun AuraLocalPlaylistScreen(
 
                             AuraLibrarySwipeActionsBox(
                                 enabled = !inSelectMode,
-                                onLike = {
+                                liked = song.song.song.liked,
+                                onToggleLike = {
                                     val toggled = song.song.song.toggleLike()
                                     database.query {
                                         update(toggled)
@@ -876,12 +877,6 @@ fun AuraLocalPlaylistScreen(
                                     }
                                 },
                                 onAddToPlaylist = { showAddToPlaylistDialog = true },
-                                onDislike = {
-                                    coroutineScope.launch {
-                                        iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.song.id)
-                                    }
-                                    android.widget.Toast.makeText(context, "Se mostrará menos de esto", android.widget.Toast.LENGTH_SHORT).show()
-                                },
                             ) {
                                 row()
                             }

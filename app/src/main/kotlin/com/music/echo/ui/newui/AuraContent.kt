@@ -1361,39 +1361,32 @@ fun AuraSwipeSongBox(
     }
 }
 
-/** Same two checkpoints as [LibrarySwipeActionsBox] (Items.kt) — kept in sync deliberately. */
+/** Same checkpoints as [LibrarySwipeActionsBox] (Items.kt) — kept in sync deliberately. */
 private const val AURA_LIKE_THRESHOLD = 200f
-private const val AURA_ADD_TO_PLAYLIST_THRESHOLD = 400f
-private const val AURA_DISLIKE_THRESHOLD = 200f
+private const val AURA_ADD_TO_PLAYLIST_THRESHOLD = 200f
 
 /** Same purpose as [librarySwipeZoneOf] (Items.kt) — which zone [offset] is in, to detect a crossing. */
 private fun auraLibrarySwipeZoneOf(offset: Float): Int = when {
-    offset >= AURA_ADD_TO_PLAYLIST_THRESHOLD -> 2
     offset >= AURA_LIKE_THRESHOLD -> 1
-    offset <= -AURA_DISLIKE_THRESHOLD -> -1
+    offset <= -AURA_ADD_TO_PLAYLIST_THRESHOLD -> -1
     else -> 0
 }
 
 /**
- * Ronda 2 punto 3 / ronda 3 del dueño: en contenido de solo lectura (álbumes, singles de artista,
- * playlists ajenas) donde [AuraSwipeSongBox] no aplica — ese es "reproducir a continuación"/"añadir a
- * la cola", una acción de reproducción, no de biblioteca — y donde el borrado de
- * [AuraLocalPlaylistScreen] tampoco aplica (no hay nada que borrar en una lista que no es tuya).
- *
- * Ronda 3: el dueño pidió que la derecha también ofrezca "agregar a la lista" y que la izquierda
- * dispare "no me gusta" directamente (antes abría el menú de tres puntos). Misma solución que en
- * [LibrarySwipeActionsBox]: la derecha tiene dos paradas — soltar antes de
- * [AURA_ADD_TO_PLAYLIST_THRESHOLD] da "me gusta", después da "agregar a una playlist" — con el ícono
- * cambiando de corazón a "+playlist" al cruzar [AURA_LIKE_THRESHOLD]. La izquierda queda en un solo
- * umbral, directo a "no me gusta".
+ * Ronda 6 del dueño simplifica de nuevo el diseño (rondas 2/3/5 habían probado variantes con dos
+ * paradas en un mismo lado): ahora son dos lados fijos. La derecha SIEMPRE alterna me-gusta/no-me-gusta
+ * según el [liked] real de la canción (mismo toggle que el botón de corazón normal — antes el swipe
+ * izquierdo llamaba a una función de "mostrar menos esto" que no tocaba el campo `liked`, por eso el
+ * corazón nunca se desmarcaba; esa retroalimentación sigue en el menú de tres puntos, no se perdió). La
+ * izquierda es fija: "agregar a una playlist".
  */
 @Composable
 fun AuraLibrarySwipeActionsBox(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    onLike: () -> Unit,
+    liked: Boolean,
+    onToggleLike: () -> Unit,
     onAddToPlaylist: () -> Unit,
-    onDislike: () -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
     if (!enabled) {
@@ -1411,7 +1404,7 @@ fun AuraLibrarySwipeActionsBox(
         // de vibración en cada cruce de zona, comparando antes/después dentro de la misma llamada.
         val previousZone = auraLibrarySwipeZoneOf(offset.floatValue)
         offset.floatValue =
-            (offset.floatValue + delta).coerceIn(-AURA_DISLIKE_THRESHOLD, AURA_ADD_TO_PLAYLIST_THRESHOLD)
+            (offset.floatValue + delta).coerceIn(-AURA_ADD_TO_PLAYLIST_THRESHOLD, AURA_LIKE_THRESHOLD)
         if (auraLibrarySwipeZoneOf(offset.floatValue) != previousZone) {
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         }
@@ -1425,21 +1418,19 @@ fun AuraLibrarySwipeActionsBox(
                 state = dragState,
                 onDragStopped = {
                     when {
-                        offset.floatValue >= AURA_ADD_TO_PLAYLIST_THRESHOLD -> {
-                            onAddToPlaylist()
-                            auraResetSwipe(offset, scope)
-                        }
-
                         offset.floatValue >= AURA_LIKE_THRESHOLD -> {
-                            onLike()
-                            android.widget.Toast
-                                .makeText(context, R.string.song_liked_toast, android.widget.Toast.LENGTH_SHORT)
-                                .show()
+                            val wasLiked = liked
+                            onToggleLike()
+                            if (!wasLiked) {
+                                android.widget.Toast
+                                    .makeText(context, R.string.song_liked_toast, android.widget.Toast.LENGTH_SHORT)
+                                    .show()
+                            }
                             auraResetSwipe(offset, scope)
                         }
 
-                        offset.floatValue <= -AURA_DISLIKE_THRESHOLD -> {
-                            onDislike()
+                        offset.floatValue <= -AURA_ADD_TO_PLAYLIST_THRESHOLD -> {
+                            onAddToPlaylist()
                             auraResetSwipe(offset, scope)
                         }
 
@@ -1452,11 +1443,9 @@ fun AuraLibrarySwipeActionsBox(
             offset = offset,
             threshold = AURA_LIKE_THRESHOLD,
             goingRight = true,
-            icon = AuraIcons.HeartFilled,
-            altIcon = AuraIcons.PlaylistAdd,
-            altIconThreshold = AURA_LIKE_THRESHOLD,
+            icon = if (liked) AuraIcons.ThumbDown else AuraIcons.HeartFilled,
         )
-        AuraSwipeActionBackground(offset = offset, threshold = AURA_DISLIKE_THRESHOLD, goingRight = false, icon = AuraIcons.ThumbDown)
+        AuraSwipeActionBackground(offset = offset, threshold = AURA_ADD_TO_PLAYLIST_THRESHOLD, goingRight = false, icon = AuraIcons.PlaylistAdd)
 
         Box(
             modifier = Modifier

@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -203,9 +204,16 @@ fun ArtistItemsScreen(
                     onDismiss = { showAddToPlaylistDialog = false },
                 )
 
+                // A SongItem de innertube no trae `liked` local (no es una fila de Room garantizada,
+                // a diferencia de las listas de álbum/playlist propia) — se observa por id, reactivo
+                // a la misma tabla que el toggle de abajo escribe, así el ícono del swipe se actualiza
+                // solo cuando cambia.
+                val likedSong by remember(songItem?.id) { database.song(songItem?.id) }
+                    .collectAsState(initial = null)
                 LibrarySwipeActionsBox(
                     enabled = songItem != null,
-                    onLike = {
+                    liked = likedSong?.song?.liked == true,
+                    onToggleLike = {
                         songItem?.let { s ->
                             database.query {
                                 insert(s.toMediaMetadata())
@@ -218,14 +226,6 @@ fun ArtistItemsScreen(
                         }
                     },
                     onAddToPlaylist = { showAddToPlaylistDialog = true },
-                    onDislike = {
-                        songItem?.let { s ->
-                            coroutineScope.launch {
-                                iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(s.id)
-                            }
-                            android.widget.Toast.makeText(context, "Se mostrará menos de esto", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    },
                 ) {
                 YouTubeListItem(
                     item = item,

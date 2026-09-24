@@ -2079,47 +2079,39 @@ fun SwipeToSongBox(
 }
 
 
-/** Drag past this (right) releases "me gusta". Past [ADD_TO_PLAYLIST_THRESHOLD] releases "agregar a
- *  una playlist" instead — same direction, two checkpoints, so both fit on one swipe side. */
+/** Drag past this (right) toggles like/unlike. */
 private const val LIKE_THRESHOLD = 200f
-private const val ADD_TO_PLAYLIST_THRESHOLD = 400f
 
-/** Drag past this (left, negative) releases "no me gusta". */
-private const val DISLIKE_THRESHOLD = 200f
+/** Drag past this (left, negative) releases "agregar a una playlist". */
+private const val ADD_TO_PLAYLIST_THRESHOLD = 200f
 
 /**
- * Which of the three zones [offset] is currently in, purely to detect a CROSSING (see the haptic tick
+ * Which of the two zones [offset] is currently in, purely to detect a CROSSING (see the haptic tick
  * in [LibrarySwipeActionsBox]) — not the release action itself, which the `when` in `onDragStopped`
  * still decides on its own.
  */
 private fun librarySwipeZoneOf(offset: Float): Int = when {
-    offset >= ADD_TO_PLAYLIST_THRESHOLD -> 2
     offset >= LIKE_THRESHOLD -> 1
-    offset <= -DISLIKE_THRESHOLD -> -1
+    offset <= -ADD_TO_PLAYLIST_THRESHOLD -> -1
     else -> 0
 }
 
 /**
- * Ronda 2, punto 3 / ronda 3 del dueño: en contenido de solo lectura (álbumes, singles de artista,
- * playlists ajenas) donde no aplica el swipe-to-delete de una playlist propia ([SwipeToSongBox]
- * tampoco aplica — ese es "reproducir a continuación"/"añadir a la cola", una acción de reproducción,
- * no de biblioteca).
- *
- * Tras probar la primera versión (derecha = me gusta, izquierda = abre el menú de tres puntos) el
- * dueño pidió más: "también quiero que aparezca agregar a la lista" a la derecha, y que la izquierda
- * dispare directamente "no me gusta" en vez de abrir el menú. Dos acciones en una sola dirección no
- * caben en un swipe de un solo umbral, así que la derecha ahora tiene DOS paradas: soltar antes de
- * [ADD_TO_PLAYLIST_THRESHOLD] da "me gusta" (la más común, más cerca); seguir deslizando y soltar
- * después da "agregar a una playlist" — el ícono cambia de corazón a "+playlist" al cruzar la
- * frontera, así se ve cuál se va a disparar antes de soltar. La izquierda queda en un solo umbral.
+ * Ronda 2/3/5 del dueño probaron variantes con dos paradas en un mismo lado (me gusta + agregar a
+ * playlist a la derecha, no me gusta a la izquierda) — ronda 6 las simplifica de nuevo, ahora a dos
+ * lados fijos: la derecha SIEMPRE alterna me-gusta/no-me-gusta según el estado real de [liked] (mismo
+ * toggle que usa el botón de corazón normal — antes el swipe izquierdo llamaba a una función de
+ * "mostrar menos esto" que no tocaba el campo `liked`, así que el corazón nunca se desmarcaba; esa
+ * retroalimentación sigue disponible desde el menú de tres puntos, no se perdió, solo dejó de vivir
+ * en este gesto). La izquierda es fija: "agregar a una playlist".
  */
 @Composable
 fun LibrarySwipeActionsBox(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    onLike: () -> Unit,
+    liked: Boolean,
+    onToggleLike: () -> Unit,
     onAddToPlaylist: () -> Unit,
-    onDislike: () -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
     if (!enabled) {
@@ -2139,7 +2131,7 @@ fun LibrarySwipeActionsBox(
         // (reset() anima ese mismo estado), el primer delta del próximo gesto siempre arranca
         // comparando desde zona 0 — sin arrastrar nada del gesto anterior.
         val previousZone = librarySwipeZoneOf(offset.floatValue)
-        offset.floatValue = (offset.floatValue + delta).coerceIn(-DISLIKE_THRESHOLD, ADD_TO_PLAYLIST_THRESHOLD)
+        offset.floatValue = (offset.floatValue + delta).coerceIn(-ADD_TO_PLAYLIST_THRESHOLD, LIKE_THRESHOLD)
         if (librarySwipeZoneOf(offset.floatValue) != previousZone) {
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         }
@@ -2153,19 +2145,17 @@ fun LibrarySwipeActionsBox(
                 state = dragState,
                 onDragStopped = {
                     when {
-                        offset.floatValue >= ADD_TO_PLAYLIST_THRESHOLD -> {
-                            onAddToPlaylist()
-                            reset(offset, scope)
-                        }
-
                         offset.floatValue >= LIKE_THRESHOLD -> {
-                            onLike()
-                            Toast.makeText(ctx, R.string.song_liked_toast, Toast.LENGTH_SHORT).show()
+                            val wasLiked = liked
+                            onToggleLike()
+                            if (!wasLiked) {
+                                Toast.makeText(ctx, R.string.song_liked_toast, Toast.LENGTH_SHORT).show()
+                            }
                             reset(offset, scope)
                         }
 
-                        offset.floatValue <= -DISLIKE_THRESHOLD -> {
-                            onDislike()
+                        offset.floatValue <= -ADD_TO_PLAYLIST_THRESHOLD -> {
+                            onAddToPlaylist()
                             reset(offset, scope)
                         }
 
@@ -2174,29 +2164,21 @@ fun LibrarySwipeActionsBox(
                 }
             )
     ) {
-        // All three zones are always composed; each one's own graphicsLayer alpha (draw phase, not
+        // Both zones are always composed; each one's own graphicsLayer alpha (draw phase, not
         // composition) decides whether it's the one showing, so a drag frame never recomposes this
         // box or [content] — same discipline as SwipeToSongBox / AuraSwipeActionBackground.
         LibrarySwipeZone(
             offset = offset,
-            visible = { it > 0 && it < LIKE_THRESHOLD },
-            iconRes = R.drawable.favorite,
+            visible = { it > 0 },
+            iconRes = if (liked) R.drawable.thumb_down else R.drawable.favorite,
             bg = MaterialTheme.colorScheme.error,
             tint = MaterialTheme.colorScheme.onError,
             align = Alignment.CenterStart,
         )
         LibrarySwipeZone(
             offset = offset,
-            visible = { it >= LIKE_THRESHOLD },
-            iconRes = R.drawable.playlist_add,
-            bg = MaterialTheme.colorScheme.secondary,
-            tint = MaterialTheme.colorScheme.onSecondary,
-            align = Alignment.CenterStart,
-        )
-        LibrarySwipeZone(
-            offset = offset,
             visible = { it < 0 },
-            iconRes = R.drawable.thumb_down,
+            iconRes = R.drawable.playlist_add,
             bg = MaterialTheme.colorScheme.secondary,
             tint = MaterialTheme.colorScheme.onSecondary,
             align = Alignment.CenterEnd,

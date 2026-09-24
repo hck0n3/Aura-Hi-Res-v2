@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -235,9 +236,14 @@ fun AuraArtistItemsScreen(
                             onDismiss = { showAddToPlaylistDialog = false },
                         )
 
+                        // SongItem de innertube, no una fila de Room garantizada — se observa `liked`
+                        // por id, reactivo a la misma tabla que el toggle de abajo escribe.
+                        val likedSong by remember(song.id) { database.song(song.id) }
+                            .collectAsState(initial = null)
                         AuraLibrarySwipeActionsBox(
                             modifier = Modifier.animateItem(),
-                            onLike = {
+                            liked = likedSong?.song?.liked == true,
+                            onToggleLike = {
                                 // SongItem, not a DB Song: no local row guaranteed yet, so insert (IGNORE
                                 // on conflict — never clobbers an already-saved song's state) before the
                                 // toggle, same pattern as RecognitionScreen.toggleLikeResolved.
@@ -251,12 +257,6 @@ fun AuraArtistItemsScreen(
                                 }
                             },
                             onAddToPlaylist = { showAddToPlaylistDialog = true },
-                            onDislike = {
-                                coroutineScope.launch {
-                                    iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.id)
-                                }
-                                android.widget.Toast.makeText(context, "Se mostrará menos de esto", android.widget.Toast.LENGTH_SHORT).show()
-                            },
                         ) {
                         AuraAppleListRowFrame(
                             showDivider = index < pageItems.lastIndex,

@@ -784,7 +784,8 @@ fun AlbumScreen(
                     LibrarySwipeActionsBox(
                         modifier = Modifier.animateItem(),
                         enabled = !inSelectMode,
-                        onLike = {
+                        liked = song.song.liked,
+                        onToggleLike = {
                             val toggled = song.song.toggleLike()
                             database.query {
                                 update(toggled)
@@ -792,12 +793,6 @@ fun AlbumScreen(
                             }
                         },
                         onAddToPlaylist = { showAddToPlaylistDialog = true },
-                        onDislike = {
-                            coroutineScope.launch {
-                                iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.id)
-                            }
-                            android.widget.Toast.makeText(context, "Se mostrará menos de esto", android.widget.Toast.LENGTH_SHORT).show()
-                        },
                     ) {
                     SongListItem(
                         song = song,
