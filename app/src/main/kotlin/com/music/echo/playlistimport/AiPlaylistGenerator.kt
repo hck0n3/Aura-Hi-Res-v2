@@ -676,8 +676,16 @@ object AiPlaylistGenerator {
         // así que lo concreto que pidió junto al género nunca aparecía. [residualBeyondCategory] es
         // lo que sobra de la petición tras quitar género/momento/década/idioma — si sobra algo
         // sustancial, es la canción/artista que mencionó, y se busca y antepone antes que nada.
+        //
+        // NO se exige soloArtist == null (ronda 9, siguiente reporte del dueño: seguía sin pasar
+        // "cuando pido canciones en específico"). Nombrar un artista explícito ("de Queen") es
+        // justamente la forma más común de ser específico, y [AiPlaylistConstraints.extractSoloArtist]
+        // reconociéndolo NO debe apagar este peldaño — al revés, hacía que este mismo arreglo nunca
+        // corriera para el caso que más lo necesita: género + artista + canción, los tres juntos.
+        // residualBeyondCategory no quita nombres de artista, así que el residuo sigue teniendo la
+        // canción/artista con la que bestSpecificMatch compara.
         val residual = MusicRequestQuery.residualBeyondCategory(prompt)
-        if (parsed.preferPlaylists && soloArtist == null && residual.length >= 3) {
+        if (parsed.preferPlaylists && residual.length >= 3) {
             YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()
                 ?.let { candidates -> bestSpecificMatch(residual, candidates) }
