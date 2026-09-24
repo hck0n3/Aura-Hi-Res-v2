@@ -48,11 +48,61 @@ object MusicRequestMoods {
             listOf("ambiente", "chill", "relax", "background"),
     )
 
+    /**
+     * Ronda 7 (dueño): "si pongo reggaetón me pone canciones que llevan el nombre de reggaetón en el
+     * título — es una búsqueda estúpida". Un género suelto ("reggaeton", "bossa nova") no matcheaba
+     * ninguna [FAMILIES] (esas son de MOMENTO/ACTIVIDAD, no de género) ni activaba
+     * [MusicRequestQuery.Parsed.preferPlaylists], así que nunca llegaba a
+     * [AiPlaylistGenerator.moodCategoryPlaylists] — caía directo a una búsqueda de texto libre sin
+     * ninguna verificación de que el resultado fuera realmente de ese género (a diferencia de las
+     * listas, que sí pasan por [MusicRequestMatch]). Mismo mecanismo que [FAMILIES], mismo formato
+     * (disparadores → nombres de categoría a buscar), solo que para géneros musicales en vez de
+     * momentos — la categoría real de YouTube Music ("Reggaetón", "Bossa Nova"…) sigue siendo la
+     * prueba, no una búsqueda cruda.
+     */
+    private val GENRE_FAMILIES: List<Pair<List<String>, List<String>>> = listOf(
+        listOf("reggaeton", "reggaetón", "perreo", "dembow") to listOf("reggaeton", "urbano", "urban"),
+        listOf("salsa") to listOf("salsa"),
+        listOf("bachata") to listOf("bachata"),
+        listOf("merengue") to listOf("merengue"),
+        listOf("rock") to listOf("rock"),
+        listOf("pop") to listOf("pop"),
+        listOf("bossa nova", "bossanova", "bosanova") to listOf("bossa nova", "brasil", "brazilian", "brazil"),
+        listOf("jazz") to listOf("jazz"),
+        listOf("cumbia") to listOf("cumbia"),
+        listOf("vallenato") to listOf("vallenato"),
+        listOf("banda", "sinaloense") to listOf("banda", "regional mexicano", "regional mexican"),
+        listOf("mariachi") to listOf("mariachi", "regional mexicano", "regional mexican"),
+        listOf("ranchera", "rancheras") to listOf("ranchera", "regional mexicano", "regional mexican"),
+        listOf("corridos", "corrido") to listOf("corridos", "regional mexicano", "regional mexican"),
+        listOf("trap") to listOf("trap"),
+        listOf("rap", "hip hop", "hiphop") to listOf("rap", "hip hop", "hip-hop"),
+        listOf("electronica", "electrónica", "edm", "house", "techno") to listOf("electronica", "edm", "dance"),
+        listOf("metal") to listOf("metal"),
+        listOf("punk") to listOf("punk"),
+        listOf("k-pop", "kpop") to listOf("k-pop", "korean pop", "kpop"),
+        listOf("r&b", "rnb") to listOf("r&b", "rnb"),
+        listOf("flamenco") to listOf("flamenco"),
+        listOf("country") to listOf("country"),
+        listOf("blues") to listOf("blues"),
+        listOf("indie") to listOf("indie"),
+        listOf("funk") to listOf("funk"),
+        listOf("soul") to listOf("soul"),
+        listOf("reggae") to listOf("reggae"),
+        listOf("disco") to listOf("disco"),
+        listOf("tango") to listOf("tango"),
+        listOf("bolero", "boleros") to listOf("bolero"),
+        listOf("gospel", "cristiana", "cristiano", "alabanza", "worship") to listOf("cristiana", "gospel", "worship"),
+    )
+
     /** Los nombres que puede tener la categoría que él busca, o vacío si no cae en ninguna familia. */
     fun conceptsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<String> {
         val folded = fold(prompt)
         val out = ArrayList<String>()
         FAMILIES.forEach { (triggers, concepts) ->
+            if (triggers.any { folded.contains(it) }) out += concepts
+        }
+        GENRE_FAMILIES.forEach { (triggers, concepts) ->
             if (triggers.any { folded.contains(it) }) out += concepts
         }
         if (parsed.decade != null) out += MusicRequestMatch.decadeTokens(parsed.decade)

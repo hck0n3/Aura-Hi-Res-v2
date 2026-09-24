@@ -88,6 +88,21 @@ object MusicRequestQuery {
     )
 
     /**
+     * Ronda 7 (dueño): un género suelto ("reggaeton", "bossa nova") no activaba [Parsed.preferPlaylists],
+     * así que nunca pasaba por las categorías oficiales de YouTube Music ([MusicRequestMoods]) — caía
+     * directo a una búsqueda de texto libre sin ninguna verificación de género. Mismas palabras que
+     * disparan [MusicRequestMoods]'s tabla de géneros (mantenidas en sync a mano, mismo espíritu que
+     * [MOMENT_HINTS] duplica los disparadores de [MusicRequestMoods.FAMILIES] hoy).
+     */
+    private val GENRE_HINTS = listOf(
+        "reggaeton", "reggaetón", "perreo", "dembow", "salsa", "bachata", "merengue", "rock", "pop",
+        "bossa nova", "bossanova", "bosanova", "jazz", "cumbia", "vallenato", "banda", "mariachi",
+        "ranchera", "corridos", "corrido", "trap", "hip hop", "hiphop", "electronica", "electrónica",
+        "edm", "house", "techno", "metal", "punk", "k-pop", "kpop", "r&b", "rnb", "flamenco",
+        "country", "blues", "indie", "funk", "soul", "reggae", "disco", "tango", "bolero", "gospel",
+    )
+
+    /**
      * Palabras que sobran del residuo tras quitar década/idioma: no dicen nada de género/tema. Mismo
      * espíritu que MusicRequestMatch.STOP_WORDS (palabras de relleno que no cuentan como contenido),
      * pero corta aparte porque este filtro corre ANTES de tener un [Parsed] con el que llamar a esa
@@ -118,6 +133,8 @@ object MusicRequestQuery {
         }
         val moment = MOMENT_HINTS.any { withoutLeadIn.contains(it) }
         val trending = TREND_HINTS.any { withoutLeadIn.contains(it) }
+        // Ronda 7: un género suelto también prefiere listas — ver GENRE_HINTS arriba.
+        val genreHint = GENRE_HINTS.any { withoutLeadIn.contains(it) }
 
         // Ronda 6 (dueño): "reggae de los 90" perdía "reggae" por completo — la petición se
         // reemplazaba entera por la plantilla fija "exitos de los 90". Lo que queda de la frase tras
@@ -145,7 +162,7 @@ object MusicRequestQuery {
 
         return Parsed(
             query = query.trim().take(80),
-            preferPlaylists = decade != null || moment || trending,
+            preferPlaylists = decade != null || moment || trending || genreHint,
             decade = decade,
             language = language,
             trending = trending,

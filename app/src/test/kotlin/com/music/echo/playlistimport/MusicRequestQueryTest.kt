@@ -104,6 +104,22 @@ class MusicRequestQueryTest {
         assertFalse(MusicRequestQuery.build("salsa de Puerto Rico").trending)
     }
 
+    /**
+     * Ronda 7 (dueño): un género suelto ("reggaeton", "bossa nova") debe preferir listas para que
+     * pase por las categorías oficiales de YouTube Music en vez de caer directo a una búsqueda cruda.
+     */
+    @Test
+    fun `a bare genre request prefers playlists`() {
+        assertTrue(MusicRequestQuery.build("reggaeton").preferPlaylists)
+        assertTrue(MusicRequestQuery.build("bossanova").preferPlaylists)
+        assertTrue(MusicRequestQuery.build("ponme salsa").preferPlaylists)
+    }
+
+    @Test
+    fun `an artist name with no genre word does not prefer playlists`() {
+        assertFalse(MusicRequestQuery.build("canciones de Bad Bunny").preferPlaylists)
+    }
+
     @Test
     fun `a number that is not a decade is not a decade`() {
         // "50 Cent" no es una petición de los años 50: hace falta el artículo o la ese.

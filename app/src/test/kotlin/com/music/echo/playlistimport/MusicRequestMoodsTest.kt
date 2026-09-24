@@ -70,6 +70,25 @@ class MusicRequestMoodsTest {
         assertNull(MusicRequestMoods.pickCategory(emptyList(), prompt, MusicRequestQuery.build(prompt)))
     }
 
+    /**
+     * Ronda 7 (dueño): "si pongo reggaetón me pone canciones que llevan el nombre de reggaetón en el
+     * título — es una búsqueda estúpida". Un género suelto ahora también cae en su propia categoría.
+     */
+    @Test
+    fun `a genre lands on its own category`() {
+        val withGenres = listOf("Reggaetón", "Salsa", "Bossa Nova", "Rock")
+        val reggaeton = "reggaeton"
+        assertEquals(
+            withGenres.indexOf("Reggaetón"),
+            MusicRequestMoods.pickCategory(withGenres, reggaeton, MusicRequestQuery.build(reggaeton)),
+        )
+        val bossanova = "bossanova"
+        assertEquals(
+            withGenres.indexOf("Bossa Nova"),
+            MusicRequestMoods.pickCategory(withGenres, bossanova, MusicRequestQuery.build(bossanova)),
+        )
+    }
+
     @Test
     fun `english catalogue names work too`() {
         val english = listOf("80s", "Focus", "Workout", "Party", "Sleep")
