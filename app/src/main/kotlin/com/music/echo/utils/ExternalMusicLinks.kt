@@ -246,11 +246,24 @@ object ExternalMusicLinks {
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────────────
 
-    private fun kindFromPath(uri: Uri): Kind {
-        val path = uri.path.orEmpty().lowercase()
+    private fun kindFromPath(uri: Uri): Kind = kindFromPathAndQuery(uri.path, uri.getQueryParameter("trackAsin"))
+
+    /**
+     * Ronda 9 (dueño): un link de Amazon Music para UNA canción se comparte casi siempre como
+     * `/albums/{albumAsin}?trackAsin={trackAsin}` — la ruta sola dice "álbum" ("/albums/" contiene
+     * "/album"), y `trackAsin` nunca se miraba. Eso hacía que una canción se tratara como si hubiera
+     * pedido el ÁLBUM completo: [pageQuery] scrapea el título de la página del ÁLBUM (no de la
+     * canción), y luego se busca ese título como álbum en YouTube Music — una coincidencia mucho más
+     * estricta que buscar una canción, así que una variación de título (edición, mayúsculas) bastaba
+     * para decir "no encontrado" aunque la canción sí estuviera. `trackAsin` es un parámetro propio de
+     * Amazon: si está presente, la intención es inequívocamente UNA canción, sin importar la ruta.
+     */
+    internal fun kindFromPathAndQuery(path: String?, trackAsin: String?): Kind {
+        if (!trackAsin.isNullOrBlank()) return Kind.TRACK
+        val p = path.orEmpty().lowercase()
         return when {
-            "/album" in path -> Kind.ALBUM
-            "/playlist" in path || "/sets/" in path -> Kind.PLAYLIST
+            "/album" in p -> Kind.ALBUM
+            "/playlist" in p || "/sets/" in p -> Kind.PLAYLIST
             else -> Kind.TRACK
         }
     }
