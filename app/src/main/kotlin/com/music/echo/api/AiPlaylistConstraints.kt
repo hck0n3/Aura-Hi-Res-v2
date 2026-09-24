@@ -42,10 +42,27 @@ object AiPlaylistConstraints {
         )
         for (p in patterns) {
             val m = p.find(raw) ?: continue
+            // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): los dos últimos
+            // patrones de arriba NO están anclados al inicio de la frase (a propósito, para pescar el
+            // disparador en cualquier posición), así que "rock pero no solo Bad Bunny" o "no quiero
+            // canciones de Bad Bunny" también matcheaban — bloqueando al artista que el usuario
+            // justamente pidió NO limitar o quería EXCLUIR. Una negación ("no", "sin", "excepto"…)
+            // antes del disparador invierte el sentido de la frase; en ese caso no se bloquea nada
+            // (mejor sin candado que uno al revés — el resto de la petición sigue su curso normal).
+            if (hasNegationBefore(raw, m.range.first)) continue
             val name = cleanArtistCandidate(m.groupValues.getOrNull(1).orEmpty())
             if (name != null) return name
         }
         return null
+    }
+
+    private val NEGATION_TRIGGERS = listOf("no", "nunca", "sin", "excepto", "tampoco", "menos")
+
+    /** True if a negation word appears anywhere before [matchStart] in [raw] (word-boundary match). */
+    private fun hasNegationBefore(raw: String, matchStart: Int): Boolean {
+        if (matchStart <= 0) return false
+        val prefix = raw.substring(0, matchStart)
+        return NEGATION_TRIGGERS.any { Regex("""(?iu)(?<![\p{L}\p{N}])${Regex.escape(it)}(?![\p{L}\p{N}])""").containsMatchIn(prefix) }
     }
 
     fun artistAllowed(trackArtist: String, soloArtist: String?): Boolean {
