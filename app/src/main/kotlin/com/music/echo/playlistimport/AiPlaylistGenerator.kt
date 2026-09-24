@@ -628,10 +628,20 @@ object AiPlaylistGenerator {
         // una llamada más — lo que cambia es que al final se puede elegir. Ver [MusicRequestRanking].
         val pool = ArrayList<SongItem>()
         val seen = HashSet<String>()
+        // Ronda 9 (dueño): pedir una canción o artista específico devolvía 20-25 copias/variantes de
+        // LA MISMA canción — distintas subidas ("Official Video", "Lyrics", "Audio")— porque el
+        // dedup solo miraba el id de YouTube, y cada subida tiene el suyo propio. Deduplicar TAMBIÉN
+        // por título normalizado + artista principal hace que dos subidas de la misma canción cuenten
+        // como una sola candidata, dejando sitio real para el resto de la cola.
+        val seenTitles = HashSet<String>()
         fun absorb(items: List<SongItem>) {
             for (item in items) {
                 if (pool.size >= POOL_TARGET) return
-                if (seen.add(item.id) && soloPrimaryMatch(item.artists.map { it.name }, soloArtist)) {
+                val titleKey = dedupKey(item.title, item.artists.firstOrNull()?.name)
+                if (seen.add(item.id) &&
+                    seenTitles.add(titleKey) &&
+                    soloPrimaryMatch(item.artists.map { it.name }, soloArtist)
+                ) {
                     pool += item
                 }
             }
@@ -714,6 +724,20 @@ object AiPlaylistGenerator {
         if (pool.isEmpty() && query != prompt.trim().take(80)) {
             YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
+        }
+
+        // Peldaño 5 — MÁS DEL MISMO ARTISTA (ronda 9, dueño: "si pido una canción o artista
+        // específico, que la cola que sigue no sean 20-25 copias con el mismo nombre — que sea más
+        // del mismo artista o género relacionado, para que se sienta inteligente"). Una búsqueda de
+        // UNA canción/artista concretos no arrastra tantos resultados distintos como un género — el
+        // pool queda corto — y lo poco que sí aparece es casi todo del MISMO artista: exactamente la
+        // señal de que era eso lo que pidió. En vez de dejar que [MusicRequestRanking] rellene
+        // REPITIENDO lo poco que hay, se completa con más canciones REALES de ese mismo artista.
+        if (pool.size < target) {
+            dominantArtist(pool)?.let { artist ->
+                YouTube.search(artist, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                    ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
+            }
         }
 
         // Ronda 2, punto 1 del dueño: pedir el mismo prompt dos veces por separado no puede devolver la
@@ -832,5 +856,34 @@ object AiPlaylistGenerator {
         // still a primary credit, not a guest feature.
         return names.size <= MAX_PRIMARY_CREDITS + 1 &&
             names.any { SongResolver.artistMatches(it, soloArtist) }
+    }
+
+    /**
+     * Ronda 9 (dueño): pedir una canción o artista específico llenaba la cola con 20-25 copias de LA
+     * MISMA canción — distintas subidas de YouTube ("Official Video", "Lyrics", "Audio Oficial"…)
+     * cada una con su propio id, así que el dedup por id no las agarraba. Clave de dedup pura:
+     * título normalizado (sin paréntesis/corchetes ni puntuación) + artista principal en minúsculas.
+     */
+    internal fun dedupKey(title: String, primaryArtist: String?): String {
+        val normTitle = title.lowercase()
+            .replace(Regex("""[(\[][^)\]]*[)\]]"""), " ")
+            .replace(Regex("""[^\p{L}\p{N}\s]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+        val normArtist = primaryArtist?.lowercase()?.trim().orEmpty()
+        return "$normTitle|$normArtist"
+    }
+
+    /**
+     * Ronda 9 (dueño): ver el peldaño 5 de [searchFallbackPlaylist]. El artista principal más común
+     * en [items], o null si ninguno domina claramente (menos de la mitad) — sin dominancia clara no
+     * hay señal fiable de que la petición fuera de un artista concreto, y no se inventa una.
+     */
+    internal fun dominantArtist(items: List<SongItem>): String? {
+        if (items.isEmpty()) return null
+        val counts = items.mapNotNull { it.artists.firstOrNull()?.name }
+            .groupingBy { it }.eachCount()
+        val leader = counts.entries.maxByOrNull { it.value } ?: return null
+        return leader.key.takeIf { leader.value.toDouble() / items.size >= 0.5 }
     }
 }
