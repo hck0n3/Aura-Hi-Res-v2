@@ -231,19 +231,19 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1014
-        // BETA 2.0.53-beta1 — SOLO EL DUEÑO (ronda 6 de reportes del 2026-09-24, tras probar
-        // 2.0.52-beta1: rediseño del swipe con me-gusta/no-me-gusta dinámico + agregar a playlist,
-        // álbum que pinta contenido instantáneo desde la sesión en vez de esperar la red, "pedir
-        // música" que ya no descarta el género al detectar una década, botón de repetir petición
-        // (que también sirve de "otra tanda"), y soporte de "lo que suena ahora" contra los charts
-        // reales de YouTube Music — ver RELEASE_INFO.md).
+        versionCode = 1015
+        // BETA 2.0.54-beta1 — SOLO EL DUEÑO (ronda 7 de reportes del 2026-09-24, tras probar
+        // 2.0.53-beta1: arreglo de la reproducción que arrancaba sola al salir de otra app como
+        // TikTok (bandera de audio focus contaminada), "pedir música" reconoce ahora géneros sueltos
+        // como reggaetón/bossa nova contra las categorías oficiales de YouTube Music en vez de una
+        // búsqueda cruda, y arreglo de la sincronización de una playlist de Spotify agregada por
+        // enlace (como Radar de Novedades) que nunca se volvía a actualizar — ver RELEASE_INFO.md).
         // El sufijo `-beta1` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño entrando a la página de releases (o a la función de "recibir versiones beta" del
         // actualizador dentro de la app, si la tiene activada). Publicar el tag requiere su permiso
         // explícito en el momento (AGENTS.md) — no se hace solo por dejar esto compilado.
-        versionName = "2.0.53-beta1"
+        versionName = "2.0.54-beta1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

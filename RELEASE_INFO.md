@@ -1,38 +1,26 @@
-# Aura Hi-Res v2.0.53-beta1 — Me gusta que sabe si ya lo diste, álbum instantáneo, y pedir música más listo
+# Aura Hi-Res v2.0.54-beta1 — Ya no arranca solo, pedir música entiende géneros, y Spotify sí se sincroniza
 
-Beta encima de la 2.0.52. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.53. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Deslizar canciones
+## Reproducción
 
-- **El deslizar de "me gusta" ahora sabe si ya lo diste.** Antes deslizar a la izquierda para "no me
-  gusta" no desmarcaba el corazón de una canción que ya tenías marcada — eso se arregló, y de paso se
-  simplificó el gesto: ahora un lado siempre alterna me-gusta/no-me-gusta según el estado real de la
-  canción (el ícono cambia solo), y el otro lado siempre abre "agregar a una playlist".
-
-## Álbumes
-
-- **Un álbum que ya viste en esta sesión abre al instante.** Antes Álbum era la única pantalla (Artista
-  y Playlist ya lo hacían) que no recordaba nada entre visitas — volver a entrar a un álbum que abriste
-  hace un minuto lo recargaba todo desde cero. La primera vez que ves un álbum nuevo sigue tardando lo
-  normal (eso es la red, no se puede acelerar), pero las siguientes visitas en la misma sesión son
-  instantáneas.
+- **Ya no arranca solo al volver de otra app (TikTok y similares).** Si Aura quedaba pausada por
+  cualquier motivo y después entrabas a ver un video a otra app, al salir la reproducción podía
+  arrancar sin que la tocaras. Era una bandera interna que debía limpiarse al pausar manualmente y
+  nunca lo hacía — quedaba activa por tiempo indefinido y la heredaba cualquier interrupción de audio
+  posterior, sin relación con la original.
 
 ## Pedir música
 
-- **Ya no ignora el género cuando también pides una época.** "Reggae de los 90" devolvía éxitos
-  genéricos de los 90 sin nada de reggae — la petición completa se reemplazaba por una plantilla fija.
-  Ahora se combinan los dos.
-- **Repetir una petición, de un toque.** Un chip con tus últimas peticiones aparece al abrir la
-  ventana — tocarlo la vuelve a pedir sin escribir nada, y como nunca repite exactamente las mismas
-  canciones que ya sonaron, sirve también como "otra tanda" de la misma idea.
-- **"Lo que suena ahora" ya funciona de verdad.** Antes esa frase se buscaba tal cual (con poco
-  resultado); ahora se responde con los charts reales de tendencias de YouTube Music.
+- **Ya entiende géneros sueltos, no solo los busca como texto.** Pedir "reggaetón" devolvía canciones
+  que literalmente tenían esa palabra en el título — no el género. Pedir "bossanova" traía una canción
+  real seguida de relleno instrumental genérico. Ahora un género reconocido (reggaetón, salsa, bachata,
+  rock, bossa nova, jazz, trap, k-pop, y varios más) se busca contra las categorías oficiales de
+  YouTube Music, la misma fuente confiable que ya se usaba para décadas y estados de ánimo.
 
-## Verificado sin cambios
+## Spotify
 
-- **La cola infinita inteligente**: se auditó a fondo cómo continúa la reproducción al terminar un
-  álbum, una playlist o una canción suelta. El algoritmo es preciso y no improvisa — la única pieza que
-  alguna vez metió un artista al azar ya se había quitado en una ronda anterior por pedido tuyo, y sigue
-  sin usarse. Lo único genuinamente más débil es la continuación de una canción suelta (tiene menos
-  información que un álbum o playlist completos para trabajar) — no es un error de código, es un límite
-  real de datos, así que no se tocó a ciegas.
+- **Una playlist agregada por enlace ahora sí se sincroniza.** El Radar de Novedades (u otra playlist
+  que solo se puede agregar pegando el link, no desde tu biblioteca) decía "sincronizado" pero nunca
+  traía el contenido actualizado — en realidad nunca se volvía a consultar, ni con el botón manual ni
+  con la sincronización automática. Ahora sí se vuelve a leer su contenido real de Spotify cada vez.
