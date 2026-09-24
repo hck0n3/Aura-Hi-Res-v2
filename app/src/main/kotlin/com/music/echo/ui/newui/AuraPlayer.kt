@@ -442,6 +442,7 @@ private fun AuraPlayerShape(
 
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
+    val isAdvancingIntoRadio by playerConnection.isAdvancingIntoRadio.collectAsState()
     val isMuted by playerConnection.isMuted.collectAsState()
     // "No me gusta" is now a button ON the player, not only a row inside the merged menu. Same flow the
     // menu reads (AuraPlayerMenu.kt:146) and the same flow the classic like/dislike pill reads
@@ -1009,12 +1010,12 @@ private fun AuraPlayerShape(
                 // hi-res badge. Two single lines of technical type instead of two lines of `titleMedium`
                 // inside the artwork slot, so the cover gets the height back (see report 4).
                 Column(
-                    // Reserve space for pinned top-right Cast (~40dp) so long album titles never
-                    // run under the icon. Cast stays TopEnd overlay (owner rule); hidden with
-                    // inline lyrics so this spacer only matters when Cast can show.
+                    // Reserve space for pinned top-right Cast (~48dp, matches its touch target) so long
+                    // album titles never run under the icon. Cast stays TopEnd overlay (owner rule);
+                    // hidden with inline lyrics so this spacer only matters when Cast can show.
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 4.dp, end = if (showInlineLyrics) 4.dp else 40.dp),
+                        .padding(start = 4.dp, end = if (showInlineLyrics) 4.dp else 48.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (techInfo.isHiRes) {
@@ -1462,7 +1463,7 @@ private fun AuraPlayerShape(
                     // techInfo.chips is already empty when "mostrar códec" is off (see the read site
                     // above). The crossfade chip is NOT codec data — the classic player shows it
                     // independently of that switch — so it keeps its own condition.
-                    val hasVideo = meta.isVideoSong || !meta.podcastVideoUrl.isNullOrEmpty()
+                    val hasVideo = meta.hasCompatibleVideo || !meta.podcastVideoUrl.isNullOrEmpty()
                     if (techInfo.chips.isNotEmpty() || isCrossfading || hasVideo) {
                         Spacer(Modifier.height(if (dense) 6.dp else 10.dp))
                         Row(
@@ -1654,15 +1655,29 @@ private fun AuraPlayerShape(
                         fill = if (dense) playButtonFill else SolidColor(Color.Transparent),
                         ink = if (dense) playButtonInk else AuraPalette.OnGround,
                     )
-                    AuraIconButton(
-                        icon = AuraIcons.SkipNext,
-                        contentDescription = stringResource(R.string.next),
-                        onClick = playerConnection::seekToNext,
-                        enabled = canSkipNext && !isListenTogetherGuest,
-                        size = if (dense) 30.dp else 34.dp,
-                        tint = AuraPalette.OnGround.copy(alpha = 0.9f),
-                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        if (isAdvancingIntoRadio) {
+                            // Round 3 owner report: Next at the end of a finite queue kicks off a real
+                            // network round trip (radio seed) with nothing else acknowledging the tap, so
+                            // it looked frozen. This spinner is the only change — the tap itself and its
+                            // timing are untouched.
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(if (dense) 22.dp else 24.dp),
+                                color = AuraPalette.OnGround.copy(alpha = 0.9f),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            AuraIconButton(
+                                icon = AuraIcons.SkipNext,
+                                contentDescription = stringResource(R.string.next),
+                                onClick = playerConnection::seekToNext,
+                                enabled = canSkipNext && !isListenTogetherGuest,
+                                size = if (dense) 30.dp else 34.dp,
+                                tint = AuraPalette.OnGround.copy(alpha = 0.9f),
+                                modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                            )
+                        }
+                    }
                     Box(contentAlignment = Alignment.Center) {
                         AuraIconButton(
                             icon = AuraIcons.Repeat,
@@ -2116,15 +2131,16 @@ private fun AuraPlayerShape(
                     )
                     // REAL touch target (owner report: the button needed several taps, and a missed tap
                     // leaked to the gestures underneath — it even changed the song). The clickable inside
-                    // [CastButton] is a 40 dp circle, but the old 22 dp box left it overflowing the layout
-                    // bounds and Compose does NOT hit-test past a node's bounds, so only the central 22 dp
-                    // ever answered. The box is now the full 40 dp: no overflow, the whole circle answers on
-                    // the first tap, and the drawn icon stays put (it was already centred in the clickable).
-                    // 8 dp end + 40 dp box = 48 dp from the screen edge, which the header's 40 dp end
-                    // reservation (plus its own 8 dp) still clears exactly; 4 dp vertical keeps the 40 dp
-                    // box inside the 48 dp header so it never spills onto the artwork's swipe-to-skip.
-                    .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp)
-                    .size(40.dp),
+                    // [CastButton] is now a 48 dp circle (Android's minimum touch target; it was bumped
+                    // from 22 dp to 40 dp once already and still wasn't enough) — the outer box below MUST
+                    // match it, or Compose clips hit-testing to the smaller outer bounds and only the
+                    // centre answers again, same failure mode as the original 22 dp bug.
+                    // 8 dp end + 48 dp box = 56 dp from the screen edge, which the header's 48 dp end
+                    // reservation (see the title Column's padding, kept in step with this) still clears
+                    // exactly; 0 dp vertical keeps the 48 dp box inside the 48 dp header so it never spills
+                    // onto the artwork's swipe-to-skip.
+                    .padding(start = 8.dp, end = 8.dp, top = 0.dp, bottom = 0.dp)
+                    .size(48.dp),
                 tintColor = AuraPalette.OnGround,
             )
         }

@@ -33,9 +33,12 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -58,9 +61,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.abs
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -110,6 +115,7 @@ import iad1tya.echo.music.ui.component.OverlayEditButton
 import iad1tya.echo.music.ui.component.TextFieldDialog
 import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
 import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.menu.LocalPlaylistMenu
 import iad1tya.echo.music.ui.menu.SelectionSongMenu
 import iad1tya.echo.music.ui.menu.SongMenu
@@ -147,8 +153,10 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  *    playlist. The handle moved from the right of the row to its LEFT, where the redesigned queue
  *    already puts it; it appears under exactly the classic conditions (orden personalizado, lista
  *    desbloqueada, editable, sin buscar, sin selección).
- *  · **Deslizar para quitar** — kept, still behind `SwipeToRemoveSongKey` and still disabled while
- *    locked or selecting, with the same `removeFromPlaylist` + reposition transaction.
+ *  · **Deslizar para quitar** — kept, still behind `SwipeToRemoveSongKey` (now ON by default) and
+ *    disabled while selecting or on a non-editable playlist, with the same `removeFromPlaylist` +
+ *    reposition transaction. No longer coupled to the reorder lock (`locked`) — that toggle is about
+ *    accidental drag-reordering, not this deliberate gesture.
  *  · **Candado** — the sort row's trailing control.
  *  · **Editar portada** — the ✎ on the cover, running the SAME
  *    [rememberPlaylistCoverEditor] the classic header now runs (it was lifted out of it, not copied).
@@ -175,6 +183,7 @@ fun AuraLocalPlaylistScreen(
     val context = LocalContext.current
     val menuState = LocalMenuState.current
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val haptic = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
     val playerConnection = LocalPlayerConnection.current ?: return
@@ -201,7 +210,7 @@ fun AuraLocalPlaylistScreen(
         true,
     )
     var locked by rememberPreference(PlaylistEditLockKey, defaultValue = true)
-    val swipeRemoveEnabled by rememberPreference(SwipeToRemoveSongKey, defaultValue = false)
+    val swipeRemoveEnabled by rememberPreference(SwipeToRemoveSongKey, defaultValue = true)
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -553,7 +562,11 @@ fun AuraLocalPlaylistScreen(
 
     val canDrag = sortType == PlaylistSongSortType.CUSTOM && !locked && !inSelectMode &&
         !isSearching && editable
-    val canSwipeRemove = swipeRemoveEnabled && !locked && !inSelectMode
+    // Deliberately NOT gated on `locked` (that toggle guards accidental drag-reordering only): swiping
+    // to delete is a separate, deliberate gesture, and coupling it to the reorder lock meant it never
+    // appeared for a locked (the default) playlist even with the setting on. Gated on `editable` so it
+    // never offers to delete from a read-only playlist reached through this same screen.
+    val canSwipeRemove = swipeRemoveEnabled && editable && !inSelectMode
 
     val bloom = rememberAuraBloom(mediaMetadata?.id)
     val rows = if (isSearching) filteredSongs else mutableSongs
@@ -671,6 +684,11 @@ fun AuraLocalPlaylistScreen(
                     val currentItem by rememberUpdatedState(song)
 
                     fun deleteFromPlaylist() {
+                        // Captured BEFORE the delete below mutates/removes the row, so Undo can
+                        // re-insert the same songId at the same local position. Only the local DB row is
+                        // restored on Undo — a remote (YouTube-synced) removal already sent above is not
+                        // un-sent, matching how every other undo-able action in this app works.
+                        val removedMap = currentItem.map
                         database.transaction {
                             coroutineScope.launch {
                                 playlist?.playlist?.browseId?.let { browseId ->
@@ -688,11 +706,32 @@ fun AuraLocalPlaylistScreen(
                             delete(currentItem.map.copy(position = Int.MAX_VALUE))
                             playlist?.playlist?.let { update(it.copy(lastUpdateTime = LocalDateTime.now())) }
                         }
+                        coroutineScope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = context.getString(R.string.song_removed_from_playlist),
+                                actionLabel = context.getString(R.string.undo),
+                                duration = SnackbarDuration.Short,
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                database.query {
+                                    insert(removedMap.copy(id = 0))
+                                }
+                            }
+                        }
                     }
 
                     val dismissBoxState = rememberSwipeToDismissBoxState(
                         positionalThreshold = { totalDistance -> totalDistance },
                     )
+                    // Ronda 5 (premium UX, dueño): un toque de vibración exactamente cuando el swipe
+                    // cruza el umbral de borrado — ver el mismo patrón en LocalPlaylistScreen.kt.
+                    var previousDismissTarget by remember { mutableStateOf(dismissBoxState.targetValue) }
+                    LaunchedEffect(dismissBoxState.targetValue) {
+                        if (dismissBoxState.targetValue != previousDismissTarget) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                        previousDismissTarget = dismissBoxState.targetValue
+                    }
                     var processedDismiss by remember { mutableStateOf(false) }
                     LaunchedEffect(dismissBoxState.currentValue) {
                         val dv = dismissBoxState.currentValue
@@ -815,12 +854,88 @@ fun AuraLocalPlaylistScreen(
                         dividerInset = AuraAppleCoverDividerInset,
                         modifier = Modifier.animateItem(),
                     ) {
-                        if (!canSwipeRemove) {
+                        if (!editable) {
+                            // Ronda 2, punto 3 / ronda 3 del dueño: playlist ajena (no editable) — sin
+                            // borrado posible, el gesto aquí es me gusta + agregar a playlist a la
+                            // derecha, no me gusta a la izquierda (ronda 3: ya no abre el menú).
+                            var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+                            AddToPlaylistDialog(
+                                isVisible = showAddToPlaylistDialog,
+                                songIdsForMembership = listOf(song.song.id),
+                                onGetSong = { listOf(song.song.id) },
+                                onDismiss = { showAddToPlaylistDialog = false },
+                            )
+
+                            AuraLibrarySwipeActionsBox(
+                                enabled = !inSelectMode,
+                                liked = song.song.song.liked,
+                                onToggleLike = {
+                                    val toggled = song.song.song.toggleLike()
+                                    database.query {
+                                        update(toggled)
+                                        syncUtils.likeSong(toggled)
+                                    }
+                                },
+                                onAddToPlaylist = { showAddToPlaylistDialog = true },
+                            ) {
+                                row()
+                            }
+                        } else if (!canSwipeRemove) {
                             Box { row() }
                         } else {
                             SwipeToDismissBox(
                                 state = dismissBoxState,
-                                backgroundContent = {},
+                                backgroundContent = {
+                                    // AuraPalette has no error/danger step (same reasoning as
+                                    // AuraMigrationScreen's AuraWarnTone): always the DARK Material
+                                    // error role regardless of ambient theme, never the ambient one.
+                                    val alignment = when (dismissBoxState.dismissDirection) {
+                                        SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                        SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                        SwipeToDismissBoxValue.Settled -> Alignment.Center
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            // Ronda 3 del dueño: la papelera debe verse MIENTRAS se
+                                            // desliza, no solo al final. positionalThreshold (abajo) es
+                                            // a propósito el ancho completo — soltar antes de eso no
+                                            // borra — pero eso mismo dejaba a dismissBoxState.targetValue
+                                            // en Settled casi todo el gesto. Leído DENTRO de graphicsLayer
+                                            // (fase de dibujo, como AuraSwipeActionBackground) para que
+                                            // el fundido siga cada píxel del arrastre sin recomponer en
+                                            // cada uno; el umbral real de borrado no cambia.
+                                            //
+                                            // Reporte de crash del dueño (2026-09-23, v2.0.51-beta1, al
+                                            // entrar a una playlist propia): "IllegalStateException: The
+                                            // offset was read before being initialized" desde este
+                                            // requireOffset() sin protección. Los anchors de
+                                            // dismissBoxState los fija SU PROPIO layout, y en el primer
+                                            // frame de una fila recién compuesta (al entrar a la lista,
+                                            // por ejemplo) este graphicsLayer puede dibujarse antes de que
+                                            // ese layout termine para ESTA instancia — requireOffset()
+                                            // lanza en vez de devolver un valor provisional. runCatching ->
+                                            // 0f es la solución correcta, no solo un parche: 0f es
+                                            // exactamente lo que "todavía no se deslizó" ya significaba
+                                            // para este fundido, así que el primer frame se ve idéntico a
+                                            // antes, y cada frame posterior (estado ya inicializado) se
+                                            // comporta exactamente como estaba diseñado.
+                                            .graphicsLayer {
+                                                val revealPx = 96.dp.toPx()
+                                                val offset = runCatching { dismissBoxState.requireOffset() }.getOrDefault(0f)
+                                                alpha = (abs(offset) / revealPx).coerceIn(0f, 1f)
+                                            }
+                                            .background(darkColorScheme().errorContainer)
+                                            .padding(horizontal = 20.dp),
+                                        contentAlignment = alignment,
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.delete),
+                                            contentDescription = stringResource(R.string.remove_from_playlist),
+                                            tint = darkColorScheme().onErrorContainer,
+                                        )
+                                    }
+                                },
                             ) { row() }
                         }
                     }

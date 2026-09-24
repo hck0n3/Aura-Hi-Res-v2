@@ -32,8 +32,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -60,12 +65,16 @@ import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.ui.component.IconButton
+import iad1tya.echo.music.LocalDatabase
+import iad1tya.echo.music.LocalSyncUtils
+import iad1tya.echo.music.ui.component.LibrarySwipeActionsBox
 import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.component.YouTubeGridItem
 import iad1tya.echo.music.ui.component.YouTubeListItem
 import iad1tya.echo.music.ui.component.shimmer.GridItemPlaceHolder
 import iad1tya.echo.music.ui.component.shimmer.ListItemPlaceHolder
 import iad1tya.echo.music.ui.component.shimmer.ShimmerHost
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.menu.YouTubeAlbumMenu
 import iad1tya.echo.music.ui.menu.YouTubeArtistMenu
 import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
@@ -73,6 +82,7 @@ import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.utils.listItemShape
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.viewmodels.ArtistItemsViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -82,11 +92,14 @@ fun ArtistItemsScreen(
     viewModel: ArtistItemsViewModel = hiltViewModel(),
 ) {
     val menuState = LocalMenuState.current
+    val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val haptic = LocalHapticFeedback.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
+    val context = LocalContext.current
     val lazyListState = rememberLazyListState()
     val lazyGridState = rememberLazyGridState()
     val coroutineScope = rememberCoroutineScope()
@@ -175,6 +188,45 @@ fun ArtistItemsScreen(
                 items = itemsPage?.items.orEmpty().distinctBy { it.id },
                 key = { _, it -> it.id },
             ) { index, item ->
+                val songItem = item as? SongItem
+                var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+                AddToPlaylistDialog(
+                    isVisible = showAddToPlaylistDialog,
+                    songIdsForMembership = listOfNotNull(songItem?.id),
+                    onGetSong = {
+                        songItem?.let { s ->
+                            database.query {
+                                insert(s.toMediaMetadata())
+                            }
+                        }
+                        listOfNotNull(songItem?.id)
+                    },
+                    onDismiss = { showAddToPlaylistDialog = false },
+                )
+
+                // A SongItem de innertube no trae `liked` local (no es una fila de Room garantizada,
+                // a diferencia de las listas de álbum/playlist propia) — se observa por id, reactivo
+                // a la misma tabla que el toggle de abajo escribe, así el ícono del swipe se actualiza
+                // solo cuando cambia.
+                val likedSong by remember(songItem?.id) { database.song(songItem?.id) }
+                    .collectAsState(initial = null)
+                LibrarySwipeActionsBox(
+                    enabled = songItem != null,
+                    liked = likedSong?.song?.liked == true,
+                    onToggleLike = {
+                        songItem?.let { s ->
+                            database.query {
+                                insert(s.toMediaMetadata())
+                                getSongByIdBlocking(s.id)?.song?.let { entity ->
+                                    val toggled = entity.toggleLike()
+                                    update(toggled)
+                                    syncUtils.likeSong(toggled)
+                                }
+                            }
+                        }
+                    },
+                    onAddToPlaylist = { showAddToPlaylistDialog = true },
+                ) {
                 YouTubeListItem(
                     item = item,
                     isActive =
@@ -238,6 +290,7 @@ fun ArtistItemsScreen(
                             }
                         },
                 )
+                }
             }
 
             if (itemsPage?.continuation != null) {

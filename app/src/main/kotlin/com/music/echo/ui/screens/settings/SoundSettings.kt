@@ -135,8 +135,13 @@ fun SoundSettings(
         val (speakerBassProtect, onSpeakerBassProtectChange) = rememberPreference(
             iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey, defaultValue = true
         )
+        // Exception to the blanket "todos los toggles activados por default" (2026-09-14): the owner
+        // reported (2026-09-22) that moving an EQ band perceptibly changes the overall volume — this
+        // toggle trimming the preamp by the loudest band's boost on every recompute is exactly that
+        // mechanism. Defaults OFF now; still a real, discoverable switch for anyone who wants the
+        // clipping protection back.
         val (autoHeadroom, onAutoHeadroomChange) = rememberPreference(
-            iad1tya.echo.music.constants.AutoHeadroomEnabledKey, defaultValue = true
+            iad1tya.echo.music.constants.AutoHeadroomEnabledKey, defaultValue = false
         )
         val (stereoWidth, onStereoWidthChange) = rememberPreference(
             iad1tya.echo.music.constants.StereoWidthKey, defaultValue = 1f

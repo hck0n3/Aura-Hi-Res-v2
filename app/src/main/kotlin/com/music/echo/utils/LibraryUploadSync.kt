@@ -468,6 +468,11 @@ class LibraryUploadSync @Inject constructor(
                     runCatching { database.update(artist.copy(channelId = channelId)) }
                 }
                 if (!spend()) break
+                // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a song
+                // appears to also subscribe its artist. This is the bulk background sync path, not a
+                // direct user tap — a timestamp here (no ids/titles, regla 4) is what would show
+                // whether a sync pass, not the like itself, is what's landing at that moment.
+                Timber.i("ARTIST_SUBSCRIBE_SYNC subscribing=true")
                 YouTube.subscribeChannel(channelId, true)
                     .onSuccess {
                         subscribed.add(artist.id)
@@ -582,6 +587,7 @@ class LibraryUploadSync @Inject constructor(
                     continue
                 }
                 if (!spend()) break
+                Timber.i("ARTIST_SUBSCRIBE_SYNC subscribing=false")
                 YouTube.subscribeChannel(channelId, false)
                     .onSuccess { cleared.add(artist.id); unsubscribed++ }
                     .onFailure { Timber.w(it, "Could not unsubscribe from ${artist.name}") }

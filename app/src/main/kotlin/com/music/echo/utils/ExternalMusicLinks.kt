@@ -21,6 +21,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import java.net.HttpURLConnection
 import java.net.URL
+import timber.log.Timber
 
 /**
  * Music links from other platforms (Spotify, Apple Music, Deezer, Tidal, SoundCloud, Amazon Music,
@@ -47,6 +48,17 @@ object ExternalMusicLinks {
 
         /** Only a name is known (page title): search YouTube Music for it. */
         data class Query(override val kind: Kind, val text: String) : Resolved
+
+        /**
+         * Ronda 9 (dueño): "verifica si hay algo mejor". Odesli/song.link (la misma empresa detrás
+         * de los links que Aura ya reconoce como `song.link`) mantiene su PROPIA base pública y
+         * gratuita de equivalencias entre plataformas — es justo su función. Cuando tiene el
+         * equivalente de YouTube Music para el link que se abrió, es un id EXACTO por catálogo, no
+         * una búsqueda de texto adivinada — máxima confianza posible, se reproduce directo.
+         */
+        data class DirectVideo(val videoId: String) : Resolved {
+            override val kind = Kind.TRACK
+        }
     }
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -75,28 +87,80 @@ object ExternalMusicLinks {
         return segments[1].takeIf { id -> id.isNotBlank() && id.all { it.isLetterOrDigit() || it == '-' || it == '_' } }
     }
 
+    /**
+     * Ronda 9 (dueño, reporte repetido de "no encontrado" sin ningún dato para rastrear la causa):
+     * traza cada intento de resolver un link externo — plataforma, qué rama corrió y en qué se
+     * convirtió (o por qué no). Nunca el título/artista real ni la URL completa (regla #4 de
+     * AGENTS.md) — solo el host y counters/booleanos, para que el próximo "no encontrado" real
+     * llegue con una línea de app.log que sí dice algo, en vez de investigar a ciegas otra vez.
+     */
+    private const val TAG = "ExternalMusicLinks"
+
     suspend fun resolve(context: Context, input: Uri): Resolved? = withContext(Dispatchers.IO) {
+        val host = input.host?.lowercase().orEmpty()
         try {
             val uri = expandShortLink(input)
-            val host = uri.host?.lowercase().orEmpty()
-            when {
-                uri.scheme == "spotify" -> {
-                    val parts = uri.schemeSpecificPart.split(":")
-                    spotify(context, Uri.parse("https://open.spotify.com/${parts.getOrNull(0)}/${parts.getOrNull(1)}"))
-                }
-                host == "open.spotify.com" -> spotify(context, uri)
-                host.endsWith("deezer.com") -> deezer(uri)
-                host.endsWith("apple.com") -> apple(uri)
-                host.endsWith("tidal.com") -> tidal(uri)
-                else -> pageQuery(uri, kindFromPath(uri))
+            val expandedHost = uri.host?.lowercase().orEmpty()
+            if (expandedHost != host) {
+                Timber.tag(TAG).i("EXTERNAL_LINK short-link host=%s expanded_to=%s", host, expandedHost)
             }
+            // Odesli PRIMERO — ver el KDoc de [Resolved.DirectVideo]. Solo produce un id cuando su
+            // propio catálogo ya conecta este link con YouTube Music; si no lo tiene (lanzamiento
+            // reciente que todavía no indexó, o esa plataforma en particular), sigue null y cae al
+            // scraping+búsqueda de siempre — nunca peor que antes, y cuando SÍ lo tiene, mucho mejor.
+            val direct = odesliYouTubeMusicId(uri)
+            val resolved = if (direct != null) {
+                Resolved.DirectVideo(direct)
+            } else {
+                when {
+                    uri.scheme == "spotify" -> {
+                        val parts = uri.schemeSpecificPart.split(":")
+                        spotify(context, Uri.parse("https://open.spotify.com/${parts.getOrNull(0)}/${parts.getOrNull(1)}"))
+                    }
+                    expandedHost == "open.spotify.com" -> spotify(context, uri)
+                    expandedHost.endsWith("deezer.com") -> deezer(uri)
+                    expandedHost.endsWith("apple.com") -> apple(uri)
+                    expandedHost.endsWith("tidal.com") -> tidal(uri)
+                    else -> pageQuery(uri, kindFromPath(uri))
+                }
+            }
+            val outcome = when (resolved) {
+                null -> "null"
+                is Resolved.DirectVideo -> "odesli_direct"
+                is Resolved.Tracks -> "tracks(kind=${resolved.kind}, count=${resolved.tracks.size})"
+                is Resolved.Query -> "query(kind=${resolved.kind})"
+            }
+            Timber.tag(TAG).i("EXTERNAL_LINK host=%s -> %s", expandedHost, outcome)
+            resolved
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            Timber.tag(TAG).w(e, "EXTERNAL_LINK host=%s threw %s", host, e.javaClass.simpleName)
             reportException(e)
             null
         }
     }
+
+    /**
+     * Consulta la API pública y sin clave de Odesli (api.song.link — la misma empresa detrás de
+     * `song.link`/`odesli.co`) por la equivalencia REAL de este link en YouTube Music, si su propio
+     * catálogo ya la conoce. Solo funciona cuando la URL de YouTube Music trae `?v=<id>` (una
+     * canción de verdad, no un álbum/playlist — YouTube Music no tiene una URL de "reproducir álbum
+     * directo" equivalente), así que esto se autolimita al caso donde de verdad hay máxima
+     * confianza: si no la trae, se cae al scraping+búsqueda de siempre, tal cual antes.
+     */
+    private fun odesliYouTubeMusicId(uri: Uri): String? = runCatching {
+        val apiUrl = "https://api.song.link/v1-alpha.1/links?url=" +
+            java.net.URLEncoder.encode(uri.toString(), "UTF-8")
+        // Timeout corto (regla de batería/latencia — AGENTS.md #7): esto es un intento EXTRA antes
+        // del camino de siempre, así que si Odesli está lento o no responde, la espera no se duplica
+        // — cae al scraping+búsqueda de siempre casi de inmediato.
+        val body = fetch(apiUrl, timeoutMs = 5_000)
+        val byPlatform = json.parseToJsonElement(body).jsonObject["linksByPlatform"] as? JsonObject
+        val ytMusic = byPlatform?.get("youtubeMusic") as? JsonObject ?: byPlatform?.get("youtube") as? JsonObject
+        val ytUrl = ytMusic?.str("url") ?: return@runCatching null
+        Uri.parse(ytUrl).getQueryParameter("v")?.takeIf { it.isNotBlank() }
+    }.getOrNull()
 
     // ── Platforms ────────────────────────────────────────────────────────────────────────────────
 
@@ -107,10 +171,35 @@ object ExternalMusicLinks {
         val repository = SpotifyImportRepository.get(context)
         return when (type) {
             "track" -> {
-                val html = fetch(uri.toString())
-                val title = meta(html, "og:title") ?: return null
-                // og:description: "Artist · Album · Song · 1987"
-                val artist = meta(html, "og:description")?.substringBefore(" · ").orEmpty()
+                // Ronda 9 (dueño): "con Amazon Music sí funciona, con Spotify no". Amazon/SoundCloud got
+                // the link-preview UA fix (see pageQuery) because those pages are JS-rendered SPAs that
+                // often skip server-side og:* tags for a plain mobile UA. This branch bypasses pageQuery
+                // entirely (it parses og:description too, for the artist), so it never got that same fix —
+                // and open.spotify.com's track pages are the same kind of JS-heavy SPA, so a plain fetch
+                // can just as easily come back with no usable og:title.
+                val html = fetchPage(uri)
+                val title = meta(html, "og:title")
+                if (title == null) {
+                    Timber.tag(TAG).i("EXTERNAL_LINK spotify track no_title_found html_len=%d", html.length)
+                    return null
+                }
+                // og:description: "Artist · Album · Song · 1987" — but Spotify does not guarantee
+                // that exact shape, and `substringBefore` silently returns the WHOLE string
+                // unchanged when the separator isn't there, which used to hand the entire
+                // description (garbage) to the matcher as an "artist" and sink its score below
+                // MIN_MATCH_SCORE — reading as "no encontrado" for a song that really is on YTM.
+                // Empty is the safe fallback: the search still runs on the title alone.
+                val artist = meta(html, "og:description")
+                    ?.let { desc ->
+                        when {
+                            " · " in desc -> desc.substringBefore(" · ")
+                            " - " in desc -> desc.substringBefore(" - ")
+                            else -> null
+                        }
+                    }
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() && it.length <= 100 }
+                    .orEmpty()
                 Resolved.Tracks(Kind.TRACK, title, artist, listOf(track(id, title, artist)))
             }
             "album" -> {
@@ -209,7 +298,12 @@ object ExternalMusicLinks {
 
     private fun tidal(uri: Uri): Resolved? {
         val kind = kindFromPath(uri)
-        val title = meta(fetch(uri.toString()), "og:title") ?: return null
+        val html = fetchPage(uri)
+        val title = meta(html, "og:title")
+        if (title == null) {
+            Timber.tag(TAG).i("EXTERNAL_LINK tidal no_title_found html_len=%d", html.length)
+            return null
+        }
         if (kind != Kind.TRACK) return Resolved.Query(kind, title.replace(" - ", " "))
         // og:title: "Artist - Title"
         val artist = title.substringBefore(" - ", "")
@@ -217,10 +311,25 @@ object ExternalMusicLinks {
         return Resolved.Tracks(Kind.TRACK, name, artist, listOf(track("td_${uri.lastPathSegment}", name, artist)))
     }
 
+    /**
+     * Fetch [uri]'s HTML trying the link-preview bot User-Agent FIRST (more likely to get a JS-heavy SPA's
+     * server-rendered og:* tags — see the note above MOBILE_UA), falling back to the normal mobile UA if
+     * that request fails outright (some sites do block known bot UAs) — never worse than a plain fetch.
+     * Shared by every direct-scrape path (pageQuery, spotify's track branch, tidal) so a fix to this
+     * technique benefits all of them at once instead of only whichever branch happened to get it first.
+     */
+    private fun fetchPage(uri: Uri): String =
+        runCatching { fetch(uri.toString(), LINK_PREVIEW_UA) }.getOrElse { fetch(uri.toString()) }
+
     /** Any other page: search YouTube Music for its Open Graph title. */
     private fun pageQuery(uri: Uri, kind: Kind): Resolved? {
-        val html = fetch(uri.toString())
-        val raw = meta(html, "og:title") ?: Regex("<title>([^<]+)</title>").find(html)?.groupValues?.get(1) ?: return null
+        val html = fetchPage(uri)
+        val ogTitle = meta(html, "og:title")
+        val raw = ogTitle ?: Regex("<title>([^<]+)</title>").find(html)?.groupValues?.get(1)
+        if (raw == null) {
+            Timber.tag(TAG).i("EXTERNAL_LINK pageQuery host=%s no_title_found html_len=%d", uri.host, html.length)
+            return null
+        }
         val text = raw
             .replace(Regex("\\s*[|·–-]\\s*(SoundCloud|Amazon Music|Apple Music|Spotify|TIDAL|Deezer|Songlink|Odesli).*$", RegexOption.IGNORE_CASE), "")
             .replace(Regex("^(Stream|Listen to|Escucha)\\s+", RegexOption.IGNORE_CASE), "")
@@ -231,11 +340,24 @@ object ExternalMusicLinks {
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────────────
 
-    private fun kindFromPath(uri: Uri): Kind {
-        val path = uri.path.orEmpty().lowercase()
+    private fun kindFromPath(uri: Uri): Kind = kindFromPathAndQuery(uri.path, uri.getQueryParameter("trackAsin"))
+
+    /**
+     * Ronda 9 (dueño): un link de Amazon Music para UNA canción se comparte casi siempre como
+     * `/albums/{albumAsin}?trackAsin={trackAsin}` — la ruta sola dice "álbum" ("/albums/" contiene
+     * "/album"), y `trackAsin` nunca se miraba. Eso hacía que una canción se tratara como si hubiera
+     * pedido el ÁLBUM completo: [pageQuery] scrapea el título de la página del ÁLBUM (no de la
+     * canción), y luego se busca ese título como álbum en YouTube Music — una coincidencia mucho más
+     * estricta que buscar una canción, así que una variación de título (edición, mayúsculas) bastaba
+     * para decir "no encontrado" aunque la canción sí estuviera. `trackAsin` es un parámetro propio de
+     * Amazon: si está presente, la intención es inequívocamente UNA canción, sin importar la ruta.
+     */
+    internal fun kindFromPathAndQuery(path: String?, trackAsin: String?): Kind {
+        if (!trackAsin.isNullOrBlank()) return Kind.TRACK
+        val p = path.orEmpty().lowercase()
         return when {
-            "/album" in path -> Kind.ALBUM
-            "/playlist" in path || "/sets/" in path -> Kind.PLAYLIST
+            "/album" in p -> Kind.ALBUM
+            "/playlist" in p || "/sets/" in p -> Kind.PLAYLIST
             else -> Kind.TRACK
         }
     }
@@ -268,8 +390,8 @@ object ExternalMusicLinks {
         }
     }
 
-    private fun fetch(url: String): String {
-        val connection = open(url)
+    private fun fetch(url: String, userAgent: String = MOBILE_UA, timeoutMs: Int = 12_000): String {
+        val connection = open(url, userAgent, timeoutMs)
         try {
             if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
             return connection.inputStream.bufferedReader().use { it.readText() }
@@ -278,13 +400,26 @@ object ExternalMusicLinks {
         }
     }
 
-    private fun open(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
-        instanceFollowRedirects = true
-        connectTimeout = 12_000
-        readTimeout = 12_000
-        setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36")
-        setRequestProperty("Accept-Language", "es,en;q=0.8")
-    }
+    private fun open(url: String, userAgent: String = MOBILE_UA, timeoutMs: Int = 12_000): HttpURLConnection =
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = true
+            connectTimeout = timeoutMs
+            readTimeout = timeoutMs
+            setRequestProperty("User-Agent", userAgent)
+            setRequestProperty("Accept-Language", "es,en;q=0.8")
+        }
+
+    private const val MOBILE_UA =
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36"
+
+    // Ronda 9 (dueño, reporte repetido de "no encontrado" sin causa clara): [pageQuery] cubre páginas
+    // de una sola página (SPA) — Amazon Music, SoundCloud — que muchas veces NO renderizan su propio
+    // <meta property="og:*"> del lado del servidor para un navegador normal (solo lo arma con
+    // JavaScript, que esta petición no ejecuta), pero SÍ lo hacen para los bots de vista previa de
+    // enlaces (Facebook/Twitter/Discord) — es justo para eso que existen esas etiquetas. Usar ese
+    // mismo user-agent es la misma técnica que esos bots ya usan, no un workaround de nada que el
+    // sitio no quiera compartir: el contenido es público y las etiquetas están para leerse así.
+    private const val LINK_PREVIEW_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uat.php)"
 
     private fun meta(html: String, property: String): String? =
         Regex("<meta[^>]+(?:property|name)=\"${Regex.escape(property)}\"[^>]+content=\"([^\"]*)\"", RegexOption.IGNORE_CASE)

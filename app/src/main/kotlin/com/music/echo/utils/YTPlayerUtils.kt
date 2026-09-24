@@ -1296,6 +1296,39 @@ object YTPlayerUtils {
         }
     }
 
+    /**
+     * Último peldaño de la escalera ([iad1tya.echo.music.playback.VideoFormatFallback.Source.PIPEPIPE_VP9_AV1]):
+     * como [adaptiveVideoStreamNewPipe], pero reconociendo también itags VP9/AV1 — el extractor
+     * (`NewPipeExtractor.newPipePlayer`) ya los trae sin filtrar, [adaptiveVideoStreamNewPipe] es el
+     * único que los descarta por no estar en su mapa `avcHeights`. Solo se llama cuando
+     * [HardwareVideoDecoders.supportsHardwareDecode] ya confirmó que ESTE dispositivo los decodifica
+     * por hardware — si no, el llamante ni intenta este peldaño y la escalera termina en muxed, igual
+     * que siempre.
+     */
+    fun adaptiveVideoStreamNewPipeBroadFormat(
+        videoId: String,
+        connectivityManager: ConnectivityManager,
+        maxHeight: Int? = null,
+        excludeItags: Set<Int> = emptySet(),
+    ): Result<PickedVideo> = runCatching {
+        val streams = NewPipeExtractor.newPipePlayer(videoId)
+        val vp9Heights = mapOf(278 to 144, 242 to 240, 243 to 360, 244 to 480, 247 to 720, 248 to 1080, 271 to 1440, 313 to 2160)
+        val av1Heights = mapOf(394 to 144, 395 to 240, 396 to 360, 397 to 480, 398 to 720, 399 to 1080, 400 to 1440, 401 to 2160)
+        val allowed = buildMap {
+            if (HardwareVideoDecoders.supportsHardwareDecode(HardwareVideoDecoders.MIME_VP9)) putAll(vp9Heights)
+            if (HardwareVideoDecoders.supportsHardwareDecode(HardwareVideoDecoders.MIME_AV1)) putAll(av1Heights)
+        }
+        val candidates = streams
+            .filterNot { it.first in excludeItags }
+            .mapNotNull { s -> allowed[s.first]?.let { h -> Triple(s.first, h, s.second) } }
+            .sortedByDescending { it.second }
+        val cap = maxHeight ?: if (connectivityManager.isActiveNetworkMetered) 360 else 720
+        val pick = candidates.firstOrNull { it.second <= cap } ?: candidates.lastOrNull()
+            ?: throw IllegalStateException("No hardware-decodable VP9/AV1 stream for $videoId")
+        Timber.tag(logTag).i("PipePipe VP9/AV1 fallback picked itag=${pick.first} (${pick.second}p, cap=${cap}p)")
+        PickedVideo(pick.third, isMuxed = false, itag = pick.first)
+    }
+
     private fun findFormat(
         playerResponse: PlayerResponse,
         audioQuality: AudioQuality,

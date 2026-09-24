@@ -61,13 +61,23 @@ object MusicRequestMatch {
         return listOf("${two}s", "${two}'s", two, four, "${four}s", "${four}'s") + word
     }
 
+    private fun contentWords(query: String): List<String> =
+        query.split(' ', '-', ',')
+            .map { fold(it) }
+            .filter { it.length > 2 && it !in STOP_WORDS && it.toIntOrNull() == null }
+            .distinct()
+
     /**
      * Puntúa el título de una lista contra la petición. [REJECT] = no vale, pase lo que pase.
      *
-     * @param queryWords las palabras de contenido de la petición ya limpia
-     *   ([MusicRequestQuery.Parsed.query] partido por espacios); las vacías o de relleno se ignoran.
+     * @param groups Ronda 9 (dueño): "bachata cristiana" — con la regla de "al menos una palabra en
+     *   común" de más abajo, una lista titulada solo "Bachata" pasaba igual, ignorando "cristiana" por
+     *   completo. Cuando la petición matcheó VARIAS familias reconocidas a la vez (género + tema, ver
+     *   [MusicRequestMoods.conceptGroupsFor]), el título tiene que demostrar TODAS, no una cualquiera —
+     *   la misma exigencia que ya se le aplica a la categoría oficial. Con menos de dos grupos (el caso
+     *   normal, una sola familia o ninguna) el comportamiento es exactamente el de antes.
      */
-    fun score(title: String, parsed: MusicRequestQuery.Parsed): Int {
+    fun score(title: String, parsed: MusicRequestQuery.Parsed, groups: List<List<String>> = emptyList()): Int {
         val t = fold(title)
         if (t.isBlank()) return REJECT
         var score = 0
@@ -82,21 +92,27 @@ object MusicRequestMatch {
             score += 3
         }
 
+        // Ronda 9 (dueño): "que respete lo que pido siempre" — el idioma explícito deja de ser un
+        // simple empuje de puntaje y pasa a ser una condición dura, igual que la década: si pidió
+        // inglés y el título no lo demuestra, se rechaza — no se acepta con menos puntos.
         when (parsed.language) {
-            "en" -> if (ENGLISH_MARKERS.any { containsToken(t, it) }) score += 2
-            "es" -> if (SPANISH_MARKERS.any { containsToken(t, it) }) score += 2
+            "en" -> if (ENGLISH_MARKERS.any { containsToken(t, it) }) score += 2 else return REJECT
+            "es" -> if (SPANISH_MARKERS.any { containsToken(t, it) }) score += 2 else return REJECT
         }
 
-        val words = parsed.query.split(' ', '-', ',')
-            .map { fold(it) }
-            .filter { it.length > 2 && it !in STOP_WORDS && it.toIntOrNull() == null }
-            .distinct()
-        val wordHits = words.count { containsToken(t, it) }
-        // Sin década que comprobar, lo que se exige es que el título comparta al menos una palabra de
-        // CONTENIDO con la petición. Sin esa regla, "Mi mix" pasaba por el simple hecho de llamarse
-        // "mix" — una lista de cualquier cosa colándose en una petición de música para estudiar.
-        if (decade == null && wordHits == 0) return REJECT
-        score += wordHits.coerceAtMost(3)
+        if (groups.size >= 2) {
+            if (!groups.all { group -> group.any { containsToken(t, it) } }) return REJECT
+            score += groups.size
+        } else {
+            val words = contentWords(parsed.query)
+            val wordHits = words.count { containsToken(t, it) }
+            // Sin década que comprobar, lo que se exige es que el título comparta al menos una palabra
+            // de CONTENIDO con la petición. Sin esa regla, "Mi mix" pasaba por el simple hecho de
+            // llamarse "mix" — una lista de cualquier cosa colándose en una petición de música para
+            // estudiar.
+            if (decade == null && wordHits == 0) return REJECT
+            score += wordHits.coerceAtMost(3)
+        }
 
         if (COMPILATION_WORDS.any { containsToken(t, it) }) score += 1
         return score
@@ -106,11 +122,15 @@ object MusicRequestMatch {
      * El índice de la mejor candidata, o null si ninguna merece reproducirse. Empate → la primera,
      * que es la que el buscador considera más relevante.
      */
-    fun bestIndex(titles: List<String>, parsed: MusicRequestQuery.Parsed): Int? {
+    fun bestIndex(
+        titles: List<String>,
+        parsed: MusicRequestQuery.Parsed,
+        groups: List<List<String>> = emptyList(),
+    ): Int? {
         var bestIdx: Int? = null
         var best = Int.MIN_VALUE
         titles.forEachIndexed { index, title ->
-            val s = score(title, parsed)
+            val s = score(title, parsed, groups)
             if (s != REJECT && s > best) {
                 best = s
                 bestIdx = index
@@ -124,9 +144,13 @@ object MusicRequestMatch {
      * vez de una sola: dos curadores distintos dan más variedad, y las dos han pasado la misma prueba.
      * Las rechazadas no aparecen, pase lo que pase.
      */
-    fun rankedIndices(titles: List<String>, parsed: MusicRequestQuery.Parsed): List<Int> =
+    fun rankedIndices(
+        titles: List<String>,
+        parsed: MusicRequestQuery.Parsed,
+        groups: List<List<String>> = emptyList(),
+    ): List<Int> =
         titles.indices
-            .map { it to score(titles[it], parsed) }
+            .map { it to score(titles[it], parsed, groups) }
             .filter { it.second != REJECT }
             .sortedByDescending { it.second }
             .map { it.first }

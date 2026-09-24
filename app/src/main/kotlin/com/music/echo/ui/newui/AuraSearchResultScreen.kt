@@ -82,6 +82,7 @@ import iad1tya.echo.music.ui.menu.YouTubeArtistMenu
 import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.utils.forAllTabSearchPreview
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.OnlineSearchViewModel
 import java.net.URLDecoder
@@ -123,6 +124,9 @@ fun AuraSearchResultScreen(
 
     val pauseSearchHistory by rememberPreference(PauseSearchHistoryKey, defaultValue = false)
     val hideVideoSongs by rememberPreference(HideVideoSongsKey, defaultValue = false)
+    // Was hardcoded `false` below — this results screen ignored offline mode (manual AND automatic)
+    // entirely, so re-searching from here always hit the network even with no connection.
+    val offlineMode = rememberOfflineState().offline
 
     var isSearchFocused by remember { mutableStateOf(false) }
     BackHandler(enabled = isSearchFocused) {
@@ -153,7 +157,7 @@ fun AuraSearchResultScreen(
             navController = navController,
             database = database,
             scope = coroutineScope,
-            offlineMode = false,
+            offlineMode = offlineMode,
             pauseSearchHistory = pauseSearchHistory,
             navigateToResults = { encoded ->
                 navController.navigate("search/$encoded") {

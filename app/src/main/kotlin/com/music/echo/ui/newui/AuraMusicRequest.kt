@@ -49,6 +49,7 @@ import iad1tya.echo.music.constants.OpenRouterBaseUrlKey
 import iad1tya.echo.music.constants.OpenRouterModelKey
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.playback.queues.ListQueue
+import iad1tya.echo.music.playlistimport.MusicRequestHistory
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.MusicRequestUiState
 import iad1tya.echo.music.viewmodels.MusicRequestViewModel
@@ -89,10 +90,21 @@ fun AuraMusicRequestCard(
             ListQueue(
                 title = result.title,
                 items = result.songs.map { it.toMediaItem() },
+                contextId = result.contextId,
             ),
         )
         viewModel.reset()
         sheetOpen = false
+    }
+
+    // EL RELLENO EN SEGUNDO PLANO llega por su propio canal (no por `state`, que ya volvió a Idle
+    // arriba) — ver MusicRequestViewModel.fillInBackground. Vive fuera de `sheetOpen`/`ready` a
+    // propósito: la hoja ya se cerró para cuando esto llega, pero la música sigue sonando y es a esa
+    // cola a la que hay que sumarle el resto.
+    LaunchedEffect(Unit) {
+        viewModel.extend.collect { event ->
+            playerConnection.extendQueueForContext(event.contextId, event.songs.map { it.toMediaItem() })
+        }
     }
 
     Row(
@@ -179,29 +191,30 @@ private fun AuraMusicRequestSheet(
     onDismiss: () -> Unit,
     onRequest: (prompt: String, provider: String, apiKey: String, baseUrl: String, model: String) -> Unit,
 ) {
-    val provider by rememberPreference(AiProviderKey, "OpenRouter")
-    val apiKey by rememberPreference(OpenRouterApiKey, "")
-    val baseUrl by rememberPreference(
-        OpenRouterBaseUrlKey,
-        "https://openrouter.ai/api/v1/chat/completions",
-    )
-    val model by rememberPreference(OpenRouterModelKey, "google/gemini-2.5-flash-lite")
-
-    var prompt by rememberSaveable { mutableStateOf("") }
-    val working = state is MusicRequestUiState.Working
-    val focus = remember { FocusRequester() }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    // El teclado listo al abrir: la hoja existe para escribir, y obligar a un toque más en el campo
-    // es exactamente la fricción que hace que una función así no se use.
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-
-    val send = {
-        if (prompt.isNotBlank() && !working) {
-            onRequest(prompt.trim(), provider, apiKey, baseUrl, model)
+    // THE UNIFIED FLOATING STYLE (owner report 2026-09-22: "pedir música" needs the same translucent
+    // glass the other bottom sheets get). Same routing AddMusicSheet / the 3-dot menu / the search
+    // sheet use: premium skin + a live overlay source → the in-window glass host (glass sampling
+    // whatever is actually behind it, dispatcher-priority back, top-center handle, imePadding);
+    // otherwise the classic window below, byte-identical to before.
+    val overlayHazeState = LocalOverlayHazeState.current
+    val skin = rememberAuraPanelSkin()
+    val premium = skin.enabled && skin.darkGround
+    if (premium && overlayHazeState != null) {
+        AuraInWindowDialog(
+            visible = true,
+            onDismiss = onDismiss,
+            center = false,
+            // Measures its own content instead of forcing 85% of the screen — same as every other
+            // bottom sheet since RELEASE_INFO's "las ventanas que suben desde abajo miden lo que
+            // mide su contenido".
+            fullHeight = false,
+        ) {
+            AuraMusicRequestSheetBody(state = state, onRequest = onRequest)
         }
+        return
     }
 
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -218,30 +231,75 @@ private fun AuraMusicRequestSheet(
             )
         },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.auto_awesome),
-                    contentDescription = null,
-                    tint = AuraPalette.Teal,
-                    modifier = Modifier.size(20.dp),
-                )
-                Text(
-                    text = stringResource(R.string.music_request_label),
-                    style = AuraType.SheetTitle,
-                    color = AuraPalette.OnGround,
-                )
-            }
+        AuraMusicRequestSheetBody(state = state, onRequest = onRequest)
+    }
+}
 
+@Composable
+private fun AuraMusicRequestSheetBody(
+    state: MusicRequestUiState,
+    onRequest: (prompt: String, provider: String, apiKey: String, baseUrl: String, model: String) -> Unit,
+) {
+    val provider by rememberPreference(AiProviderKey, "OpenRouter")
+    val apiKey by rememberPreference(OpenRouterApiKey, "")
+    val baseUrl by rememberPreference(
+        OpenRouterBaseUrlKey,
+        "https://openrouter.ai/api/v1/chat/completions",
+    )
+    val model by rememberPreference(OpenRouterModelKey, "google/gemini-2.5-flash-lite")
+
+    var prompt by rememberSaveable { mutableStateOf("") }
+    val working = state is MusicRequestUiState.Working
+    val focus = remember { FocusRequester() }
+
+    // El teclado listo al abrir: la hoja existe para escribir, y obligar a un toque más en el campo
+    // es exactamente la fricción que hace que una función así no se use.
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+
+    val send: (String) -> Unit = { text ->
+        if (text.isNotBlank() && !working) {
+            onRequest(text.trim(), provider, apiKey, baseUrl, model)
+        }
+    }
+
+    // Voz (owner report 2026-09-22): mismo mecanismo que la búsqueda normal — al terminar de hablar,
+    // busca sola, sin un toque extra.
+    val voice = rememberAuraVoiceSearch(
+        onPartial = { spoken -> prompt = spoken },
+        onResult = { spoken ->
+            prompt = spoken
+            send(spoken)
+        },
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.auto_awesome),
+                contentDescription = null,
+                tint = AuraPalette.Teal,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = stringResource(R.string.music_request_label),
+                style = AuraType.SheetTitle,
+                color = AuraPalette.OnGround,
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             TextField(
                 value = prompt,
                 onValueChange = { prompt = it },
@@ -255,7 +313,7 @@ private fun AuraMusicRequestSheet(
                     )
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { send() }),
+                keyboardActions = KeyboardActions(onGo = { send(prompt) }),
                 shape = AuraShapes.Card,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = AuraPalette.SurfaceFill,
@@ -268,67 +326,105 @@ private fun AuraMusicRequestSheet(
                     unfocusedTextColor = AuraPalette.OnGround,
                 ),
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .weight(1f)
                     .focusRequester(focus),
             )
+            AuraIconButton(
+                icon = AuraIcons.Mic,
+                contentDescription = stringResource(R.string.voice_search),
+                onClick = voice.launch,
+                size = 20.dp,
+                tint = if (voice.active) AuraPalette.Teal else AuraPalette.OnGroundFaint,
+            )
+        }
 
-            // LAS SUGERENCIAS, que es lo que de verdad quita el "muy básico": un campo vacío en una
-            // pantalla de música no dice qué se le puede pedir. Al tocar una, se pide directamente —
-            // no rellena el campo para que él tenga que darle a otra cosa.
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-            ) {
-                musicRequestSuggestions().forEach { suggestionRes ->
-                    val text = stringResource(suggestionRes)
-                    AuraChip(
-                        text = text,
-                        selected = false,
-                        onClick = {
-                            if (!working) {
-                                prompt = text
-                                onRequest(text, provider, apiKey, baseUrl, model)
-                            }
-                        },
-                    )
-                }
-            }
-
-            when (state) {
-                is MusicRequestUiState.Working -> Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = AuraPalette.Teal,
-                    )
-                    Text(
-                        // Con el total ya conocido se cuenta; mientras no, solo "buscando". Un
-                        // "0 de 0" es peor que nada.
-                        text = if (state.total > 0) {
-                            stringResource(R.string.music_request_working_count, state.done, state.total)
-                        } else {
-                            stringResource(R.string.music_request_working)
-                        },
-                        style = AuraType.MiniArtist,
-                        color = AuraPalette.OnGroundMuted,
-                    )
-                }
-
-                is MusicRequestUiState.Empty -> Text(
-                    // "No encontré nada para eso", no "error": no hay nada roto que explicar, y
-                    // llamarlo error sería culpar a la app de una petición demasiado rara.
-                    text = stringResource(R.string.music_request_empty),
+        // HISTORIAL / "OTRA TANDA" (ronda 6, dueño): repetir la última petición sin reescribirla es
+        // "otra tanda" (canciones distintas, gracias al TTL de MusicRequestRecents); repetir una
+        // anterior es el historial — el mismo mecanismo cubre las dos. `remember` sin claves: se lee
+        // una vez al abrir la hoja, que es cuando importa; no hace falta que se actualice mientras la
+        // hoja sigue abierta y el usuario todavía no mandó nada nuevo.
+        val recentPrompts = remember { MusicRequestHistory.recentPrompts() }
+        if (recentPrompts.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = stringResource(R.string.music_request_recent_label),
                     style = AuraType.MiniArtist,
                     color = AuraPalette.OnGroundMuted,
                 )
-
-                else -> Box(Modifier.height(1.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                ) {
+                    recentPrompts.forEach { text ->
+                        AuraChip(
+                            text = "↻ $text",
+                            selected = false,
+                            onClick = {
+                                prompt = text
+                                send(text)
+                            },
+                        )
+                    }
+                }
             }
+        }
+
+        // LAS SUGERENCIAS, que es lo que de verdad quita el "muy básico": un campo vacío en una
+        // pantalla de música no dice qué se le puede pedir. Al tocar una, se pide directamente —
+        // no rellena el campo para que él tenga que darle a otra cosa.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            musicRequestSuggestions().forEach { suggestionRes ->
+                val text = stringResource(suggestionRes)
+                AuraChip(
+                    text = text,
+                    selected = false,
+                    onClick = {
+                        prompt = text
+                        send(text)
+                    },
+                )
+            }
+        }
+
+        when (state) {
+            is MusicRequestUiState.Working -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = AuraPalette.Teal,
+                )
+                Text(
+                    // Con el total ya conocido se cuenta; mientras no, solo "buscando". Un
+                    // "0 de 0" es peor que nada.
+                    text = if (state.total > 0) {
+                        stringResource(R.string.music_request_working_count, state.done, state.total)
+                    } else {
+                        stringResource(R.string.music_request_working)
+                    },
+                    style = AuraType.MiniArtist,
+                    color = AuraPalette.OnGroundMuted,
+                )
+            }
+
+            is MusicRequestUiState.Empty -> Text(
+                // "No encontré nada para eso", no "error": no hay nada roto que explicar, y
+                // llamarlo error sería culpar a la app de una petición demasiado rara.
+                text = stringResource(R.string.music_request_empty),
+                style = AuraType.MiniArtist,
+                color = AuraPalette.OnGroundMuted,
+            )
+
+            else -> Box(Modifier.height(1.dp))
         }
     }
 }

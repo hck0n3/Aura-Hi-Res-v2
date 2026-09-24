@@ -3,6 +3,7 @@ package iad1tya.echo.music.playlistimport
 import com.music.innertube.YouTube
 import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.SongItem
+import com.music.innertube.pages.ChartsPage
 import iad1tya.echo.music.api.AiPlaylistConstraints
 import iad1tya.echo.music.api.AiPlaylistService
 import iad1tya.echo.music.api.TrackQuery
@@ -275,13 +276,20 @@ object AiPlaylistGenerator {
         }.getOrNull().orEmpty()
 
         // QUE NO IMPROVISE (dueño, 2026-09-17), y aquí está la regla que lo decide entre las dos
-        // rutas: cuando la petición trae algo **comprobable** — una década — gana la ruta que lo ha
-        // COMPROBADO. La búsqueda llega por una lista cuyo título nombra esa década
-        // ([MusicRequestMatch]); la IA devuelve títulos y artistas sin año, así que nadie puede
-        // verificar que sean de los 80: con un modelo flojo, "80s" se convierte en "lo que al modelo
-        // le suena a antiguo". Sigue sin decirse cuál de las dos fue — el híbrido es de dónde salen
-        // las canciones, no de qué se le cuenta a él.
-        val verifiable = MusicRequestQuery.build(prompt).decade != null
+        // rutas: cuando la petición trae algo **comprobable** — una década o un idioma — gana la ruta
+        // que lo ha COMPROBADO. La búsqueda llega por una lista cuyo título nombra esa década/idioma
+        // ([MusicRequestMatch]); la IA devuelve títulos y artistas sin año ni idioma marcado, así que
+        // nadie puede verificar que sean de los 80 o que estén en inglés: con un modelo flojo, "80s"
+        // se convierte en "lo que al modelo le suena a antiguo", e "inglés" en lo que el modelo haya
+        // entendido. Sigue sin decirse cuál de las dos fue — el híbrido es de dónde salen las
+        // canciones, no de qué se le cuenta a él.
+        //
+        // Auditoría del algoritmo (ronda 9): el tema cristiano/gospel NO se agrega aquí a propósito —
+        // a diferencia de década/idioma, esa condición SÍ se puede comprobar sobre el resultado ya
+        // resuelto de la propia IA (ver el gate en [resolveBounded]), así que un resultado temprano de
+        // la IA ya viene filtrado y no hace falta preferir la búsqueda por esa razón.
+        val parsedForRace = MusicRequestQuery.build(prompt)
+        val verifiable = parsedForRace.decade != null || parsedForRace.language != null
         if (verifiable && search.isNotEmpty()) {
             aiJob.cancel()
             return@coroutineScope Produced(
@@ -459,8 +467,13 @@ object AiPlaylistGenerator {
             return null
         }
 
+        // Auditoría del algoritmo (ronda 9): el resto del generador trata el tema cristiano/gospel
+        // como rechazo duro cuando se pide explícitamente (MusicRequestMoods.requiresChristianContent),
+        // pero esta ruta (con IA) nunca lo comprobaba — solo se lo pedía al modelo en el prompt, sin
+        // verificar después. Ver el gate en [resolveBounded].
+        val requireChristian = MusicRequestMoods.requiresChristianContent(prompt)
         val proposed = filterTracksForSoloArtist(spec.tracks, soloArtist)
-        val firstPass = resolveBounded(database, proposed, soloArtist, target, onResolveProgress)
+        val firstPass = resolveBounded(database, proposed, soloArtist, target, requireChristian, onResolveProgress)
         var ordered = firstPass.distinctBy { it.id }.take(target)
 
         // Top-up ONLY when the first pass fell short of the target. With the thin pad and the
@@ -496,6 +509,7 @@ object AiPlaylistGenerator {
                     proposed = extraTracks,
                     soloArtist = soloArtist,
                     target = missing,
+                    requireChristian = requireChristian,
                     onResolveProgress = { done, _ ->
                         onResolveProgress((baseCount + done).coerceAtMost(target), target)
                     },
@@ -536,16 +550,34 @@ object AiPlaylistGenerator {
         proposed: List<TrackQuery>,
         soloArtist: String?,
         target: Int,
+        // Auditoría del algoritmo (ronda 9): la ruta de IA (aiFlow) no aplicaba NINGUNO de los
+        // rechazos duros que sí aplica la ruta de búsqueda (searchFallbackPlaylist) — ni tema
+        // cristiano, ni idioma. Un LLM puede "olvidar" una instrucción del prompt igual que el
+        // buscador puede devolver ruido; el prompt a la IA (AiPlaylistPrompt) le PIDE que respete
+        // tema/idioma, pero pedir no es comprobar. requireChristian sí se puede comprobar de verdad
+        // sobre el título/artista YA RESUELTO (real, del catálogo) — mismo mecanismo que
+        // [searchFallbackPlaylist]'s christianOnly, aplicado aquí en el gate de aceptación para que
+        // el top-up de abajo compense naturalmente lo que se rechace, igual que ya hace con el
+        // artista. El idioma NO se agrega aquí: no hay una señal fiable de idioma por canción (a
+        // diferencia del tema, que SÍ tiene palabras reconocibles en título/artista) — inventar un
+        // detector de idioma sería la misma improvisación que esto existe para evitar.
+        requireChristian: Boolean,
         onResolveProgress: (done: Int, total: Int) -> Unit,
     ): List<MediaMetadata> = resolveBoundedOrdered(
         proposed = proposed,
         resolveArtistFor = { track -> soloArtist?.takeIf { it.isNotBlank() } ?: track.artist },
         resolveOne = { title, artist -> SongResolver.resolve(database, title, artist) },
-        accept = { mm -> acceptsResolvedSoloPrimary(mm, soloArtist) },
+        accept = { mm ->
+            acceptsResolvedSoloPrimary(mm, soloArtist) && (!requireChristian || looksChristianResolved(mm))
+        },
         target = target,
         concurrency = RESOLVE_CONCURRENCY,
         onResolveProgress = onResolveProgress,
     )
+
+    /** Igual que [MusicRequestMoods.looksChristian] pero sobre un [MediaMetadata] ya resuelto. */
+    private fun looksChristianResolved(mm: MediaMetadata): Boolean =
+        MusicRequestMoods.looksChristian(mm.title) || mm.artists.any { MusicRequestMoods.looksChristian(it.name) }
 
     /**
      * Pure orchestration core of [resolveBounded], with every effect injected (the project's
@@ -627,23 +659,94 @@ object AiPlaylistGenerator {
         // una llamada más — lo que cambia es que al final se puede elegir. Ver [MusicRequestRanking].
         val pool = ArrayList<SongItem>()
         val seen = HashSet<String>()
+        // Ronda 9 (dueño): pedir una canción o artista específico devolvía 20-25 copias/variantes de
+        // LA MISMA canción — distintas subidas ("Official Video", "Lyrics", "Audio")— porque el
+        // dedup solo miraba el id de YouTube, y cada subida tiene el suyo propio. Deduplicar TAMBIÉN
+        // por título normalizado + artista principal hace que dos subidas de la misma canción cuenten
+        // como una sola candidata, dejando sitio real para el resto de la cola.
+        val seenTitles = HashSet<String>()
         fun absorb(items: List<SongItem>) {
             for (item in items) {
                 if (pool.size >= POOL_TARGET) return
-                if (seen.add(item.id) && soloPrimaryMatch(item.artists.map { it.name }, soloArtist)) {
+                val titleKey = dedupKey(item.title, item.artists.firstOrNull()?.name)
+                if (seen.add(item.id) &&
+                    seenTitles.add(titleKey) &&
+                    soloPrimaryMatch(item.artists.map { it.name }, soloArtist)
+                ) {
                     pool += item
                 }
             }
         }
 
+        // Ronda 9 (dueño): "pedí reggae cristiano y me salió un artista que no es cristiano... si al
+        // final va la palabra cristiano, tiene que respetar eso sí o sí". Las listas de los peldaños
+        // 1-2 ya se verifican por TÍTULO DE LISTA ([MusicRequestMatch]/[MusicRequestMoods]) — la lista
+        // entera es la prueba, así que filtrar cada canción suya otra vez por su propio título sería
+        // incorrecto (una canción cristiana real casi nunca dice "cristiano" en su propio título).
+        // Solo los peldaños 3-4 (canciones/vídeos sueltos del buscador) no pasan por ninguna
+        // verificación hoy — ahí sí hace falta este filtro. Solo se activa si la petición lo
+        // menciona: sin la palabra, sigue sin haber ningún filtro extra ("puede poner lo que
+        // considere mejor").
+        val requireChristian = MusicRequestMoods.requiresChristianContent(prompt)
+        fun christianOnly(items: List<SongItem>): List<SongItem> =
+            if (!requireChristian) {
+                items
+            } else {
+                items.filter { item ->
+                    MusicRequestMoods.looksChristian(item.title) ||
+                        item.artists.any { MusicRequestMoods.looksChristian(it.name) }
+                }
+            }
+
+        // Peldaño -1 — LO ESPECÍFICO GANA AL GÉNERO (ronda 9, dueño: "pedí death metal más el nombre
+        // de una canción y de un artista, y reprodujo lo que quiso, no lo que pedí — quiero que
+        // entienda cuando soy específico, con cualquier género"). Sin este paso, cuando la petición
+        // también dispara [Parsed.preferPlaylists] (un género/momento reconocido), los peldaños 1-2
+        // de abajo (categoría oficial / listas genéricas) llenaban el pool ANTES de que el peldaño 3
+        // (búsqueda literal — el único que de verdad busca lo específico) llegara siquiera a correr,
+        // así que lo concreto que pidió junto al género nunca aparecía. [residualBeyondCategory] es
+        // lo que sobra de la petición tras quitar género/momento/década/idioma — si sobra algo
+        // sustancial, es la canción/artista que mencionó, y se busca y antepone antes que nada.
+        //
+        // NO se exige soloArtist == null (ronda 9, siguiente reporte del dueño: seguía sin pasar
+        // "cuando pido canciones en específico"). Nombrar un artista explícito ("de Queen") es
+        // justamente la forma más común de ser específico, y [AiPlaylistConstraints.extractSoloArtist]
+        // reconociéndolo NO debe apagar este peldaño — al revés, hacía que este mismo arreglo nunca
+        // corriera para el caso que más lo necesita: género + artista + canción, los tres juntos.
+        // residualBeyondCategory no quita nombres de artista, así que el residuo sigue teniendo la
+        // canción/artista con la que bestSpecificMatch compara.
+        val residual = MusicRequestQuery.residualBeyondCategory(prompt)
+        if (parsed.preferPlaylists && residual.length >= 3) {
+            YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                ?.items?.filterIsInstance<SongItem>()
+                ?.let { candidates -> bestSpecificMatch(residual, candidates) }
+                ?.let { absorb(christianOnly(listOf(it))) }
+        }
+
         if (parsed.preferPlaylists && soloArtist == null) {
+            // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
+            // el peldaño 1: no se le pide a la búsqueda ni a un LLM que ADIVINE qué está de moda —
+            // se piden los charts reales de YouTube Music, que es la única fuente que de verdad lo
+            // sabe. Si el usuario no pidió tendencias, esto no hace ninguna llamada de más.
+            //
+            // christianOnly aquí también (auditoría del algoritmo, ronda 9): el chart de tendencias
+            // no tiene forma de saber si pediste tema cristiano — a diferencia de una lista curada
+            // por título (peldaños 1-2), donde SÍ se confía en que el título es la prueba, un chart
+            // general no demuestra nada sobre tema. Sin la palabra clave, sigue sin filtrar nada.
+            if (parsed.trending && pool.size < POOL_TARGET) {
+                absorb(christianOnly(trendingSongs()))
+            }
+
             // Peldaño 1 — EL CATÁLOGO PROPIO DE YOUTUBE MUSIC. Sus categorías ("Años 80",
-            // "Concentración") entregan listas editoriales suyas, y ahí la categoría ES la prueba: no
-            // hace falta verificar por título porque el contenido lo garantiza la casa. Ver
-            // [MusicRequestMoods] para por qué sus palabras no coinciden con los nombres de categoría.
+            // "Concentración") entregan listas editoriales suyas, y ahí la categoría ES la prueba para
+            // década/género/momento — pickCategory ya exige que el título de la categoría los
+            // demuestre. Pero el TEMA CRISTIANO no forma parte de esa prueba salvo que exista una
+            // categoría dedicada ("Bachata Cristiana"): una categoría genérica que matcheó por
+            // género/década (p. ej. "Bachata") no garantiza que cada canción suya sea cristiana, así
+            // que christianOnly se aplica igual que en el resto de peldaños sin verificación de tema.
             moodCategoryPlaylists(prompt, parsed).take(PLAYLISTS_USED).forEach { pl ->
                 if (pool.size < POOL_TARGET) {
-                    YouTube.playlist(pl.id).getOrNull()?.songs?.let { absorb(it) }
+                    YouTube.playlist(pl.id).getOrNull()?.songs?.let { absorb(christianOnly(it)) }
                 }
             }
 
@@ -658,7 +761,8 @@ object AiPlaylistGenerator {
                 YouTube.search(query, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST).getOrNull()
                     ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)
                     ?.let { candidates += it }
-                MusicRequestMatch.rankedIndices(candidates.map { it.title }, parsed)
+                val conceptGroups = MusicRequestMoods.conceptGroupsFor(prompt, parsed)
+                MusicRequestMatch.rankedIndices(candidates.map { it.title }, parsed, conceptGroups)
                     .take(PLAYLISTS_USED)
                     .forEach { index ->
                         if (pool.size < POOL_TARGET) {
@@ -671,33 +775,58 @@ object AiPlaylistGenerator {
         // Peldaño 3 — canciones sueltas del buscador.
         if (pool.size < POOL_TARGET) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
-                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
         }
         // Peldaño 4 — los VÍDEOS son lo menos fiable (recopilaciones de una hora, versiones de
         // aficionado): en una petición de época o momento solo se tocan si no hay NADA.
         val videosAllowed = if (parsed.preferPlaylists) pool.isEmpty() else pool.size < target
         if (videosAllowed) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
-                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
         }
         // Red de seguridad: si la consulta construida no dio nada, se prueba su petición TAL CUAL.
         if (pool.isEmpty() && query != prompt.trim().take(80)) {
             YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
-                ?.items?.filterIsInstance<SongItem>()?.let { absorb(it) }
+                ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
         }
+
+        // Peldaño 5 — MÁS DEL MISMO ARTISTA (ronda 9, dueño: "si pido una canción o artista
+        // específico, que la cola que sigue no sean 20-25 copias con el mismo nombre — que sea más
+        // del mismo artista o género relacionado, para que se sienta inteligente"). Una búsqueda de
+        // UNA canción/artista concretos no arrastra tantos resultados distintos como un género — el
+        // pool queda corto — y lo poco que sí aparece es casi todo del MISMO artista: exactamente la
+        // señal de que era eso lo que pidió. En vez de dejar que [MusicRequestRanking] rellene
+        // REPITIENDO lo poco que hay, se completa con más canciones REALES de ese mismo artista.
+        if (pool.size < target) {
+            dominantArtist(pool)?.let { artist ->
+                YouTube.search(artist, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                    ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
+            }
+        }
+
+        // Ronda 2, punto 1 del dueño: pedir el mismo prompt dos veces por separado no puede devolver la
+        // MISMA lista — MusicRequestRanking.pick es determinístico a propósito dentro de una llamada
+        // (eso es correcto), así que lo que cambia es el POOL que le llega: se excluye lo servido
+        // recientemente por esta misma función antes de elegir. "Nunca vacío" se respeta igual que en
+        // pick(): si excluir dejara menos candidatas que target, se readmite lo necesario — mejor
+        // repetir alguna que devolver una lista corta.
+        val fresh = pool.filterNot { MusicRequestRecents.isRecent(it.id) }
+        val poolForRanking = if (fresh.size >= target) fresh else pool
 
         // Y ahora se elige: orden de origen como esqueleto, el gusto empuja unos puestos, lo marcado
         // con "No me gusta" se cae y no hay dos seguidas del mismo artista. Sin perfil ([taste] null)
         // el empujón es cero y esto devuelve exactamente el orden de origen.
-        return MusicRequestRanking.pick(
-            candidates = pool,
+        val picked = MusicRequestRanking.pick(
+            candidates = poolForRanking,
             target = target,
             artistOf = { it.artists.firstOrNull()?.name },
             tasteOf = { item ->
                 taste?.scoreNames(item.artists.map { a -> a.name }, item.title) ?: 0.0
             },
             avoidScore = iad1tya.echo.music.reco.TasteProfile.AVOID,
-        ).map { it.toMediaMetadata() }
+        )
+        MusicRequestRecents.markServed(picked.map { it.id })
+        return picked.map { it.toMediaMetadata() }
     }
 
     /**
@@ -729,6 +858,19 @@ object AiPlaylistGenerator {
         val endpoint = items[index].endpoint
         val browse = YouTube.browse(endpoint.browseId, endpoint.params).getOrNull() ?: return emptyList()
         return browse.items.flatMap { it.items }.filterIsInstance<PlaylistItem>()
+    }
+
+    /**
+     * Las canciones de las secciones TRENDING/TOP de los charts reales de YouTube Music — ver
+     * [MusicRequestQuery.Parsed.trending]. Vacío si la petición no pidió tendencias, si los charts no
+     * responden, o si esa sección no trae canciones sueltas (a veces son álbumes/artistas).
+     */
+    private suspend fun trendingSongs(): List<SongItem> {
+        val charts = YouTube.getChartsPage().getOrNull() ?: return emptyList()
+        return charts.sections
+            .filter { it.chartType == ChartsPage.ChartType.TRENDING || it.chartType == ChartsPage.ChartType.TOP }
+            .flatMap { it.items }
+            .filterIsInstance<SongItem>()
     }
 
     private fun filterTracksForSoloArtist(
@@ -778,5 +920,59 @@ object AiPlaylistGenerator {
         // still a primary credit, not a guest feature.
         return names.size <= MAX_PRIMARY_CREDITS + 1 &&
             names.any { SongResolver.artistMatches(it, soloArtist) }
+    }
+
+    /**
+     * Ronda 9 (dueño): pedir una canción o artista específico llenaba la cola con 20-25 copias de LA
+     * MISMA canción — distintas subidas de YouTube ("Official Video", "Lyrics", "Audio Oficial"…)
+     * cada una con su propio id, así que el dedup por id no las agarraba. Clave de dedup pura:
+     * título normalizado (sin paréntesis/corchetes ni puntuación) + artista principal en minúsculas.
+     */
+    internal fun dedupKey(title: String, primaryArtist: String?): String {
+        val normTitle = title.lowercase()
+            .replace(Regex("""[(\[][^)\]]*[)\]]"""), " ")
+            .replace(Regex("""[^\p{L}\p{N}\s]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+        val normArtist = primaryArtist?.lowercase()?.trim().orEmpty()
+        return "$normTitle|$normArtist"
+    }
+
+    /**
+     * Ronda 9 (dueño): ver el peldaño 5 de [searchFallbackPlaylist]. El artista principal más común
+     * en [items], o null si ninguno domina claramente (menos de la mitad) — sin dominancia clara no
+     * hay señal fiable de que la petición fuera de un artista concreto, y no se inventa una.
+     */
+    internal fun dominantArtist(items: List<SongItem>): String? {
+        if (items.isEmpty()) return null
+        val counts = items.mapNotNull { it.artists.firstOrNull()?.name }
+            .groupingBy { it }.eachCount()
+        val leader = counts.entries.maxByOrNull { it.value } ?: return null
+        return leader.key.takeIf { leader.value.toDouble() / items.size >= 0.5 }
+    }
+
+    /**
+     * Ronda 9 (dueño): ver el peldaño -1 de [searchFallbackPlaylist]. El primer candidato cuyo
+     * título + artista demuestra la MAYORÍA (≥60%, tolera una palabra de ruido suelta) de las
+     * palabras de [residual] — lo que pidió más allá del género/momento/década — o null si ninguno
+     * la demuestra lo bastante como para confiar en que es justo eso.
+     */
+    internal fun bestSpecificMatch(residual: String, candidates: List<SongItem>): SongItem? {
+        // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): antes se partía SOLO
+        // por espacios y se comparaba por subcadena cruda (`hay.contains(it)`), así que "queen,
+        // bohemian rhapsody" (la coma pegada al residuo) nunca calzaba palabra por palabra, y una
+        // palabra corta del residuo podía matchear dentro de OTRA palabra del candidato sin ser la
+        // misma (p. ej. "amor" dentro de "amoroso"). Partir por cualquier separador que no sea letra/
+        // dígito limpia la puntuación, y comparar por límite de palabra (mismo patrón que ya usa
+        // MusicRequestMoods.containsToken) evita el falso positivo por subcadena.
+        val words = residual.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length > 2 }
+        if (words.isEmpty()) return null
+        return candidates.firstOrNull { candidate ->
+            val hay = "${candidate.title} ${candidate.artists.joinToString(" ") { it.name }}".lowercase()
+            val hits = words.count { w ->
+                Regex("(?<![\\p{L}\\p{N}])${Regex.escape(w)}(?![\\p{L}\\p{N}])").containsMatchIn(hay)
+            }
+            hits.toDouble() / words.size >= 0.6
+        }
     }
 }

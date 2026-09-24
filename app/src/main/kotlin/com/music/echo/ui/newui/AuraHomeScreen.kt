@@ -1476,6 +1476,10 @@ private fun AuraGroupedYtItemShelves(
                                     isPlaying = isPlaying,
                                     onClick = { onClick(item) },
                                     onLongClick = { onLongClick(item) },
+                                    // Ronda 5: transición hero, solo álbum, solo desde Inicio.
+                                    imageModifier = if (item is AlbumItem) {
+                                        Modifier.auraSharedAlbumCoverElement(item.id)
+                                    } else Modifier,
                                 )
                             }
                         }
@@ -1489,6 +1493,9 @@ private fun AuraGroupedYtItemShelves(
                                     isPlaying = isPlaying,
                                     onClick = { onClick(item) },
                                     onLongClick = { onLongClick(item) },
+                                    imageModifier = if (item is AlbumItem) {
+                                        Modifier.auraSharedAlbumCoverElement(item.id)
+                                    } else Modifier,
                                 )
                             }
                         }
@@ -1797,6 +1804,8 @@ internal fun AuraTypedYtCoverCard(
     onLongClick: (() -> Unit)? = null,
     badge: (@Composable BoxScope.() -> Unit)? = null,
     fillBleed: Boolean = true,
+    /** Ver [AuraCoverCard.imageModifier]. */
+    imageModifier: Modifier = Modifier,
 ) {
     // Premium identity from [auraTypeVisual]: Apple release sizes + YTM 16:9 videos / soft playlists.
     val visual = auraTypeVisual(item)
@@ -1816,6 +1825,7 @@ internal fun AuraTypedYtCoverCard(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier,
+        imageModifier = imageModifier,
         fillBleed = fillBleed,
         decodeTo = decodeTo,
         badge = {
@@ -1895,9 +1905,10 @@ private fun auraLocalThumbnail(item: LocalItem): String? = when (item) {
     is Playlist -> item.playlist.thumbnailUrl
 }
 
-/** Initial / mood-chip loading: cover shelf placeholders matching typed album width. */
+/** Initial / mood-chip loading: cover shelf placeholders matching typed album width. Also reused by
+ *  AuraNovedadesScreen for its own initial-load skeleton — same shelf shape, so `internal`. */
 @Composable
-private fun AuraHomeShelfSkeleton(cardScale: Float) {
+internal fun AuraHomeShelfSkeleton(cardScale: Float) {
     val cover = 156.dp * cardScale
     Column(
         modifier = Modifier

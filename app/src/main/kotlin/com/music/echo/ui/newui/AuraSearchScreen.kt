@@ -672,6 +672,24 @@ internal fun rememberAuraVoiceSearch(
                         )
                         putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                        // Owner report: dictation (both the search bar and "pedir música") cuts off
+                        // mid-sentence. The OS defaults to a short silence timeout tuned for a single
+                        // word/short phrase; a request like "reggae de los 90 para hacer ejercicio" has
+                        // natural pauses that were reading as "done talking". These extras are optional
+                        // by contract (RecognizerIntent docs) — a recognizer that ignores them just keeps
+                        // its own default, so this never breaks a device that doesn't support it.
+                        putExtra(
+                            RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                            3000L,
+                        )
+                        putExtra(
+                            RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                            1500L,
+                        )
+                        putExtra(
+                            RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,
+                            15000L,
+                        )
                     },
                 )
             } catch (e: Exception) {

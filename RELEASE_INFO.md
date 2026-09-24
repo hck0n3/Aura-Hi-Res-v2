@@ -1,44 +1,106 @@
-# Aura Hi-Res v2.0.48 — La cola no se desvía, el vídeo no se cuelga y pedir música funciona
+# Aura Hi-Res v2.0.59 — Discografías completas, pedir música más preciso y deslizar rediseñado
 
-Actualización para todos, encima de la 2.0.43. Conserva tus datos, tu sesión y tus ajustes: mismo
-paquete y misma firma. Recoge cuatro rondas de pruebas.
-
-## Reproducción
-
-- **La cola de un álbum ya no se llena de canciones ajenas.** Saltar a mano hasta la última canción metía ahí mismo una tanda de música de otros artistas. Con el aleatorio encendido podía pasar habiendo escuchado tres canciones de quince. Ahora el álbum se mantiene entero y la cola infinita entra solo cuando de verdad termina.
-- **El vídeo ya no se cuelga.** Al fallar el formato había un bucle de reintentos que no paraba nunca. Hay un tope de intentos por canción que no se reinicia, así que el bucle es imposible; cuando se agotan, audio y listo.
-- **Las playlists de solo vídeo avanzan como una cola.** Antes cada "siguiente" salía de modo vídeo. Ahora vídeo pasa a vídeo, y una canción sin vídeo sigue bajando a audio.
-- **Las canciones ya no empiezan cortadas** al cambiar a mano ni en Android Auto.
-- **"No me gusta" le enseña al algoritmo.** Antes solo escondía filas: por dentro, un artista que marcabas después de escucharlo mucho conservaba toda su puntuación y seguía saliendo como favorito en la radio, en Inicio y en el aleatorio inteligente.
+Actualización para todos, encima de la 2.0.48. Conserva tus datos, tu sesión y tus ajustes: mismo
+paquete y misma firma. Recoge doce rondas de pruebas y reportes.
 
 ## Pedir música
 
-- **Busca donde busca YouTube Music.** Para una época o un momento entra por el catálogo oficial de categorías de YouTube Music ("Años 80", "Concentración", "Entrenamiento") y usa sus listas editoriales: ahí no hace falta adivinar, la categoría garantiza el contenido. Si tu petición no cae claramente en ninguna, busca listas y solo acepta las que demuestran por título que corresponden.
-- **Y son tus canciones, no las de cualquiera.** Junta unas sesenta candidatas y elige diez con tu propio historial: la curación de la lista manda, pero lo que ya escuchas adelanta puestos, lo que marcaste con "No me gusta" se cae y no salen dos seguidas del mismo artista. En una instalación nueva, sin historial, el resultado es exactamente el orden de la lista.
-- **Le describes lo que quieres y suena.** "Música de los 80s", "algo para el gimnasio", "éxitos en inglés": entiende la década (en cifras o en letra), el idioma y las muletillas, y traduce tu frase a lo que el buscador de YouTube Music premia de verdad.
-- **No improvisa.** Para una época o un momento busca listas, pero solo acepta una si su título demuestra que corresponde a lo que pediste; si ninguna lo demuestra, busca canciones. Los vídeos son el último recurso.
-- **Responde en segundos**, y las diez canciones que devuelve son la semilla de la cola infinita: cuando se acaban, la continuación inteligente sigue con el mismo algoritmo.
-- **Identificar una canción es más rápido y acierta más.** Antes grababa 10 segundos y hacía una sola consulta; ahora consulta a los 3, 5, 8 y 12 segundos sin dejar de grabar y se queda con el primer acierto.
+- **Reproduce de inmediato y completa la lista en segundo plano.** Arranca con un primer lote chico
+  apenas está listo, y sigue completando hasta 25 canciones sin que tengas que esperar — la cola
+  infinita hereda el estilo de esas 25, con transición suave (crossfade) al sumarlas.
+- **Le describís lo que querés y suena.** Entiende década (en cifras o en letra), idioma, género suelto
+  ("reggaetón", "bossa nova", "bachata"…) y estado de ánimo, y busca por el catálogo oficial de
+  categorías/listas editoriales de YouTube Music en vez de improvisar. Cuando pedís dos cosas a la vez
+  ("reggae de los 90", "bachata cristiana", "trap cristiano en inglés") las dos tienen que cumplirse, no
+  alcanza con una — y si la IA responde, también se verifica que de verdad cumpla lo pedido, no solo se
+  le pide que lo haga.
+- **Pedir una canción o artista específico ya no llena la cola con copias de lo mismo.** Distintas
+  subidas de la misma canción ("Video Oficial", "Lyrics", "Audio") cuentan como la misma; lo específico
+  le gana siempre al género, incluso cuando también nombrás el artista explícitamente; y reconoce
+  negaciones ("no solo X", "no quiero canciones de X") para no bloquear por error al artista que
+  pediste no limitar.
+- **Son tus canciones, no las de cualquiera.** El orden de la lista de origen manda, pero tu gusto (por
+  artista y por género) empuja lo que ya escuchás, lo marcado "No me gusta" se cae, y no salen dos
+  seguidas del mismo artista.
+- **No repite las mismas canciones en peticiones seguidas**, y un chip con tus últimas peticiones deja
+  repetir una con un toque. "Lo que suena ahora" responde con los charts reales de tendencias.
+- **Dictado por voz** que ya no se corta a medio hablar, con el mismo cristal translúcido que el resto
+  de las ventanas.
 
-## Biblioteca y descargas
+## Discografía de artista
 
-- **Descarga automática por lista.** Un interruptor en el menú de cada lista: descarga lo que tiene y todo lo que le añadas después, venga de donde venga. Apagarlo no borra nada.
-- **Modo sin conexión automático.** Sin red, Inicio, Novedades, Biblioteca y Buscar pasan solos a lo descargado y vuelven solos al recuperarla. No toca tu interruptor manual, y se puede apagar en Ajustes → Contenido.
-- **La sincronización con tu cuenta llega hasta el final** aunque cierres la app, con una notificación silenciosa mientras trabaja.
+- **Discografías más completas**, incluso en catálogos grandes (topes de reparación más altos: 150
+  álbumes / 250 lanzamientos) y cuando YouTube no da la lista completa de una sección — se completa
+  contra iTunes/Apple Music también en esos casos.
+- **Álbumes y Sencillos/EPs ya no se mezclan ni se duplican entre las dos pantallas**, y el orden ahora
+  sigue el de iTunes/Apple Music (más nuevo primero).
+
+## Deslizar canciones
+
+- **Me gusta y no me gusta deslizando**, en tus propias playlists y también en álbumes, singles de
+  artista y playlists ajenas donde no podés borrar: un lado alterna me-gusta/no-me-gusta según el
+  estado real de la canción, el otro abre "agregar a una playlist". Con vibración corta al cruzar el
+  punto de activación.
+- **Borrar de tu playlist con deshacer**, y la papelera se ve progresivamente mientras deslizás (no
+  solo al final).
+
+## Reproducción
+
+- **La cola de un álbum ya no se corta ni se llena de canciones ajenas.** Se compara cuántas canciones
+  hay guardadas contra las que el álbum realmente tiene antes de darlo por completo, y saltar a mano
+  hasta el final ya no dispara la cola infinita antes de tiempo.
+- **El vídeo ya no se cuelga** (tope de reintentos que no se reinicia) y **las playlists de solo vídeo
+  avanzan como una cola** en vez de salir siempre en modo vídeo.
+- **Ya no arranca solo al volver de otra app** (TikTok y similares) tras quedar pausada por una
+  interrupción de audio.
+- **Modo sin conexión: sigue solo de verdad.** En cuanto se detecta que no hay red real (antes tardaba
+  15-30s en rendirse, o directamente fallaba con wifi activo aunque estuviera conectado), la cola salta
+  al instante a lo que ya está descargado, cacheado o escuchado antes.
+- **"No me gusta" le enseña al algoritmo** de verdad (radio, Inicio, aleatorio inteligente), no solo
+  esconde filas.
+- **La cola vuelve a resumir tras una actualización**, y "Siguiente" muestra un indicador de carga en
+  vez de parecer congelado al entrar a la cola infinita.
+
+## Enlaces externos
+
+- **Un link de Spotify, Amazon Music u otro ya no dice "no encontrado" cuando el contenido sí está en
+  YouTube Music.** Se agregó Odesli/song.link para resolver el id exacto cuando existe mapeo conocido;
+  el mismo User-Agent de vista previa (Facebook/Twitter/Discord) que ya funcionaba para unos sitios
+  ahora cubre también Amazon Music, SoundCloud y Tidal; los artistas invitados se comparan uno por uno
+  en vez de como una sola cadena (mejora mucho reggaetón y bachata); y un link de Amazon Music de una
+  sola canción ya no se busca como si fuera el álbum entero.
+
+## Novedades y recomendaciones
+
+- **El radar de Novedades ordena por lo que más te gusta**, no solo por si seguís al artista, con un
+  esqueleto de carga mientras llega. Arreglado un caso raro donde podía vaciarse por un fallo parcial de
+  red aunque tuviera una lista buena guardada.
+- **"Recomendado para ti (IA)" ya respeta "No me gusta"** — era la única fuente de recomendaciones de
+  toda la app que no lo hacía.
+- **Una playlist de Spotify agregada por enlace (como el propio Radar) ahora sí se sincroniza de
+  verdad**, en vez de decir "sincronizado" sin traer nada nuevo.
 
 ## Interfaz
 
-- **Atajo a Inicio dentro del minirreproductor**, al final de los controles, solo donde la barra de abajo está oculta. El título se compacta animado para hacerle sitio y vuelve a la normalidad al desaparecer.
-- **Los botones del minirreproductor responden siempre**: encima de ellos hay dos gestos de arrastre que les robaban el toque en cuanto el dedo se movía unos píxeles.
-- **El botón de salida de audio responde al primer toque** y ya no cambia de canción cuando insistes.
-- **Portadas de álbum y de playlist a todo el ancho**, con cristal borroso progresivo.
-- **Tocar el nombre de un artista** abre justo debajo "Ver álbum" y "Ver artista".
-- **Botón de compartir** en el reproductor a pantalla completa.
-- **Las ventanas que suben desde abajo miden lo que mide su contenido**, en vez de subir siempre al 85 % de la pantalla.
-- **Novedades sin estantes de una sola tarjeta** y sin la categoría que repetía contenido de Inicio.
-- **El botón de descarga de las listas vive en el menú de tres puntos**, donde ya estaba la misma función.
+- **El botón de Cast responde siempre al primer toque**, con área de contacto de 48dp.
+- **Un álbum que ya viste en esta sesión abre al instante** la segunda vez.
+- **Transición animada** al abrir un álbum desde Inicio.
+- **Atajo a Inicio en el minirreproductor**, botones que ya no pierden el toque contra los gestos de
+  arrastre, botón de salida de audio que responde al primer toque, portadas a todo el ancho, menú de
+  "Ver álbum/Ver artista" al tocar un nombre, botón de compartir en el reproductor completo, y ventanas
+  que suben desde abajo con el alto de su propio contenido.
 
 ## Escuchar juntos
 
-- Sincronización al estilo Sonos/AirPlay: el invitado se alinea estirando el tiempo un 2 % como mucho, sin saltos ni cortes.
-- Cada teléfono descuenta lo que su propio altavoz o su Bluetooth retrasan.
+- **Menos desajuste en canciones largas**: además de los eventos de cambio de canción/pausa/salto, ahora
+  se revisa la posición cada 15 segundos mientras suena.
+
+## Ecualizador
+
+- **Mover una banda ya no cambia el volumen general.** Era "Headroom automático", que ahora viene
+  apagado por defecto (sigue disponible en Ajustes → Sonido para quien lo quiera).
+
+## Batería
+
+- Se quitó una escritura periódica a disco (aleatorio mejorado) cuyo dato nunca se llegaba a leer de
+  vuelta — trabajo real sin ningún efecto, ahora eliminado.

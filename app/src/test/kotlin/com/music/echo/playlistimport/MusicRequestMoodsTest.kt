@@ -1,6 +1,7 @@
 package iad1tya.echo.music.playlistimport
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,6 +51,29 @@ class MusicRequestMoodsTest {
         assertEquals(catalogo.indexOf("Años 80"), pick("música de los 80 para el gimnasio"))
     }
 
+    /**
+     * Ronda 9 (dueño): "reggae de los 90" traía "Éxitos de los 90" genéricos — la rama de década
+     * ignoraba el género por completo. Ahora, si además hay un género reconocido, la categoría tiene
+     * que demostrar los dos a la vez, igual que ya exigía la otra rama para género+tema.
+     */
+    @Test
+    fun `a decade plus genre request needs a category that proves both`() {
+        val soloDecada = listOf("Años 90", "Reggaetón", "Salsa")
+        val prompt = "reggae de los 90"
+        assertNull(MusicRequestMoods.pickCategory(soloDecada, prompt, MusicRequestQuery.build(prompt)))
+
+        val conAmbos = listOf("Años 90", "Reggae de los 90", "Salsa")
+        assertEquals(
+            conAmbos.indexOf("Reggae de los 90"),
+            MusicRequestMoods.pickCategory(conAmbos, prompt, MusicRequestQuery.build(prompt)),
+        )
+    }
+
+    @Test
+    fun `a decade without a genre still ignores the moment, unaffected by the genre fix`() {
+        assertEquals(catalogo.indexOf("Años 80"), pick("música de los 80 para el gimnasio"))
+    }
+
     @Test
     fun `a decade the catalogue does not have picks nothing`() {
         // No se cae a otra categoría: daría una lista de otra cosa. Sin categoría, se busca.
@@ -68,6 +92,64 @@ class MusicRequestMoodsTest {
     fun `an empty catalogue is handled`() {
         val prompt = "música para estudiar"
         assertNull(MusicRequestMoods.pickCategory(emptyList(), prompt, MusicRequestQuery.build(prompt)))
+    }
+
+    /**
+     * Ronda 7 (dueño): "si pongo reggaetón me pone canciones que llevan el nombre de reggaetón en el
+     * título — es una búsqueda estúpida". Un género suelto ahora también cae en su propia categoría.
+     */
+    @Test
+    fun `a genre lands on its own category`() {
+        val withGenres = listOf("Reggaetón", "Salsa", "Bossa Nova", "Rock")
+        val reggaeton = "reggaeton"
+        assertEquals(
+            withGenres.indexOf("Reggaetón"),
+            MusicRequestMoods.pickCategory(withGenres, reggaeton, MusicRequestQuery.build(reggaeton)),
+        )
+        val bossanova = "bossanova"
+        assertEquals(
+            withGenres.indexOf("Bossa Nova"),
+            MusicRequestMoods.pickCategory(withGenres, bossanova, MusicRequestQuery.build(bossanova)),
+        )
+    }
+
+    /**
+     * Ronda 9 (dueño): "bachata cristiana" caía en la categoría "Bachata" a secas — ahora tiene que
+     * demostrar género Y tema a la vez, o no elige categoría (la escalera sigue por la búsqueda).
+     */
+    @Test
+    fun `a genre plus theme request needs a category that proves both`() {
+        val soloGenero = listOf("Bachata", "Salsa", "Rock")
+        val prompt = "bachata cristiana"
+        assertNull(MusicRequestMoods.pickCategory(soloGenero, prompt, MusicRequestQuery.build(prompt)))
+
+        val conAmbos = listOf("Bachata", "Bachata Cristiana", "Salsa")
+        assertEquals(
+            conAmbos.indexOf("Bachata Cristiana"),
+            MusicRequestMoods.pickCategory(conAmbos, prompt, MusicRequestQuery.build(prompt)),
+        )
+    }
+
+    /**
+     * Ronda 9 (dueño): "reggae cristiano" ponía artistas que no son cristianos — [requiresChristianContent]
+     * / [looksChristian] son el filtro duro que aplica el generador a canciones sueltas sin verificar
+     * (ver AiPlaylistGenerator). Solo se activa cuando la petición lo menciona explícitamente.
+     */
+    @Test
+    fun `christian content detection only fires when the word is actually requested`() {
+        assertTrue(MusicRequestMoods.requiresChristianContent("reggae cristiano"))
+        assertTrue(MusicRequestMoods.requiresChristianContent("trap cristiano en ingles"))
+        assertTrue(MusicRequestMoods.requiresChristianContent("gospel music"))
+        assertFalse(MusicRequestMoods.requiresChristianContent("reggae"))
+        assertFalse(MusicRequestMoods.requiresChristianContent("bachata romantica"))
+    }
+
+    @Test
+    fun `looksChristian matches the recognizable signal words`() {
+        assertTrue(MusicRequestMoods.looksChristian("Reggae Cristiano Mix"))
+        assertTrue(MusicRequestMoods.looksChristian("Grupo Alabanza y Adoracion"))
+        assertFalse(MusicRequestMoods.looksChristian("Bad Bunny"))
+        assertFalse(MusicRequestMoods.looksChristian("Reggae Romantico"))
     }
 
     @Test

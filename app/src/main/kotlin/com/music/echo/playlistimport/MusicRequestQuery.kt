@@ -32,6 +32,13 @@ object MusicRequestQuery {
         val decade: String? = null,
         /** "en" (inglés), "es" (español) o null si no lo dijo. */
         val language: String? = null,
+        /**
+         * Ronda 6 (dueño): pidió "lo que suena ahora"/tendencias. La fuente que corresponde no es
+         * buscar ni pedirle a un LLM que adivine qué está de moda — es la sección TRENDING/TOP real
+         * de YouTube Music ([AiPlaylistGenerator.trendingSongs]), la misma filosofía de "la categoría
+         * ES la prueba" que ya usa [MusicRequestMoods] para época/momento.
+         */
+        val trending: Boolean = false,
     )
 
     /** Muletillas de petición: no aportan nada a una búsqueda y sí ensucian la frase. */
@@ -71,6 +78,60 @@ object MusicRequestQuery {
         "para el gimnasio", "para entrenar", "para trabajar", "para la fiesta", "para manejar",
         "para conducir", "para cocinar", "para leer", "de fondo", "para bailar",
         "to study", "to sleep", "to run", "for the gym", "to focus", "workout",
+        // Ronda 9 (dueño, auditoría del algoritmo): "música romántica"/"canciones tristes" no
+        // activaban preferPlaylists aunque MusicRequestMoods.FAMILIES sí reconoce esas dos familias
+        // ("Romance", "Sad") — la petición caía directo a búsqueda de texto libre sin curar, sin que
+        // ningún filtro la volviera a comprobar después. Mismas palabras que disparan esas familias.
+        "triste", "bajon", "melancol", "desamor", "sad",
+        "romantic", "romantica", "romantico", "amor", "cita", "love",
+    )
+
+    /** "lo que suena ahora" / tendencias — ver [Parsed.trending]. */
+    private val TREND_HINTS = listOf(
+        "lo que suena ahora", "lo mas escuchado", "lo mas sonado", "tendencias", "tendencia",
+        "lo mas popular ahora", "top actual", "top del momento", "lo nuevo y popular",
+        "trending", "what's popular", "whats popular", "popular right now", "popular now",
+    )
+
+    /**
+     * Ronda 7 (dueño): un género suelto ("reggaeton", "bossa nova") no activaba [Parsed.preferPlaylists],
+     * así que nunca pasaba por las categorías oficiales de YouTube Music ([MusicRequestMoods]) — caía
+     * directo a una búsqueda de texto libre sin ninguna verificación de género. Mismas palabras que
+     * disparan [MusicRequestMoods]'s tabla de géneros (mantenidas en sync a mano, mismo espíritu que
+     * [MOMENT_HINTS] duplica los disparadores de [MusicRequestMoods.FAMILIES] hoy).
+     */
+    private val GENRE_HINTS = listOf(
+        "reggaeton", "reggaetón", "perreo", "dembow", "salsa", "bachata", "merengue", "rock", "pop",
+        "bossa nova", "bossanova", "bosanova", "jazz", "cumbia", "vallenato", "banda", "mariachi",
+        "ranchera", "corridos", "corrido", "trap", "hip hop", "hiphop", "electronica", "electrónica",
+        "edm", "house", "techno", "metal", "punk", "k-pop", "kpop", "r&b", "rnb", "flamenco",
+        "country", "blues", "indie", "funk", "soul", "reggae", "disco", "tango", "bolero", "gospel",
+        // Ronda 9 (dueño): "death metal" — subgéneros de dos palabras que antes solo matcheaban por
+        // la palabra genérica ("metal"), dejando la otra mitad ("death") como ruido suelto en
+        // [residualBeyondCategory] y contaminando la detección de "esto es específico".
+        "death metal", "black metal", "thrash metal", "power metal", "heavy metal", "doom metal",
+        "nu metal", "metalcore", "hardcore", "emo",
+        // Ronda 9 (dueño, auditoría del algoritmo): "música cristiana"/"quiero alabanza"/"worship" no
+        // disparaban preferPlaylists — MusicRequestMoods.GENRE_FAMILIES/CHRISTIAN_TRIGGERS sí las
+        // reconoce ("gospel" ya estaba aquí, pero no sus sinónimos), así que la petición se saltaba
+        // moodCategoryPlaylists por completo y caía a búsqueda sin curar.
+        "cristiana", "cristiano", "alabanza", "worship",
+    )
+
+    /**
+     * Palabras que sobran del residuo tras quitar década/idioma: no dicen nada de género/tema. Mismo
+     * espíritu que MusicRequestMatch.STOP_WORDS (palabras de relleno que no cuentan como contenido),
+     * pero corta aparte porque este filtro corre ANTES de tener un [Parsed] con el que llamar a esa
+     * clase.
+     */
+    private val CONNECTOR_WORDS = setOf(
+        "de", "del", "en", "los", "las", "el", "la", "lo", "the", "of", "and", "y", "a", "to", "an",
+        "un", "una", "para", "por", "con",
+        "años", "anos", "año", "ano",
+        "musica", "canciones", "songs", "playlist", "lista",
+        // Palabras de recopilación (mismo espíritu que MusicRequestMatch.COMPILATION_WORDS): "éxitos
+        // de los 2000" no debe leer "exitos" como si fuera el género que pidió.
+        "exitos", "hits", "mejor", "best", "greatest", "clasicos", "classics", "mix", "top",
     )
 
     fun build(prompt: String): Parsed {
@@ -87,24 +148,111 @@ object MusicRequestQuery {
             else -> null
         }
         val moment = MOMENT_HINTS.any { withoutLeadIn.contains(it) }
+        val trending = TREND_HINTS.any { withoutLeadIn.contains(it) }
+        // Ronda 7: un género suelto también prefiere listas — ver GENRE_HINTS arriba.
+        val genreHint = GENRE_HINTS.any { withoutLeadIn.contains(it) }
+
+        // Ronda 6 (dueño): "reggae de los 90" perdía "reggae" por completo — la petición se
+        // reemplazaba entera por la plantilla fija "exitos de los 90". Lo que queda de la frase tras
+        // quitar la década y las pistas de idioma es el género/tema que sí pidió; si no queda nada
+        // (petición de década pura, "música de los 80"), el comportamiento es exactamente el de antes.
+        val genre = if (decade != null) residualGenre(withoutLeadIn, decade) else null
 
         val query = when {
-            // Década: la forma que el buscador premia, en el idioma que él pidió. Con idioma inglés
-            // "80s hits" trae los éxitos anglosajones; sin idioma, "éxitos de los 80" ya trae la
-            // mezcla que espera quien escribe en español.
+            // Década + género: se conserva lo que pidió, con el sufijo que el buscador premia.
+            decade != null && !genre.isNullOrBlank() && language == "en" ->
+                "$genre ${decadeLabel(decade)}s hits english"
+            decade != null && !genre.isNullOrBlank() && language == "es" ->
+                "$genre exitos de los ${decadeLabel(decade)} en espanol"
+            decade != null && !genre.isNullOrBlank() ->
+                "$genre exitos de los ${decadeLabel(decade)}"
+            // Década sola: la forma que el buscador premia, en el idioma que él pidió. Con idioma
+            // inglés "80s hits" trae los éxitos anglosajones; sin idioma, "éxitos de los 80" ya trae
+            // la mezcla que espera quien escribe en español.
             decade != null && language == "en" -> "${decadeLabel(decade)}s hits english"
             decade != null && language == "es" -> "exitos de los ${decadeLabel(decade)} en espanol"
             decade != null -> "exitos de los ${decadeLabel(decade)}"
-            // Sin década: su propia petición, sin muletillas. Nunca peor que mandar la frase entera.
+            // Ronda 9 (dueño): "trap cristiano en inglés" mandaba la frase TAL CUAL, con "en ingles"
+            // como texto literal — el buscador no lo lee como un filtro de idioma, así que no sesgaba
+            // el resultado en absoluto (ya se resolvía para década sola / década+género; sin década
+            // se quedaba sin arreglar). Mismo tratamiento: se quita la pista cruda y se añade el
+            // sufijo que el buscador sí entiende.
+            language == "en" -> "${stripLanguageHint(withoutLeadIn)} english".trim()
+            language == "es" -> "${stripLanguageHint(withoutLeadIn)} en espanol".trim()
+            // Sin década ni idioma: su propia petición, sin muletillas. Nunca peor que mandar la
+            // frase entera.
             else -> withoutLeadIn
         }
 
         return Parsed(
             query = query.trim().take(80),
-            preferPlaylists = decade != null || moment,
+            preferPlaylists = decade != null || moment || trending || genreHint,
             decade = decade,
             language = language,
+            trending = trending,
         )
+    }
+
+    /**
+     * Lo que sobra de [text] tras quitar la mención de [decade] (cifras o palabra) y las pistas de
+     * idioma — el género o tema que pidió junto con la década, o cadena vacía si no pidió nada más.
+     */
+    private fun residualGenre(text: String, decade: String): String {
+        var stripped = text
+        // Probar TODAS las palabras que nombran esta década (no solo la primera del mapa): "seventies
+        // rock" no contiene "setenta", así que quedarse con una sola entrada dejaba "seventies" sin
+        // quitar y el residuo entero se tomaba por género. Por PALABRA COMPLETA, no subcadena: "ochenta"
+        // es un prefijo de "ochentas" y un replace ingenuo dejaba una "s" suelta como residuo falso.
+        DECADE_WORDS.entries.filter { it.value == decade }.forEach { (word, _) ->
+            stripped = stripped.replace(Regex("""\b${Regex.escape(word)}\b"""), " ")
+        }
+        stripped = DECADE_DIGITS.replace(stripped) { m ->
+            if (m.groupValues[2] == decade) " " else m.value
+        }
+        stripped = stripLanguageHint(stripped)
+        return stripped.split(Regex("\\s+"))
+            .filter { it.isNotBlank() && it !in CONNECTOR_WORDS }
+            .joinToString(" ")
+            .trim()
+    }
+
+    /**
+     * Ronda 9 (dueño): "pedí death metal más el nombre de una canción y de un artista, y reprodujo
+     * lo que quiso, no lo que pedí específicamente — quiero que entienda cuando soy específico".
+     * Lo que sobra de la petición tras quitar género/momento/tendencia/década/idioma/muletillas. Si
+     * no queda nada, la petición es puramente genérica (un género o momento solos) y el
+     * comportamiento de categoría/lista de [MusicRequestMoods] sigue intacto. Si queda algo
+     * sustancial, es la canción/artista concretos que mencionó junto al género — [AiPlaylistGenerator]
+     * usa esto para buscar y anteponer ESO antes de dejar que la categoría genérica llene la cola.
+     */
+    fun residualBeyondCategory(prompt: String): String {
+        val raw = prompt.trim()
+        if (raw.isBlank()) return ""
+        val folded = fold(raw)
+        var stripped = LEAD_IN.replace(folded, "").trim().ifBlank { folded }
+        // Las frases de dos palabras van PRIMERO (más largas → más específicas): quitar "metal"
+        // suelto antes de llegar a "death metal" dejaría "death" como ruido residual suelto.
+        (GENRE_HINTS + MOMENT_HINTS + TREND_HINTS).sortedByDescending { it.length }.forEach { hint ->
+            stripped = stripped.replace(Regex("""\b${Regex.escape(hint)}\b"""), " ")
+        }
+        stripped = stripLanguageHint(stripped)
+        DECADE_WORDS.keys.forEach { word ->
+            stripped = stripped.replace(Regex("""\b${Regex.escape(word)}\b"""), " ")
+        }
+        stripped = DECADE_DIGITS.replace(stripped, " ")
+        return stripped.split(Regex("\\s+"))
+            .filter { it.isNotBlank() && it !in CONNECTOR_WORDS }
+            .joinToString(" ")
+            .trim()
+    }
+
+    /** Quita la pista de idioma cruda ("en ingles", "in spanish"…) — no aporta nada a una búsqueda literal. */
+    private fun stripLanguageHint(text: String): String {
+        var stripped = text
+        (ENGLISH_HINTS + SPANISH_HINTS).forEach { hint ->
+            stripped = stripped.replace(Regex("""\b${Regex.escape(hint)}\b"""), " ")
+        }
+        return stripped.replace(Regex("\\s+"), " ").trim()
     }
 
     /** "80" → "80"; "1980"/"2000" → "80"/"2000" tal y como se buscan de verdad. */

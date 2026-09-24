@@ -51,6 +51,7 @@ import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.ui.component.LocalMenuState
+import iad1tya.echo.music.ui.component.shimmer.ShimmerHost
 import iad1tya.echo.music.ui.menu.SongMenu
 import iad1tya.echo.music.ui.menu.YouTubeAlbumMenu
 import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
@@ -119,6 +120,11 @@ fun AuraNovedadesScreen(
             topSongs = seen.claimUnique(topSongs.take(12)) { it.id },
             upcoming = seen.claimUnique(upcoming) { it.id },
         )
+    }
+
+    val allShelvesEmpty = with(unique) {
+        hero.isEmpty() && featured.isEmpty() && newAlbums.isEmpty() && radarAlbums.isEmpty() &&
+            moment.isEmpty() && listening.isEmpty() && topSongs.isEmpty() && upcoming.isEmpty()
     }
 
     val pullRefreshState = rememberPullToRefreshState()
@@ -223,6 +229,20 @@ fun AuraNovedadesScreen(
                         title = stringResource(R.string.tab_novedades),
                         trailing = { AuraTopActions() },
                     )
+                }
+
+                // Ronda 5 (premium UX, dueño): la pantalla no tenía NINGÚN estado de carga — mientras
+                // loadFeeds() corre (isRefreshing ya es true desde el init{} del ViewModel, antes de
+                // cualquier pull-to-refresh manual) no había nada debajo del header. Mismo patrón que
+                // Inicio (isLoading && homeSections.isEmpty()): shimmer solo en la carga EN FRÍO, nunca
+                // sobre un refresh que ya tiene contenido que mostrar mientras llega el nuevo.
+                if (isRefreshing && allShelvesEmpty) {
+                    item(key = "aura_novedades_skeleton", contentType = "aura_novedades_skeleton") {
+                        ShimmerHost(modifier = Modifier.animateItem()) {
+                            AuraHomeShelfSkeleton(cardScale = cardScale)
+                            repeat(5) { AuraDetailSkeletonRow() }
+                        }
+                    }
                 }
 
                 if (unique.hero.isNotEmpty()) {

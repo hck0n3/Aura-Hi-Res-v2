@@ -52,7 +52,13 @@ data class SongEntity(
     @ColumnInfo(name = "isUploaded", defaultValue = false.toString())
     val isUploaded: Boolean = false,
     @ColumnInfo(name = "isVideo", defaultValue = false.toString())
-    val isVideo: Boolean = false
+    val isVideo: Boolean = false,
+    // Set once the video fallback ladder (VideoModeCoordinator) has exhausted every source for this
+    // song's video stream — persisted so the "switch to video" toggle stops being offered for it on
+    // future encounters (queue rebuilds, re-opening the song, app restart), not just for the rest of
+    // the current playback session. See MediaMetadata.hasCompatibleVideo.
+    @ColumnInfo(defaultValue = "0")
+    val videoFormatIncompatible: Boolean = false
 ) {
     fun localToggleLike() = copy(
         liked = !liked,
@@ -64,6 +70,13 @@ data class SongEntity(
         likedDate = if (!liked) LocalDateTime.now() else null,
         inLibrary = if (!liked) inLibrary ?: LocalDateTime.now() else inLibrary
     ).also {
+        // Owner report 2026-09-22 (unconfirmed by static reading — this endpoint is `like/like`,
+        // never `subscription/subscribe`): liking/disliking a song appears to also subscribe the
+        // artist on the real YouTube account. Timestamp only, no ids/titles (regla 4 de AGENTS.md):
+        // if it happens again, this line lets the next app.log show whether a subscribeChannel call
+        // (ArtistEntity.toggleLike, LibraryUploadSync, SpotifyImportRepository — the only 3 real
+        // call sites) landed at the same moment, which static reading alone could not confirm.
+        timber.log.Timber.i("SONG_LIKE_TOGGLE liked=%b", !liked)
         CoroutineScope(Dispatchers.IO).launch {
             YouTube.likeVideo(id, !liked)
         }

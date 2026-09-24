@@ -35,6 +35,7 @@
     <string name="offline_auto_novedades">New releases need a connection. It comes back by itself.</string>
     <string name="offline_empty_downloads">No downloads yet. Download songs while online to play them here.</string>
     <string name="error_offline_not_downloaded">Offline mode: this track is not fully downloaded.</string>
+    <string name="offline_skipped_to_cached_song">No internet connection — skipped to a song already available offline</string>
     <string name="mood_and_genres">Mood and Genres</string>
     <string name="account">Account</string>
     <string name="quick_picks">Quick picks</string>
@@ -163,6 +164,8 @@
     <string name="delete">Delete</string>
     <string name="remove_from_history">Remove from history</string>
     <string name="remove_from_playlist">Remove from playlist</string>
+    <string name="song_removed_from_playlist">Song removed from playlist</string>
+    <string name="song_liked_toast">Added to Liked songs</string>
     <string name="remove_from_queue">Remove from queue</string>
     <string name="search_online">Search online</string>
     <string name="action_sync">Sync</string>

@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -67,7 +68,9 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -2075,6 +2078,157 @@ fun SwipeToSongBox(
     }
 }
 
+
+/** Drag past this (right) toggles like/unlike. */
+private const val LIKE_THRESHOLD = 200f
+
+/** Drag past this (left, negative) releases "agregar a una playlist". */
+private const val ADD_TO_PLAYLIST_THRESHOLD = 200f
+
+/**
+ * Which of the two zones [offset] is currently in, purely to detect a CROSSING (see the haptic tick
+ * in [LibrarySwipeActionsBox]) — not the release action itself, which the `when` in `onDragStopped`
+ * still decides on its own.
+ */
+private fun librarySwipeZoneOf(offset: Float): Int = when {
+    offset >= LIKE_THRESHOLD -> 1
+    offset <= -ADD_TO_PLAYLIST_THRESHOLD -> -1
+    else -> 0
+}
+
+/**
+ * Ronda 2/3/5 del dueño probaron variantes con dos paradas en un mismo lado (me gusta + agregar a
+ * playlist a la derecha, no me gusta a la izquierda) — ronda 6 las simplifica de nuevo, ahora a dos
+ * lados fijos: la derecha SIEMPRE alterna me-gusta/no-me-gusta según el estado real de [liked] (mismo
+ * toggle que usa el botón de corazón normal — antes el swipe izquierdo llamaba a una función de
+ * "mostrar menos esto" que no tocaba el campo `liked`, así que el corazón nunca se desmarcaba; esa
+ * retroalimentación sigue disponible desde el menú de tres puntos, no se perdió, solo dejó de vivir
+ * en este gesto). La izquierda es fija: "agregar a una playlist".
+ */
+@Composable
+fun LibrarySwipeActionsBox(
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    liked: Boolean,
+    onToggleLike: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    if (!enabled) {
+        Box(modifier = modifier.fillMaxWidth(), content = content)
+        return
+    }
+
+    val ctx = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val offset = remember { mutableFloatStateOf(0f) }
+
+    val dragState = rememberDraggableState { delta ->
+        // Ronda 5 (premium UX, dueño): un toque de vibración cada vez que el dedo cruza la frontera de
+        // una zona — comparar la zona ANTES y DESPUÉS de aplicar delta en la misma llamada evita
+        // necesitar una variable de estado aparte, y como offset ya vuelve a 0 exacto tras soltar
+        // (reset() anima ese mismo estado), el primer delta del próximo gesto siempre arranca
+        // comparando desde zona 0 — sin arrastrar nada del gesto anterior.
+        val previousZone = librarySwipeZoneOf(offset.floatValue)
+        offset.floatValue = (offset.floatValue + delta).coerceIn(-ADD_TO_PLAYLIST_THRESHOLD, LIKE_THRESHOLD)
+        if (librarySwipeZoneOf(offset.floatValue) != previousZone) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .draggable(
+                orientation = Orientation.Horizontal,
+                state = dragState,
+                onDragStopped = {
+                    when {
+                        offset.floatValue >= LIKE_THRESHOLD -> {
+                            val wasLiked = liked
+                            onToggleLike()
+                            if (!wasLiked) {
+                                Toast.makeText(ctx, R.string.song_liked_toast, Toast.LENGTH_SHORT).show()
+                            }
+                            reset(offset, scope)
+                        }
+
+                        offset.floatValue <= -ADD_TO_PLAYLIST_THRESHOLD -> {
+                            onAddToPlaylist()
+                            reset(offset, scope)
+                        }
+
+                        else -> reset(offset, scope)
+                    }
+                }
+            )
+    ) {
+        // Both zones are always composed; each one's own graphicsLayer alpha (draw phase, not
+        // composition) decides whether it's the one showing, so a drag frame never recomposes this
+        // box or [content] — same discipline as SwipeToSongBox / AuraSwipeActionBackground.
+        LibrarySwipeZone(
+            offset = offset,
+            visible = { it > 0 },
+            iconRes = if (liked) R.drawable.thumb_down else R.drawable.favorite,
+            bg = MaterialTheme.colorScheme.error,
+            tint = MaterialTheme.colorScheme.onError,
+            align = Alignment.CenterStart,
+        )
+        LibrarySwipeZone(
+            offset = offset,
+            visible = { it < 0 },
+            iconRes = R.drawable.playlist_add,
+            bg = MaterialTheme.colorScheme.secondary,
+            tint = MaterialTheme.colorScheme.onSecondary,
+            align = Alignment.CenterEnd,
+        )
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offset.floatValue.roundToInt(), 0) }
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface),
+            content = content
+        )
+    }
+}
+
+/**
+ * One zone of [LibrarySwipeActionsBox]'s background: a colored strip with one icon, shown only while
+ * [visible] holds for the live drag offset. [visible] and the alpha it drives are evaluated inside
+ * `graphicsLayer` — the draw phase — so composed-but-inactive zones cost nothing and dragging never
+ * recomposes this box.
+ */
+@Composable
+private fun BoxScope.LibrarySwipeZone(
+    offset: MutableFloatState,
+    visible: (Float) -> Boolean,
+    iconRes: Int,
+    bg: Color,
+    tint: Color,
+    align: Alignment,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .align(Alignment.Center)
+            .graphicsLayer { alpha = if (visible(offset.floatValue)) 1f else 0f }
+            .background(bg),
+        contentAlignment = align
+    ) {
+        Icon(
+            painter = painterResource(id = iconRes),
+            contentDescription = null,
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .size(30.dp)
+                .alpha(0.9f),
+            tint = tint
+        )
+    }
+}
 
 private fun reset(offset: MutableState<Float>, scope: CoroutineScope) {
     scope.launch {

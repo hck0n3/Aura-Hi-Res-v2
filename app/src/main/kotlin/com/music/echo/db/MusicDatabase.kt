@@ -118,7 +118,7 @@ class MusicDatabase(
         SortedSongAlbumMap::class,
         PlaylistSongMapPreview::class,
     ],
-    version = 43,
+    version = 44,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 2, to = 3),
@@ -167,12 +167,16 @@ class MusicDatabase(
         // separately, and forgetting the Hilt one is what crashed every install on 0.6.117.
         AutoMigration(from = 40, to = 41),
         AutoMigration(from = 41, to = 42),
-        // 42 -> 43: additive `playlist.autoDownload` INTEGER NOT NULL DEFAULT 0 (punto 3 del dueño,
-        // 2026-09-17: descarga automática por lista). Declarada AQUÍ y no como `Migration` a mano por
-        // el mismo motivo escrito arriba para 40 -> 41: las auto-migraciones viajan con la anotación y
-        // por tanto se aplican a los DOS builders, mientras que una a mano hay que registrarla en cada
-        // uno — y olvidar el de Hilt es lo que rompió todas las instalaciones en 0.6.117.
-        AutoMigration(from = 42, to = 43),
+        // 42 -> 43 and 43 -> 44: hand-written (like 37->38/38->39/39->40 above), NOT AutoMigration.
+        // 42->43 (playlist.autoDownload) USED to be an AutoMigration, but Room's AutoMigration diffs
+        // against the PRIOR version's exported schema JSON — 43.json was never committed to
+        // app/schemas (back when HEAD itself WAS version 43, Room could derive "43" straight from the
+        // current entities with no historical file needed; that shortcut disappeared the moment HEAD
+        // moved on to 44, and KSP failed the whole build with "Schema '43.json' ... not found").
+        // Converting 42->43 to a manual Migration sidesteps the missing file entirely — a hand-crafted
+        // replacement 43.json would also need to reproduce Room's exact identityHash, which cannot be
+        // verified without the real Room/KSP toolchain. Both are one-line ALTER TABLEs either way; see
+        // MIGRATION_42_43 / MIGRATION_43_44 below.
     ],
 )
 @TypeConverters(Converters::class)
@@ -197,6 +201,8 @@ abstract class InternalDatabase : RoomDatabase() {
                         MIGRATION_37_38,
                         MIGRATION_38_39,
                         MIGRATION_39_40,
+                        MIGRATION_42_43,
+                        MIGRATION_43_44,
                     )
 
                     .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
@@ -861,5 +867,19 @@ val MIGRATION_39_40 =
             db.execSQL("ALTER TABLE `artist` ADD COLUMN `followedByUserAt` INTEGER")
             db.execSQL("ALTER TABLE `artist` ADD COLUMN `ytmSyncedAt` INTEGER")
             db.execSQL("ALTER TABLE `artist` ADD COLUMN `unfollowedByUserAt` INTEGER")
+        }
+    }
+
+val MIGRATION_42_43 =
+    object : Migration(42, 43) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `playlist` ADD COLUMN `autoDownload` INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+val MIGRATION_43_44 =
+    object : Migration(43, 44) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `song` ADD COLUMN `videoFormatIncompatible` INTEGER NOT NULL DEFAULT 0")
         }
     }

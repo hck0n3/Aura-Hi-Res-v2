@@ -88,6 +88,7 @@ import iad1tya.echo.music.db.entities.SearchHistory
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.ui.component.NavigationTitle
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.MoodAndGenresViewModel
 import iad1tya.echo.music.viewmodels.ExploreViewModel
@@ -141,9 +142,10 @@ fun SearchScreen(
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
-    // Manual "Modo sin conexión": when ON, force the search entry to the local DB (downloaded/library)
-    // and never hit the network. effectiveSource is what the UI actually renders/queries.
-    val offlineMode by rememberPreference(iad1tya.echo.music.constants.OfflineModeKey, false)
+    // Manual OR automatic "Modo sin conexión" (no network): force the search entry to the local DB
+    // (downloaded/library) and never hit the network. effectiveSource is what the UI actually
+    // renders/queries. Was manual-only, so search never reacted to the automatic switch.
+    val offlineMode = rememberOfflineState().offline
     val effectiveSource = if (offlineMode) SearchSource.LOCAL else searchSource
     var query by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue())

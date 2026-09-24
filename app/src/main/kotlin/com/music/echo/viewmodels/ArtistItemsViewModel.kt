@@ -15,6 +15,7 @@ import com.music.innertube.models.SongItem
 import com.music.innertube.models.YTItem
 import com.music.innertube.models.filterExplicit
 import com.music.innertube.models.filterVideoSongs
+import iad1tya.echo.music.ui.screens.artist.ArtistSectionBuffer
 import iad1tya.echo.music.utils.iTunesDiscography
 import iad1tya.echo.music.utils.systemRegionCode
 import iad1tya.echo.music.constants.HideExplicitKey
@@ -184,6 +185,35 @@ fun buildInstrumentalTitles(itunesMeta: List<Pair<String, Int>>): Set<String> =
         .toSet()
 
 /**
+ * Earliest known iTunes/Apple Music release date per [reconKey], across every store queried. Powers the
+ * discography's on-screen ORDER: "que se apegue al orden de las discografías de iTunes y Apple Music" (the
+ * owner, ronda 9) — that order is reverse-chronological, newest release first. Keyed by reconKey (not the
+ * plain iTunes norm) so a live/acoustic edition, which is its own separate entry on screen, is ordered by
+ * its OWN date rather than borrowing the studio release's.
+ *
+ * The EARLIEST date across stores wins, not the latest: a delayed regional listing (a store that only
+ * caught up months later) must never push a release later than its real, original release date.
+ *
+ * A title with no parseable date is simply absent from the map — never zero, never "now". The caller treats
+ * "unknown" as "sort last", so a missing date costs at most a worse position, never a dropped release.
+ */
+private val EP_OR_SINGLE = Regex("(?i)[-–—]\\s*(ep|single)\\b|\\((?:ep|single)\\)")
+
+/** Does iTunes mark [title] as an EP or a Single (e.g. "Privé - EP", "Solo (Single)")? */
+fun isEpOrSingle(title: String): Boolean = EP_OR_SINGLE.containsMatchIn(title)
+
+fun buildReleaseDates(itunesMeta: List<Pair<String, String?>>): Map<String, String> {
+    val out = HashMap<String, String>()
+    for ((rawTitle, date) in itunesMeta) {
+        if (date.isNullOrBlank()) continue
+        val key = reconKey(rawTitle)
+        val prev = out[key]
+        if (prev == null || date < prev) out[key] = date
+    }
+    return out
+}
+
+/**
  * Does [candidateTitle] have the same "liveness" as the release the search asked for ([requestedKey])?
  *
  * Every YouTube lookup targets the marker-free normalized title, so a search for a live edition happily
@@ -223,6 +253,23 @@ fun titleMatch(ytTitle: String, target: String): Boolean {
  */
 private fun AlbumQuality.betterThan(other: AlbumQuality): Boolean =
     if (basicOk != other.basicOk) basicOk else songCount > other.songCount
+
+/**
+ * Ronda 7 (dueño): "no quiero que me ponga álbumes con canciones cortadas". [AlbumQuality]'s median
+ * check only catches an album that is ENTIRELY short clips (caso Lauren Daigle documentado); it misses
+ * ONE truncated track mixed into an otherwise normal album (un rip cortado, una vista previa subida
+ * por error), porque la mediana del resto lo tapa.
+ *
+ * Umbral DELIBERADAMENTE CONSERVADOR — absoluto Y relativo A LA VEZ, no cualquiera de los dos solo —
+ * para no tumbar álbumes reales con un interludio corto legítimo (comunes en varios géneros): solo
+ * cuenta como truncada una pista que sea chica en términos absolutos (menos de 60s) Y muy por debajo de
+ * lo que el resto del álbum viene sonando (menos de la mitad de su propia mediana). Un álbum de
+ * canciones genuinamente cortas (mediana baja) queda a salvo porque ahí "la mitad de la mediana"
+ * también es baja. Pública/testeable — ver [ItunesHomonymFilterTest]-style pruebas puras en
+ * DiscographyKeysTest.
+ */
+internal fun hasTruncatedTrack(durations: List<Int>, median: Int): Boolean =
+    durations.any { it < 60 && it < median / 2 }
 
 /**
  * One album materialized from a community playlist's tracks: the fetched [AlbumItem] plus the structural
@@ -310,6 +357,14 @@ constructor(
         // still heals itself.
         private const val DEGRADED_REPAIR_MIN_AGE_MS = 10 * 60 * 1000L
 
+        // The ONE-SHOT background repair (see maybeRepairDegradedDiscography) is the only place the
+        // 60/80 on-open caps are worth exceeding: it runs at most once per artist section, off the
+        // critical path, and only once the run it is healing is already confirmed degraded. Large
+        // (especially Latin/regional/worship) catalogs that hit the on-open cap on every single open
+        // get one real chance here to complete past it instead of repeating the same first slice forever.
+        private const val REPAIR_BASE_ALBUM_CAP = 150
+        private const val REPAIR_MISSING_RELEASE_CAP = 250
+
         // Per-artist cache of the completed (iTunes-driven) discography for this app session, so
         // re-opening the same artist's albums shows the full list instantly instead of re-fetching.
         // The value carries the run's DEGRADED verdict + build time (see CompletedDiscography), because an
@@ -353,6 +408,17 @@ constructor(
 
     fun load() {
         hasFailed.value = false
+        // Ronda 2, punto 9 del dueño: cuando YouTube no da `moreEndpoint` para Álbumes/Singles, la
+        // pantalla ya guarda los items ya cargados en ArtistSectionBuffer y navega aquí con este
+        // browseId centinela — leer de ahí en vez de llamar a YouTube.artistItems es la ÚNICA
+        // diferencia con el camino normal; todo lo de abajo (completar contra iTunes, cachear, mergear
+        // paginación) es exactamente el mismo código que ya corre para el camino con moreEndpoint.
+        if (browseId.startsWith(ArtistSectionBuffer.DISCOGRAPHY_BUFFER_BROWSE_ID)) {
+            viewModelScope.launch {
+                onItemsLoaded(ArtistSectionBuffer.title, ArtistSectionBuffer.items, continuation = null)
+            }
+            return
+        }
         viewModelScope.launch {
             YouTube
                 .artistItems(
@@ -361,14 +427,23 @@ constructor(
                         params = params,
                     ),
                 ).onSuccess { artistItemsPage ->
+                    onItemsLoaded(artistItemsPage.title, artistItemsPage.items, artistItemsPage.continuation)
+                }.onFailure {
+                    reportException(it)
+                    hasFailed.value = true
+                }
+        }
+    }
+
+    private suspend fun onItemsLoaded(pageTitle: String?, items: List<YTItem>, continuation: String?) {
                     val hideExplicit = context.dataStore.get(HideExplicitKey, false)
                     val hideVideoSongs = context.dataStore.get(HideVideoSongsKey, false)
-                    title.value = artistItemsPage.title
+                    title.value = pageTitle.orEmpty()
                     // Is THIS see-all the Singles/EP section (vs Albums)? Drives which iTunes releases the
                     // completion targets, so Singles/EPs get completed too (the owner wants ALL of them).
                     val isSinglesSection =
-                        Regex("(?i)single|sencillo|\\bep\\b").containsMatchIn(artistItemsPage.title ?: "")
-                    val baseItems = artistItemsPage.items
+                        Regex("(?i)single|sencillo|\\bep\\b").containsMatchIn(pageTitle ?: "")
+                    val baseItems = items
                         .distinctBy { it.id }
                         .filterExplicit(hideExplicit)
                         .filterVideoSongs(hideVideoSongs)
@@ -377,7 +452,7 @@ constructor(
                     // of extra albums popping in seconds later. Other lists publish as-is.
                     // Show the YouTube list IMMEDIATELY (fast), then complete it against iTunes/Apple Music
                     // in the background and publish the full discography in ONE update (not in batches).
-                    itemsPage.value = ItemsPage(items = baseItems, continuation = artistItemsPage.continuation)
+                    itemsPage.value = ItemsPage(items = baseItems, continuation = continuation)
                     if (baseItems.any { it is AlbumItem }) {
                         // Key by artist AND browse: the same artist's Albums and Singles/EP see-all screens
                         // share artistId but differ by browseId. Keying by artistId alone made opening one
@@ -392,7 +467,7 @@ constructor(
                             val current = itemsPage.value
                             itemsPage.value = ItemsPage(
                                 items = mergeDiscography(cached.items, current?.items ?: emptyList()),
-                                continuation = current?.continuation ?: artistItemsPage.continuation,
+                                continuation = current?.continuation ?: continuation,
                             )
                             // ONLY AFTER that instant publish (no shimmer, no added latency, no network on
                             // this path): if the cached entry was built on a starved network it is stale-
@@ -423,17 +498,12 @@ constructor(
                                     val current = itemsPage.value
                                     itemsPage.value = ItemsPage(
                                         items = mergeDiscography(complete, current?.items ?: emptyList()),
-                                        continuation = current?.continuation ?: artistItemsPage.continuation,
+                                        continuation = current?.continuation ?: continuation,
                                     )
                                 }
                             }
                         }
                     }
-                }.onFailure {
-                    reportException(it)
-                    hasFailed.value = true
-                }
-        }
     }
 
     private suspend fun resolveArtistName(): String? {
@@ -457,6 +527,13 @@ constructor(
         baseItems: List<YTItem>,
         hideExplicit: Boolean,
         isSinglesSection: Boolean,
+        // Overridable ONLY by the background repair path (see maybeRepairDegradedDiscography). The first,
+        // on-open run always uses the small defaults — the caps exist for battery/heat, and most catalogs
+        // never hit them. A repair run fires at most ONCE per artist section for the whole process, at
+        // least 10 minutes after a degraded run, off the critical path (nothing is on screen waiting for
+        // it) — exactly the one place "a toda costa" (the owner, ronda 9) is worth spending real budget on.
+        baseAlbumCap: Int = 60,
+        missingReleaseCap: Int = 80,
     ): DiscographyRun = coroutineScope {
         // Set by [withBudget] whenever one of the time budgets below expires, and by the community-playlist
         // fallback when a release can only be published as a partial slice. It is the ONLY thing that
@@ -466,7 +543,15 @@ constructor(
         // caller discards a result identical to baseItems anyway.
         val artistName = resolveArtistName() ?: return@coroutineScope DiscographyRun(baseItems, degraded = false)
         val norm = iTunesDiscography::normalizeTitle
-        val baseAlbums = baseItems.filterIsInstance<AlbumItem>()
+        // Ronda 9 (dueño): "algunos álbumes se repiten en sencillos y EPs" — el filtro simétrico
+        // anterior (isEpOrSingle == isSinglesSection) solo se aplicaba a lo que se completaba desde
+        // iTunes, nunca a lo que YouTube Music YA trae nativamente en el shelf de esta sección. Si el
+        // propio catálogo de YouTube Music clasifica mal una publicación (un single/EP listado bajo
+        // "Álbumes", o viceversa), ese ítem pasaba sin filtro. Se excluye acá también: sigue teniendo
+        // su oportunidad real de aparecer en la sección que le corresponde, por sus propios base items
+        // O por la completación desde iTunes de ESA sección — nunca desaparece del todo, solo deja de
+        // mostrarse en la sección equivocada.
+        val baseAlbums = baseItems.filterIsInstance<AlbumItem>().filter { isEpOrSingle(it.title) == isSinglesSection }
 
         fun credited(a: AlbumItem): Boolean {
             val arts = a.artists
@@ -499,13 +584,17 @@ constructor(
         //    standard edition whenever any single store listed a deluxe/expanded one (12 real tracks vs a
         //    ceil(24*0.6)=15 floor); using a plain MIN let iTunes' 1-track "… - Single" entry (same
         //    normalized key as the album) collapse the floor to 1 and disable the gate entirely.
-        val expectedTracks: Map<String, Int> = buildExpectedTracks(itunesMeta)
-        val floorTracks: Map<String, Int> = buildFloorTracks(itunesMeta)
+        val itunesPairs = itunesMeta.map { it.title to it.trackCount }
+        val expectedTracks: Map<String, Int> = buildExpectedTracks(itunesPairs)
+        val floorTracks: Map<String, Int> = buildFloorTracks(itunesPairs)
         // Norm-titles whose GENUINE iTunes release is itself instrumental — for these we must NOT drop
         // instrumental YouTube candidates (a real instrumental album is not a karaoke duplicate). Matched
         // AFTER normalization, so a parenthesised "(Instrumental)" edition cannot whitelist the studio title.
-        val itunesInstrumental: Set<String> = buildInstrumentalTitles(itunesMeta)
-        val itunes = itunesMeta.map { it.first }.distinct()
+        val itunesInstrumental: Set<String> = buildInstrumentalTitles(itunesPairs)
+        val itunes = itunesMeta.map { it.title }.distinct()
+        // Ronda 9 (dueño): "que se apegue al orden de las discografías de iTunes y Apple Music" — see
+        // buildReleaseDates. Used only at final assembly, below, to ORDER the published list.
+        val releaseDateByKey: Map<String, String> = buildReleaseDates(itunesMeta.map { it.title to it.releaseDate })
 
         // 6 concurrent network calls (album fetches + searches): more can itself trip YouTube throttling,
         // which then times out individual lookups and silently drops real albums. Shared across all phases.
@@ -516,13 +605,18 @@ constructor(
         // eligible for re-completion and can be replaced by a full album or community upload. Capped at 60
         // fetches so a huge catalog can't turn this into a long network burst (battery/heat).
         val baseUnique = baseAlbums.distinctBy { it.browseId }
-        val probedBase = baseUnique.take(60)
+        val probedBase = baseUnique.take(baseAlbumCap)
         if (baseUnique.size > probedBase.size) {
             // No silent caps: say out loud that the rest were NOT probed (they are trusted as present).
             Timber.tag(TAG).i(
                 "quality probe cap for '%s': probed %d of %d base albums; the remaining %d are trusted as present",
                 artistName, probedBase.size, baseUnique.size, baseUnique.size - probedBase.size,
             )
+            // This IS a degradation, not just a log line: an unprobed base album is trusted as present
+            // (countsAsHave), so a truncated one past the cap silently keeps its slot forever unless a
+            // later, wider repair run re-probes it. Without this, a large catalog that hits the cap on
+            // EVERY open never becomes eligible for maybeRepairDegradedDiscography.
+            degraded.set(true)
         }
         // A probe cut off here leaves the album's quality UNKNOWN, which countsAsHave reads as "assume
         // present": a truncated base album then silently keeps its slot and is never re-completed. That is a
@@ -549,34 +643,45 @@ constructor(
             )
         }
 
-        // Don't mix EPs/Singles into the Albums list (iTunes/Apple keep them separate). iTunes marks them
-        // as "Title - EP" / "Title - Single".
-        val epOrSingle = Regex("(?i)[-–—]\\s*(ep|single)\\b|\\((?:ep|single)\\)")
+        // Pre-publish audit (ronda 9 cont.): the Ronda-9 comment this replaces claimed "every artist's
+        // Singles/EP see-all runs this same completion engine too, so a single no longer needs the Albums
+        // screen as its only way to ever be found" — FALSE for an artist whose YouTube Music page has no
+        // native Singles/EP SECTION at all (only Albums). `isSinglesSection` (above) is derived from the
+        // page TITLE of whichever section the user is inside; if YouTube never shows a "Singles & EPs" /
+        // "Sencillos y EPs" shelf for this artist (see `sections` in the artist page — built straight from
+        // YouTube's own response, nothing synthesized), no screen with isSinglesSection=true is ever
+        // reachable, so filtering iTunes EPs/singles OUT of the Albums completion would drop them with no
+        // other screen to complete them on — reintroducing regression 866b4c8 (fila 16,
+        // docs/REGRESSION_REGISTRY.md: "singles-heavy catalog, nothing published anywhere"). Losing an
+        // artist's entire missing-singles catalog is worse than an occasional duplicate row between two
+        // "ver todos" screens (and duplication of NATIVE items across sections is separately handled by the
+        // `baseAlbums` filter above, which is safe because it never removes iTunes-sourced content — only a
+        // YouTube item already shown correctly in its own native section). So: Albums completes against the
+        // WHOLE iTunes catalog again, EPs/singles included, matching the historical fix; only the
+        // Singles/EP screen restricts itself to EP/Single (nothing is lost there either way).
         val missingAll = itunes
             // Symmetric with `have`: compare reconKey to reconKey. A live iTunes entry no longer hides the
             // studio release of the same name (and vice versa) — each is looked up on its own.
             .filter { norm(it).isNotBlank() && reconKey(it) !in have }
-            // Complete the WHOLE iTunes/Apple catalog for the main (Albums) discography — INCLUDING EPs and
-            // singles. iTunes returns most of an artist's releases as "… - Single"/"… - EP" (especially
-            // Latin/regional catalogs) and YouTube Music usually omits them; the old EP/Single exclusion
-            // (regression 866b4c8) left singles-heavy catalogs with nothing to add → nothing published
-            // ("ya estaba y no lo hace"). A dedicated Singles/EP see-all, when it exists, still narrows to
-            // EP/Single only. This restores the iTunes-authoritative completion the owner remembers.
-            .let { list -> if (isSinglesSection) list.filter { epOrSingle.containsMatchIn(it) } else list }
+            .filter { !isSinglesSection || isEpOrSingle(it) }
             // Also reconKey: a studio and a live edition of the same name are two DIFFERENT releases and both
             // deserve a lookup. A true duplicate (same title twice across stores) still collapses here.
             .distinctBy { reconKey(it) }
-        val missing = missingAll.take(80)
+        val missing = missingAll.take(missingReleaseCap)
         if (missingAll.size > missing.size) {
             // No silent caps: name the releases we are NOT looking up (first 20, then a count) so a gap in
             // the published discography is always explainable from the log instead of just disappearing.
-            val dropped = missingAll.drop(80)
+            val dropped = missingAll.drop(missingReleaseCap)
             Timber.tag(TAG).w(
                 "completion cap for '%s': searching %d of %d missing releases; NOT looked up this run: %s%s",
                 artistName, missing.size, missingAll.size,
                 dropped.take(20).joinToString(", "),
                 if (dropped.size > 20) " (+${dropped.size - 20} more)" else "",
             )
+            // Same reasoning as the base-album cap above: releases past this cap are simply never looked
+            // up this run, which is exactly what a degraded run means, and the only way a later repair
+            // (with a wider cap) ever gets scheduled for a backlog this large.
+            degraded.set(true)
         }
         Timber.tag(TAG).i(
             "'%s': %d base albums, %d already present, %d to look up", artistName, baseAlbums.size, have.size, missing.size,
@@ -783,15 +888,24 @@ constructor(
 
         // Assemble preserving the original base order: replace each album with its reconciled winner (first
         // occurrence only → de-dupes base duplicates), keep non-album base items (singles/videos) in place,
-        // then append completion winners for titles not present in the base list.
+        // then append completion winners for titles not present in the base list. `resultKeys[i]` carries
+        // the reconKey an album/completion entry was filed under (null for a passthrough non-album item),
+        // so the reordering pass below can find its release date without re-deriving it from the item.
         val emitted = HashSet<String>()
         // Also dedupe by ITEM ID, not just by key. Two different keys can legitimately resolve to the SAME
         // YouTube release (e.g. a live request whose only credible candidate is an album already shown under
         // another key), and listing one album twice is a visible bug.
         val emittedIds = HashSet<String>()
         val result = ArrayList<YTItem>()
+        val resultKeys = ArrayList<String?>()
         for (item in baseItems) {
             if (item is AlbumItem) {
+                if (isEpOrSingle(item.title) != isSinglesSection) {
+                    // Misfiled by YouTube Music itself (see baseAlbums above) — never shown in THIS
+                    // section, but its id is remembered so a completion result elsewhere can't collide.
+                    emittedIds.add(item.id)
+                    continue
+                }
                 val nt = reconKey(item.title)
                 // Remember EVERY base album id — including one dropped here as a duplicate key, and one that
                 // lost its group to a better candidate — so the completion loop can never re-append a base
@@ -801,14 +915,30 @@ constructor(
                 val winner = winnerByNorm[nt] ?: item // fallback: original base item (never make it empty)
                 emittedIds.add(winner.id)
                 result.add(winner)
+                resultKeys.add(nt)
             } else {
                 result.add(item)
+                resultKeys.add(null)
                 emittedIds.add(item.id)
             }
         }
         for ((nt, w) in winnerByNorm) {
-            if (emitted.add(nt) && emittedIds.add(w.id)) result.add(w)
+            if (emitted.add(nt) && emittedIds.add(w.id)) {
+                result.add(w)
+                resultKeys.add(nt)
+            }
         }
+        // Ronda 9 (dueño): "que se apegue al orden de las discografías de iTunes y Apple Music" — reorder
+        // ONLY the keyed (album) slots by release date, newest first; a non-album passthrough entry (no
+        // key) keeps its original position untouched. An album whose date iTunes never gave us (`?: ""`,
+        // the empty string sorts last under descending order) simply falls to the end instead of pretending
+        // to know when it came out — the SAME "never invent a decision from insufficient evidence" rule the
+        // rest of this file already follows for quality/homonym gating.
+        val datedIndices = resultKeys.indices.filter { resultKeys[it] != null }
+        val reordered = datedIndices
+            .sortedByDescending { idx -> releaseDateByKey[resultKeys[idx]] ?: "" }
+            .map { idx -> result[idx] }
+        datedIndices.forEachIndexed { i, idx -> result[idx] = reordered[i] }
         val items = if (hideExplicit) result.filterExplicit(true) else result
         if (degraded.get()) {
             Timber.tag(TAG).w(
@@ -854,13 +984,21 @@ constructor(
      *    connection that produced it), and
      *  • no repair has been started for this section yet in this process ([repairAttempted]).
      *
-     * WORST-CASE COST — one repair equals at most ONE more completion run, i.e. the same bound as the first
-     * open: ≤7 iTunes store requests + ≤60 base quality probes + ≤80 releases × ≤4 requests each (album
-     * search, playlist search, playlist songs, album fetch) + ≤80 found-album probes ≈ 470 requests, at 6
-     * concurrent (the existing semaphore). In practice far fewer: albumQualityCache / fullAlbumCache are
-     * process-wide, so everything the first run already resolved is served from memory. And it can happen AT
-     * MOST ONCE per artist section for the entire life of the process — a permanently bad network costs one
-     * extra run, not one per open.
+     * WORST-CASE COST — one repair equals at most ONE more completion run, at WIDER caps than the first open
+     * (see [REPAIR_BASE_ALBUM_CAP] / [REPAIR_MISSING_RELEASE_CAP]): ≤7 iTunes store requests + ≤150 base
+     * quality probes + ≤250 releases × ≤4 requests each (album search, playlist search, playlist songs,
+     * album fetch) + ≤250 found-album probes ≈ 1450 requests, at 6 concurrent (the existing semaphore). In
+     * practice far fewer: albumQualityCache / fullAlbumCache are process-wide, so everything the first run
+     * already resolved is served from memory. And it can happen AT MOST ONCE per artist section for the
+     * entire life of the process — a permanently bad network, or a catalog large enough to hit the FIRST
+     * run's smaller cap, costs one extra (wider) run, not one per open.
+     *
+     * The wider cap matters specifically because [degraded] is now ALSO set when the first run's 60/80 caps
+     * themselves truncate the catalog (ronda 9 — "sigo con el problema de las discografías incompletas...
+     * a toda costa"), not only on a genuine network stall. Re-running that case at the SAME 60/80 caps would
+     * reprocess the identical first slice forever and never make progress; the wider cap here is the one
+     * place in the whole pipeline it is safe to spend that much budget, because it is bounded to at most one
+     * run, off the critical path, and only after the network has plausibly changed.
      */
     private fun maybeRepairDegradedDiscography(
         cacheKey: String,
@@ -882,7 +1020,13 @@ constructor(
                 cacheKey, cached.items.size, ageMs / 1000,
             )
             val fresh =
-                runCatching { buildCompleteDiscography(baseItems, hideExplicit, isSinglesSection) }
+                runCatching {
+                    buildCompleteDiscography(
+                        baseItems, hideExplicit, isSinglesSection,
+                        baseAlbumCap = REPAIR_BASE_ALBUM_CAP,
+                        missingReleaseCap = REPAIR_MISSING_RELEASE_CAP,
+                    )
+                }
                     .onFailure { Timber.tag(TAG).w(it, "repair run for %s failed → keeping the cached list", cacheKey) }
                     .getOrNull() ?: return@launch
             // A run that produced nothing beyond the base list (artist name unresolvable, every lookup empty)
@@ -1007,7 +1151,15 @@ constructor(
         } else {
             val durations = songs.mapNotNull { it.duration }.filter { it > 0 }
             val median = if (durations.isEmpty()) 0 else durations.sorted()[durations.size / 2]
-            AlbumQuality(songCount = songs.size, basicOk = median >= 90)
+            // Ver hasTruncatedTrack (arriba en el archivo) para la explicación completa del umbral.
+            val truncatedTrack = hasTruncatedTrack(durations, median)
+            if (truncatedTrack) {
+                Timber.tag(TAG).i(
+                    "album quality: %d/%d tracks look truncated (< min(60s, median/2), median=%ds) — rejecting",
+                    durations.count { it < 60 && it < median / 2 }, songs.size, median,
+                )
+            }
+            AlbumQuality(songCount = songs.size, basicOk = median >= 90 && !truncatedTrack)
         }
 
     /**

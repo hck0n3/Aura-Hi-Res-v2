@@ -173,11 +173,22 @@ class ReleaseRadarWorker(
             .filter { it.first.id.isNotBlank() }
             .take(MAX_ARTISTS_SCAN)
 
+        // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): emptyIsTrusted (más
+        // abajo) decidía SOLO por el feed suplementario "What's new" (feedResult.isSuccess), nunca por
+        // si este escaneo por artista — la fuente PRINCIPAL — de verdad funcionó. Cada llamada
+        // individual ya se envolvía en su propio runCatching, así que una racha de fallos de red aquí
+        // (rate-limit, token vencido a mitad de corrida) podía dejar `discoReleases` vacío en
+        // silencio mientras el feed sí respondía bien — y el guard, leyendo solo el feed, igual
+        // confiaba en el vacío y BORRABA un radar bueno de la semana anterior. Contar éxitos reales
+        // (no solo intentos) es lo que permite distinguir "escaneamos y no había nada nuevo" de
+        // "no pudimos escanear".
+        val discoSuccesses = java.util.concurrent.atomic.AtomicInteger(0)
         val discoReleases = coroutineScope {
             scanArtists.map { (artist, followed) ->
                 async {
                     semaphore.withPermit {
                         runCatching { Spotify.artistDiscography(artist.id).getOrThrow() }
+                            .onSuccess { discoSuccesses.incrementAndGet() }
                             .onFailure { Timber.tag(TAG).w(it, "Discography failed for ${artist.name}") }
                             .getOrDefault(emptyList())
                             .toReleaseHits(artist.name, followed, today, windowStart)
@@ -185,6 +196,9 @@ class ReleaseRadarWorker(
                 }
             }.awaitAll().flatten()
         }
+        // Trusted when there was nothing to scan (not a failure, just no followed/listened artists),
+        // or when at least one scan genuinely succeeded — never when every single call failed.
+        val discogOk = scanArtists.isEmpty() || discoSuccesses.get() > 0
 
         // 3. "What's new" feed (exact dates) as a supplementary pool, filtered to followed/listened artists.
         val feedResult = Spotify.newReleases(limit = 50)
@@ -225,7 +239,10 @@ class ReleaseRadarWorker(
             cap = MAX_ITEMS,
         )
         val items = ranked.map { it.toEntity(artistIdFor(it, bookmarked)) }
-        return SpotifyGather(items = items, feedOk = feedResult.isSuccess)
+        // BOTH sources must be trustworthy for an empty result to mean "no releases this week" — the
+        // discography scan is the PRIMARY source (see discogOk above); the feed is only supplementary,
+        // so its success alone was never enough to justify wiping a good radar.
+        return SpotifyGather(items = items, feedOk = feedResult.isSuccess && discogOk)
     }
 
     /** Pages the user's followed Spotify artists (bounded by [MAX_ARTISTS_SCAN]). */

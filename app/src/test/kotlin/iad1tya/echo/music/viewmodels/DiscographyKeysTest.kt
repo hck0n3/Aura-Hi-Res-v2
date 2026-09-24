@@ -407,4 +407,121 @@ class DiscographyKeysTest {
         assertEquals("look up child", reconKey("Look Up Child (Deluxe)"))
         assertEquals("look up child", reconKey("Look Up Child - Single"))
     }
+
+    // ── ronda 7: hasTruncatedTrack — "no quiero álbumes con canciones cortadas" ──
+
+    @Test fun oneClearlyTruncatedTrackAmongNormalOnesIsCaught() {
+        // a normal ~3.5min-median album with one track cut to ~40s (a botched rip / preview upload)
+        val durations = listOf(210, 205, 40, 220, 198)
+        val median = durations.sorted()[durations.size / 2] // 205
+        assertTrue(hasTruncatedTrack(durations, median))
+    }
+
+    @Test fun aLegitimateShortInterludeInAShortAlbumIsNotFlagged() {
+        // an EP whose songs are themselves short (median 70s): a 40s interlude is proportionally normal
+        val durations = listOf(65, 70, 40, 75)
+        val median = durations.sorted()[durations.size / 2] // 70
+        assertFalse(hasTruncatedTrack(durations, median))
+    }
+
+    @Test fun noTrackBelowTheAbsoluteFloorIsNeverFlaggedEvenIfProportionallyShort() {
+        // every track is a real song (>= 60s), even one well under half the median (65 < 300/2=150) —
+        // the absolute floor alone saves it from being misread as truncated
+        val durations = listOf(300, 65, 290, 310)
+        val median = durations.sorted()[durations.size / 2] // 300
+        assertFalse(hasTruncatedTrack(durations, median))
+    }
+
+    @Test fun anAlbumWithNoTruncatedTrackIsClean() {
+        val durations = listOf(180, 200, 190, 210)
+        val median = durations.sorted()[durations.size / 2]
+        assertFalse(hasTruncatedTrack(durations, median))
+    }
+
+    // ── ronda 9: buildReleaseDates — ordering the discography like iTunes/Apple Music itself ──
+
+    @Test fun releaseDateIsKeyedByReconKey() {
+        val dates = buildReleaseDates(listOf("Lenguaje de Amor" to "2015-03-01T00:00:00Z"))
+        assertEquals("2015-03-01T00:00:00Z", dates.getValue(reconKey("Lenguaje de Amor")))
+    }
+
+    @Test fun aLiveEditionIsDatedSeparatelyFromTheStudioAlbum() {
+        val dates = buildReleaseDates(
+            listOf(
+                "Lenguaje de Amor" to "2015-03-01T00:00:00Z",
+                "Lenguaje de Amor (En Vivo)" to "2019-06-01T00:00:00Z",
+            ),
+        )
+        assertEquals("2015-03-01T00:00:00Z", dates.getValue(reconKey("Lenguaje de Amor")))
+        assertEquals("2019-06-01T00:00:00Z", dates.getValue(reconKey("Lenguaje de Amor (En Vivo)")))
+    }
+
+    @Test fun theEarliestDateAcrossStoresWins() {
+        // a delayed regional listing must never push a release LATER than its real release
+        val dates = buildReleaseDates(
+            listOf(
+                "Look Up Child" to "2018-08-31T00:00:00Z",
+                "Look Up Child" to "2018-09-14T00:00:00Z", // a store that only caught up later
+            ),
+        )
+        assertEquals("2018-08-31T00:00:00Z", dates.getValue(reconKey("Look Up Child")))
+    }
+
+    @Test fun aTitleWithNoParseableDateIsAbsentNotZero() {
+        val dates = buildReleaseDates(listOf("Sin Fecha" to null, "Sin Fecha" to ""))
+        assertFalse(dates.containsKey(reconKey("Sin Fecha")))
+    }
+
+    // ── ronda 9: isEpOrSingle / the Albums-vs-Singles-EPs split — "que no los combine ni los duplique" ──
+
+    @Test fun iTunesEpAndSingleSuffixesAreDetected() {
+        for (title in listOf("Privé - EP", "Solo (Single)", "Nada Es Igual – Single", "Home — EP")) {
+            assertTrue(title, isEpOrSingle(title))
+        }
+    }
+
+    @Test fun aPlainAlbumTitleIsNotAnEpOrSingle() {
+        for (title in listOf("Lenguaje de Amor", "Look Up Child (Deluxe)", "Regreso a Ti")) {
+            assertFalse(title, isEpOrSingle(title))
+        }
+    }
+
+    /**
+     * The completion candidate filter, exactly as buildCompleteDiscography applies it (post
+     * pre-publish audit: `!isSinglesSection || isEpOrSingle(it)`). Only the Singles/EP screen
+     * restricts itself — Albums completes against the WHOLE iTunes catalog. A prior version of this
+     * filter excluded EP/Single from Albums too ("que no los combine ni los duplique"), but that
+     * reopened regression 866b4c8 (docs/REGRESSION_REGISTRY.md fila 16 / fila 292) for any artist
+     * without a native Singles/EP shelf on their YouTube Music page: no screen with
+     * isSinglesSection=true is ever reachable for such an artist, so a release excluded from Albums
+     * had nowhere else to ever be completed.
+     */
+    private fun completionCandidates(itunesTitles: List<String>, isSinglesSection: Boolean): List<String> =
+        itunesTitles.filter { !isSinglesSection || isEpOrSingle(it) }
+
+    @Test fun theAlbumsSectionCompletesWithTheWholeCatalogEpsAndSinglesIncluded() {
+        // An artist with no native Singles/EP shelf must still get their singles somewhere — Albums
+        // is that "somewhere" (see class doc above / regression 866b4c8).
+        val candidates = completionCandidates(
+            listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP"),
+            isSinglesSection = false,
+        )
+        assertEquals(listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP"), candidates)
+    }
+
+    @Test fun theSinglesEpSectionOnlyCompletesWithEpsAndSingles() {
+        val candidates = completionCandidates(
+            listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP"),
+            isSinglesSection = true,
+        )
+        assertEquals(listOf("Solo (Single)", "Regreso a Ti - EP"), candidates)
+    }
+
+    @Test fun everyReleaseIsAtLeastAlwaysACandidateForAlbums() {
+        // Never-silence: whatever isn't caught by the Singles/EP screen (or that screen doesn't even
+        // exist for this artist) is still coverable through Albums — nothing falls through both.
+        val catalog = listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP", "Look Up Child (Deluxe)")
+        val albums = completionCandidates(catalog, isSinglesSection = false).toSet()
+        assertEquals(catalog.toSet(), albums)
+    }
 }

@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastForEachIndexed
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
@@ -934,7 +935,7 @@ fun ArtistScreen(
                         }
                     }
                 } else {
-                    artistPage?.sections?.fastForEach { section ->
+                    artistPage?.sections?.fastForEachIndexed { sectionIndex, section ->
                         if (section.items.isNotEmpty()) {
                             item(key = "section_${section.title}") {
                                 NavigationTitle(
@@ -944,15 +945,22 @@ fun ArtistScreen(
                                     // when present, otherwise open the already-loaded items in a grid.
                                     onClick = {
                                         val more = section.moreEndpoint
+                                        val distinctItems = section.items.distinctBy { it.id }
                                         if (more != null) {
                                             navController.navigate(
                                                 "artist/${viewModel.artistId}/items?browseId=${more.browseId}&params=${more.params}",
                                             )
-                                        } else {
-                                            ArtistSectionBuffer.open(
-                                                section.title,
-                                                section.items.distinctBy { it.id },
+                                        } else if (distinctItems.all { it is AlbumItem }) {
+                                            // Ronda 2, punto 9 del dueño: ver el mismo fix/comentario en
+                                            // AuraArtistScreen.kt — sin moreEndpoint, Álbumes/Singles
+                                            // nunca pasaban por el motor de reconciliación con iTunes.
+                                            ArtistSectionBuffer.open(section.title, distinctItems)
+                                            navController.navigate(
+                                                "artist/${viewModel.artistId}/items" +
+                                                    "?browseId=${ArtistSectionBuffer.DISCOGRAPHY_BUFFER_BROWSE_ID}_$sectionIndex",
                                             )
+                                        } else {
+                                            ArtistSectionBuffer.open(section.title, distinctItems)
                                             navController.navigate("artist_section_buffer")
                                         }
                                     },

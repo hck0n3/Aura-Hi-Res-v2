@@ -88,6 +88,15 @@ object ArtistSectionBuffer {
     }
 
     const val MAX_SEARCH_ITEMS = 200
+
+    /**
+     * Sentinel `browseId` for [iad1tya.echo.music.viewmodels.ArtistItemsViewModel]: when YouTube gave no
+     * `moreEndpoint` for an Albums/Singles section (ronda 2, punto 9 del dueño — discografía incompleta),
+     * the "ver todos" route reads straight from this buffer instead of calling `YouTube.artistItems`, and
+     * still runs the SAME iTunes-driven `buildCompleteDiscography` reconciliation the moreEndpoint path
+     * already has — the gap was that path never running for these artists, not the reconciliation itself.
+     */
+    const val DISCOGRAPHY_BUFFER_BROWSE_ID = "artist_section_buffer_discography"
 }
 
 /**

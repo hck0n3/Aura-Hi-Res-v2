@@ -231,20 +231,19 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1009
-        // ESTABLE 2.0.48 — PARA TODOS (orden del dueño 2026-09-17: *"quiero que lances la estable
-        // para todos los usuarios, pero hasta que corrijas que sí o sí, sin importar dónde esté, el
-        // botón de inicio del mini reproductor tiene que mandarlo a la pantalla de inicio"*).
-        //
-        // Recoge las cuatro betas (2.0.44-beta1 … 2.0.47-beta4). El nombre de versión sigue LIMPIO,
-        // que aquí ya no es una precaución sino el caso normal: `compareVersions` parte por puntos y
-        // hace `toIntOrNull()`, así que cualquier sufijo se leería como 2.0.0 y al usuario le saldría
-        // una "actualización" que en realidad le baja de versión. Con el nombre limpio, 2.0.43 <
-        // 2.0.48 y la actualización se ofrece como lo que es.
-        //
-        // Esta SÍ entra en `releases/latest`, o sea que le llega a todo el mundo: el tag va sin
-        // `-beta` a propósito.
-        versionName = "2.0.48"
+        versionCode = 1022
+        // ESTABLE 2.0.59 — PARA TODOS (orden explícita del dueño, 2026-09-24, en el momento y con
+        // esas palabras: "lanza la estable para todos"). Consolida doce rondas de betas desde la
+        // 2.0.48 (v2.0.49-beta1 .. v2.0.59-beta1): discografías de artista más completas y sin
+        // duplicar entre Álbumes/Sencillos-EPs, mejoras de precisión y velocidad de "pedir música",
+        // deslizar rediseñado (me gusta/no me gusta/agregar a playlist/borrar con deshacer),
+        // arreglos de reproducción (cola de álbum, vídeo, modo sin conexión, TikTok), enlaces
+        // externos, Novedades/recomendaciones por afinidad real, Escuchar Juntos y ecualizador. Ver
+        // RELEASE_INFO.md para el detalle completo.
+        // El nombre de versión va LIMPIO, sin sufijo `-beta`: es el tag SIN sufijo (`v2.0.59`) el que
+        // decide que gradle.yml NO lo marque como prerelease, así que `releases/latest` de GitHub lo
+        // sirve y el actualizador dentro de la app se lo ofrece a todos.
+        versionName = "2.0.59"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

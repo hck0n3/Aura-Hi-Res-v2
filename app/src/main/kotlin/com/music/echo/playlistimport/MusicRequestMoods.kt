@@ -48,22 +48,126 @@ object MusicRequestMoods {
             listOf("ambiente", "chill", "relax", "background"),
     )
 
+    /**
+     * Ronda 7 (dueño): "si pongo reggaetón me pone canciones que llevan el nombre de reggaetón en el
+     * título — es una búsqueda estúpida". Un género suelto ("reggaeton", "bossa nova") no matcheaba
+     * ninguna [FAMILIES] (esas son de MOMENTO/ACTIVIDAD, no de género) ni activaba
+     * [MusicRequestQuery.Parsed.preferPlaylists], así que nunca llegaba a
+     * [AiPlaylistGenerator.moodCategoryPlaylists] — caía directo a una búsqueda de texto libre sin
+     * ninguna verificación de que el resultado fuera realmente de ese género (a diferencia de las
+     * listas, que sí pasan por [MusicRequestMatch]). Mismo mecanismo que [FAMILIES], mismo formato
+     * (disparadores → nombres de categoría a buscar), solo que para géneros musicales en vez de
+     * momentos — la categoría real de YouTube Music ("Reggaetón", "Bossa Nova"…) sigue siendo la
+     * prueba, no una búsqueda cruda.
+     */
+    private val GENRE_FAMILIES: List<Pair<List<String>, List<String>>> = listOf(
+        listOf("reggaeton", "reggaetón", "perreo", "dembow") to listOf("reggaeton", "urbano", "urban"),
+        listOf("salsa") to listOf("salsa"),
+        listOf("bachata") to listOf("bachata"),
+        listOf("merengue") to listOf("merengue"),
+        listOf("rock") to listOf("rock"),
+        listOf("pop") to listOf("pop"),
+        listOf("bossa nova", "bossanova", "bosanova") to listOf("bossa nova", "brasil", "brazilian", "brazil"),
+        listOf("jazz") to listOf("jazz"),
+        listOf("cumbia") to listOf("cumbia"),
+        listOf("vallenato") to listOf("vallenato"),
+        listOf("banda", "sinaloense") to listOf("banda", "regional mexicano", "regional mexican"),
+        listOf("mariachi") to listOf("mariachi", "regional mexicano", "regional mexican"),
+        listOf("ranchera", "rancheras") to listOf("ranchera", "regional mexicano", "regional mexican"),
+        listOf("corridos", "corrido") to listOf("corridos", "regional mexicano", "regional mexican"),
+        listOf("trap") to listOf("trap"),
+        listOf("rap", "hip hop", "hiphop") to listOf("rap", "hip hop", "hip-hop"),
+        listOf("electronica", "electrónica", "edm", "house", "techno") to listOf("electronica", "edm", "dance"),
+        // Ronda 9 (dueño): subgéneros de metal — antes solo "metal" a secas, así que "death metal"
+        // caía en la categoría genérica de Metal en vez de una más específica si existe.
+        listOf("death metal") to listOf("death metal", "metal"),
+        listOf("black metal") to listOf("black metal", "metal"),
+        listOf("thrash metal") to listOf("thrash metal", "metal"),
+        listOf("power metal") to listOf("power metal", "metal"),
+        listOf("heavy metal") to listOf("heavy metal", "metal"),
+        listOf("doom metal") to listOf("doom metal", "metal"),
+        listOf("nu metal") to listOf("nu metal", "metal"),
+        listOf("metalcore") to listOf("metalcore", "metal"),
+        listOf("hardcore") to listOf("hardcore"),
+        listOf("emo") to listOf("emo"),
+        listOf("metal") to listOf("metal"),
+        listOf("punk") to listOf("punk"),
+        listOf("k-pop", "kpop") to listOf("k-pop", "korean pop", "kpop"),
+        listOf("r&b", "rnb") to listOf("r&b", "rnb"),
+        listOf("flamenco") to listOf("flamenco"),
+        listOf("country") to listOf("country"),
+        listOf("blues") to listOf("blues"),
+        listOf("indie") to listOf("indie"),
+        listOf("funk") to listOf("funk"),
+        listOf("soul") to listOf("soul"),
+        listOf("reggae") to listOf("reggae"),
+        listOf("disco") to listOf("disco"),
+        listOf("tango") to listOf("tango"),
+        listOf("bolero", "boleros") to listOf("bolero"),
+        listOf("gospel", "cristiana", "cristiano", "alabanza", "worship") to
+            listOf("cristiana", "cristiano", "gospel", "worship"),
+    )
+
+    /**
+     * Ronda 9 (dueño): "pedí reggae cristiano y me salió un artista que no es cristiano... si al
+     * final va la palabra cristiano, tiene que respetar eso sí o sí — mientras no se mencione, puede
+     * poner lo que considere mejor". A diferencia del género (donde una interpretación floja es
+     * aceptable), el tema religioso es una condición DURA cuando se pide: a diferencia de una lista
+     * (verificable por título vía [conceptGroupsFor]/[MusicRequestMatch]), una canción suelta sin
+     * verificar no pasaba por ningún filtro — [AiPlaylistGenerator] usa esto para descartarla si ni
+     * su título ni su artista demuestran el tema, en vez de aceptar cualquier resultado del buscador.
+     */
+    private val CHRISTIAN_TRIGGERS = listOf("gospel", "cristiana", "cristiano", "alabanza", "worship")
+    private val CHRISTIAN_CONCEPTS =
+        listOf("cristiana", "cristiano", "gospel", "worship", "alabanza", "adoracion", "jesus", "dios")
+
+    /** true si [prompt] pidió explícitamente música cristiana/gospel — ver [CHRISTIAN_TRIGGERS]. */
+    fun requiresChristianContent(prompt: String): Boolean =
+        CHRISTIAN_TRIGGERS.any { fold(prompt).contains(it) }
+
+    /** true si [text] (título, nombre de artista…) muestra una señal cristiana/gospel reconocible. */
+    fun looksChristian(text: String): Boolean {
+        val t = fold(text)
+        return CHRISTIAN_CONCEPTS.any { containsToken(t, it) }
+    }
+
     /** Los nombres que puede tener la categoría que él busca, o vacío si no cae en ninguna familia. */
-    fun conceptsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<String> {
+    fun conceptsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<String> =
+        conceptGroupsFor(prompt, parsed).flatten().distinct()
+
+    /**
+     * Ronda 9 (dueño): "bachata cristiana" — [pickCategory] cogía la categoría "Bachata" a secas,
+     * ignorando "cristiana" por completo, porque [conceptsFor] mezclaba los conceptos de TODAS las
+     * familias que matchean en una sola bolsa plana, y bastaba con satisfacer UNA para "ganar". Esto
+     * separa cada familia que matchea en su propio grupo para que la categoría elegida tenga que
+     * demostrar TODAS las familias pedidas a la vez, no una cualquiera de ellas.
+     */
+    /** Los grupos de conceptos de GÉNERO (no momento/actividad) que [prompt] dispara, ya normalizado. */
+    private fun genreGroupsFor(folded: String): List<List<String>> =
+        GENRE_FAMILIES.mapNotNull { (triggers, concepts) -> concepts.takeIf { triggers.any { t -> folded.contains(t) } } }
+
+    private fun momentGroupsFor(folded: String): List<List<String>> =
+        FAMILIES.mapNotNull { (triggers, concepts) -> concepts.takeIf { triggers.any { t -> folded.contains(t) } } }
+
+    internal fun conceptGroupsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<List<String>> {
         val folded = fold(prompt)
-        val out = ArrayList<String>()
-        FAMILIES.forEach { (triggers, concepts) ->
-            if (triggers.any { folded.contains(it) }) out += concepts
-        }
-        if (parsed.decade != null) out += MusicRequestMatch.decadeTokens(parsed.decade)
-        return out.distinct()
+        val groups = ArrayList<List<String>>()
+        groups += momentGroupsFor(folded)
+        groups += genreGroupsFor(folded)
+        if (parsed.decade != null) groups += MusicRequestMatch.decadeTokens(parsed.decade)
+        return groups
     }
 
     /**
      * El índice de la categoría que corresponde, o null si ninguna lo hace de forma clara.
      *
-     * Una década manda sobre el momento: "música de los 80 para el gimnasio" es, ante todo, de los 80 —
-     * la década es comprobable y el momento es interpretación.
+     * Una década manda sobre el MOMENTO: "música de los 80 para el gimnasio" es, ante todo, de los
+     * 80 — la década es comprobable y el momento es interpretación. Pero NO manda sobre el GÉNERO
+     * (ronda 9, dueño: "reggae de los 90" traía "Éxitos de los 90" genéricos, ignorando "reggae" por
+     * completo). Antes de este arreglo la rama de década descartaba conceptGroupsFor entero — géneros
+     * incluidos — así que cualquier categoría con la década alcanzaba, sin importar el género pedido.
+     * Ahora, si además hay un género reconocido, la categoría tiene que demostrar los dos a la vez,
+     * igual que ya exige la rama de abajo para género+tema.
      */
     fun pickCategory(
         categoryTitles: List<String>,
@@ -72,20 +176,23 @@ object MusicRequestMoods {
     ): Int? {
         if (categoryTitles.isEmpty()) return null
         if (parsed.decade != null) {
-            val tokens = MusicRequestMatch.decadeTokens(parsed.decade)
+            val requiredGroups = listOf(MusicRequestMatch.decadeTokens(parsed.decade)) + genreGroupsFor(fold(prompt))
             categoryTitles.forEachIndexed { index, title ->
                 val t = fold(title)
-                if (tokens.any { containsToken(t, it) }) return index
+                if (requiredGroups.all { group -> group.any { containsToken(t, it) } }) return index
             }
-            // Pidió una década y el catálogo no la tiene como categoría: NO se cae al momento, que
-            // daría una lista de otra cosa. Sin categoría, la escalera sigue por la búsqueda.
+            // Pidió una década (y, si la hay, un género) y el catálogo no tiene una categoría que
+            // demuestre todo a la vez: NO se cae al momento, que daría una lista de otra cosa. Sin
+            // categoría, la escalera sigue por la búsqueda.
             return null
         }
-        val concepts = conceptsFor(prompt, parsed)
-        if (concepts.isEmpty()) return null
+        val groups = conceptGroupsFor(prompt, parsed)
+        if (groups.isEmpty()) return null
         categoryTitles.forEachIndexed { index, title ->
             val t = fold(title)
-            if (concepts.any { containsToken(t, it) }) return index
+            // Ronda 9: si matcheó VARIAS familias a la vez (género + tema), la categoría tiene que
+            // demostrar todas — una que solo cumpla una es la misma improvisación que ya se prohibió.
+            if (groups.all { group -> group.any { containsToken(t, it) } }) return index
         }
         return null
     }

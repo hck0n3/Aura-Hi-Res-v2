@@ -78,6 +78,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
 import iad1tya.echo.music.LocalDatabase
+import iad1tya.echo.music.LocalSyncUtils
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
@@ -98,6 +99,7 @@ import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
 import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
 import iad1tya.echo.music.ui.component.shimmer.ShimmerHost
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.menu.AlbumMenu
 import iad1tya.echo.music.ui.menu.SelectionSongMenu
 import iad1tya.echo.music.ui.menu.SongMenu
@@ -174,6 +176,7 @@ fun AuraAlbumScreen(
 ) {
     val context = LocalContext.current
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val menuState = LocalMenuState.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
@@ -302,6 +305,7 @@ fun AuraAlbumScreen(
                 item(key = "aura_album_hero", contentType = "aura_album_hero") {
                     AuraAlbumHero(
                         thumbnailUrl = album.album.thumbnailUrl,
+                        albumId = album.album.id,
                         canvasPrimaryUrl = canvasArtwork?.animated,
                         canvasFallbackUrl = canvasArtwork?.videoUrl,
                         canvasEnabled = albumCanvasEnabled,
@@ -356,10 +360,30 @@ fun AuraAlbumScreen(
                             if (checked) selection.add(song.id) else selection.remove(song.id)
                         }
 
+                        var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+                        AddToPlaylistDialog(
+                            isVisible = showAddToPlaylistDialog,
+                            songIdsForMembership = listOf(song.id),
+                            onGetSong = { listOf(song.id) },
+                            onDismiss = { showAddToPlaylistDialog = false },
+                        )
+
+                        AuraLibrarySwipeActionsBox(
+                            modifier = Modifier.animateItem(),
+                            enabled = !inSelectMode,
+                            liked = song.song.liked,
+                            onToggleLike = {
+                                val toggled = song.song.toggleLike()
+                                database.query {
+                                    update(toggled)
+                                    syncUtils.likeSong(toggled)
+                                }
+                            },
+                            onAddToPlaylist = { showAddToPlaylistDialog = true },
+                        ) {
                         AuraAppleListRowFrame(
                             showDivider = index < filteredSongs.lastIndex,
                             dividerInset = AuraAppleAlbumDividerInset,
-                            modifier = Modifier.animateItem(),
                         ) {
                             AuraAlbumTrackRow(
                                 trackNumber = auraAppleTrackNumber(
@@ -423,6 +447,7 @@ fun AuraAlbumScreen(
                                     scaleFocused = 1f,
                                 ),
                             )
+                        }
                         }
                     }
                 }
@@ -664,6 +689,7 @@ fun AuraAlbumScreen(
 @Composable
 private fun AuraAlbumHero(
     thumbnailUrl: String?,
+    albumId: String?,
     canvasPrimaryUrl: String?,
     canvasFallbackUrl: String?,
     canvasEnabled: Boolean,
@@ -713,6 +739,10 @@ private fun AuraAlbumHero(
                 AuraCover(
                     thumbnailUrl = thumbnailUrl,
                     size = heroWidth,
+                    // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
+                    modifier = if (albumId != null) {
+                        Modifier.auraSharedAlbumCoverElement(albumId)
+                    } else Modifier,
                     seed = thumbnailUrl,
                     shape = androidx.compose.ui.graphics.RectangleShape,
                     decodeTo = 1200,

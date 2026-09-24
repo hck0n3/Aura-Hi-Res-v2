@@ -100,4 +100,26 @@ class AiPlaylistConstraintsTest {
         // El guardián mira si queda ALGO al quitar época e idioma: "cent" queda, así que es un nombre.
         assertEquals("50 Cent", AiPlaylistConstraints.extractSoloArtist("canciones de 50 Cent"))
     }
+
+    // --- Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): los patrones sin
+    // anclar al inicio ("\bsolo …$", "\bcanciones … de …$") no reconocían la negación — "no solo X"
+    // (el usuario pide VARIEDAD, no limitarse a X) y "no quiero canciones de X" (el usuario quiere
+    // EXCLUIR a X) bloqueaban la playlist justo al artista que no debían. ---
+
+    @Test fun negationBeforeSoloDoesNotLockTheArtist() {
+        assertNull(AiPlaylistConstraints.extractSoloArtist("rock pero no solo Bad Bunny"))
+        assertNull(AiPlaylistConstraints.extractSoloArtist("quiero variedad, no solo Karol G"))
+    }
+
+    @Test fun negationBeforeCancionesDeDoesNotLockTheArtist() {
+        assertNull(AiPlaylistConstraints.extractSoloArtist("no quiero canciones de Bad Bunny"))
+        assertNull(AiPlaylistConstraints.extractSoloArtist("sin canciones de Karol G"))
+    }
+
+    @Test fun aGenuineSoloRequestStillLocksWithoutNegationNearby() {
+        // La negación solo importa cuando aparece ANTES del disparador — el candado sigue funcionando
+        // para el caso normal.
+        assertEquals("Bad Bunny", AiPlaylistConstraints.extractSoloArtist("rock, solo Bad Bunny"))
+        assertEquals("Karol G", AiPlaylistConstraints.extractSoloArtist("canciones de Karol G"))
+    }
 }

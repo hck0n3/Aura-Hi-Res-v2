@@ -16,12 +16,56 @@ import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
 
 /**
+ * One raw iTunes album-search hit already credited to the searched artist NAME, before the homonym
+ * filter in [iTunesDiscography.filterHomonyms] — internal so [DiscographyKeysTest]-style pure tests can
+ * exercise the filter without a network call.
+ */
+internal data class ItunesAlbumHit(
+    val title: String,
+    val trackCount: Int,
+    val artistId: String?,
+    // ISO-8601 (e.g. "2020-05-15T07:00:00Z"), straight from iTunes' `releaseDate`. Null when iTunes omits
+    // it. Used only to ORDER the discography like the iTunes/Apple Music app itself does (newest first) —
+    // never to gate acceptance, so a missing date costs at most a worse position, never a dropped release.
+    val releaseDate: String? = null,
+)
+
+/**
  * Real artist discography from the public iTunes Search API (no key/token needed). Used to find albums
  * that YouTube Music omits from an artist's page so they can be searched on YouTube and added back.
  */
 object iTunesDiscography {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    /**
+     * Ronda 7 (dueño): "¿se están autocompletando con discos que suben los usuarios?". iTunes'
+     * `artistTerm` search matches by NAME TEXT only — [ItunesAlbumHit.artistId] (a real per-artist id
+     * iTunes returns but this parser used to ignore) is never compared against anything. A homonym, a
+     * tribute act, or an unrelated artist registered under the exact same name on Apple Music would be
+     * "credited" just as confidently as the real artist and its releases would get mixed into the
+     * discography.
+     *
+     * Keeps only hits whose [ItunesAlbumHit.artistId] agrees with the MAJORITY artistId among this
+     * store's credited hits — the real artist's own catalog dominates a search for their name; a
+     * homonym mixed in is the minority. A hit with a missing/null artistId (older or odd iTunes
+     * responses) is kept as-is: there is nothing to disprove it with, and dropping on missing data would
+     * be worse than the bug this fixes. If there is no clear majority (every hit has a distinct or null
+     * artistId, or the list is empty), nothing is dropped — never invent a decision from insufficient
+     * evidence (AGENTS.md regla 2/3).
+     */
+    internal fun filterHomonyms(hits: List<ItunesAlbumHit>): List<ItunesAlbumHit> {
+        val counts = hits.mapNotNull { it.artistId }.groupingBy { it }.eachCount()
+        if (counts.isEmpty()) return hits
+        val topCount = counts.values.max()
+        val topIds = counts.filterValues { it == topCount }.keys
+        // A TIE between two or more artistIds (e.g. every hit has a distinct id) is not a majority —
+        // maxByOrNull would silently pick whichever one happened to be encountered first, which is
+        // exactly the "invent a decision from insufficient evidence" this function must not do.
+        if (topIds.size != 1) return hits
+        val majorityArtistId = topIds.first()
+        return hits.filter { it.artistId == null || it.artistId == majorityArtistId }
+    }
 
     private val client by lazy {
         HttpClient(OkHttp) {
@@ -64,11 +108,16 @@ object iTunesDiscography {
         }.getOrDefault(emptyList())
 
     /**
-     * Album (title, trackCount) released by [artistName] per iTunes (same credit rule as [fetchAlbumTitles],
-     * no extra network — trackCount is already in the search response). trackCount is 0 when iTunes omits it.
-     * Lets the caller detect a TRUNCATED YouTube upload (fewer tracks than iTunes says the release has).
+     * Album hits (title, trackCount, releaseDate) released by [artistName] per iTunes (same credit rule as
+     * [fetchAlbumTitles], no extra network — everything is already in the search response). trackCount is 0
+     * when iTunes omits it; releaseDate is null likewise. Lets the caller detect a TRUNCATED YouTube upload
+     * (fewer tracks than iTunes says the release has) AND order the discography the way iTunes/Apple Music
+     * itself does (see [ArtistItemsViewModel.buildReleaseDates]).
      */
-    suspend fun fetchAlbumMeta(artistName: String, country: String = "us"): List<Pair<String, Int>> =
+    // internal, not public: it returns ItunesAlbumHit, itself internal (see the class doc), and Kotlin
+    // refuses to let a public function expose an internal type. Its only caller (ArtistItemsViewModel) is
+    // in this same Gradle module, so internal is not a narrowing here.
+    internal suspend fun fetchAlbumMeta(artistName: String, country: String = "us"): List<ItunesAlbumHit> =
         runCatching {
             val text = client.get("https://itunes.apple.com/search") {
                 parameter("term", artistName)
@@ -78,16 +127,23 @@ object iTunesDiscography {
                 parameter("country", country)
             }.bodyAsText()
 
-            json.parseToJsonElement(text).jsonObject["results"]?.jsonArray
+            val hits = json.parseToJsonElement(text).jsonObject["results"]?.jsonArray
                 ?.mapNotNull { el ->
                     val o = el.jsonObject
                     val resultArtist = o["artistName"]?.jsonPrimitive?.contentOrNull ?: ""
                     val title = o["collectionName"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                     val credited = resultArtist.startsWith(artistName, ignoreCase = true) ||
                         artistName.startsWith(resultArtist, ignoreCase = true)
-                    if (credited) title to (o["trackCount"]?.jsonPrimitive?.intOrNull ?: 0) else null
+                    if (!credited) return@mapNotNull null
+                    ItunesAlbumHit(
+                        title = title,
+                        trackCount = o["trackCount"]?.jsonPrimitive?.intOrNull ?: 0,
+                        artistId = o["artistId"]?.jsonPrimitive?.contentOrNull,
+                        releaseDate = o["releaseDate"]?.jsonPrimitive?.contentOrNull,
+                    )
                 }
                 .orEmpty()
+            filterHomonyms(hits)
         }.onFailure {
             Timber.w("iTunes discography meta fetch failed for $artistName: ${it.message}")
         }.getOrDefault(emptyList())

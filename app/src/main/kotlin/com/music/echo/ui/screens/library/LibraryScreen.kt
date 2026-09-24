@@ -48,21 +48,24 @@ import iad1tya.echo.music.constants.LibraryFilter
 import iad1tya.echo.music.constants.MiniPlayerBottomSpacing
 import iad1tya.echo.music.constants.MiniPlayerHeight
 import iad1tya.echo.music.constants.NavigationBarHeight
-import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.ui.component.AiPlaylistDialog
 import iad1tya.echo.music.ui.component.ChipsRow
 import iad1tya.echo.music.ui.component.CreatePlaylistDialog
 import iad1tya.echo.music.ui.component.TextFieldDialog
 import iad1tya.echo.music.ui.screens.DownloadedOnlyView
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
 
 @Composable
 fun LibraryScreen(navController: NavController) {
-    val offlineMode by rememberPreference(OfflineModeKey, false)
-    if (offlineMode) {
-        // Owner: offline library is downloads-only; nothing stream-only.
-        DownloadedOnlyView(navController = navController)
+    // Manual+automatic: this screen used to read only the manual switch and never noticed when the
+    // automatic "sin conexión" kicked in with no network.
+    val offlineState = rememberOfflineState()
+    if (offlineState.offline) {
+        // Owner: offline library is downloads-only; nothing stream-only. `automatic` picks the right
+        // banner — "desactivar" only makes sense for the manual switch.
+        DownloadedOnlyView(navController = navController, automatic = offlineState.automatic)
         return
     }
 

@@ -1,20 +1,28 @@
 package iad1tya.echo.music.viewmodels
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.playlistimport.AiPlaylistGenerator
+import iad1tya.echo.music.playlistimport.MusicRequestHistory
 import iad1tya.echo.music.reco.AffinityEngine
+import iad1tya.echo.music.reco.GenreCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -41,27 +49,36 @@ class MusicRequestViewModel
 constructor(
     private val database: MusicDatabase,
     private val dislikeStore: iad1tya.echo.music.dislike.DislikeStore,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<MusicRequestUiState>(MusicRequestUiState.Idle)
     val state: StateFlow<MusicRequestUiState> = _state.asStateFlow()
 
+    /**
+     * Canciones que se suman a la cola YA sonando, en segundo plano — ver [firstBatchCount].
+     * `SharedFlow` (no `StateFlow`) porque esto es un evento de una sola vez ("añade esto ahora"), no
+     * un estado que una recomposición tardía deba volver a aplicar.
+     */
+    private val _extend = MutableSharedFlow<ExtendQueue>(extraBufferCapacity = 1)
+    val extend: SharedFlow<ExtendQueue> = _extend.asSharedFlow()
+
     private var job: Job? = null
 
     /**
-     * Cuántas canciones pedir.
+     * Cuántas canciones esperar antes de arrancar a sonar.
      *
      * 🔴 Diez, por orden del dueño (2026-09-17): *"que el máximo de canciones que busque sean 10 para
-     * que responda más rápido, y luego la cola infinita inteligente continuará con el mismo algoritmo
-     * para completar la función"*. Eran 25.
-     *
-     * Y encaja con cómo está hecho el reproductor, no es solo "menos": la cola que se pone aquí es una
-     * `ListQueue`, y `MusicService` guarda TODAS sus canciones como semilla de la radio
-     * (`radioSeedPool`). Al acabar las diez, la continuación multi-semilla las usa enteras — con su
-     * mezcla de artistas y géneros — para seguir con el mismo algoritmo de siempre. O sea que diez no
-     * es una cola corta: es la semilla, y lo que viene después ya lo pone el algoritmo.
+     * que responda más rápido"*. Eran 25. Y el dueño pidió de vuelta el 2026-09-22: *"quiero que
+     * siempre reproduzca de inmediato y en segundo plano agregue 25 canciones"* — es decir, ya no hace
+     * falta elegir entre "rápido" y "25": arrancar con un lote más chico y completar el resto sin que
+     * nadie espere consigue las dos cosas a la vez. [firstBatchCount] es ese primer lote (arranca en
+     * segundos, igual que antes); [targetCount] es el total al que se completa en segundo plano.
      */
-    private val requestedCount = 10
+    private val firstBatchCount = 8
+
+    /** Ver [firstBatchCount]. Vuelve a 25 (el valor de antes de 2026-09-17). */
+    private val targetCount = 25
 
     /**
      * Cuántos eventos de escucha lee el perfil de gusto. Seiscientos son varias semanas de uso real y
@@ -97,13 +114,22 @@ constructor(
             val tasteJob = async {
                 runCatching {
                     val events = database.recentEventsWithSong(TASTE_EVENTS).first()
-                    AffinityEngine.buildProfile(events, dislikeStore.snapshot())
+                    // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): sin
+                    // artistGenres, el bono de género de AffinityEngine (el más grande de los tres:
+                    // 0.55, más que el de artista o el de carril) nunca se sumaba acá — el comentario
+                    // de esta misma función prometía "artista y género" pero solo llegaba el primero.
+                    // GenreCache.snapshot es una lectura en memoria (SharedPreferences ya cacheadas),
+                    // no red — gratis en este presupuesto reducido.
+                    AffinityEngine.buildProfile(
+                        events, dislikeStore.snapshot(), artistGenres = GenreCache.snapshot(context),
+                    )
                 }.getOrNull()
             }
+            val taste = tasteJob.await()
             val produced = AiPlaylistGenerator.produce(
                 database = database,
                 prompt = prompt,
-                count = requestedCount,
+                count = firstBatchCount,
                 provider = provider,
                 apiKey = apiKey,
                 baseUrl = baseUrl,
@@ -111,12 +137,70 @@ constructor(
                 onResolveProgress = { done, total ->
                     _state.value = MusicRequestUiState.Working(done, total)
                 },
-                taste = tasteJob.await(),
+                taste = taste,
             )
-            _state.value = when {
-                produced == null || produced.songs.isEmpty() -> MusicRequestUiState.Empty
-                else -> MusicRequestUiState.Ready(produced.name, produced.songs)
+            if (produced == null || produced.songs.isEmpty()) {
+                _state.value = MusicRequestUiState.Empty
+                return@launch
             }
+            MusicRequestHistory.record(prompt)
+            // Un id propio de ESTE pedido: la cola no lleva contextId todavía (nunca lo necesitó,
+            // era una lista suelta), y ahora hace falta para que el relleno de abajo sepa que sigue
+            // siendo la MISMA cola antes de sumarle canciones — si mientras tanto puso otra cosa a
+            // sonar, el relleno no se mete ahí.
+            val contextId = "MR:" + UUID.randomUUID()
+            _state.value = MusicRequestUiState.Ready(produced.name, produced.songs, contextId)
+
+            // EL RELLENO EN SEGUNDO PLANO (dueño, 2026-09-22: "que siempre reproduzca de inmediato y
+            // en segundo plano agregue 25 canciones"). Lanzado APARTE de `job`, a propósito: `job` es
+            // "la espera del primer lote", y el llamante hace `reset()` (que cancela `job`) apenas ve
+            // este `Ready` para poder cerrar la hoja — si el relleno viviera en el mismo `job`, ese
+            // `reset()` lo mataría antes de que arrancara. Aparte, tampoco bloquea un pedido nuevo: el
+            // guard de `request()` solo mira `job`, así que pedir otra cosa mientras esto sigue en
+            // marcha no espera a que termine (y su resultado, si llega tarde, trae un contextId viejo
+            // que `extendQueueForContext` ya no reconoce si el usuario cambió de cola mientras tanto).
+            if (produced.songs.size < targetCount) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    fillInBackground(contextId, prompt, targetCount, provider, apiKey, baseUrl, model, taste, produced.songs)
+                }
+            }
+        }
+    }
+
+    /**
+     * Completa hasta [target] canciones para la MISMA petición y las manda por [_extend]. Es un
+     * segundo pedido completo (no una continuación del primero: `produce` no expone eso hoy) — mismo
+     * prompt y mismo gusto, así que en la práctica trae una versión más larga del mismo resultado; se
+     * filtra por id lo que el primer lote ([alreadyPlaying]) ya incluyó para no repetir nada.
+     */
+    private suspend fun fillInBackground(
+        contextId: String,
+        prompt: String,
+        target: Int,
+        provider: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        taste: iad1tya.echo.music.reco.TasteProfile?,
+        alreadyPlaying: List<MediaMetadata>,
+    ) {
+        val fuller = runCatching {
+            AiPlaylistGenerator.produce(
+                database = database,
+                prompt = prompt,
+                count = target,
+                provider = provider,
+                apiKey = apiKey,
+                baseUrl = baseUrl,
+                model = model,
+                taste = taste,
+            )
+        }.getOrNull()
+        if (fuller == null || fuller.songs.isEmpty()) return
+        val already = alreadyPlaying.mapTo(HashSet()) { it.id }
+        val extra = fuller.songs.filter { it.id !in already }
+        if (extra.isNotEmpty()) {
+            _extend.emit(ExtendQueue(contextId, extra))
         }
     }
 
@@ -128,14 +212,22 @@ constructor(
     }
 }
 
+/** Canciones del relleno en segundo plano para sumar a la cola de [contextId]. Ver [MusicRequestViewModel.extend]. */
+data class ExtendQueue(val contextId: String, val songs: List<MediaMetadata>)
+
 sealed interface MusicRequestUiState {
     data object Idle : MusicRequestUiState
 
     /** Buscando. [total] es 0 mientras todavía no se sabe cuántas hay que resolver. */
     data class Working(val done: Int, val total: Int) : MusicRequestUiState
 
-    /** Listo para sonar. El llamante pone la cola y llama a `reset()`. */
-    data class Ready(val title: String, val songs: List<MediaMetadata>) : MusicRequestUiState
+    /**
+     * Listo para sonar. El llamante pone la cola con [contextId] y llama a `reset()`; ese mismo id es
+     * el que trae [MusicRequestViewModel.extend] cuando llega el relleno en segundo plano, para saber
+     * a qué cola sumarlo.
+     */
+    data class Ready(val title: String, val songs: List<MediaMetadata>, val contextId: String) :
+        MusicRequestUiState
 
     /**
      * No se encontró nada. **Un estado propio y no un `Error`**: aquí no hay nada roto que explicar —

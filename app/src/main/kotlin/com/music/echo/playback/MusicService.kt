@@ -396,6 +396,15 @@ class MusicService :
     // Set true by stopOnError() immediately before its player.pause(), so the resulting onPlayWhenReadyChanged
     // can tell OUR error-pause (keep pausedByNetwork) from a real user/external pause (clear pausedByNetwork).
     private var expectingOwnStopPause = false
+    // Ronda 7 (dueño): "salgo de TikTok y el reproductor arranca de la nada". Causa: handleAudioFocusChange's
+    // own player.pause() on FOCUS_LOSS reports the same onPlayWhenReadyChanged() reason as a real user pause,
+    // so nothing ever told wasPlayingBeforeAudioFocusLoss apart from an actual manual/external pause — it only
+    // cleared inside the 300ms scheduled-resume window, never on a plain pause. If the user paused manually
+    // while that sticky flag was still true from an earlier, unrelated focus cycle, it stayed true indefinitely
+    // (the service can live for hours), and a LATER app's focus loss/gain (TikTok) inherited it and resumed
+    // playback the user never asked for. Same pattern as expectingOwnStopPause above: set immediately before
+    // OUR focus-triggered player.pause(), so onPlayWhenReadyChanged can tell it apart from any other pause.
+    private var expectingOwnFocusPause = false
     /** Auto wireless: media3 paused us via AUDIO_BECOMING_NOISY — resume when the car route returns. */
     private var pausedByNoisy = false
     private var pausedByNoisyAtMs = 0L
@@ -778,7 +787,13 @@ class MusicService :
     @Volatile private var outputDitherHint: Boolean = true
     @Volatile private var speakerBassProtectHint: Boolean = true
     @Volatile private var stereoWidthHint: Float = 1f
-    @Volatile private var autoHeadroomHint: Boolean = true
+    // Default OFF (owner report 2026-09-22): this trims the master preamp by the loudest active
+    // band's boost on every EQ recompute (each slider drag), so moving a band up perceptibly ducked
+    // the overall volume and moving it back down brought it back — read as "the EQ changes my
+    // volume". See effectivePreampDb in CustomEqualizerAudioProcessor for the mechanism. Still
+    // available as an opt-in in Ajustes → Sonido for anyone who wants real clipping protection when
+    // pushing several bands hard.
+    @Volatile private var autoHeadroomHint: Boolean = false
     // The offload request CURRENTLY PUBLISHED to the players (not merely the gate's latest verdict — an
     // approved enable can be waiting for a track boundary; see publishOffloadDecision). Read by
     // onPlaybackParametersChanged, which only re-publishes the speed requirement while offload is live.
@@ -2585,7 +2600,7 @@ class MusicService :
         scope.launch {
             combine(
                 dataStore.data.map { it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f },
-                dataStore.data.map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: true },
+                dataStore.data.map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: false },
             ) { width, headroom -> width to headroom }
                 .distinctUntilChanged()
                 .collect { (width, headroom) ->
@@ -3149,6 +3164,7 @@ class MusicService :
         hasAudioFocus = decision.hasAudioFocus
         wasPlayingBeforeAudioFocusLoss = decision.wasPlayingBeforeLoss
         if (decision.pause) {
+            expectingOwnFocusPause = true
             player.pause()
         }
         decision.volume?.let { player.volume = it }
@@ -3307,6 +3323,76 @@ class MusicService :
 
         player.pause()
         consecutivePlaybackErr = 0
+    }
+
+    /**
+     * Owner report (ronda 4): "el modo sin conexión no funciona automáticamente" — mientras se está
+     * reproduciendo y se pierde la red, la canción que sigue puede no estar descargada ni escuchada
+     * antes, y hasta ahora el único destino de la rama `!isNetworkConnected.value` de [onPlayerError]
+     * era [waitOnNetworkError] — pausar y ESPERAR a que vuelva la red, aunque una canción MÁS ADELANTE
+     * en la misma cola ya estuviera descargada o en el listen-cache y pudiera sonar ya mismo sin red.
+     *
+     * Reutiliza exactamente las mismas fuentes que el resolver ya trata como "reproducible sin red"
+     * (ver el Factory de arriba, ~línea 8259 en adelante): un downloadCache completo, un listen-cache
+     * completo ([fullyCachedListenUri]) o un URI exportado (AudioExportService) que aún exista en
+     * disco. Todos son lecturas locales de metadatos de caché — sin red, rápidas — así que recorrer
+     * toda la cola pendiente es barato.
+     *
+     * Camina la timeline en orden de REPRODUCCIÓN (`getNextWindowIndex`, respeta shuffle) desde la
+     * canción que acaba de fallar hacia ADELANTE — nunca hacia atrás, nunca vuelve a la que ya se sabe
+     * que no sirve. `REPEAT_MODE_OFF` fijo (igual que [maybeLoadMoreQueuePages]) para que el paseo NUNCA
+     * dé la vuelta y entre en bucle aunque el modo real de repetición sea "todo"; el tope
+     * `timeline.windowCount` es una cota dura sobre cuántos saltos puede dar.
+     */
+    private fun findNextOfflinePlayableIndex(): Int? {
+        val timeline = player.currentTimeline
+        var idx = player.currentMediaItemIndex
+        if (timeline.isEmpty || idx == C.INDEX_UNSET) return null
+
+        val exportedUris = runCatching {
+            runBlocking(Dispatchers.IO) {
+                parseExportedFileUriMap(dataStore.data.first()[ExportedFileUrisKey].orEmpty())
+            }
+        }.getOrDefault(emptyMap())
+
+        val window = Timeline.Window()
+        var hops = 0
+        while (hops < timeline.windowCount) {
+            idx = timeline.getNextWindowIndex(idx, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+            if (idx == C.INDEX_UNSET) return null
+            hops++
+            val mediaId = timeline.getWindow(idx, window).mediaItem.mediaId
+            if (isPlayableOffline(mediaId, exportedUris)) return idx
+        }
+        return null
+    }
+
+    /** Same "playable with zero network" test the resolver itself applies — see [findNextOfflinePlayableIndex]. */
+    private fun isPlayableOffline(mediaId: String, exportedUris: Map<String, String>): Boolean {
+        if (mediaId.isLocalMediaId()) return true
+        val cachedLength = androidx.media3.datasource.cache.ContentMetadata.getContentLength(downloadCache.getContentMetadata(mediaId))
+        val isFullyDownloaded = cachedLength != C.LENGTH_UNSET.toLong() && cachedLength > 0 &&
+            downloadCache.isCached(mediaId, 0, cachedLength)
+        if (isFullyDownloaded) return true
+        if (fullyCachedListenUri(mediaId, null) != null) return true
+        val exportedUri = exportedUris[mediaId]
+        return !exportedUri.isNullOrBlank() && exportedFileUriExists(this, exportedUri)
+    }
+
+    /** Jumps to a song [findNextOfflinePlayableIndex] already confirmed is playable with zero network. */
+    private fun skipToOfflinePlayableSong(index: Int) {
+        retryCount = 0
+        waitingForNetworkConnection.value = false
+        retryJob?.cancel()
+        deadEndRecheckJob?.cancel()
+        player.seekTo(index, C.TIME_UNSET)
+        player.prepare()
+        if (castConnectionHandler?.isCasting?.value != true) {
+            player.play()
+        }
+        runCatching {
+            Toast.makeText(this, getString(R.string.offline_skipped_to_cached_song), Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun stopOnError() {
@@ -5012,8 +5098,44 @@ class MusicService :
             applyShuffleOrder(player.currentMediaItemIndex, player.mediaItemCount, shufflePlaylistFirst)
         }
         player.prepare()
-        
+
         preloadUpcomingItems()
+    }
+
+    /**
+     * Appends more songs to the CURRENTLY PLAYING queue when it is still the same collection
+     * identified by [contextId] — "pedir música" starts playing with a small first batch
+     * (owner report 2026-09-22: "que siempre reproduzca de inmediato") and fills the rest of its
+     * seed up to the full target in the background; this is how that fill lands. No-ops if the
+     * user has since switched to a different queue/context, so a slow background fill can never
+     * inject songs into whatever is playing now.
+     *
+     * Deliberately more than [addToQueue] + done: extending only the player timeline would leave
+     * [contextCoverageSize] at the smaller original count, so "this collection finished" could fire
+     * after just the first batch instead of the full one (the same class of bug as registry row
+     * 94(e)) — and [radioSeedPool] would keep the smaller sample, so the infinite continuation that
+     * follows would not reflect the request's full style. This mirrors the THREE things playQueue
+     * sets up for a fresh ListQueue, extending them instead of replacing them.
+     */
+    fun extendQueueForContext(contextId: String, items: List<MediaItem>) {
+        if (items.isEmpty()) return
+        if (shuffleContextId != contextId || contextCoverageId != contextId) return
+        addToQueue(items)
+        if (radioSeedPool.isNotEmpty()) {
+            val existingIds = radioSeedPool.mapTo(HashSet()) { it.id }
+            radioSeedPool = radioSeedPool + items.mapNotNull { it.metadata }.filter { it.id !in existingIds }
+        }
+        contextCoverageSize += items.size
+        sessionPlayedIds.addAll(items.mapNotNull { it.mediaId })
+        // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): a diferencia de
+        // appendSeed (la otra vía de "cola infinita"), esta función nunca reprogramaba el crossfade.
+        // Si el reproductor llegaba a la última canción del primer lote de "pedir música" justo antes
+        // de que este relleno llegara, scheduleCrossfade() ya había corrido con !hasNextMediaItem() y
+        // se había desarmado — addToQueue() de arriba vuelve a haber "próxima canción", pero nada
+        // volvía a armar el crossfade hasta el próximo evento que lo hiciera por otra razón, así que
+        // esa transición sonaba como corte seco en vez de crossfade. scheduleCrossfade() es idempotente
+        // (cancela y reinicia), igual que ya hace appendSeed tras un append exitoso.
+        scheduleCrossfade()
     }
 
     fun toggleLibrary() {
@@ -5110,6 +5232,9 @@ class MusicService :
     fun dislikeCurrentSong() {
         val mediaId = player.currentMediaItem?.mediaId ?: return
         scope.launch {
+            // See the matching comment on SongEntity.toggleLike: timestamp only, for correlating
+            // against a possible subscribeChannel call if the owner's report reproduces.
+            Timber.i("SONG_DISLIKE_TOGGLE")
             runCatching { dislikeStore.dislikeSong(mediaId) }
             // If it was liked, drop the like (a dislike contradicts it).
             runCatching {
@@ -6534,6 +6659,16 @@ class MusicService :
             } else {
                 pausedByNetwork = false
             }
+            // Ronda 7: any pause we did NOT cause via handleAudioFocusChange's own player.pause()
+            // invalidates the sticky "resume when focus returns" intent — same reasoning as
+            // pausedByNetwork above. Without this, a manual pause left the flag from a stale, already-
+            // resolved focus cycle sitting at true, ready to fire on a completely unrelated app's
+            // later focus gain (see expectingOwnFocusPause's declaration for the full story).
+            if (expectingOwnFocusPause) {
+                expectingOwnFocusPause = false
+            } else {
+                wasPlayingBeforeAudioFocusLoss = false
+            }
         } else {
             expectingOwnStopPause = false
             pausedByNoisy = false
@@ -7483,8 +7618,18 @@ class MusicService :
             }
 
             !isNetworkConnected.value -> {
-                // GENUINELY OFFLINE — wait for the network to come back. waitOnNetworkError() is already
-                // bounded (MAX_RETRY_COUNT, then a single-shot re-check), so this never loops forever.
+                // GENUINELY OFFLINE. Owner report (ronda 4): before jumping straight to "wait for the
+                // network", check whether a LATER song in this same queue is already playable with zero
+                // network (downloaded, fully listen-cached, or an exported file) — if so, skip to it
+                // instead of stalling. Only when nothing ahead can play offline do we fall back to
+                // waitOnNetworkError() (already bounded: MAX_RETRY_COUNT, then a single-shot re-check),
+                // so this never loops forever either way.
+                val offlineTargetIndex = findNextOfflinePlayableIndex()
+                if (offlineTargetIndex != null) {
+                    Timber.tag(TAG).d("Offline — skipping to next offline-playable song at index $offlineTargetIndex")
+                    skipToOfflinePlayableSong(offlineTargetIndex)
+                    return
+                }
                 Timber.tag(TAG).d("Offline — waiting for the network to return")
                 waitOnNetworkError()
                 return
@@ -8187,6 +8332,23 @@ class MusicService :
     /** FASE B: implementation moved verbatim to [VideoModeCoordinator.exitVideoMode]. */
     fun exitVideoMode() = videoCoordinator.exitVideoMode()
 
+    /**
+     * Ronda 9 (dueño, reporte tras la beta anterior): "cuando activo el wifi ya no reproduce nada
+     * que no esté en caché — con datos sí funciona". La causa real estaba en
+     * [iad1tya.echo.music.utils.NetworkConnectivityObserver]: onLost() se disparaba por red, no por
+     * "¿queda alguna que sirva?", así que Android bajando la red de datos al activar wifi (con wifi
+     * perfectamente conectada) se leía como "sin internet" — ya arreglado ahí. Pero el gate estricto
+     * de offline (más abajo) es demasiado consecuente (bloquea TODA reproducción no cacheada) como
+     * para depender solo de un StateFlow que vive de eventos: se le pregunta al sistema EN VIVO, en
+     * el momento exacto de la decisión. Falla ABIERTO (asume conectado) ante cualquier excepción —
+     * un fallo aquí nunca debe ser la causa de que la música no suene.
+     */
+    private fun hasLiveInternetConnection(): Boolean = runCatching {
+        val net = connectivityManager.activeNetwork ?: return@runCatching false
+        connectivityManager.getNetworkCapabilities(net)
+            ?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }.getOrDefault(true)
+
     private fun createDataSourceFactory(): DataSource.Factory {
         return ResolvingDataSource.Factory(
             DefaultDataSource.Factory(this, createCacheDataSource())
@@ -8204,8 +8366,10 @@ class MusicService :
             // Podcast episodes (and any direct-URL media) are already a playable audio stream — play
             // the URL straight through instead of resolving it through YouTube.
             if (mediaId.startsWith("http://", ignoreCase = true) || mediaId.startsWith("https://", ignoreCase = true)) {
-                // Offline mode: direct URLs still need the network — refuse them.
-                if (dataStore.get(OfflineModeKey, false)) {
+                // Offline mode: direct URLs still need the network — refuse them. Same ronda 9
+                // reasoning as the offlineModeOn gate below: a genuine connectivity loss refuses
+                // immediately instead of only after the network fetch times out.
+                if (dataStore.get(OfflineModeKey, false) || !hasLiveInternetConnection()) {
                     throw PlaybackException(
                         getString(R.string.error_offline_not_downloaded),
                         null,
@@ -8256,7 +8420,18 @@ class MusicService :
                 return@Factory dataSpec.withUri(exportedUri.toUri())
             }
 
-            val offlineModeOn = dataStore.get(OfflineModeKey, false)
+            // Ronda 9 (dueño): "detecta cuando las canciones dejen de cargar por [falta de] red y pon
+            // la cola en modo offline". Before this, losing connectivity WITHOUT the user manually
+            // flipping "Modo sin conexión" still let every non-cached song attempt a full network
+            // resolve — it only gave up after the 15s connect / 30s read OkHttp timeout threw a
+            // player error, which is exactly what read as "se queda cargando". [hasLiveInternetConnection]
+            // asks the SYSTEM directly at this exact moment rather than trusting the cached
+            // isNetworkConnected StateFlow for something this consequential (a hard gate that
+            // refuses ALL non-cached playback) — see its own KDoc for why: that flow briefly read
+            // "false" while Wi-Fi was perfectly connected (HALLAZGO, ronda 9 follow-up) because
+            // losing the phone's OTHER network (mobile data, torn down once Wi-Fi took over) doesn't
+            // mean losing connectivity in general.
+            val offlineModeOn = dataStore.get(OfflineModeKey, false) || !hasLiveInternetConnection()
 
             // Read Room NOW — BEFORE serving any playerCache/songUrlCache hit — for the container-mismatch guard
             // below, which decides whether the CACHED BYTES may be served or must be bypassed+refetched.
@@ -9667,7 +9842,6 @@ class MusicService :
         scope.launch(Dispatchers.IO) {
             runCatching { writePersistPlayerState(state) }
         }
-        checkpointEnhancedShuffleCursor()
     }
 
     /** Same payload as [savePlaybackPositionToDisk] but blocks — for ACTION_SHUTDOWN / REBOOT. */
@@ -9676,7 +9850,6 @@ class MusicService :
         runCatching {
             writePersistPlayerState(capturePersistPlayerState())
         }
-        checkpointEnhancedShuffleCursor()
     }
 
     private fun capturePersistPlayerState(): PersistPlayerState =
@@ -9696,22 +9869,16 @@ class MusicService :
         }
     }
 
-    private fun checkpointEnhancedShuffleCursor() {
-        val ctx = shuffleContextId
-        if (enhancedShuffleHint && ctx != null && player.shuffleModeEnabled) {
-            val sid = player.currentMetadata?.id
-            val pos = player.currentPosition
-            val now = System.currentTimeMillis()
-            scope.launch(enhancedShuffleWriteDispatcher) {
-                runCatching {
-                    database.insertEnhancedContextIgnore(
-                        EnhancedShuffleContextEntity(contextId = ctx, lastSongId = sid, lastPositionMs = pos, updatedAt = now)
-                    )
-                    database.updateEnhancedContextCursor(ctx, sid, pos, now)
-                }
-            }
-        }
-    }
+    // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): esta función existía
+    // (checkpointEnhancedShuffleCursor) y escribía lastSongId/lastPositionMs a SQLite en CADA guardado
+    // periódico de posición mientras el shuffle mejorado estaba activo, más en cada apagado/reinicio —
+    // trabajo de disco real, no un no-op. Pero ese cursor nunca se leía de vuelta: DatabaseDao.
+    // getEnhancedContext (el único SELECT que lo devuelve) no tenía ningún call-site en toda la app.
+    // La UI de "continuar donde quedaste" (ShuffleMemoryPrompt) usa exclusivamente la tabla
+    // enhanced_shuffle_played (playedSongIdsForContextFlow), no este cursor. Se quita la escritura en
+    // vez de dejarla pagando IO/batería por un dato que nadie consulta (regla AGENTS.md #7) — la
+    // columna y el DAO quedan intactos sin tocar el esquema de Room, por si algún día se conecta un
+    // lector real.
 
     private fun saveQueueToDisk(synchronous: Boolean = false) {
         if (player.mediaItemCount == 0) {

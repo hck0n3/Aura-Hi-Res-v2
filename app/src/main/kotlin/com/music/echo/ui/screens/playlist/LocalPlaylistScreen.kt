@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,8 +47,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -79,6 +82,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.abs
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -139,6 +144,7 @@ import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.ui.component.DraggableScrollbar
 import iad1tya.echo.music.ui.component.EmptyPlaceholder
 import iad1tya.echo.music.ui.component.IconButton
+import iad1tya.echo.music.ui.component.LibrarySwipeActionsBox
 import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.component.OverlayEditButton
 import iad1tya.echo.music.ui.component.SongListItem
@@ -147,6 +153,7 @@ import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
 import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
 import iad1tya.echo.music.ui.component.SortHeader
 import iad1tya.echo.music.ui.component.TextFieldDialog
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.menu.CustomThumbnailMenu
 import iad1tya.echo.music.ui.component.ExpandableText
 import iad1tya.echo.music.ui.menu.LocalPlaylistMenu
@@ -181,6 +188,7 @@ fun LocalPlaylistScreen(
     val context = LocalContext.current
     val menuState = LocalMenuState.current
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val haptic = LocalHapticFeedback.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
@@ -687,6 +695,12 @@ fun LocalPlaylistScreen(
                     val currentItem by rememberUpdatedState(song)
 
                     fun deleteFromPlaylist() {
+                        // Captured BEFORE the delete below mutates/removes the row, so Undo can
+                        // re-insert the same songId at the same local position. Only the local DB row is
+                        // restored on Undo — a remote (YouTube-synced) removal already sent above is not
+                        // un-sent, matching how every other undo-able action in this app works (local
+                        // state only, never a second network round-trip on the user's behalf).
+                        val removedMap = currentItem.map
                         database.transaction {
                             coroutineScope.launch {
                                 playlist?.playlist?.browseId?.let { browseId ->
@@ -708,13 +722,38 @@ fun LocalPlaylistScreen(
                             delete(currentItem.map.copy(position = Int.MAX_VALUE))
                             playlist?.playlist?.let { update(it.copy(lastUpdateTime = java.time.LocalDateTime.now())) }
                         }
+                        coroutineScope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = context.getString(R.string.song_removed_from_playlist),
+                                actionLabel = context.getString(R.string.undo),
+                                duration = SnackbarDuration.Short,
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                database.query {
+                                    insert(removedMap.copy(id = 0))
+                                }
+                            }
+                        }
                     }
 
-                    val swipeRemoveEnabled by rememberPreference(SwipeToRemoveSongKey, defaultValue = false)
+                    val swipeRemoveEnabled by rememberPreference(SwipeToRemoveSongKey, defaultValue = true)
                     val dismissBoxState =
                         rememberSwipeToDismissBoxState(
                             positionalThreshold = { totalDistance -> totalDistance }
                         )
+                    // Ronda 5 (premium UX, dueño): un toque de vibración exactamente cuando el swipe
+                    // cruza el umbral de borrado — targetValue (no currentValue) porque cambia EN el
+                    // cruce, antes de soltar, que es el momento en que el gesto "decide" borrar.
+                    // previousDismissTarget arranca en el valor YA vigente al montar la fila, así el
+                    // primer LaunchedEffect (que siempre corre una vez) no vibra sin que el usuario haya
+                    // tocado nada.
+                    var previousDismissTarget by remember { mutableStateOf(dismissBoxState.targetValue) }
+                    LaunchedEffect(dismissBoxState.targetValue) {
+                        if (dismissBoxState.targetValue != previousDismissTarget) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                        previousDismissTarget = dismissBoxState.targetValue
+                    }
                     var processedDismiss by remember { mutableStateOf(false) }
                     LaunchedEffect(dismissBoxState.currentValue) {
                         val dv = dismissBoxState.currentValue
@@ -745,6 +784,12 @@ fun LocalPlaylistScreen(
                             isActive = song.song.id == mediaMetadata?.id,
                             isPlaying = isPlaying,
                             showInLibraryIcon = true,
+                            // The outer SwipeToDismissBox below is this row's only horizontal gesture —
+                            // SongListItem's own swipe (the separate "reproducir a continuación"/"añadir a
+                            // la cola" gesture, SwipeToSongKey) would otherwise nest inside it and steal
+                            // the drag before it reaches the delete box when a user has that other
+                            // setting enabled too.
+                            isSwipeable = false,
                             playedInShuffle = song.song.id in shufflePlayedSet ||
                                 song.song.song.totalPlayTime > 0L,
                             shape = listItemShape(
@@ -830,14 +875,96 @@ fun LocalPlaylistScreen(
                         )
                     }
 
-                    if (locked || inSelectMode || !swipeRemoveEnabled) {
+                    // Delete-swipe only on playlists you can actually edit — never on a read-only
+                    // (someone else's / album-backed) list reached through this same screen. Deliberately
+                    // NOT gated on `locked`: that toggle is the drag-to-reorder guard against accidental
+                    // reordering, and swiping to delete is a separate, deliberate gesture the owner asked
+                    // for — coupling it to the reorder lock meant it silently never appeared for a locked
+                    // (the default) playlist even with the setting on.
+                    if (!editable) {
+                        // Ronda 2, punto 3 / ronda 3 del dueño: playlist ajena (no editable) — no hay
+                        // borrado posible, así que el gesto aquí es me gusta + agregar a playlist a la
+                        // derecha, no me gusta a la izquierda (ronda 3: ya no abre el menú).
+                        var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+                        AddToPlaylistDialog(
+                            isVisible = showAddToPlaylistDialog,
+                            songIdsForMembership = listOf(song.song.id),
+                            onGetSong = { listOf(song.song.id) },
+                            onDismiss = { showAddToPlaylistDialog = false },
+                        )
+
+                        LibrarySwipeActionsBox(
+                            modifier = Modifier.animateItem(),
+                            enabled = !inSelectMode,
+                            liked = song.song.song.liked,
+                            onToggleLike = {
+                                val toggled = song.song.song.toggleLike()
+                                database.query {
+                                    update(toggled)
+                                    syncUtils.likeSong(toggled)
+                                }
+                            },
+                            onAddToPlaylist = { showAddToPlaylistDialog = true },
+                        ) {
+                            content()
+                        }
+                    } else if (inSelectMode || !swipeRemoveEnabled) {
                         Box(modifier = Modifier.animateItem()) {
                             content()
                         }
                     } else {
                         SwipeToDismissBox(
                             state = dismissBoxState,
-                            backgroundContent = {},
+                            backgroundContent = {
+                                val alignment = when (dismissBoxState.dismissDirection) {
+                                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                    SwipeToDismissBoxValue.Settled -> Alignment.Center
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        // Ronda 3 del dueño: "quiero que se muestre la papelera mientras
+                                        // me voy desplazando... no que hasta que ya lo he dicho todo se
+                                        // elimina". positionalThreshold below is deliberately the FULL
+                                        // row width (a real accidental-delete guard — release before the
+                                        // end and it snaps back), but that same "full width" was also
+                                        // gating dismissBoxState.targetValue, which only leaves Settled
+                                        // in the last sliver of the drag — so the red background/icon
+                                        // effectively never showed until the swipe was nearly committed.
+                                        // Read INSIDE graphicsLayer (draw phase, like
+                                        // AuraSwipeActionBackground) so this ramps every drag pixel
+                                        // without recomposing on each one — a fixed, modest reveal
+                                        // distance drives the fade-in; the commit distance is untouched.
+                                        //
+                                        // Owner crash report (2026-09-23, v2.0.51-beta1, entering one of
+                                        // his own playlists): "IllegalStateException: The offset was read
+                                        // before being initialized" from requireOffset() called bare here.
+                                        // dismissBoxState's anchors are set by ITS OWN layout pass, and on
+                                        // a row's very first frame (freshly composed, e.g. scrolled into
+                                        // view in the LazyColumn) this graphicsLayer's draw can run before
+                                        // that layout has completed for THIS state instance — requireOffset
+                                        // throws instead of returning a placeholder. runCatching -> 0f is
+                                        // the exact correct fallback, not just a guard: 0f is what "not
+                                        // dragged yet" already means for this alpha ramp, so the very first
+                                        // frame renders identically to before, and every later frame (state
+                                        // now initialized) behaves exactly as already designed.
+                                        .graphicsLayer {
+                                            val revealPx = 96.dp.toPx()
+                                            val offset = runCatching { dismissBoxState.requireOffset() }.getOrDefault(0f)
+                                            alpha = (abs(offset) / revealPx).coerceIn(0f, 1f)
+                                        }
+                                        .background(MaterialTheme.colorScheme.errorContainer)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = alignment,
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.delete),
+                                        contentDescription = stringResource(R.string.remove_from_playlist),
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                }
+                            },
                             modifier = Modifier.animateItem()
                         ) {
                             content()

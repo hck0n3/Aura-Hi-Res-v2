@@ -25,6 +25,7 @@
     <string name="offline_auto_novedades">Las novedades necesitan conexión. Vuelve solo en cuanto haya red.</string>
     <string name="offline_empty_downloads">Aún no tienes canciones descargadas. Descárgalas con internet para escucharlas aquí.</string>
     <string name="error_offline_not_downloaded">Modo sin conexión: esta canción no está descargada por completo.</string>
+    <string name="offline_skipped_to_cached_song">Sin conexión a internet — saltando a una canción disponible sin conexión</string>
     <string name="mood_and_genres">Estado de ánimo y géneros</string>
     <string name="account">Cuenta</string>
     <string name="quick_picks">Selecciones rápidas</string>

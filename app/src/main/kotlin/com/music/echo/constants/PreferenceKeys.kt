@@ -58,6 +58,13 @@ val GenreEnrichOnMobileKey = booleanPreferencesKey("genreEnrichOnMobile")
 // Scheduled Spotify playlist sync: how often to re-import (days; 0 = off) and which source ids (CSV).
 val SpotifyAutoSyncFreqDaysKey = intPreferencesKey("spotifyAutoSyncFreqDays")
 val SpotifyAutoSyncSourceIdsKey = stringPreferencesKey("spotifyAutoSyncSourceIds")
+// Ronda 7 (dueño): una playlist agregada por "Agregar por enlace" (p. ej. su Radar de Novedades) solo
+// vivía en memoria del ViewModel — loadSources() nunca la devolvía de nuevo, así que ni el sync manual
+// ni el automático la volvían a traer (parecía "sincronizado" pero nunca tocaba esa playlist). CSV de
+// ids de Spotify (no el id compuesto "playlist:xxx") de playlists agregadas por enlace, para que
+// SpotifyImportRepository.loadSources() las vuelva a resolver en cada carga, igual que las de la
+// biblioteca propia.
+val SpotifyLinkedPlaylistIdsKey = stringPreferencesKey("spotifyLinkedPlaylistIds")
 // Scheduled YouTube Music sync: how often to re-sync everything (days; 0 = off).
 // Default for a missing key is [iad1tya.echo.music.utils.YtmAutoSyncWorker.DEFAULT_FREQ_DAYS] (3):
 // the whole library mirrors the account in the background without a daily battery hit.

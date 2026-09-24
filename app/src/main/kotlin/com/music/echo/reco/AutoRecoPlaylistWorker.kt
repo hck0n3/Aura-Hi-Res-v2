@@ -27,6 +27,7 @@ import iad1tya.echo.music.constants.SongSortType
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
+import iad1tya.echo.music.dislike.DislikeStore
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.playlistimport.AiPlaylistGenerator
@@ -74,6 +75,7 @@ class AutoRecoPlaylistWorker(
     @InstallIn(SingletonComponent::class)
     interface AutoRecoEntryPoint {
         fun database(): MusicDatabase
+        fun dislikeStore(): DislikeStore
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -81,11 +83,18 @@ class AutoRecoPlaylistWorker(
             val prefs = applicationContext.dataStore.data.first()
             if (prefs[AiRecommendedPlaylistKey] != true) return@withContext Result.success()
 
-            val database = EntryPointAccessors
+            val entryPoint = EntryPointAccessors
                 .fromApplication(context.applicationContext, AutoRecoEntryPoint::class.java)
-                .database()
+            val database = entryPoint.database()
+            // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): este era el
+            // ÚNICO camino de recomendación de toda la app que no consultaba DislikeStore — ni el
+            // prompt de referencia a la IA, ni sus candidatas resueltas, ni el fallback local se
+            // cruzaban contra "No me gusta". Un artista marcado seguía pudiendo aparecer al día
+            // siguiente en este estante de Home ("Recomendado para ti (IA)"), justo lo que el resto
+            // del motor de afinidad (AffinityEngine, AiPlaylistGenerator, HomeViewModel) ya garantiza.
+            val disliked = runCatching { entryPoint.dislikeStore().snapshot() }.getOrDefault(DislikeStore.Disliked())
 
-            refresh(database, prefs)
+            refresh(database, prefs, disliked)
             Result.success()
         } catch (e: Exception) {
             // Best-effort refresh: a failure must never crash, retry-storm, or wipe the last good
@@ -99,16 +108,22 @@ class AutoRecoPlaylistWorker(
     private suspend fun refresh(
         database: MusicDatabase,
         prefs: Preferences,
+        disliked: DislikeStore.Disliked,
     ) {
         // 1. TASTE INPUT — fully on-device: the user's most-played songs plus their most recent likes
         //    (the same DB signals the Home/AffinityEngine recommendations are built from).
+        //
+        // Filtered against DislikeStore here too: a disliked song/artist must not feed the "anchor"
+        // reasoning below either (topArtists/topGenres are derived from tasteSongs) — otherwise a
+        // disliked artist could still dominate the prompt's anchor list even though no disliked
+        // SONG survives resolution later.
         val mostPlayed = runCatching {
             database.mostPlayedSongs(fromTimeStamp = 0L, limit = TASTE_SONGS_PER_SOURCE).first()
-        }.getOrDefault(emptyList())
+        }.getOrDefault(emptyList()).filterNot { it.isDisliked(disliked) }
         val liked = runCatching {
             database.likedSongs(SongSortType.CREATE_DATE, descending = true).first()
                 .take(TASTE_SONGS_PER_SOURCE)
-        }.getOrDefault(emptyList())
+        }.getOrDefault(emptyList()).filterNot { it.isDisliked(disliked) }
 
         val tasteSongs = (mostPlayed + liked).distinctBy { it.id }
         if (tasteSongs.isEmpty()) return // Nothing to learn from yet — keep whatever exists.
@@ -183,12 +198,16 @@ class AutoRecoPlaylistWorker(
         }
 
         // 3. RESOLVE — same shared resolver; exclude taste + previous playlist ids; prefer anchor artists.
+        //    Disliked candidates are dropped here too — the AI is only ASKED to avoid the user's taste,
+        //    never told what they disliked, so a resolved suggestion needs its own check (same reasoning
+        //    as the taste-input filter above).
         val topArtistLower = topArtists.map { it.lowercase() }.toSet()
         val candidates = ArrayList<MediaMetadata>()
         if (spec != null) {
             for (track in spec.tracks) {
                 val metadata = SongResolver.resolve(database, track.title, track.artist) ?: continue
                 if (metadata.id in excludeIds) continue
+                if (metadata.isDisliked(disliked)) continue
                 if (candidates.any { it.id == metadata.id }) continue
                 candidates += metadata
             }
@@ -213,7 +232,10 @@ class AutoRecoPlaylistWorker(
         //    for days. Fill from YouTube related/radio of shuffled taste seeds instead (still assertive
         //    to the user's circle; no genre-drift placebo).
         if (resolved.size < TARGET_SONGS) {
-            for (meta in buildTasteFallback(tasteSongs, excludeIds + resolved.map { it.id }.toSet(), TARGET_SONGS - resolved.size)) {
+            val fallback = buildTasteFallback(
+                tasteSongs, excludeIds + resolved.map { it.id }.toSet(), TARGET_SONGS - resolved.size, disliked,
+            )
+            for (meta in fallback) {
                 if (resolved.any { it.id == meta.id }) continue
                 resolved += meta
                 if (resolved.size >= TARGET_SONGS) break
@@ -269,6 +291,7 @@ class AutoRecoPlaylistWorker(
         tasteSongs: List<iad1tya.echo.music.db.entities.Song>,
         excludeIds: Set<String>,
         target: Int,
+        disliked: DislikeStore.Disliked,
     ): List<MediaMetadata> {
         if (target <= 0) return emptyList()
         val out = LinkedHashMap<String, MediaMetadata>()
@@ -278,12 +301,23 @@ class AutoRecoPlaylistWorker(
             }.getOrNull().orEmpty()
             for (item in related) {
                 if (item.id in excludeIds) continue
+                if (item.id in disliked.songs || item.artists.any { it.id != null && it.id in disliked.artists }) continue
                 out.putIfAbsent(item.id, item.toMediaMetadata())
                 if (out.size >= target) return out.values.toList()
             }
         }
         return out.values.toList()
     }
+
+    /** Song/artist/album marked "No me gusta" — same three-way check as [iad1tya.echo.music.viewmodels.HomeViewModel]'s filterDisliked, for a DB [Song]. */
+    private fun iad1tya.echo.music.db.entities.Song.isDisliked(d: DislikeStore.Disliked): Boolean =
+        id in d.songs || artists.any { it.id in d.artists } || album?.id?.let { it in d.albums } == true
+
+    /** Same check for an already-resolved [MediaMetadata] candidate. */
+    private fun MediaMetadata.isDisliked(d: DislikeStore.Disliked): Boolean =
+        id in d.songs ||
+            artists.any { it.id != null && it.id in d.artists } ||
+            album?.id?.let { it in d.albums } == true
 
     companion object {
         private const val TAG = "AutoRecoPlaylistWorker"

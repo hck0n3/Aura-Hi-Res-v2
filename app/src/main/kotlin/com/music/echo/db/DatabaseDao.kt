@@ -2014,6 +2014,17 @@ interface DatabaseDao {
         albumPage: AlbumPage,
         artists: List<ArtistEntity>? = emptyList(),
     ) {
+        // A caller can ask YouTube.album(withSongs = false) on purpose (AlbumViewModel skips the
+        // song fetch once it believes it already has the full tracklist) — that response's
+        // `songs` is deliberately an empty list, NOT "this album has zero songs". Before this,
+        // songCount/duration were overwritten unconditionally, so every such revisit reset
+        // songCount to 0 and silently erased the one signal AlbumViewModel could use to tell "fully
+        // cached" apart from "only one song landed here from an unrelated context" (e.g. Novedades/
+        // new-release radar surfacing just the lead single) — which is how an album with several
+        // tracks could look fully loaded after just one, hand off to radio mid-album once that one
+        // song ended, and read as "jumping to unrelated artists" (owner report). Preserve the old
+        // values whenever this update did not actually fetch the songs.
+        val songsFetched = albumPage.songs.isNotEmpty()
         update(
             album.copy(
                 id = albumPage.album.browseId,
@@ -2021,8 +2032,10 @@ interface DatabaseDao {
                 title = albumPage.album.title,
                 year = albumPage.album.year,
                 thumbnailUrl = albumPage.album.thumbnail,
-                songCount = albumPage.songs.size,
-                duration = albumPage.songs.sumOf { it.duration ?: 0 },
+                songCount = if (songsFetched) albumPage.songs.size else album.songCount,
+                duration = if (songsFetched) albumPage.songs.sumOf { it.duration ?: 0 } else album.duration,
+                // Unaffected by songsFetched: albumPage.album.explicit is page-level metadata, not
+                // derived from the song list, so it's already correct regardless of withSongs.
                 explicit = albumPage.album.explicit || albumPage.songs.any { it.explicit },
                 description = albumPage.description ?: album.description,
             ),

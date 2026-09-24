@@ -27,6 +27,7 @@ import iad1tya.echo.music.constants.SpotifyAccessTokenExpiresAtKey
 import iad1tya.echo.music.constants.SpotifyAccessTokenKey
 import iad1tya.echo.music.constants.SpotifyAccountAvatarUrlKey
 import iad1tya.echo.music.constants.SpotifyAccountNameKey
+import iad1tya.echo.music.constants.SpotifyLinkedPlaylistIdsKey
 import iad1tya.echo.music.constants.SpotifySpDcKey
 import iad1tya.echo.music.constants.SpotifySpKeyKey
 import iad1tya.echo.music.db.MusicDatabase
@@ -176,6 +177,14 @@ class SpotifyImportRepository @Inject constructor(
                 spotifyCallWithTokenRetry { Spotify.mySavedAlbums(limit = 1, offset = 0).getOrThrow() }.total
             }.getOrDefault(0)
             val playlists = fetchAllPlaylists()
+            // Ronda 7 (dueño): una playlist agregada por "Agregar por enlace" (p. ej. su Radar de
+            // Novedades, que Spotify solo ofrece a través de un link, no en `myPlaylists()`) solo vivía
+            // en memoria del ViewModel — nunca volvía a aparecer acá, así que ni el sync manual ni el
+            // automático (que solo conoce lo que loadSources() devuelve) la volvían a traer. Se re-
+            // resuelven las persistidas en [SpotifyLinkedPlaylistIdsKey], igual que las de la biblioteca
+            // propia — así "sincronizar" sí vuelve a leer su contenido actual de Spotify.
+            val ownPlaylistIds = playlists.mapTo(HashSet()) { it.id }
+            val linkedPlaylists = fetchLinkedPlaylists(excludingIds = ownPlaylistIds)
 
             buildList {
                 add(
@@ -205,8 +214,40 @@ class SpotifyImportRepository @Inject constructor(
                         add(SpotifyImportSource.Playlist(playlist))
                     }
                 }
+                linkedPlaylists.forEach { add(it) }
             }
         }
+
+    /**
+     * Re-resolves the playlists previously added via [fetchPlaylistByLink] (persisted by spotify id in
+     * [SpotifyLinkedPlaylistIdsKey]) so [loadSources] always reflects their CURRENT Spotify content, not
+     * a snapshot from whenever the link was first pasted. A ref that fails to resolve (deleted, made
+     * private) is dropped silently — the same as it just not being offered any more.
+     */
+    private suspend fun fetchLinkedPlaylists(excludingIds: Set<String>): List<SpotifyImportSource.Playlist> {
+        val linkedIds = context.dataStore.data.first()[SpotifyLinkedPlaylistIdsKey]
+            ?.split(',')
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
+        if (linkedIds.isEmpty()) return emptyList()
+        return linkedIds.filter { it !in excludingIds }.mapNotNull { id ->
+            runCatching {
+                ensurePublicReadToken()
+                val playlist = spotifyCallWithTokenRetry { Spotify.playlist(id).getOrThrow() }
+                if (playlist.id.isBlank()) null else SpotifyImportSource.Playlist(playlist)
+            }.getOrNull()
+        }
+    }
+
+    /** Remembers a playlist added via "Agregar por enlace" so [loadSources] keeps re-resolving it. */
+    suspend fun rememberLinkedPlaylist(spotifyId: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[SpotifyLinkedPlaylistIdsKey]?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+            if (spotifyId !in current) {
+                prefs[SpotifyLinkedPlaylistIdsKey] = (current + spotifyId).joinToString(",")
+            }
+        }
+    }
 
     /**
      * Resolve a pasted Spotify playlist link / URI / raw id into an importable source — including PUBLIC
@@ -753,21 +794,31 @@ class SpotifyImportRepository @Inject constructor(
         }
 
         val alternateQuery = SpotifyMapper.buildAlternateSearchQuery(track)
-        if (alternateQuery == primaryQuery) return primary
+        val alternate = if (alternateQuery != primaryQuery) {
+            searchAndScore(track, index, alternateQuery)
+        } else {
+            primary
+        }
+        if (alternate is MatchResult.Success) return alternate
 
-        val alternate = searchAndScore(track, index, alternateQuery)
-        return if (alternate is MatchResult.Success) alternate else primary
+        // Both song-filtered passes came up empty/low-score. YouTube Music sometimes classifies the
+        // real match as a Video (lyric videos, unusual distribution) — FILTER_SONG never surfaces it
+        // as a candidate, but a manual search (no type filter) does find it. Only tried once both
+        // song attempts already failed, so this never widens what a confident song match accepts.
+        val video = searchAndScore(track, index, primaryQuery, filter = YouTube.SearchFilter.FILTER_VIDEO)
+        return if (video is MatchResult.Success) video else alternate
     }
 
     private suspend fun searchAndScore(
         track: SpotifyTrack,
         index: Int,
         query: String,
+        filter: YouTube.SearchFilter = YouTube.SearchFilter.FILTER_SONG,
     ): MatchResult {
         val searchResult = searchWithRateLimitBackoff {
             YouTube.search(
                 query = query,
-                filter = YouTube.SearchFilter.FILTER_SONG,
+                filter = filter,
             )
         }.getOrElse { error ->
             if (error is CancellationException) {
@@ -790,10 +841,10 @@ class SpotifyImportRepository @Inject constructor(
             .map { candidate ->
                 candidate to SpotifyMapper.matchScore(
                     spotifyTitle = track.name,
-                    spotifyArtist = track.artists.joinToString(" ") { it.name },
+                    spotifyArtists = track.artists.map { it.name },
                     spotifyDurationMs = track.durationMs,
                     candidateTitle = candidate.title,
-                    candidateArtist = candidate.artists.joinToString(" ") { it.name },
+                    candidateArtists = candidate.artists.map { it.name },
                     candidateDurationSec = candidate.duration,
                 )
             }
@@ -821,21 +872,34 @@ class SpotifyImportRepository @Inject constructor(
     suspend fun matchExternalTracks(tracks: List<SpotifyTrack>, limit: Int = 100): List<MediaMetadata?> =
         coroutineScope {
             val semaphore = Semaphore(MAX_CONCURRENT_MATCHES)
-            tracks.take(limit).mapIndexed { index, track ->
+            val results = tracks.take(limit).mapIndexed { index, track ->
                 async {
                     semaphore.withPermit {
-                        val result = try {
+                        try {
                             matchTrack(track, index)
                         } catch (error: CancellationException) {
                             throw error
                         } catch (error: Throwable) {
                             reportException(error)
-                            null
+                            MatchResult.Failure(SpotifyImportFailureReason.SEARCH_ERROR)
                         }
-                        (result as? MatchResult.Success)?.matched?.metadata
                     }
                 }
             }.awaitAll()
+            // A silent null miss (no exception, just "nothing good enough") used to leave the exact
+            // same "no encontrado" with zero trace of WHY — no titles/artists here (regla 4 de
+            // AGENTS.md), just a tally by reason, so a real network/rate-limit run of misses reads
+            // differently in app.log from a run of genuine no-candidates/low-score misses.
+            val misses = results.filterIsInstance<MatchResult.Failure>()
+            if (misses.isNotEmpty()) {
+                timber.log.Timber.i(
+                    "EXTERNAL_LINK_MATCH misses=%d/%d reasons=%s",
+                    misses.size,
+                    results.size,
+                    misses.groupingBy { it.reason }.eachCount(),
+                )
+            }
+            results.map { (it as? MatchResult.Success)?.matched?.metadata }
         }
 
     /** Makes sure a Spotify token exists for reading public albums/playlists: the session one, else anonymous. */
@@ -1065,6 +1129,11 @@ class SpotifyImportRepository @Inject constructor(
         }
 
         if (channelId.isNotEmpty()) {
+            // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a song
+            // appears to also subscribe its artist. This is the explicit Spotify-import follow path,
+            // not that flow — timestamp only (regla 4), for correlating against a like/dislike log
+            // line if the report reproduces during an import.
+            timber.log.Timber.i("ARTIST_SUBSCRIBE_IMPORT")
             runCatching { YouTube.subscribeChannel(channelId, true) }
                 .onSuccess {
                     // Confirmed on the account — record it so the library upload sync treats this

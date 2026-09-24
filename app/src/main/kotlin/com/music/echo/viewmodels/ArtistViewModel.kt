@@ -16,6 +16,7 @@ import com.music.innertube.models.filterVideoSongs
 import com.music.innertube.models.filterYoutubeShorts
 import com.music.innertube.pages.ArtistPage
 import com.music.innertube.pages.ArtistSection
+import iad1tya.echo.music.constants.DataSaverEnabledKey
 import iad1tya.echo.music.constants.HideExplicitKey
 import iad1tya.echo.music.constants.HideVideoSongsKey
 import iad1tya.echo.music.constants.HideYoutubeShortsKey
@@ -93,7 +94,14 @@ class ArtistViewModel @Inject constructor(
     // shuffling the preview could only ever pick from 3 songs.
     // Includes liked-only songs and same-name artist ids (YTM sync often sets liked without inLibrary).
     val allLibrarySongs = context.dataStore.data
-        .map { (it[HideExplicitKey] ?: false) to (it[HideVideoSongsKey] ?: false) }
+        // hideVideoSongs also folds in Data Saver (which forces video-hiding of its own, same as
+        // MusicService.playQueue's filter): this list is what Shuffle/Play-all actually queues (see
+        // the comment above), and MusicService strips video songs from that same queue at play time
+        // when either switch is on. Without this, the count shown here (and shuffled from) could be
+        // much larger than what actually lands in the player — an artist with many video-tagged
+        // songs looked like it queued ~100 while only a much smaller audio-only subset ever played,
+        // which reads as the queue "repeating" once that shorter real queue runs out.
+        .map { (it[HideExplicitKey] ?: false) to ((it[HideVideoSongsKey] ?: false) || (it[DataSaverEnabledKey] ?: false)) }
         .distinctUntilChanged()
         .combine(libraryMatchName) { prefs, name -> prefs to name }
         .flatMapLatest { (prefs, name) ->
