@@ -48,9 +48,11 @@ class MusicRequestQueryTest {
 
     @Test
     fun `a plain request is passed through unchanged`() {
+        // "salsa" ronda 7: ahora SÍ prefiere listas (es un género reconocido) — ver
+        // `a bare genre request prefers playlists` más abajo. Lo que este test sigue
+        // comprobando es que la query en sí no se toca cuando no hay década.
         val p = MusicRequestQuery.build("salsa de Puerto Rico")
         assertNull(p.decade)
-        assertFalse(p.preferPlaylists)
         assertEquals("salsa de puerto rico", p.query)
     }
 
