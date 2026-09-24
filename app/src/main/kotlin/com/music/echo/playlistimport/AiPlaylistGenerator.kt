@@ -667,6 +667,23 @@ object AiPlaylistGenerator {
                 }
             }
 
+        // Peldaño -1 — LO ESPECÍFICO GANA AL GÉNERO (ronda 9, dueño: "pedí death metal más el nombre
+        // de una canción y de un artista, y reprodujo lo que quiso, no lo que pedí — quiero que
+        // entienda cuando soy específico, con cualquier género"). Sin este paso, cuando la petición
+        // también dispara [Parsed.preferPlaylists] (un género/momento reconocido), los peldaños 1-2
+        // de abajo (categoría oficial / listas genéricas) llenaban el pool ANTES de que el peldaño 3
+        // (búsqueda literal — el único que de verdad busca lo específico) llegara siquiera a correr,
+        // así que lo concreto que pidió junto al género nunca aparecía. [residualBeyondCategory] es
+        // lo que sobra de la petición tras quitar género/momento/década/idioma — si sobra algo
+        // sustancial, es la canción/artista que mencionó, y se busca y antepone antes que nada.
+        val residual = MusicRequestQuery.residualBeyondCategory(prompt)
+        if (parsed.preferPlaylists && soloArtist == null && residual.length >= 3) {
+            YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                ?.items?.filterIsInstance<SongItem>()
+                ?.let { candidates -> bestSpecificMatch(residual, candidates) }
+                ?.let { absorb(christianOnly(listOf(it))) }
+        }
+
         if (parsed.preferPlaylists && soloArtist == null) {
             // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
             // el peldaño 1: no se le pide a la búsqueda ni a un LLM que ADIVINE qué está de moda —
@@ -885,5 +902,21 @@ object AiPlaylistGenerator {
             .groupingBy { it }.eachCount()
         val leader = counts.entries.maxByOrNull { it.value } ?: return null
         return leader.key.takeIf { leader.value.toDouble() / items.size >= 0.5 }
+    }
+
+    /**
+     * Ronda 9 (dueño): ver el peldaño -1 de [searchFallbackPlaylist]. El primer candidato cuyo
+     * título + artista demuestra la MAYORÍA (≥60%, tolera una palabra de ruido suelta) de las
+     * palabras de [residual] — lo que pidió más allá del género/momento/década — o null si ninguno
+     * la demuestra lo bastante como para confiar en que es justo eso.
+     */
+    internal fun bestSpecificMatch(residual: String, candidates: List<SongItem>): SongItem? {
+        val words = residual.lowercase().split(Regex("\\s+")).filter { it.length > 2 }
+        if (words.isEmpty()) return null
+        return candidates.firstOrNull { candidate ->
+            val hay = "${candidate.title} ${candidate.artists.joinToString(" ") { it.name }}".lowercase()
+            val hits = words.count { hay.contains(it) }
+            hits.toDouble() / words.size >= 0.6
+        }
     }
 }

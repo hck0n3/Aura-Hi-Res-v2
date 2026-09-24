@@ -100,6 +100,11 @@ object MusicRequestQuery {
         "ranchera", "corridos", "corrido", "trap", "hip hop", "hiphop", "electronica", "electrónica",
         "edm", "house", "techno", "metal", "punk", "k-pop", "kpop", "r&b", "rnb", "flamenco",
         "country", "blues", "indie", "funk", "soul", "reggae", "disco", "tango", "bolero", "gospel",
+        // Ronda 9 (dueño): "death metal" — subgéneros de dos palabras que antes solo matcheaban por
+        // la palabra genérica ("metal"), dejando la otra mitad ("death") como ruido suelto en
+        // [residualBeyondCategory] y contaminando la detección de "esto es específico".
+        "death metal", "black metal", "thrash metal", "power metal", "heavy metal", "doom metal",
+        "nu metal", "metalcore", "hardcore", "emo",
     )
 
     /**
@@ -194,6 +199,36 @@ object MusicRequestQuery {
             if (m.groupValues[2] == decade) " " else m.value
         }
         stripped = stripLanguageHint(stripped)
+        return stripped.split(Regex("\\s+"))
+            .filter { it.isNotBlank() && it !in CONNECTOR_WORDS }
+            .joinToString(" ")
+            .trim()
+    }
+
+    /**
+     * Ronda 9 (dueño): "pedí death metal más el nombre de una canción y de un artista, y reprodujo
+     * lo que quiso, no lo que pedí específicamente — quiero que entienda cuando soy específico".
+     * Lo que sobra de la petición tras quitar género/momento/tendencia/década/idioma/muletillas. Si
+     * no queda nada, la petición es puramente genérica (un género o momento solos) y el
+     * comportamiento de categoría/lista de [MusicRequestMoods] sigue intacto. Si queda algo
+     * sustancial, es la canción/artista concretos que mencionó junto al género — [AiPlaylistGenerator]
+     * usa esto para buscar y anteponer ESO antes de dejar que la categoría genérica llene la cola.
+     */
+    fun residualBeyondCategory(prompt: String): String {
+        val raw = prompt.trim()
+        if (raw.isBlank()) return ""
+        val folded = fold(raw)
+        var stripped = LEAD_IN.replace(folded, "").trim().ifBlank { folded }
+        // Las frases de dos palabras van PRIMERO (más largas → más específicas): quitar "metal"
+        // suelto antes de llegar a "death metal" dejaría "death" como ruido residual suelto.
+        (GENRE_HINTS + MOMENT_HINTS + TREND_HINTS).sortedByDescending { it.length }.forEach { hint ->
+            stripped = stripped.replace(Regex("""\b${Regex.escape(hint)}\b"""), " ")
+        }
+        stripped = stripLanguageHint(stripped)
+        DECADE_WORDS.keys.forEach { word ->
+            stripped = stripped.replace(Regex("""\b${Regex.escape(word)}\b"""), " ")
+        }
+        stripped = DECADE_DIGITS.replace(stripped, " ")
         return stripped.split(Regex("\\s+"))
             .filter { it.isNotBlank() && it !in CONNECTOR_WORDS }
             .joinToString(" ")

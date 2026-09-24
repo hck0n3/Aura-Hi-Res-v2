@@ -78,6 +78,18 @@ object MusicRequestMoods {
         listOf("trap") to listOf("trap"),
         listOf("rap", "hip hop", "hiphop") to listOf("rap", "hip hop", "hip-hop"),
         listOf("electronica", "electrónica", "edm", "house", "techno") to listOf("electronica", "edm", "dance"),
+        // Ronda 9 (dueño): subgéneros de metal — antes solo "metal" a secas, así que "death metal"
+        // caía en la categoría genérica de Metal en vez de una más específica si existe.
+        listOf("death metal") to listOf("death metal", "metal"),
+        listOf("black metal") to listOf("black metal", "metal"),
+        listOf("thrash metal") to listOf("thrash metal", "metal"),
+        listOf("power metal") to listOf("power metal", "metal"),
+        listOf("heavy metal") to listOf("heavy metal", "metal"),
+        listOf("doom metal") to listOf("doom metal", "metal"),
+        listOf("nu metal") to listOf("nu metal", "metal"),
+        listOf("metalcore") to listOf("metalcore", "metal"),
+        listOf("hardcore") to listOf("hardcore"),
+        listOf("emo") to listOf("emo"),
         listOf("metal") to listOf("metal"),
         listOf("punk") to listOf("punk"),
         listOf("k-pop", "kpop") to listOf("k-pop", "korean pop", "kpop"),

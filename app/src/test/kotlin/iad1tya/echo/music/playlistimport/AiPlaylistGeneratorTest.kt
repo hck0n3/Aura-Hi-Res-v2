@@ -62,4 +62,35 @@ class AiPlaylistGeneratorTest {
     fun `an empty pool has no dominant artist`() {
         assertNull(AiPlaylistGenerator.dominantArtist(emptyList()))
     }
+
+    /**
+     * Ronda 9 (dueño): "pedí death metal más el nombre de una canción y de un artista, y reprodujo
+     * lo que quiso". [AiPlaylistGenerator.bestSpecificMatch] es lo que decide si un candidato del
+     * buscador demuestra de verdad la parte específica de la petición.
+     */
+    @Test
+    fun `a candidate whose title and artist match the residual wins`() {
+        val candidates = listOf(
+            song("1", "Angel of Death", "Slayer"),
+            song("2", "Raining Blood", "Slayer"),
+            song("3", "Painkiller", "Judas Priest"),
+        )
+        val best = AiPlaylistGenerator.bestSpecificMatch("raining blood slayer", candidates)
+        assertEquals("2", best?.id)
+    }
+
+    @Test
+    fun `no candidate matching the residual returns null`() {
+        val candidates = listOf(
+            song("1", "Angel of Death", "Slayer"),
+            song("2", "Painkiller", "Judas Priest"),
+        )
+        assertNull(AiPlaylistGenerator.bestSpecificMatch("raining blood slayer", candidates))
+    }
+
+    @Test
+    fun `a blank residual matches nothing`() {
+        val candidates = listOf(song("1", "Angel of Death", "Slayer"))
+        assertNull(AiPlaylistGenerator.bestSpecificMatch("", candidates))
+    }
 }

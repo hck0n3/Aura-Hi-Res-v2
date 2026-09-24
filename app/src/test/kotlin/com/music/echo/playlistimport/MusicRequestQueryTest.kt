@@ -144,6 +144,21 @@ class MusicRequestQueryTest {
     }
 
     /**
+     * Ronda 9 (dueño): "pedí death metal más el nombre de una canción y de un artista, y reprodujo
+     * lo que quiso — quiero que entienda cuando soy específico". Lo que sobra tras quitar el género
+     * es lo que se busca y antepone en [AiPlaylistGenerator]; si no sobra nada, la petición es pura.
+     */
+    @Test
+    fun `residualBeyondCategory finds the specific song and artist named alongside a genre`() {
+        assertEquals(
+            "raining blood slayer",
+            MusicRequestQuery.residualBeyondCategory("death metal raining blood slayer"),
+        )
+        assertEquals("", MusicRequestQuery.residualBeyondCategory("death metal"))
+        assertEquals("", MusicRequestQuery.residualBeyondCategory("musica para estudiar"))
+    }
+
+    /**
      * Ronda 9 (dueño): "pedí trap cristiano en inglés y me puso trap cristiano en español — que
      * respete lo que pido siempre". Sin década, "en ingles" se mandaba tal cual dentro de la consulta
      * — el buscador no lo lee como un filtro, así que no sesgaba el idioma del resultado en absoluto.
