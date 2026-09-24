@@ -8340,8 +8340,10 @@ class MusicService :
             // Podcast episodes (and any direct-URL media) are already a playable audio stream — play
             // the URL straight through instead of resolving it through YouTube.
             if (mediaId.startsWith("http://", ignoreCase = true) || mediaId.startsWith("https://", ignoreCase = true)) {
-                // Offline mode: direct URLs still need the network — refuse them.
-                if (dataStore.get(OfflineModeKey, false)) {
+                // Offline mode: direct URLs still need the network — refuse them. Same ronda 9
+                // reasoning as the offlineModeOn gate below: a genuine connectivity loss refuses
+                // immediately instead of only after the network fetch times out.
+                if (dataStore.get(OfflineModeKey, false) || !isNetworkConnected.value) {
                     throw PlaybackException(
                         getString(R.string.error_offline_not_downloaded),
                         null,
@@ -8392,7 +8394,16 @@ class MusicService :
                 return@Factory dataSpec.withUri(exportedUri.toUri())
             }
 
-            val offlineModeOn = dataStore.get(OfflineModeKey, false)
+            // Ronda 9 (dueño): "detecta cuando las canciones dejen de cargar por [falta de] red y pon
+            // la cola en modo offline". Before this, losing connectivity WITHOUT the user manually
+            // flipping "Modo sin conexión" still let every non-cached song attempt a full network
+            // resolve — it only gave up after the 15s connect / 30s read OkHttp timeout threw a
+            // player error, which is exactly what read as "se queda cargando". isNetworkConnected is
+            // already tracked live (NetworkConnectivityObserver, zero extra cost — see AGENTS.md #7)
+            // for the reactive auto-skip below; reusing it HERE makes a genuine connectivity loss
+            // (wifi+data both off, or no signal) apply the exact same strict "only cache/downloaded/
+            // local plays" gate as the manual toggle, instantly instead of after a timeout per song.
+            val offlineModeOn = dataStore.get(OfflineModeKey, false) || !isNetworkConnected.value
 
             // Read Room NOW — BEFORE serving any playerCache/songUrlCache hit — for the container-mismatch guard
             // below, which decides whether the CACHED BYTES may be served or must be bypassed+refetched.
