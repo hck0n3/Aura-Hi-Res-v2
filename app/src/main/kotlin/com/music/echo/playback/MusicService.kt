@@ -8323,6 +8323,23 @@ class MusicService :
     /** FASE B: implementation moved verbatim to [VideoModeCoordinator.exitVideoMode]. */
     fun exitVideoMode() = videoCoordinator.exitVideoMode()
 
+    /**
+     * Ronda 9 (dueño, reporte tras la beta anterior): "cuando activo el wifi ya no reproduce nada
+     * que no esté en caché — con datos sí funciona". La causa real estaba en
+     * [iad1tya.echo.music.utils.NetworkConnectivityObserver]: onLost() se disparaba por red, no por
+     * "¿queda alguna que sirva?", así que Android bajando la red de datos al activar wifi (con wifi
+     * perfectamente conectada) se leía como "sin internet" — ya arreglado ahí. Pero el gate estricto
+     * de offline (más abajo) es demasiado consecuente (bloquea TODA reproducción no cacheada) como
+     * para depender solo de un StateFlow que vive de eventos: se le pregunta al sistema EN VIVO, en
+     * el momento exacto de la decisión. Falla ABIERTO (asume conectado) ante cualquier excepción —
+     * un fallo aquí nunca debe ser la causa de que la música no suene.
+     */
+    private fun hasLiveInternetConnection(): Boolean = runCatching {
+        val net = connectivityManager.activeNetwork ?: return@runCatching false
+        connectivityManager.getNetworkCapabilities(net)
+            ?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }.getOrDefault(true)
+
     private fun createDataSourceFactory(): DataSource.Factory {
         return ResolvingDataSource.Factory(
             DefaultDataSource.Factory(this, createCacheDataSource())
@@ -8343,7 +8360,7 @@ class MusicService :
                 // Offline mode: direct URLs still need the network — refuse them. Same ronda 9
                 // reasoning as the offlineModeOn gate below: a genuine connectivity loss refuses
                 // immediately instead of only after the network fetch times out.
-                if (dataStore.get(OfflineModeKey, false) || !isNetworkConnected.value) {
+                if (dataStore.get(OfflineModeKey, false) || !hasLiveInternetConnection()) {
                     throw PlaybackException(
                         getString(R.string.error_offline_not_downloaded),
                         null,
@@ -8398,12 +8415,14 @@ class MusicService :
             // la cola en modo offline". Before this, losing connectivity WITHOUT the user manually
             // flipping "Modo sin conexión" still let every non-cached song attempt a full network
             // resolve — it only gave up after the 15s connect / 30s read OkHttp timeout threw a
-            // player error, which is exactly what read as "se queda cargando". isNetworkConnected is
-            // already tracked live (NetworkConnectivityObserver, zero extra cost — see AGENTS.md #7)
-            // for the reactive auto-skip below; reusing it HERE makes a genuine connectivity loss
-            // (wifi+data both off, or no signal) apply the exact same strict "only cache/downloaded/
-            // local plays" gate as the manual toggle, instantly instead of after a timeout per song.
-            val offlineModeOn = dataStore.get(OfflineModeKey, false) || !isNetworkConnected.value
+            // player error, which is exactly what read as "se queda cargando". [hasLiveInternetConnection]
+            // asks the SYSTEM directly at this exact moment rather than trusting the cached
+            // isNetworkConnected StateFlow for something this consequential (a hard gate that
+            // refuses ALL non-cached playback) — see its own KDoc for why: that flow briefly read
+            // "false" while Wi-Fi was perfectly connected (HALLAZGO, ronda 9 follow-up) because
+            // losing the phone's OTHER network (mobile data, torn down once Wi-Fi took over) doesn't
+            // mean losing connectivity in general.
+            val offlineModeOn = dataStore.get(OfflineModeKey, false) || !hasLiveInternetConnection()
 
             // Read Room NOW — BEFORE serving any playerCache/songUrlCache hit — for the container-mismatch guard
             // below, which decides whether the CACHED BYTES may be served or must be bypassed+refetched.

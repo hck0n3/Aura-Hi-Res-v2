@@ -18,6 +18,16 @@ class NetworkConnectivityObserver(context: Context) {
     private val _networkStatus = Channel<Boolean>(Channel.CONFLATED)
     val networkStatus = _networkStatus.receiveAsFlow()
 
+    // Ronda 9 (dueño): "cuando activo el wifi ya no reproduce nada que no esté en caché — con datos
+    // sí funciona". Causa real: el teléfono suele mantener DOS redes activas a la vez (datos + wifi)
+    // mientras Android decide cuál es la default, y onLost() se dispara POR RED, no por "¿queda
+    // alguna que sirva?". Al activar wifi, Android termina bajando la red de datos (ya no la
+    // necesita) — eso dispara onLost(datos), y el código de antes lo leía como "sin internet" en
+    // general aunque wifi siguiera perfectamente conectada. Se seguía UN solo booleano por evento;
+    // ahora se sigue el CONJUNTO de redes que cumplen el filtro, y solo se avisa "sin conexión"
+    // cuando ese conjunto queda vacío de verdad.
+    private val activeNetworks = java.util.Collections.synchronizedSet(mutableSetOf<Network>())
+
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         // Emit "connected" on plain availability (NOT gated on NET_CAPABILITY_VALIDATED). Many real streaming
         // networks — campus/hotel captive portals already signed into, corporate VPNs, IPv6-only, or setups
@@ -25,11 +35,13 @@ class NetworkConnectivityObserver(context: Context) {
         // left them permanently "offline", so the retry guard never fired and playback never recovered.
         // (isCurrentlyConnected() still uses VALIDATED for its one-shot initial read; that is pre-existing.)
         override fun onAvailable(network: Network) {
+            activeNetworks.add(network)
             _networkStatus.trySend(true)
         }
 
         override fun onLost(network: Network) {
-            _networkStatus.trySend(false)
+            activeNetworks.remove(network)
+            _networkStatus.trySend(activeNetworks.isNotEmpty())
         }
     }
 
