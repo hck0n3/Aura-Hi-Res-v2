@@ -407,4 +407,34 @@ class DiscographyKeysTest {
         assertEquals("look up child", reconKey("Look Up Child (Deluxe)"))
         assertEquals("look up child", reconKey("Look Up Child - Single"))
     }
+
+    // ── ronda 7: hasTruncatedTrack — "no quiero álbumes con canciones cortadas" ──
+
+    @Test fun oneClearlyTruncatedTrackAmongNormalOnesIsCaught() {
+        // a normal ~3.5min-median album with one track cut to ~40s (a botched rip / preview upload)
+        val durations = listOf(210, 205, 40, 220, 198)
+        val median = durations.sorted()[durations.size / 2] // 205
+        assertTrue(hasTruncatedTrack(durations, median))
+    }
+
+    @Test fun aLegitimateShortInterludeInAShortAlbumIsNotFlagged() {
+        // an EP whose songs are themselves short (median 70s): a 40s interlude is proportionally normal
+        val durations = listOf(65, 70, 40, 75)
+        val median = durations.sorted()[durations.size / 2] // 70
+        assertFalse(hasTruncatedTrack(durations, median))
+    }
+
+    @Test fun noTrackBelowTheAbsoluteFloorIsNeverFlaggedEvenIfProportionallyShort() {
+        // every track is a real song (>= 60s), even one well under half the median (65 < 300/2=150) —
+        // the absolute floor alone saves it from being misread as truncated
+        val durations = listOf(300, 65, 290, 310)
+        val median = durations.sorted()[durations.size / 2] // 300
+        assertFalse(hasTruncatedTrack(durations, median))
+    }
+
+    @Test fun anAlbumWithNoTruncatedTrackIsClean() {
+        val durations = listOf(180, 200, 190, 210)
+        val median = durations.sorted()[durations.size / 2]
+        assertFalse(hasTruncatedTrack(durations, median))
+    }
 }

@@ -226,6 +226,23 @@ private fun AlbumQuality.betterThan(other: AlbumQuality): Boolean =
     if (basicOk != other.basicOk) basicOk else songCount > other.songCount
 
 /**
+ * Ronda 7 (dueño): "no quiero que me ponga álbumes con canciones cortadas". [AlbumQuality]'s median
+ * check only catches an album that is ENTIRELY short clips (caso Lauren Daigle documentado); it misses
+ * ONE truncated track mixed into an otherwise normal album (un rip cortado, una vista previa subida
+ * por error), porque la mediana del resto lo tapa.
+ *
+ * Umbral DELIBERADAMENTE CONSERVADOR — absoluto Y relativo A LA VEZ, no cualquiera de los dos solo —
+ * para no tumbar álbumes reales con un interludio corto legítimo (comunes en varios géneros): solo
+ * cuenta como truncada una pista que sea chica en términos absolutos (menos de 60s) Y muy por debajo de
+ * lo que el resto del álbum viene sonando (menos de la mitad de su propia mediana). Un álbum de
+ * canciones genuinamente cortas (mediana baja) queda a salvo porque ahí "la mitad de la mediana"
+ * también es baja. Pública/testeable — ver [ItunesHomonymFilterTest]-style pruebas puras en
+ * DiscographyKeysTest.
+ */
+internal fun hasTruncatedTrack(durations: List<Int>, median: Int): Boolean =
+    durations.any { it < 60 && it < median / 2 }
+
+/**
  * One album materialized from a community playlist's tracks: the fetched [AlbumItem] plus the structural
  * verdict of the FULL track list it arrived with ([quality] is null when the fetch came back with NO
  * parseable songs, which is inconclusive — never a verdict).
@@ -1023,7 +1040,15 @@ constructor(
         } else {
             val durations = songs.mapNotNull { it.duration }.filter { it > 0 }
             val median = if (durations.isEmpty()) 0 else durations.sorted()[durations.size / 2]
-            AlbumQuality(songCount = songs.size, basicOk = median >= 90)
+            // Ver hasTruncatedTrack (arriba en el archivo) para la explicación completa del umbral.
+            val truncatedTrack = hasTruncatedTrack(durations, median)
+            if (truncatedTrack) {
+                Timber.tag(TAG).i(
+                    "album quality: %d/%d tracks look truncated (< min(60s, median/2), median=%ds) — rejecting",
+                    durations.count { it < 60 && it < median / 2 }, songs.size, median,
+                )
+            }
+            AlbumQuality(songCount = songs.size, basicOk = median >= 90 && !truncatedTrack)
         }
 
     /**

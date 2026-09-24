@@ -16,12 +16,44 @@ import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
 
 /**
+ * One raw iTunes album-search hit already credited to the searched artist NAME, before the homonym
+ * filter in [iTunesDiscography.filterHomonyms] — internal so [DiscographyKeysTest]-style pure tests can
+ * exercise the filter without a network call.
+ */
+internal data class ItunesAlbumHit(val title: String, val trackCount: Int, val artistId: String?)
+
+/**
  * Real artist discography from the public iTunes Search API (no key/token needed). Used to find albums
  * that YouTube Music omits from an artist's page so they can be searched on YouTube and added back.
  */
 object iTunesDiscography {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    /**
+     * Ronda 7 (dueño): "¿se están autocompletando con discos que suben los usuarios?". iTunes'
+     * `artistTerm` search matches by NAME TEXT only — [ItunesAlbumHit.artistId] (a real per-artist id
+     * iTunes returns but this parser used to ignore) is never compared against anything. A homonym, a
+     * tribute act, or an unrelated artist registered under the exact same name on Apple Music would be
+     * "credited" just as confidently as the real artist and its releases would get mixed into the
+     * discography.
+     *
+     * Keeps only hits whose [ItunesAlbumHit.artistId] agrees with the MAJORITY artistId among this
+     * store's credited hits — the real artist's own catalog dominates a search for their name; a
+     * homonym mixed in is the minority. A hit with a missing/null artistId (older or odd iTunes
+     * responses) is kept as-is: there is nothing to disprove it with, and dropping on missing data would
+     * be worse than the bug this fixes. If there is no clear majority (every hit has a distinct or null
+     * artistId, or the list is empty), nothing is dropped — never invent a decision from insufficient
+     * evidence (AGENTS.md regla 2/3).
+     */
+    internal fun filterHomonyms(hits: List<ItunesAlbumHit>): List<ItunesAlbumHit> {
+        val majorityArtistId = hits.mapNotNull { it.artistId }
+            .groupingBy { it }.eachCount()
+            .maxByOrNull { it.value }
+            ?.key
+            ?: return hits
+        return hits.filter { it.artistId == null || it.artistId == majorityArtistId }
+    }
 
     private val client by lazy {
         HttpClient(OkHttp) {
@@ -78,16 +110,22 @@ object iTunesDiscography {
                 parameter("country", country)
             }.bodyAsText()
 
-            json.parseToJsonElement(text).jsonObject["results"]?.jsonArray
+            val hits = json.parseToJsonElement(text).jsonObject["results"]?.jsonArray
                 ?.mapNotNull { el ->
                     val o = el.jsonObject
                     val resultArtist = o["artistName"]?.jsonPrimitive?.contentOrNull ?: ""
                     val title = o["collectionName"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                     val credited = resultArtist.startsWith(artistName, ignoreCase = true) ||
                         artistName.startsWith(resultArtist, ignoreCase = true)
-                    if (credited) title to (o["trackCount"]?.jsonPrimitive?.intOrNull ?: 0) else null
+                    if (!credited) return@mapNotNull null
+                    ItunesAlbumHit(
+                        title = title,
+                        trackCount = o["trackCount"]?.jsonPrimitive?.intOrNull ?: 0,
+                        artistId = o["artistId"]?.jsonPrimitive?.contentOrNull,
+                    )
                 }
                 .orEmpty()
+            filterHomonyms(hits).map { it.title to it.trackCount }
         }.onFailure {
             Timber.w("iTunes discography meta fetch failed for $artistName: ${it.message}")
         }.getOrDefault(emptyList())
