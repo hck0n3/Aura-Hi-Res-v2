@@ -20,7 +20,15 @@ import timber.log.Timber
  * filter in [iTunesDiscography.filterHomonyms] — internal so [DiscographyKeysTest]-style pure tests can
  * exercise the filter without a network call.
  */
-internal data class ItunesAlbumHit(val title: String, val trackCount: Int, val artistId: String?)
+internal data class ItunesAlbumHit(
+    val title: String,
+    val trackCount: Int,
+    val artistId: String?,
+    // ISO-8601 (e.g. "2020-05-15T07:00:00Z"), straight from iTunes' `releaseDate`. Null when iTunes omits
+    // it. Used only to ORDER the discography like the iTunes/Apple Music app itself does (newest first) —
+    // never to gate acceptance, so a missing date costs at most a worse position, never a dropped release.
+    val releaseDate: String? = null,
+)
 
 /**
  * Real artist discography from the public iTunes Search API (no key/token needed). Used to find albums
@@ -100,11 +108,13 @@ object iTunesDiscography {
         }.getOrDefault(emptyList())
 
     /**
-     * Album (title, trackCount) released by [artistName] per iTunes (same credit rule as [fetchAlbumTitles],
-     * no extra network — trackCount is already in the search response). trackCount is 0 when iTunes omits it.
-     * Lets the caller detect a TRUNCATED YouTube upload (fewer tracks than iTunes says the release has).
+     * Album hits (title, trackCount, releaseDate) released by [artistName] per iTunes (same credit rule as
+     * [fetchAlbumTitles], no extra network — everything is already in the search response). trackCount is 0
+     * when iTunes omits it; releaseDate is null likewise. Lets the caller detect a TRUNCATED YouTube upload
+     * (fewer tracks than iTunes says the release has) AND order the discography the way iTunes/Apple Music
+     * itself does (see [ArtistItemsViewModel.buildReleaseDates]).
      */
-    suspend fun fetchAlbumMeta(artistName: String, country: String = "us"): List<Pair<String, Int>> =
+    suspend fun fetchAlbumMeta(artistName: String, country: String = "us"): List<ItunesAlbumHit> =
         runCatching {
             val text = client.get("https://itunes.apple.com/search") {
                 parameter("term", artistName)
@@ -126,10 +136,11 @@ object iTunesDiscography {
                         title = title,
                         trackCount = o["trackCount"]?.jsonPrimitive?.intOrNull ?: 0,
                         artistId = o["artistId"]?.jsonPrimitive?.contentOrNull,
+                        releaseDate = o["releaseDate"]?.jsonPrimitive?.contentOrNull,
                     )
                 }
                 .orEmpty()
-            filterHomonyms(hits).map { it.title to it.trackCount }
+            filterHomonyms(hits)
         }.onFailure {
             Timber.w("iTunes discography meta fetch failed for $artistName: ${it.message}")
         }.getOrDefault(emptyList())

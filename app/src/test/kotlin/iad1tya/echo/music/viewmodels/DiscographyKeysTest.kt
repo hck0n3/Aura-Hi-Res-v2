@@ -437,4 +437,81 @@ class DiscographyKeysTest {
         val median = durations.sorted()[durations.size / 2]
         assertFalse(hasTruncatedTrack(durations, median))
     }
+
+    // ── ronda 9: buildReleaseDates — ordering the discography like iTunes/Apple Music itself ──
+
+    @Test fun releaseDateIsKeyedByReconKey() {
+        val dates = buildReleaseDates(listOf("Lenguaje de Amor" to "2015-03-01T00:00:00Z"))
+        assertEquals("2015-03-01T00:00:00Z", dates.getValue(reconKey("Lenguaje de Amor")))
+    }
+
+    @Test fun aLiveEditionIsDatedSeparatelyFromTheStudioAlbum() {
+        val dates = buildReleaseDates(
+            listOf(
+                "Lenguaje de Amor" to "2015-03-01T00:00:00Z",
+                "Lenguaje de Amor (En Vivo)" to "2019-06-01T00:00:00Z",
+            ),
+        )
+        assertEquals("2015-03-01T00:00:00Z", dates.getValue(reconKey("Lenguaje de Amor")))
+        assertEquals("2019-06-01T00:00:00Z", dates.getValue(reconKey("Lenguaje de Amor (En Vivo)")))
+    }
+
+    @Test fun theEarliestDateAcrossStoresWins() {
+        // a delayed regional listing must never push a release LATER than its real release
+        val dates = buildReleaseDates(
+            listOf(
+                "Look Up Child" to "2018-08-31T00:00:00Z",
+                "Look Up Child" to "2018-09-14T00:00:00Z", // a store that only caught up later
+            ),
+        )
+        assertEquals("2018-08-31T00:00:00Z", dates.getValue(reconKey("Look Up Child")))
+    }
+
+    @Test fun aTitleWithNoParseableDateIsAbsentNotZero() {
+        val dates = buildReleaseDates(listOf("Sin Fecha" to null, "Sin Fecha" to ""))
+        assertFalse(dates.containsKey(reconKey("Sin Fecha")))
+    }
+
+    // ── ronda 9: isEpOrSingle / the Albums-vs-Singles-EPs split — "que no los combine ni los duplique" ──
+
+    @Test fun iTunesEpAndSingleSuffixesAreDetected() {
+        for (title in listOf("Privé - EP", "Solo (Single)", "Nada Es Igual – Single", "Home — EP")) {
+            assertTrue(title, isEpOrSingle(title))
+        }
+    }
+
+    @Test fun aPlainAlbumTitleIsNotAnEpOrSingle() {
+        for (title in listOf("Lenguaje de Amor", "Look Up Child (Deluxe)", "Regreso a Ti")) {
+            assertFalse(title, isEpOrSingle(title))
+        }
+    }
+
+    /** The completion candidate filter, exactly as buildCompleteDiscography applies it. */
+    private fun completionCandidates(itunesTitles: List<String>, isSinglesSection: Boolean): List<String> =
+        itunesTitles.filter { isEpOrSingle(it) == isSinglesSection }
+
+    @Test fun theAlbumsSectionNeverCompletesWithAnEpOrSingle() {
+        val candidates = completionCandidates(
+            listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP"),
+            isSinglesSection = false,
+        )
+        assertEquals(listOf("Lenguaje de Amor"), candidates)
+    }
+
+    @Test fun theSinglesEpSectionOnlyCompletesWithEpsAndSingles() {
+        val candidates = completionCandidates(
+            listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP"),
+            isSinglesSection = true,
+        )
+        assertEquals(listOf("Solo (Single)", "Regreso a Ti - EP"), candidates)
+    }
+
+    @Test fun noReleaseIsEverCandidateForBothSections() {
+        // the split must be a true partition: nothing may pass both filters (mixing) or neither (loss)
+        val catalog = listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP", "Look Up Child (Deluxe)")
+        val albums = completionCandidates(catalog, isSinglesSection = false).toSet()
+        val singles = completionCandidates(catalog, isSinglesSection = true).toSet()
+        assertTrue(albums.intersect(singles).toString(), albums.intersect(singles).isEmpty())
+        assertEquals(catalog.toSet(), albums + singles)
+    }
 }
