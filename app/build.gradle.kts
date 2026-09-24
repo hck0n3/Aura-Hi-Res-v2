@@ -231,19 +231,19 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1021
-        // BETA 2.0.59-beta1 — SOLO EL DUEÑO (ronda de auditoría de algoritmos, 2026-09-24, sobre
-        // 2.0.58-beta2). El dueño pidió auditar discografías, pedir música, playlists con IA y todas
-        // las colas/afinidad inteligentes en busca de errores y placebos ("vela que nada sea
-        // placebo"). Hallazgos reales corregidos, y una autocorrección propia encontrada en la
-        // auditoría final pre-publicación (ver docs/REGRESSION_REGISTRY.md fila 292). Ver
+        versionCode = 1022
+        // ESTABLE 2.0.59 — PARA TODOS (orden explícita del dueño, 2026-09-24, en el momento y con
+        // esas palabras: "lanza la estable para todos"). Consolida doce rondas de betas desde la
+        // 2.0.48 (v2.0.49-beta1 .. v2.0.59-beta1): discografías de artista más completas y sin
+        // duplicar entre Álbumes/Sencillos-EPs, mejoras de precisión y velocidad de "pedir música",
+        // deslizar rediseñado (me gusta/no me gusta/agregar a playlist/borrar con deshacer),
+        // arreglos de reproducción (cola de álbum, vídeo, modo sin conexión, TikTok), enlaces
+        // externos, Novedades/recomendaciones por afinidad real, Escuchar Juntos y ecualizador. Ver
         // RELEASE_INFO.md para el detalle completo.
-        // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
-        // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
-        // dueño entrando a la página de releases (o a la función de "recibir versiones beta" del
-        // actualizador dentro de la app, si la tiene activada). Publicar el tag requiere su permiso
-        // explícito en el momento (AGENTS.md) — no se hace solo por dejar esto compilado.
-        versionName = "2.0.59-beta1"
+        // El nombre de versión va LIMPIO, sin sufijo `-beta`: es el tag SIN sufijo (`v2.0.59`) el que
+        // decide que gradle.yml NO lo marque como prerelease, así que `releases/latest` de GitHub lo
+        // sirve y el actualizador dentro de la app se lo ofrece a todos.
+        versionName = "2.0.59"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
