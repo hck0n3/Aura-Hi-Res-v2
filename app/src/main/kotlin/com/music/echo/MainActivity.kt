@@ -2612,6 +2612,10 @@ class MainActivity : ComponentActivity() {
             }
             when (resolved) {
                 null -> notFound(null)
+                is iad1tya.echo.music.utils.ExternalMusicLinks.Resolved.DirectVideo -> {
+                    Timber.tag("MainActivity").i("EXTERNAL_LINK final=odesli_direct")
+                    withContext(Dispatchers.Main) { playVideo(resolved.videoId, null) }
+                }
                 is iad1tya.echo.music.utils.ExternalMusicLinks.Resolved.Tracks -> when (resolved.kind) {
                     iad1tya.echo.music.utils.ExternalMusicLinks.Kind.TRACK -> {
                         val song = repository.matchExternalTracks(resolved.tracks, limit = 1).firstOrNull()
