@@ -93,4 +93,23 @@ class AiPlaylistGeneratorTest {
         val candidates = listOf(song("1", "Angel of Death", "Slayer"))
         assertNull(AiPlaylistGenerator.bestSpecificMatch("", candidates))
     }
+
+    /**
+     * Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): el residuo llega con
+     * puntuación pegada ("queen, bohemian rhapsody") y la comparación antigua era por subcadena
+     * cruda, no por límite de palabra — dos huecos que podían dar falso negativo o falso positivo.
+     */
+    @Test
+    fun `punctuation stuck to the residual does not block a real match`() {
+        val candidates = listOf(song("1", "Bohemian Rhapsody", "Queen"))
+        val best = AiPlaylistGenerator.bestSpecificMatch("queen, bohemian rhapsody", candidates)
+        assertEquals("1", best?.id)
+    }
+
+    @Test
+    fun `a short residual word does not match as a substring of another word`() {
+        // "amor" no debe matchear dentro de "amoroso" — solo como palabra completa.
+        val candidates = listOf(song("1", "Estilo Amoroso", "Artista Random"))
+        assertNull(AiPlaylistGenerator.bestSpecificMatch("amor", candidates))
+    }
 }

@@ -958,11 +958,20 @@ object AiPlaylistGenerator {
      * la demuestra lo bastante como para confiar en que es justo eso.
      */
     internal fun bestSpecificMatch(residual: String, candidates: List<SongItem>): SongItem? {
-        val words = residual.lowercase().split(Regex("\\s+")).filter { it.length > 2 }
+        // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): antes se partía SOLO
+        // por espacios y se comparaba por subcadena cruda (`hay.contains(it)`), así que "queen,
+        // bohemian rhapsody" (la coma pegada al residuo) nunca calzaba palabra por palabra, y una
+        // palabra corta del residuo podía matchear dentro de OTRA palabra del candidato sin ser la
+        // misma (p. ej. "amor" dentro de "amoroso"). Partir por cualquier separador que no sea letra/
+        // dígito limpia la puntuación, y comparar por límite de palabra (mismo patrón que ya usa
+        // MusicRequestMoods.containsToken) evita el falso positivo por subcadena.
+        val words = residual.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length > 2 }
         if (words.isEmpty()) return null
         return candidates.firstOrNull { candidate ->
             val hay = "${candidate.title} ${candidate.artists.joinToString(" ") { it.name }}".lowercase()
-            val hits = words.count { hay.contains(it) }
+            val hits = words.count { w ->
+                Regex("(?<![\\p{L}\\p{N}])${Regex.escape(w)}(?![\\p{L}\\p{N}])").containsMatchIn(hay)
+            }
             hits.toDouble() / words.size >= 0.6
         }
     }
