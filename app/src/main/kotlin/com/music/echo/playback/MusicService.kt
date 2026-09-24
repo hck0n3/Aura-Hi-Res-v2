@@ -5127,6 +5127,15 @@ class MusicService :
         }
         contextCoverageSize += items.size
         sessionPlayedIds.addAll(items.mapNotNull { it.mediaId })
+        // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): a diferencia de
+        // appendSeed (la otra vía de "cola infinita"), esta función nunca reprogramaba el crossfade.
+        // Si el reproductor llegaba a la última canción del primer lote de "pedir música" justo antes
+        // de que este relleno llegara, scheduleCrossfade() ya había corrido con !hasNextMediaItem() y
+        // se había desarmado — addToQueue() de arriba vuelve a haber "próxima canción", pero nada
+        // volvía a armar el crossfade hasta el próximo evento que lo hiciera por otra razón, así que
+        // esa transición sonaba como corte seco en vez de crossfade. scheduleCrossfade() es idempotente
+        // (cancela y reinicia), igual que ya hace appendSeed tras un append exitoso.
+        scheduleCrossfade()
     }
 
     fun toggleLibrary() {
