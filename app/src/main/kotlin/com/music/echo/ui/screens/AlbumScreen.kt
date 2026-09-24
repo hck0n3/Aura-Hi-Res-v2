@@ -35,7 +35,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -129,6 +128,8 @@ import iad1tya.echo.music.ui.component.SongListItem
 import iad1tya.echo.music.ui.component.YouTubeGridItem
 import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
 import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
+import iad1tya.echo.music.ui.component.shimmer.ListItemPlaceHolder
+import iad1tya.echo.music.ui.component.shimmer.ShimmerHost
 import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.ui.menu.AlbumMenu
 import iad1tya.echo.music.ui.menu.SelectionSongMenu
@@ -989,14 +990,14 @@ fun AlbumScreen(
                 }
             }
         } else {
+            // Ronda 6 (dueño): "cuesta que muestre el contenido" al entrar a un álbum. Un spinner solo
+            // se siente más vacío que un esqueleto de filas — mismo patrón ya usado en Artista/Buscar/
+            // Inicio (ShimmerHost + ListItemPlaceHolder), no cambia cuándo llega el contenido real.
             item(key = "loading") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    ContainedLoadingIndicator()
+                ShimmerHost {
+                    repeat(6) {
+                        ListItemPlaceHolder()
+                    }
                 }
             }
         }

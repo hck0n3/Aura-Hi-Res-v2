@@ -10,6 +10,7 @@ import com.music.innertube.models.AlbumItem
 import com.music.innertube.models.ArtistItem
 import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.YTItem
+import com.music.innertube.pages.AlbumPage
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.utils.reportException
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -64,6 +65,24 @@ constructor(
 
     private var loadJob: Job? = null
 
+    // Ronda 6 (dueño): "cuesta que muestre el contenido" al entrar a un álbum. Álbum era la única de
+    // las tres pantallas (Artista y Playlist ya lo hacían) sin ningún caché de sesión — sus secciones
+    // relacionadas (otherVersions/releasesForYou/moreFromArtist/appearsOn/youMightAlsoLike) arrancaban
+    // vacías en cada ViewModel nuevo aunque el usuario ya hubiera visto ese álbum minutos antes. Mismo
+    // patrón que ArtistViewModel.pageCache: en memoria, por proceso, solo pinta instantáneo una
+    // REVISITA dentro de la misma sesión — no acelera la primera vez que se ve un álbum nunca visto,
+    // esa sigue siendo una espera de red real e irreducible.
+    private data class RelatedArtistData(
+        val moreFromArtist: List<AlbumItem>,
+        val appearsOn: List<PlaylistItem>,
+        val youMightAlsoLike: List<YTItem>,
+    )
+
+    companion object {
+        private val albumPageCache = java.util.concurrent.ConcurrentHashMap<String, AlbumPage>()
+        private val relatedArtistCache = java.util.concurrent.ConcurrentHashMap<String, RelatedArtistData>()
+    }
+
     init {
         load()
     }
@@ -90,6 +109,26 @@ constructor(
             val hasSongs = album != null &&
                 album.album.songCount > 0 &&
                 cachedSongCount >= album.album.songCount
+
+            // Paint instantly from this session's cache while the network refresh below still runs.
+            albumPageCache[albumId]?.let { cached ->
+                playlistId.value = cached.album.playlistId
+                otherVersions.value = cached.otherVersions
+                releasesForYou.value = cached.releasesForYou
+                if (description.value == null) description.value = cached.description
+                if (descriptionRuns.value == null) descriptionRuns.value = cached.descriptionRuns
+                if (!hasSongs && cached.songs.isNotEmpty()) {
+                    database.transaction {
+                        if (album == null) insert(cached) else update(album.album, cached, album.artists)
+                    }
+                }
+            }
+            relatedArtistCache[albumId]?.let { cached ->
+                moreFromArtist.value = cached.moreFromArtist
+                appearsOn.value = cached.appearsOn
+                youMightAlsoLike.value = cached.youMightAlsoLike
+            }
+
             if (album?.description != null) {
                 description.value = album.description
             }
@@ -123,6 +162,7 @@ constructor(
                             update(album.album, it, album.artists)
                         }
                     }
+                    albumPageCache[albumId] = it
 
                     val albumArtists = it.album.artists
                     val firstArtistId = albumArtists?.firstOrNull()?.id
@@ -167,6 +207,11 @@ constructor(
                                         }
                                     }
                                 }
+                                relatedArtistCache[albumId] = RelatedArtistData(
+                                    moreFromArtist = moreFromArtist.value,
+                                    appearsOn = appearsOn.value,
+                                    youMightAlsoLike = youMightAlsoLike.value,
+                                )
                             }
                         }
                     }
