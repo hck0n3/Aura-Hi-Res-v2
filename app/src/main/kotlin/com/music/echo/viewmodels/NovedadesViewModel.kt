@@ -167,7 +167,12 @@ constructor(
             val tasteJob = async {
                 runCatching {
                     val events = database.recentEventsWithSong(TASTE_EVENTS).first()
-                    AffinityEngine.buildProfile(events, dislikeStore.snapshot())
+                    // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): mismo hueco
+                    // que en MusicRequestViewModel — sin artistGenres el bono de género de AffinityEngine
+                    // (el más grande de los tres) nunca se sumaba acá. GenreCache.snapshot es en memoria.
+                    AffinityEngine.buildProfile(
+                        events, dislikeStore.snapshot(), artistGenres = iad1tya.echo.music.reco.GenreCache.snapshot(context),
+                    )
                 }.getOrNull()
             }
 

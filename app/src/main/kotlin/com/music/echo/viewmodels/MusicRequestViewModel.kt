@@ -1,13 +1,16 @@
 package iad1tya.echo.music.viewmodels
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.playlistimport.AiPlaylistGenerator
 import iad1tya.echo.music.playlistimport.MusicRequestHistory
 import iad1tya.echo.music.reco.AffinityEngine
+import iad1tya.echo.music.reco.GenreCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -46,6 +49,7 @@ class MusicRequestViewModel
 constructor(
     private val database: MusicDatabase,
     private val dislikeStore: iad1tya.echo.music.dislike.DislikeStore,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<MusicRequestUiState>(MusicRequestUiState.Idle)
@@ -110,7 +114,15 @@ constructor(
             val tasteJob = async {
                 runCatching {
                     val events = database.recentEventsWithSong(TASTE_EVENTS).first()
-                    AffinityEngine.buildProfile(events, dislikeStore.snapshot())
+                    // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): sin
+                    // artistGenres, el bono de género de AffinityEngine (el más grande de los tres:
+                    // 0.55, más que el de artista o el de carril) nunca se sumaba acá — el comentario
+                    // de esta misma función prometía "artista y género" pero solo llegaba el primero.
+                    // GenreCache.snapshot es una lectura en memoria (SharedPreferences ya cacheadas),
+                    // no red — gratis en este presupuesto reducido.
+                    AffinityEngine.buildProfile(
+                        events, dislikeStore.snapshot(), artistGenres = GenreCache.snapshot(context),
+                    )
                 }.getOrNull()
             }
             val taste = tasteJob.await()
