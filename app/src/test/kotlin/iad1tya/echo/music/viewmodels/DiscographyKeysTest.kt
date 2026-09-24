@@ -486,16 +486,27 @@ class DiscographyKeysTest {
         }
     }
 
-    /** The completion candidate filter, exactly as buildCompleteDiscography applies it. */
+    /**
+     * The completion candidate filter, exactly as buildCompleteDiscography applies it (post
+     * pre-publish audit: `!isSinglesSection || isEpOrSingle(it)`). Only the Singles/EP screen
+     * restricts itself — Albums completes against the WHOLE iTunes catalog. A prior version of this
+     * filter excluded EP/Single from Albums too ("que no los combine ni los duplique"), but that
+     * reopened regression 866b4c8 (docs/REGRESSION_REGISTRY.md fila 16 / fila 292) for any artist
+     * without a native Singles/EP shelf on their YouTube Music page: no screen with
+     * isSinglesSection=true is ever reachable for such an artist, so a release excluded from Albums
+     * had nowhere else to ever be completed.
+     */
     private fun completionCandidates(itunesTitles: List<String>, isSinglesSection: Boolean): List<String> =
-        itunesTitles.filter { isEpOrSingle(it) == isSinglesSection }
+        itunesTitles.filter { !isSinglesSection || isEpOrSingle(it) }
 
-    @Test fun theAlbumsSectionNeverCompletesWithAnEpOrSingle() {
+    @Test fun theAlbumsSectionCompletesWithTheWholeCatalogEpsAndSinglesIncluded() {
+        // An artist with no native Singles/EP shelf must still get their singles somewhere — Albums
+        // is that "somewhere" (see class doc above / regression 866b4c8).
         val candidates = completionCandidates(
             listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP"),
             isSinglesSection = false,
         )
-        assertEquals(listOf("Lenguaje de Amor"), candidates)
+        assertEquals(listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP"), candidates)
     }
 
     @Test fun theSinglesEpSectionOnlyCompletesWithEpsAndSingles() {
@@ -506,12 +517,11 @@ class DiscographyKeysTest {
         assertEquals(listOf("Solo (Single)", "Regreso a Ti - EP"), candidates)
     }
 
-    @Test fun noReleaseIsEverCandidateForBothSections() {
-        // the split must be a true partition: nothing may pass both filters (mixing) or neither (loss)
+    @Test fun everyReleaseIsAtLeastAlwaysACandidateForAlbums() {
+        // Never-silence: whatever isn't caught by the Singles/EP screen (or that screen doesn't even
+        // exist for this artist) is still coverable through Albums — nothing falls through both.
         val catalog = listOf("Lenguaje de Amor", "Solo (Single)", "Regreso a Ti - EP", "Look Up Child (Deluxe)")
         val albums = completionCandidates(catalog, isSinglesSection = false).toSet()
-        val singles = completionCandidates(catalog, isSinglesSection = true).toSet()
-        assertTrue(albums.intersect(singles).toString(), albums.intersect(singles).isEmpty())
-        assertEquals(catalog.toSet(), albums + singles)
+        assertEquals(catalog.toSet(), albums)
     }
 }

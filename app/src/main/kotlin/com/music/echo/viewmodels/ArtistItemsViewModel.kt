@@ -643,23 +643,27 @@ constructor(
             )
         }
 
-        // Don't mix EPs/Singles into the Albums list (iTunes/Apple keep them separate). iTunes marks them
-        // as "Title - EP" / "Title - Single" (isEpOrSingle).
+        // Pre-publish audit (ronda 9 cont.): the Ronda-9 comment this replaces claimed "every artist's
+        // Singles/EP see-all runs this same completion engine too, so a single no longer needs the Albums
+        // screen as its only way to ever be found" — FALSE for an artist whose YouTube Music page has no
+        // native Singles/EP SECTION at all (only Albums). `isSinglesSection` (above) is derived from the
+        // page TITLE of whichever section the user is inside; if YouTube never shows a "Singles & EPs" /
+        // "Sencillos y EPs" shelf for this artist (see `sections` in the artist page — built straight from
+        // YouTube's own response, nothing synthesized), no screen with isSinglesSection=true is ever
+        // reachable, so filtering iTunes EPs/singles OUT of the Albums completion would drop them with no
+        // other screen to complete them on — reintroducing regression 866b4c8 (fila 16,
+        // docs/REGRESSION_REGISTRY.md: "singles-heavy catalog, nothing published anywhere"). Losing an
+        // artist's entire missing-singles catalog is worse than an occasional duplicate row between two
+        // "ver todos" screens (and duplication of NATIVE items across sections is separately handled by the
+        // `baseAlbums` filter above, which is safe because it never removes iTunes-sourced content — only a
+        // YouTube item already shown correctly in its own native section). So: Albums completes against the
+        // WHOLE iTunes catalog again, EPs/singles included, matching the historical fix; only the
+        // Singles/EP screen restricts itself to EP/Single (nothing is lost there either way).
         val missingAll = itunes
             // Symmetric with `have`: compare reconKey to reconKey. A live iTunes entry no longer hides the
             // studio release of the same name (and vice versa) — each is looked up on its own.
             .filter { norm(it).isNotBlank() && reconKey(it) !in have }
-            // Ronda 9 (dueño): "que no los combine ni los duplique" — an Albums see-all and a Singles/EP
-            // see-all are TWO SCREENS for the SAME iTunes catalog, so a release that qualifies for one must
-            // be excluded from the other, or it is completed (and shown) on both. Filter symmetrically by
-            // the SAME isEpOrSingle check isSinglesSection already keys on: Albums keeps everything that is
-            // NOT an EP/Single, Singles/EP keeps ONLY EP/Single, exactly like the iTunes/Apple Music app.
-            // (Previously the Albums pass completed with the WHOLE catalog, EPs/singles included, to avoid
-            // regression 866b4c8 — a singles-heavy catalog with nothing to add anywhere. That gap is closed
-            // now that every artist's Singles/EP see-all runs this same completion engine too — see the
-            // `ArtistSectionBuffer` routing above — so a single no longer needs the Albums screen as its
-            // only way to ever be found.)
-            .filter { isEpOrSingle(it) == isSinglesSection }
+            .filter { !isSinglesSection || isEpOrSingle(it) }
             // Also reconKey: a studio and a live edition of the same name are two DIFFERENT releases and both
             // deserve a lookup. A true duplicate (same title twice across stores) still collapses here.
             .distinctBy { reconKey(it) }
