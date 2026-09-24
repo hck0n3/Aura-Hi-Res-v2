@@ -2586,7 +2586,10 @@ class MainActivity : ComponentActivity() {
         lifecycle.coroutineScope.launch(Dispatchers.IO) {
             val resolved = iad1tya.echo.music.utils.ExternalMusicLinks.resolve(this@MainActivity, link)
             val repository = iad1tya.echo.music.spotifyimport.SpotifyImportRepository.get(this@MainActivity)
+            // Ronda 9 (dueño, "no encontrado" repetido sin causa clara): dónde exactamente terminó
+            // cada intento — nunca el título/artista real, solo dónde se rindió.
             suspend fun notFound(query: String?) = withContext(Dispatchers.Main) {
+                Timber.tag("MainActivity").i("EXTERNAL_LINK final=not_found")
                 android.widget.Toast.makeText(this@MainActivity, R.string.external_link_not_found, android.widget.Toast.LENGTH_LONG).show()
                 if (!query.isNullOrBlank()) runCatching { navController.navigate("search/${URLEncoder.encode(query, "UTF-8")}") }
             }

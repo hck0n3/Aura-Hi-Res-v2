@@ -21,6 +21,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import java.net.HttpURLConnection
 import java.net.URL
+import timber.log.Timber
 
 /**
  * Music links from other platforms (Spotify, Apple Music, Deezer, Tidal, SoundCloud, Amazon Music,
@@ -75,24 +76,45 @@ object ExternalMusicLinks {
         return segments[1].takeIf { id -> id.isNotBlank() && id.all { it.isLetterOrDigit() || it == '-' || it == '_' } }
     }
 
+    /**
+     * Ronda 9 (dueño, reporte repetido de "no encontrado" sin ningún dato para rastrear la causa):
+     * traza cada intento de resolver un link externo — plataforma, qué rama corrió y en qué se
+     * convirtió (o por qué no). Nunca el título/artista real ni la URL completa (regla #4 de
+     * AGENTS.md) — solo el host y counters/booleanos, para que el próximo "no encontrado" real
+     * llegue con una línea de app.log que sí dice algo, en vez de investigar a ciegas otra vez.
+     */
+    private const val TAG = "ExternalMusicLinks"
+
     suspend fun resolve(context: Context, input: Uri): Resolved? = withContext(Dispatchers.IO) {
+        val host = input.host?.lowercase().orEmpty()
         try {
             val uri = expandShortLink(input)
-            val host = uri.host?.lowercase().orEmpty()
-            when {
+            val expandedHost = uri.host?.lowercase().orEmpty()
+            if (expandedHost != host) {
+                Timber.tag(TAG).i("EXTERNAL_LINK short-link host=%s expanded_to=%s", host, expandedHost)
+            }
+            val resolved = when {
                 uri.scheme == "spotify" -> {
                     val parts = uri.schemeSpecificPart.split(":")
                     spotify(context, Uri.parse("https://open.spotify.com/${parts.getOrNull(0)}/${parts.getOrNull(1)}"))
                 }
-                host == "open.spotify.com" -> spotify(context, uri)
-                host.endsWith("deezer.com") -> deezer(uri)
-                host.endsWith("apple.com") -> apple(uri)
-                host.endsWith("tidal.com") -> tidal(uri)
+                expandedHost == "open.spotify.com" -> spotify(context, uri)
+                expandedHost.endsWith("deezer.com") -> deezer(uri)
+                expandedHost.endsWith("apple.com") -> apple(uri)
+                expandedHost.endsWith("tidal.com") -> tidal(uri)
                 else -> pageQuery(uri, kindFromPath(uri))
             }
+            val outcome = when (resolved) {
+                null -> "null"
+                is Resolved.Tracks -> "tracks(kind=${resolved.kind}, count=${resolved.tracks.size})"
+                is Resolved.Query -> "query(kind=${resolved.kind})"
+            }
+            Timber.tag(TAG).i("EXTERNAL_LINK host=%s -> %s", expandedHost, outcome)
+            resolved
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            Timber.tag(TAG).w(e, "EXTERNAL_LINK host=%s threw %s", host, e.javaClass.simpleName)
             reportException(e)
             null
         }
@@ -234,8 +256,17 @@ object ExternalMusicLinks {
 
     /** Any other page: search YouTube Music for its Open Graph title. */
     private fun pageQuery(uri: Uri, kind: Kind): Resolved? {
-        val html = fetch(uri.toString())
-        val raw = meta(html, "og:title") ?: Regex("<title>([^<]+)</title>").find(html)?.groupValues?.get(1) ?: return null
+        // Prueba primero el UA de bot de vista previa (más probable que traiga og:title ya armado en
+        // páginas SPA); si esa petición falla del todo (algunos sitios sí bloquean UAs de bot
+        // conocidos), cae al UA normal — nunca peor que antes.
+        val html = runCatching { fetch(uri.toString(), LINK_PREVIEW_UA) }
+            .getOrElse { fetch(uri.toString()) }
+        val ogTitle = meta(html, "og:title")
+        val raw = ogTitle ?: Regex("<title>([^<]+)</title>").find(html)?.groupValues?.get(1)
+        if (raw == null) {
+            Timber.tag(TAG).i("EXTERNAL_LINK pageQuery host=%s no_title_found html_len=%d", uri.host, html.length)
+            return null
+        }
         val text = raw
             .replace(Regex("\\s*[|·–-]\\s*(SoundCloud|Amazon Music|Apple Music|Spotify|TIDAL|Deezer|Songlink|Odesli).*$", RegexOption.IGNORE_CASE), "")
             .replace(Regex("^(Stream|Listen to|Escucha)\\s+", RegexOption.IGNORE_CASE), "")
@@ -296,8 +327,8 @@ object ExternalMusicLinks {
         }
     }
 
-    private fun fetch(url: String): String {
-        val connection = open(url)
+    private fun fetch(url: String, userAgent: String = MOBILE_UA): String {
+        val connection = open(url, userAgent)
         try {
             if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
             return connection.inputStream.bufferedReader().use { it.readText() }
@@ -306,13 +337,26 @@ object ExternalMusicLinks {
         }
     }
 
-    private fun open(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
-        instanceFollowRedirects = true
-        connectTimeout = 12_000
-        readTimeout = 12_000
-        setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36")
-        setRequestProperty("Accept-Language", "es,en;q=0.8")
-    }
+    private fun open(url: String, userAgent: String = MOBILE_UA): HttpURLConnection =
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = true
+            connectTimeout = 12_000
+            readTimeout = 12_000
+            setRequestProperty("User-Agent", userAgent)
+            setRequestProperty("Accept-Language", "es,en;q=0.8")
+        }
+
+    private const val MOBILE_UA =
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36"
+
+    // Ronda 9 (dueño, reporte repetido de "no encontrado" sin causa clara): [pageQuery] cubre páginas
+    // de una sola página (SPA) — Amazon Music, SoundCloud — que muchas veces NO renderizan su propio
+    // <meta property="og:*"> del lado del servidor para un navegador normal (solo lo arma con
+    // JavaScript, que esta petición no ejecuta), pero SÍ lo hacen para los bots de vista previa de
+    // enlaces (Facebook/Twitter/Discord) — es justo para eso que existen esas etiquetas. Usar ese
+    // mismo user-agent es la misma técnica que esos bots ya usan, no un workaround de nada que el
+    // sitio no quiera compartir: el contenido es público y las etiquetas están para leerse así.
+    private const val LINK_PREVIEW_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uat.php)"
 
     private fun meta(html: String, property: String): String? =
         Regex("<meta[^>]+(?:property|name)=\"${Regex.escape(property)}\"[^>]+content=\"([^\"]*)\"", RegexOption.IGNORE_CASE)
