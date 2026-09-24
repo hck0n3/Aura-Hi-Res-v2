@@ -231,24 +231,24 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1019
-        // BETA 2.0.58-beta1 — SOLO EL DUEÑO (sub-ronda del 2026-09-24, sobre 2.0.57-beta1).
-        // Desde la 2.0.57-beta1 (ya publicada): pedir una canción/artista específico junto a un
-        // género ("death metal Raining Blood Slayer") ya prioriza lo específico en vez de dejar que
-        // el género genérico llene la cola primero; los links externos (Amazon Music, SoundCloud, ...)
-        // ahora también prueban un User-Agent de link-preview antes del scraping normal, con logging
-        // de diagnóstico nuevo, y se resuelven primero contra el catálogo cruzado de Odesli/song.link
-        // cuando este ya tiene el id exacto de YouTube Music; el badge de "ya está en una lista" ahora
-        // dice "En lista"; y las discografías de artista ahora sí completan más allá de los topes de
-        // 60/80 (la corrida se marca degradada y se repara con topes más anchos), separan Álbumes de
-        // Singles/EPs sin mezclarlos ni duplicarlos, y se ordenan igual que iTunes/Apple Music (más
-        // nuevo primero) — ver RELEASE_INFO.md.
-        // El sufijo `-beta1` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
+        versionCode = 1020
+        // BETA 2.0.58-beta2 — SOLO EL DUEÑO (sub-ronda del 2026-09-24, sobre 2.0.58-beta1).
+        // El dueño probó la 2.0.58-beta1 en su dispositivo y reportó 3 fallos reales, ya corregidos:
+        //  1. "En lista" seguía sin verse — quedaba un SEGUNDO archivo de idioma (values-es-rUS, para
+        //     español-región EE.UU.) con el texto viejo "Ya está" que el arreglo anterior no tocó.
+        //  2. Pedir una canción/artista específico seguía sin respetarse cuando el pedido también
+        //     nombraba el artista explícitamente ("de Queen") — eso apagaba el arreglo de la beta1
+        //     (que exigía soloArtist == null), justo el caso que más necesitaba el arreglo.
+        //  3. Los links de Spotify seguían diciendo "no encontrado": esa rama nunca pasó por el mismo
+        //     User-Agent de vista previa que ya arregló Amazon Music/SoundCloud. Mismo tratamiento
+        //     ahora, más Tidal.
+        // Ver RELEASE_INFO.md para el detalle completo.
+        // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño entrando a la página de releases (o a la función de "recibir versiones beta" del
         // actualizador dentro de la app, si la tiene activada). Publicar el tag requiere su permiso
         // explícito en el momento (AGENTS.md) — no se hace solo por dejar esto compilado.
-        versionName = "2.0.58-beta1"
+        versionName = "2.0.58-beta2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
