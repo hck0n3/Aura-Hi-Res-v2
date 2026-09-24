@@ -47,11 +47,15 @@ object iTunesDiscography {
      * evidence (AGENTS.md regla 2/3).
      */
     internal fun filterHomonyms(hits: List<ItunesAlbumHit>): List<ItunesAlbumHit> {
-        val majorityArtistId = hits.mapNotNull { it.artistId }
-            .groupingBy { it }.eachCount()
-            .maxByOrNull { it.value }
-            ?.key
-            ?: return hits
+        val counts = hits.mapNotNull { it.artistId }.groupingBy { it }.eachCount()
+        if (counts.isEmpty()) return hits
+        val topCount = counts.values.max()
+        val topIds = counts.filterValues { it == topCount }.keys
+        // A TIE between two or more artistIds (e.g. every hit has a distinct id) is not a majority —
+        // maxByOrNull would silently pick whichever one happened to be encountered first, which is
+        // exactly the "invent a decision from insufficient evidence" this function must not do.
+        if (topIds.size != 1) return hits
+        val majorityArtistId = topIds.first()
         return hits.filter { it.artistId == null || it.artistId == majorityArtistId }
     }
 

@@ -78,4 +78,29 @@ class MusicRequestMatchTest {
     fun `a blank title is never chosen`() {
         assertEquals(MusicRequestMatch.REJECT, MusicRequestMatch.score("   ", eighties))
     }
+
+    /**
+     * Ronda 9 (dueño): "bachata cristiana" ponía canciones seculares — una lista titulada solo
+     * "Bachata" pasaba con la regla de "al menos una palabra en común", ignorando "cristiana" por
+     * completo. Con dos familias reconocidas a la vez, el título tiene que demostrar las dos.
+     */
+    @Test
+    fun `a playlist matching only one of two requested groups is rejected`() {
+        val christianBachata = MusicRequestQuery.build("bachata cristiana")
+        val groups = listOf(listOf("bachata"), listOf("cristiana", "cristiano", "gospel", "worship"))
+        assertEquals(
+            MusicRequestMatch.REJECT,
+            MusicRequestMatch.score("Bachata Romántica 2024", christianBachata, groups),
+        )
+        assertTrue(
+            MusicRequestMatch.score("Bachata Cristiana Mix", christianBachata, groups) > 0,
+        )
+    }
+
+    @Test
+    fun `fewer than two groups keeps the old single-word rule`() {
+        val bachata = MusicRequestQuery.build("bachata")
+        val groups = listOf(listOf("bachata"))
+        assertTrue(MusicRequestMatch.score("Bachata Romántica 2024", bachata, groups) > 0)
+    }
 }

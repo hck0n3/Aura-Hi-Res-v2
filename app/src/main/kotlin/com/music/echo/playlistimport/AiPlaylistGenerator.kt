@@ -667,7 +667,8 @@ object AiPlaylistGenerator {
                 YouTube.search(query, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST).getOrNull()
                     ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)
                     ?.let { candidates += it }
-                MusicRequestMatch.rankedIndices(candidates.map { it.title }, parsed)
+                val conceptGroups = MusicRequestMoods.conceptGroupsFor(prompt, parsed)
+                MusicRequestMatch.rankedIndices(candidates.map { it.title }, parsed, conceptGroups)
                     .take(PLAYLISTS_USED)
                     .forEach { index ->
                         if (pool.size < POOL_TARGET) {

@@ -92,21 +92,32 @@ object MusicRequestMoods {
         listOf("disco") to listOf("disco"),
         listOf("tango") to listOf("tango"),
         listOf("bolero", "boleros") to listOf("bolero"),
-        listOf("gospel", "cristiana", "cristiano", "alabanza", "worship") to listOf("cristiana", "gospel", "worship"),
+        listOf("gospel", "cristiana", "cristiano", "alabanza", "worship") to
+            listOf("cristiana", "cristiano", "gospel", "worship"),
     )
 
     /** Los nombres que puede tener la categoría que él busca, o vacío si no cae en ninguna familia. */
-    fun conceptsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<String> {
+    fun conceptsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<String> =
+        conceptGroupsFor(prompt, parsed).flatten().distinct()
+
+    /**
+     * Ronda 9 (dueño): "bachata cristiana" — [pickCategory] cogía la categoría "Bachata" a secas,
+     * ignorando "cristiana" por completo, porque [conceptsFor] mezclaba los conceptos de TODAS las
+     * familias que matchean en una sola bolsa plana, y bastaba con satisfacer UNA para "ganar". Esto
+     * separa cada familia que matchea en su propio grupo para que la categoría elegida tenga que
+     * demostrar TODAS las familias pedidas a la vez, no una cualquiera de ellas.
+     */
+    internal fun conceptGroupsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<List<String>> {
         val folded = fold(prompt)
-        val out = ArrayList<String>()
+        val groups = ArrayList<List<String>>()
         FAMILIES.forEach { (triggers, concepts) ->
-            if (triggers.any { folded.contains(it) }) out += concepts
+            if (triggers.any { folded.contains(it) }) groups += concepts
         }
         GENRE_FAMILIES.forEach { (triggers, concepts) ->
-            if (triggers.any { folded.contains(it) }) out += concepts
+            if (triggers.any { folded.contains(it) }) groups += concepts
         }
-        if (parsed.decade != null) out += MusicRequestMatch.decadeTokens(parsed.decade)
-        return out.distinct()
+        if (parsed.decade != null) groups += MusicRequestMatch.decadeTokens(parsed.decade)
+        return groups
     }
 
     /**
@@ -131,11 +142,13 @@ object MusicRequestMoods {
             // daría una lista de otra cosa. Sin categoría, la escalera sigue por la búsqueda.
             return null
         }
-        val concepts = conceptsFor(prompt, parsed)
-        if (concepts.isEmpty()) return null
+        val groups = conceptGroupsFor(prompt, parsed)
+        if (groups.isEmpty()) return null
         categoryTitles.forEachIndexed { index, title ->
             val t = fold(title)
-            if (concepts.any { containsToken(t, it) }) return index
+            // Ronda 9: si matcheó VARIAS familias a la vez (género + tema), la categoría tiene que
+            // demostrar todas — una que solo cumpla una es la misma improvisación que ya se prohibió.
+            if (groups.all { group -> group.any { containsToken(t, it) } }) return index
         }
         return null
     }

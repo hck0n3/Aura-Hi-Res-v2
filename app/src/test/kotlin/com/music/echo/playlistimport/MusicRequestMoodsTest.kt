@@ -89,6 +89,23 @@ class MusicRequestMoodsTest {
         )
     }
 
+    /**
+     * Ronda 9 (dueño): "bachata cristiana" caía en la categoría "Bachata" a secas — ahora tiene que
+     * demostrar género Y tema a la vez, o no elige categoría (la escalera sigue por la búsqueda).
+     */
+    @Test
+    fun `a genre plus theme request needs a category that proves both`() {
+        val soloGenero = listOf("Bachata", "Salsa", "Rock")
+        val prompt = "bachata cristiana"
+        assertNull(MusicRequestMoods.pickCategory(soloGenero, prompt, MusicRequestQuery.build(prompt)))
+
+        val conAmbos = listOf("Bachata", "Bachata Cristiana", "Salsa")
+        assertEquals(
+            conAmbos.indexOf("Bachata Cristiana"),
+            MusicRequestMoods.pickCategory(conAmbos, prompt, MusicRequestQuery.build(prompt)),
+        )
+    }
+
     @Test
     fun `english catalogue names work too`() {
         val english = listOf("80s", "Focus", "Workout", "Party", "Sleep")
