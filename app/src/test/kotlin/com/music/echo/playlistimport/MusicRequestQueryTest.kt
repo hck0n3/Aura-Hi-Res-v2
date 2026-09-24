@@ -91,6 +91,19 @@ class MusicRequestQueryTest {
         assertEquals("exitos de los 80", MusicRequestQuery.build("música de los ochentas").query)
     }
 
+    /** Ronda 6 (dueño): "lo que suena ahora" / tendencias debe preferir listas (los charts reales). */
+    @Test
+    fun `a trending request prefers playlists and is flagged`() {
+        val p = MusicRequestQuery.build("lo que suena ahora")
+        assertTrue(p.trending)
+        assertTrue(p.preferPlaylists)
+    }
+
+    @Test
+    fun `a plain request is not flagged as trending`() {
+        assertFalse(MusicRequestQuery.build("salsa de Puerto Rico").trending)
+    }
+
     @Test
     fun `a number that is not a decade is not a decade`() {
         // "50 Cent" no es una petición de los años 50: hace falta el artículo o la ese.

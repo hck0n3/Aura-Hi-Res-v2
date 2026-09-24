@@ -1351,4 +1351,5 @@
     <string name="music_request_suggestion_sleep">To fall asleep</string>
     <string name="music_request_suggestion_drive">For a long drive</string>
     <string name="music_request_suggestion_party">To get the party going</string>
+    <string name="music_request_recent_label">Ask again</string>
 </resources>

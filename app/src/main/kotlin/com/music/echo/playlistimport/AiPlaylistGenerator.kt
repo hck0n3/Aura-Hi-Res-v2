@@ -3,6 +3,7 @@ package iad1tya.echo.music.playlistimport
 import com.music.innertube.YouTube
 import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.SongItem
+import com.music.innertube.pages.ChartsPage
 import iad1tya.echo.music.api.AiPlaylistConstraints
 import iad1tya.echo.music.api.AiPlaylistService
 import iad1tya.echo.music.api.TrackQuery
@@ -637,6 +638,14 @@ object AiPlaylistGenerator {
         }
 
         if (parsed.preferPlaylists && soloArtist == null) {
+            // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
+            // el peldaño 1: no se le pide a la búsqueda ni a un LLM que ADIVINE qué está de moda —
+            // se piden los charts reales de YouTube Music, que es la única fuente que de verdad lo
+            // sabe. Si el usuario no pidió tendencias, esto no hace ninguna llamada de más.
+            if (parsed.trending && pool.size < POOL_TARGET) {
+                absorb(trendingSongs())
+            }
+
             // Peldaño 1 — EL CATÁLOGO PROPIO DE YOUTUBE MUSIC. Sus categorías ("Años 80",
             // "Concentración") entregan listas editoriales suyas, y ahí la categoría ES la prueba: no
             // hace falta verificar por título porque el contenido lo garantiza la casa. Ver
@@ -740,6 +749,19 @@ object AiPlaylistGenerator {
         val endpoint = items[index].endpoint
         val browse = YouTube.browse(endpoint.browseId, endpoint.params).getOrNull() ?: return emptyList()
         return browse.items.flatMap { it.items }.filterIsInstance<PlaylistItem>()
+    }
+
+    /**
+     * Las canciones de las secciones TRENDING/TOP de los charts reales de YouTube Music — ver
+     * [MusicRequestQuery.Parsed.trending]. Vacío si la petición no pidió tendencias, si los charts no
+     * responden, o si esa sección no trae canciones sueltas (a veces son álbumes/artistas).
+     */
+    private suspend fun trendingSongs(): List<SongItem> {
+        val charts = YouTube.getChartsPage().getOrNull() ?: return emptyList()
+        return charts.sections
+            .filter { it.chartType == ChartsPage.ChartType.TRENDING || it.chartType == ChartsPage.ChartType.TOP }
+            .flatMap { it.items }
+            .filterIsInstance<SongItem>()
     }
 
     private fun filterTracksForSoloArtist(

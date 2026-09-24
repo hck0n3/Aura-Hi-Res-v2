@@ -32,6 +32,13 @@ object MusicRequestQuery {
         val decade: String? = null,
         /** "en" (inglés), "es" (español) o null si no lo dijo. */
         val language: String? = null,
+        /**
+         * Ronda 6 (dueño): pidió "lo que suena ahora"/tendencias. La fuente que corresponde no es
+         * buscar ni pedirle a un LLM que adivine qué está de moda — es la sección TRENDING/TOP real
+         * de YouTube Music ([AiPlaylistGenerator.trendingSongs]), la misma filosofía de "la categoría
+         * ES la prueba" que ya usa [MusicRequestMoods] para época/momento.
+         */
+        val trending: Boolean = false,
     )
 
     /** Muletillas de petición: no aportan nada a una búsqueda y sí ensucian la frase. */
@@ -73,6 +80,13 @@ object MusicRequestQuery {
         "to study", "to sleep", "to run", "for the gym", "to focus", "workout",
     )
 
+    /** "lo que suena ahora" / tendencias — ver [Parsed.trending]. */
+    private val TREND_HINTS = listOf(
+        "lo que suena ahora", "lo mas escuchado", "lo mas sonado", "tendencias", "tendencia",
+        "lo mas popular ahora", "top actual", "top del momento", "lo nuevo y popular",
+        "trending", "what's popular", "whats popular", "popular right now", "popular now",
+    )
+
     /**
      * Palabras que sobran del residuo tras quitar década/idioma: no dicen nada de género/tema. Mismo
      * espíritu que MusicRequestMatch.STOP_WORDS (palabras de relleno que no cuentan como contenido),
@@ -103,6 +117,7 @@ object MusicRequestQuery {
             else -> null
         }
         val moment = MOMENT_HINTS.any { withoutLeadIn.contains(it) }
+        val trending = TREND_HINTS.any { withoutLeadIn.contains(it) }
 
         // Ronda 6 (dueño): "reggae de los 90" perdía "reggae" por completo — la petición se
         // reemplazaba entera por la plantilla fija "exitos de los 90". Lo que queda de la frase tras
@@ -130,9 +145,10 @@ object MusicRequestQuery {
 
         return Parsed(
             query = query.trim().take(80),
-            preferPlaylists = decade != null || moment,
+            preferPlaylists = decade != null || moment || trending,
             decade = decade,
             language = language,
+            trending = trending,
         )
     }
 

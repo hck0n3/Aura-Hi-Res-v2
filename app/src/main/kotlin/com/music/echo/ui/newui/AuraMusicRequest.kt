@@ -49,6 +49,7 @@ import iad1tya.echo.music.constants.OpenRouterBaseUrlKey
 import iad1tya.echo.music.constants.OpenRouterModelKey
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.playback.queues.ListQueue
+import iad1tya.echo.music.playlistimport.MusicRequestHistory
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.MusicRequestUiState
 import iad1tya.echo.music.viewmodels.MusicRequestViewModel
@@ -335,6 +336,39 @@ private fun AuraMusicRequestSheetBody(
                 size = 20.dp,
                 tint = if (voice.active) AuraPalette.Teal else AuraPalette.OnGroundFaint,
             )
+        }
+
+        // HISTORIAL / "OTRA TANDA" (ronda 6, dueño): repetir la última petición sin reescribirla es
+        // "otra tanda" (canciones distintas, gracias al TTL de MusicRequestRecents); repetir una
+        // anterior es el historial — el mismo mecanismo cubre las dos. `remember` sin claves: se lee
+        // una vez al abrir la hoja, que es cuando importa; no hace falta que se actualice mientras la
+        // hoja sigue abierta y el usuario todavía no mandó nada nuevo.
+        val recentPrompts = remember { MusicRequestHistory.recentPrompts() }
+        if (recentPrompts.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = stringResource(R.string.music_request_recent_label),
+                    style = AuraType.MiniArtist,
+                    color = AuraPalette.OnGroundMuted,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                ) {
+                    recentPrompts.forEach { text ->
+                        AuraChip(
+                            text = "↻ $text",
+                            selected = false,
+                            onClick = {
+                                prompt = text
+                                send(text)
+                            },
+                        )
+                    }
+                }
+            }
         }
 
         // LAS SUGERENCIAS, que es lo que de verdad quita el "muy básico": un campo vacío en una

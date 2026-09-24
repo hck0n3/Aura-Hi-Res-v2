@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.playlistimport.AiPlaylistGenerator
+import iad1tya.echo.music.playlistimport.MusicRequestHistory
 import iad1tya.echo.music.reco.AffinityEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -130,6 +131,7 @@ constructor(
                 _state.value = MusicRequestUiState.Empty
                 return@launch
             }
+            MusicRequestHistory.record(prompt)
             // Un id propio de ESTE pedido: la cola no lleva contextId todavía (nunca lo necesitó,
             // era una lista suelta), y ahora hace falta para que el relleno de abajo sepa que sigue
             // siendo la MISMA cola antes de sumarle canciones — si mientras tanto puso otra cosa a
