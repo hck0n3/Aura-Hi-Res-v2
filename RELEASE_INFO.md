@@ -1,35 +1,27 @@
-# Aura Hi-Res v2.0.55-beta1 — Ya no arranca solo, pedir música entiende géneros, Spotify se sincroniza y discografías más confiables
+# Aura Hi-Res v2.0.56-beta1 — Pedir música más preciso, links de Amazon Music y cola offline instantánea
 
-Beta encima de la 2.0.53. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
-
-## Reproducción
-
-- **Ya no arranca solo al volver de otra app (TikTok y similares).** Si Aura quedaba pausada por
-  cualquier motivo y después entrabas a ver un video a otra app, al salir la reproducción podía
-  arrancar sin que la tocaras. Era una bandera interna que debía limpiarse al pausar manualmente y
-  nunca lo hacía — quedaba activa por tiempo indefinido y la heredaba cualquier interrupción de audio
-  posterior, sin relación con la original.
+Beta encima de la 2.0.55. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
 ## Pedir música
 
-- **Ya entiende géneros sueltos, no solo los busca como texto.** Pedir "reggaetón" devolvía canciones
-  que literalmente tenían esa palabra en el título — no el género. Pedir "bossanova" traía una canción
-  real seguida de relleno instrumental genérico. Ahora un género reconocido (reggaetón, salsa, bachata,
-  rock, bossa nova, jazz, trap, k-pop, y varios más) se busca contra las categorías oficiales de
-  YouTube Music, la misma fuente confiable que ya se usaba para décadas y estados de ánimo.
+- **Ya no ignora el tema cuando pedís género + tema a la vez.** "Bachata cristiana" o "bossa nova
+  cristiana" caían en la categoría o lista del género a secas (100% secular), porque bastaba con
+  demostrar UNA de las dos partes de la petición. Ahora, si pedís dos cosas a la vez, tienen que
+  cumplirse las dos — o se sigue buscando en vez de conformarse con la mitad de lo que pediste.
 
-## Spotify
+## Enlaces externos
 
-- **Una playlist agregada por enlace ahora sí se sincroniza.** El Radar de Novedades (u otra playlist
-  que solo se puede agregar pegando el link, no desde tu biblioteca) decía "sincronizado" pero nunca
-  traía el contenido actualizado — en realidad nunca se volvía a consultar, ni con el botón manual ni
-  con la sincronización automática. Ahora sí se vuelve a leer su contenido real de Spotify cada vez.
+- **Un link de Amazon Music de una sola canción ya no se busca como si fuera el álbum entero.**
+  Amazon comparte una canción como `.../albums/{id}?trackAsin={id}` — la ruta sola parece un álbum, y
+  ese identificador de canción nunca se leía. Aura terminaba buscando el ÁLBUM completo por título
+  (una comparación mucho más estricta que buscar una canción), así que cualquier variación de nombre
+  bastaba para decir "no encontrado" aunque la canción sí estuviera en YouTube Music.
 
-## Discografías de artista
+## Reproducción sin conexión
 
-- **Menos riesgo de mezclar un homónimo.** La discografía se completa contra Apple Music/iTunes, pero
-  antes solo comparaba el nombre del artista como texto — un homónimo o una banda tributo con el mismo
-  nombre exacto podía colarse. Ahora se verifica también el identificador real de artista de iTunes.
-- **Rechaza álbumes con una canción cortada.** Antes solo se detectaba un álbum donde TODAS las
-  canciones eran clips cortos; ahora también se descarta si una sola canción aparece claramente
-  truncada (un rip cortado, una vista previa subida por error) mezclada en un álbum por lo demás normal.
+- **La cola pasa a modo sin conexión al instante cuando de verdad no hay red.** Antes, si se cortaban
+  el wifi y los datos (o no había señal), cada canción no descargada intentaba igual cargar por red y
+  recién se rendía después de 15-30 segundos de espera — eso era lo que se sentía como que "las
+  canciones se quedan cargando". Ahora, en cuanto se detecta que no hay conexión de verdad, la cola
+  salta al instante a lo que ya está en caché, descargado o guardado localmente, igual que si hubieras
+  activado "Modo sin conexión" a mano.

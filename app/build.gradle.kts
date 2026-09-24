@@ -231,21 +231,21 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1016
-        // BETA 2.0.55-beta1 — SOLO EL DUEÑO (rondas 7+8 de reportes del 2026-09-24, tras probar
-        // 2.0.53-beta1: arreglo de la reproducción que arrancaba sola al salir de otra app como
-        // TikTok (bandera de audio focus contaminada), "pedir música" reconoce géneros sueltos como
-        // reggaetón/bossa nova contra las categorías oficiales de YouTube Music en vez de una
-        // búsqueda cruda, arreglo de la sincronización de una playlist de Spotify agregada por enlace
-        // (Radar de Novedades) que nunca se volvía a actualizar, y en la discografía de artista un
-        // filtro de homónimos por artistId de iTunes más un rechazo de álbumes con una pista truncada
-        // — ver RELEASE_INFO.md).
+        versionCode = 1017
+        // BETA 2.0.56-beta1 — SOLO EL DUEÑO (ronda 9 de reportes del 2026-09-24, tras probar
+        // 2.0.55-beta1: "pedir música" ya no ignora el tema cuando se pide género+tema a la vez
+        // ("bachata cristiana" ya no cae en la categoría secular "Bachata" a secas), un link de
+        // Amazon Music de UNA canción ya no se resuelve como si pidiera el álbum completo (trackAsin
+        // nunca se leía), la cola pasa a modo offline al instante cuando de verdad no hay red (wifi y
+        // datos apagados, o sin señal) en vez de esperar el timeout de red de cada canción, y se
+        // corrige un bug de CI en el filtro de homónimos de discografía (empate de artistId) — ver
+        // RELEASE_INFO.md).
         // El sufijo `-beta1` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño entrando a la página de releases (o a la función de "recibir versiones beta" del
         // actualizador dentro de la app, si la tiene activada). Publicar el tag requiere su permiso
         // explícito en el momento (AGENTS.md) — no se hace solo por dejar esto compilado.
-        versionName = "2.0.55-beta1"
+        versionName = "2.0.56-beta1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
