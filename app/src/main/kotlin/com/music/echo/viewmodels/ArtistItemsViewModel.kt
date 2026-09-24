@@ -543,7 +543,15 @@ constructor(
         // caller discards a result identical to baseItems anyway.
         val artistName = resolveArtistName() ?: return@coroutineScope DiscographyRun(baseItems, degraded = false)
         val norm = iTunesDiscography::normalizeTitle
-        val baseAlbums = baseItems.filterIsInstance<AlbumItem>()
+        // Ronda 9 (dueño): "algunos álbumes se repiten en sencillos y EPs" — el filtro simétrico
+        // anterior (isEpOrSingle == isSinglesSection) solo se aplicaba a lo que se completaba desde
+        // iTunes, nunca a lo que YouTube Music YA trae nativamente en el shelf de esta sección. Si el
+        // propio catálogo de YouTube Music clasifica mal una publicación (un single/EP listado bajo
+        // "Álbumes", o viceversa), ese ítem pasaba sin filtro. Se excluye acá también: sigue teniendo
+        // su oportunidad real de aparecer en la sección que le corresponde, por sus propios base items
+        // O por la completación desde iTunes de ESA sección — nunca desaparece del todo, solo deja de
+        // mostrarse en la sección equivocada.
+        val baseAlbums = baseItems.filterIsInstance<AlbumItem>().filter { isEpOrSingle(it.title) == isSinglesSection }
 
         fun credited(a: AlbumItem): Boolean {
             val arts = a.artists
@@ -888,6 +896,12 @@ constructor(
         val resultKeys = ArrayList<String?>()
         for (item in baseItems) {
             if (item is AlbumItem) {
+                if (isEpOrSingle(item.title) != isSinglesSection) {
+                    // Misfiled by YouTube Music itself (see baseAlbums above) — never shown in THIS
+                    // section, but its id is remembered so a completion result elsewhere can't collide.
+                    emittedIds.add(item.id)
+                    continue
+                }
                 val nt = reconKey(item.title)
                 // Remember EVERY base album id — including one dropped here as a duplicate key, and one that
                 // lost its group to a better candidate — so the completion loop can never re-append a base
