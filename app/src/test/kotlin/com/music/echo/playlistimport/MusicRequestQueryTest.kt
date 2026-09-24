@@ -61,6 +61,36 @@ class MusicRequestQueryTest {
         assertEquals("70", MusicRequestQuery.build("seventies rock").decade)
     }
 
+    /**
+     * Dueño (ronda 6): "reggae de los 90" perdía "reggae" — la petición se reemplazaba entera por
+     * "exitos de los 90". El género que pidió junto con la década ahora se conserva.
+     */
+    @Test
+    fun `a genre named alongside a decade is not discarded`() {
+        val p = MusicRequestQuery.build("reggae de los 90")
+        assertEquals("90", p.decade)
+        assertEquals("reggae exitos de los 90", p.query)
+        assertTrue(p.preferPlaylists)
+    }
+
+    @Test
+    fun `a genre named alongside a decade in english keeps the english suffix`() {
+        val p = MusicRequestQuery.build("reggae de los 90 en ingles")
+        assertEquals("90", p.decade)
+        assertEquals("en", p.language)
+        assertEquals("reggae 90s hits english", p.query)
+    }
+
+    @Test
+    fun `a written decade word does not swallow the genre that follows it`() {
+        assertEquals("rock 70s hits english", MusicRequestQuery.build("seventies rock in english").query)
+    }
+
+    @Test
+    fun `a pure decade request with no genre is unchanged`() {
+        assertEquals("exitos de los 80", MusicRequestQuery.build("música de los ochentas").query)
+    }
+
     @Test
     fun `a number that is not a decade is not a decade`() {
         // "50 Cent" no es una petición de los años 50: hace falta el artículo o la ese.

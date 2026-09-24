@@ -73,6 +73,22 @@ object MusicRequestQuery {
         "to study", "to sleep", "to run", "for the gym", "to focus", "workout",
     )
 
+    /**
+     * Palabras que sobran del residuo tras quitar década/idioma: no dicen nada de género/tema. Mismo
+     * espíritu que MusicRequestMatch.STOP_WORDS (palabras de relleno que no cuentan como contenido),
+     * pero corta aparte porque este filtro corre ANTES de tener un [Parsed] con el que llamar a esa
+     * clase.
+     */
+    private val CONNECTOR_WORDS = setOf(
+        "de", "del", "en", "los", "las", "el", "la", "lo", "the", "of", "and", "y", "a", "to", "an",
+        "un", "una", "para", "por", "con",
+        "años", "anos", "año", "ano",
+        "musica", "canciones", "songs", "playlist", "lista",
+        // Palabras de recopilación (mismo espíritu que MusicRequestMatch.COMPILATION_WORDS): "éxitos
+        // de los 2000" no debe leer "exitos" como si fuera el género que pidió.
+        "exitos", "hits", "mejor", "best", "greatest", "clasicos", "classics", "mix", "top",
+    )
+
     fun build(prompt: String): Parsed {
         val raw = prompt.trim()
         if (raw.isBlank()) return Parsed(query = "", preferPlaylists = false)
@@ -88,10 +104,23 @@ object MusicRequestQuery {
         }
         val moment = MOMENT_HINTS.any { withoutLeadIn.contains(it) }
 
+        // Ronda 6 (dueño): "reggae de los 90" perdía "reggae" por completo — la petición se
+        // reemplazaba entera por la plantilla fija "exitos de los 90". Lo que queda de la frase tras
+        // quitar la década y las pistas de idioma es el género/tema que sí pidió; si no queda nada
+        // (petición de década pura, "música de los 80"), el comportamiento es exactamente el de antes.
+        val genre = if (decade != null) residualGenre(withoutLeadIn, decade) else null
+
         val query = when {
-            // Década: la forma que el buscador premia, en el idioma que él pidió. Con idioma inglés
-            // "80s hits" trae los éxitos anglosajones; sin idioma, "éxitos de los 80" ya trae la
-            // mezcla que espera quien escribe en español.
+            // Década + género: se conserva lo que pidió, con el sufijo que el buscador premia.
+            decade != null && !genre.isNullOrBlank() && language == "en" ->
+                "$genre ${decadeLabel(decade)}s hits english"
+            decade != null && !genre.isNullOrBlank() && language == "es" ->
+                "$genre exitos de los ${decadeLabel(decade)} en espanol"
+            decade != null && !genre.isNullOrBlank() ->
+                "$genre exitos de los ${decadeLabel(decade)}"
+            // Década sola: la forma que el buscador premia, en el idioma que él pidió. Con idioma
+            // inglés "80s hits" trae los éxitos anglosajones; sin idioma, "éxitos de los 80" ya trae
+            // la mezcla que espera quien escribe en español.
             decade != null && language == "en" -> "${decadeLabel(decade)}s hits english"
             decade != null && language == "es" -> "exitos de los ${decadeLabel(decade)} en espanol"
             decade != null -> "exitos de los ${decadeLabel(decade)}"
@@ -105,6 +134,31 @@ object MusicRequestQuery {
             decade = decade,
             language = language,
         )
+    }
+
+    /**
+     * Lo que sobra de [text] tras quitar la mención de [decade] (cifras o palabra) y las pistas de
+     * idioma — el género o tema que pidió junto con la década, o cadena vacía si no pidió nada más.
+     */
+    private fun residualGenre(text: String, decade: String): String {
+        var stripped = text
+        // Probar TODAS las palabras que nombran esta década (no solo la primera del mapa): "seventies
+        // rock" no contiene "setenta", así que quedarse con una sola entrada dejaba "seventies" sin
+        // quitar y el residuo entero se tomaba por género. Por PALABRA COMPLETA, no subcadena: "ochenta"
+        // es un prefijo de "ochentas" y un replace ingenuo dejaba una "s" suelta como residuo falso.
+        DECADE_WORDS.entries.filter { it.value == decade }.forEach { (word, _) ->
+            stripped = stripped.replace(Regex("""\b${Regex.escape(word)}\b"""), " ")
+        }
+        stripped = DECADE_DIGITS.replace(stripped) { m ->
+            if (m.groupValues[2] == decade) " " else m.value
+        }
+        (ENGLISH_HINTS + SPANISH_HINTS).forEach { hint ->
+            stripped = stripped.replace(Regex("""\b${Regex.escape(hint)}\b"""), " ")
+        }
+        return stripped.split(Regex("\\s+"))
+            .filter { it.isNotBlank() && it !in CONNECTOR_WORDS }
+            .joinToString(" ")
+            .trim()
     }
 
     /** "80" → "80"; "1980"/"2000" → "80"/"2000" tal y como se buscan de verdad. */
