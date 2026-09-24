@@ -9833,7 +9833,6 @@ class MusicService :
         scope.launch(Dispatchers.IO) {
             runCatching { writePersistPlayerState(state) }
         }
-        checkpointEnhancedShuffleCursor()
     }
 
     /** Same payload as [savePlaybackPositionToDisk] but blocks — for ACTION_SHUTDOWN / REBOOT. */
@@ -9842,7 +9841,6 @@ class MusicService :
         runCatching {
             writePersistPlayerState(capturePersistPlayerState())
         }
-        checkpointEnhancedShuffleCursor()
     }
 
     private fun capturePersistPlayerState(): PersistPlayerState =
@@ -9862,22 +9860,16 @@ class MusicService :
         }
     }
 
-    private fun checkpointEnhancedShuffleCursor() {
-        val ctx = shuffleContextId
-        if (enhancedShuffleHint && ctx != null && player.shuffleModeEnabled) {
-            val sid = player.currentMetadata?.id
-            val pos = player.currentPosition
-            val now = System.currentTimeMillis()
-            scope.launch(enhancedShuffleWriteDispatcher) {
-                runCatching {
-                    database.insertEnhancedContextIgnore(
-                        EnhancedShuffleContextEntity(contextId = ctx, lastSongId = sid, lastPositionMs = pos, updatedAt = now)
-                    )
-                    database.updateEnhancedContextCursor(ctx, sid, pos, now)
-                }
-            }
-        }
-    }
+    // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): esta función existía
+    // (checkpointEnhancedShuffleCursor) y escribía lastSongId/lastPositionMs a SQLite en CADA guardado
+    // periódico de posición mientras el shuffle mejorado estaba activo, más en cada apagado/reinicio —
+    // trabajo de disco real, no un no-op. Pero ese cursor nunca se leía de vuelta: DatabaseDao.
+    // getEnhancedContext (el único SELECT que lo devuelve) no tenía ningún call-site en toda la app.
+    // La UI de "continuar donde quedaste" (ShuffleMemoryPrompt) usa exclusivamente la tabla
+    // enhanced_shuffle_played (playedSongIdsForContextFlow), no este cursor. Se quita la escritura en
+    // vez de dejarla pagando IO/batería por un dato que nadie consulta (regla AGENTS.md #7) — la
+    // columna y el DAO quedan intactos sin tocar el esquema de Room, por si algún día se conecta un
+    // lector real.
 
     private fun saveQueueToDisk(synchronous: Boolean = false) {
         if (player.mediaItemCount == 0) {
