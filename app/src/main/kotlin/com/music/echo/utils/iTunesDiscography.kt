@@ -114,7 +114,10 @@ object iTunesDiscography {
      * (fewer tracks than iTunes says the release has) AND order the discography the way iTunes/Apple Music
      * itself does (see [ArtistItemsViewModel.buildReleaseDates]).
      */
-    suspend fun fetchAlbumMeta(artistName: String, country: String = "us"): List<ItunesAlbumHit> =
+    // internal, not public: it returns ItunesAlbumHit, itself internal (see the class doc), and Kotlin
+    // refuses to let a public function expose an internal type. Its only caller (ArtistItemsViewModel) is
+    // in this same Gradle module, so internal is not a narrowing here.
+    internal suspend fun fetchAlbumMeta(artistName: String, country: String = "us"): List<ItunesAlbumHit> =
         runCatching {
             val text = client.get("https://itunes.apple.com/search") {
                 parameter("term", artistName)
