@@ -171,8 +171,18 @@ object ExternalMusicLinks {
         val repository = SpotifyImportRepository.get(context)
         return when (type) {
             "track" -> {
-                val html = fetch(uri.toString())
-                val title = meta(html, "og:title") ?: return null
+                // Ronda 9 (dueño): "con Amazon Music sí funciona, con Spotify no". Amazon/SoundCloud got
+                // the link-preview UA fix (see pageQuery) because those pages are JS-rendered SPAs that
+                // often skip server-side og:* tags for a plain mobile UA. This branch bypasses pageQuery
+                // entirely (it parses og:description too, for the artist), so it never got that same fix —
+                // and open.spotify.com's track pages are the same kind of JS-heavy SPA, so a plain fetch
+                // can just as easily come back with no usable og:title.
+                val html = fetchPage(uri)
+                val title = meta(html, "og:title")
+                if (title == null) {
+                    Timber.tag(TAG).i("EXTERNAL_LINK spotify track no_title_found html_len=%d", html.length)
+                    return null
+                }
                 // og:description: "Artist · Album · Song · 1987" — but Spotify does not guarantee
                 // that exact shape, and `substringBefore` silently returns the WHOLE string
                 // unchanged when the separator isn't there, which used to hand the entire
@@ -288,7 +298,12 @@ object ExternalMusicLinks {
 
     private fun tidal(uri: Uri): Resolved? {
         val kind = kindFromPath(uri)
-        val title = meta(fetch(uri.toString()), "og:title") ?: return null
+        val html = fetchPage(uri)
+        val title = meta(html, "og:title")
+        if (title == null) {
+            Timber.tag(TAG).i("EXTERNAL_LINK tidal no_title_found html_len=%d", html.length)
+            return null
+        }
         if (kind != Kind.TRACK) return Resolved.Query(kind, title.replace(" - ", " "))
         // og:title: "Artist - Title"
         val artist = title.substringBefore(" - ", "")
@@ -296,13 +311,19 @@ object ExternalMusicLinks {
         return Resolved.Tracks(Kind.TRACK, name, artist, listOf(track("td_${uri.lastPathSegment}", name, artist)))
     }
 
+    /**
+     * Fetch [uri]'s HTML trying the link-preview bot User-Agent FIRST (more likely to get a JS-heavy SPA's
+     * server-rendered og:* tags — see the note above MOBILE_UA), falling back to the normal mobile UA if
+     * that request fails outright (some sites do block known bot UAs) — never worse than a plain fetch.
+     * Shared by every direct-scrape path (pageQuery, spotify's track branch, tidal) so a fix to this
+     * technique benefits all of them at once instead of only whichever branch happened to get it first.
+     */
+    private fun fetchPage(uri: Uri): String =
+        runCatching { fetch(uri.toString(), LINK_PREVIEW_UA) }.getOrElse { fetch(uri.toString()) }
+
     /** Any other page: search YouTube Music for its Open Graph title. */
     private fun pageQuery(uri: Uri, kind: Kind): Resolved? {
-        // Prueba primero el UA de bot de vista previa (más probable que traiga og:title ya armado en
-        // páginas SPA); si esa petición falla del todo (algunos sitios sí bloquean UAs de bot
-        // conocidos), cae al UA normal — nunca peor que antes.
-        val html = runCatching { fetch(uri.toString(), LINK_PREVIEW_UA) }
-            .getOrElse { fetch(uri.toString()) }
+        val html = fetchPage(uri)
         val ogTitle = meta(html, "og:title")
         val raw = ogTitle ?: Regex("<title>([^<]+)</title>").find(html)?.groupValues?.get(1)
         if (raw == null) {
