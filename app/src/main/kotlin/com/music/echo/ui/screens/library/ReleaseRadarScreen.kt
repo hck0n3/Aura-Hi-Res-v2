@@ -182,8 +182,12 @@ fun ReleaseRadarScreen(
                                 YouTube.album(item.playId)
                                     .onSuccess { albumPage ->
                                         withContext(Dispatchers.Main) {
+                                            // Ronda 10: contextId — ver Items.kt.
                                             playerConnection?.playQueue(
-                                                YouTubeAlbumRadio(albumPage.album.playlistId),
+                                                YouTubeAlbumRadio(
+                                                    albumPage.album.playlistId,
+                                                    contextId = iad1tya.echo.music.playback.ShuffleContexts.album(item.playId),
+                                                ),
                                             )
                                         }
                                     }

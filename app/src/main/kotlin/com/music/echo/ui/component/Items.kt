@@ -118,6 +118,7 @@ import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.MediaMetadata
+import iad1tya.echo.music.playback.ShuffleContexts
 import iad1tya.echo.music.playback.queues.LocalAlbumRadio
 import iad1tya.echo.music.ui.newui.AuraIcons
 import iad1tya.echo.music.ui.newui.AuraPalette
@@ -1026,7 +1027,16 @@ fun AlbumGridItem(
                         database.albumWithSongs(album.id).firstOrNull()
                     }
                     albumWithSongs?.let {
-                        playerConnection.playQueue(LocalAlbumRadio(it))
+                        // Ronda 10 (dueño: "la cola inteligente me combina generos que ni por cerca"):
+                        // sin contextId, hasNextPage() de LocalAlbumRadio nunca cede el control al motor
+                        // de contexto/género de MusicService (tryContextRadio/ContextProfile) — sigue
+                        // page-ando la radio NATIVA de YouTube indefinidamente, protegida solo por el
+                        // carril de una sola canción. La pantalla del álbum ya pasa este mismo contextId
+                        // en su propio botón de reproducir; esta tarjeta (Inicio/Biblioteca/Buscar) era
+                        // la vía más común que se quedaba afuera.
+                        playerConnection.playQueue(
+                            LocalAlbumRadio(it, contextId = ShuffleContexts.album(it.album.id)),
+                        )
                     }
                 }
             }
@@ -1508,7 +1518,10 @@ fun YouTubeGridItem(
                     }
                     albumWithSongs?.let {
                         withContext(Dispatchers.Main) {
-                            playerConnection.playQueue(LocalAlbumRadio(it))
+                            // Same fix as the other AlbumPlayButton above — see its comment.
+                            playerConnection.playQueue(
+                                LocalAlbumRadio(it, contextId = ShuffleContexts.album(it.album.id)),
+                            )
                         }
                     }
                 }

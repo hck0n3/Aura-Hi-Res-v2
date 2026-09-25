@@ -79,7 +79,14 @@ fun NewReleaseScreen(
                         onClick = {
                             // Play the new release directly (album radio: its songs + continuation) instead of
                             // opening the album page. "Go to album / artist" stays available via long-press.
-                            playerConnection.playQueue(YouTubeAlbumRadio(album.playlistId))
+                            // Ronda 10: contextId para que la continuación ceda al motor de contexto/género
+                            // de MusicService en vez de la radio nativa sin filtrar — ver Items.kt.
+                            playerConnection.playQueue(
+                                YouTubeAlbumRadio(
+                                    album.playlistId,
+                                    contextId = iad1tya.echo.music.playback.ShuffleContexts.album(album.id),
+                                ),
+                            )
                         },
                         onLongClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)

@@ -12,6 +12,10 @@ import kotlinx.coroutines.withContext
 
 class YouTubeAlbumRadio(
     private var playlistId: String,
+    // See LocalAlbumRadio.contextId: same purpose, same gate. Without it, hasNextPage() never lets
+    // MusicService hand off to Aura's own context/genre engine — YouTube's native album-radio
+    // continuation just keeps paging forever, protected only by the single-song genre lane.
+    override val contextId: String? = null,
 ) : Queue {
     override val preloadItem: MediaMetadata? = null
 
@@ -34,7 +38,10 @@ class YouTubeAlbumRadio(
         )
     }
 
-    override fun hasNextPage(): Boolean = !firstTimeLoaded || continuation != null
+    override fun hasNextPage(): Boolean {
+        if (contextId != null) return false
+        return !firstTimeLoaded || continuation != null
+    }
 
     override suspend fun nextPage(): List<MediaItem> = withContext(IO) {
         val nextResult = YouTube.next(endpoint, continuation).getOrThrow()
