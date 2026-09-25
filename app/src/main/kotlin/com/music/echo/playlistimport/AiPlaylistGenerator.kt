@@ -659,6 +659,12 @@ object AiPlaylistGenerator {
         // una llamada más — lo que cambia es que al final se puede elegir. Ver [MusicRequestRanking].
         val pool = ArrayList<SongItem>()
         val seen = HashSet<String>()
+        // Ronda 10 (dueño: "cuando pida un nombre de artista con el nombre de la canción" debe
+        // reproducir ESO específicamente cada vez, a diferencia de un pedido temático). Id de la
+        // canción exacta que el peldaño -1 (bestSpecificMatch) confirma que el usuario nombró — si
+        // existe, [MusicRequestRecents] nunca debe poder excluirla más abajo solo porque ya sonó en
+        // un pedido anterior: es precisamente lo que está pidiendo otra vez.
+        var specificMatchId: String? = null
         // Ronda 9 (dueño): pedir una canción o artista específico devolvía 20-25 copias/variantes de
         // LA MISMA canción — distintas subidas ("Official Video", "Lyrics", "Audio")— porque el
         // dedup solo miraba el id de YouTube, y cada subida tiene el suyo propio. Deduplicar TAMBIÉN
@@ -720,7 +726,10 @@ object AiPlaylistGenerator {
             YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()
                 ?.let { candidates -> bestSpecificMatch(residual, candidates) }
-                ?.let { absorb(christianOnly(listOf(it))) }
+                ?.let { match ->
+                    specificMatchId = match.id
+                    absorb(christianOnly(listOf(match)))
+                }
         }
 
         if (parsed.preferPlaylists && soloArtist == null) {
@@ -807,11 +816,20 @@ object AiPlaylistGenerator {
         // Ronda 2, punto 1 del dueño: pedir el mismo prompt dos veces por separado no puede devolver la
         // MISMA lista — MusicRequestRanking.pick es determinístico a propósito dentro de una llamada
         // (eso es correcto), así que lo que cambia es el POOL que le llega: se excluye lo servido
-        // recientemente por esta misma función antes de elegir. "Nunca vacío" se respeta igual que en
-        // pick(): si excluir dejara menos candidatas que target, se readmite lo necesario — mejor
-        // repetir alguna que devolver una lista corta.
-        val fresh = pool.filterNot { MusicRequestRecents.isRecent(it.id) }
-        val poolForRanking = if (fresh.size >= target) fresh else pool
+        // recientemente por esta misma función antes de elegir. La canción específica del peldaño -1
+        // ([specificMatchId]) NUNCA se excluye por esto — es literalmente lo que el usuario nombró,
+        // y debe poder pedirla otra vez y recibirla otra vez (ronda 10, dueño: "cuando pida un nombre
+        // de artista con el nombre de la canción" es la excepción a esta regla de variedad).
+        val fresh = pool.filter { it.id == specificMatchId || !MusicRequestRecents.isRecent(it.id) }
+        // Ronda 10 (dueño: "sin importar cuántas veces lo pida, la lista debe ser diferente" para un
+        // TEMA en palabras naturales — sueño, ejercicio, género, década). Antes, si excluir lo
+        // reciente dejaba menos candidatas que target, se descartaba la exclusión ENTERA y volvía la
+        // lista completa IDÉNTICA a la anterior — el "nunca vacío" de pick() se cumplía, pero a costa
+        // de repetir exactamente lo que el dueño pidió que dejara de repetirse. Ahora se prefiere una
+        // lista MÁS CORTA pero distinta sobre una completa pero idéntica; el pool original solo vuelve
+        // como último recurso si de verdad no queda NADA fresco (p. ej. un pedido tan específico que
+        // ya se sirvió todo su catálogo disponible dentro del TTL).
+        val poolForRanking = if (fresh.isNotEmpty()) fresh else pool
 
         // Y ahora se elige: orden de origen como esqueleto, el gusto empuja unos puestos, lo marcado
         // con "No me gusta" se cae y no hay dos seguidas del mismo artista. Sin perfil ([taste] null)
