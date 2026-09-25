@@ -3591,7 +3591,20 @@ class MusicService :
         // A new queue invalidates any radio-seed coroutine still running for the OLD one — see
         // [queueGeneration]'s own doc comment. Bumped FIRST, before anything async below, so a seed
         // that already captured the old value cannot slip in front of this increment.
+        //
+        // Ronda 10 (dueño: "es como si hubieran dos colas que pelean y luego decide la cola
+        // equivocada" — reproducir manualmente la 1ra canción de una playlist una SEGUNDA vez dejaba
+        // de continuar con el resto). This same counter also guards playQueue() against ITSELF: two
+        // overlapping calls (a fast double-tap, or a slow first fetch still in flight when a second
+        // tap fires) each run their own async queue.getInitialStatus() fetch, and whichever ONE
+        // resolves LAST used to win unconditionally — player.setMediaItems(...) below had no check
+        // that this was still the active call, so a slow STALE fetch from the FIRST tap could land
+        // after the second tap's fetch already set up the real queue, silently overwriting it (and
+        // every field after it: radioSeedPool, contextProfile, radioAnchorId, radioOriginContextId)
+        // with the first, now-obsolete attempt. [myGeneration] captured here identifies THIS call;
+        // checked again right before the player is touched below.
         queueGeneration++
+        val myGeneration = queueGeneration
         // #27: a genuine user-initiated playQueue (playWhenReady=true) clears the restore veto so external
         // controls work normally. A restore calls this with playWhenReady=false and leaves it armed.
         if (playWhenReady) awaitingFirstUserPlay = false
@@ -3713,6 +3726,12 @@ class MusicService :
             } else {
                 rawStatus
             }
+            // STALE CALL GUARD — see [myGeneration]'s doc comment at the top of this function: a NEWER
+            // playQueue() already superseded this one while its fetch was in flight. Abandon here,
+            // before touching the player OR any of the fields below (radioSeedPool, contextProfile,
+            // radioAnchorId, radioOriginContextId, sessionPlayedIds) — every one of them belongs to
+            // whichever call is still current, never to a call the user has already moved past.
+            if (queueGeneration != myGeneration) return@launch
             if (queue.preloadItem != null && player.playbackState == STATE_IDLE) return@launch
             if (initialStatus.title != null) {
                 queueTitle = initialStatus.title
