@@ -1166,6 +1166,17 @@ class MusicService :
             }
         }
     }
+    // Ronda 10 (dueño: escuchando salsa, buscó y reprodujo una canción de Manny Montes vía "Pedir
+    // música" — la cola SIGUIÓ con salsa después, y solo al pedirla de nuevo funcionó bien). Root
+    // cause: playQueue() never cancelled an in-flight radio-seed coroutine (tryRadio/tryRelated/
+    // tryMood/appendSeed) started for the PREVIOUS queue — appendSeed recomputes liveIndex from the
+    // LIVE player at append time, with no check that the player still belongs to the seed it was
+    // launched for. A stale seed from the old (salsa) radio resolving AFTER the new queue landed would
+    // truncate the new queue's tail and append the old radio's songs onto it. Bumped once at the top
+    // of every playQueue(); every seed captures it before its first suspend point and appendSeed
+    // refuses to mutate the player if it no longer matches — the stale seed becomes a harmless no-op,
+    // same as any other "produced nothing useful" outcome its callers already handle.
+    @Volatile private var queueGeneration = 0
     // B3 — guards against double-seeding a radio when a finite queue ends: true while a startRadioSeamlessly
     // fetch is in flight, so onMediaItemTransition can't fire a second (racing) radio fetch over the same end.
     @Volatile private var radioSeedInFlight = false
@@ -3564,6 +3575,10 @@ class MusicService :
         // prepares+plays exactly as before.
         isRestore: Boolean = false,
     ) {
+        // A new queue invalidates any radio-seed coroutine still running for the OLD one — see
+        // [queueGeneration]'s own doc comment. Bumped FIRST, before anything async below, so a seed
+        // that already captured the old value cannot slip in front of this increment.
+        queueGeneration++
         // #27: a genuine user-initiated playQueue (playWhenReady=true) clears the restore veto so external
         // controls work normally. A restore calls this with playWhenReady=false and leaves it armed.
         if (playWhenReady) awaitingFirstUserPlay = false
@@ -3955,6 +3970,11 @@ class MusicService :
         // The cancelled-scope leak this used to guard against is handled by invokeOnCompletion below, which
         // runs even when the coroutine body never starts.
         radioSeedInFlight = true
+        // Captured synchronously, same moment as the claim above: this is the generation appendSeed()
+        // below checks against before it ever touches the player, so a NEW playQueue()/adoptExternalQueue()
+        // landing while this seed is still in flight makes its eventual append a no-op instead of
+        // overwriting the new queue's tail with the OLD context's songs (see [queueGeneration]).
+        val seedGeneration = queueGeneration
 
         val seedJob = scope.launch(SilentHandler) {
             // Resolve the YouTube videoId to seed the radio from. For a normal online track the mediaId IS the
@@ -4234,6 +4254,11 @@ class MusicService :
                 } else items to emptySet<String>()
                 val toAppend = laneOrdered.first.orderedByTaste(laneOrdered.second)
                 if (toAppend.isEmpty()) return false
+                // STALE SEED GUARD (ronda 10, ver [queueGeneration]): a NEW queue landed while this seed's
+                // network fetch was in flight — mutating the player now would overwrite THAT queue's tail
+                // with this seed's (old context's) songs. Bail exactly like the empty-batch case above; the
+                // caller's own "no radio source worked" handling already covers this outcome cleanly.
+                if (queueGeneration != seedGeneration) return false
                 // Truncate the tail ONLY when playing in order. `liveIndex` is a TIMELINE index, but under
                 // shuffle playback follows the shuffle order, so "everything after liveIndex" is an arbitrary
                 // slice — not the played tail. Starting a radio from the middle of a shuffled 50-track queue
@@ -4648,6 +4673,9 @@ class MusicService :
                 return@launch
             }
             radioSeedInFlight = true
+            // Same stale-append guard as appendSeed (see [queueGeneration]): a chip tap can itself be
+            // overtaken by a brand-new playQueue()/adoptExternalQueue() while its own fetch is in flight.
+            val chipGeneration = queueGeneration
             var applied = false
             try {
                 val chipQueue = YouTubeQueue(endpoint = chip.endpoint, automaticRadio = true)
@@ -4674,6 +4702,7 @@ class MusicService :
                 // with nothing after the current track.
                 val toAppend = items.orderedByTaste()
                 if (toAppend.isEmpty()) return@launch
+                if (queueGeneration != chipGeneration) return@launch // stale — see [queueGeneration]
                 if (itemCount > liveIndex + 1) {
                     player.removeMediaItems(liveIndex + 1, itemCount)
                 }
@@ -5756,6 +5785,10 @@ class MusicService :
         //
         // `queueTitle` se limpia por lo mismo: es el título que se persiste con la cola, y el nombre de
         // la playlist anterior sobre el álbum que suena en el coche es sencillamente falso.
+        // Same [queueGeneration] bump as playQueue(): an external queue landing here is just as much a
+        // "new queue" as an in-app one, and a stale in-app radio seed racing this adoption is the exact
+        // failure this counter exists to catch.
+        queueGeneration++
         adoptDirectQueue(items = items, title = null, contextId = contextId, startIndex = startIndex)
         shuffleContextId = contextId
         pendingExternalShuffle = shuffle
@@ -6302,6 +6335,10 @@ class MusicService :
             // The STRUCTURED artist list (not the joined byline) — only this is usable as a genre-cache key.
             val curArtists = (anchorMeta?.artists ?: curItem?.metadata?.artists).orEmpty().map { it.name }
             val keepLane = keepGenreLaneHint
+            // Ronda 10 (ver [queueGeneration]): captured synchronously, same reasoning as the radio-seed
+            // guard — this pagination fetch is asynchronous too, and a NEW playQueue() landing before it
+            // resolves must not have its tail overwritten by the OLD queue's next page.
+            val pageGeneration = queueGeneration
             scope.launch(SilentHandler) {
                 val disliked = runCatching { dislikeStore.snapshot() }.getOrDefault(iad1tya.echo.music.dislike.DislikeStore.Disliked())
                 val mediaItems = withContext(Dispatchers.IO) {
@@ -6410,7 +6447,7 @@ class MusicService :
                     next = next.orderedByTaste()
                     next
                 }
-                if (player.playbackState != STATE_IDLE && mediaItems.isNotEmpty()) {
+                if (player.playbackState != STATE_IDLE && mediaItems.isNotEmpty() && queueGeneration == pageGeneration) {
                     player.addMediaItems(mediaItems)
                     sessionPlayedIds.addAll(mediaItems.mapNotNull { it.mediaId }) // NO-REPEAT: record what we appended
                     sessionPlayedDedupKeys.addAll(mediaItems.mapNotNull { it.dedupKeyOrNull() })
