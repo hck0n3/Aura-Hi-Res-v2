@@ -4052,12 +4052,15 @@ class MusicService :
                 // FIRST, before `liveIndex` below: this suspends for up to a second and a half, and that
                 // index must be read from the LIVE player as late as possible — capturing it and then
                 // waiting is precisely the staleness its own comment exists to prevent.
+                // Ronda 10 ("mejora el algoritmo de lo relacionado"): a single-song anchor (radioAnchorId,
+                // no collection profile) needs the same pre-scoring enrichment as a collection profile does,
+                // so the anchor lane check below (and NOT just later pagination) has real genre data on the
+                // very FIRST radio batch instead of only from the second batch onward.
                 val steerNeedsGenres = contextSteerActive && keepGenreLaneHint &&
-                    contextProfile?.active == true
+                    (contextProfile?.active == true || radioAnchorId != null)
                 if (steerNeedsGenres && !resumeAfterSeed) {
-                    val candidateArtists = items
-                        .flatMap { it.metadata?.artists.orEmpty() }
-                        .map { it.name }
+                    val candidateArtists = (radioAnchorMetadata?.artists.orEmpty().map { it.name } +
+                        items.flatMap { it.metadata?.artists.orEmpty() }.map { it.name })
                         .filter { it.isNotBlank() }
                         .distinct()
                         .take(GENRE_LEARN_PER_RUN)
@@ -4170,6 +4173,63 @@ class MusicService :
                         }
                     } else {
                         inContext to emptySet<String>()
+                    }
+                } else if (
+                    // Ronda 10 ("mejora el algoritmo de lo relacionado", dueño: Bob Marley -> mezcla desde
+                    // el primer lote): a single-song radio (no collection, so no [profile]) used to append
+                    // its FIRST batch with zero genre-lane protection at all — the lane filter only existed
+                    // in the pagination path (maybeLoadMoreQueuePages), so anything YouTube's own radio
+                    // algorithm mixed in from batch 1 played unfiltered. Same "sink, never silently drop
+                    // below threshold" contract as the collection branch above, keyed on the ANCHOR song's
+                    // own lane (radioAnchorMetadata, fixed once — see radioAnchorMetadata's own doc) instead
+                    // of a genreShare map, since a single song has no share distribution to consult.
+                    contextSteerActive && keepGenreLaneHint && radioAnchorId != null
+                ) {
+                    val anchorMeta = radioAnchorMetadata
+                    val anchorArtist = anchorMeta?.artists?.firstOrNull()?.name
+                    val anchorTitle = anchorMeta?.title
+                    val anchorAlbum = anchorMeta?.album?.title
+                    val genres = withContext(Dispatchers.IO) {
+                        runCatching { iad1tya.echo.music.reco.GenreCache.snapshot(this@MusicService) }
+                            .getOrDefault(emptyMap())
+                    }
+                    val anchorLane = if (anchorMeta != null) {
+                        iad1tya.echo.music.reco.GenreLane.laneOfTrack(genres, anchorArtist, anchorTitle, anchorAlbum)
+                    } else {
+                        null
+                    }
+                    if (anchorLane == null) {
+                        items to emptySet<String>()
+                    } else {
+                        val strictLane = anchorLane == iad1tya.echo.music.reco.GenreLane.CHRISTIAN &&
+                            iad1tya.echo.music.reco.GenreLane.isKeywordChristian(anchorTitle, anchorArtist, anchorAlbum)
+                        val (inLane, offLane) = items.partition { mi ->
+                            val m = mi.metadata
+                            val lane = iad1tya.echo.music.reco.GenreLane.laneOfTrack(
+                                genres,
+                                m?.artists?.firstOrNull()?.name.orEmpty(),
+                                m?.title.orEmpty(),
+                                m?.album?.title,
+                            )
+                            if (strictLane) lane == anchorLane else lane == null || lane == anchorLane
+                        }
+                        if (offLane.isNotEmpty()) {
+                            if (inLane.size >= 10) {
+                                Timber.tag(TAG).i(
+                                    "CTX_SINK appendSeed (anchor): dropped %d/%d off-lane candidates (%d in-lane survivors)",
+                                    offLane.size, items.size, inLane.size,
+                                )
+                                inLane to offLane.mapNotNullTo(HashSet()) { it.mediaId }
+                            } else {
+                                Timber.tag(TAG).i(
+                                    "CTX_SINK appendSeed (anchor): sank %d/%d off-lane candidates to the tail (only %d in-lane)",
+                                    offLane.size, items.size, inLane.size,
+                                )
+                                (inLane + offLane) to offLane.mapNotNullTo(HashSet()) { it.mediaId }
+                            }
+                        } else {
+                            inLane to emptySet<String>()
+                        }
                     }
                 } else items to emptySet<String>()
                 val toAppend = laneOrdered.first.orderedByTaste(laneOrdered.second)
