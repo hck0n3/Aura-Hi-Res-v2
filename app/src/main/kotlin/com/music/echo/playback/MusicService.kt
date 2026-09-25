@@ -981,6 +981,15 @@ class MusicService :
      * [radioSeedPool]) and for external queues until they re-anchor.
      */
     @Volatile private var radioAnchorId: String? = null
+    // Snapshot of the ANCHOR song's own metadata (title/artist/album), taken once alongside [radioAnchorId].
+    // Ronda 10 (dueño: Bob Marley -> deriva -> Michael Jackson no continuó, luego Pitbull): the genre-LANE
+    // filter in maybeLoadMoreQueuePages used to re-read whatever song was CURRENTLY playing at each
+    // pagination step instead of the song the user actually chose. An unknown-genre pick always passes the
+    // lane filter (by design, to avoid cold-start collapse) — so once one drifted through, the "current song"
+    // reference drifted with it, and the NEXT filter pass enforced the drifted lane instead of the original
+    // one: a cumulative random walk away from what the user started. Pinning the reference to the anchor
+    // (same philosophy as [radioAnchorId] itself, owner directive 2026-09-13) stops that walk.
+    @Volatile private var radioAnchorMetadata: iad1tya.echo.music.models.MediaMetadata? = null
     // Entropy source for the infinite-queue seed variety (2026-09-04): a single Random shared by
     // the seed shuffles — no per-frame work, consulted only at seed time.
     private val randomSeedSource = kotlin.random.Random(System.currentTimeMillis())
@@ -3773,6 +3782,7 @@ class MusicService :
             } else {
                 null
             }
+            radioAnchorMetadata = if (radioAnchorId != null) player.currentMediaItem?.metadata else null
             // #34 — starting an explicit COLLECTION (playlist/album/list) supersedes any lingering Home-mood
             // bias: a stale mood chip must NOT hijack the infinite continuation of a playlist ("nada que ver").
             // A mood the user taps AFTER this (setActiveMood, no playQueue) survives, so the deliberate-mood
@@ -5720,6 +5730,7 @@ class MusicService :
         // the continuation degrades to last-song seeding — related to the CAR's song, which is honest.
         radioSeedPool = emptyList()
         radioAnchorId = null
+        radioAnchorMetadata = null
         contextProfile = null
         contextSteerActive = false
     }
@@ -6214,12 +6225,22 @@ class MusicService :
             // Captured on the player thread: what's currently playing, so autoplay can stay in the same
             // style instead of drifting. Title/artist/album are kept SEPARATE (not pre-joined) because the
             // lane now also needs the primary ARTIST on its own to look up its real genre.
+            //
+            // Ronda 10 (dueño: Bob Marley -> mezcla -> Michael Jackson no continuó -> luego Pitbull): when
+            // this is an ANCHORED single-song radio (radioAnchorId set), the lane reference must be the
+            // song the user actually started from, not whatever is CURRENTLY playing — the current item can
+            // already be a prior pagination's drift (an unknown-genre pick always passes the lane filter by
+            // design), and re-deriving the lane from it each time let that drift compound step after step.
+            // Collections keep reading the live current item (their stability comes from radioSeedPool /
+            // contextProfile instead, which this pagination path barely reaches post-contextId fix).
             val curItem = player.currentMediaItem
-            val curTitle = curItem?.mediaMetadata?.title?.toString()
-            val curArtist = curItem?.mediaMetadata?.artist?.toString()
-            val curAlbum = curItem?.mediaMetadata?.albumTitle?.toString()
+            val anchorMeta = if (radioAnchorId != null) radioAnchorMetadata else null
+            val curTitle = anchorMeta?.title ?: curItem?.mediaMetadata?.title?.toString()
+            val curArtist = anchorMeta?.artists?.joinToString { it.name }?.takeIf { it.isNotBlank() }
+                ?: curItem?.mediaMetadata?.artist?.toString()
+            val curAlbum = anchorMeta?.album?.title ?: curItem?.mediaMetadata?.albumTitle?.toString()
             // The STRUCTURED artist list (not the joined byline) — only this is usable as a genre-cache key.
-            val curArtists = curItem?.metadata?.artists.orEmpty().map { it.name }
+            val curArtists = (anchorMeta?.artists ?: curItem?.metadata?.artists).orEmpty().map { it.name }
             val keepLane = keepGenreLaneHint
             scope.launch(SilentHandler) {
                 val disliked = runCatching { dislikeStore.snapshot() }.getOrDefault(iad1tya.echo.music.dislike.DislikeStore.Disliked())
