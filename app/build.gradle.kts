@@ -231,21 +231,22 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1026
-        // BETA 2.0.61-beta1 — SOLO EL DUEÑO (sobre la 2.0.60-beta3).
-        // Dueño (2026-09-25, con app.log real): canción suelta (Bob Marley -> mezcla -> Michael
-        // Jackson no continuó -> Pitbull) se desviaba de género en la cola infinita. Causa raíz: el
-        // carril de género se recalculaba en cada paginación desde lo que estaba sonando EN ESE
-        // MOMENTO, no desde la canción que el dueño realmente eligió — deriva acumulativa. Anclado a
-        // la canción original (radioAnchorMetadata). Misma protección extendida al PRIMER lote de la
-        // radio ("Relacionado"), que antes se agregaba sin filtro de género alguno. Y en "pedir
-        // música", pedir el mismo tema (sueño, ejercicio, género) repetidas veces ahora da listas
-        // distintas; artista+canción específica sigue siendo exacta siempre. Ver
-        // docs/REGRESSION_REGISTRY.md filas 299-301.
+        versionCode = 1027
+        // BETA 2.0.61-beta2 — SOLO EL DUEÑO (sobre la 2.0.61-beta1).
+        // Dueño (2026-09-25, con logs reales de la beta1): "es como si hubieran dos colas que pelean
+        // y luego decide la cola equivocada" — exacto. Dos condiciones de carrera reales encontradas
+        // y arregladas con el mismo mecanismo (queueGeneration): (1) un seed de radio VIEJO (p. ej.
+        // salsa) resolviendo después de que una cola NUEVA (p. ej. Manny Montes por "Pedir música")
+        // ya había arrancado, pisándola con canciones del contexto anterior; (2) dos llamadas a
+        // playQueue() superpuestas (reproducir manualmente la 1ra canción de una lista una segunda
+        // vez) donde la búsqueda vieja podía resolver después que la nueva y pisarla igual. También:
+        // memoria persistente (entre reinicios) para que la cola infinita no repita canciones al
+        // volver a poner el mismo álbum/playlist/EP/single. Ver docs/REGRESSION_REGISTRY.md filas
+        // 302-304.
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.61-beta1"
+        versionName = "2.0.61-beta2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
