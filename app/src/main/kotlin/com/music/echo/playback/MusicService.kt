@@ -3731,7 +3731,14 @@ class MusicService :
             // before touching the player OR any of the fields below (radioSeedPool, contextProfile,
             // radioAnchorId, radioOriginContextId, sessionPlayedIds) — every one of them belongs to
             // whichever call is still current, never to a call the user has already moved past.
-            if (queueGeneration != myGeneration) return@launch
+            if (queueGeneration != myGeneration) {
+                // Diagnostic only (ronda 10, dueño: "sigo con el mismo problema, no arreglaste nada"):
+                // the guard's own abort was silent, so a log could never PROVE it fired — only its
+                // absence could ever be seen, indistinguishable from "the race never happened this
+                // session". No user data: just the two generation counters.
+                Timber.tag(TAG).i("QUEUE_RACE_GUARD playQueue aborted stale mine=%d now=%d", myGeneration, queueGeneration)
+                return@launch
+            }
             if (queue.preloadItem != null && player.playbackState == STATE_IDLE) return@launch
             if (initialStatus.title != null) {
                 queueTitle = initialStatus.title
@@ -4310,7 +4317,10 @@ class MusicService :
                 // network fetch was in flight — mutating the player now would overwrite THAT queue's tail
                 // with this seed's (old context's) songs. Bail exactly like the empty-batch case above; the
                 // caller's own "no radio source worked" handling already covers this outcome cleanly.
-                if (queueGeneration != seedGeneration) return false
+                if (queueGeneration != seedGeneration) {
+                    Timber.tag(TAG).i("QUEUE_RACE_GUARD appendSeed aborted stale mine=%d now=%d", seedGeneration, queueGeneration)
+                    return false
+                }
                 // Truncate the tail ONLY when playing in order. `liveIndex` is a TIMELINE index, but under
                 // shuffle playback follows the shuffle order, so "everything after liveIndex" is an arbitrary
                 // slice — not the played tail. Starting a radio from the middle of a shuffled 50-track queue
@@ -4767,7 +4777,10 @@ class MusicService :
                 // with nothing after the current track.
                 val toAppend = items.orderedByTaste()
                 if (toAppend.isEmpty()) return@launch
-                if (queueGeneration != chipGeneration) return@launch // stale — see [queueGeneration]
+                if (queueGeneration != chipGeneration) {
+                    Timber.tag(TAG).i("QUEUE_RACE_GUARD selectAutoplayChip aborted stale mine=%d now=%d", chipGeneration, queueGeneration)
+                    return@launch // stale — see [queueGeneration]
+                }
                 if (itemCount > liveIndex + 1) {
                     player.removeMediaItems(liveIndex + 1, itemCount)
                 }
@@ -6524,6 +6537,10 @@ class MusicService :
                     // filters (harmless after the manual filters above) and preserves the relatedness backbone.
                     next = next.orderedByTaste()
                     next
+                }
+                if (mediaItems.isNotEmpty() && player.playbackState != STATE_IDLE && queueGeneration != pageGeneration) {
+                    // Diagnostic only — see the identical note on the playQueue()/appendSeed guards.
+                    Timber.tag(TAG).i("QUEUE_RACE_GUARD maybeLoadMoreQueuePages aborted stale mine=%d now=%d", pageGeneration, queueGeneration)
                 }
                 if (player.playbackState != STATE_IDLE && mediaItems.isNotEmpty() && queueGeneration == pageGeneration) {
                     player.addMediaItems(mediaItems)
