@@ -40,6 +40,7 @@ import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSong
 import iad1tya.echo.music.db.entities.PlaylistSongMap
+import iad1tya.echo.music.db.entities.RadioContinuationPlayedEntity
 import iad1tya.echo.music.db.entities.SongIdTitle
 import iad1tya.echo.music.db.entities.RecognitionHistory
 import iad1tya.echo.music.db.entities.RelatedSongMap
@@ -2240,6 +2241,22 @@ interface DatabaseDao {
 
     @Query("DELETE FROM enhanced_shuffle_context WHERE contextId LIKE 'PL:%' AND substr(contextId, 4) NOT IN (SELECT id FROM playlist)")
     suspend fun pruneOrphanEnhancedContext()
+
+    // ---- Radio continuation persistent no-repeat memory (ronda 10) ----
+    // Separate table from Enhanced Shuffle on purpose — see RadioContinuationPlayedEntity's kdoc:
+    // this tracks the RADIO's own additions after a collection ends, not the collection's tracklist.
+
+    /** Song ids the radio already added after [contextId] ended, on any past listen (persists across restarts). */
+    @Query("SELECT songId FROM radio_continuation_played WHERE contextId = :contextId")
+    suspend fun radioContinuationPlayedIds(contextId: String): List<String>
+
+    /** Record a batch of radio-continuation songs for a context. IGNORE = never rewrites a first-played row. */
+    @Transaction
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRadioContinuationPlayed(entities: List<RadioContinuationPlayedEntity>)
+
+    @Query("DELETE FROM radio_continuation_played WHERE contextId LIKE 'PL:%' AND substr(contextId, 4) NOT IN (SELECT id FROM playlist)")
+    suspend fun pruneOrphanRadioContinuationPlayed()
 
     @Transaction
     @Query("SELECT * FROM playlist_song_map WHERE songId = :songId")

@@ -95,6 +95,8 @@ object AppModule {
             iad1tya.echo.music.db.MIGRATION_42_43,
             // v43->v44: song.videoFormatIncompatible. Same rule as above.
             iad1tya.echo.music.db.MIGRATION_43_44,
+            // v44->v45: radio_continuation_played table. Same rule as above.
+            iad1tya.echo.music.db.MIGRATION_44_45,
         )
 
         .setJournalMode(androidx.room.RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)

@@ -972,6 +972,16 @@ class MusicService :
     // seeding (unchanged). Reassigned on every playQueue, so a fresh finite queue overwrites any prior pool.
     @Volatile private var radioSeedPool: List<iad1tya.echo.music.models.MediaMetadata> = emptyList()
 
+    // Ronda 10 (dueño: "si vuelvo a poner el mismo álbum, misma playlist, o mismo EP o single, la cola
+    // no tiene que volver a repetir las mismas canciones que ya sonaron"). The Enhanced Shuffle contextId
+    // ("AL:<id>"/"PL:<id>"/"OL:<browseId>", see ShuffleContexts) of the collection THIS radio session is
+    // continuing — null for a plain single-song radio, a search result, or "Pedir música" (none of those
+    // have a stable identity to remember against). Reassigned on every playQueue()/adoptExternalQueue(),
+    // exactly like radioSeedPool/radioAnchorId. Consulted (DB-backed, persists across restarts) by
+    // appendSeed and maybeLoadMoreQueuePages so replaying the SAME collection doesn't re-serve the same
+    // radio tail it already served last time — sessionPlayedIds alone only covers one running process.
+    @Volatile private var radioOriginContextId: String? = null
+
     /**
      * CONTENT ANCHOR for a radio the user started from ONE song (a YouTubeQueue tap or a 1-track single) —
      * owner directive 2026-09-13: "que la cola infinita no cambie ni improvise, siempre basada en el
@@ -2098,6 +2108,9 @@ class MusicService :
             runCatching {
                 database.pruneOrphanEnhancedPlayed()
                 database.pruneOrphanEnhancedContext()
+                // Ronda 10: same orphan-prune shape for the radio-continuation memory (separate table,
+                // see RadioContinuationPlayedEntity's kdoc).
+                database.pruneOrphanRadioContinuationPlayed()
             }
         }
 
@@ -3798,6 +3811,9 @@ class MusicService :
                 null
             }
             radioAnchorMetadata = if (radioAnchorId != null) player.currentMediaItem?.metadata else null
+            // Ronda 10 — see [radioOriginContextId]'s own doc comment. null for anything without a
+            // stable Enhanced Shuffle identity (a plain radio, a search result, "Pedir música").
+            radioOriginContextId = queue.contextId
             // #34 — starting an explicit COLLECTION (playlist/album/list) supersedes any lingering Home-mood
             // bias: a stale mood chip must NOT hijack the infinite continuation of a playlist ("nada que ver").
             // A mood the user taps AFTER this (setActiveMood, no playQueue) survives, so the deliberate-mood
@@ -3975,6 +3991,8 @@ class MusicService :
         // landing while this seed is still in flight makes its eventual append a no-op instead of
         // overwriting the new queue's tail with the OLD context's songs (see [queueGeneration]).
         val seedGeneration = queueGeneration
+        // Ronda 10 — see [radioOriginContextId]'s own doc comment.
+        val originContextId = radioOriginContextId
 
         val seedJob = scope.launch(SilentHandler) {
             // Resolve the YouTube videoId to seed the radio from. For a normal online track the mediaId IS the
@@ -4057,7 +4075,22 @@ class MusicService :
             // STATE_ENDED into READY-paused, which would make a STATE_ENDED check false and leave the music
             // stopped; !isPlaying still resumes then, yet won't yank playback if the user already started
             // something else during the async fetch.
-            suspend fun appendSeed(items: List<MediaItem>): Boolean {
+            suspend fun appendSeed(rawItems: List<MediaItem>): Boolean {
+                if (rawItems.isEmpty()) return false
+                // Ronda 10 — see [radioOriginContextId]'s own doc comment. Hard-drop, same strength as
+                // maybeLoadMoreQueuePages' own sessionPlayedIds filter: a persistent, cross-restart
+                // "already served after THIS collection" memory. Never below 1 candidate collapses the
+                // batch to nothing when the whole batch was already heard last time — that degrades to
+                // "nothing new this attempt", which the caller already treats as a normal empty batch
+                // (falls through to the next source / the replay last-resort), never a crash or silence.
+                val items = if (originContextId != null) {
+                    val playedBefore = withContext(Dispatchers.IO) {
+                        runCatching { database.radioContinuationPlayedIds(originContextId) }.getOrDefault(emptyList())
+                    }.toHashSet()
+                    if (playedBefore.isEmpty()) rawItems else rawItems.filterNot { it.mediaId in playedBefore }
+                } else {
+                    rawItems
+                }
                 if (items.isEmpty()) return false
                 // ENRICH BEFORE SCORING (see [ENRICH_BEFORE_SCORE_MS]) — the ROOT CAUSE of the genre
                 // mixing, as opposed to the two mitigations further down (the CTX_SINK partition and the
@@ -4270,6 +4303,19 @@ class MusicService :
                 player.addMediaItems(liveIndex + 1, toAppend)
                 sessionPlayedIds.addAll(toAppend.mapNotNull { it.mediaId }) // NO-REPEAT: record what we appended
                 sessionPlayedDedupKeys.addAll(toAppend.mapNotNull { it.dedupKeyOrNull() })
+                // Ronda 10 — see [radioOriginContextId]'s own doc comment. Fire-and-forget, off the
+                // player thread: this is memory for the NEXT time the collection is replayed, never
+                // something the current playback needs to wait on.
+                if (originContextId != null) {
+                    val now = System.currentTimeMillis()
+                    val rows = toAppend.mapNotNull { it.mediaId }
+                        .map { iad1tya.echo.music.db.entities.RadioContinuationPlayedEntity(originContextId, it, now) }
+                    if (rows.isNotEmpty()) {
+                        scope.launch(Dispatchers.IO + SilentHandler) {
+                            runCatching { database.insertRadioContinuationPlayed(rows) }
+                        }
+                    }
+                }
                 _mixActive.value = true
                 if (player.shuffleModeEnabled) {
                     val shufflePlaylistFirst = dataStore.get(ShufflePlaylistFirstKey, false)
@@ -5789,6 +5835,7 @@ class MusicService :
         // "new queue" as an in-app one, and a stale in-app radio seed racing this adoption is the exact
         // failure this counter exists to catch.
         queueGeneration++
+        radioOriginContextId = contextId // see [radioOriginContextId]'s own doc comment
         adoptDirectQueue(items = items, title = null, contextId = contextId, startIndex = startIndex)
         shuffleContextId = contextId
         pendingExternalShuffle = shuffle
@@ -6339,6 +6386,8 @@ class MusicService :
             // guard — this pagination fetch is asynchronous too, and a NEW playQueue() landing before it
             // resolves must not have its tail overwritten by the OLD queue's next page.
             val pageGeneration = queueGeneration
+            // Ronda 10 — see [radioOriginContextId]'s own doc comment.
+            val pageOriginContextId = radioOriginContextId
             scope.launch(SilentHandler) {
                 val disliked = runCatching { dislikeStore.snapshot() }.getOrDefault(iad1tya.echo.music.dislike.DislikeStore.Disliked())
                 val mediaItems = withContext(Dispatchers.IO) {
@@ -6437,8 +6486,18 @@ class MusicService :
                     // next page; the STATE_ENDED net re-seeds if the pages ever run truly dry. Never a repeat.
                     // Ronda 10: also drops a candidate with the SAME TITLE+artist as something already
                     // heard (a different upload of the same song), not just an exact mediaId match.
+                    // Ronda 10 (persistent): also drops anything the radio already served after THIS
+                    // collection on a PAST listen — sessionPlayedIds alone is lost on a process restart;
+                    // see [radioOriginContextId]'s own doc comment.
+                    val playedBefore = if (pageOriginContextId != null) {
+                        runCatching { database.radioContinuationPlayedIds(pageOriginContextId) }
+                            .getOrDefault(emptyList()).toHashSet()
+                    } else {
+                        emptySet()
+                    }
                     next = next.filterNot {
-                        it.mediaId in sessionPlayedIds || it.dedupKeyOrNull() in sessionPlayedDedupKeys
+                        it.mediaId in sessionPlayedIds || it.dedupKeyOrNull() in sessionPlayedDedupKeys ||
+                            it.mediaId in playedBefore
                     }
                     // Phase A #2 — route the steady-state continuation through orderedByTaste() too, so it is
                     // taste-ordered + artist-spaced (spacedByArtist) rather than raw YouTube order. We're inside
@@ -6451,6 +6510,17 @@ class MusicService :
                     player.addMediaItems(mediaItems)
                     sessionPlayedIds.addAll(mediaItems.mapNotNull { it.mediaId }) // NO-REPEAT: record what we appended
                     sessionPlayedDedupKeys.addAll(mediaItems.mapNotNull { it.dedupKeyOrNull() })
+                    // Ronda 10 (persistent) — see [radioOriginContextId]'s own doc comment.
+                    if (pageOriginContextId != null) {
+                        val now = System.currentTimeMillis()
+                        val rows = mediaItems.mapNotNull { it.mediaId }
+                            .map { iad1tya.echo.music.db.entities.RadioContinuationPlayedEntity(pageOriginContextId, it, now) }
+                        if (rows.isNotEmpty()) {
+                            scope.launch(Dispatchers.IO + SilentHandler) {
+                                runCatching { database.insertRadioContinuationPlayed(rows) }
+                            }
+                        }
+                    }
                     if (player.shuffleModeEnabled) {
                         val shufflePlaylistFirst = dataStore.get(ShufflePlaylistFirstKey, false)
                         applyShuffleOrder(player.currentMediaItemIndex, player.mediaItemCount, shufflePlaylistFirst)
