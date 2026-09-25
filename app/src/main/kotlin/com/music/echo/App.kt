@@ -593,6 +593,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // SEPARATE, LAST of the audio defaults: owner directive 2026-09-13 forces crossfade 8 s + preamp
         // +2.2 dB once for everyone, after every older writer so none of them can undo it.
         migrateAudioDefaults20260913(settings)
+        // SEPARATE, LAST WORD on the preamp: owner directive 2026-09-25 raises it to +2.5 dB for everyone.
+        // MUST run after migrateAudioDefaults20260913 so its +2.2 write can't undo this one.
+        migratePreampDefault20260925(settings)
 
         // Establish, at most ONCE per install, where this data came from — and clean up after a
         // platform restore before anything is allowed to act on the restored rows. Must run before
@@ -1361,6 +1364,37 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         }.onFailure { reportException(it) }.getOrDefault(false)
         if (crossfadeOk && preampOk) {
             dataStore.edit { it[iad1tya.echo.music.constants.AudioDefaults20260913AppliedKey] = true }
+        }
+    }
+
+    /**
+     * One-time (owner directive 2026-09-25: "el preamp lo quiero en +2.5db por default activado"). Forces
+     * the EQ preamp to [iad1tya.echo.music.eq.data.EqConstants.DEFAULT_PREAMP_DB] (+2.5 dB) for EVERYONE
+     * once — same "sí o sí" contract as [migrateAudioDefaults20260913], run AFTER it so this is the last
+     * word on the preamp value. Writes both the DSP source of truth (profile repo) and the
+     * `echo_eq_prefs` mirror the EQ screen reads. Does NOT touch the EQ's own on/off switch — a user who
+     * turned the whole equalizer off keeps it off, same restraint every preamp migration before this one
+     * (V3..V6) already used; "activado" here means the preamp VALUE takes effect, not that the equalizer
+     * itself gets force-enabled. The user can change the preamp afterwards and that choice then stands.
+     */
+    private suspend fun migratePreampDefault20260925(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.PreampDefault25DbAppliedKey] == true) return
+        val house = iad1tya.echo.music.eq.data.EqConstants.DEFAULT_PREAMP_DB
+        val applied = runCatching {
+            val eqPrefs = applicationContext.getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
+            eqPrefs.edit().putFloat("preampDb", house).apply()
+            val eqRepo = eqProfileRepository.get()
+            val effective = eqRepo.unsavedProfile.value ?: eqRepo.activeProfile.value
+            if (effective != null && effective.preamp != house.toDouble()) {
+                val updated = effective.copy(preamp = house.toDouble())
+                eqRepo.saveProfile(updated)
+                eqRepo.setUnsavedProfile(updated)
+                eqRepo.setActiveProfile(updated.id)
+            }
+            true
+        }.onFailure { reportException(it) }.getOrDefault(false)
+        if (applied) {
+            dataStore.edit { it[iad1tya.echo.music.constants.PreampDefault25DbAppliedKey] = true }
         }
     }
 

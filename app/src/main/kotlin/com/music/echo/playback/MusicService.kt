@@ -87,7 +87,6 @@ import iad1tya.echo.music.constants.SpatialAudioProfileKey
 import iad1tya.echo.music.constants.AudioOffload
 import iad1tya.echo.music.constants.AudioQualityKey
 import iad1tya.echo.music.constants.AutoDownloadOnLikeKey
-import iad1tya.echo.music.constants.AutoLoadMoreKey
 import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.constants.KeepGenreLaneKey
 import iad1tya.echo.music.constants.AutoSkipNextOnErrorKey
@@ -804,7 +803,13 @@ class MusicService :
     // (ExoPlayer) thread — a blocking-I/O-on-main anti-pattern (jank risk). Mirror those prefs into memory via the
     // single collector in onCreate (same pattern as normalizationEnabledHint/audioOffloadHint) and read the fields
     // in the hot paths instead. Initial values equal the DataStore defaults, so behaviour is unchanged.
-    @Volatile private var autoLoadMoreHint: Boolean = true
+    // Ronda 10 (dueño): "quiero que la cola infinita ahora sea infinita de verdad" — el propio dueño ya
+    // había pedido antes (ver App.kt applyInfinitePlaybackOn) reproducción infinita SIEMPRE activa para
+    // todos, pero el interruptor "Reproducción automática" seguía existiendo y podía apagarla — justo lo
+    // que le pasó. Se quita la dependencia de AutoLoadMoreKey por completo: esta bandera ya no se lee de
+    // preferencias, queda fija en true, y el interruptor se elimina de Ajustes y de la Cola (ver esos
+    // archivos) para que no vuelva a pasar.
+    private val autoLoadMoreHint: Boolean = true
     @Volatile private var disableLoadMoreWhenRepeatAllHint: Boolean = false
     // Enhanced Shuffle ("Aleatorio mejorado") master switch mirrored for the player-thread callbacks
     // (onShuffleModeEnabledChanged / onMediaItemTransition) so they read a @Volatile field, never a blocking
@@ -1123,9 +1128,26 @@ class MusicService :
             }
         )
     )
-    private fun rememberRecentRadioId(id: String?) {
+    /** Ronda 10 (dueño): "que no vaya a poner ninguna repetida y ninguna con el mismo nombre" — [sessionPlayedIds]
+     *  only hard-drops an EXACT id match, so a different upload of the same song (different mediaId, same
+     *  title+artist — "Official Video" vs "Lyrics" vs "Audio") slipped through. Same bounded LRU shape,
+     *  keyed by [iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey] (title normalized +
+     *  primary artist), the exact function already proven for this in "pedir música" (ronda 9). */
+    private val sessionPlayedDedupKeys: MutableSet<String> = java.util.Collections.synchronizedSet(
+        java.util.Collections.newSetFromMap(
+            object : java.util.LinkedHashMap<String, Boolean>(4096, 0.75f, false) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean = size > 4000
+            }
+        )
+    )
+    private fun MediaItem.dedupKeyOrNull(): String? {
+        val md = metadata ?: return null
+        return iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey(md.title, md.artists.firstOrNull()?.name)
+    }
+    private fun rememberRecentRadioId(id: String?, dedupKey: String? = null) {
         if (id.isNullOrBlank()) return
         sessionPlayedIds.add(id) // NO-REPEAT: session-wide memory of everything actually played
+        if (!dedupKey.isNullOrBlank()) sessionPlayedDedupKeys.add(dedupKey)
         synchronized(recentRadioIds) {
             recentRadioIds.remove(id) // move-to-most-recent
             recentRadioIds.add(id)
@@ -2742,7 +2764,6 @@ class MusicService :
         // runBlocking DataStore read on the main thread. Same defaults as the original dataStore.get calls.
         scope.launch {
             dataStore.data.collect { prefs ->
-                autoLoadMoreHint = prefs[AutoLoadMoreKey] ?: true
                 disableLoadMoreWhenRepeatAllHint = prefs[DisableLoadMoreWhenRepeatAllKey] ?: false
                 enhancedShuffleHint = prefs[EnhancedShuffleKey] ?: true
                 val previousQueueOfferEnabled = prefs[PreviousQueueOfferKey] ?: true
@@ -3733,6 +3754,7 @@ class MusicService :
             // pagination / re-seed can never resurface a song that was already part of the queue the user
             // started from. Records the full list regardless of the preload/normal branch above.
             sessionPlayedIds.addAll(initialStatus.items.mapNotNull { it.mediaId })
+            sessionPlayedDedupKeys.addAll(initialStatus.items.mapNotNull { it.dedupKeyOrNull() })
 
             // Phase A #1/#6 — multi-seed pool: snapshot the collection's tracks so a later re-seed preserves its
             // artist/genre mix instead of collapsing to the single last song. Skip pure radios (YouTubeQueue) —
@@ -4152,6 +4174,7 @@ class MusicService :
                 }
                 player.addMediaItems(liveIndex + 1, toAppend)
                 sessionPlayedIds.addAll(toAppend.mapNotNull { it.mediaId }) // NO-REPEAT: record what we appended
+                sessionPlayedDedupKeys.addAll(toAppend.mapNotNull { it.dedupKeyOrNull() })
                 _mixActive.value = true
                 if (player.shuffleModeEnabled) {
                     val shufflePlaylistFirst = dataStore.get(ShufflePlaylistFirstKey, false)
@@ -4586,6 +4609,7 @@ class MusicService :
                 }
                 player.addMediaItems(liveIndex + 1, toAppend)
                 sessionPlayedIds.addAll(toAppend.mapNotNull { it.mediaId }) // NO-REPEAT: record what we appended
+                sessionPlayedDedupKeys.addAll(toAppend.mapNotNull { it.dedupKeyOrNull() })
                 _mixActive.value = true
                 if (initialStatus.title != null) queueTitle = initialStatus.title
                 if (player.shuffleModeEnabled) {
@@ -4838,7 +4862,15 @@ class MusicService :
             val key = index.toDouble() - pull + soft + jitter + ctx + sunk
             // NO-REPEAT: "heard" is now SESSION-WIDE ([sessionPlayedIds] — everything played OR appended this
             // session), broadened beyond the last-~120 [recentSnapshot] and the ~5-min DB [playedHistory].
-            val heard = m != null && (m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory)
+            // Ronda 10: also caught by TITLE+artist ([sessionPlayedDedupKeys]) so a different upload of a
+            // song already heard (same name, different mediaId) counts as heard too.
+            val dedupKey = m?.let {
+                iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey(it.title, it.artists.firstOrNull()?.name)
+            }
+            val heard = m != null && (
+                m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory ||
+                    dedupKey in sessionPlayedDedupKeys
+            )
             Triple(mi, key, heard)
         }
         // Phase B #4 — exploration quota: reserve 1-in-15 slots for a FRESH artist (not yet in the taste profile)
@@ -5127,6 +5159,7 @@ class MusicService :
         }
         contextCoverageSize += items.size
         sessionPlayedIds.addAll(items.mapNotNull { it.mediaId })
+        sessionPlayedDedupKeys.addAll(items.mapNotNull { it.dedupKeyOrNull() })
         // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): a diferencia de
         // appendSeed (la otra vía de "cola infinita"), esta función nunca reprogramaba el crossfade.
         // Si el reproductor llegaba a la última canción del primer lote de "pedir música" justo antes
@@ -5814,7 +5847,12 @@ class MusicService :
                 _crossfadeOutgoingMetadata.value = null
             }
         }
-        rememberRecentRadioId(mediaItem?.mediaId ?: player.currentMetadata?.id)
+        rememberRecentRadioId(
+            mediaItem?.mediaId ?: player.currentMetadata?.id,
+            mediaItem?.dedupKeyOrNull() ?: player.currentMetadata?.let {
+                iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey(it.title, it.artists.firstOrNull()?.name)
+            },
+        )
         // Automatic YouTube radio only: skip non-music uploads (tutorials/how-tos) with null musicVideoType.
         // Never skip user-tapped songs / playlists (YouTubeQueue without automaticRadio) — those often lack
         // a type when hydrated from DB and must still play.
@@ -6279,7 +6317,11 @@ class MusicService :
                     // anything already played/queued this session. If this empties the batch we append NOTHING
                     // (the guard below no-ops) and leave hasNextPage untouched, so the next transition pulls the
                     // next page; the STATE_ENDED net re-seeds if the pages ever run truly dry. Never a repeat.
-                    next = next.filterNot { it.mediaId in sessionPlayedIds }
+                    // Ronda 10: also drops a candidate with the SAME TITLE+artist as something already
+                    // heard (a different upload of the same song), not just an exact mediaId match.
+                    next = next.filterNot {
+                        it.mediaId in sessionPlayedIds || it.dedupKeyOrNull() in sessionPlayedDedupKeys
+                    }
                     // Phase A #2 — route the steady-state continuation through orderedByTaste() too, so it is
                     // taste-ordered + artist-spaced (spacedByArtist) rather than raw YouTube order. We're inside
                     // withContext(Dispatchers.IO) so calling the suspend member is fine; it re-dedupes/dislike-
@@ -6290,6 +6332,7 @@ class MusicService :
                 if (player.playbackState != STATE_IDLE && mediaItems.isNotEmpty()) {
                     player.addMediaItems(mediaItems)
                     sessionPlayedIds.addAll(mediaItems.mapNotNull { it.mediaId }) // NO-REPEAT: record what we appended
+                    sessionPlayedDedupKeys.addAll(mediaItems.mapNotNull { it.dedupKeyOrNull() })
                     if (player.shuffleModeEnabled) {
                         val shufflePlaylistFirst = dataStore.get(ShufflePlaylistFirstKey, false)
                         applyShuffleOrder(player.currentMediaItemIndex, player.mediaItemCount, shufflePlaylistFirst)
@@ -10631,7 +10674,7 @@ class MusicService :
             // still has time left — so a real crossfade INTO the first radio song is possible. A bare return here
             // is why the infinite queue used to continue with a hard cut. appendSeed() re-arms scheduleCrossfade()
             // once the items land, so the fade then targets the freshly-appended next song.
-            if (!radioSeedInFlight && dataStore.get(AutoLoadMoreKey, true) &&
+            if (!radioSeedInFlight && autoLoadMoreHint &&
                 player.currentMediaItem?.mediaId != null
             ) {
                 startRadioSeamlessly()

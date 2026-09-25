@@ -231,20 +231,17 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1023
-        // BETA 2.0.60-beta1 — SOLO EL DUEÑO (sobre la 2.0.59 estable recién publicada).
-        // Reporte del dueño (2026-09-25): "la cola infinita inteligente esta dañada... me combina
-        // generos que ni por cerca... vuelve y me repite de dos a tres veces las mismas canciones".
-        // Causa raíz encontrada y corregida: 5 formas de reproducir un álbum (tarjeta con Play
-        // superpuesto de Inicio/Biblioteca/Buscar/Artista, menú ⋮ "Reproducir", tarjetas de
-        // Novedades/Radar) no pasaban contextId a LocalAlbumRadio/YouTubeAlbumRadio, así que el
-        // motor de contexto/género propio de la app nunca se activaba — quedaban a merced de la
-        // radio nativa de YouTube sin filtro. Ver docs/REGRESSION_REGISTRY.md fila 293 y
-        // RELEASE_INFO.md.
+        versionCode = 1024
+        // BETA 2.0.60-beta2 — SOLO EL DUEÑO (sobre la 2.0.60-beta1).
+        // Tres pedidos del dueño (2026-09-25): (1) quitar el interruptor "Reproducción automática" —
+        // era el único gate de TODA la cola infinita, y podía apagarla sin querer, contradiciendo su
+        // propia orden anterior de "infinita siempre activa"; (2) no repetir canciones con el MISMO
+        // NOMBRE, no solo el mismo id (distintas subidas de una canción); (3) preamp por defecto en
+        // +2.5 dB. Ver docs/REGRESSION_REGISTRY.md filas 294-296 y RELEASE_INFO.md.
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.60-beta1"
+        versionName = "2.0.60-beta2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

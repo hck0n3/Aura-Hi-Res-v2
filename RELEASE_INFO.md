@@ -1,18 +1,17 @@
-# Aura Hi-Res v2.0.60-beta1 — Arreglo real de la cola infinita inteligente en álbumes
+# Aura Hi-Res v2.0.60-beta2 — Cola infinita sin interruptor, sin repetir nombres, y preamp +2.5dB
 
-Beta encima de la 2.0.59 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.60-beta1. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
 ## Cola infinita inteligente
 
-- **La continuación de un álbum ya no mezcla géneros sin relación.** La causa: reproducir un álbum
-  desde la tarjeta con botón de Play (Inicio, Biblioteca, Buscar, Artista), desde el menú ⋮ ▸
-  "Reproducir", o desde una tarjeta de Novedades/Radar de novedades, dejaba la continuación entera en
-  manos de la radio nativa de YouTube sin ningún filtro propio — el motor de contexto/género de Aura
-  (el mismo que ya protege playlists y el álbum abierto desde su propia pantalla) nunca llegaba a
-  activarse por esas vías. Ahora sí, sea cual sea el botón que uses para arrancar el álbum.
-- Como consecuencia también debería notarse menos repetición de canciones ya escuchadas al continuar
-  desde esas mismas vías.
+- **Se quitó el interruptor "Reproducción automática".** Era, sin que se notara, el único control de
+  TODA la cola infinita inteligente — apagarlo (pensando que era algo más simple y separado del
+  algoritmo) también apagaba la continuación inteligente por completo. Ahora la cola infinita queda
+  siempre activa, sin forma de apagarla por error.
+- **Ya no repite canciones con el mismo nombre**, aunque sean subidas distintas a YouTube ("Video
+  Oficial", "Lyrics", "Audio") con id diferente — antes solo se comparaba el id exacto.
 
-Si después de esta beta seguís viendo canciones repetidas, avisame — hay una sospecha adicional (memoria
-anti-repetición que se pierde si el sistema mata la app a mitad de álbum) que necesita confirmarse con
-un `app.log` real, no algo que se pueda resolver a ciegas.
+## Ecualizador
+
+- **El preamp por defecto sube a +2.5 dB**, aplicado una vez para todos (si vos ya lo habías cambiado
+  a mano, tu valor se respeta). No se toca el interruptor general del ecualizador.

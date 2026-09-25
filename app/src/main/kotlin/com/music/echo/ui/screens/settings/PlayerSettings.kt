@@ -46,7 +46,6 @@ import iad1tya.echo.music.constants.CrossfadeCurveKey
 import iad1tya.echo.music.constants.CrossfadeDurationKey
 import iad1tya.echo.music.constants.CrossfadeEnabledKey
 import iad1tya.echo.music.constants.CrossfadeGaplessKey
-import iad1tya.echo.music.constants.AutoLoadMoreKey
 import iad1tya.echo.music.constants.AutoSkipNextOnErrorKey
 import iad1tya.echo.music.constants.DisableLoadMoreWhenRepeatAllKey
 import iad1tya.echo.music.constants.EnableGoogleCastKey
@@ -222,10 +221,6 @@ fun PlayerSettings(
         defaultValue = true
     )
 
-    val (autoLoadMore, onAutoLoadMoreChange) = rememberPreference(
-        AutoLoadMoreKey,
-        defaultValue = true
-    )
     val (disableLoadMoreWhenRepeatAll, onDisableLoadMoreWhenRepeatAllChange) = rememberPreference(
         DisableLoadMoreWhenRepeatAllKey,
         defaultValue = false
@@ -710,27 +705,6 @@ fun PlayerSettings(
                         )
                     },
                     onClick = { onPersistentQueueChange(!persistentQueue) }
-                ),
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.playlist_add),
-                    title = { Text(stringResource(R.string.auto_load_more)) },
-                    description = { Text(stringResource(R.string.auto_load_more_desc)) },
-                    trailingContent = {
-                        Switch(
-                            checked = autoLoadMore,
-                            onCheckedChange = onAutoLoadMoreChange,
-                            thumbContent = {
-                                Icon(
-                                    painter = painterResource(
-                                        id = if (autoLoadMore) R.drawable.check else R.drawable.close
-                                    ),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(SwitchDefaults.IconSize)
-                                )
-                            }
-                        )
-                    },
-                    onClick = { onAutoLoadMoreChange(!autoLoadMore) }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.repeat),

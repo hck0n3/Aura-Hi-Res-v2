@@ -33,8 +33,13 @@ object EqConstants {
      *
      * Everything that needs a default preamp now reads THIS. A number that means "the tuning this player
      * ships with" must have exactly one home, or it drifts apart again the next time one copy is edited.
+     *
+     * 🔴 OWNER ORDER (2026-09-25): raised from +2.2 to +2.5 dB. See
+     * [iad1tya.echo.music.App.migratePreampDefault20260925] for the one-time forced migration that
+     * settles every existing install on this value too, same "sí o sí" contract as
+     * `migrateAudioDefaults20260913` before it.
      */
-    const val DEFAULT_PREAMP_DB = 2.2f
+    const val DEFAULT_PREAMP_DB = 2.5f
 }
 
 /** Band filter shape — code matches desktop bandType (0=Peak, 1=LowShelf, 2=HighShelf). */
