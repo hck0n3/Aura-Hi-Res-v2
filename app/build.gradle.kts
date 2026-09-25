@@ -231,19 +231,20 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1022
-        // ESTABLE 2.0.59 — PARA TODOS (orden explícita del dueño, 2026-09-24, en el momento y con
-        // esas palabras: "lanza la estable para todos"). Consolida doce rondas de betas desde la
-        // 2.0.48 (v2.0.49-beta1 .. v2.0.59-beta1): discografías de artista más completas y sin
-        // duplicar entre Álbumes/Sencillos-EPs, mejoras de precisión y velocidad de "pedir música",
-        // deslizar rediseñado (me gusta/no me gusta/agregar a playlist/borrar con deshacer),
-        // arreglos de reproducción (cola de álbum, vídeo, modo sin conexión, TikTok), enlaces
-        // externos, Novedades/recomendaciones por afinidad real, Escuchar Juntos y ecualizador. Ver
-        // RELEASE_INFO.md para el detalle completo.
-        // El nombre de versión va LIMPIO, sin sufijo `-beta`: es el tag SIN sufijo (`v2.0.59`) el que
-        // decide que gradle.yml NO lo marque como prerelease, así que `releases/latest` de GitHub lo
-        // sirve y el actualizador dentro de la app se lo ofrece a todos.
-        versionName = "2.0.59"
+        versionCode = 1023
+        // BETA 2.0.60-beta1 — SOLO EL DUEÑO (sobre la 2.0.59 estable recién publicada).
+        // Reporte del dueño (2026-09-25): "la cola infinita inteligente esta dañada... me combina
+        // generos que ni por cerca... vuelve y me repite de dos a tres veces las mismas canciones".
+        // Causa raíz encontrada y corregida: 5 formas de reproducir un álbum (tarjeta con Play
+        // superpuesto de Inicio/Biblioteca/Buscar/Artista, menú ⋮ "Reproducir", tarjetas de
+        // Novedades/Radar) no pasaban contextId a LocalAlbumRadio/YouTubeAlbumRadio, así que el
+        // motor de contexto/género propio de la app nunca se activaba — quedaban a merced de la
+        // radio nativa de YouTube sin filtro. Ver docs/REGRESSION_REGISTRY.md fila 293 y
+        // RELEASE_INFO.md.
+        // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
+        // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
+        // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
+        versionName = "2.0.60-beta1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
