@@ -231,22 +231,21 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1027
-        // BETA 2.0.61-beta2 — SOLO EL DUEÑO (sobre la 2.0.61-beta1).
-        // Dueño (2026-09-25, con logs reales de la beta1): "es como si hubieran dos colas que pelean
-        // y luego decide la cola equivocada" — exacto. Dos condiciones de carrera reales encontradas
-        // y arregladas con el mismo mecanismo (queueGeneration): (1) un seed de radio VIEJO (p. ej.
-        // salsa) resolviendo después de que una cola NUEVA (p. ej. Manny Montes por "Pedir música")
-        // ya había arrancado, pisándola con canciones del contexto anterior; (2) dos llamadas a
-        // playQueue() superpuestas (reproducir manualmente la 1ra canción de una lista una segunda
-        // vez) donde la búsqueda vieja podía resolver después que la nueva y pisarla igual. También:
-        // memoria persistente (entre reinicios) para que la cola infinita no repita canciones al
-        // volver a poner el mismo álbum/playlist/EP/single. Ver docs/REGRESSION_REGISTRY.md filas
-        // 302-304.
+        versionCode = 1028
+        // BETA 2.0.61-beta3 — SOLO EL DUEÑO (sobre la 2.0.61-beta2).
+        // Dueño (2026-09-25, sobre la beta2 ya instalada): "sigo con el mismo problema, no
+        // arreglaste nada" — investigado con su app.log real: ese log no probaba ni desprobaba el
+        // arreglo de las filas #302/#304 (el campo que lo hubiera mostrado depende de Aleatorio
+        // mejorado, que el dueño tiene apagado), y sí confirmó algo distinto: una caída de red real
+        // de ~12s que tumbó 3 canciones seguidas. Esta beta SOLO agrega instrumentación (sin cambiar
+        // comportamiento): las 4 líneas donde el arreglo aborta por cola obsoleta ahora quedan en el
+        // log (QUEUE_RACE_GUARD), para que la PRÓXIMA prueba, reproduciendo el problema a propósito,
+        // demuestre con certeza si la carrera se disparó o no. Ver docs/REGRESSION_REGISTRY.md fila
+        // 305.
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.61-beta2"
+        versionName = "2.0.61-beta3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

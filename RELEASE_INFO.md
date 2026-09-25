@@ -1,25 +1,19 @@
-# Aura Hi-Res v2.0.61-beta2 — Arregla la carrera de "dos colas peleando"
+# Aura Hi-Res v2.0.61-beta3 — Registro para confirmar de verdad si la carrera de colas quedó resuelta
 
-Beta encima de la 2.0.61-beta1. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.61-beta2. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## La causa real de lo que reportaste
+## Por qué esta beta
 
-- Confirmado con tus logs: cuando cambiabas de canción/estilo (urbano → Elvis Crespo, salsa → Manny
-  Montes), a veces la radio VIEJA (la que sonaba antes) terminaba de cargar DESPUÉS de que ya habías
-  cambiado, y pisaba la cola nueva con canciones del estilo anterior — como dos colas peleando por el
-  reproductor, y ganaba la equivocada.
-- Mismo problema al reproducir manualmente la primera canción de una playlist por segunda vez: dos
-  pedidos de esa misma lista se cruzaban, y el más viejo podía llegar después y dejar la cola
-  desincronizada. Ahora una cola nueva siempre cancela a la anterior, sin importar cuál tarda más en
-  cargar. Esto aplica igual a álbumes, EPs y playlists — no es un caso especial de playlists.
+- Tu `app.log` de la beta2 no alcanzaba para confirmar si el arreglo de "dos colas peleando" funcionó
+  — el dato que lo hubiera mostrado depende de tener Aleatorio mejorado activado.
+- Esta beta **no cambia ningún comportamiento**: solo agrega un registro puntual (`QUEUE_RACE_GUARD`)
+  en los 4 lugares donde el arreglo actúa, sin datos personales.
 
-## Además
+## Qué necesito que hagas
 
-- La cola infinita ahora recuerda, entre reinicios de la app, qué canciones ya sonaron después de un
-  álbum/playlist/EP/single — así que volver a ponerlo no repite lo mismo de la vez anterior.
+1. Instalá esta beta.
+2. Reproducí a propósito lo que veníamos viendo: cambiá de canción o de estilo varias veces seguidas y
+   rápido, y también probá tocar dos veces la primera canción de una playlist.
+3. Compartime el `app.log` de esa prueba puntual (Ajustes ▸ Registros).
 
-## Necesito que confirmes en tu dispositivo
-
-Probá exactamente los casos que reportaste: cambiar de estilo/canción varias veces seguidas, y
-reproducir la primera canción de una playlist dos veces. Si esto queda resuelto en tu prueba, avisame
-y armamos la estable.
+Con eso sí puedo confirmarte, con evidencia real y no a ciegas, si el problema quedó resuelto.
