@@ -1,17 +1,22 @@
-# Aura Hi-Res v2.0.60-beta2 — Cola infinita sin interruptor, sin repetir nombres, y preamp +2.5dB
+# Aura Hi-Res v2.0.60-beta3 — Diagnóstico: ¿tiene Spotify géneros más finos que iTunes?
 
-Beta encima de la 2.0.60-beta1. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.60-beta2. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Cola infinita inteligente
+## Sobre "que no me mezcle de otras cosas" (cola infinita, cualquier género)
 
-- **Se quitó el interruptor "Reproducción automática".** Era, sin que se notara, el único control de
-  TODA la cola infinita inteligente — apagarlo (pensando que era algo más simple y separado del
-  algoritmo) también apagaba la continuación inteligente por completo. Ahora la cola infinita queda
-  siempre activa, sin forma de apagarla por error.
-- **Ya no repite canciones con el mismo nombre**, aunque sean subidas distintas a YouTube ("Video
-  Oficial", "Lyrics", "Audio") con id diferente — antes solo se comparaba el id exacto.
+Encontré la causa: el género "real" que uso hoy viene de iTunes por artista completo, y es muy amplio —
+la mayoría de artistas de merengue y de salsa (por ejemplo) comparten la misma etiqueta "Latino" ahí, así
+que el sistema no los distingue. No es un error de código, es un límite de esa fuente de datos.
 
-## Ecualizador
+**Esta beta no cambia el comportamiento todavía** — solo agrega un registro de diagnóstico para
+confirmar si Spotify (que sí tiene géneros mucho más finos) los expone por la vía que usa esta app. Sin
+esa confirmación real, construir algo sobre un supuesto sin verificar sería inventar.
 
-- **El preamp por defecto sube a +2.5 dB**, aplicado una vez para todos (si vos ya lo habías cambiado
-  a mano, tu valor se respeta). No se toca el interruptor general del ecualizador.
+## Qué necesito que hagas
+
+1. Instalá esta beta con tu cuenta de Spotify conectada (Ajustes ▸ Spotify).
+2. Abrí la pestaña **Novedades** una vez (para que consulte tus artistas seguidos).
+3. Compartime el `app.log` desde Ajustes ▸ Registros.
+
+Con eso confirmo si existe un dato de género más preciso para repotenciar la cola infinita de verdad, en
+vez de adivinar.

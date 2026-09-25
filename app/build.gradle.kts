@@ -231,17 +231,18 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1024
-        // BETA 2.0.60-beta2 — SOLO EL DUEÑO (sobre la 2.0.60-beta1).
-        // Tres pedidos del dueño (2026-09-25): (1) quitar el interruptor "Reproducción automática" —
-        // era el único gate de TODA la cola infinita, y podía apagarla sin querer, contradiciendo su
-        // propia orden anterior de "infinita siempre activa"; (2) no repetir canciones con el MISMO
-        // NOMBRE, no solo el mismo id (distintas subidas de una canción); (3) preamp por defecto en
-        // +2.5 dB. Ver docs/REGRESSION_REGISTRY.md filas 294-296 y RELEASE_INFO.md.
+        versionCode = 1025
+        // BETA 2.0.60-beta3 — SOLO EL DUEÑO (sobre la 2.0.60-beta2).
+        // Dueño (2026-09-25): "que no me mezcle de otras cosas" en la cola infinita (cualquier género,
+        // merengue/salsa fue el ejemplo). Causa raíz: el género "real" que usa la app (iTunes, por
+        // artista completo) es muy amplio y no distingue subgéneros latinos. Spotify tiene géneros
+        // mucho más finos, pero no hay evidencia de que la API interna de esta app los exponga — esta
+        // beta SOLO instrumenta (tag SpotifyGenreProbe, sin datos de usuario) para confirmarlo con un
+        // app.log real antes de construir nada. Ver docs/REGRESSION_REGISTRY.md fila 298.
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.60-beta2"
+        versionName = "2.0.60-beta3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
