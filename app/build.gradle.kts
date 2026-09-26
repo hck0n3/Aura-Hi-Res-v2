@@ -231,21 +231,22 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1028
-        // BETA 2.0.61-beta3 — SOLO EL DUEÑO (sobre la 2.0.61-beta2).
-        // Dueño (2026-09-25, sobre la beta2 ya instalada): "sigo con el mismo problema, no
-        // arreglaste nada" — investigado con su app.log real: ese log no probaba ni desprobaba el
-        // arreglo de las filas #302/#304 (el campo que lo hubiera mostrado depende de Aleatorio
-        // mejorado, que el dueño tiene apagado), y sí confirmó algo distinto: una caída de red real
-        // de ~12s que tumbó 3 canciones seguidas. Esta beta SOLO agrega instrumentación (sin cambiar
-        // comportamiento): las 4 líneas donde el arreglo aborta por cola obsoleta ahora quedan en el
-        // log (QUEUE_RACE_GUARD), para que la PRÓXIMA prueba, reproduciendo el problema a propósito,
-        // demuestre con certeza si la carrera se disparó o no. Ver docs/REGRESSION_REGISTRY.md fila
-        // 305.
+        versionCode = 1029
+        // BETA 2.0.61-beta4 — SOLO EL DUEÑO (sobre la 2.0.61-beta3).
+        // Dueño (2026-09-25/26, insistiendo): "la cola no se adapta cuando son canciones sueltas hasta
+        // que las reproduzco por segunda vez" — confirmado desde el buscador, desde Inicio y con
+        // canción suelta. Encontrado por lectura de código (el log de la beta3 no alcanzó a capturar
+        // la carrera, acciones muy espaciadas): `radioSeedInFlight` era UNA sola bandera compartida por
+        // cualquier cola — un seed de radio VIEJO todavía resolviendo bloqueaba en silencio que la
+        // canción NUEVA armara su propia continuación, y al completarse borraba cualquier pedido
+        // pendiente de la nueva. Solo se resolvía solo cuando el dueño volvía a tocar play, tiempo
+        // después de que el seed viejo ya hubiera liberado la bandera — exactamente "hasta la segunda
+        // vez". Nuevo `radioSeedInFlightGeneration` ata esa bandera a la generación de cola para la que
+        // se pidió, igual que ya hace `queueGeneration`. Ver docs/REGRESSION_REGISTRY.md fila 306.
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.61-beta3"
+        versionName = "2.0.61-beta4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
