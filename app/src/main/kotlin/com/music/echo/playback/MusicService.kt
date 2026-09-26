@@ -3755,7 +3755,23 @@ class MusicService :
                 Timber.tag(TAG).i("QUEUE_RACE_GUARD playQueue aborted stale mine=%d now=%d", myGeneration, queueGeneration)
                 return@launch
             }
-            if (queue.preloadItem != null && player.playbackState == STATE_IDLE) return@launch
+            // Ronda 10 (dueño: "en la búsqueda... la cola no cambia con cada canción que reproduzco").
+            // This used to unconditionally abandon the WHOLE queue setup — never reaching the
+            // addMediaItems below, and never reaching radioAnchorId/radioOriginContextId/radioSeedPool
+            // further down — whenever the PRELOADED single item's own playback had hit STATE_IDLE by the
+            // time this independent network fetch (YouTube.next(), a full radio/related list) resolved.
+            // Tapping search results back-to-back is exactly the pattern that starves the preload item of
+            // buffering time and/or races a transient stream-resolution hiccup into a fatal player error
+            // (which Media3 surfaces as STATE_IDLE) — at which point this line used to throw away a
+            // perfectly good, independently-fetched continuation queue for a reason that has nothing to
+            // do with whether that queue's own content is valid. The stale-call guard right above this
+            // (queueGeneration) already covers "a newer tap superseded this one" precisely, by call
+            // identity rather than by a proxy signal — this raw-state check was redundant with it AND
+            // wrong whenever they disagreed. Logged (no user data, just the state code) so a future log
+            // can confirm which of the two guards was actually the one protecting a given session.
+            if (queue.preloadItem != null && player.playbackState == STATE_IDLE) {
+                Timber.tag(TAG).i("playQueue: preload item was STATE_IDLE at fetch completion, continuing anyway (gen=%d)", myGeneration)
+            }
             if (initialStatus.title != null) {
                 queueTitle = initialStatus.title
             }
@@ -4319,7 +4335,15 @@ class MusicService :
                             if (strictLane) lane == anchorLane else lane == null || lane == anchorLane
                         }
                         if (offLane.isNotEmpty()) {
-                            if (inLane.size >= 10) {
+                            // Threshold 2, not the collection branch's 10 above: THAT branch injects the
+                            // initial 20-70 item collection batch, where requiring 10 survivors before
+                            // dropping is reasonable headroom. This one guards a single radio-page fetch
+                            // (typically 5-20 items, per the app.log evidence that motivated this fix:
+                            // "sank 3/5... only 2 in-lane"), where 10 is essentially unreachable — so the
+                            // drop path never engaged and every off-lane batch fell through to "sink",
+                            // which just reorders within the SAME batch and still plays all of it. 2
+                            // matches maybeLoadMoreQueuePages's own threshold for this exact batch size.
+                            if (inLane.size >= 2) {
                                 Timber.tag(TAG).i(
                                     "CTX_SINK appendSeed (anchor): dropped %d/%d off-lane candidates (%d in-lane survivors)",
                                     offLane.size, items.size, inLane.size,
