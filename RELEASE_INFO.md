@@ -1,19 +1,25 @@
-# Aura Hi-Res v2.0.61-beta4 — La causa real de "la cola no se adapta hasta la segunda vez"
+# Aura Hi-Res v2.0.61-beta5 — Cola del buscador + filtro de género en canción suelta
 
-Beta encima de la 2.0.61-beta3. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.61-beta4. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## La causa que encontré
+## Lo que encontré en tu log
 
-- Confirmé el mecanismo exacto: cuando reproducías una canción nueva (suelta, desde el buscador o
-  desde Inicio) mientras la radio de lo que sonaba ANTES todavía estaba resolviendo en segundo plano,
-  esa radio vieja bloqueaba en silencio que la canción nueva armara su propia continuación.
-- Por eso la cola se quedaba "pegada" a lo anterior — y por eso funcionaba bien recién la SEGUNDA vez:
-  para entonces la radio vieja ya había terminado y dejado de bloquear.
-- Esto es distinto de (y se suma a) los arreglos de las betas anteriores — encontrado leyendo el
-  código a fondo, no adivinado.
+- **Buscador**: si la canción que tocabas sufría un tropiezo momentáneo de reproducción justo mientras
+  se armaba su cola de continuación en segundo plano, la cola nueva se descartaba en silencio y el
+  reproductor se quedaba pegado a la cola vieja de siempre. Tocar resultados del buscador uno tras otro
+  era exactamente el patrón que más lo disparaba. Ya no se descarta: la cola se instala igual.
+- **"Relacionado" en canción suelta**: mi propio filtro de género de la ronda pasada usaba un umbral
+  pensado para álbumes/playlists grandes, y con lotes chicos de radio (5-9 candidatos, como en tu log)
+  casi nunca llegaba a activarse de verdad — bajado al mismo umbral que ya usa la cola infinita normal.
+
+## Sobre el botón "actualizar"
+
+No pude confirmar por lectura de código cuál de los 4 lugares que abren el reproductor a pantalla
+completa por sí solo es el responsable — ninguno encaja con que no tocaste video. Agregué un registro
+puntual (sin datos tuyos) en los 4, así que si volvés a compartir el `app.log` después de que te pase de
+nuevo, ya tengo la prueba en vez de seguir preguntando.
 
 ## Necesito que confirmes en tu dispositivo
 
-Probá exactamente lo que veníamos viendo: reproducir una canción suelta desde el buscador o Inicio
-mientras algo más sonaba antes, cambiar de estilo varias veces seguidas, y tocar dos veces la primera
-canción de una playlist. Si esto queda resuelto, avisame y armamos la estable.
+Probá lo mismo de siempre: tocar canciones distintas desde el buscador una tras otra, cambiar de estilo
+varias veces seguidas, y si te vuelve a pasar lo del botón "actualizar", compartime el log de esa sesión.

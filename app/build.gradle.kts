@@ -231,22 +231,26 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1029
-        // BETA 2.0.61-beta4 — SOLO EL DUEÑO (sobre la 2.0.61-beta3).
-        // Dueño (2026-09-25/26, insistiendo): "la cola no se adapta cuando son canciones sueltas hasta
-        // que las reproduzco por segunda vez" — confirmado desde el buscador, desde Inicio y con
-        // canción suelta. Encontrado por lectura de código (el log de la beta3 no alcanzó a capturar
-        // la carrera, acciones muy espaciadas): `radioSeedInFlight` era UNA sola bandera compartida por
-        // cualquier cola — un seed de radio VIEJO todavía resolviendo bloqueaba en silencio que la
-        // canción NUEVA armara su propia continuación, y al completarse borraba cualquier pedido
-        // pendiente de la nueva. Solo se resolvía solo cuando el dueño volvía a tocar play, tiempo
-        // después de que el seed viejo ya hubiera liberado la bandera — exactamente "hasta la segunda
-        // vez". Nuevo `radioSeedInFlightGeneration` ata esa bandera a la generación de cola para la que
-        // se pidió, igual que ya hace `queueGeneration`. Ver docs/REGRESSION_REGISTRY.md fila 306.
+        versionCode = 1030
+        // BETA 2.0.61-beta5 — SOLO EL DUEÑO (sobre la 2.0.61-beta4).
+        // Dueño (2026-09-26, log 179362ee, sobre la beta4): "arruinaste la cola... si estoy escuchando
+        // algo urbano no tiene que tirarme rabito" y, aparte, "siempre en la búsqueda... la cola no
+        // cambia con cada canción que reproduzco desde el buscador". Dos causas confirmadas por
+        // lectura de código (ver docs/REGRESSION_REGISTRY.md fila 307):
+        //  (a) playQueue(): un tropiezo transitorio de reproducción en la canción recién precargada
+        //      (STATE_IDLE) descartaba en silencio TODA la cola de continuación recién armada — típico
+        //      al tocar resultados del buscador uno tras otro. Ahora se loguea y se sigue igual.
+        //  (b) appendSeed, rama `anchor` ("Relacionado" para canción suelta, fila #300): el umbral para
+        //      descartar candidatas fuera de género (10 sobrevivientes) se copió de la rama de colección
+        //      grande y era casi inalcanzable para un lote de radio de una sola canción (5-20 ítems) —
+        //      bajado a 2, igual que ya usa la paginación normal.
+        // También se instrumentaron (sin cambiar comportamiento) los 4 sitios que expanden el
+        // reproductor a pantalla completa por sí solos (R10 #8, botón "actualizar"), para confirmar con
+        // el próximo log cuál de ellos es responsable — ninguno pudo probarse por lectura de código.
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.61-beta4"
+        versionName = "2.0.61-beta5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
