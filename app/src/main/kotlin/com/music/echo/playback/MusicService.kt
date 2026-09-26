@@ -1190,6 +1190,22 @@ class MusicService :
     // B3 — guards against double-seeding a radio when a finite queue ends: true while a startRadioSeamlessly
     // fetch is in flight, so onMediaItemTransition can't fire a second (racing) radio fetch over the same end.
     @Volatile private var radioSeedInFlight = false
+    // Ronda 10 (dueño, sobre la 2.0.61-beta3: "cuando reproduzco una canción suelta... la cola no se
+    // adapta... hasta que la reproduzco por segunda vez"). Root cause found AFTER queueGeneration
+    // (fila #302/#304): [radioSeedInFlight] is a single flag shared by EVERY queue, with no notion of
+    // WHICH queue's seed it is guarding. A stale seed job from the OLD queue still resolving (its own
+    // network fetch simply hadn't returned yet) held this flag true through the ENTIRE window the user
+    // was on the NEW song — so the new song's own legitimate startRadioSeamlessly() call hit the
+    // `if (radioSeedInFlight) return` guard at the top and did NOTHING: no seed job even launched for
+    // it, silently, no log, no fallback. The stale job's own generation check (already fixed) correctly
+    // stopped it from OVERWRITING the new queue, but nothing stopped it from BLOCKING the new queue's
+    // own attempt in the meantime — worse, its `invokeOnCompletion` cleared `resumeAfterSeed`/
+    // `advanceIntoRadioRequested` unconditionally on completion, silently discarding a request the new
+    // song's flow may have armed while it was blocked. This field ties the claim to the generation it
+    // was claimed FOR: the entry guard only blocks a genuinely CURRENT-generation seed already running;
+    // a stale one no longer blocks anything once a newer playQueue() has landed, and its own completion
+    // handler no longer resets state a NEWER claim has since taken over.
+    @Volatile private var radioSeedInFlightGeneration = -1
     // True when a radio seed was started from the STATE_ENDED safety net (the queue truly ended): once the
     // seed appends items, advance+play into them so predictive infinite playback resumes with no manual action.
     @Volatile private var resumeAfterSeed = false
@@ -3989,7 +4005,13 @@ class MusicService :
 
         // A B3 head-start (or a prior call) is already fetching — do NOT launch a second seed (registry #60).
         // Callers that need to jump into the result must [requestAdvanceIntoRadio] first.
-        if (radioSeedInFlight) {
+        //
+        // Ronda 10 — see [radioSeedInFlightGeneration]'s own doc comment: only a claim for the CURRENT
+        // generation blocks a new one. A stale claim left over from a queue the user already moved past
+        // (a NEW playQueue() bumped queueGeneration since it was made) no longer counts — it will settle
+        // as a harmless no-op on its own (its own generation check in appendSeed already covers that),
+        // and must not stop the CURRENT queue from ever getting its own seed.
+        if (radioSeedInFlight && radioSeedInFlightGeneration == queueGeneration) {
             return
         }
 
@@ -4017,6 +4039,10 @@ class MusicService :
         // landing while this seed is still in flight makes its eventual append a no-op instead of
         // overwriting the new queue's tail with the OLD context's songs (see [queueGeneration]).
         val seedGeneration = queueGeneration
+        // See [radioSeedInFlightGeneration]'s own doc comment: this claim is now tagged with the
+        // generation it belongs to, so a LATER claim (a newer queue's own seed) can tell this one is
+        // stale without waiting for it, and this one's own completion won't clear a later claim's state.
+        radioSeedInFlightGeneration = seedGeneration
         // Ronda 10 — see [radioOriginContextId]'s own doc comment.
         val originContextId = radioOriginContextId
 
@@ -4656,9 +4682,15 @@ class MusicService :
         // when the coroutine body NEVER RAN (a launch on an already-cancelled scope completes immediately), so
         // the flag can no longer stick true and silently kill every re-seed path for the rest of the process.
         seedJob.invokeOnCompletion {
-            radioSeedInFlight = false
-            resumeAfterSeed = false
-            advanceIntoRadioRequested = false
+            // Ronda 10 — see [radioSeedInFlightGeneration]'s own doc comment: only clear the shared
+            // flags if NOBODY newer has claimed them since. A later, still-running seed job (a NEWER
+            // queue's own legitimate attempt) already overwrote radioSeedInFlightGeneration with its own
+            // generation — this stale job's completion must not clear its state out from under it.
+            if (radioSeedInFlightGeneration == seedGeneration) {
+                radioSeedInFlight = false
+                resumeAfterSeed = false
+                advanceIntoRadioRequested = false
+            }
         }
     }
 
@@ -4751,6 +4783,9 @@ class MusicService :
             // Same stale-append guard as appendSeed (see [queueGeneration]): a chip tap can itself be
             // overtaken by a brand-new playQueue()/adoptExternalQueue() while its own fetch is in flight.
             val chipGeneration = queueGeneration
+            // See [radioSeedInFlightGeneration]: tag this claim so a concurrent startRadioSeamlessly()
+            // correctly sees it as CURRENT (blocking, as intended) rather than a stale leftover.
+            radioSeedInFlightGeneration = chipGeneration
             var applied = false
             try {
                 val chipQueue = YouTubeQueue(endpoint = chip.endpoint, automaticRadio = true)
@@ -4803,7 +4838,11 @@ class MusicService :
                 // own finally and is NOT touched by the chip path. Any path that did NOT rewrite the
                 // tail (null/empty fetch, exception swallowed by SilentHandler) reverts the highlight
                 // so the chip UI never claims a steer the live queue doesn't reflect.
-                radioSeedInFlight = false
+                // Guarded the same way as startRadioSeamlessly's own completion (see
+                // [radioSeedInFlightGeneration]): only release if nothing newer has claimed it since.
+                if (radioSeedInFlightGeneration == chipGeneration) {
+                    radioSeedInFlight = false
+                }
                 if (!applied) revertChip()
             }
         }
