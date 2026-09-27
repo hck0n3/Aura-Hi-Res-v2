@@ -4219,7 +4219,9 @@ class MusicService :
                 val steerNeedsGenres = contextSteerActive && keepGenreLaneHint &&
                     (contextProfile?.active == true || radioAnchorId != null)
                 if (steerNeedsGenres && !resumeAfterSeed) {
-                    val candidateArtists = (radioAnchorMetadata?.artists.orEmpty().map { it.name } +
+                    val anchorArtists = radioAnchorMetadata?.artists.orEmpty().map { it.name }
+                        .filter { it.isNotBlank() }.distinct()
+                    val candidateArtists = (anchorArtists +
                         items.flatMap { it.metadata?.artists.orEmpty() }.map { it.name })
                         .filter { it.isNotBlank() }
                         .distinct()
@@ -4227,6 +4229,22 @@ class MusicService :
                     if (candidateArtists.isNotEmpty()) {
                         val enrichJob = scope.launch(Dispatchers.IO + SilentHandler) {
                             runCatching {
+                                // Ronda 10 (dueño: Elvis Crespo -> YouTube's own "next" devolvió puro
+                                // cristiano/alabanza tras varias pruebas seguidas con Jesús Adrián Romero
+                                // — evidencia real: CTX_GENRE reportó "completed=true" pero ningún
+                                // CTX_SINK siguió, o sea anchorLane terminó null pese al enrich). Causa:
+                                // GenreCache.enrich() aborta el lote entero tras 3 fallos SEGUIDOS
+                                // (MAX_CONSECUTIVE_FAILURES) — con 4 llamadas en paralelo, unos pocos
+                                // artistas de nicho sin ficha en iTunes bastan para tumbar el lote ANTES
+                                // de que le toque el turno al ancla, dejándolo sin resolver igual que a
+                                // los demás. El ancla es la ÚNICA búsqueda de la que depende este filtro
+                                // — se enriquece aparte primero, con su propio contador de fallos, para
+                                // que una racha de candidatas desconocidas nunca la deje afuera.
+                                if (anchorArtists.isNotEmpty()) {
+                                    iad1tya.echo.music.reco.GenreCache.enrich(
+                                        this@MusicService, anchorArtists, onlyWifi = true,
+                                    )
+                                }
                                 iad1tya.echo.music.reco.GenreCache.enrich(
                                     this@MusicService, candidateArtists, onlyWifi = true,
                                 )
@@ -4359,6 +4377,11 @@ class MusicService :
                         null
                     }
                     if (anchorLane == null) {
+                        // Ronda 10 (dueño: Elvis Crespo -> puro cristiano/alabanza en "a continuación").
+                        // Este era el hueco silencioso: sin este log, "el ancla no tiene género" y "el
+                        // filtro corrió y no encontró nada que sacar" se veían IGUAL en el log — nada.
+                        // Ahora se distingue de las otras dos ramas (que sí logean).
+                        Timber.tag(TAG).i("CTX_SINK appendSeed (anchor): anchorLane unknown, no filter applied")
                         items to emptySet<String>()
                     } else {
                         val strictLane = anchorLane == iad1tya.echo.music.reco.GenreLane.CHRISTIAN &&
