@@ -6581,6 +6581,24 @@ class MusicService :
                     if (enrichNames.isNotEmpty()) {
                         val enrichJob = scope.launch(Dispatchers.IO + SilentHandler) {
                             runCatching {
+                                // Ronda 10 (dueño: probó 4 artistas seguidos en una sesión aislada — el
+                                // 2do, 3er y 4to fallaron, cada vez peor). Causa: esta llamada de
+                                // PAGINACIÓN tenía el MISMO bug que appendSeed (fila #309) — curArtists
+                                // (el ancla que hay que MANTENER durante la continuación, para calcular
+                                // currentLane más abajo) compartía lote con las candidatas de la página
+                                // nueva. GenreCache.enrich() aborta el lote entero tras 3 fallos SEGUIDOS;
+                                // bastaba una racha entre las candidatas para tumbarlo antes de que le
+                                // tocara el turno al ancla, dejando currentLane en null y esa página SIN
+                                // FILTRO alguno. Empeora con cada artista probado en la misma sesión: más
+                                // nombres ya marcados en failedThisSession, más chance de que la racha de
+                                // 3 fallos se dispare de nuevo antes de llegar al ancla. Se enriquece
+                                // aparte primero, con su propio contador de fallos — igual que en
+                                // appendSeed — para que esa racha nunca la deje sin resolver.
+                                if (curArtists.isNotEmpty()) {
+                                    iad1tya.echo.music.reco.GenreCache.enrich(
+                                        this@MusicService, curArtists, onlyWifi = true,
+                                    )
+                                }
                                 iad1tya.echo.music.reco.GenreCache.enrich(this@MusicService, enrichNames, onlyWifi = true)
                             }
                         }
@@ -6603,6 +6621,9 @@ class MusicService :
                         iad1tya.echo.music.reco.GenreLane.laneOfTrack(genres, curArtist, curTitle, curAlbum)
                     } else {
                         null
+                    }
+                    if (keepLane && currentLane == null) {
+                        Timber.tag(TAG).i("CTX_SINK maybeLoadMoreQueuePages: currentLane unknown, no filter applied")
                     }
                     // Never auto-play something the user disliked (the song or a disliked artist).
                     if (!disliked.isEmpty) {

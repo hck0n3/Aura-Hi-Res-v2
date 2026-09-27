@@ -231,22 +231,24 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1032
-        // BETA 2.0.61-beta7 — SOLO EL DUEÑO (sobre la 2.0.61-beta6).
-        // Dueño (2026-09-27, con capturas + log): buscó "Chichi Peralta", tocó "Nuestra Canción" de
-        // Elvis Crespo (merengue) — "a continuación" y "reproducción automática" salieron 100%
-        // cristiano/alabanza, justo después de varias pruebas seguidas con música cristiana. Causa
-        // raíz (ver docs/REGRESSION_REGISTRY.md fila 309): la búsqueda de género de una canción se
-        // cancela entera si varias búsquedas fallan SEGUIDAS (protección de batería/red normal) — y la
-        // búsqueda del género de la canción ancla compartía ese mismo lote con las 11 "relacionadas"
-        // que trajo YouTube, todas de artistas cristianos de nicho con buena chance de no tener ficha.
-        // Bastaron unos pocos fallos entre ellas para tumbar el lote antes de que le tocara el turno al
-        // ancla — dejándola sin género y por lo tanto sin ningún filtro aplicado. La búsqueda del
-        // ancla ahora va en su propio turno, separada, para que esto no le pase de nuevo.
+        versionCode = 1033
+        // BETA 2.0.61-beta8 — SOLO EL DUEÑO (sobre la 2.0.61-beta7).
+        // Dueño (2026-09-27, log f997b4a0, prueba aislada tras la beta7: app cerrada del todo, sesión
+        // limpia, 4 artistas con 20s de espera cada uno): "falló en el segundo artista, en el tercero
+        // falló, y con el cuarto falló de nuevo" — peor que antes (solo el 4to fallaba). Causa raíz
+        // (ver docs/REGRESSION_REGISTRY.md fila 310): la beta7 solo arregló el enrich del PRIMER lote
+        // de radio (appendSeed). La paginación que extiende la cola más adelante
+        // (maybeLoadMoreQueuePages, se dispara varias veces por sesión) tenía SU PROPIA llamada de
+        // género con el mismo defecto — el artista que hay que mantener para seguir en el mismo
+        // carril compartía lote con las candidatas de la página nueva, y una racha de 3 fallos
+        // seguidos podía tumbar el lote antes de que le tocara su turno, dejando esa extensión de cola
+        // sin ningún filtro. Empeoraba con cada artista probado porque los fallos se acumulan durante
+        // toda la sesión de la app. Mismo arreglo que la beta7: ese artista ahora va en su propio
+        // turno, separado del lote de candidatas.
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.61-beta7"
+        versionName = "2.0.61-beta8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

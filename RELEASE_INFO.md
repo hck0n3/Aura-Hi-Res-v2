@@ -1,33 +1,33 @@
-# Aura Hi-Res v2.0.61-beta7 — La canción ancla ya no se queda sin género por culpa de otras
+# Aura Hi-Res v2.0.61-beta8 — La paginación de la radio ya no se queda sin género por culpa de otras
 
-Beta encima de la 2.0.61-beta6. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.61-beta7. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Lo que confirmé con tus capturas
+## Lo que confirmé con tu prueba aislada
 
-- Buscaste "Chichi Peralta", tocaste "Nuestra Canción" de Elvis Crespo (merengue) — y "a continuación" y
-  "reproducción automática" salieron 100% cristiano/alabanza, justo después de varias pruebas seguidas con
-  música cristiana.
-- Confirmé en el log: la búsqueda de género de la canción que tocaste SÍ corrió, pero terminó sin
-  resultado — así que mi filtro no tuvo con qué comparar y dejó pasar lo que trajo YouTube sin revisar.
+- Probaste 4 artistas seguidos, esperando 20 segundos entre cada uno, con la app recién cerrada del
+  todo: el 2do, el 3ro y el 4to fallaron — peor que la prueba anterior, donde solo fallaba el 4to.
+- Confirmé en el log que la beta7 sí arregló lo que se propuso arreglar (el PRIMER lote de radio de una
+  canción suelta), pero dejó un segundo punto con el MISMO problema sin tocar.
 
 ## La causa que encontré
 
-- La búsqueda de género de una canción se cancela entera si varias búsquedas fallan seguidas (protección
-  normal para no gastar batería/red en una mala racha).
-- La búsqueda de la canción que tocaste compartía ese mismo lote con las "relacionadas" que trajo
-  YouTube — y esas eran de artistas cristianos de nicho, con buena chance de no tener ficha completa.
-  Bastaron algunos fallos entre ellas para cancelar el lote antes de que le tocara el turno a tu canción.
-- Esto también confirma que el contenido cristiano mezclado no es al azar: YouTube te devuelve
-  recomendaciones contaminadas por tu historial reciente de reproducción, y el filtro de Aura —pensado
-  justo para corregir eso— se quedó ciego por esta carrera.
+- La cola infinita no se arma toda de una vez: se va extendiendo por partes cada vez que quedan pocas
+  canciones por delante. Esa extensión tiene su propio paso de "averiguar el género para seguir en el
+  mismo estilo" — separado del que ya arreglé en la beta7.
+- Ese paso compartía lote con las canciones nuevas que trae YouTube para seguir la cola, con el mismo
+  riesgo: una racha de fallos entre esas nuevas podía tumbar el lote antes de que le tocara el turno al
+  artista que había que mantener — dejando esa extensión de la cola sin ningún filtro de estilo.
+- Esto explica por qué empeoraba con cada artista probado: los fallos se van acumulando durante toda la
+  sesión de la app, así que mientras más pruebas seguidas hacés, más fácil que la racha se dispare de
+  nuevo antes de tiempo.
 
 ## Qué cambié
 
-La búsqueda de género de la canción que tocás ahora va en su propio turno, separada de las
-"relacionadas" — así una racha de fallos entre esas nunca la deja sin resolver.
+El artista que hay que mantener durante esa extensión de cola ahora va en su propio turno, separado de
+las canciones nuevas — mismo arreglo que la beta7, aplicado al segundo punto que se me había quedado
+sin tocar.
 
 ## Necesito que confirmes en tu dispositivo
 
-Repetí la prueba: buscá y reproducí una canción de un estilo, justo después de haber escuchado otro
-estilo bien distinto (como cristiano → secular), y fijate si "a continuación" ahora sí coincide con lo
-que tocaste.
+Repetí exactamente la misma prueba: 4 (o más) artistas seguidos, esperando a que cada uno continúe solo
+antes de pasar al siguiente, y fijate si todos se adaptan ahora o si alguno sigue fallando.
