@@ -129,6 +129,8 @@ object MusicRequestQuery {
         "un", "una", "para", "por", "con",
         "años", "anos", "año", "ano",
         "musica", "canciones", "songs", "playlist", "lista",
+        // Ronda 11: "pon la canción Flipando de Redimi2" — "cancion"/"tema" no nombran nada.
+        "cancion", "tema", "temas", "song",
         // Palabras de recopilación (mismo espíritu que MusicRequestMatch.COMPILATION_WORDS): "éxitos
         // de los 2000" no debe leer "exitos" como si fuera el género que pidió.
         "exitos", "hits", "mejor", "best", "greatest", "clasicos", "classics", "mix", "top",
