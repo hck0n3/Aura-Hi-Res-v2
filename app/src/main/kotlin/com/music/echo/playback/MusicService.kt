@@ -4167,29 +4167,31 @@ class MusicService :
         genres: Map<String, String>,
         site: String,
     ): Pair<List<MediaItem>, Set<String>>? {
-        val anchorArtist = anchorMeta?.artists?.firstOrNull()?.name
-        val anchorTitle = anchorMeta?.title
-        val anchorAlbum = anchorMeta?.album?.title
-        val anchorLane = if (anchorMeta != null) {
-            iad1tya.echo.music.reco.GenreLane.laneOfTrack(genres, anchorArtist, anchorTitle, anchorAlbum)
+        val anchor = if (anchorMeta != null) {
+            iad1tya.echo.music.reco.GenreLane.anchorOf(
+                genres, anchorMeta.artists.firstOrNull()?.name, anchorMeta.title, anchorMeta.album?.title,
+            )
         } else {
             null
         }
-        if (anchorLane == null) {
+        if (anchor?.lane == null) {
             Timber.tag(TAG).i("CTX_SINK %s (anchor): anchorLane unknown, no filter applied", site)
             return null
         }
-        val strictLane = anchorLane == iad1tya.echo.music.reco.GenreLane.CHRISTIAN &&
-            iad1tya.echo.music.reco.GenreLane.isKeywordChristian(anchorTitle, anchorArtist, anchorAlbum)
+        // Ronda 11 — see GenreLane.Anchor: a Christian anchor with a known style keeps faith AND style.
+        // Only the style FAMILY is logged (e.g. "tropical"), never an artist or title (AGENTS.md rule 4).
+        if (anchor.christianStyle != null) {
+            Timber.tag(TAG).i("CTX_SINK %s (anchor): christian + style=%s", site, anchor.christianStyle)
+        }
         val (inLane, offLane) = items.partition { mi ->
             val m = mi.metadata
-            val lane = iad1tya.echo.music.reco.GenreLane.laneOfTrack(
+            iad1tya.echo.music.reco.GenreLane.keeps(
+                anchor,
                 genres,
                 m?.artists?.firstOrNull()?.name.orEmpty(),
                 m?.title.orEmpty(),
                 m?.album?.title,
             )
-            if (strictLane) lane == anchorLane else lane == null || lane == anchorLane
         }
         if (offLane.isEmpty()) return inLane to emptySet()
         val offIds = offLane.mapNotNullTo(HashSet()) { it.mediaId }
@@ -6780,16 +6782,17 @@ class MusicService :
                     //    collapse autoplay onto library artists (repetitive, no discovery). So we only drop
                     //    candidates whose genre we KNOW and know to be different; unknown stays eligible.
                     if (currentLane != null) {
-                        val strictLane = currentLane == iad1tya.echo.music.reco.GenreLane.CHRISTIAN &&
-                            iad1tya.echo.music.reco.GenreLane.isKeywordChristian(curTitle, curArtist, curAlbum)
+                        // Same lane + strictness as always (anchorOf computes both exactly as this block
+                        // did); ronda 11 adds the style check for a Christian anchor — see GenreLane.keeps.
+                        val anchor = iad1tya.echo.music.reco.GenreLane.anchorOf(genres, curArtist, curTitle, curAlbum)
                         val inLane = next.filter { mi ->
-                            val lane = iad1tya.echo.music.reco.GenreLane.laneOfTrack(
+                            iad1tya.echo.music.reco.GenreLane.keeps(
+                                anchor,
                                 genres,
                                 mi.mediaMetadata.artist?.toString(),
                                 mi.mediaMetadata.title?.toString(),
                                 mi.mediaMetadata.albumTitle?.toString(),
                             )
-                            if (strictLane) lane == currentLane else lane == null || lane == currentLane
                         }
                         if (inLane.size >= 2) next = inLane
                     }
