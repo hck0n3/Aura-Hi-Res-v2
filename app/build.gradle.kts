@@ -231,22 +231,18 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1034
-        // BETA 2.0.61-beta9 — SOLO EL DUEÑO (sobre la 2.0.61-beta8).
-        // Dueño (2026-09-27, log share_all_diagnostics_13): Leo el Poeta → busca Ricardo Montaner y
-        // la cola sigue con la de Leo; Geovanni Rios → le sale Marcos Witt; Orquesta Alianza sí funcionó.
-        // Causa raíz (ver docs/REGRESSION_REGISTRY.md fila 311), la que explica el "funciona solo la
-        // SEGUNDA vez" de las filas #302-#310: al tocar una canción suelta, el reproductor queda un
-        // instante con ESA canción sola, y eso disparaba de inmediato la siembra de radio — mientras
-        // el ancla (radioAnchorId) seguía siendo la canción ANTERIOR, porque solo se actualizaba
-        // cuando terminaba de cargar la lista nueva. La radio de la canción anterior pisaba la de la
-        // canción tocada. Ahora el ancla se fija al tocar, y no se siembra nada mientras la lista
-        // propia de la canción esté cargando; esa lista (la radio de YouTube para ESA canción) pasa por
-        // el mismo filtro de género que antes tenía la siembra.
+        versionCode = 1035
+        // BETA 2.0.61-beta10 — SOLO EL DUEÑO (sobre la 2.0.61-beta9, que ya trae el arreglo de la
+        // cola que heredaba la canción anterior, fila 311).
+        // Dueño (2026-09-27): (1) "Pedir música": pide "Redimi2 Flipando" y suena "Blindao"; lo
+        // siguiente es un remix de la misma canción; "nunca me pone lo que exactamente pido" (fila 312).
+        // (2) "si el artista es cristiano, que se mantenga el género más su religión; si no tiene
+        // religión, que se mantenga con la música que se escucha" (fila 313). (3) Revisión del
+        // fundido cruzado: sin fallos en el log, la matemática no se toca (fila 314).
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.61-beta9"
+        versionName = "2.0.61-beta10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

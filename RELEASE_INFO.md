@@ -1,48 +1,51 @@
-# Aura Hi-Res v2.0.61-beta9 — La canción que tocás ya no hereda la cola de la anterior
+# Aura Hi-Res v2.0.61-beta10 — Pedir música pone lo que pides, y la fe se mantiene con su estilo
 
-Beta encima de la 2.0.61-beta8. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.61-beta9. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Incluye también el arreglo de la beta9: la canción que tocás en el buscador ya no hereda la cola de la
+anterior.
 
-## Lo que confirmé con tu prueba
+## Pedir música: la canción que nombrás suena primero
 
-- Leo el Poeta → Ricardo Montaner: al pasar a la siguiente, siguió la cola de Leo el Poeta.
-- Geovanni Rios ("El culto está bueno") → la siguiente fue de Marcos Witt.
-- Orquesta Alianza: ahí sí siguió bien.
-- En el log se ve la huella: dos segundos después de tocar la canción de Montaner, su propia lista ya
-  estaba armada (la app hasta precargó la siguiente), pero cuando avanzaste sonó otra canción distinta y
-  la cola había quedado en solo 6 canciones — la lista de Montaner había sido reemplazada.
+- Pedías "Redimi2 Flipando" y sonaba "Blindao". La función solo reconocía una canción concreta si la
+  frase también nombraba un género o un momento ("reggaeton", "para dormir"); "Redimi2 Flipando" no
+  nombra ninguno, así que nunca se daba cuenta de que pedías ESA canción.
+- Peor: para no repetirte listas, la función aparta durante 45 minutos lo que ya te sirvió. Como no
+  sabía que la pedías por nombre, cada vez que la volvías a pedir la apartaba — por eso "nunca me pone
+  lo que exactamente pido", por más veces que lo intentaras.
+- Ahora, si la frase nombra una canción (el título tiene que coincidir, no solo el artista), esa
+  canción va fija en el primer puesto, siempre, aunque la hayas pedido hace un minuto.
+- Detrás va su propia radio de YouTube ("más como esto"), no una lista cualquiera del artista.
+- Los remixes, versiones en vivo y otras subidas de esa misma canción ya no la siguen. Si querés el
+  remix, pedilo: "Flipando remix" pone el remix.
+- Pedir solo un artista ("canciones de Redimi2") sigue funcionando como antes: no fija ninguna canción
+  al azar.
 
-## La causa que encontré
+## Cola infinita: si el artista es cristiano, se mantiene la fe Y el estilo
 
-- Cuando tocás una canción suelta, por un instante el reproductor tiene SOLO esa canción, sin nada
-  detrás. La app interpretaba eso como "se acabó la cola" y salía a buscar radio en ese mismo momento.
-- Pero la canción desde la que sembraba esa radio (el "ancla") recién se actualizaba cuando terminaba de
-  cargar la lista de la canción nueva. Mientras tanto seguía siendo la canción ANTERIOR: la radio de Leo
-  el Poeta se metía en la cola de Montaner, la de Montaner en la de Geovanni Rios, y así.
-- Por eso "funcionaba la segunda vez": al tocar la misma canción otra vez, el ancla vieja ya era esa
-  misma canción. Y por eso a veces salía bien: dependía de cuál de las dos cargas llegaba primero.
-- Los arreglos de las betas 2 a 8 cuidaban que una cola VIEJA no pisara a la nueva; esta carrera ocurría
-  DENTRO de la cola nueva, con datos viejos, y ninguno de esos arreglos la veía.
+- Antes "cristiano" era un solo carril: un merengue cristiano y una alabanza quedaban juntos, y la
+  cola podía saltar de Geovanni Rios a Marcos Witt.
+- Ahora el estilo va aparte. Si la canción desde la que sigue la cola es cristiana y se sabe su estilo
+  (tropical, urbano, rock, regional…), la cola exige las dos cosas: cristiana y de ese estilo.
+- Un artista que solo figura como "cristiano", sin más etiqueta, cuenta como alabanza: sale de una cola
+  de merengue cristiano, pero sigue entrando en una de alabanza.
+- Si el artista no es cristiano, todo sigue igual que antes: se mantiene el estilo que estás
+  escuchando.
+- "El culto", "coritos", "avivamiento" y "gloria a Dios" ahora también cuentan como señal de canción
+  cristiana.
+- El límite de los datos: el estilo sale de iTunes y del título. Si iTunes etiqueta a un artista de
+  merengue cristiano solo como "cristiano" y su título no dice el estilo, la app no puede saber que es
+  merengue.
 
-## Qué cambié
+## Fundido cruzado: revisado, sin cambios
 
-- El ancla ahora se fija en el mismo momento en que tocás la canción, no cuando termina de cargar.
-- Mientras la lista propia de la canción está cargando, no se siembra ninguna radio: esa lista YA es la
-  radio de YouTube para esa canción. Solo si llega vacía se siembra una, ya con el ancla correcta.
-- Esa lista pasa por el mismo filtro de género que antes tenía la siembra, así que no se pierde la
-  protección de "no mezclar estilos".
-- Si tocás "siguiente" o la canción termina mientras la lista todavía carga, la app avanza en cuanto
-  llega, en vez de quedarse parada.
-
-## Lo que este arreglo NO cambia
-
-- Si YouTube clasifica a un artista como cristiano (por ejemplo, merengue cristiano), su radio va a
-  traer música cristiana: el filtro de género distingue "cristiano" de "tropical", pero no "merengue
-  cristiano" de "alabanza". Si con esta beta Geovanni Rios sigue trayendo a Marcos Witt, contame y lo
-  vemos aparte: ya no sería la cola de otra canción, sino la radio de esa misma canción.
+- Revisé los 16 fundidos de tu último log: los 16 salieron bien, sin cortes ni silencios.
+- El motor ya ancla el fundido a la última música real (no al silencio del final), precarga la
+  siguiente canción y no se congela si la que entra tarda en cargar. No encontré nada roto, así que no
+  toqué la curva que afinamos de oído.
 
 ## Necesito que confirmes en tu dispositivo
 
-- Repetí la misma prueba: varios artistas seguidos desde el buscador, esperando unos segundos entre
-  cada uno, y fijate si "a continuación" corresponde SIEMPRE a la canción que acabás de tocar.
-- Compartime el log después: ahora debería aparecer una línea `CTX_GENRE enrich-before-score
-  (playQueue)` por cada canción que toques.
+- Pedí "Redimi2 Flipando" (y repetilo): tiene que sonar Flipando primero, sin su remix detrás.
+- Poné un merengue cristiano y dejá correr la cola: no debería saltar a alabanza.
+- Compartime el log: por cada pedido aparece `MUSIC_REQUEST specific=true` cuando reconoció la
+  canción, y en la cola `CTX_SINK ... christian + style=tropical` cuando aplica la regla nueva.
