@@ -231,24 +231,22 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1033
-        // BETA 2.0.61-beta8 — SOLO EL DUEÑO (sobre la 2.0.61-beta7).
-        // Dueño (2026-09-27, log f997b4a0, prueba aislada tras la beta7: app cerrada del todo, sesión
-        // limpia, 4 artistas con 20s de espera cada uno): "falló en el segundo artista, en el tercero
-        // falló, y con el cuarto falló de nuevo" — peor que antes (solo el 4to fallaba). Causa raíz
-        // (ver docs/REGRESSION_REGISTRY.md fila 310): la beta7 solo arregló el enrich del PRIMER lote
-        // de radio (appendSeed). La paginación que extiende la cola más adelante
-        // (maybeLoadMoreQueuePages, se dispara varias veces por sesión) tenía SU PROPIA llamada de
-        // género con el mismo defecto — el artista que hay que mantener para seguir en el mismo
-        // carril compartía lote con las candidatas de la página nueva, y una racha de 3 fallos
-        // seguidos podía tumbar el lote antes de que le tocara su turno, dejando esa extensión de cola
-        // sin ningún filtro. Empeoraba con cada artista probado porque los fallos se acumulan durante
-        // toda la sesión de la app. Mismo arreglo que la beta7: ese artista ahora va en su propio
-        // turno, separado del lote de candidatas.
+        versionCode = 1034
+        // BETA 2.0.61-beta9 — SOLO EL DUEÑO (sobre la 2.0.61-beta8).
+        // Dueño (2026-09-27, log share_all_diagnostics_13): Leo el Poeta → busca Ricardo Montaner y
+        // la cola sigue con la de Leo; Geovanni Rios → le sale Marcos Witt; Orquesta Alianza sí funcionó.
+        // Causa raíz (ver docs/REGRESSION_REGISTRY.md fila 311), la que explica el "funciona solo la
+        // SEGUNDA vez" de las filas #302-#310: al tocar una canción suelta, el reproductor queda un
+        // instante con ESA canción sola, y eso disparaba de inmediato la siembra de radio — mientras
+        // el ancla (radioAnchorId) seguía siendo la canción ANTERIOR, porque solo se actualizaba
+        // cuando terminaba de cargar la lista nueva. La radio de la canción anterior pisaba la de la
+        // canción tocada. Ahora el ancla se fija al tocar, y no se siembra nada mientras la lista
+        // propia de la canción esté cargando; esa lista (la radio de YouTube para ESA canción) pasa por
+        // el mismo filtro de género que antes tenía la siembra.
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.61-beta8"
+        versionName = "2.0.61-beta9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

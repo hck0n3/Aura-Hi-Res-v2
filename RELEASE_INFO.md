@@ -1,33 +1,48 @@
-# Aura Hi-Res v2.0.61-beta8 — La paginación de la radio ya no se queda sin género por culpa de otras
+# Aura Hi-Res v2.0.61-beta9 — La canción que tocás ya no hereda la cola de la anterior
 
-Beta encima de la 2.0.61-beta7. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.61-beta8. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Lo que confirmé con tu prueba aislada
+## Lo que confirmé con tu prueba
 
-- Probaste 4 artistas seguidos, esperando 20 segundos entre cada uno, con la app recién cerrada del
-  todo: el 2do, el 3ro y el 4to fallaron — peor que la prueba anterior, donde solo fallaba el 4to.
-- Confirmé en el log que la beta7 sí arregló lo que se propuso arreglar (el PRIMER lote de radio de una
-  canción suelta), pero dejó un segundo punto con el MISMO problema sin tocar.
+- Leo el Poeta → Ricardo Montaner: al pasar a la siguiente, siguió la cola de Leo el Poeta.
+- Geovanni Rios ("El culto está bueno") → la siguiente fue de Marcos Witt.
+- Orquesta Alianza: ahí sí siguió bien.
+- En el log se ve la huella: dos segundos después de tocar la canción de Montaner, su propia lista ya
+  estaba armada (la app hasta precargó la siguiente), pero cuando avanzaste sonó otra canción distinta y
+  la cola había quedado en solo 6 canciones — la lista de Montaner había sido reemplazada.
 
 ## La causa que encontré
 
-- La cola infinita no se arma toda de una vez: se va extendiendo por partes cada vez que quedan pocas
-  canciones por delante. Esa extensión tiene su propio paso de "averiguar el género para seguir en el
-  mismo estilo" — separado del que ya arreglé en la beta7.
-- Ese paso compartía lote con las canciones nuevas que trae YouTube para seguir la cola, con el mismo
-  riesgo: una racha de fallos entre esas nuevas podía tumbar el lote antes de que le tocara el turno al
-  artista que había que mantener — dejando esa extensión de la cola sin ningún filtro de estilo.
-- Esto explica por qué empeoraba con cada artista probado: los fallos se van acumulando durante toda la
-  sesión de la app, así que mientras más pruebas seguidas hacés, más fácil que la racha se dispare de
-  nuevo antes de tiempo.
+- Cuando tocás una canción suelta, por un instante el reproductor tiene SOLO esa canción, sin nada
+  detrás. La app interpretaba eso como "se acabó la cola" y salía a buscar radio en ese mismo momento.
+- Pero la canción desde la que sembraba esa radio (el "ancla") recién se actualizaba cuando terminaba de
+  cargar la lista de la canción nueva. Mientras tanto seguía siendo la canción ANTERIOR: la radio de Leo
+  el Poeta se metía en la cola de Montaner, la de Montaner en la de Geovanni Rios, y así.
+- Por eso "funcionaba la segunda vez": al tocar la misma canción otra vez, el ancla vieja ya era esa
+  misma canción. Y por eso a veces salía bien: dependía de cuál de las dos cargas llegaba primero.
+- Los arreglos de las betas 2 a 8 cuidaban que una cola VIEJA no pisara a la nueva; esta carrera ocurría
+  DENTRO de la cola nueva, con datos viejos, y ninguno de esos arreglos la veía.
 
 ## Qué cambié
 
-El artista que hay que mantener durante esa extensión de cola ahora va en su propio turno, separado de
-las canciones nuevas — mismo arreglo que la beta7, aplicado al segundo punto que se me había quedado
-sin tocar.
+- El ancla ahora se fija en el mismo momento en que tocás la canción, no cuando termina de cargar.
+- Mientras la lista propia de la canción está cargando, no se siembra ninguna radio: esa lista YA es la
+  radio de YouTube para esa canción. Solo si llega vacía se siembra una, ya con el ancla correcta.
+- Esa lista pasa por el mismo filtro de género que antes tenía la siembra, así que no se pierde la
+  protección de "no mezclar estilos".
+- Si tocás "siguiente" o la canción termina mientras la lista todavía carga, la app avanza en cuanto
+  llega, en vez de quedarse parada.
+
+## Lo que este arreglo NO cambia
+
+- Si YouTube clasifica a un artista como cristiano (por ejemplo, merengue cristiano), su radio va a
+  traer música cristiana: el filtro de género distingue "cristiano" de "tropical", pero no "merengue
+  cristiano" de "alabanza". Si con esta beta Geovanni Rios sigue trayendo a Marcos Witt, contame y lo
+  vemos aparte: ya no sería la cola de otra canción, sino la radio de esa misma canción.
 
 ## Necesito que confirmes en tu dispositivo
 
-Repetí exactamente la misma prueba: 4 (o más) artistas seguidos, esperando a que cada uno continúe solo
-antes de pasar al siguiente, y fijate si todos se adaptan ahora o si alguno sigue fallando.
+- Repetí la misma prueba: varios artistas seguidos desde el buscador, esperando unos segundos entre
+  cada uno, y fijate si "a continuación" corresponde SIEMPRE a la canción que acabás de tocar.
+- Compartime el log después: ahora debería aparecer una línea `CTX_GENRE enrich-before-score
+  (playQueue)` por cada canción que toques.
