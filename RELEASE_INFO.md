@@ -1,25 +1,33 @@
-# Aura Hi-Res v2.0.61-beta6 — La cola vieja ya no puede reaparecer sola
+# Aura Hi-Res v2.0.61-beta7 — La canción ancla ya no se queda sin género por culpa de otras
 
-Beta encima de la 2.0.61-beta5. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.61-beta6. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Lo que vi con tus pruebas
+## Lo que confirmé con tus capturas
 
-- Viste, con tus propios ojos, la cola nueva armarse bien y, minutos después, verse reemplazada de golpe
-  por la cola de la canción anterior, sin tocar nada.
-- Es el mismo mecanismo detrás de "estoy escuchando urbano y de la nada sale salsa": confirmé en tu log
-  que la cola vieja tomó el control del reproductor y siguió sonando 25 minutos seguidos.
+- Buscaste "Chichi Peralta", tocaste "Nuestra Canción" de Elvis Crespo (merengue) — y "a continuación" y
+  "reproducción automática" salieron 100% cristiano/alabanza, justo después de varias pruebas seguidas con
+  música cristiana.
+- Confirmé en el log: la búsqueda de género de la canción que tocaste SÍ corrió, pero terminó sin
+  resultado — así que mi filtro no tuvo con qué comparar y dejó pasar lo que trajo YouTube sin revisar.
 
 ## La causa que encontré
 
-- La transición suave entre canciones (crossfade) prepara un segundo reproductor por adelantado y agenda
-  un cronómetro basado en cuánto le quedaba a la canción VIEJA para terminar.
-- Ese cronómetro nunca se cancelaba al arrancar una cola nueva — así que, cuando vencía por su cuenta,
-  la transición se disparaba sola y publicaba la cola vieja como si fuera la actual.
-- Ahora se cancela ese cronómetro (y se suelta el reproductor de repuesto) apenas arrancás una cola
-  nueva, siempre.
+- La búsqueda de género de una canción se cancela entera si varias búsquedas fallan seguidas (protección
+  normal para no gastar batería/red en una mala racha).
+- La búsqueda de la canción que tocaste compartía ese mismo lote con las "relacionadas" que trajo
+  YouTube — y esas eran de artistas cristianos de nicho, con buena chance de no tener ficha completa.
+  Bastaron algunos fallos entre ellas para cancelar el lote antes de que le tocara el turno a tu canción.
+- Esto también confirma que el contenido cristiano mezclado no es al azar: YouTube te devuelve
+  recomendaciones contaminadas por tu historial reciente de reproducción, y el filtro de Aura —pensado
+  justo para corregir eso— se quedó ciego por esta carrera.
+
+## Qué cambié
+
+La búsqueda de género de la canción que tocás ahora va en su propio turno, separada de las
+"relacionadas" — así una racha de fallos entre esas nunca la deja sin resolver.
 
 ## Necesito que confirmes en tu dispositivo
 
-Repetí las pruebas de siempre: buscar una canción y reproducirla mientras suena otra cosa, cambiar de
-estilo varias veces seguidas, y fijarte si "a continuación" se mantiene estable esta vez (sin que
-reaparezca la cola anterior por su cuenta).
+Repetí la prueba: buscá y reproducí una canción de un estilo, justo después de haber escuchado otro
+estilo bien distinto (como cristiano → secular), y fijate si "a continuación" ahora sí coincide con lo
+que tocaste.

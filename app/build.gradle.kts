@@ -231,23 +231,22 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1031
-        // BETA 2.0.61-beta6 — SOLO EL DUEÑO (sobre la 2.0.61-beta5).
-        // Dueño (2026-09-27, visto "con sus propios ojos"): "a continuación" se armaba bien para la
-        // canción recién buscada y, minutos después, se veía reemplazada de golpe por la cola de la
-        // canción ANTERIOR — sin tocar nada. Mismo mecanismo detrás de "estoy escuchando urbano y de
-        // la nada sale salsa" (confirmado con log: la cola vieja tomó el control y siguió sonando 25
-        // minutos seguidos). Causa raíz (ver docs/REGRESSION_REGISTRY.md fila 308): el crossfade
-        // precarga un segundo reproductor + agenda un temporizador según cuánto le quedaba a la
-        // canción VIEJA — mecanismo TOTALMENTE APARTE de queueGeneration (que solo cubre el seed de
-        // radio). playQueue() nunca cancelaba ese temporizador viejo al reemplazar la cola, así que
-        // cuando vencía por su cuenta, el swap se disparaba solo y publicaba la cola vieja como la
-        // actual. Ahora playQueue() cancela los jobs de crossfade pendientes y suelta cualquier
-        // reproductor precargado ANTES de tocar la cola nueva, cada vez.
+        versionCode = 1032
+        // BETA 2.0.61-beta7 — SOLO EL DUEÑO (sobre la 2.0.61-beta6).
+        // Dueño (2026-09-27, con capturas + log): buscó "Chichi Peralta", tocó "Nuestra Canción" de
+        // Elvis Crespo (merengue) — "a continuación" y "reproducción automática" salieron 100%
+        // cristiano/alabanza, justo después de varias pruebas seguidas con música cristiana. Causa
+        // raíz (ver docs/REGRESSION_REGISTRY.md fila 309): la búsqueda de género de una canción se
+        // cancela entera si varias búsquedas fallan SEGUIDAS (protección de batería/red normal) — y la
+        // búsqueda del género de la canción ancla compartía ese mismo lote con las 11 "relacionadas"
+        // que trajo YouTube, todas de artistas cristianos de nicho con buena chance de no tener ficha.
+        // Bastaron unos pocos fallos entre ellas para tumbar el lote antes de que le tocara el turno al
+        // ancla — dejándola sin género y por lo tanto sin ningún filtro aplicado. La búsqueda del
+        // ancla ahora va en su propio turno, separada, para que esto no le pase de nuevo.
         // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
         // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
         // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.61-beta6"
+        versionName = "2.0.61-beta7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
