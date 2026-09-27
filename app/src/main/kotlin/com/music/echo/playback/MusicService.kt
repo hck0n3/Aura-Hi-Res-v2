@@ -3642,6 +3642,45 @@ class MusicService :
             return
         }
 
+        // Ronda 10 (dueño: vio "a continuación" armarse bien para la canción nueva y, minutos
+        // después, verla reemplazada de golpe por la cola de la canción ANTERIOR — con sus propios
+        // ojos, sin tocar nada). Causa: el crossfade precarga un segundo ExoPlayer + agenda un job
+        // temporizado según cuánto le queda a la canción VIEJA, en `scheduleCrossfade()` — un
+        // mecanismo enteramente aparte de [queueGeneration] (que solo cubre el seed de radio /
+        // appendSeed). Una cola nueva reemplaza `player` con `setMediaItems(...)` más abajo, pero
+        // nunca cancelaba ese job viejo ni soltaba ese segundo reproductor — así que, cuando su
+        // propio temporizador vencía (el punto en el que la canción VIEJA habría terminado), el
+        // swap se disparaba solo y publicaba esa cola vieja como la actual, sin que nada de lo de
+        // arriba lo hubiera evitado. Cancelar aquí, ANTES de tocar nada de la cola nueva, para que
+        // ningún crossfade heredado de la sesión anterior pueda sobrevivir a un playQueue() fresco.
+        crossfadeTriggerJob?.cancel()
+        crossfadeTriggerJob = null
+        crossfadePreloadJob?.cancel()
+        crossfadePreloadJob = null
+        crossfadeReadyJob?.cancel()
+        crossfadeReadyJob = null
+        crossfadeTailArmJob?.cancel()
+        crossfadeTailArmJob = null
+        tailQuietRecheckJob?.cancel()
+        tailQuietRecheckJob = null
+        // Same guard scheduleCrossfade() itself uses before touching secondaryPlayer: while isCrossfading
+        // is true the swap is already underway (performCrossfadeSwap → cleanupCrossfade owns it from
+        // here), so only the not-yet-fired jobs above are ours to cancel — never reach into a live swap.
+        if (!isCrossfading) {
+            if (secondaryPlayer != null) {
+                Timber.tag(TAG).i("CROSSFADE_TRACE playQueue cancelled a stale pending crossfade from the outgoing queue")
+            }
+            secondaryPlayer?.let {
+                playerSilenceProcessors.remove(it)
+                playerNormProcessors.remove(it)
+                playerLimiterProcessors.remove(it)
+                playerEqProcessors.remove(it)?.let { eq -> equalizerService.removeAudioProcessor(eq) }
+                runCatching { it.stop() }
+                runCatching { it.release() }
+            }
+            secondaryPlayer = null
+        }
+
         // LAST instant the outgoing queue is still reachable — the next line drops it. A playlist -> album
         // jump snapshots it here so the user can be offered a way back; every other transition (including
         // the boot restore, whose outgoing queue is EmptyQueue with a null context) is a no-op.
