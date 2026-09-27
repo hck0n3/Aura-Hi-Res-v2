@@ -1,25 +1,25 @@
-# Aura Hi-Res v2.0.61-beta5 — Cola del buscador + filtro de género en canción suelta
+# Aura Hi-Res v2.0.61-beta6 — La cola vieja ya no puede reaparecer sola
 
-Beta encima de la 2.0.61-beta4. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.61-beta5. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Lo que encontré en tu log
+## Lo que vi con tus pruebas
 
-- **Buscador**: si la canción que tocabas sufría un tropiezo momentáneo de reproducción justo mientras
-  se armaba su cola de continuación en segundo plano, la cola nueva se descartaba en silencio y el
-  reproductor se quedaba pegado a la cola vieja de siempre. Tocar resultados del buscador uno tras otro
-  era exactamente el patrón que más lo disparaba. Ya no se descarta: la cola se instala igual.
-- **"Relacionado" en canción suelta**: mi propio filtro de género de la ronda pasada usaba un umbral
-  pensado para álbumes/playlists grandes, y con lotes chicos de radio (5-9 candidatos, como en tu log)
-  casi nunca llegaba a activarse de verdad — bajado al mismo umbral que ya usa la cola infinita normal.
+- Viste, con tus propios ojos, la cola nueva armarse bien y, minutos después, verse reemplazada de golpe
+  por la cola de la canción anterior, sin tocar nada.
+- Es el mismo mecanismo detrás de "estoy escuchando urbano y de la nada sale salsa": confirmé en tu log
+  que la cola vieja tomó el control del reproductor y siguió sonando 25 minutos seguidos.
 
-## Sobre el botón "actualizar"
+## La causa que encontré
 
-No pude confirmar por lectura de código cuál de los 4 lugares que abren el reproductor a pantalla
-completa por sí solo es el responsable — ninguno encaja con que no tocaste video. Agregué un registro
-puntual (sin datos tuyos) en los 4, así que si volvés a compartir el `app.log` después de que te pase de
-nuevo, ya tengo la prueba en vez de seguir preguntando.
+- La transición suave entre canciones (crossfade) prepara un segundo reproductor por adelantado y agenda
+  un cronómetro basado en cuánto le quedaba a la canción VIEJA para terminar.
+- Ese cronómetro nunca se cancelaba al arrancar una cola nueva — así que, cuando vencía por su cuenta,
+  la transición se disparaba sola y publicaba la cola vieja como si fuera la actual.
+- Ahora se cancela ese cronómetro (y se suelta el reproductor de repuesto) apenas arrancás una cola
+  nueva, siempre.
 
 ## Necesito que confirmes en tu dispositivo
 
-Probá lo mismo de siempre: tocar canciones distintas desde el buscador una tras otra, cambiar de estilo
-varias veces seguidas, y si te vuelve a pasar lo del botón "actualizar", compartime el log de esa sesión.
+Repetí las pruebas de siempre: buscar una canción y reproducirla mientras suena otra cosa, cambiar de
+estilo varias veces seguidas, y fijarte si "a continuación" se mantiene estable esta vez (sin que
+reaparezca la cola anterior por su cuenta).
