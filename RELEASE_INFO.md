@@ -1,4 +1,4 @@
-# Aura Hi-Res v2.0.62-beta2 — Las listas de Spotify ya no vuelven a su contenido viejo
+# Aura Hi-Res v2.0.62 — Cola infinita que no se desvía, Pedir música que pone lo que pedís y listas de Spotify al día
 
 Actualización para todos, encima de la 2.0.59. Conserva tus datos, tu sesión y tus ajustes: mismo
 paquete y misma firma. Recoge catorce rondas de pruebas y reportes, casi todas sobre la cola infinita.

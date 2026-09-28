@@ -231,16 +231,12 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1038
-        // BETA 2.0.62-beta2 — SOLO EL DUEÑO. La estable 2.0.62 quedó FRENADA por orden del dueño
-        // (2026-09-28): "las playlists que sincroniza de Spotify ... luego las reemplaza con el contenido
-        // anterior ... ¿podrías solucionar esto antes de lanzar la estable?" (fila 317). El arreglo escribe
-        // en la cuenta de YouTube de cada usuario (añade y QUITA canciones de sus listas), así que se
-        // prueba primero en el dispositivo del dueño. La estable saldrá con versionCode > 1038.
-        // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
-        // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
-        // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.62-beta2"
+        versionCode = 1039
+        // ESTABLE 2.0.62 — PARA TODOS. Orden explícita del dueño (2026-09-28): "listo, ya lanza la
+        // estable para todos", tras probar en su dispositivo la 2.0.62-beta2 (que añade el arreglo de
+        // las listas de Spotify, fila 317, a la 2.0.62-beta1 ya probada). Mismo código que la beta2.
+        // Recoge las filas 293-317 del registro; RELEASE_INFO.md las cuenta todas.
+        versionName = "2.0.62"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
