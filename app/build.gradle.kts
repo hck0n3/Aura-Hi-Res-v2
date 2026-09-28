@@ -231,11 +231,11 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1037
-        // ESTABLE 2.0.62 — PARA TODOS. Orden explícita del dueño (2026-09-28): "ya lanza la versión
-        // para todos para que ya aparezca esta actualización para todos los usuarios", tras probar la
-        // 2.0.62-beta1 en su dispositivo ("todo quedó muy bien"). Recoge las filas 293-315 del
-        // registro (2.0.60-beta1 → 2.0.62-beta1); RELEASE_INFO.md las cuenta todas.
+        versionCode = 1039
+        // ESTABLE 2.0.62 — PARA TODOS. Orden explícita del dueño (2026-09-28): "listo, ya lanza la
+        // estable para todos", tras probar en su dispositivo la 2.0.62-beta2 (que añade el arreglo de
+        // las listas de Spotify, fila 317, a la 2.0.62-beta1 ya probada). Mismo código que la beta2.
+        // Recoge las filas 293-317 del registro; RELEASE_INFO.md las cuenta todas.
         versionName = "2.0.62"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

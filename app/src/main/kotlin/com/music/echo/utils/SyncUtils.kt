@@ -705,7 +705,11 @@ class SyncUtils @Inject constructor(
                     Timber.d("syncSavedPlaylists: Updated existing playlist ${playlist.title} (${playlist.id})")
                 }
 
-                executeSyncPlaylist(playlist.id, playlistEntity.id)
+                // Fila #317: a Spotify mirror linked to this YouTube playlist takes its songs from
+                // Spotify — pulling the YouTube copy down here is what overwrote a fresh Spotify sync.
+                if (!isSpotifyMirror(playlistEntity.id)) {
+                    executeSyncPlaylist(playlist.id, playlistEntity.id)
+                }
             } catch (e: Exception) {
                 // Never swallow coroutine cancellation: doing so let the sync loop keep
                 // running after its job was cancelled, blasting through every song and
@@ -926,6 +930,11 @@ class SyncUtils @Inject constructor(
      */
     suspend fun syncPlaylistNow(browseId: String, playlistId: String): Boolean {
         if (!isLoggedIn()) return false
+        // Fila #317: for a Spotify mirror "sync now" means pushing its Spotify content UP to the linked
+        // YouTube playlist (LibraryUploadSync.reconcileSpotifyMirrors), never pulling the old copy down.
+        if (isSpotifyMirror(playlistId)) {
+            return runCatching { libraryUploadSync.runUploadPass() }.isSuccess
+        }
         // executeSyncPlaylist returns the nested Result from withRetry { YouTube.playlist(..).completed() }:
         // outer getOrNull() is null only if it threw, inner getOrNull() is null if the fetch failed after
         // retries, and isSuccess reflects the completed() page fetch itself.
@@ -1751,7 +1760,7 @@ class SyncUtils @Inject constructor(
 
         try {
             val autoSyncPlaylists = database.playlistsByNameAsc().first()
-                .filter { it.playlist.isAutoSync && it.playlist.browseId != null }
+                .filter { it.playlist.isAutoSync && it.playlist.browseId != null && !isSpotifyMirror(it.playlist.id) }
 
             Timber.d("syncAutoSyncPlaylists: Found ${autoSyncPlaylists.size} playlists to sync")
 
@@ -1775,6 +1784,14 @@ class SyncUtils @Inject constructor(
         }
     }
 
+    /**
+     * Fila #317 (dueño, 2026-09-28): "las playlists que sincroniza de Spotify las sincroniza, pero luego
+     * las reemplaza con el contenido anterior". A Spotify mirror (id `SPOTIFY_…`, see
+     * SpotifyImportRepository.mirrorPlaylist) that the library uploader linked to a YouTube playlist is
+     * refreshed from SPOTIFY; its YouTube copy is a downstream mirror, never the source.
+     */
+    private fun isSpotifyMirror(playlistId: String) = playlistId.startsWith("SPOTIFY_")
+
     private suspend fun executeSyncPlaylist(browseId: String, playlistId: String) = withContext(Dispatchers.IO) {
         // Auto / scheduled sync never calls executeClearAllSyncedContent — only explicit logout reset does.
         Timber.d("syncPlaylist: Starting sync for browseId=$browseId, playlistId=$playlistId")
@@ -1783,6 +1800,12 @@ class SyncUtils @Inject constructor(
             YouTube.playlist(browseId).completed()
         }.onSuccess { result ->
             result.onSuccess { page ->
+                // Fila #317 — last line of defence for every other caller (single-playlist op, manual
+                // "Sincronizar ahora"): never rebuild a Spotify mirror from its YouTube copy.
+                if (isSpotifyMirror(playlistId)) {
+                    Timber.d("syncPlaylist: Spotify mirror — Spotify is the source; YouTube copy not pulled down")
+                    return@onSuccess
+                }
                 try {
                     val songs = page.songs.map(SongItem::toMediaMetadata)
                     Timber.d("syncPlaylist: Fetched ${songs.size} songs from remote")

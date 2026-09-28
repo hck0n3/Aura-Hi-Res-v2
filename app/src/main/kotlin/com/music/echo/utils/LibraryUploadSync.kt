@@ -139,6 +139,9 @@ class LibraryUploadSync @Inject constructor(
          */
         const val MAX_REQUESTS_PER_RUN = 600
 
+        /** Fila #317 — last reconciled song-list fingerprint per Spotify mirror (see reconcileSpotifyMirrors). */
+        private const val SPOTIFY_MIRROR_PREFS = "spotify_mirror_ytm_reconcile"
+
         /** Gentle throttle between writes (rate limits + battery). */
         private const val REQUEST_DELAY_MS = 200L
 
@@ -316,6 +319,7 @@ class LibraryUploadSync @Inject constructor(
             if (uploadEnabled) {
                 uploadArtistSubscriptions(remoteArtistIds)
                 uploadPlaylists()
+                reconcileSpotifyMirrors()
                 uploadLikedSongs()
                 uploadLikedAlbums()
             }
@@ -700,6 +704,87 @@ class LibraryUploadSync @Inject constructor(
             }
         }
         _progress.value = _progress.value.copy(playlists = _progress.value.playlists.copy(running = false))
+    }
+
+    /**
+     * Fila #317 (dueño, 2026-09-28): "las playlists que sincroniza de Spotify las sincroniza, pero luego las
+     * reemplaza con el contenido anterior — creo que choca con la playlist ya sincronizada con YouTube".
+     *
+     * Exactly that. [uploadPlaylists] only handles playlists WITHOUT a browseId: once a Spotify mirror was
+     * linked, every later Spotify sync refreshed the local copy and never pushed it up, so the YouTube copy
+     * stayed old — and the YouTube down-sync then overwrote the fresh local copy with it. The down-sync now
+     * leaves Spotify mirrors alone (SyncUtils.isSpotifyMirror); this makes the linked YouTube playlist follow
+     * the mirror: adds what Spotify added, removes what Spotify removed.
+     *
+     * Bounded like the rest of the pass (same budget, same per-request delay) and CHEAP when nothing
+     * changed: a fingerprint of the mirror's song list is stored after a complete reconcile, so an
+     * unchanged mirror costs zero network — not even the remote read. Never empties the account's copy:
+     * an empty mirror is skipped, and removals are skipped when the mirror came back less than half the
+     * size of the remote (a Spotify pass that matched badly, same guard the down-sync uses). Song ORDER
+     * on YouTube is not rewritten (one extra request per song); the app plays the mirror's own order.
+     */
+    private suspend fun reconcileSpotifyMirrors() {
+        if (!budgetLeft()) return
+        val mirrors = runCatching { database.playlistsWithBrowseIdBlocking() }.getOrNull().orEmpty()
+            .filter { it.playlist.id.startsWith("SPOTIFY_") && it.playlist.browseId != null }
+        if (mirrors.isEmpty()) return
+        val prefs = context.getSharedPreferences(SPOTIFY_MIRROR_PREFS, Context.MODE_PRIVATE)
+        for (mirror in mirrors) {
+            if (!budgetLeft()) break
+            val playlistId = mirror.playlist.id
+            val browseId = mirror.playlist.browseId ?: continue
+            try {
+                val localIds = runCatching { database.playlistSongIdsInOrder(playlistId) }.getOrNull().orEmpty()
+                if (localIds.isEmpty()) continue
+                val fingerprint = "$browseId|${localIds.size}|${localIds.joinToString(",").hashCode()}"
+                if (prefs.getString(playlistId, null) == fingerprint) continue
+
+                val remote = runCatching { YouTube.playlist(browseId).completed() }
+                    .getOrNull()?.getOrNull()?.songs
+                    ?: run {
+                        Timber.w("LibraryUploadSync: could not read remote $browseId; Spotify mirror left for next pass")
+                        continue
+                    }
+                val localSet = localIds.toHashSet()
+                val remoteIds = remote.mapTo(HashSet()) { it.id }
+                val missing = localIds.filterNot { it in remoteIds }.distinct()
+                val shrunkTooMuch = localIds.size < remote.size / 2
+                val extras = if (shrunkTooMuch) {
+                    emptyList()
+                } else {
+                    remote.filter { it.id !in localSet && it.setVideoId != null }
+                }
+                if (requestBudget + missing.size + extras.size > MAX_REQUESTS_PER_RUN) {
+                    Timber.d("LibraryUploadSync: not enough budget to reconcile a Spotify mirror; next pass")
+                    break
+                }
+                var complete = !shrunkTooMuch
+                for (songId in missing) {
+                    if (!spend()) { complete = false; break }
+                    YouTube.addToPlaylist(browseId, songId).onFailure {
+                        complete = false
+                        Timber.w(it, "LibraryUploadSync: could not add a song to a Spotify mirror")
+                    }
+                }
+                for (song in extras) {
+                    if (!spend()) { complete = false; break }
+                    YouTube.removeFromPlaylist(browseId, song.id, song.setVideoId!!).onFailure {
+                        complete = false
+                        Timber.w(it, "LibraryUploadSync: could not remove a song from a Spotify mirror")
+                    }
+                }
+                // Counts only (AGENTS.md rule 4): no playlist name, no song ids.
+                Timber.i(
+                    "SPOTIFY_MIRROR reconcile added=%d removed=%d removalsSkippedShrink=%b complete=%b",
+                    missing.size, extras.size, shrunkTooMuch, complete,
+                )
+                if (complete) prefs.edit().putString(playlistId, fingerprint).apply()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "LibraryUploadSync: could not reconcile a Spotify mirror")
+            }
+        }
     }
 
     /** Name key used to match a local playlist against one that already exists on the account. */
