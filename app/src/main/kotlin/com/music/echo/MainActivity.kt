@@ -1207,6 +1207,12 @@ class MainActivity : ComponentActivity() {
                 val videoModeOn = playerConnection?.videoMode?.collectAsState()?.value == true
                 LaunchedEffect(videoModeOn) {
                     if (videoModeOn) {
+                        // R10 #8 (dueño: "toco actualizar y de repente se abre el reproductor en
+                        // pantalla completa", sin haber tocado video): ninguno de los 4 sitios que
+                        // expanden solos pudo confirmarse por lectura de código con ese dato. Log
+                        // puntual (sin datos de usuario) en cada uno para que el próximo log lo
+                        // pruebe en vez de seguir adivinando.
+                        Timber.tag("MainActivity").i("PLAYER_EXPAND videoModeOn route=%s", currentRoute)
                         playerBottomSheetState.expandSoft()
                     }
                 }
@@ -1214,7 +1220,10 @@ class MainActivity : ComponentActivity() {
                 // Re-expand after returning from PiP: the videoModeOn key hasn't changed so its
                 // LaunchedEffect won't re-fire — use the separate pip-exit trigger instead.
                 LaunchedEffect(pipExitExpandTrigger) {
-                    if (pipExitExpandTrigger > 0) playerBottomSheetState.expandSoft()
+                    if (pipExitExpandTrigger > 0) {
+                        Timber.tag("MainActivity").i("PLAYER_EXPAND pipExit route=%s", currentRoute)
+                        playerBottomSheetState.expandSoft()
+                    }
                 }
 
                 var shouldShowTopBar by rememberSaveable { mutableStateOf(false) }
@@ -2233,7 +2242,10 @@ class MainActivity : ComponentActivity() {
                                 !playerBottomSheetState.isExpanded
                             ) {
                                 NowPlayingSidePanel(
-                                    onExpand = { playerBottomSheetState.expandSoft() },
+                                    onExpand = {
+                                        Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelLeft route=%s", currentRoute)
+                                        playerBottomSheetState.expandSoft()
+                                    },
                                     modifier = Modifier
                                         .fillMaxHeight()
                                         .widthIn(min = 300.dp, max = 360.dp)
@@ -2402,7 +2414,10 @@ class MainActivity : ComponentActivity() {
                                 !playerBottomSheetState.isExpanded
                             ) {
                                 NowPlayingSidePanel(
-                                    onExpand = { playerBottomSheetState.expandSoft() },
+                                    onExpand = {
+                                        Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelRight route=%s", currentRoute)
+                                        playerBottomSheetState.expandSoft()
+                                    },
                                     modifier = Modifier
                                         .fillMaxHeight()
                                         .widthIn(min = 300.dp, max = 360.dp)

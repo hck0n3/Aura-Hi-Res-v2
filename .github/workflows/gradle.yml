@@ -6,9 +6,28 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      beta_tag:
+        # Private-beta release from a manual run, for when the tag cannot be pushed with git (the
+        # agent's environment only allows pushing its own branch). The release step creates the tag
+        # on the commit being built. ONLY a tag containing "-beta" or "-test" is honoured, and it is
+        # always published as a PRERELEASE — a stable release for every user can never come from here.
+        description: 'Tag de beta privada a crear (ej. v2.0.61-beta9). Vacío = solo compilar.'
+        required: false
+        default: ''
+      stable_tag:
+        # STABLE release from a manual run — reaches EVERY user through the in-app updater, so it is
+        # fenced three ways: only on `main`, never a -beta/-test tag, and the job FAILS before building
+        # unless the tag is exactly "v" + versionName of the code being built. Only with the owner's
+        # explicit order at that moment (AGENTS.md).
+        description: 'Tag ESTABLE para todos (ej. v2.0.62). Solo en main y solo si coincide con versionName.'
+        required: false
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DISPATCH_BETA_TAG: ${{ github.event_name == 'workflow_dispatch' && startsWith(inputs.beta_tag, 'v') && (contains(inputs.beta_tag, '-beta') || contains(inputs.beta_tag, '-test')) && inputs.beta_tag || '' }}
+  DISPATCH_STABLE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && startsWith(inputs.stable_tag, 'v') && !contains(inputs.stable_tag, '-') && inputs.stable_tag || '' }}
 
 jobs:
   build:
@@ -19,6 +38,16 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
+
+      - name: Verify stable tag matches versionName
+        if: env.DISPATCH_STABLE_TAG != ''
+        run: |
+          VERSION_NAME=$(grep -m1 -E '^\s*versionName\s*=' app/build.gradle.kts | awk -F '"' '{print $2}')
+          if [ "$DISPATCH_STABLE_TAG" != "v$VERSION_NAME" ]; then
+            echo "::error::stable_tag=$DISPATCH_STABLE_TAG does not match versionName=$VERSION_NAME"
+            exit 1
+          fi
+          echo "Stable release v$VERSION_NAME confirmed."
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -143,7 +172,7 @@ jobs:
           tail -n +3 RELEASE_INFO.md > release-body.md
 
       - name: Generate changelog.json
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || env.DISPATCH_BETA_TAG != '' || env.DISPATCH_STABLE_TAG != ''
         run: |
           mkdir -p app/build/outputs/apk/release-artifacts
           python3 - <<'PY'
@@ -165,17 +194,20 @@ jobs:
           PY
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || env.DISPATCH_BETA_TAG != '' || env.DISPATCH_STABLE_TAG != ''
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ env.RELEASE_TITLE }}
           body_path: release-body.md
+          # Tag push: the pushed tag. Manual beta run: the validated beta_tag, created on this commit.
+          tag_name: ${{ env.DISPATCH_BETA_TAG || env.DISPATCH_STABLE_TAG || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           # PRIVATE BETA mechanism (owner order: test builds go only to him, never to everyone).
           # A tag containing "-beta" or "-test" is published as a PRERELEASE: GitHub excludes
           # prereleases from the `releases/latest` endpoint, which is exactly what the in-app
           # updater queries — so no user's app ever offers the beta. The owner installs it from
           # the release page directly. A normal `vX.Y.Z` tag behaves exactly as before.
-          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-test') }}
+          prerelease: ${{ env.DISPATCH_BETA_TAG != '' || contains(github.ref, '-beta') || contains(github.ref, '-test') }}
           files: |
             app/build/outputs/apk/release-artifacts/*.apk
             app/build/outputs/apk/release-artifacts/changelog.json
@@ -187,7 +219,7 @@ jobs:
       # plugin). Uploaded ONLY as a private build artifact (repo owner) — NEVER attached to the public
       # release, so it can't be used to bypass the paid subscription, and the updater never sees it.
       - name: Build No-Subscription Test APK
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || env.DISPATCH_BETA_TAG != '' || env.DISPATCH_STABLE_TAG != ''
         continue-on-error: true
         env:
           STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || 'aurav2emergency' }}
@@ -207,7 +239,7 @@ jobs:
           done
 
       - name: Upload No-Subscription Artifact (private, owner-only)
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || env.DISPATCH_BETA_TAG != '' || env.DISPATCH_STABLE_TAG != ''
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:

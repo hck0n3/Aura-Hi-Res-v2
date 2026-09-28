@@ -1275,6 +1275,9 @@ val AuraHiResV2Curve20260913AppliedKey = booleanPreferencesKey("aura_hires_v2_cu
 /** One-shot (owner directive 2026-09-13): crossfade 8 s + EQ preamp +2.2 dB for everyone on this update. */
 val AudioDefaults20260913AppliedKey = booleanPreferencesKey("audio_defaults_20260913_applied")
 
+/** One-shot (owner directive 2026-09-25): EQ preamp +2.5 dB, enabled, for everyone on this update. */
+val PreampDefault25DbAppliedKey = booleanPreferencesKey("preamp_default_25db_applied")
+
 /** Mastering: gentle 2:1 glue compressor before the limiter. Default OFF (user opt-in). */
 val GlueCompressorEnabledKey = booleanPreferencesKey("mastering_glue_compressor_enabled")
 

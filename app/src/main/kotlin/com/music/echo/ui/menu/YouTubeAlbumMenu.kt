@@ -302,7 +302,14 @@ fun YouTubeAlbumMenu(
                                 onDismiss()
                                 album?.songs?.let { songs ->
                                     if (songs.isNotEmpty()) {
-                                        playerConnection.playQueue(YouTubeAlbumRadio(albumItem.playlistId.ifBlank { album?.album?.playlistId.orEmpty() }))
+                                        // Ronda 10 (dueño: "la cola inteligente me combina generos que ni
+                                        // por cerca") — ver el mismo fix/comentario en Items.kt.
+                                        playerConnection.playQueue(
+                                            YouTubeAlbumRadio(
+                                                albumItem.playlistId.ifBlank { album?.album?.playlistId.orEmpty() },
+                                                contextId = iad1tya.echo.music.playback.ShuffleContexts.album(albumItem.id),
+                                            ),
+                                        )
                                     }
                                 }
                             }

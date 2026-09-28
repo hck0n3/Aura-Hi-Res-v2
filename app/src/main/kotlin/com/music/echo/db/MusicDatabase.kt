@@ -31,6 +31,7 @@ import iad1tya.echo.music.db.entities.PlayCountEntity
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.db.entities.PlaylistSongMapPreview
+import iad1tya.echo.music.db.entities.RadioContinuationPlayedEntity
 import iad1tya.echo.music.db.entities.RecognitionHistory
 import iad1tya.echo.music.db.entities.RelatedSongMap
 import iad1tya.echo.music.db.entities.ReleaseRadarItem
@@ -111,14 +112,15 @@ class MusicDatabase(
         ReleaseRadarItem::class,
         UpcomingReleaseEntity::class,
         EnhancedShufflePlayedEntity::class,
-        EnhancedShuffleContextEntity::class
+        EnhancedShuffleContextEntity::class,
+        RadioContinuationPlayedEntity::class
     ],
     views = [
         SortedSongArtistMap::class,
         SortedSongAlbumMap::class,
         PlaylistSongMapPreview::class,
     ],
-    version = 44,
+    version = 45,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 2, to = 3),
@@ -177,6 +179,10 @@ class MusicDatabase(
         // replacement 43.json would also need to reproduce Room's exact identityHash, which cannot be
         // verified without the real Room/KSP toolchain. Both are one-line ALTER TABLEs either way; see
         // MIGRATION_42_43 / MIGRATION_43_44 below.
+        // 44 -> 45: additive `radio_continuation_played` table (ronda 10, same shape and same reasoning
+        // as `enhanced_shuffle_played`/MIGRATION_38_39 — see RadioContinuationPlayedEntity's kdoc). Hand-
+        // written for the exact same reason as 42->43/43->44 above: no committed 44.json to diff against.
+        // MIGRATION_44_45 below.
     ],
 )
 @TypeConverters(Converters::class)
@@ -203,6 +209,7 @@ abstract class InternalDatabase : RoomDatabase() {
                         MIGRATION_39_40,
                         MIGRATION_42_43,
                         MIGRATION_43_44,
+                        MIGRATION_44_45,
                     )
 
                     .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
@@ -881,5 +888,26 @@ val MIGRATION_43_44 =
     object : Migration(43, 44) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE `song` ADD COLUMN `videoFormatIncompatible` INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+// 44 -> 45: persistent no-repeat memory for the RADIO CONTINUATION that follows a finished
+// album/playlist/EP/single (ronda 10, dueño: "si vuelvo a poner el mismo álbum ... la cola no tiene
+// que volver a repetir las mismas canciones que ya sonaron"). Purely additive: one brand-new table, no
+// changes to existing tables. The CREATE statement MUST match Room's expected schema for
+// RadioContinuationPlayedEntity EXACTLY (same shape as `enhanced_shuffle_played`, MIGRATION_38_39
+// above) or Room's startup schema validation fails.
+val MIGRATION_44_45 =
+    object : Migration(44, 45) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `radio_continuation_played` (" +
+                    "`contextId` TEXT NOT NULL, `songId` TEXT NOT NULL, `playedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`contextId`, `songId`))"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_radio_continuation_played_contextId` " +
+                    "ON `radio_continuation_played` (`contextId`)"
+            )
         }
     }

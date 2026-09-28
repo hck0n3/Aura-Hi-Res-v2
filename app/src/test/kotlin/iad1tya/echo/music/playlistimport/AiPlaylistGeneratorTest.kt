@@ -112,4 +112,48 @@ class AiPlaylistGeneratorTest {
         val candidates = listOf(song("1", "Estilo Amoroso", "Artista Random"))
         assertNull(AiPlaylistGenerator.bestSpecificMatch("amor", candidates))
     }
+
+    /**
+     * Ronda 11 (dueño): "pido Redimi2 Flipando y me reproduce Blindao de Redimi2 ... luego un remix".
+     */
+    @Test
+    fun `the named song wins over another song by the same artist and over its remix`() {
+        val candidates = listOf(
+            song("1", "Blindao", "Redimi2"),
+            song("2", "Flipando (Remix)", "Redimi2"),
+            song("3", "Flipando", "Redimi2"),
+        )
+        assertEquals("3", AiPlaylistGenerator.bestSpecificMatch("redimi2 flipando", candidates)?.id)
+    }
+
+    @Test
+    fun `an artist name alone never pins a song`() {
+        val candidates = listOf(song("1", "Bohemian Rhapsody", "Queen"), song("2", "Blindao", "Redimi2"))
+        assertNull(AiPlaylistGenerator.bestSpecificMatch("queen", candidates))
+        assertNull(AiPlaylistGenerator.bestSpecificMatch("redimi2", candidates))
+    }
+
+    @Test
+    fun `asking for the remix picks the remix`() {
+        val candidates = listOf(song("1", "Flipando", "Redimi2"), song("2", "Flipando (Remix)", "Redimi2"))
+        assertEquals("2", AiPlaylistGenerator.bestSpecificMatch("flipando remix redimi2", candidates)?.id)
+    }
+
+    @Test
+    fun `versions of a song share its base title`() {
+        val base = AiPlaylistGenerator.baseTitleKey("Flipando")
+        assertEquals(base, AiPlaylistGenerator.baseTitleKey("Flipando (Remix)"))
+        assertEquals(base, AiPlaylistGenerator.baseTitleKey("Flipando - En Vivo"))
+        assertEquals(base, AiPlaylistGenerator.baseTitleKey("FLIPANDO ft. Alex Zurdo [Official Video]"))
+        assertTrue(base != AiPlaylistGenerator.baseTitleKey("Blindao"))
+        // A title made only of version words is the song itself, never an empty key.
+        assertEquals("vivo", AiPlaylistGenerator.baseTitleKey("Vivo"))
+    }
+
+    @Test
+    fun `version titles are recognised`() {
+        assertTrue(AiPlaylistGenerator.isVersionTitle("Flipando (Remix)"))
+        assertTrue(AiPlaylistGenerator.isVersionTitle("Flipando - En Vivo"))
+        assertTrue(!AiPlaylistGenerator.isVersionTitle("Flipando"))
+    }
 }

@@ -110,7 +110,6 @@ import coil3.compose.AsyncImage
 import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
-import iad1tya.echo.music.constants.AutoLoadMoreKey
 import iad1tya.echo.music.constants.CropAlbumArtKey
 import iad1tya.echo.music.constants.ListItemHeight
 import iad1tya.echo.music.constants.PlayerBackgroundStyle
@@ -418,7 +417,7 @@ fun AuraQueue(
         val autoplayChips by playerConnection.autoplayChips.collectAsState()
         val autoplaySelectedChip by playerConnection.autoplaySelectedChip.collectAsState()
         val listQueueSize by playerConnection.listQueueSize.collectAsState()
-        val (autoLoadMore, onAutoLoadMoreChange) = rememberPreference(AutoLoadMoreKey, defaultValue = true)
+        // Ronda 10: el toggle que apagaba la reproducción infinita se quitó — autoplay queda siempre activo.
 
         val mutableQueueWindows = remember { mutableStateListOf<Timeline.Window>() }
         val queueLength = remember(queueWindows) {
@@ -487,9 +486,9 @@ fun AuraQueue(
         }
 
         // Does the queue continue by itself once the last song ends? Only then may the plan stay silent
-        // about the end of the list — see [buildAuraQueueEntries]. Same two facts the autoplay block at
-        // the bottom of this very list is built from, read once here.
-        val hasAutoplayContinuation = autoLoadMore && automix.isNotEmpty()
+        // about the end of the list — see [buildAuraQueueEntries]. Ronda 10: autoplay ya no tiene
+        // interruptor (siempre activo), así que esto queda solo en si hay automix publicado.
+        val hasAutoplayContinuation = automix.isNotEmpty()
 
         // The grouped row plan: computed once per (queue, boundary, current song, repeat mode, autoplay),
         // never per frame.
@@ -1043,44 +1042,29 @@ fun AuraQueue(
                                     }
                                 }
 
-                                // ── Autoplay footer: header + toggle + steering chips + preview rows ──
+                                // ── Autoplay footer: header + steering chips + preview rows ──
+                                // Ronda 10 (dueño): "quiero que la cola infinita ahora sea infinita de
+                                // verdad" — se quita el interruptor (AutoLoadMoreKey); autoplay queda
+                                // siempre activo (MusicService.autoLoadMoreHint, fijo en true).
                                 if (!isListenTogetherGuest || automix.isNotEmpty()) {
                                     item(key = "aura_autoplay_header", contentType = "aura_autoplay_header") {
                                         Column {
                                             Spacer(Modifier.height(AuraSpacing.SectionTop))
                                             AuraDivider()
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
+                                            Text(
+                                                text = stringResource(R.string.autoplay_title),
+                                                style = AuraType.RowTitle,
+                                                color = AuraPalette.OnGround,
+                                                maxLines = 1,
+                                                overflow = AuraDefaultOverflow,
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .padding(top = 6.dp),
-                                            ) {
-                                                Text(
-                                                    text = stringResource(R.string.autoplay_title),
-                                                    style = AuraType.RowTitle,
-                                                    color = AuraPalette.OnGround,
-                                                    maxLines = 1,
-                                                    overflow = AuraDefaultOverflow,
-                                                    modifier = Modifier.weight(1f),
-                                                )
-                                                if (!isListenTogetherGuest) {
-                                                    // The SAME preference as Ajustes → "Cargar más canciones
-                                                    // automáticamente" (AutoLoadMoreKey); both stay in sync.
-                                                    AuraSwitch(
-                                                        checked = autoLoadMore,
-                                                        onCheckedChange = onAutoLoadMoreChange,
-                                                        contentDescription = stringResource(R.string.autoplay_title),
-                                                        modifier = Modifier.tvFocusable(
-                                                            iad1tya.echo.music.ui.utils.rememberIsTvOrCar(),
-                                                            CircleShape,
-                                                        ),
-                                                    )
-                                                }
-                                            }
+                                            )
                                         }
                                     }
 
-                                    if (!isListenTogetherGuest && autoLoadMore && autoplayChips.isNotEmpty()) {
+                                    if (!isListenTogetherGuest && autoplayChips.isNotEmpty()) {
                                         item(key = "aura_autoplay_chips", contentType = "aura_autoplay_chips") {
                                             ChipsRow(
                                                 chips = autoplayChips.map { it to it.label },
@@ -1844,7 +1828,7 @@ internal fun AuraWideQueuePane(modifier: Modifier = Modifier) {
     // answer «¿y después?» with the same facts instead of trailing off at the last row.
     val repeatMode by playerConnection.repeatMode.collectAsState()
     val automix by playerConnection.service.automixItems.collectAsState()
-    val (autoLoadMore) = rememberPreference(AutoLoadMoreKey, defaultValue = true)
+    // Ronda 10: autoplay ya no tiene interruptor — siempre activo.
 
     val listenTogetherManager = LocalListenTogetherManager.current
     val listenTogetherRoleState = listenTogetherManager?.role?.collectAsState(initial = RoomRole.NONE)
@@ -1856,7 +1840,7 @@ internal fun AuraWideQueuePane(modifier: Modifier = Modifier) {
     val isCasting by castHandler?.isCasting?.collectAsState() ?: remember { mutableStateOf(false) }
     val castIsPlaying by castHandler?.castIsPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
 
-    val hasAutoplayContinuation = autoLoadMore && automix.isNotEmpty()
+    val hasAutoplayContinuation = automix.isNotEmpty()
     val entries = remember(
         queueWindows,
         listQueueSize,

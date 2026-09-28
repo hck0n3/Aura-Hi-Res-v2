@@ -71,7 +71,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
@@ -120,7 +119,6 @@ import androidx.navigation.NavController
 import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
-import iad1tya.echo.music.constants.AutoLoadMoreKey
 import iad1tya.echo.music.constants.ListItemHeight
 import iad1tya.echo.music.constants.PlayerBackgroundStyle
 import iad1tya.echo.music.constants.QueueEditLockKey
@@ -567,10 +565,9 @@ fun Queue(
         val queueWindows by playerConnection.queueWindows.collectAsState()
         val automix by playerConnection.service.automixItems.collectAsState()
         // Autoplay footer state: chips come from the service via PlayerConnection (no network in the UI
-        // layer); the toggle is the SAME pref as Settings → "Auto load more songs", so both stay in sync.
+        // layer). Ronda 10: el toggle que apagaba esto se quitó — autoplay queda siempre activo.
         val autoplayChips by playerConnection.autoplayChips.collectAsState()
         val autoplaySelectedChip by playerConnection.autoplaySelectedChip.collectAsState()
-        val (autoLoadMore, onAutoLoadMoreChange) = rememberPreference(AutoLoadMoreKey, defaultValue = true)
         val mutableQueueWindows = remember { mutableStateListOf<Timeline.Window>() }
         val queueLength =
             remember(queueWindows) {
@@ -1337,47 +1334,32 @@ fun Queue(
                     }
 
                     // ── Autoplay footer (YT Music parity) — one coherent block pinned at the end of the
-                    //    queue: divider + "Autoplay" header with the AutoLoadMore toggle + steering chips +
-                    //    the automix preview rows ("what autoplay will play next"). Chips/preview are fed by
-                    //    service flows only — no network from the UI layer.
+                    //    queue: divider + "Autoplay" header + steering chips + the automix preview rows
+                    //    ("what autoplay will play next"). Chips/preview are fed by service flows only —
+                    //    no network from the UI layer.
+                    //
+                    //    Ronda 10 (dueño): "quiero que la cola infinita ahora sea infinita de verdad" — el
+                    //    switch que apagaba esto (AutoLoadMoreKey) se QUITA a propósito: la reproducción
+                    //    infinita queda siempre activa (ver MusicService.autoLoadMoreHint, fijo en true),
+                    //    sin forma de apagarla por error. El título queda como encabezado simple.
                     if (!isListenTogetherGuest || automix.isNotEmpty()) {
                         item(key = "autoplay_header") {
                             Column(modifier = Modifier.animateItem()) {
                                 HorizontalDivider(
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                                 )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp),
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.autoplay_title),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    if (!isListenTogetherGuest) {
-                                        // Same pref as the Settings toggle (AutoLoadMoreKey); Switch is
-                                        // natively focusable — tvFocusable adds the D-pad focus ring.
-                                        Switch(
-                                            checked = autoLoadMore,
-                                            onCheckedChange = onAutoLoadMoreChange,
-                                            modifier =
-                                                Modifier.tvFocusable(
-                                                    iad1tya.echo.music.ui.utils.rememberIsTvOrCar(),
-                                                    CircleShape,
-                                                ),
-                                        )
-                                    }
-                                }
+                                Text(
+                                    text = stringResource(R.string.autoplay_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                )
                             }
                         }
 
-                        // Steering chips: only when autoplay is ON and the service published suggestions.
-                        // ChipsRow is horizontally scrollable and already TV-focusable per chip.
-                        if (!isListenTogetherGuest && autoLoadMore && autoplayChips.isNotEmpty()) {
+                        // Steering chips: shown whenever the service published suggestions (autoplay is
+                        // now unconditionally on). ChipsRow is horizontally scrollable and already
+                        // TV-focusable per chip.
+                        if (!isListenTogetherGuest && autoplayChips.isNotEmpty()) {
                             item(key = "autoplay_chips") {
                                 ChipsRow(
                                     chips = autoplayChips.map { it to it.label },

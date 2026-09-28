@@ -231,19 +231,12 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1022
-        // ESTABLE 2.0.59 — PARA TODOS (orden explícita del dueño, 2026-09-24, en el momento y con
-        // esas palabras: "lanza la estable para todos"). Consolida doce rondas de betas desde la
-        // 2.0.48 (v2.0.49-beta1 .. v2.0.59-beta1): discografías de artista más completas y sin
-        // duplicar entre Álbumes/Sencillos-EPs, mejoras de precisión y velocidad de "pedir música",
-        // deslizar rediseñado (me gusta/no me gusta/agregar a playlist/borrar con deshacer),
-        // arreglos de reproducción (cola de álbum, vídeo, modo sin conexión, TikTok), enlaces
-        // externos, Novedades/recomendaciones por afinidad real, Escuchar Juntos y ecualizador. Ver
-        // RELEASE_INFO.md para el detalle completo.
-        // El nombre de versión va LIMPIO, sin sufijo `-beta`: es el tag SIN sufijo (`v2.0.59`) el que
-        // decide que gradle.yml NO lo marque como prerelease, así que `releases/latest` de GitHub lo
-        // sirve y el actualizador dentro de la app se lo ofrece a todos.
-        versionName = "2.0.59"
+        versionCode = 1037
+        // ESTABLE 2.0.62 — PARA TODOS. Orden explícita del dueño (2026-09-28): "ya lanza la versión
+        // para todos para que ya aparezca esta actualización para todos los usuarios", tras probar la
+        // 2.0.62-beta1 en su dispositivo ("todo quedó muy bien"). Recoge las filas 293-315 del
+        // registro (2.0.60-beta1 → 2.0.62-beta1); RELEASE_INFO.md las cuenta todas.
+        versionName = "2.0.62"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

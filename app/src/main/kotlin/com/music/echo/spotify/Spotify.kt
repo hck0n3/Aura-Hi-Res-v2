@@ -52,6 +52,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import timber.log.Timber
 
 /**
  * Spotify API client that uses the internal GraphQL API (api-partner.spotify.com)
@@ -1630,10 +1631,32 @@ object Spotify {
                 response.obj("data")?.obj("artistUnion")
                     ?: throw SpotifyException(500, "Invalid queryArtistOverview response")
 
+            // Auditoría del algoritmo (ronda 10, dueño: "que no me mezcle de otras cosas" — merengue
+            // vs salsa como ejemplo, pero pedido para CUALQUIER género): SpotifyArtist.genres existe en
+            // el modelo pero ningún camino de este archivo lo llenaba nunca — no hay evidencia de que
+            // esta API interna (queryArtistOverview) exponga géneros granulares como la pública de
+            // Spotify. Instrumentado, no adivinado: registra la FORMA de la respuesta (nombres de campo,
+            // nunca nombres de artista/canción/id — regla AGENTS.md #4) para confirmar con un app.log
+            // real si el dato existe antes de construir nada sobre un supuesto sin verificar.
+            runCatching {
+                val profileKeys = artistData.obj("profile")?.keys?.sorted().orEmpty()
+                val topKeys = artistData.keys.sorted()
+                val genresField = artistData["genres"] ?: artistData.obj("profile")?.get("genres")
+                val genreValues = (genresField as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                Timber.tag("SpotifyGenreProbe").i(
+                    "artistUnion top-level keys=%s profile keys=%s genresField=%s values=%s",
+                    topKeys, profileKeys, genresField != null, genreValues,
+                )
+            }
+
             SpotifyArtist(
                 id = artistId,
                 name = artistData.obj("profile")?.str("name") ?: "",
                 images = parseGqlImages(artistData.obj("visuals")?.obj("avatarImage")?.arr("sources")),
+                genres = (artistData["genres"] as? JsonArray
+                    ?: artistData.obj("profile")?.get("genres") as? JsonArray)
+                    ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                    .orEmpty(),
                 uri = "spotify:artist:$artistId",
             )
         }
@@ -1700,6 +1723,23 @@ object Spotify {
             val artistData =
                 response.obj("data")?.obj("artistUnion")
                     ?: throw SpotifyException(500, "Invalid queryArtistOverview response")
+
+            // Auditoría del algoritmo (ronda 10, dueño: "que no me mezcle de otras cosas" — cualquier
+            // género, merengue/salsa fue solo el ejemplo): sonda de diagnóstico — ver la MISMA nota en
+            // `artist()`, que usa esta misma operación `queryArtistOverview` pero no tiene ningún
+            // llamador real hoy. ESTA función sí corre de verdad (Novedades, Radar semanal), así que es
+            // donde un app.log real puede confirmar si esta API expone géneros granulares. Solo nombres
+            // de campo, nunca nombres de artista/canción/id (regla AGENTS.md #4).
+            runCatching {
+                val profileKeys = artistData.obj("profile")?.keys?.sorted().orEmpty()
+                val topKeys = artistData.keys.sorted()
+                val genresField = artistData["genres"] ?: artistData.obj("profile")?.get("genres")
+                val genreValues = (genresField as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                Timber.tag("SpotifyGenreProbe").i(
+                    "artistUnion top-level keys=%s profile keys=%s genresField=%s values=%s",
+                    topKeys, profileKeys, genresField != null, genreValues,
+                )
+            }
 
             val discography = artistData.obj("discography") ?: return@runCatching emptyList()
 

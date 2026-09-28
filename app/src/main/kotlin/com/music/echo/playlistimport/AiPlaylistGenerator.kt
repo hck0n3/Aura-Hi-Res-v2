@@ -3,6 +3,7 @@ package iad1tya.echo.music.playlistimport
 import com.music.innertube.YouTube
 import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.SongItem
+import com.music.innertube.models.WatchEndpoint
 import com.music.innertube.pages.ChartsPage
 import iad1tya.echo.music.api.AiPlaylistConstraints
 import iad1tya.echo.music.api.AiPlaylistService
@@ -269,11 +270,12 @@ object AiPlaylistGenerator {
                 }
             }.getOrNull()
         }
-        val search = runCatching {
+        val searchOutcome = runCatching {
             withTimeoutOrNull(MUSIC_REQUEST_SEARCH_BUDGET_MS) {
                 searchFallbackPlaylist(prompt, soloArtist, target, taste)
             }
-        }.getOrNull().orEmpty()
+        }.getOrNull()
+        val search = searchOutcome?.songs.orEmpty()
 
         // QUE NO IMPROVISE (dueño, 2026-09-17), y aquí está la regla que lo decide entre las dos
         // rutas: cuando la petición trae algo **comprobable** — una década o un idioma — gana la ruta
@@ -289,7 +291,11 @@ object AiPlaylistGenerator {
         // resuelto de la propia IA (ver el gate en [resolveBounded]), así que un resultado temprano de
         // la IA ya viene filtrado y no hace falta preferir la búsqueda por esa razón.
         val parsedForRace = MusicRequestQuery.build(prompt)
-        val verifiable = parsedForRace.decade != null || parsedForRace.language != null
+        // Ronda 11 (dueño: "nunca me pone exactamente lo que pido"): una canción que él NOMBRÓ y la
+        // búsqueda encontró tal cual también es comprobable — la IA propone títulos que habría que
+        // volver a buscar, y no garantiza que el primero sea esa canción.
+        val verifiable = parsedForRace.decade != null || parsedForRace.language != null ||
+            searchOutcome?.pinnedSpecific == true
         if (verifiable && search.isNotEmpty()) {
             aiJob.cancel()
             return@coroutineScope Produced(
@@ -349,7 +355,7 @@ object AiPlaylistGenerator {
         // OuterTune y Metrolist para sus playlists automáticas.
         val fallback = withTimeoutOrNull(AI_BUDGET_MS) {
             searchFallbackPlaylist(prompt, soloArtist, target)
-        }
+        }?.songs
         if (fallback.isNullOrEmpty()) return null
         return Produced(
             name = prompt.trim().take(MAX_NAME_LENGTH),
@@ -648,10 +654,10 @@ object AiPlaylistGenerator {
         soloArtist: String?,
         target: Int,
         taste: iad1tya.echo.music.reco.TasteProfile? = null,
-    ): List<MediaMetadata> {
+    ): SearchOutcome {
         val parsed = MusicRequestQuery.build(prompt)
         val query = parsed.query.ifBlank { prompt.trim().take(80) }
-        if (query.isBlank()) return emptyList()
+        if (query.isBlank()) return SearchOutcome(emptyList(), pinnedSpecific = false)
 
         // UN MONTÓN Y LUEGO ELEGIR (dueño, 2026-09-17). Antes se aceptaban canciones por orden hasta
         // llenar el cupo, así que la primera fuente que pasara el filtro decidía el resultado entero.
@@ -659,6 +665,12 @@ object AiPlaylistGenerator {
         // una llamada más — lo que cambia es que al final se puede elegir. Ver [MusicRequestRanking].
         val pool = ArrayList<SongItem>()
         val seen = HashSet<String>()
+        // Ronda 10 (dueño: "cuando pida un nombre de artista con el nombre de la canción" debe
+        // reproducir ESO específicamente cada vez, a diferencia de un pedido temático). Id de la
+        // canción exacta que el peldaño -1 (bestSpecificMatch) confirma que el usuario nombró — si
+        // existe, [MusicRequestRecents] nunca debe poder excluirla más abajo solo porque ya sonó en
+        // un pedido anterior: es precisamente lo que está pidiendo otra vez.
+        var specificMatchId: String? = null
         // Ronda 9 (dueño): pedir una canción o artista específico devolvía 20-25 copias/variantes de
         // LA MISMA canción — distintas subidas ("Official Video", "Lyrics", "Audio")— porque el
         // dedup solo miraba el id de YouTube, y cada subida tiene el suyo propio. Deduplicar TAMBIÉN
@@ -715,13 +727,44 @@ object AiPlaylistGenerator {
         // corriera para el caso que más lo necesita: género + artista + canción, los tres juntos.
         // residualBeyondCategory no quita nombres de artista, así que el residuo sigue teniendo la
         // canción/artista con la que bestSpecificMatch compara.
+        //
+        // Ronda 11 (dueño: "pido Redimi2 Flipando y me reproduce Blindao de Redimi2 ... y nunca me
+        // pone exactamente lo que pido — ya lo he pedido más de 10 veces"). Tres huecos cerrados:
+        //  · este peldaño solo corría con `preferPlaylists` (un género/momento en la frase). "redimi2
+        //    flipando" no nombra ninguno, así que la canción exacta NUNCA se reconocía como pedida;
+        //  · sin reconocerla, [MusicRequestRecents] la EXCLUÍA en cada pedido repetido (TTL 45 min) —
+        //    justo lo que vivió al pedirla una y otra vez: salía cualquier otra de Redimi2;
+        //  · aun reconocida, entraba al montón y [MusicRequestRanking] podía moverla (gusto, separación
+        //    por artista). Ahora va FIJA en el primer puesto, fuera del ranking, y detrás su propia radio
+        //    — "más como esto", que es lo que YouTube Music hace al tocar una canción.
         val residual = MusicRequestQuery.residualBeyondCategory(prompt)
-        if (parsed.preferPlaylists && residual.length >= 3) {
-            YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
+        var pinned: SongItem? = null
+        // La misma búsqueda de canciones que el peldaño 3 haría con `query`: se reutiliza, no se repite.
+        var songSearchCache: List<SongItem>? = null
+        if (residual.length >= 3) {
+            // Con género/momento se busca la frase entera (como antes); sin ellos, la consulta limpia
+            // de muletillas — "ponme" no ayuda al buscador a encontrar una canción.
+            val specificQuery = if (parsed.preferPlaylists) prompt.trim().take(80) else query
+            YouTube.search(specificQuery, YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()
+                ?.also { if (specificQuery == query) songSearchCache = it }
                 ?.let { candidates -> bestSpecificMatch(residual, candidates) }
-                ?.let { absorb(christianOnly(listOf(it))) }
+                ?.let { match ->
+                    pinned = match
+                    specificMatchId = match.id
+                    // Marcada como vista para que ningún peldaño la vuelva a meter en el montón.
+                    seen.add(match.id)
+                    seenTitles.add(dedupKey(match.title, match.artists.firstOrNull()?.name))
+                    YouTube.next(WatchEndpoint(videoId = match.id, playlistId = "RDAMVM${match.id}"))
+                        .getOrNull()?.items
+                        ?.filter { it.id != match.id }
+                        ?.let { absorb(christianOnly(it)) }
+                }
         }
+        // Otras versiones de la canción fijada (remix, en vivo, otra subida, a nombre de otro artista)
+        // no pueden seguirla — salvo que él haya pedido justo una versión ("flipando remix").
+        val pinnedBase = pinned?.let { baseTitleKey(it.title) }
+        val wantsVersion = residual.split(Regex("[^\\p{L}\\p{N}]+")).any { it in VERSION_WORDS }
 
         if (parsed.preferPlaylists && soloArtist == null) {
             // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
@@ -774,8 +817,8 @@ object AiPlaylistGenerator {
 
         // Peldaño 3 — canciones sueltas del buscador.
         if (pool.size < POOL_TARGET) {
-            YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
-                ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
+            (songSearchCache ?: YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                ?.items?.filterIsInstance<SongItem>())?.let { absorb(christianOnly(it)) }
         }
         // Peldaño 4 — los VÍDEOS son lo menos fiable (recopilaciones de una hora, versiones de
         // aficionado): en una petición de época o momento solo se tocan si no hay NADA.
@@ -807,27 +850,54 @@ object AiPlaylistGenerator {
         // Ronda 2, punto 1 del dueño: pedir el mismo prompt dos veces por separado no puede devolver la
         // MISMA lista — MusicRequestRanking.pick es determinístico a propósito dentro de una llamada
         // (eso es correcto), así que lo que cambia es el POOL que le llega: se excluye lo servido
-        // recientemente por esta misma función antes de elegir. "Nunca vacío" se respeta igual que en
-        // pick(): si excluir dejara menos candidatas que target, se readmite lo necesario — mejor
-        // repetir alguna que devolver una lista corta.
-        val fresh = pool.filterNot { MusicRequestRecents.isRecent(it.id) }
-        val poolForRanking = if (fresh.size >= target) fresh else pool
+        // recientemente por esta misma función antes de elegir. La canción específica del peldaño -1
+        // ([specificMatchId]) NUNCA se excluye por esto — es literalmente lo que el usuario nombró,
+        // y debe poder pedirla otra vez y recibirla otra vez (ronda 10, dueño: "cuando pida un nombre
+        // de artista con el nombre de la canción" es la excepción a esta regla de variedad).
+        var versionsDropped = 0
+        if (pinnedBase != null && pinnedBase.isNotBlank() && !wantsVersion) {
+            val before = pool.size
+            pool.removeAll { baseTitleKey(it.title) == pinnedBase }
+            versionsDropped = before - pool.size
+        }
+        // Solo contadores (regla 4 de AGENTS.md): prueba en el log si la canción nombrada quedó fija.
+        timber.log.Timber.i(
+            "MUSIC_REQUEST specific=%b versionsDropped=%d pool=%d",
+            pinned != null, versionsDropped, pool.size,
+        )
+        val fresh = pool.filter { it.id == specificMatchId || !MusicRequestRecents.isRecent(it.id) }
+        // Ronda 10 (dueño: "sin importar cuántas veces lo pida, la lista debe ser diferente" para un
+        // TEMA en palabras naturales — sueño, ejercicio, género, década). Antes, si excluir lo
+        // reciente dejaba menos candidatas que target, se descartaba la exclusión ENTERA y volvía la
+        // lista completa IDÉNTICA a la anterior — el "nunca vacío" de pick() se cumplía, pero a costa
+        // de repetir exactamente lo que el dueño pidió que dejara de repetirse. Ahora se prefiere una
+        // lista MÁS CORTA pero distinta sobre una completa pero idéntica; el pool original solo vuelve
+        // como último recurso si de verdad no queda NADA fresco (p. ej. un pedido tan específico que
+        // ya se sirvió todo su catálogo disponible dentro del TTL).
+        val poolForRanking = if (fresh.isNotEmpty()) fresh else pool
 
         // Y ahora se elige: orden de origen como esqueleto, el gusto empuja unos puestos, lo marcado
         // con "No me gusta" se cae y no hay dos seguidas del mismo artista. Sin perfil ([taste] null)
         // el empujón es cero y esto devuelve exactamente el orden de origen.
+        val head = pinned
         val picked = MusicRequestRanking.pick(
             candidates = poolForRanking,
-            target = target,
+            target = if (head != null) target - 1 else target,
             artistOf = { it.artists.firstOrNull()?.name },
             tasteOf = { item ->
                 taste?.scoreNames(item.artists.map { a -> a.name }, item.title) ?: 0.0
             },
             avoidScore = iad1tya.echo.music.reco.TasteProfile.AVOID,
         )
-        MusicRequestRecents.markServed(picked.map { it.id })
-        return picked.map { it.toMediaMetadata() }
+        // Lo que nombró, primero y siempre — ni el gusto, ni "No me gusta", ni la variedad entre
+        // pedidos pueden moverlo: es literalmente lo que pidió.
+        val songs = listOfNotNull(head) + picked
+        MusicRequestRecents.markServed(songs.map { it.id })
+        return SearchOutcome(songs.map { it.toMediaMetadata() }, pinnedSpecific = head != null)
     }
+
+    /** Lo que da la búsqueda, y si su primer puesto es la canción exacta que él nombró. */
+    private data class SearchOutcome(val songs: List<MediaMetadata>, val pinnedSpecific: Boolean)
 
     /**
      * Las listas editoriales de la categoría de YouTube Music que corresponde a su petición, o vacío
@@ -965,14 +1035,74 @@ object AiPlaylistGenerator {
         // misma (p. ej. "amor" dentro de "amoroso"). Partir por cualquier separador que no sea letra/
         // dígito limpia la puntuación, y comparar por límite de palabra (mismo patrón que ya usa
         // MusicRequestMoods.containsToken) evita el falso positivo por subcadena.
-        val words = residual.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length > 2 }
+        val words = fold(residual).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length > 2 }
         if (words.isEmpty()) return null
-        return candidates.firstOrNull { candidate ->
-            val hay = "${candidate.title} ${candidate.artists.joinToString(" ") { it.name }}".lowercase()
-            val hits = words.count { w ->
-                Regex("(?<![\\p{L}\\p{N}])${Regex.escape(w)}(?![\\p{L}\\p{N}])").containsMatchIn(hay)
+        // Ronda 11 (dueño: "pido Redimi2 Flipando y me reproduce Blindao de Redimi2... luego un remix").
+        // Dos reglas nuevas:
+        //  · al menos una palabra tiene que estar en el TÍTULO. Sin eso, "redimi2 flipando" aceptaba
+        //    cualquier canción de Redimi2 (el artista solo ya cubre la mitad de las palabras) — y con
+        //    ello "canciones de Queen" fijaba una canción cualquiera de Queen como si la hubiera nombrado;
+        //  · entre las que pasan gana la de más cobertura, y una versión (remix, en vivo, cover…) pierde
+        //    frente a la original salvo que él pida esa versión. Empate → la que el buscador puso antes.
+        val wantsVersion = words.any { it in VERSION_WORDS }
+        var best: SongItem? = null
+        var bestScore = Double.NEGATIVE_INFINITY
+        candidates.forEachIndexed { index, candidate ->
+            val title = fold(candidate.title)
+            val artists = fold(candidate.artists.joinToString(" ") { it.name })
+            val titleHits = words.count { hasWord(title, it) }
+            if (titleHits == 0) return@forEachIndexed
+            val hits = words.count { hasWord(title, it) || hasWord(artists, it) }
+            val coverage = hits.toDouble() / words.size
+            if (coverage < 0.6) return@forEachIndexed
+            var score = coverage * 10.0 - index * 0.01
+            if (!wantsVersion && isVersionTitle(candidate.title)) score -= 5.0
+            if (score > bestScore) {
+                bestScore = score
+                best = candidate
             }
-            hits.toDouble() / words.size >= 0.6
         }
+        return best
     }
+
+    /**
+     * Palabras que marcan una VERSIÓN de una canción y no la canción en sí. Ronda 11 (dueño): tras la
+     * canción pedida sonaba "un remix que le hicieron a la canción".
+     */
+    private val VERSION_WORDS = setOf(
+        "remix", "rmx", "live", "vivo", "version", "acustico", "acoustic", "cover", "karaoke",
+        "instrumental", "slowed", "reverb", "sped", "mashup", "bootleg", "edit", "8d", "remaster",
+        "remasterizado", "remastered", "unplugged", "demo", "tiktok", "nightcore",
+    )
+
+    /** true cuando el título se presenta como versión de otra canción (remix, en vivo, cover…). */
+    internal fun isVersionTitle(title: String): Boolean {
+        val t = fold(title)
+        return VERSION_WORDS.any { hasWord(t, it) }
+    }
+
+    /**
+     * La canción "de base" de un título, sin versión ni créditos ni subida: "Flipando (Remix)",
+     * "Flipando - En Vivo", "Flipando ft. X [Official Video]" → "flipando". A propósito SIN artista:
+     * un remix suele salir a nombre de quien lo hizo, y sigue siendo la misma canción.
+     */
+    internal fun baseTitleKey(title: String): String {
+        var t = fold(title)
+            .replace(Regex("""[(\[][^)\]]*[)\]]"""), " ")
+        // "Canción - Remix" / "Canción - En Vivo": lo que va tras el guion es la versión.
+        t = t.substringBefore(" - ")
+        // Solo marcas de crédito inequívocas: "con"/"with" también forman parte de títulos reales.
+        t = t.replace(Regex("""\b(feat|ft|featuring)\b.*$"""), " ")
+        val words = t.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotBlank() }
+        val base = words.filter { it !in VERSION_WORDS && it != "en" }.joinToString(" ").trim()
+        // Un título hecho solo de esas palabras ("Vivo", "Live") ES la canción: no se vacía.
+        return base.ifBlank { words.joinToString(" ").trim() }
+    }
+
+    private fun hasWord(folded: String, word: String): Boolean =
+        Regex("(?<![\\p{L}\\p{N}])${Regex.escape(word)}(?![\\p{L}\\p{N}])").containsMatchIn(folded)
+
+    private fun fold(value: String): String =
+        java.text.Normalizer.normalize(value.lowercase(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
 }

@@ -87,7 +87,6 @@ import iad1tya.echo.music.constants.SpatialAudioProfileKey
 import iad1tya.echo.music.constants.AudioOffload
 import iad1tya.echo.music.constants.AudioQualityKey
 import iad1tya.echo.music.constants.AutoDownloadOnLikeKey
-import iad1tya.echo.music.constants.AutoLoadMoreKey
 import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.constants.KeepGenreLaneKey
 import iad1tya.echo.music.constants.AutoSkipNextOnErrorKey
@@ -804,7 +803,13 @@ class MusicService :
     // (ExoPlayer) thread — a blocking-I/O-on-main anti-pattern (jank risk). Mirror those prefs into memory via the
     // single collector in onCreate (same pattern as normalizationEnabledHint/audioOffloadHint) and read the fields
     // in the hot paths instead. Initial values equal the DataStore defaults, so behaviour is unchanged.
-    @Volatile private var autoLoadMoreHint: Boolean = true
+    // Ronda 10 (dueño): "quiero que la cola infinita ahora sea infinita de verdad" — el propio dueño ya
+    // había pedido antes (ver App.kt applyInfinitePlaybackOn) reproducción infinita SIEMPRE activa para
+    // todos, pero el interruptor "Reproducción automática" seguía existiendo y podía apagarla — justo lo
+    // que le pasó. Se quita la dependencia de AutoLoadMoreKey por completo: esta bandera ya no se lee de
+    // preferencias, queda fija en true, y el interruptor se elimina de Ajustes y de la Cola (ver esos
+    // archivos) para que no vuelva a pasar.
+    private val autoLoadMoreHint: Boolean = true
     @Volatile private var disableLoadMoreWhenRepeatAllHint: Boolean = false
     // Enhanced Shuffle ("Aleatorio mejorado") master switch mirrored for the player-thread callbacks
     // (onShuffleModeEnabledChanged / onMediaItemTransition) so they read a @Volatile field, never a blocking
@@ -967,6 +972,16 @@ class MusicService :
     // seeding (unchanged). Reassigned on every playQueue, so a fresh finite queue overwrites any prior pool.
     @Volatile private var radioSeedPool: List<iad1tya.echo.music.models.MediaMetadata> = emptyList()
 
+    // Ronda 10 (dueño: "si vuelvo a poner el mismo álbum, misma playlist, o mismo EP o single, la cola
+    // no tiene que volver a repetir las mismas canciones que ya sonaron"). The Enhanced Shuffle contextId
+    // ("AL:<id>"/"PL:<id>"/"OL:<browseId>", see ShuffleContexts) of the collection THIS radio session is
+    // continuing — null for a plain single-song radio, a search result, or "Pedir música" (none of those
+    // have a stable identity to remember against). Reassigned on every playQueue()/adoptExternalQueue(),
+    // exactly like radioSeedPool/radioAnchorId. Consulted (DB-backed, persists across restarts) by
+    // appendSeed and maybeLoadMoreQueuePages so replaying the SAME collection doesn't re-serve the same
+    // radio tail it already served last time — sessionPlayedIds alone only covers one running process.
+    @Volatile private var radioOriginContextId: String? = null
+
     /**
      * CONTENT ANCHOR for a radio the user started from ONE song (a YouTubeQueue tap or a 1-track single) —
      * owner directive 2026-09-13: "que la cola infinita no cambie ni improvise, siempre basada en el
@@ -976,6 +991,15 @@ class MusicService :
      * [radioSeedPool]) and for external queues until they re-anchor.
      */
     @Volatile private var radioAnchorId: String? = null
+    // Snapshot of the ANCHOR song's own metadata (title/artist/album), taken once alongside [radioAnchorId].
+    // Ronda 10 (dueño: Bob Marley -> deriva -> Michael Jackson no continuó, luego Pitbull): the genre-LANE
+    // filter in maybeLoadMoreQueuePages used to re-read whatever song was CURRENTLY playing at each
+    // pagination step instead of the song the user actually chose. An unknown-genre pick always passes the
+    // lane filter (by design, to avoid cold-start collapse) — so once one drifted through, the "current song"
+    // reference drifted with it, and the NEXT filter pass enforced the drifted lane instead of the original
+    // one: a cumulative random walk away from what the user started. Pinning the reference to the anchor
+    // (same philosophy as [radioAnchorId] itself, owner directive 2026-09-13) stops that walk.
+    @Volatile private var radioAnchorMetadata: iad1tya.echo.music.models.MediaMetadata? = null
     // Entropy source for the infinite-queue seed variety (2026-09-04): a single Random shared by
     // the seed shuffles — no per-frame work, consulted only at seed time.
     private val randomSeedSource = kotlin.random.Random(System.currentTimeMillis())
@@ -1123,9 +1147,26 @@ class MusicService :
             }
         )
     )
-    private fun rememberRecentRadioId(id: String?) {
+    /** Ronda 10 (dueño): "que no vaya a poner ninguna repetida y ninguna con el mismo nombre" — [sessionPlayedIds]
+     *  only hard-drops an EXACT id match, so a different upload of the same song (different mediaId, same
+     *  title+artist — "Official Video" vs "Lyrics" vs "Audio") slipped through. Same bounded LRU shape,
+     *  keyed by [iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey] (title normalized +
+     *  primary artist), the exact function already proven for this in "pedir música" (ronda 9). */
+    private val sessionPlayedDedupKeys: MutableSet<String> = java.util.Collections.synchronizedSet(
+        java.util.Collections.newSetFromMap(
+            object : java.util.LinkedHashMap<String, Boolean>(4096, 0.75f, false) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean = size > 4000
+            }
+        )
+    )
+    private fun MediaItem.dedupKeyOrNull(): String? {
+        val md = metadata ?: return null
+        return iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey(md.title, md.artists.firstOrNull()?.name)
+    }
+    private fun rememberRecentRadioId(id: String?, dedupKey: String? = null) {
         if (id.isNullOrBlank()) return
         sessionPlayedIds.add(id) // NO-REPEAT: session-wide memory of everything actually played
+        if (!dedupKey.isNullOrBlank()) sessionPlayedDedupKeys.add(dedupKey)
         synchronized(recentRadioIds) {
             recentRadioIds.remove(id) // move-to-most-recent
             recentRadioIds.add(id)
@@ -1135,9 +1176,48 @@ class MusicService :
             }
         }
     }
+    // Ronda 10 (dueño: escuchando salsa, buscó y reprodujo una canción de Manny Montes vía "Pedir
+    // música" — la cola SIGUIÓ con salsa después, y solo al pedirla de nuevo funcionó bien). Root
+    // cause: playQueue() never cancelled an in-flight radio-seed coroutine (tryRadio/tryRelated/
+    // tryMood/appendSeed) started for the PREVIOUS queue — appendSeed recomputes liveIndex from the
+    // LIVE player at append time, with no check that the player still belongs to the seed it was
+    // launched for. A stale seed from the old (salsa) radio resolving AFTER the new queue landed would
+    // truncate the new queue's tail and append the old radio's songs onto it. Bumped once at the top
+    // of every playQueue(); every seed captures it before its first suspend point and appendSeed
+    // refuses to mutate the player if it no longer matches — the stale seed becomes a harmless no-op,
+    // same as any other "produced nothing useful" outcome its callers already handle.
+    @Volatile private var queueGeneration = 0
     // B3 — guards against double-seeding a radio when a finite queue ends: true while a startRadioSeamlessly
     // fetch is in flight, so onMediaItemTransition can't fire a second (racing) radio fetch over the same end.
     @Volatile private var radioSeedInFlight = false
+    // Ronda 10 (dueño, sobre la 2.0.61-beta3: "cuando reproduzco una canción suelta... la cola no se
+    // adapta... hasta que la reproduzco por segunda vez"). Root cause found AFTER queueGeneration
+    // (fila #302/#304): [radioSeedInFlight] is a single flag shared by EVERY queue, with no notion of
+    // WHICH queue's seed it is guarding. A stale seed job from the OLD queue still resolving (its own
+    // network fetch simply hadn't returned yet) held this flag true through the ENTIRE window the user
+    // was on the NEW song — so the new song's own legitimate startRadioSeamlessly() call hit the
+    // `if (radioSeedInFlight) return` guard at the top and did NOTHING: no seed job even launched for
+    // it, silently, no log, no fallback. The stale job's own generation check (already fixed) correctly
+    // stopped it from OVERWRITING the new queue, but nothing stopped it from BLOCKING the new queue's
+    // own attempt in the meantime — worse, its `invokeOnCompletion` cleared `resumeAfterSeed`/
+    // `advanceIntoRadioRequested` unconditionally on completion, silently discarding a request the new
+    // song's flow may have armed while it was blocked. This field ties the claim to the generation it
+    // was claimed FOR: the entry guard only blocks a genuinely CURRENT-generation seed already running;
+    // a stale one no longer blocks anything once a newer playQueue() has landed, and its own completion
+    // handler no longer resets state a NEWER claim has since taken over.
+    @Volatile private var radioSeedInFlightGeneration = -1
+    // Fila #311 (dueño, log 2026-09-27: Leo el Poeta → Ricardo Montaner siguió con la cola de Leo;
+    // Geovanni Rios → Marcos Witt). The generation of the playQueue() whose OWN initial load
+    // (queue.getInitialStatus()) is still in flight, or -1. A single-song tap lands on the timeline as
+    // ONE preloaded item, which is "the last item with nothing after it" — so the PLAYLIST_CHANGED
+    // transition (and scheduleCrossfade) fired startRadioSeamlessly() at once, in the SAME generation,
+    // racing the queue's own fetch. That seed ran with the continuation state of the PREVIOUS queue
+    // (radioAnchorId/radioSeedPool are only reassigned after the fetch), so tryRadio seeded from the
+    // previous song's radio, and its appendSeed either truncated the new song's own list or was
+    // followed by it. While this matches [queueGeneration], startRadioSeamlessly() defers: the queue
+    // that is loading IS this song's continuation, and a seed is only needed if it comes back without
+    // one — decided by [seedAfterInitialLoad] once the load settles.
+    @Volatile private var initialLoadPendingGeneration = -1
     // True when a radio seed was started from the STATE_ENDED safety net (the queue truly ended): once the
     // seed appends items, advance+play into them so predictive infinite playback resumes with no manual action.
     @Volatile private var resumeAfterSeed = false
@@ -2056,6 +2136,9 @@ class MusicService :
             runCatching {
                 database.pruneOrphanEnhancedPlayed()
                 database.pruneOrphanEnhancedContext()
+                // Ronda 10: same orphan-prune shape for the radio-continuation memory (separate table,
+                // see RadioContinuationPlayedEntity's kdoc).
+                database.pruneOrphanRadioContinuationPlayed()
             }
         }
 
@@ -2742,7 +2825,6 @@ class MusicService :
         // runBlocking DataStore read on the main thread. Same defaults as the original dataStore.get calls.
         scope.launch {
             dataStore.data.collect { prefs ->
-                autoLoadMoreHint = prefs[AutoLoadMoreKey] ?: true
                 disableLoadMoreWhenRepeatAllHint = prefs[DisableLoadMoreWhenRepeatAllKey] ?: false
                 enhancedShuffleHint = prefs[EnhancedShuffleKey] ?: true
                 val previousQueueOfferEnabled = prefs[PreviousQueueOfferKey] ?: true
@@ -3534,6 +3616,23 @@ class MusicService :
         // prepares+plays exactly as before.
         isRestore: Boolean = false,
     ) {
+        // A new queue invalidates any radio-seed coroutine still running for the OLD one — see
+        // [queueGeneration]'s own doc comment. Bumped FIRST, before anything async below, so a seed
+        // that already captured the old value cannot slip in front of this increment.
+        //
+        // Ronda 10 (dueño: "es como si hubieran dos colas que pelean y luego decide la cola
+        // equivocada" — reproducir manualmente la 1ra canción de una playlist una SEGUNDA vez dejaba
+        // de continuar con el resto). This same counter also guards playQueue() against ITSELF: two
+        // overlapping calls (a fast double-tap, or a slow first fetch still in flight when a second
+        // tap fires) each run their own async queue.getInitialStatus() fetch, and whichever ONE
+        // resolves LAST used to win unconditionally — player.setMediaItems(...) below had no check
+        // that this was still the active call, so a slow STALE fetch from the FIRST tap could land
+        // after the second tap's fetch already set up the real queue, silently overwriting it (and
+        // every field after it: radioSeedPool, contextProfile, radioAnchorId, radioOriginContextId)
+        // with the first, now-obsolete attempt. [myGeneration] captured here identifies THIS call;
+        // checked again right before the player is touched below.
+        queueGeneration++
+        val myGeneration = queueGeneration
         // #27: a genuine user-initiated playQueue (playWhenReady=true) clears the restore veto so external
         // controls work normally. A restore calls this with playWhenReady=false and leaves it armed.
         if (playWhenReady) awaitingFirstUserPlay = false
@@ -3555,6 +3654,45 @@ class MusicService :
             return
         }
 
+        // Ronda 10 (dueño: vio "a continuación" armarse bien para la canción nueva y, minutos
+        // después, verla reemplazada de golpe por la cola de la canción ANTERIOR — con sus propios
+        // ojos, sin tocar nada). Causa: el crossfade precarga un segundo ExoPlayer + agenda un job
+        // temporizado según cuánto le queda a la canción VIEJA, en `scheduleCrossfade()` — un
+        // mecanismo enteramente aparte de [queueGeneration] (que solo cubre el seed de radio /
+        // appendSeed). Una cola nueva reemplaza `player` con `setMediaItems(...)` más abajo, pero
+        // nunca cancelaba ese job viejo ni soltaba ese segundo reproductor — así que, cuando su
+        // propio temporizador vencía (el punto en el que la canción VIEJA habría terminado), el
+        // swap se disparaba solo y publicaba esa cola vieja como la actual, sin que nada de lo de
+        // arriba lo hubiera evitado. Cancelar aquí, ANTES de tocar nada de la cola nueva, para que
+        // ningún crossfade heredado de la sesión anterior pueda sobrevivir a un playQueue() fresco.
+        crossfadeTriggerJob?.cancel()
+        crossfadeTriggerJob = null
+        crossfadePreloadJob?.cancel()
+        crossfadePreloadJob = null
+        crossfadeReadyJob?.cancel()
+        crossfadeReadyJob = null
+        crossfadeTailArmJob?.cancel()
+        crossfadeTailArmJob = null
+        tailQuietRecheckJob?.cancel()
+        tailQuietRecheckJob = null
+        // Same guard scheduleCrossfade() itself uses before touching secondaryPlayer: while isCrossfading
+        // is true the swap is already underway (performCrossfadeSwap → cleanupCrossfade owns it from
+        // here), so only the not-yet-fired jobs above are ours to cancel — never reach into a live swap.
+        if (!isCrossfading) {
+            if (secondaryPlayer != null) {
+                Timber.tag(TAG).i("CROSSFADE_TRACE playQueue cancelled a stale pending crossfade from the outgoing queue")
+            }
+            secondaryPlayer?.let {
+                playerSilenceProcessors.remove(it)
+                playerNormProcessors.remove(it)
+                playerLimiterProcessors.remove(it)
+                playerEqProcessors.remove(it)?.let { eq -> equalizerService.removeAudioProcessor(eq) }
+                runCatching { it.stop() }
+                runCatching { it.release() }
+            }
+            secondaryPlayer = null
+        }
+
         // LAST instant the outgoing queue is still reachable — the next line drops it. A playlist -> album
         // jump snapshots it here so the user can be offered a way back; every other transition (including
         // the boot restore, whose outgoing queue is EmptyQueue with a null context) is a no-op.
@@ -3566,6 +3704,24 @@ class MusicService :
         // it costs nothing measurable — a brand-new queue's ids miss the cache anyway. Order-neutral by
         // construction: both values are re-derived, identically, on demand.
         clearShuffleCaches()
+
+        // Fila #311 — the continuation state below used to be reassigned ONLY after the async fetch,
+        // so for the whole fetch window it still described the PREVIOUS queue: any seed or pagination
+        // that ran in that window (see [initialLoadPendingGeneration]) steered by the old song's anchor
+        // and the old collection's pool. Reset it here, synchronously, to what is already known about
+        // the NEW queue; the async block below refines it exactly as before once the items land.
+        radioSeedPool = emptyList()
+        contextProfile = null
+        contextSteerActive = false
+        val tappedAnchor = queue.preloadItem
+            ?.takeIf { !it.id.isLocalMediaId() && !it.id.startsWith("http", ignoreCase = true) }
+        radioAnchorId = tappedAnchor?.id
+        radioAnchorMetadata = tappedAnchor
+        radioOriginContextId = queue.contextId
+        // Claimed BEFORE the preload block below: media3 dispatches the preload item's PLAYLIST_CHANGED
+        // transition synchronously inside setMediaItem(), and that transition is exactly what fires the
+        // B3 pre-seed (and scheduleCrossfade's seed) for a one-item timeline.
+        initialLoadPendingGeneration = myGeneration
 
         currentQueue = queue
         queueTitle = null
@@ -3617,7 +3773,7 @@ class MusicService :
         // queue below: "the source gave us nothing" and "our own filters ate everything" look identical
         // from here and need opposite fixes. A count is not user data — no title, artist or id is logged.
         var fetchedCount = 0
-        scope.launch(SilentHandler) {
+        val initialLoadJob = scope.launch(SilentHandler) {
             val rawStatus =
                 withContext(Dispatchers.IO) {
                     // Do NOT apply filterNonMusicForAutoQueue here: user-chosen queues (LocalAlbumRadio,
@@ -3643,7 +3799,7 @@ class MusicService :
             // no-repeat memory: both rows play, and the second reads as a repeat. Context queues dedupe at
             // load (first occurrence wins; the tapped start item is preserved by remapping its index).
             // Classic queues keep duplicates — the user's literal list is not ours to edit.
-            val initialStatus = if (enhancedShuffleHint &&
+            val dedupedStatus = if (enhancedShuffleHint &&
                 queue.contextId != null &&
                 rawStatus.items.size != rawStatus.items.distinctBy { it.mediaId }.size
             ) {
@@ -3655,7 +3811,92 @@ class MusicService :
             } else {
                 rawStatus
             }
-            if (queue.preloadItem != null && player.playbackState == STATE_IDLE) return@launch
+            // Fila #311 — a one-song tap (YouTubeQueue + preloadItem) now keeps its OWN list as its
+            // continuation instead of having it replaced by a racing seed (see
+            // [initialLoadPendingGeneration]). That list is YouTube's radio for the tapped song — the
+            // same list tryRadio would fetch for this anchor — so it gets the same anchor-lane filter
+            // appendSeed's first batch had (fila #300/#307). Only what comes AFTER the tapped song is
+            // judged; the song itself and anything before it are untouched. Fail-neutral: any error or
+            // an unknown anchor lane keeps the list exactly as YouTube returned it.
+            val initialStatus = if (
+                keepGenreLaneHint && tappedAnchor != null && queue is YouTubeQueue &&
+                dedupedStatus.items.size > 2
+            ) {
+                runCatching {
+                    val split = dedupedStatus.mediaItemIndex.coerceIn(0, dedupedStatus.items.size - 1) + 1
+                    val head = dedupedStatus.items.subList(0, split)
+                    val tail = dedupedStatus.items.subList(split, dedupedStatus.items.size)
+                    val anchorArtists = tappedAnchor.artists.map { it.name }.filter { it.isNotBlank() }.distinct()
+                    val candidateArtists = (anchorArtists + tail.flatMap { it.metadata?.artists.orEmpty() }.map { it.name })
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                        .take(GENRE_LEARN_PER_RUN)
+                    if (candidateArtists.isNotEmpty()) {
+                        // Same enrich-before-score as appendSeed: anchor first, on its own failure
+                        // budget (fila #309), bounded by ENRICH_BEFORE_SCORE_MS. The tapped song is
+                        // already playing from the preload, so this wait is not audible.
+                        val enrichJob = scope.launch(Dispatchers.IO + SilentHandler) {
+                            runCatching {
+                                if (anchorArtists.isNotEmpty()) {
+                                    iad1tya.echo.music.reco.GenreCache.enrich(
+                                        this@MusicService, anchorArtists, onlyWifi = true,
+                                    )
+                                }
+                                iad1tya.echo.music.reco.GenreCache.enrich(
+                                    this@MusicService, candidateArtists, onlyWifi = true,
+                                )
+                            }
+                        }
+                        val waited = withTimeoutOrNull(ENRICH_BEFORE_SCORE_MS) { enrichJob.join() } != null
+                        Timber.tag(TAG).i(
+                            "CTX_GENRE enrich-before-score (playQueue): %d artists, completed=%b",
+                            candidateArtists.size, waited,
+                        )
+                    }
+                    val genres = withContext(Dispatchers.IO) {
+                        runCatching { iad1tya.echo.music.reco.GenreCache.snapshot(this@MusicService) }
+                            .getOrDefault(emptyMap())
+                    }
+                    val kept = anchorLanePartition(tail, tappedAnchor, genres, "playQueue")?.first
+                    if (kept == null || kept == tail) {
+                        dedupedStatus
+                    } else {
+                        dedupedStatus.copy(items = head + kept)
+                    }
+                }.getOrDefault(dedupedStatus)
+            } else {
+                dedupedStatus
+            }
+            // STALE CALL GUARD — see [myGeneration]'s doc comment at the top of this function: a NEWER
+            // playQueue() already superseded this one while its fetch was in flight. Abandon here,
+            // before touching the player OR any of the fields below (radioSeedPool, contextProfile,
+            // radioAnchorId, radioOriginContextId, sessionPlayedIds) — every one of them belongs to
+            // whichever call is still current, never to a call the user has already moved past.
+            if (queueGeneration != myGeneration) {
+                // Diagnostic only (ronda 10, dueño: "sigo con el mismo problema, no arreglaste nada"):
+                // the guard's own abort was silent, so a log could never PROVE it fired — only its
+                // absence could ever be seen, indistinguishable from "the race never happened this
+                // session". No user data: just the two generation counters.
+                Timber.tag(TAG).i("QUEUE_RACE_GUARD playQueue aborted stale mine=%d now=%d", myGeneration, queueGeneration)
+                return@launch
+            }
+            // Ronda 10 (dueño: "en la búsqueda... la cola no cambia con cada canción que reproduzco").
+            // This used to unconditionally abandon the WHOLE queue setup — never reaching the
+            // addMediaItems below, and never reaching radioAnchorId/radioOriginContextId/radioSeedPool
+            // further down — whenever the PRELOADED single item's own playback had hit STATE_IDLE by the
+            // time this independent network fetch (YouTube.next(), a full radio/related list) resolved.
+            // Tapping search results back-to-back is exactly the pattern that starves the preload item of
+            // buffering time and/or races a transient stream-resolution hiccup into a fatal player error
+            // (which Media3 surfaces as STATE_IDLE) — at which point this line used to throw away a
+            // perfectly good, independently-fetched continuation queue for a reason that has nothing to
+            // do with whether that queue's own content is valid. The stale-call guard right above this
+            // (queueGeneration) already covers "a newer tap superseded this one" precisely, by call
+            // identity rather than by a proxy signal — this raw-state check was redundant with it AND
+            // wrong whenever they disagreed. Logged (no user data, just the state code) so a future log
+            // can confirm which of the two guards was actually the one protecting a given session.
+            if (queue.preloadItem != null && player.playbackState == STATE_IDLE) {
+                Timber.tag(TAG).i("playQueue: preload item was STATE_IDLE at fetch completion, continuing anyway (gen=%d)", myGeneration)
+            }
             if (initialStatus.title != null) {
                 queueTitle = initialStatus.title
             }
@@ -3699,6 +3940,9 @@ class MusicService :
                         initialStatus.items.size
                     )
                 )
+                // Fila #311 — the tapped song's own radio list is now its continuation (no seed replaces
+                // it any more), so it lights the player's radio indicator the way that seed used to.
+                if (queue is YouTubeQueue && initialStatus.items.size > 1) _mixActive.value = true
             } else {
                 val safeIndex = initialStatus.mediaItemIndex.coerceIn(0, (initialStatus.items.size - 1).coerceAtLeast(0))
                 // The other site that genuinely ends the in-flight stream — see the note at the preloadItem
@@ -3733,6 +3977,7 @@ class MusicService :
             // pagination / re-seed can never resurface a song that was already part of the queue the user
             // started from. Records the full list regardless of the preload/normal branch above.
             sessionPlayedIds.addAll(initialStatus.items.mapNotNull { it.mediaId })
+            sessionPlayedDedupKeys.addAll(initialStatus.items.mapNotNull { it.dedupKeyOrNull() })
 
             // Phase A #1/#6 — multi-seed pool: snapshot the collection's tracks so a later re-seed preserves its
             // artist/genre mix instead of collapsing to the single last song. Skip pure radios (YouTubeQueue) —
@@ -3751,6 +3996,10 @@ class MusicService :
             } else {
                 null
             }
+            radioAnchorMetadata = if (radioAnchorId != null) player.currentMediaItem?.metadata else null
+            // Ronda 10 — see [radioOriginContextId]'s own doc comment. null for anything without a
+            // stable Enhanced Shuffle identity (a plain radio, a search result, "Pedir música").
+            radioOriginContextId = queue.contextId
             // #34 — starting an explicit COLLECTION (playlist/album/list) supersedes any lingering Home-mood
             // bias: a stale mood chip must NOT hijack the infinite continuation of a playlist ("nada que ver").
             // A mood the user taps AFTER this (setActiveMood, no playQueue) survives, so the deliberate-mood
@@ -3868,6 +4117,99 @@ class MusicService :
 
             preloadUpcomingItems()
         }
+        // Fila #311 — release the claim however the load ends (items landed, empty, threw, or a newer
+        // playQueue() superseded it). invokeOnCompletion, not finally: it also fires when the body never
+        // ran. Only THIS call's claim is released; a newer call already owns the field otherwise.
+        initialLoadJob.invokeOnCompletion {
+            if (initialLoadPendingGeneration != myGeneration) return@invokeOnCompletion
+            initialLoadPendingGeneration = -1
+            if (scope.isActive) scope.launch { seedAfterInitialLoad(myGeneration) }
+        }
+    }
+
+    /**
+     * Fila #311 — the deferred half of [initialLoadPendingGeneration]. Runs once the queue's own initial
+     * load settled. If that load gave the song its continuation (a YouTubeQueue tap brings the song's own
+     * radio list), nothing is seeded — that list IS the queue. Only a queue that came back with nothing
+     * after the current song gets the seed it would have got at its first transition, now with the
+     * correct anchor. Requests armed while the seed was deferred (STATE_ENDED net, manual Next) are
+     * honoured here instead of being lost.
+     */
+    private fun seedAfterInitialLoad(generation: Int) {
+        if (queueGeneration != generation || player.mediaItemCount == 0) return
+        if (player.hasNextMediaItem()) {
+            // Manual Next / a song that ended while the list was still loading: step into the list now.
+            if (advanceIntoRadioRequested || (resumeAfterSeed && !player.isPlaying)) {
+                resumeAfterSeed = false
+                advanceIntoRadioRequested = false
+                player.seekToNextMediaItem()
+                player.playWhenReady = true
+                player.play()
+            }
+            return
+        }
+        val armed = resumeAfterSeed || advanceIntoRadioRequested
+        if (armed || (autoLoadMoreHint && player.playWhenReady && !currentQueue.hasNextPage())) {
+            startRadioSeamlessly()
+        }
+    }
+
+    /**
+     * The single-song ANCHOR lane filter (fila #300/#307), shared by appendSeed's first radio batch and
+     * — fila #311 — by the tapped song's own list in [playQueue]. Returns the kept items (in-lane first)
+     * and the ids judged off-lane, or null when the anchor's lane is unknown (nothing filtered).
+     * Contract unchanged from #300/#307: unknown-lane candidates stay eligible, off-lane ones are DROPPED
+     * only when at least 2 in-lane survivors remain, otherwise they are only sunk to the tail.
+     */
+    private fun anchorLanePartition(
+        items: List<MediaItem>,
+        anchorMeta: iad1tya.echo.music.models.MediaMetadata?,
+        genres: Map<String, String>,
+        site: String,
+    ): Pair<List<MediaItem>, Set<String>>? {
+        val anchor = if (anchorMeta != null) {
+            iad1tya.echo.music.reco.GenreLane.anchorOf(
+                genres, anchorMeta.artists.firstOrNull()?.name, anchorMeta.title, anchorMeta.album?.title,
+            )
+        } else {
+            null
+        }
+        if (anchor?.lane == null) {
+            Timber.tag(TAG).i("CTX_SINK %s (anchor): anchorLane unknown, no filter applied", site)
+            return null
+        }
+        // Ronda 11 — see GenreLane.Anchor: a Christian anchor with a known style keeps faith AND style.
+        // Only the style FAMILY is logged (e.g. "tropical"), never an artist or title (AGENTS.md rule 4).
+        if (anchor.christianStyle != null) {
+            Timber.tag(TAG).i("CTX_SINK %s (anchor): christian + style=%s", site, anchor.christianStyle)
+        }
+        val (inLane, offLane) = items.partition { mi ->
+            val m = mi.metadata
+            iad1tya.echo.music.reco.GenreLane.keeps(
+                anchor,
+                genres,
+                m?.artists?.firstOrNull()?.name.orEmpty(),
+                m?.title.orEmpty(),
+                m?.album?.title,
+            )
+        }
+        if (offLane.isEmpty()) return inLane to emptySet()
+        val offIds = offLane.mapNotNullTo(HashSet()) { it.mediaId }
+        // Threshold 2 — see fila #307: a single radio page is typically 5-25 items, so the collection
+        // branch's 10 was unreachable and the drop never engaged.
+        return if (inLane.size >= 2) {
+            Timber.tag(TAG).i(
+                "CTX_SINK %s (anchor): dropped %d/%d off-lane candidates (%d in-lane survivors)",
+                site, offLane.size, items.size, inLane.size,
+            )
+            inLane to offIds
+        } else {
+            Timber.tag(TAG).i(
+                "CTX_SINK %s (anchor): sank %d/%d off-lane candidates to the tail (only %d in-lane)",
+                site, offLane.size, items.size, inLane.size,
+            )
+            (inLane + offLane) to offIds
+        }
     }
 
     /**
@@ -3900,7 +4242,20 @@ class MusicService :
 
         // A B3 head-start (or a prior call) is already fetching — do NOT launch a second seed (registry #60).
         // Callers that need to jump into the result must [requestAdvanceIntoRadio] first.
-        if (radioSeedInFlight) {
+        //
+        // Ronda 10 — see [radioSeedInFlightGeneration]'s own doc comment: only a claim for the CURRENT
+        // generation blocks a new one. A stale claim left over from a queue the user already moved past
+        // (a NEW playQueue() bumped queueGeneration since it was made) no longer counts — it will settle
+        // as a harmless no-op on its own (its own generation check in appendSeed already covers that),
+        // and must not stop the CURRENT queue from ever getting its own seed.
+        if (radioSeedInFlight && radioSeedInFlightGeneration == queueGeneration) {
+            return
+        }
+
+        // Fila #311 — see [initialLoadPendingGeneration]. The current queue's own list is still loading:
+        // seeding now would seed from the PREVIOUS queue's anchor/pool. resumeAfterSeed and
+        // advanceIntoRadioRequested are deliberately left armed — [seedAfterInitialLoad] honours them.
+        if (initialLoadPendingGeneration == queueGeneration) {
             return
         }
 
@@ -3923,6 +4278,17 @@ class MusicService :
         // The cancelled-scope leak this used to guard against is handled by invokeOnCompletion below, which
         // runs even when the coroutine body never starts.
         radioSeedInFlight = true
+        // Captured synchronously, same moment as the claim above: this is the generation appendSeed()
+        // below checks against before it ever touches the player, so a NEW playQueue()/adoptExternalQueue()
+        // landing while this seed is still in flight makes its eventual append a no-op instead of
+        // overwriting the new queue's tail with the OLD context's songs (see [queueGeneration]).
+        val seedGeneration = queueGeneration
+        // See [radioSeedInFlightGeneration]'s own doc comment: this claim is now tagged with the
+        // generation it belongs to, so a LATER claim (a newer queue's own seed) can tell this one is
+        // stale without waiting for it, and this one's own completion won't clear a later claim's state.
+        radioSeedInFlightGeneration = seedGeneration
+        // Ronda 10 — see [radioOriginContextId]'s own doc comment.
+        val originContextId = radioOriginContextId
 
         val seedJob = scope.launch(SilentHandler) {
             // Resolve the YouTube videoId to seed the radio from. For a normal online track the mediaId IS the
@@ -4005,7 +4371,22 @@ class MusicService :
             // STATE_ENDED into READY-paused, which would make a STATE_ENDED check false and leave the music
             // stopped; !isPlaying still resumes then, yet won't yank playback if the user already started
             // something else during the async fetch.
-            suspend fun appendSeed(items: List<MediaItem>): Boolean {
+            suspend fun appendSeed(rawItems: List<MediaItem>): Boolean {
+                if (rawItems.isEmpty()) return false
+                // Ronda 10 — see [radioOriginContextId]'s own doc comment. Hard-drop, same strength as
+                // maybeLoadMoreQueuePages' own sessionPlayedIds filter: a persistent, cross-restart
+                // "already served after THIS collection" memory. Never below 1 candidate collapses the
+                // batch to nothing when the whole batch was already heard last time — that degrades to
+                // "nothing new this attempt", which the caller already treats as a normal empty batch
+                // (falls through to the next source / the replay last-resort), never a crash or silence.
+                val items = if (originContextId != null) {
+                    val playedBefore = withContext(Dispatchers.IO) {
+                        runCatching { database.radioContinuationPlayedIds(originContextId) }.getOrDefault(emptyList())
+                    }.toHashSet()
+                    if (playedBefore.isEmpty()) rawItems else rawItems.filterNot { it.mediaId in playedBefore }
+                } else {
+                    rawItems
+                }
                 if (items.isEmpty()) return false
                 // ENRICH BEFORE SCORING (see [ENRICH_BEFORE_SCORE_MS]) — the ROOT CAUSE of the genre
                 // mixing, as opposed to the two mitigations further down (the CTX_SINK partition and the
@@ -4020,18 +4401,39 @@ class MusicService :
                 // FIRST, before `liveIndex` below: this suspends for up to a second and a half, and that
                 // index must be read from the LIVE player as late as possible — capturing it and then
                 // waiting is precisely the staleness its own comment exists to prevent.
+                // Ronda 10 ("mejora el algoritmo de lo relacionado"): a single-song anchor (radioAnchorId,
+                // no collection profile) needs the same pre-scoring enrichment as a collection profile does,
+                // so the anchor lane check below (and NOT just later pagination) has real genre data on the
+                // very FIRST radio batch instead of only from the second batch onward.
                 val steerNeedsGenres = contextSteerActive && keepGenreLaneHint &&
-                    contextProfile?.active == true
+                    (contextProfile?.active == true || radioAnchorId != null)
                 if (steerNeedsGenres && !resumeAfterSeed) {
-                    val candidateArtists = items
-                        .flatMap { it.metadata?.artists.orEmpty() }
-                        .map { it.name }
+                    val anchorArtists = radioAnchorMetadata?.artists.orEmpty().map { it.name }
+                        .filter { it.isNotBlank() }.distinct()
+                    val candidateArtists = (anchorArtists +
+                        items.flatMap { it.metadata?.artists.orEmpty() }.map { it.name })
                         .filter { it.isNotBlank() }
                         .distinct()
                         .take(GENRE_LEARN_PER_RUN)
                     if (candidateArtists.isNotEmpty()) {
                         val enrichJob = scope.launch(Dispatchers.IO + SilentHandler) {
                             runCatching {
+                                // Ronda 10 (dueño: Elvis Crespo -> YouTube's own "next" devolvió puro
+                                // cristiano/alabanza tras varias pruebas seguidas con Jesús Adrián Romero
+                                // — evidencia real: CTX_GENRE reportó "completed=true" pero ningún
+                                // CTX_SINK siguió, o sea anchorLane terminó null pese al enrich). Causa:
+                                // GenreCache.enrich() aborta el lote entero tras 3 fallos SEGUIDOS
+                                // (MAX_CONSECUTIVE_FAILURES) — con 4 llamadas en paralelo, unos pocos
+                                // artistas de nicho sin ficha en iTunes bastan para tumbar el lote ANTES
+                                // de que le toque el turno al ancla, dejándolo sin resolver igual que a
+                                // los demás. El ancla es la ÚNICA búsqueda de la que depende este filtro
+                                // — se enriquece aparte primero, con su propio contador de fallos, para
+                                // que una racha de candidatas desconocidas nunca la deje afuera.
+                                if (anchorArtists.isNotEmpty()) {
+                                    iad1tya.echo.music.reco.GenreCache.enrich(
+                                        this@MusicService, anchorArtists, onlyWifi = true,
+                                    )
+                                }
                                 iad1tya.echo.music.reco.GenreCache.enrich(
                                     this@MusicService, candidateArtists, onlyWifi = true,
                                 )
@@ -4139,9 +4541,36 @@ class MusicService :
                     } else {
                         inContext to emptySet<String>()
                     }
+                } else if (
+                    // Ronda 10 ("mejora el algoritmo de lo relacionado", dueño: Bob Marley -> mezcla desde
+                    // el primer lote): a single-song radio (no collection, so no [profile]) used to append
+                    // its FIRST batch with zero genre-lane protection at all — the lane filter only existed
+                    // in the pagination path (maybeLoadMoreQueuePages), so anything YouTube's own radio
+                    // algorithm mixed in from batch 1 played unfiltered. Same "sink, never silently drop
+                    // below threshold" contract as the collection branch above, keyed on the ANCHOR song's
+                    // own lane (radioAnchorMetadata, fixed once — see radioAnchorMetadata's own doc) instead
+                    // of a genreShare map, since a single song has no share distribution to consult.
+                    contextSteerActive && keepGenreLaneHint && radioAnchorId != null
+                ) {
+                    val genres = withContext(Dispatchers.IO) {
+                        runCatching { iad1tya.echo.music.reco.GenreCache.snapshot(this@MusicService) }
+                            .getOrDefault(emptyMap())
+                    }
+                    // Ronda 10 (Elvis Crespo → puro cristiano): the unknown-anchor branch logs too, so
+                    // "the anchor has no genre" and "nothing to remove" no longer look identical.
+                    anchorLanePartition(items, radioAnchorMetadata, genres, "appendSeed")
+                        ?: (items to emptySet<String>())
                 } else items to emptySet<String>()
                 val toAppend = laneOrdered.first.orderedByTaste(laneOrdered.second)
                 if (toAppend.isEmpty()) return false
+                // STALE SEED GUARD (ronda 10, ver [queueGeneration]): a NEW queue landed while this seed's
+                // network fetch was in flight — mutating the player now would overwrite THAT queue's tail
+                // with this seed's (old context's) songs. Bail exactly like the empty-batch case above; the
+                // caller's own "no radio source worked" handling already covers this outcome cleanly.
+                if (queueGeneration != seedGeneration) {
+                    Timber.tag(TAG).i("QUEUE_RACE_GUARD appendSeed aborted stale mine=%d now=%d", seedGeneration, queueGeneration)
+                    return false
+                }
                 // Truncate the tail ONLY when playing in order. `liveIndex` is a TIMELINE index, but under
                 // shuffle playback follows the shuffle order, so "everything after liveIndex" is an arbitrary
                 // slice — not the played tail. Starting a radio from the middle of a shuffled 50-track queue
@@ -4152,6 +4581,20 @@ class MusicService :
                 }
                 player.addMediaItems(liveIndex + 1, toAppend)
                 sessionPlayedIds.addAll(toAppend.mapNotNull { it.mediaId }) // NO-REPEAT: record what we appended
+                sessionPlayedDedupKeys.addAll(toAppend.mapNotNull { it.dedupKeyOrNull() })
+                // Ronda 10 — see [radioOriginContextId]'s own doc comment. Fire-and-forget, off the
+                // player thread: this is memory for the NEXT time the collection is replayed, never
+                // something the current playback needs to wait on.
+                if (originContextId != null) {
+                    val now = System.currentTimeMillis()
+                    val rows = toAppend.mapNotNull { it.mediaId }
+                        .map { iad1tya.echo.music.db.entities.RadioContinuationPlayedEntity(originContextId, it, now) }
+                    if (rows.isNotEmpty()) {
+                        scope.launch(Dispatchers.IO + SilentHandler) {
+                            runCatching { database.insertRadioContinuationPlayed(rows) }
+                        }
+                    }
+                }
                 _mixActive.value = true
                 if (player.shuffleModeEnabled) {
                     val shufflePlaylistFirst = dataStore.get(ShufflePlaylistFirstKey, false)
@@ -4463,9 +4906,15 @@ class MusicService :
         // when the coroutine body NEVER RAN (a launch on an already-cancelled scope completes immediately), so
         // the flag can no longer stick true and silently kill every re-seed path for the rest of the process.
         seedJob.invokeOnCompletion {
-            radioSeedInFlight = false
-            resumeAfterSeed = false
-            advanceIntoRadioRequested = false
+            // Ronda 10 — see [radioSeedInFlightGeneration]'s own doc comment: only clear the shared
+            // flags if NOBODY newer has claimed them since. A later, still-running seed job (a NEWER
+            // queue's own legitimate attempt) already overwrote radioSeedInFlightGeneration with its own
+            // generation — this stale job's completion must not clear its state out from under it.
+            if (radioSeedInFlightGeneration == seedGeneration) {
+                radioSeedInFlight = false
+                resumeAfterSeed = false
+                advanceIntoRadioRequested = false
+            }
         }
     }
 
@@ -4555,6 +5004,12 @@ class MusicService :
                 return@launch
             }
             radioSeedInFlight = true
+            // Same stale-append guard as appendSeed (see [queueGeneration]): a chip tap can itself be
+            // overtaken by a brand-new playQueue()/adoptExternalQueue() while its own fetch is in flight.
+            val chipGeneration = queueGeneration
+            // See [radioSeedInFlightGeneration]: tag this claim so a concurrent startRadioSeamlessly()
+            // correctly sees it as CURRENT (blocking, as intended) rather than a stale leftover.
+            radioSeedInFlightGeneration = chipGeneration
             var applied = false
             try {
                 val chipQueue = YouTubeQueue(endpoint = chip.endpoint, automaticRadio = true)
@@ -4581,11 +5036,16 @@ class MusicService :
                 // with nothing after the current track.
                 val toAppend = items.orderedByTaste()
                 if (toAppend.isEmpty()) return@launch
+                if (queueGeneration != chipGeneration) {
+                    Timber.tag(TAG).i("QUEUE_RACE_GUARD selectAutoplayChip aborted stale mine=%d now=%d", chipGeneration, queueGeneration)
+                    return@launch // stale — see [queueGeneration]
+                }
                 if (itemCount > liveIndex + 1) {
                     player.removeMediaItems(liveIndex + 1, itemCount)
                 }
                 player.addMediaItems(liveIndex + 1, toAppend)
                 sessionPlayedIds.addAll(toAppend.mapNotNull { it.mediaId }) // NO-REPEAT: record what we appended
+                sessionPlayedDedupKeys.addAll(toAppend.mapNotNull { it.dedupKeyOrNull() })
                 _mixActive.value = true
                 if (initialStatus.title != null) queueTitle = initialStatus.title
                 if (player.shuffleModeEnabled) {
@@ -4602,7 +5062,11 @@ class MusicService :
                 // own finally and is NOT touched by the chip path. Any path that did NOT rewrite the
                 // tail (null/empty fetch, exception swallowed by SilentHandler) reverts the highlight
                 // so the chip UI never claims a steer the live queue doesn't reflect.
-                radioSeedInFlight = false
+                // Guarded the same way as startRadioSeamlessly's own completion (see
+                // [radioSeedInFlightGeneration]): only release if nothing newer has claimed it since.
+                if (radioSeedInFlightGeneration == chipGeneration) {
+                    radioSeedInFlight = false
+                }
                 if (!applied) revertChip()
             }
         }
@@ -4838,7 +5302,15 @@ class MusicService :
             val key = index.toDouble() - pull + soft + jitter + ctx + sunk
             // NO-REPEAT: "heard" is now SESSION-WIDE ([sessionPlayedIds] — everything played OR appended this
             // session), broadened beyond the last-~120 [recentSnapshot] and the ~5-min DB [playedHistory].
-            val heard = m != null && (m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory)
+            // Ronda 10: also caught by TITLE+artist ([sessionPlayedDedupKeys]) so a different upload of a
+            // song already heard (same name, different mediaId) counts as heard too.
+            val dedupKey = m?.let {
+                iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey(it.title, it.artists.firstOrNull()?.name)
+            }
+            val heard = m != null && (
+                m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory ||
+                    dedupKey in sessionPlayedDedupKeys
+            )
             Triple(mi, key, heard)
         }
         // Phase B #4 — exploration quota: reserve 1-in-15 slots for a FRESH artist (not yet in the taste profile)
@@ -5127,6 +5599,7 @@ class MusicService :
         }
         contextCoverageSize += items.size
         sessionPlayedIds.addAll(items.mapNotNull { it.mediaId })
+        sessionPlayedDedupKeys.addAll(items.mapNotNull { it.dedupKeyOrNull() })
         // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): a diferencia de
         // appendSeed (la otra vía de "cola infinita"), esta función nunca reprogramaba el crossfade.
         // Si el reproductor llegaba a la última canción del primer lote de "pedir música" justo antes
@@ -5653,6 +6126,11 @@ class MusicService :
         //
         // `queueTitle` se limpia por lo mismo: es el título que se persiste con la cola, y el nombre de
         // la playlist anterior sobre el álbum que suena en el coche es sencillamente falso.
+        // Same [queueGeneration] bump as playQueue(): an external queue landing here is just as much a
+        // "new queue" as an in-app one, and a stale in-app radio seed racing this adoption is the exact
+        // failure this counter exists to catch.
+        queueGeneration++
+        radioOriginContextId = contextId // see [radioOriginContextId]'s own doc comment
         adoptDirectQueue(items = items, title = null, contextId = contextId, startIndex = startIndex)
         shuffleContextId = contextId
         pendingExternalShuffle = shuffle
@@ -5687,6 +6165,7 @@ class MusicService :
         // the continuation degrades to last-song seeding — related to the CAR's song, which is honest.
         radioSeedPool = emptyList()
         radioAnchorId = null
+        radioAnchorMetadata = null
         contextProfile = null
         contextSteerActive = false
     }
@@ -5814,7 +6293,12 @@ class MusicService :
                 _crossfadeOutgoingMetadata.value = null
             }
         }
-        rememberRecentRadioId(mediaItem?.mediaId ?: player.currentMetadata?.id)
+        rememberRecentRadioId(
+            mediaItem?.mediaId ?: player.currentMetadata?.id,
+            mediaItem?.dedupKeyOrNull() ?: player.currentMetadata?.let {
+                iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey(it.title, it.artists.firstOrNull()?.name)
+            },
+        )
         // Automatic YouTube radio only: skip non-music uploads (tutorials/how-tos) with null musicVideoType.
         // Never skip user-tapped songs / playlists (YouTubeQueue without automaticRadio) — those often lack
         // a type when hydrated from DB and must still play.
@@ -6176,13 +6660,29 @@ class MusicService :
             // Captured on the player thread: what's currently playing, so autoplay can stay in the same
             // style instead of drifting. Title/artist/album are kept SEPARATE (not pre-joined) because the
             // lane now also needs the primary ARTIST on its own to look up its real genre.
+            //
+            // Ronda 10 (dueño: Bob Marley -> mezcla -> Michael Jackson no continuó -> luego Pitbull): when
+            // this is an ANCHORED single-song radio (radioAnchorId set), the lane reference must be the
+            // song the user actually started from, not whatever is CURRENTLY playing — the current item can
+            // already be a prior pagination's drift (an unknown-genre pick always passes the lane filter by
+            // design), and re-deriving the lane from it each time let that drift compound step after step.
+            // Collections keep reading the live current item (their stability comes from radioSeedPool /
+            // contextProfile instead, which this pagination path barely reaches post-contextId fix).
             val curItem = player.currentMediaItem
-            val curTitle = curItem?.mediaMetadata?.title?.toString()
-            val curArtist = curItem?.mediaMetadata?.artist?.toString()
-            val curAlbum = curItem?.mediaMetadata?.albumTitle?.toString()
+            val anchorMeta = if (radioAnchorId != null) radioAnchorMetadata else null
+            val curTitle = anchorMeta?.title ?: curItem?.mediaMetadata?.title?.toString()
+            val curArtist = anchorMeta?.artists?.joinToString { it.name }?.takeIf { it.isNotBlank() }
+                ?: curItem?.mediaMetadata?.artist?.toString()
+            val curAlbum = anchorMeta?.album?.title ?: curItem?.mediaMetadata?.albumTitle?.toString()
             // The STRUCTURED artist list (not the joined byline) — only this is usable as a genre-cache key.
-            val curArtists = curItem?.metadata?.artists.orEmpty().map { it.name }
+            val curArtists = (anchorMeta?.artists ?: curItem?.metadata?.artists).orEmpty().map { it.name }
             val keepLane = keepGenreLaneHint
+            // Ronda 10 (ver [queueGeneration]): captured synchronously, same reasoning as the radio-seed
+            // guard — this pagination fetch is asynchronous too, and a NEW playQueue() landing before it
+            // resolves must not have its tail overwritten by the OLD queue's next page.
+            val pageGeneration = queueGeneration
+            // Ronda 10 — see [radioOriginContextId]'s own doc comment.
+            val pageOriginContextId = radioOriginContextId
             scope.launch(SilentHandler) {
                 val disliked = runCatching { dislikeStore.snapshot() }.getOrDefault(iad1tya.echo.music.dislike.DislikeStore.Disliked())
                 val mediaItems = withContext(Dispatchers.IO) {
@@ -6219,6 +6719,24 @@ class MusicService :
                     if (enrichNames.isNotEmpty()) {
                         val enrichJob = scope.launch(Dispatchers.IO + SilentHandler) {
                             runCatching {
+                                // Ronda 10 (dueño: probó 4 artistas seguidos en una sesión aislada — el
+                                // 2do, 3er y 4to fallaron, cada vez peor). Causa: esta llamada de
+                                // PAGINACIÓN tenía el MISMO bug que appendSeed (fila #309) — curArtists
+                                // (el ancla que hay que MANTENER durante la continuación, para calcular
+                                // currentLane más abajo) compartía lote con las candidatas de la página
+                                // nueva. GenreCache.enrich() aborta el lote entero tras 3 fallos SEGUIDOS;
+                                // bastaba una racha entre las candidatas para tumbarlo antes de que le
+                                // tocara el turno al ancla, dejando currentLane en null y esa página SIN
+                                // FILTRO alguno. Empeora con cada artista probado en la misma sesión: más
+                                // nombres ya marcados en failedThisSession, más chance de que la racha de
+                                // 3 fallos se dispare de nuevo antes de llegar al ancla. Se enriquece
+                                // aparte primero, con su propio contador de fallos — igual que en
+                                // appendSeed — para que esa racha nunca la deje sin resolver.
+                                if (curArtists.isNotEmpty()) {
+                                    iad1tya.echo.music.reco.GenreCache.enrich(
+                                        this@MusicService, curArtists, onlyWifi = true,
+                                    )
+                                }
                                 iad1tya.echo.music.reco.GenreCache.enrich(this@MusicService, enrichNames, onlyWifi = true)
                             }
                         }
@@ -6242,6 +6760,9 @@ class MusicService :
                     } else {
                         null
                     }
+                    if (keepLane && currentLane == null) {
+                        Timber.tag(TAG).i("CTX_SINK maybeLoadMoreQueuePages: currentLane unknown, no filter applied")
+                    }
                     // Never auto-play something the user disliked (the song or a disliked artist).
                     if (!disliked.isEmpty) {
                         next = next.filterNot { mi ->
@@ -6261,16 +6782,17 @@ class MusicService :
                     //    collapse autoplay onto library artists (repetitive, no discovery). So we only drop
                     //    candidates whose genre we KNOW and know to be different; unknown stays eligible.
                     if (currentLane != null) {
-                        val strictLane = currentLane == iad1tya.echo.music.reco.GenreLane.CHRISTIAN &&
-                            iad1tya.echo.music.reco.GenreLane.isKeywordChristian(curTitle, curArtist, curAlbum)
+                        // Same lane + strictness as always (anchorOf computes both exactly as this block
+                        // did); ronda 11 adds the style check for a Christian anchor — see GenreLane.keeps.
+                        val anchor = iad1tya.echo.music.reco.GenreLane.anchorOf(genres, curArtist, curTitle, curAlbum)
                         val inLane = next.filter { mi ->
-                            val lane = iad1tya.echo.music.reco.GenreLane.laneOfTrack(
+                            iad1tya.echo.music.reco.GenreLane.keeps(
+                                anchor,
                                 genres,
                                 mi.mediaMetadata.artist?.toString(),
                                 mi.mediaMetadata.title?.toString(),
                                 mi.mediaMetadata.albumTitle?.toString(),
                             )
-                            if (strictLane) lane == currentLane else lane == null || lane == currentLane
                         }
                         if (inLane.size >= 2) next = inLane
                     }
@@ -6279,7 +6801,21 @@ class MusicService :
                     // anything already played/queued this session. If this empties the batch we append NOTHING
                     // (the guard below no-ops) and leave hasNextPage untouched, so the next transition pulls the
                     // next page; the STATE_ENDED net re-seeds if the pages ever run truly dry. Never a repeat.
-                    next = next.filterNot { it.mediaId in sessionPlayedIds }
+                    // Ronda 10: also drops a candidate with the SAME TITLE+artist as something already
+                    // heard (a different upload of the same song), not just an exact mediaId match.
+                    // Ronda 10 (persistent): also drops anything the radio already served after THIS
+                    // collection on a PAST listen — sessionPlayedIds alone is lost on a process restart;
+                    // see [radioOriginContextId]'s own doc comment.
+                    val playedBefore = if (pageOriginContextId != null) {
+                        runCatching { database.radioContinuationPlayedIds(pageOriginContextId) }
+                            .getOrDefault(emptyList()).toHashSet()
+                    } else {
+                        emptySet()
+                    }
+                    next = next.filterNot {
+                        it.mediaId in sessionPlayedIds || it.dedupKeyOrNull() in sessionPlayedDedupKeys ||
+                            it.mediaId in playedBefore
+                    }
                     // Phase A #2 — route the steady-state continuation through orderedByTaste() too, so it is
                     // taste-ordered + artist-spaced (spacedByArtist) rather than raw YouTube order. We're inside
                     // withContext(Dispatchers.IO) so calling the suspend member is fine; it re-dedupes/dislike-
@@ -6287,9 +6823,25 @@ class MusicService :
                     next = next.orderedByTaste()
                     next
                 }
-                if (player.playbackState != STATE_IDLE && mediaItems.isNotEmpty()) {
+                if (mediaItems.isNotEmpty() && player.playbackState != STATE_IDLE && queueGeneration != pageGeneration) {
+                    // Diagnostic only — see the identical note on the playQueue()/appendSeed guards.
+                    Timber.tag(TAG).i("QUEUE_RACE_GUARD maybeLoadMoreQueuePages aborted stale mine=%d now=%d", pageGeneration, queueGeneration)
+                }
+                if (player.playbackState != STATE_IDLE && mediaItems.isNotEmpty() && queueGeneration == pageGeneration) {
                     player.addMediaItems(mediaItems)
                     sessionPlayedIds.addAll(mediaItems.mapNotNull { it.mediaId }) // NO-REPEAT: record what we appended
+                    sessionPlayedDedupKeys.addAll(mediaItems.mapNotNull { it.dedupKeyOrNull() })
+                    // Ronda 10 (persistent) — see [radioOriginContextId]'s own doc comment.
+                    if (pageOriginContextId != null) {
+                        val now = System.currentTimeMillis()
+                        val rows = mediaItems.mapNotNull { it.mediaId }
+                            .map { iad1tya.echo.music.db.entities.RadioContinuationPlayedEntity(pageOriginContextId, it, now) }
+                        if (rows.isNotEmpty()) {
+                            scope.launch(Dispatchers.IO + SilentHandler) {
+                                runCatching { database.insertRadioContinuationPlayed(rows) }
+                            }
+                        }
+                    }
                     if (player.shuffleModeEnabled) {
                         val shufflePlaylistFirst = dataStore.get(ShufflePlaylistFirstKey, false)
                         applyShuffleOrder(player.currentMediaItemIndex, player.mediaItemCount, shufflePlaylistFirst)
@@ -10631,7 +11183,7 @@ class MusicService :
             // still has time left — so a real crossfade INTO the first radio song is possible. A bare return here
             // is why the infinite queue used to continue with a hard cut. appendSeed() re-arms scheduleCrossfade()
             // once the items land, so the fade then targets the freshly-appended next song.
-            if (!radioSeedInFlight && dataStore.get(AutoLoadMoreKey, true) &&
+            if (!radioSeedInFlight && autoLoadMoreHint &&
                 player.currentMediaItem?.mediaId != null
             ) {
                 startRadioSeamlessly()
