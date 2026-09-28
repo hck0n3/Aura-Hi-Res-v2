@@ -1,8 +1,17 @@
-# Aura Hi-Res v2.0.61-beta10 — Pedir música pone lo que pides, y la fe se mantiene con su estilo
+# Aura Hi-Res v2.0.62-beta1 — El actualizador ya ofrece las betas, y Pedir música pone lo que pides
 
 Beta encima de la 2.0.61-beta9. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Trae todo lo de la 2.0.61-beta10 (que el actualizador no te ofreció) más el arreglo del actualizador.
 Incluye también el arreglo de la beta9: la canción que tocás en el buscador ya no hereda la cola de la
 anterior.
+
+## El actualizador ya ofrece todas las betas
+
+- La beta10 no te apareció porque el actualizador comparaba las betas como texto, y en texto "beta10"
+  va antes que "beta9" (el 1 va antes que el 9): la daba por más vieja que la que tenías.
+- Ahora compara los números como números. Esta versión se llama 2.0.62 a propósito: es la única forma
+  de que tu versión actual, con el comparador viejo, la vea como más nueva.
+- También se arregló que al saltarte una beta se perdieran sus notas en la pantalla de novedades.
 
 ## Pedir música: la canción que nombrás suena primero
 

@@ -253,8 +253,28 @@ object UpdateApkFiles {
             targetPre == currentPre -> false
             currentPre.isEmpty() -> false // a prerelease never supersedes the finished release
             targetPre.isEmpty() -> true // the finished release supersedes its own prereleases
-            else -> targetPre.compareTo(currentPre, ignoreCase = true) > 0
+            else -> comparePrerelease(targetPre, currentPre) > 0
         }
+    }
+
+    /**
+     * Dueño (2026-09-28): "no me salió la beta en el actualizador". The suffix used to be compared as
+     * plain TEXT, and in text "beta10" < "beta9" ('1' < '9') — so from beta9 the updater saw beta10 as
+     * OLDER and never offered it, and among releases it kept picking beta9 as "the newest". Natural
+     * order instead: runs of digits compare as numbers, everything else as case-insensitive text.
+     */
+    private fun comparePrerelease(a: String, b: String): Int {
+        val ra = Regex("\\d+|\\D+").findAll(a.lowercase()).map { it.value }.toList()
+        val rb = Regex("\\d+|\\D+").findAll(b.lowercase()).map { it.value }.toList()
+        for (i in 0 until minOf(ra.size, rb.size)) {
+            val x = ra[i]
+            val y = rb[i]
+            val nx = x.toBigIntegerOrNull()
+            val ny = y.toBigIntegerOrNull()
+            val c = if (nx != null && ny != null) nx.compareTo(ny) else x.compareTo(y)
+            if (c != 0) return c
+        }
+        return ra.size - rb.size
     }
 
     /** "0.6.146-beta1" -> ([0, 6, 146], "beta1"). Non-numeric junk in a part counts as 0. */

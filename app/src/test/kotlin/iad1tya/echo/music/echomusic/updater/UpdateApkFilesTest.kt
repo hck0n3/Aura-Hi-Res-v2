@@ -256,6 +256,16 @@ class UpdateApkFilesTest {
         assertFalse(UpdateApkFiles.isNewerRelease(target = "v0.6.146-beta1", current = "0.6.146"))
     }
 
+    /** Dueño (2026-09-28): "no me salió la beta en el actualizador" — beta10 was sorted as TEXT. */
+    @Test
+    fun `beta numbers compare as numbers, not as text`() {
+        assertTrue(UpdateApkFiles.isNewerRelease(target = "v2.0.61-beta10", current = "2.0.61-beta9"))
+        assertTrue(UpdateApkFiles.isNewerRelease(target = "v2.0.61-beta10", current = "2.0.61-beta8"))
+        assertFalse(UpdateApkFiles.isNewerRelease(target = "v2.0.61-beta9", current = "2.0.61-beta10"))
+        assertFalse(UpdateApkFiles.isNewerRelease(target = "v2.0.61-beta10", current = "2.0.61-beta10"))
+        assertTrue(UpdateApkFiles.isNewerRelease(target = "v2.0.62-beta1", current = "2.0.61-beta10"))
+    }
+
     @Test
     fun `a normal update is still offered and the same version is not`() {
         assertTrue(UpdateApkFiles.isNewerRelease(target = "v0.6.146", current = "0.6.145"))

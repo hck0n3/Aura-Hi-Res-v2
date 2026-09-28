@@ -886,7 +886,11 @@ suspend fun checkForUpdate(
                         val ver = rel.optString("tag_name").removePrefix("b").removePrefix("v").trim()
                         if (ver.isBlank()) continue
                         // Strictly between current and target (target's notes are already shown above).
-                        if (compareVersions(ver, currentClean) > 0 && compareVersions(ver, targetClean) < 0) {
+                        // Same comparator as the offer itself: compareVersions() reads "61-beta9" as 0,
+                        // so a skipped BETA's notes were silently dropped from this list.
+                        if (UpdateApkFiles.isNewerRelease(ver, currentClean) &&
+                            UpdateApkFiles.isNewerRelease(targetClean, ver)
+                        ) {
                             val items = rel.optString("body", "").split("\n")
                                 .map { it.trim().trimStart('#', '-', '*', ' ').trim() }
                                 .filter { it.isNotBlank() }
@@ -896,7 +900,13 @@ suspend fun checkForUpdate(
                             }
                         }
                     }
-                    skipped.sortWith(Comparator { a, b -> compareVersions(b.first, a.first) })
+                    skipped.sortWith(Comparator { a, b ->
+                        when {
+                            UpdateApkFiles.isNewerRelease(a.first, b.first) -> -1
+                            UpdateApkFiles.isNewerRelease(b.first, a.first) -> 1
+                            else -> 0
+                        }
+                    })
                     skipped.forEach { changelogList.add(it.second) }
                 } catch (_: Exception) { /* best-effort aggregation */ }
 
