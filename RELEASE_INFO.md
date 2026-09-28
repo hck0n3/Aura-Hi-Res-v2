@@ -1,4 +1,4 @@
-# Aura Hi-Res v2.0.62 — Cola infinita que no se desvía y Pedir música que pone lo que pedís
+# Aura Hi-Res v2.0.62-beta2 — Las listas de Spotify ya no vuelven a su contenido viejo
 
 Actualización para todos, encima de la 2.0.59. Conserva tus datos, tu sesión y tus ajustes: mismo
 paquete y misma firma. Recoge catorce rondas de pruebas y reportes, casi todas sobre la cola infinita.
@@ -21,6 +21,14 @@ paquete y misma firma. Recoge catorce rondas de pruebas y reportes, casi todas s
 - **No repite.** Nada que ya sonó, ni otra subida de la misma canción con el mismo nombre. Y si volvés
   a poner el mismo álbum o la misma lista, lo que la radio agregue después tampoco repite lo de la vez
   anterior, aunque hayas cerrado la app o reiniciado el teléfono.
+
+## Listas de Spotify
+
+- **Las listas sincronizadas desde Spotify ya no vuelven a su contenido viejo.** Cuando una lista de
+  Spotify ya estaba también en tu cuenta de YouTube Music, la app traía las canciones nuevas de Spotify
+  pero después la sincronización con YouTube la pisaba con la copia vieja de tu cuenta.
+- Ahora Spotify manda en esas listas: la sincronización con YouTube ya no las reemplaza, y la copia de
+  tu cuenta de YouTube Music se pone al día sola con lo que agregaste o quitaste en Spotify.
 
 ## Pedir música
 
