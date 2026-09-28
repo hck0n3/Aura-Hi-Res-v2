@@ -877,10 +877,15 @@ val MIGRATION_39_40 =
         }
     }
 
+// The DEFAULT must be written EXACTLY as PlaylistEntity declares it (`defaultValue = false.toString()`,
+// i.e. the literal `false`), not an equivalent `0`: Room validates a migrated table by comparing the
+// default's TEXT from PRAGMA table_info, so `DEFAULT 0` vs expected `false` failed validation with
+// "Migration didn't properly handle: playlist" and crashed, at every launch, everyone updating from a
+// database older than v43. Guardian: MigrationCoverageTest's default-value check.
 val MIGRATION_42_43 =
     object : Migration(42, 43) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE `playlist` ADD COLUMN `autoDownload` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `playlist` ADD COLUMN `autoDownload` INTEGER NOT NULL DEFAULT false")
         }
     }
 

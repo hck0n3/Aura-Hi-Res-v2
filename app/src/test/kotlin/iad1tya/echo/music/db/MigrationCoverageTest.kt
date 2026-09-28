@@ -2,6 +2,7 @@ package iad1tya.echo.music.db
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.json.JSONObject
 import org.junit.Test
 import java.io.File
 
@@ -160,6 +161,57 @@ class MigrationCoverageTest {
                 "files; without one, that step is skipped and a migration that leaves the schema subtly " +
                 "wrong goes unnoticed until a query fails on a user's phone",
             missing.isEmpty(),
+        )
+    }
+
+    /** Hand-written migrations with their body (the text up to the next top-level `val MIGRATION_`). */
+    private val manualMigrationBodies: List<Triple<Int, Int, String>> by lazy {
+        val starts = Regex("""(?m)^val\s+MIGRATION_(\d+)_(\d+)\b""").findAll(databaseSource).toList()
+        starts.mapIndexed { i, m ->
+            val end = starts.getOrNull(i + 1)?.range?.first ?: databaseSource.length
+            Triple(m.groupValues[1].toInt(), m.groupValues[2].toInt(), databaseSource.substring(m.range.last + 1, end))
+        }
+    }
+
+    @Test
+    fun `hand-written ADD COLUMN defaults match the exported schema text exactly`() {
+        // Room validates a migrated table by comparing each column's default AS TEXT (PRAGMA table_info)
+        // against the entity's `defaultValue`. `DEFAULT 0` and `DEFAULT false` are the same value to SQLite
+        // and different strings to Room: MIGRATION_42_43 wrote `0` for a column declared `false`, and every
+        // user updating from before v43 crashed at launch with "Migration didn't properly handle: playlist".
+        // This is the one part of "the migration's SQL is wrong" that CAN be checked without a device.
+        val schemaDir = File(repoRoot, "app/schemas/iad1tya.echo.music.db.InternalDatabase")
+        val addColumn = Regex("""ALTER TABLE\s+`?(\w+)`?\s+ADD COLUMN\s+`?(\w+)`?[^"]*?\bDEFAULT\s+([^\s")]+)""")
+        val mismatches = mutableListOf<String>()
+
+        manualMigrationBodies.forEach { (from, to, body) ->
+            addColumn.findAll(body).forEach { m ->
+                val (table, column, written) = m.destructured
+                // A table rebuilt afterwards (`_new_<table>`, same or a later migration) replaces this column
+                // definition, so the intermediate default is not what Room ends up validating.
+                val rebuiltLater = manualMigrationBodies.any { (f, _, b) -> f >= from && "`_new_$table`" in b }
+                val schema = File(schemaDir, "$to.json")
+                if (rebuiltLater || !schema.isFile) return@forEach
+
+                val entity = JSONObject(schema.readText()).getJSONObject("database").getJSONArray("entities")
+                    .let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
+                    .firstOrNull { it.getString("tableName") == table } ?: return@forEach
+                val field = entity.getJSONArray("fields")
+                    .let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
+                    .firstOrNull { it.getString("columnName") == column } ?: return@forEach
+                // Room only compares when the entity declares a default; so does this test.
+                val expected = field.optString("defaultValue", "").takeIf { field.has("defaultValue") }
+                    ?: return@forEach
+                if (expected != written) {
+                    mismatches += "MIGRATION_${from}_$to: `$table`.`$column` DEFAULT $written, schema expects $expected"
+                }
+            }
+        }
+
+        assertTrue(
+            "hand-written migration defaults differ from what Room validates against — write the DEFAULT " +
+                "literally as the entity's defaultValue:\n" + mismatches.joinToString("\n"),
+            mismatches.isEmpty(),
         )
     }
 
