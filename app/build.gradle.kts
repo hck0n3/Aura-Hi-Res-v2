@@ -231,17 +231,12 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1036
-        // BETA 2.0.62-beta1 — SOLO EL DUEÑO. Mismo contenido que la 2.0.61-beta10 + el arreglo del
-        // actualizador. Dueño (2026-09-28): "no me salió la beta en el actualizador". El canal beta
-        // comparaba el sufijo como TEXTO y "beta10" < "beta9" ('1' < '9'), así que desde la beta9 la
-        // beta10 parecía más vieja (fila 315). Se sube el número (2.0.62) a propósito: la beta que el
-        // dueño tiene instalada trae el comparador viejo, y solo un número mayor la hace ver esta
-        // versión como más nueva. De aquí en adelante el comparador ya es numérico.
-        // El sufijo `-beta` es a propósito: `gradle.yml` marca como prerelease cualquier tag que lo
-        // contenga, así que esto NO entra en `releases/latest` y no le llega a nadie más que al
-        // dueño. Publicar el tag requiere su permiso explícito en el momento (AGENTS.md).
-        versionName = "2.0.62-beta1"
+        versionCode = 1037
+        // ESTABLE 2.0.62 — PARA TODOS. Orden explícita del dueño (2026-09-28): "ya lanza la versión
+        // para todos para que ya aparezca esta actualización para todos los usuarios", tras probar la
+        // 2.0.62-beta1 en su dispositivo ("todo quedó muy bien"). Recoge las filas 293-315 del
+        // registro (2.0.60-beta1 → 2.0.62-beta1); RELEASE_INFO.md las cuenta todas.
+        versionName = "2.0.62"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
