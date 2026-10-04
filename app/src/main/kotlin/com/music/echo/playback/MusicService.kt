@@ -4481,14 +4481,32 @@ class MusicService :
                 // very FIRST radio batch instead of only from the second batch onward.
                 val steerNeedsGenres = contextSteerActive && keepGenreLaneHint &&
                     (contextProfile?.active == true || radioAnchorId != null)
+                // A batch that will be laid out by the collection's genre PATTERN (same gate as
+                // `followPattern` below). Owner log 2026-10-04: a one-genre playlist's continuation scored
+                // 49 candidates with only 21 known and 28 UNKNOWN — the 12-artist budget learns a quarter
+                // of a 50-song batch, and every unknown can only be ordered after the pattern, never
+                // placed in it. These batches get a larger budget (CONTEXT_ENRICH_PER_BATCH, primary
+                // artists first, two GenreCache runs of ≤15) and a longer wait. Inaudible: this seed runs
+                // while the collection's last song still plays (B3 / crossfade early seed); the parked-at-
+                // the-end case (resumeAfterSeed) still skips the wait entirely.
+                val patternBatch = contextSteerActive && keepGenreLaneHint &&
+                    contextProfile?.let { it.active && it.genreShare.isNotEmpty() } == true
                 if (steerNeedsGenres && !resumeAfterSeed) {
                     val anchorArtists = radioAnchorMetadata?.artists.orEmpty().map { it.name }
                         .filter { it.isNotBlank() }.distinct()
-                    val candidateArtists = (anchorArtists +
-                        items.flatMap { it.metadata?.artists.orEmpty() }.map { it.name })
-                        .filter { it.isNotBlank() }
-                        .distinct()
-                        .take(GENRE_LEARN_PER_RUN)
+                    val candidateArtists = if (patternBatch) {
+                        (items.mapNotNull { it.metadata?.artists?.firstOrNull()?.name } +
+                            items.flatMap { it.metadata?.artists.orEmpty() }.map { it.name })
+                            .filter { it.isNotBlank() }
+                            .distinctBy { it.trim().lowercase() }
+                            .take(CONTEXT_ENRICH_PER_BATCH)
+                    } else {
+                        (anchorArtists +
+                            items.flatMap { it.metadata?.artists.orEmpty() }.map { it.name })
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                            .take(GENRE_LEARN_PER_RUN)
+                    }
                     if (candidateArtists.isNotEmpty()) {
                         val enrichJob = scope.launch(Dispatchers.IO + SilentHandler) {
                             runCatching {
@@ -4511,9 +4529,17 @@ class MusicService :
                                 iad1tya.echo.music.reco.GenreCache.enrich(
                                     this@MusicService, candidateArtists, onlyWifi = true,
                                 )
+                                // GenreCache learns ≤15 unknown artists per run and skips the ones it now
+                                // knows, so a second run reaches the rest of a pattern batch's budget.
+                                if (patternBatch) {
+                                    iad1tya.echo.music.reco.GenreCache.enrich(
+                                        this@MusicService, candidateArtists, onlyWifi = true,
+                                    )
+                                }
                             }
                         }
-                        val waited = withTimeoutOrNull(ENRICH_BEFORE_SCORE_MS) { enrichJob.join() } != null
+                        val waitMs = if (patternBatch) CONTEXT_ENRICH_WAIT_MS else ENRICH_BEFORE_SCORE_MS
+                        val waited = withTimeoutOrNull(waitMs) { enrichJob.join() } != null
                         Timber.tag(TAG).i(
                             "CTX_GENRE enrich-before-score: %d artists, completed=%b",
                             candidateArtists.size, waited,
@@ -12278,6 +12304,12 @@ class MusicService :
 
         /** Longest the boot-time player-STATE restore waits for the restored queue's items to land. */
         private const val RESTORE_STATE_WAIT_MS = 15_000L
+
+        /** Artists learned before scoring a PATTERN batch (appendSeed) — two GenreCache runs of ≤15. */
+        private const val CONTEXT_ENRICH_PER_BATCH = 30
+
+        /** How long a PATTERN batch waits for that learning (the collection's last song is still playing). */
+        private const val CONTEXT_ENRICH_WAIT_MS = 4000L
 
         /** How many of the collection's most frequent artists are looked up in iTunes when it STARTS. */
         private const val CONTEXT_STUDY_ARTISTS = 15
