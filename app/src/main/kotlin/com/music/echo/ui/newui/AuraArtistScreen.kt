@@ -186,6 +186,7 @@ fun AuraArtistScreen(
     val artistVideoUrl by viewModel.artistVideoUrl.collectAsState()
     val artistVideoSong by viewModel.artistVideoSong.collectAsState()
     val hasFailed by viewModel.hasFailed.collectAsState()
+    val latestReleaseDates by viewModel.latestReleaseDates.collectAsState()
     val expandedPopularSongs by viewModel.expandedPopularSongs.collectAsState()
 
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
@@ -238,12 +239,18 @@ fun AuraArtistScreen(
     }
     // YouTube artist view: local "Tu biblioteca" preview is drawn when there is anything local.
     val showedLocalLibraryPreview = !showLocal && filteredLibrarySongsYt.isNotEmpty()
+    // Exact release dates for «Último lanzamiento» (one iTunes lookup per artist per session, only from
+    // this screen — the classic screen has no such card and never pays for it).
+    LaunchedEffect(artistName) {
+        artistName?.let { viewModel.loadLatestReleaseDates(it) }
+    }
     val onlineArtistSections = remember(
         artistPage?.sections,
         showedLocalLibraryPreview,
         fromYourLibraryTitle,
         yourLibraryTitle,
         latestReleaseTitle,
+        latestReleaseDates,
     ) {
         val seenTitles = linkedSetOf<String>()
         val ranked = artistPage?.sections.orEmpty().filter { section ->
@@ -257,7 +264,7 @@ fun AuraArtistScreen(
             val key = title.lowercase()
             seenTitles.add(key)
         }.sortedBy { appleArtistSectionRank(it.title) }
-        pinLatestArtistRelease(ranked, latestReleaseTitle)
+        pinLatestArtistRelease(ranked, latestReleaseTitle, latestReleaseDates)
     }
 
     // The Apple-Music background clip. HOISTED out of the hero on purpose: the header needs the same
@@ -1339,20 +1346,50 @@ internal fun artistLibraryInsertIndex(sectionTitles: List<String>): Int {
     return lastAbove + 1
 }
 
+/**
+ * Pins «Último lanzamiento» at rank 1. The choice is [ArtistLatestRelease.pick] — see there for the owner
+ * report this fixes (a guest appearance or an alphabetical tie-break used to win). [dates] is the iTunes
+ * release-date index for this artist when it has loaded; null keeps the choice on YouTube's own shelf order.
+ */
 internal fun pinLatestArtistRelease(
     sections: List<ArtistSection>,
     latestTitle: String,
+    dates: ArtistLatestRelease.DateIndex? = null,
 ): List<ArtistSection> {
     if (sections.any { isArtistLatestSectionTitle(it.title) }) return sections
-    val latest = sections.asSequence()
-        .flatMap { it.items.asSequence() }
-        .filterIsInstance<AlbumItem>()
-        .maxWithOrNull(
-            compareBy<AlbumItem> { it.year ?: Int.MIN_VALUE }.thenBy { it.title },
-        ) ?: return sections
+    val albums = ArrayList<AlbumItem>()
+    val candidates = ArrayList<ArtistLatestRelease.Candidate>()
+    sections.forEach { section ->
+        val rank = appleArtistSectionRank(section.title)
+        val guest = isArtistGuestSectionTitle(section.title)
+        section.items.filterIsInstance<AlbumItem>().forEachIndexed { position, album ->
+            albums.add(album)
+            candidates.add(
+                ArtistLatestRelease.Candidate(
+                    title = album.title,
+                    year = album.year,
+                    shelfRank = rank,
+                    shelfPosition = position,
+                    guestShelf = guest,
+                    releaseDate = dates?.dateOf(
+                        iad1tya.echo.music.viewmodels.reconKey(album.title),
+                        fromSinglesShelf = rank == 7,
+                    ),
+                ),
+            )
+        }
+    }
+    val latest = ArtistLatestRelease.pick(candidates, dates?.newest)?.let { albums[it] } ?: return sections
     return (listOf(
         ArtistSection(title = latestTitle, items = listOf(latest), moreEndpoint = null),
     ) + sections).sortedBy { appleArtistSectionRank(it.title) }
+}
+
+/** «Aparece en» / "Appears on" / "Featuring" — other artists' releases this one only guests on. */
+internal fun isArtistGuestSectionTitle(title: String): Boolean {
+    val t = title.trim().lowercase()
+    return t.contains("aparece") || t.contains("appear") || t.contains("featuring") ||
+        t.contains("featured") || t.contains("colabor")
 }
 
 /**

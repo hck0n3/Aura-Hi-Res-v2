@@ -1003,6 +1003,15 @@ class MusicService :
     // Entropy source for the infinite-queue seed variety (2026-09-04): a single Random shared by
     // the seed shuffles — no per-frame work, consulted only at seed time.
     private val randomSeedSource = kotlin.random.Random(System.currentTimeMillis())
+    // Owner 2026-10-04 — the collection tracks already used as PATTERN seeds (tryContextRadio), so each
+    // re-seed of the same collection opens new YouTube mixes instead of re-fetching the ones whose songs
+    // the no-repeat memory already burned. Tied to the identity of [radioSeedPool]: a new collection (any
+    // site that reassigns the pool) starts a fresh history without needing its own reset line.
+    private val contextSeedHistory = HashSet<String>()
+    // The queue being restored at boot, until the player-STATE restore has applied its saved index and
+    // shuffle to it (see the wait in onCreate). Main-thread only.
+    private var pendingRestoreQueue: iad1tya.echo.music.playback.queues.Queue? = null
+    private var contextSeedHistoryPool: List<iad1tya.echo.music.models.MediaMetadata>? = null
 
     // Genre-aware continuation — the CONTEXT PROFILE of the finite collection in [radioSeedPool] (its
     // artists + real genre mix + weak language hint). Built LAZILY (off the player thread, runCatching)
@@ -2899,6 +2908,9 @@ class MusicService :
                     runCatching {
                         
                         val restoredQueue = queue.toQueue()
+                        // Hand-off to the player-STATE restore below: it must apply the fresh index and
+                        // shuffle to THIS queue once its items have landed, and to nothing else.
+                        pendingRestoreQueue = restoredQueue
                         
                         scope.launch {
                             playerInitialized.first { it }
@@ -2958,8 +2970,40 @@ class MusicService :
                     
                     scope.launch {
                         delay(1000) 
-                        
-                        
+                        // WAIT FOR THE RESTORED QUEUE TO LAND (owner 2026-10-04: "puse mis Me gusta — más de
+                        // 5000 — en aleatorio y tras unas 100 canciones se volvieron a repetir otra vez desde
+                        // el inicio"). The 1 s above was the ONLY synchronisation with the queue restore,
+                        // which loads its items asynchronously (playQueue → getInitialStatus on IO → filters
+                        // → setMediaItems). On a big list at a cold start that can take longer than a second,
+                        // and when it did, `currentMediaItemIndex < player.mediaItemCount` below read 0 items
+                        // and SKIPPED the seek — so playback resumed at the index stored in the QUEUE file,
+                        // which is only rewritten when the queue CHANGES (never on a plain advance). In a
+                        // shuffled 5000-song list nothing changes the queue, so that index is the song the
+                        // session STARTED with: after the system killed the app, the music came back "desde
+                        // el inicio". Bounded wait (polls only at boot, at most RESTORE_STATE_WAIT_MS),
+                        // and it ends at once if the user starts something else meanwhile.
+                        val restoring = pendingRestoreQueue
+                        val waitStart = android.os.SystemClock.elapsedRealtime()
+                        if (restoring != null) {
+                            withTimeoutOrNull(RESTORE_STATE_WAIT_MS) {
+                                // EmptyQueue: the restore's own playQueue has not even started yet.
+                                while (player.mediaItemCount == 0 &&
+                                    (currentQueue === restoring || currentQueue === EmptyQueue)
+                                ) delay(100)
+                            }
+                        }
+                        pendingRestoreQueue = null
+                        // The saved index and shuffle flag describe the RESTORED queue. If the user already
+                        // started another one while we waited, they are not his any more.
+                        val stateStillApplies = restoring == null || currentQueue === restoring ||
+                            currentQueue === EmptyQueue
+                        // Counts only (AGENTS.md rule 4).
+                        Timber.tag(TAG).i(
+                            "RESTORE_STATE waited=%dms items=%d applies=%b",
+                            android.os.SystemClock.elapsedRealtime() - waitStart,
+                            player.mediaItemCount,
+                            stateStillApplies,
+                        )
                         
                         // Same repair on queue restore: a near-0 persisted volume = the old capture bug.
                         // isNaN: coerceIn propagates NaN (every comparison is false), so a corrupt persisted
@@ -2979,7 +3023,7 @@ class MusicService :
                         // BEFORE the current song shift this index by k) is bounded and pre-existing;
                         // fixing it properly means persisting the current song's ID and anchoring by id,
                         // which is a change to the persisted format and belongs in its own release.
-                        if (playerState.currentMediaItemIndex < player.mediaItemCount) {
+                        if (stateStillApplies && playerState.currentMediaItemIndex < player.mediaItemCount) {
                             player.seekTo(playerState.currentMediaItemIndex, playerState.currentPosition)
                         }
 
@@ -3006,7 +3050,7 @@ class MusicService :
                         // set, media3's own random order, and the persistent memory sitting unread in the
                         // DB — i.e. songs heard yesterday coming straight back. Start it explicitly when
                         // the assignment cannot fire the listener itself.
-                        if (dataStore.get(RememberShuffleAndRepeatKey, true)) {
+                        if (stateStillApplies && dataStore.get(RememberShuffleAndRepeatKey, true)) {
                             val wanted = playerState.shuffleModeEnabled
                             val listenerWillFire = player.shuffleModeEnabled != wanted
                             // Restoring shuffle is the APP re-installing a previous state, not the user
@@ -3984,6 +4028,28 @@ class MusicService :
             // those are already a single-song radio and must keep last-song seeding. Reassigned every playQueue.
             radioSeedPool = if (queue is iad1tya.echo.music.playback.queues.YouTubeQueue) emptyList()
                 else initialStatus.items.mapNotNull { it.metadata }
+            // STUDY THE COLLECTION NOW, not when it ends (owner 2026-10-04: "quiero que la cola antes de
+            // empezar estudie la playlist para saber con qué seguir"). The genre profile that steers the
+            // continuation is built from GenreCache, and the only lookup of the collection's own artists
+            // used to be a fire-and-forget at the FIRST re-seed — i.e. at the very end, racing the seed it
+            // was meant to inform, so the first continuation batch was often steered by a profile that
+            // knew too little to activate (coverage < 30 %). Looking the most frequent artists up while the
+            // list is still playing (minutes or hours of slack) means the profile is complete when it is
+            // needed. Bounded: GenreCache.enrich skips known artists, caps at 15 lookups, caches definitive
+            // misses forever and honours the network preference — a list it has already studied costs zero.
+            if (keepGenreLaneHint && radioSeedPool.size > 1) {
+                val studyNames = iad1tya.echo.music.reco.ContextPattern.studyArtists(
+                    radioSeedPool.mapNotNull { it.artists.firstOrNull()?.name },
+                    CONTEXT_STUDY_ARTISTS,
+                )
+                if (studyNames.isNotEmpty()) {
+                    scope.launch(Dispatchers.IO + SilentHandler) {
+                        runCatching {
+                            iad1tya.echo.music.reco.GenreCache.enrich(this@MusicService, studyNames, onlyWifi = true)
+                        }
+                    }
+                }
+            }
             // Genre-aware continuation: a NEW context invalidates the old profile. Rebuilt lazily from the
             // fresh pool on the first re-seed (startRadioSeamlessly); steering stays off until then.
             contextProfile = null
@@ -4354,7 +4420,15 @@ class MusicService :
                     if (radioSeedPool !== pool) return@runCatching
                     contextProfile = built
                     scope.launch(Dispatchers.IO + SilentHandler) {
-                        val names = pool.flatMap { it.artists }.map { it.name }.filter { it.isNotBlank() }.distinct()
+                        // Most frequent primary artists first (ContextPattern.studyArtists), then everyone
+                        // else: GenreCache spends its bounded lookups in this order, and the artists with
+                        // the most tracks are the ones that decide the profile's genre shares.
+                        val names = (
+                            iad1tya.echo.music.reco.ContextPattern.studyArtists(
+                                pool.mapNotNull { it.artists.firstOrNull()?.name },
+                                CONTEXT_STUDY_ARTISTS,
+                            ) + pool.flatMap { it.artists }.map { it.name }
+                            ).filter { it.isNotBlank() }.distinctBy { it.trim().lowercase() }
                         if (names.isNotEmpty()) {
                             runCatching {
                                 iad1tya.echo.music.reco.GenreCache.enrich(this@MusicService, names, onlyWifi = true)
@@ -4464,17 +4538,19 @@ class MusicService :
                 //    must never drop unknowns, or the infinite queue collapses onto the library);
                 //  • candidates from EVERY context lane survive (any share > 0), so a mixed playlist
                 //    never collapses onto its dominant genre;
-                //  • the drop applies only when >= 10 candidates survive (stricter than the pagination
-                //    path's >= 2 because this feeds the big primary injection) — otherwise the batch is
-                //    kept unfiltered, and appendSeed's callers already fall through to the next source,
+                //  • the drop applies only when >= CONTEXT_DROP_MIN_SURVIVORS candidates survive (was 10
+                //    while this batch was the one big injection; see that constant) — otherwise the batch
+                //    is kept unfiltered, and appendSeed's callers already fall through to the next source,
                 //    so never-silence holds;
                 //  • gated on the same user toggle (default ON) that gates the shipped pagination drop,
                 //    making the defense symmetric instead of new; ONE GenreCache snapshot per batch.
                 val profile = contextProfile
-                val laneOrdered = if (
-                    contextSteerActive && keepGenreLaneHint &&
+                // Owner 2026-10-04 — the collection's continuation follows its OWN genre pattern
+                // (ContextPattern). Same gate as the profile branch below, so a cold/inactive profile
+                // stays byte-identical to before.
+                val followPattern = contextSteerActive && keepGenreLaneHint &&
                     profile != null && profile.active && profile.genreShare.isNotEmpty()
-                ) {
+                val laneOrdered = if (followPattern && profile != null) {
                     val genres = withContext(Dispatchers.IO) {
                         runCatching { iad1tya.echo.music.reco.GenreCache.snapshot(this@MusicService) }
                             .getOrDefault(emptyMap())
@@ -4525,7 +4601,13 @@ class MusicService :
                         // stay untouched (#39/#41) and never-silence holds: below the threshold
                         // the sink keeps its old job, and callers fall through to the next source
                         // when a batch comes back empty.
-                        if (inContext.size >= 10) {
+                        // Owner 2026-10-04: "si la playlist es de un solo género, la cola tiene que seguir
+                        // con ese género". The ≥10 bar dated from when this batch was the ONE big injection
+                        // and the queue then paginated a single-song radio; the collection's continuation
+                        // now re-seeds through its own pattern every batch (tryContextRadio → EmptyQueue),
+                        // so a smaller, cleaner batch only means the next re-seed comes a little sooner.
+                        // Unknown-genre candidates still count as survivors and are never dropped (#39/#41).
+                        if (inContext.size >= CONTEXT_DROP_MIN_SURVIVORS) {
                             Timber.tag(TAG).i(
                                 "CTX_SINK appendSeed: dropped %d/%d off-context candidates (%d in-context survivors)",
                                 offContext.size, items.size, inContext.size,
@@ -4561,7 +4643,7 @@ class MusicService :
                     anchorLanePartition(items, radioAnchorMetadata, genres, "appendSeed")
                         ?: (items to emptySet<String>())
                 } else items to emptySet<String>()
-                val toAppend = laneOrdered.first.orderedByTaste(laneOrdered.second)
+                val toAppend = laneOrdered.first.orderedByTaste(laneOrdered.second, followContextPattern = followPattern)
                 if (toAppend.isEmpty()) return false
                 // STALE SEED GUARD (ronda 10, ver [queueGeneration]): a NEW queue landed while this seed's
                 // network fetch was in flight — mutating the player now would overwrite THAT queue's tail
@@ -4775,19 +4857,23 @@ class MusicService :
                 // WITHIN a cluster by global taste. So a mixed playlist seeds its real genre mix instead of
                 // whatever 4 artists the tail happened to hold, and a pure salsa playlist still seeds all-salsa.
                 // Gated on the ACTIVE context profile (fail-neutral: inactive → empty → seeds exactly as today).
-                val clusterReps: List<String> =
+                val clusters: Map<String, List<iad1tya.echo.music.models.MediaMetadata>> =
                     if (steerActive) runCatching {
                         val genres = withContext(Dispatchers.IO) {
                             iad1tya.echo.music.reco.GenreCache.snapshot(this@MusicService)
                         }
-                        val clusters = LinkedHashMap<String, MutableList<iad1tya.echo.music.models.MediaMetadata>>()
+                        val byLane = LinkedHashMap<String, MutableList<iad1tya.echo.music.models.MediaMetadata>>()
                         radioSeedPool.forEach { mm ->
                             if (mm.ytId() == null) return@forEach
                             val lane = iad1tya.echo.music.reco.GenreLane.laneOfTrack(
                                 genres, mm.artists.firstOrNull()?.name, mm.title, mm.album?.title,
                             ) ?: return@forEach
-                            clusters.getOrPut(lane) { mutableListOf() }.add(mm)
+                            byLane.getOrPut(lane) { mutableListOf() }.add(mm)
                         }
+                        byLane
+                    }.getOrDefault(emptyMap()) else emptyMap()
+                val clusterReps: List<String> =
+                    if (clusters.isNotEmpty()) runCatching {
                         clusters.values
                             .sortedByDescending { it.size }
                             .mapNotNull { tracks ->
@@ -4815,12 +4901,59 @@ class MusicService :
                 val perArtistIds = ranked.mapNotNull { it.ytId() }
                 val poolIds = contextPool.mapNotNull { it.ytId() }
                 val clusterRepsShuffled = clusterReps.shuffled(randomSeedSource)
+                // PATTERN SEEDS (owner 2026-10-04: "no quiero que la cola continúe con la última canción que
+                // escuchó de la playlist; quiero que antes de empezar estudie la playlist para saber con qué
+                // seguir"). When the profile knows the collection's genres, the seeds ARE its genre pattern:
+                // ContextPattern.seedLanes hands out the 5 seed slots in proportion to the genre shares
+                // (a one-genre list seeds only that genre; 50/30/20 seeds 3/1/1 — dominant first), each slot
+                // takes a track of that genre (taste top-3, random; a different artist per slot when
+                // possible), and the LAST song no longer leads — it is just one more track of the list. The
+                // tracks used are remembered for this collection so each re-seed opens a different window
+                // into it instead of re-fetching the same YouTube mixes (whose songs no-repeat already
+                // burned). Empty when the profile is inactive or knows no genres → the selection below is
+                // byte-identical to before (fail-neutral rule).
+                if (contextSeedHistoryPool !== radioSeedPool) {
+                    contextSeedHistory.clear()
+                    contextSeedHistoryPool = radioSeedPool
+                }
+                val patternSeeds: List<String> = if (clusters.isNotEmpty()) runCatching {
+                    val shares = contextProfile?.genreShare.orEmpty()
+                    val chosen = ArrayList<String>()
+                    val chosenArtists = HashSet<String>()
+                    for (lane in iad1tya.echo.music.reco.ContextPattern.seedLanes(shares, 5)) {
+                        val laneTracks = clusters[lane] ?: continue
+                        val byTaste = laneTracks
+                            .filter { mm -> mm.ytId()?.let { it !in chosen } == true }
+                            .sortedByDescending { mm ->
+                                if (profile == null) 0.0 else profile.scoreNames(mm.artists.map { it.name }, mm.title)
+                            }
+                        val unused = byTaste.filter { it.id !in contextSeedHistory }.ifEmpty { byTaste }
+                        val newArtist = unused.filter { mm ->
+                            val artist = mm.artists.firstOrNull()?.name?.trim()?.lowercase()
+                            artist == null || artist !in chosenArtists
+                        }.ifEmpty { unused }
+                        val pick = newArtist.take(3).randomOrNull(randomSeedSource) ?: continue
+                        val id = pick.ytId() ?: continue
+                        chosen.add(id)
+                        pick.artists.firstOrNull()?.name?.trim()?.lowercase()?.let { chosenArtists.add(it) }
+                    }
+                    contextSeedHistory.addAll(chosen)
+                    chosen
+                }.getOrDefault(emptyList()) else emptyList()
+                val patternSeeded = patternSeeds.isNotEmpty()
                 // The PLAYING song leads the seed set only while it belongs to the collection — once the radio is
                 // playing its own picks, seeding from one of them is exactly the compounding drift this avoids.
                 // Up to 5 seeds (was 4) so a varied collection is represented across more of its range.
-                val seeds = (listOfNotNull(seedVideoId?.takeIf { it in contextIds }) + clusterRepsShuffled + perArtistIds + poolIds)
-                    .distinct()
-                    .take(5)
+                val seeds = if (patternSeeded) {
+                    // Exactness over breadth: only when the pattern found a single seed is the set topped up
+                    // from the rest of the collection (still its own tracks), so the merge has two sources.
+                    if (patternSeeds.size >= 2) patternSeeds
+                    else (patternSeeds + perArtistIds + poolIds).distinct().take(2)
+                } else {
+                    (listOfNotNull(seedVideoId?.takeIf { it in contextIds }) + clusterRepsShuffled + perArtistIds + poolIds)
+                        .distinct()
+                        .take(5)
+                }
                 if (seeds.size < 2) return@runCatching false // truly one usable track → let tryRadio do last-song
                 // Fetch each seed's radio page, off the player thread. With an ACTIVE profile the per-seed
                 // cap grows 12 → 16 (headroom so the context steering in orderedByTaste has material to
@@ -4850,7 +4983,22 @@ class MusicService :
                     .filterVideoSongs(dataStore.get(HideVideoSongsKey, false) || dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false))
                     .filterNonMusicForAutoQueue()
                 val ok = appendSeed(items) // appendSeed already runs orderedByTaste + records no-repeat + crossfade
-                if (ok) {
+                if (ok && patternSeeded) {
+                    // Owner 2026-10-04 — the WHOLE continuation follows the collection's pattern, not just its
+                    // first batch. Priming a single-song radio here (below) made every later batch paginate
+                    // that ONE song's radio, filtered by the lane of whatever happened to be playing: a mixed
+                    // playlist collapsed onto one genre after the first batch. A FINITE queue instead (the
+                    // same mechanism the mood seed uses) lets the end-of-batch net — B3 at the last item,
+                    // scheduleCrossfade's early seed, and the always-on STATE_ENDED net — call this function
+                    // again, which re-reads the pattern and opens new seeds. One fewer request per batch,
+                    // too: the prime fetch is skipped.
+                    currentQueue = EmptyQueue
+                    Timber.tag(TAG).i(
+                        "CTX_PATTERN seeds=%d lanes=%d (pattern-seeded continuation)",
+                        seeds.size,
+                        iad1tya.echo.music.reco.ContextPattern.patternShares(contextProfile?.genreShare.orEmpty()).size,
+                    )
+                } else if (ok) {
                     // Prime a radio from a seed so the Path A pagination keeps going after this merged batch.
                     // Prefer the TOP GENRE-CLUSTER representative (the context's dominant genre) so the
                     // crossfade-OFF pagination continues on that genre instead of a single-song radio of
@@ -5204,6 +5352,11 @@ class MusicService :
      */
     private suspend fun List<MediaItem>.orderedByTaste(
         deprioritized: Set<String> = emptySet(),
+        // Owner 2026-10-04 ("que la cola antes de empezar estudie la playlist"): true ONLY for the
+        // continuation of a finished COLLECTION with an active genre profile — the unheard batch is then
+        // laid out following the collection's own genre pattern (ContextPattern.arrange) instead of
+        // YouTube's relatedness head. Every other caller keeps the default and is byte-identical.
+        followContextPattern: Boolean = false,
     ): List<MediaItem> {
         if (size < 2) return this
         val disliked = runCatching { dislikeStore.snapshot() }
@@ -5252,6 +5405,11 @@ class MusicService :
         // candidate keeps its sorted position and is never dropped; when EVERY fresh candidate is blocked
         // the quota simply no-ops and the batch comes out in its sorted order, so nothing can collapse.
         val explorationBlocked = HashSet<String>(deprioritized)
+        // Per-candidate facts ContextPattern.arrange needs, recorded from the SAME lane lookup the steer
+        // already does (no second pass, no extra cache read). Only filled when the pattern is requested.
+        val usePattern = followContextPattern && ctxProfile != null && ctxProfile.genreShare.isNotEmpty()
+        val patternLane = if (usePattern) HashMap<String, String>() else null
+        val patternContextArtist = if (usePattern) HashSet<String>() else null
         var ctxKnownGenre = 0
         var ctxUnknownGenre = 0
         val rnd = java.util.Random()
@@ -5282,6 +5440,12 @@ class MusicService :
                 )
                 ctxLane = lane
                 if (lane == null) ctxUnknownGenre++ else ctxKnownGenre++
+                if (patternLane != null && patternContextArtist != null) {
+                    if (lane != null) patternLane[m.id] = lane
+                    if (m.artists.any { it.name.trim().lowercase() in ctxProfile.artistSet }) {
+                        patternContextArtist.add(m.id)
+                    }
+                }
                 iad1tya.echo.music.reco.ContextProfile.steerTerm(ctxProfile, m.artists.map { it.name }, lane)
             }.getOrDefault(0.0)
             // See [explorationBlocked]: a candidate the steer pushed back for a KNOWN off-context genre
@@ -5335,9 +5499,36 @@ class MusicService :
         // exploration quota — which lifted an artist outside the taste profile into roughly every 15th slot —
         // is no longer applied to automatic continuations. The batch keeps its content-faithful order
         // (relatedness backbone + taste/context steer); only the artist-spacing pass runs.
-        val unheard = RadioQueueShaping.spacedByArtist(
-            keyed.filterNot { it.third }.sortedBy { it.second }.map { it.first },
-        )
+        val rankedUnheard = keyed.filterNot { it.third }.sortedBy { it.second }.map { it.first }
+        val unheard = if (usePattern && patternLane != null && patternContextArtist != null && ctxProfile != null) {
+            // The pattern does its own artist spacing inside each lane (same 2-slot window), so the generic
+            // spacing pass is not stacked on top of it — that pass would swap songs ACROSS lanes and undo
+            // exactly the order being built here.
+            iad1tya.echo.music.reco.ContextPattern.arrange(
+                ranked = rankedUnheard,
+                shares = ctxProfile.genreShare,
+                laneOf = { mi -> patternLane[mi.mediaId] },
+                isContextArtist = { mi -> mi.mediaId in patternContextArtist },
+                artistOf = { mi -> mi.metadata?.artists?.firstOrNull()?.name?.trim()?.lowercase() },
+            ).also { arranged ->
+                val lanes = iad1tya.echo.music.reco.ContextPattern.patternShares(ctxProfile.genreShare)
+                val laneIds = lanes.mapTo(HashSet()) { it.first }
+                // Counts only (AGENTS.md rule 4): how many candidates the pattern could place, and whether
+                // the first song of the batch belongs to the collection's pattern at all.
+                Timber.tag(TAG).i(
+                    "CTX_PATTERN batch=%d lanes=%d patterned=%d contextArtists=%d headInPattern=%b",
+                    arranged.size,
+                    lanes.size,
+                    rankedUnheard.count { mi -> patternLane[mi.mediaId]?.let { it in laneIds } == true },
+                    rankedUnheard.count { it.mediaId in patternContextArtist },
+                    arranged.firstOrNull()?.let { h ->
+                        patternLane[h.mediaId]?.let { it in laneIds } == true || h.mediaId in patternContextArtist
+                    } == true,
+                )
+            }
+        } else {
+            RadioQueueShaping.spacedByArtist(rankedUnheard)
+        }
         // No fresh candidates left? Fall back to the ordered already-heard tail rather than dead-ending.
         val heardTail = keyed.filter { it.third }.sortedBy { it.second }.map { it.first }
         // NO-REPEAT: when there are ANY unheard candidates, DROP the heard ones entirely (a hard filter, not a
@@ -12074,6 +12265,22 @@ class MusicService :
          * without ever turning the radio into a burst of network work.
          */
         private const val GENRE_LEARN_PER_RUN = 12
+
+        /**
+         * Survivors a collection-continuation batch must keep before its KNOWN off-context candidates are
+         * dropped instead of only sunk (appendSeed's profile branch). Owner 2026-10-04: a one-genre list
+         * must continue in that genre. 3, not the old 10: the continuation now re-seeds through the
+         * collection's own pattern every batch, so a short clean batch costs one earlier re-seed, while a
+         * sunk intruder is still HEARD (the queue plays the whole batch). Unknown-genre candidates count as
+         * survivors and are never dropped (registry #39/#41).
+         */
+        private const val CONTEXT_DROP_MIN_SURVIVORS = 3
+
+        /** Longest the boot-time player-STATE restore waits for the restored queue's items to land. */
+        private const val RESTORE_STATE_WAIT_MS = 15_000L
+
+        /** How many of the collection's most frequent artists are looked up in iTunes when it STARTS. */
+        private const val CONTEXT_STUDY_ARTISTS = 15
 
         /**
          * How long a radio batch may WAIT for genre enrichment before it is scored.

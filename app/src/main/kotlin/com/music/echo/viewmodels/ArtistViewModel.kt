@@ -82,6 +82,47 @@ class ArtistViewModel @Inject constructor(
     private val _expandedPopularSongs = MutableStateFlow<List<SongItem>>(emptyList())
     val expandedPopularSongs: StateFlow<List<SongItem>> = _expandedPopularSongs
 
+    // iTunes release dates for the Aura artist page's «Último lanzamiento» card — see
+    // [iad1tya.echo.music.ui.newui.ArtistLatestRelease]. Null until loaded / when iTunes fails: the card
+    // then falls back to YouTube Music's own shelf order (never an alphabetical tie-break any more).
+    private val _latestReleaseDates =
+        MutableStateFlow<iad1tya.echo.music.ui.newui.ArtistLatestRelease.DateIndex?>(null)
+    val latestReleaseDates: StateFlow<iad1tya.echo.music.ui.newui.ArtistLatestRelease.DateIndex?> =
+        _latestReleaseDates
+    private var latestReleaseDatesFor: String? = null
+
+    /**
+     * Load (once per artist name per session) the iTunes release dates that break same-year ties on the
+     * «Último lanzamiento» card. Two stores at most (US + the device's own region), the same public
+     * search the discography screen already uses; the result is cached for the whole session so reopening
+     * the artist costs nothing. Called only by the Aura artist screen — the classic one has no such card.
+     */
+    fun loadLatestReleaseDates(artistName: String) {
+        val name = artistName.trim()
+        if (name.isEmpty() || latestReleaseDatesFor == name) return
+        latestReleaseDatesFor = name
+        releaseDatesCache[name.lowercase()]?.let {
+            _latestReleaseDates.value = it
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val stores = listOf("us", iad1tya.echo.music.utils.systemRegionCode()).distinct()
+            val hits = coroutineScope {
+                stores.map { store ->
+                    async { iad1tya.echo.music.utils.iTunesDiscography.fetchAlbumMeta(name, store) }
+                }.awaitAll().flatten()
+            }
+            // Nothing came back (offline, iTunes down, unknown artist): leave the card on shelf order and
+            // do NOT cache the miss — the next visit retries.
+            if (hits.isEmpty()) return@launch
+            val index = iad1tya.echo.music.ui.newui.ArtistLatestRelease.DateIndex.build(
+                hits.map { Triple(reconKey(it.title), isEpOrSingle(it.title), it.releaseDate) },
+            )
+            releaseDatesCache[name.lowercase()] = index
+            if (latestReleaseDatesFor == name) _latestReleaseDates.value = index
+        }
+    }
+
     val libraryArtist = database.artist(artistId)
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
@@ -148,6 +189,12 @@ class ArtistViewModel @Inject constructor(
         // Session cache of the expanded populares list (moreEndpoint), keyed by the navigated artistId.
         private val popularSongsCache =
             java.util.concurrent.ConcurrentHashMap<String, List<SongItem>>()
+
+        // Session cache of the «Último lanzamiento» iTunes date index, keyed by lowercased artist name.
+        private val releaseDatesCache = java.util.concurrent.ConcurrentHashMap<
+            String,
+            iad1tya.echo.music.ui.newui.ArtistLatestRelease.DateIndex,
+        >()
     }
 
     init {

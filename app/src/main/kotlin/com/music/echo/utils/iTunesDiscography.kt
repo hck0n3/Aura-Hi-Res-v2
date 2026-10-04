@@ -104,7 +104,7 @@ object iTunesDiscography {
                 ?.distinct()
                 .orEmpty()
         }.onFailure {
-            Timber.w("iTunes discography fetch failed for $artistName: ${it.message}")
+            Timber.w("iTunes discography fetch failed: ${it.javaClass.simpleName}")
         }.getOrDefault(emptyList())
 
     /**
@@ -145,7 +145,7 @@ object iTunesDiscography {
                 .orEmpty()
             filterHomonyms(hits)
         }.onFailure {
-            Timber.w("iTunes discography meta fetch failed for $artistName: ${it.message}")
+            Timber.w("iTunes discography meta fetch failed (%s): %s", country, it.javaClass.simpleName)
         }.getOrDefault(emptyList())
 
     /**
@@ -190,7 +190,7 @@ object iTunesDiscography {
                 }
                 .orEmpty()
         }.onFailure {
-            Timber.w("iTunes appears-on albums failed for $artistName/$country: ${it.message}")
+            Timber.w("iTunes appears-on albums failed (%s): %s", country, it.javaClass.simpleName)
         }.getOrDefault(emptyList())
 
     /**
@@ -238,7 +238,7 @@ object iTunesDiscography {
                 }
                 .orEmpty()
         }.onFailure {
-            Timber.w("iTunes appears-on songs failed for $artistName/$country: ${it.message}")
+            Timber.w("iTunes appears-on songs failed (%s): %s", country, it.javaClass.simpleName)
         }.getOrDefault(emptyList())
 
     private fun isGuestCredit(artistName: String, creditedArtist: String, title: String): Boolean {
