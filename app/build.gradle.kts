@@ -231,11 +231,11 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1040
-        // ESTABLE 2.0.63 — PARA TODOS. Orden explícita del dueño (2026-09-28): "has lo que necesites para
-        // lanzar la corrección para todos sin problemas", tras el reporte de un cliente con cierre al abrir
-        // (fila 318: MIGRATION_42_43 con DEFAULT 0 en vez de false). Único cambio sobre la 2.0.62.
-        versionName = "2.0.63"
+        versionCode = 1041
+        // BETA 2.0.64-beta1 — SOLO EL DUEÑO (sobre la 2.0.63 estable). Pedida por él (2026-10-04: "si
+        // quiero una beta"). Filas 319-321: «Último lanzamiento» del artista, reanudación del aleatorio
+        // tras un cierre de Android, y la cola infinita que sigue el patrón de géneros de la playlist.
+        versionName = "2.0.64-beta1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
