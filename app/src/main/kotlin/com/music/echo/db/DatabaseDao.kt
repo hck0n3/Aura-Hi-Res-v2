@@ -2239,6 +2239,20 @@ interface DatabaseDao {
     @Query("DELETE FROM enhanced_shuffle_played WHERE contextId LIKE 'PL:%' AND substr(contextId, 4) NOT IN (SELECT id FROM playlist)")
     suspend fun pruneOrphanEnhancedPlayed()
 
+    /**
+     * One-time repair (registry row 322): delete the rows the Continue seed used to BULK-import into a
+     * list's no-repeat memory — every song of the list heard at some point, all written in one burst with
+     * ONE shared `playedAt`. Real plays are written one per song change, so no genuine group of
+     * [minBatch] rows ever shares a millisecond. A row that was already in the memory kept its original
+     * timestamp (IGNORE insert), so only the imported ones are removed. Returns the rows deleted.
+     */
+    @Query(
+        "DELETE FROM enhanced_shuffle_played WHERE contextId || '|' || playedAt IN (" +
+            "SELECT contextId || '|' || playedAt FROM enhanced_shuffle_played " +
+            "GROUP BY contextId, playedAt HAVING COUNT(*) >= :minBatch)",
+    )
+    suspend fun deleteBulkImportedEnhancedPlayed(minBatch: Int): Int
+
     @Query("DELETE FROM enhanced_shuffle_context WHERE contextId LIKE 'PL:%' AND substr(contextId, 4) NOT IN (SELECT id FROM playlist)")
     suspend fun pruneOrphanEnhancedContext()
 

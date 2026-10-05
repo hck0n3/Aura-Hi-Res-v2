@@ -1,6 +1,17 @@
-# Aura Hi-Res v2.0.64-beta1 — La cola sigue el estilo de tu playlist
+# Aura Hi-Res v2.0.64-beta2 — El aleatorio de tus Me gusta solo pone tus Me gusta
 
-Beta encima de la 2.0.63. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta1, con todo lo de esa beta incluido. Conserva tus datos, tu sesión y tus
+ajustes: mismo paquete y misma firma.
+
+## Aleatorio de tus Me gusta
+
+- **Solo suenan canciones con corazón.** Con «Aleatorio mejorado» encendido, al tocar Aleatorio y elegir
+  «Continuar», la app daba por escuchadas todas las canciones que habías oído alguna vez. En unos Me gusta
+  eso es casi todo, así que tras unas pocas canciones daba la lista por terminada y pasaba a la radio, que
+  trae canciones que no son tuyas. Ahora la vuelta solo termina cuando tus Me gusta han sonado de verdad.
+- **Primero las que nunca escuchaste.** Las que ya oíste alguna vez siguen sonando, pero después.
+- **Se limpia sola.** Al abrir esta versión, la app borra una vez esa memoria mal guardada. Tus Me gusta,
+  tu biblioteca y tu historial no se tocan.
 
 ## Cola infinita al terminar una playlist
 

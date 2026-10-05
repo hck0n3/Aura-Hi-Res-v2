@@ -432,6 +432,9 @@ val ShuffleModeKey = booleanPreferencesKey("shuffleMode")
 // song has played (memory survives restarts, days, and toggling shuffle off/on), then the completed cycle
 // resets and hands off to the infinite radio. Off = classic in-memory shuffle.
 val EnhancedShuffleKey = booleanPreferencesKey("enhanced_shuffle")
+
+/** One-shot flag: the bulk-imported "heard before" rows were removed from the no-repeat memory (row 322). */
+val EnhancedShuffleSeedImportCleanupKey = booleanPreferencesKey("enhanced_shuffle_seed_import_cleanup_v1")
 // "¿Volver a la cola anterior?", default ON. When on, leaving a listening list (playlist / auto-playlist /
 // library) to play an album or an artist snapshots the outgoing queue IN MEMORY and, once the user leaves
 // the screen he jumped to, a snackbar offers to resume it at the same song and second. Off = nothing is

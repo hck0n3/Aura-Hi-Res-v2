@@ -1063,6 +1063,21 @@ class MusicService :
     @Volatile private var pendingSeedPlayedIds: Set<String> = emptySet()
 
     /**
+     * Songs of the live queue the user has heard at some point (the screen's ✓: this list's memory ∪ any
+     * lifetime play). ORDERING ONLY — they play after the never-heard songs of the lap — and deliberately
+     * NOT part of [shufflePlayedIds], which decides when the lap is FINISHED.
+     *
+     * Owner 2026-10-05 (2.0.64-beta1, «Aleatorio mejorado» recién encendido): *"en aleatorio en tus Me
+     * gusta me salieron canciones que no estaban marcadas con el corazón"*. The Continue seed used to go
+     * straight into [shufflePlayedIds] (and into the persistent memory). In a liked list nearly every song
+     * has been heard at some point — that is WHY it is liked — so the lap counted as all-but-finished
+     * before it began: after the handful of never-heard songs, the exhaustion handoff detached the list and
+     * the infinite radio (songs that are NOT his likes) took over. A lap now finishes only when this list's
+     * own songs have actually sounded in it. Cleared with every new queue (playQueue).
+     */
+    private val shuffleHeardBeforeIds = HashSet<String>()
+
+    /**
      * One activation must NOT seed itself from the persistent memory: the user asked for a fresh lap
      * and the DELETE that clears it is still in flight. Consumed by the next [beginShuffleSession].
      */
@@ -2148,6 +2163,18 @@ class MusicService :
                 // Ronda 10: same orphan-prune shape for the radio-continuation memory (separate table,
                 // see RadioContinuationPlayedEntity's kdoc).
                 database.pruneOrphanRadioContinuationPlayed()
+            }
+            // Row 322 — once per install: remove the "heard some time" songs the Continue seed used to
+            // bulk-write into each list's no-repeat memory (see shuffleHeardBeforeIds). Left in place they
+            // keep a liked list looking all-but-finished, so the lap would still hand over to the radio
+            // after a few songs. Only touches that memory — never the library, likes or history.
+            runCatching {
+                val done = dataStore.data.first()[iad1tya.echo.music.constants.EnhancedShuffleSeedImportCleanupKey] == true
+                if (!done) {
+                    val removed = database.deleteBulkImportedEnhancedPlayed(ENHANCED_SEED_IMPORT_MIN_BATCH)
+                    dataStore.edit { it[iad1tya.echo.music.constants.EnhancedShuffleSeedImportCleanupKey] = true }
+                    Timber.tag(TAG).i("NO_REPEAT cleanup removed=%d bulk-imported rows", removed)
+                }
             }
         }
 
@@ -3748,6 +3775,8 @@ class MusicService :
         // it costs nothing measurable — a brand-new queue's ids miss the cache anyway. Order-neutral by
         // construction: both values are re-derived, identically, on demand.
         clearShuffleCaches()
+        // "Heard before" describes the OUTGOING list's screen seed; the new queue brings its own (or none).
+        shuffleHeardBeforeIds.clear()
 
         // Fila #311 — the continuation state below used to be reassigned ONLY after the async fetch,
         // so for the whole fetch window it still described the PREVIOUS queue: any seed or pagination
@@ -7692,22 +7721,17 @@ class MusicService :
         EnhancedShuffleCycle.coverageOf(shuffleContextId, contextCoverageId, contextCoverageSize)
 
     /**
-     * Merge the screen's Continue seed (shuffle memory ∪ lifetime plays) into this session, then persist
-     * those ids so a process death does not resurrect them as unplayed. Consumed once; Start over sends
-     * an empty set so history is not re-imported.
+     * Take the screen's Continue seed (this list's memory ∪ lifetime plays) as an ORDERING preference:
+     * those songs go after the never-heard ones — see [shuffleHeardBeforeIds] for why they must no longer
+     * count as played in this lap (nor be written into the list's persistent memory). The list's own
+     * memory still reaches [shufflePlayedIds] through [seedEnhancedShuffleFromDb], which every caller of
+     * this function runs right after. Consumed once; Start over sends an empty set.
      */
     private fun applyPendingSeedPlayedIds() {
         val ids = pendingSeedPlayedIds
         pendingSeedPlayedIds = emptySet()
         if (!enhancedShuffleHint || ids.isEmpty()) return
-        shufflePlayedIds.addAll(ids)
-        val ctx = shuffleContextId ?: return
-        val now = System.currentTimeMillis()
-        scope.launch(enhancedShuffleWriteDispatcher) {
-            ids.forEach { id ->
-                runCatching { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(ctx, id, now)) }
-            }
-        }
+        shuffleHeardBeforeIds.addAll(ids)
     }
 
     /**
@@ -8024,6 +8048,12 @@ class MusicService :
             originalPlayed.shuffle()
             addedUnplayed.shuffle()
             addedPlayed.shuffle()
+            // Never-heard originals before the ones heard some other time (see [shuffleHeardBeforeIds]);
+            // stable sort, so each half stays shuffled; the spacing groups below keep the halves apart.
+            val heardBefore = shuffleHeardBeforeIds
+            if (heardBefore.isNotEmpty()) {
+                originalUnplayed.sortBy { i -> if (itemKeys.mediaIds.getOrNull(i)?.let { it in heardBefore } == true) 1 else 0 }
+            }
 
             val shuffledIndices = IntArray(totalCount)
             // Swap groups for the spacing pass below: the four partitions are ordered blocks that encode
@@ -8031,7 +8061,7 @@ class MusicService :
             // partition and must never move an entry across one. The current song gets a group of its own
             // (it is frozen at slot 0 anyway).
             val groupByIndex = IntArray(totalCount) { 4 }
-            originalUnplayed.forEach { groupByIndex[it] = 0 }
+            originalUnplayed.forEach { groupByIndex[it] = if (itemKeys.mediaIds.getOrNull(it)?.let { id -> id in heardBefore } == true) 5 else 0 }
             addedUnplayed.forEach { groupByIndex[it] = 1 }
             originalPlayed.forEach { groupByIndex[it] = 2 }
             addedPlayed.forEach { groupByIndex[it] = 3 }
@@ -8128,15 +8158,25 @@ class MusicService :
             // into real played territory and could lift an already-played song above the boundary (a repeat
             // before the cycle closed). The recorded membership can't be fooled by the key's value.
             val groupByIndex = IntArray(totalCount)
+            val heardBefore = shuffleHeardBeforeIds
             for (i in 0 until totalCount) {
                 val itemId = itemKeys.mediaIds[i]
                 var key = itemKeys.taste[i].coerceIn(-1.7, 1.7) * 0.15 + rnd.nextDouble()
                 // Anti-repeat: already-played songs sink BELOW all not-yet-played ones (big offset), so the
                 // whole pool is exhausted before anything repeats. Within each group the smart order applies.
                 val isUnplayed = itemId == null || itemId !in playedSnapshot
+                // Not yet played in THIS lap but heard some other time (the screen's ✓): after the
+                // never-heard ones, still ahead of the lap's played tail. See [shuffleHeardBeforeIds].
+                val heardEarlier = isUnplayed && itemId != null && itemId in heardBefore
                 if (isUnplayed) key += 1000.0
+                if (isUnplayed && !heardEarlier) key += 500.0
                 keys[i] = key
-                groupByIndex[i] = if (isUnplayed) 0 else 1
+                // Three contiguous groups in the sorted order; spacing never swaps across them.
+                groupByIndex[i] = when {
+                    !isUnplayed -> 2
+                    heardEarlier -> 1
+                    else -> 0
+                }
             }
             ShuffleOrdering.sortIndicesByKeyDescending(shuffledIndices, keys)
 
@@ -12301,6 +12341,9 @@ class MusicService :
          * survivors and are never dropped (registry #39/#41).
          */
         private const val CONTEXT_DROP_MIN_SURVIVORS = 3
+
+        /** Rows sharing one exact `playedAt` that can only be a bulk seed import (row 322). */
+        private const val ENHANCED_SEED_IMPORT_MIN_BATCH = 20
 
         /** Longest the boot-time player-STATE restore waits for the restored queue's items to land. */
         private const val RESTORE_STATE_WAIT_MS = 15_000L

@@ -231,11 +231,11 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1041
-        // BETA 2.0.64-beta1 — SOLO EL DUEÑO (sobre la 2.0.63 estable). Pedida por él (2026-10-04: "si
-        // quiero una beta"). Filas 319-321: «Último lanzamiento» del artista, reanudación del aleatorio
-        // tras un cierre de Android, y la cola infinita que sigue el patrón de géneros de la playlist.
-        versionName = "2.0.64-beta1"
+        versionCode = 1042
+        // BETA 2.0.64-beta2 — SOLO EL DUEÑO (sobre la 2.0.64-beta1). Fila 322: el aleatorio de Me gusta
+        // con «Aleatorio mejorado» encendido pasaba a la radio (canciones sin corazón) tras unas pocas
+        // canciones. Incluye todo lo de la beta1 (filas 319-321).
+        versionName = "2.0.64-beta2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
