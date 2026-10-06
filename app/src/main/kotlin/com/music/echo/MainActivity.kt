@@ -439,6 +439,8 @@ class MainActivity : ComponentActivity() {
         // #27: app coming to the foreground is genuine engagement → drop the cold-restore PLAY veto so all
         // external controls work normally (onServiceConnected covers the cold-start bind-after-onStart case).
         playerConnection?.service?.onAppForegrounded()
+        // Battery/heat (owner 2026-10-06): the player's audio capture only runs while the app is visible.
+        iad1tya.echo.music.ui.newui.AuraVisualizerHub.setAppVisible(true)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -458,6 +460,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        iad1tya.echo.music.ui.newui.AuraVisualizerHub.setAppVisible(false)
         if (isServiceBound) {
             runCatching { unbindService(serviceConnection) }
             isServiceBound = false

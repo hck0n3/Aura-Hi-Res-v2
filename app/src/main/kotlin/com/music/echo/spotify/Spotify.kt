@@ -64,6 +64,9 @@ import timber.log.Timber
  * https://github.com/sonic-liberation/hetu_spotify_gql_client
  */
 object Spotify {
+    /** See the SpotifyGenreProbe trace: one line per process (fila #298 is answered — no genres). */
+    private val genreProbeLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+
     @Volatile
     var accessToken: String? = null
 
@@ -1643,10 +1646,16 @@ object Spotify {
                 val topKeys = artistData.keys.sorted()
                 val genresField = artistData["genres"] ?: artistData.obj("profile")?.get("genres")
                 val genreValues = (genresField as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }
-                Timber.tag("SpotifyGenreProbe").i(
-                    "artistUnion top-level keys=%s profile keys=%s genresField=%s values=%s",
-                    topKeys, profileKeys, genresField != null, genreValues,
-                )
+                // Owner log 2026-10-05: 80/80 responses said genresField=false (question of fila #298
+                // answered), at ~600 bytes each — ~48 KB of the size-capped app.log per Novedades
+                // refresh, evicting the lines that diagnose real problems. Once per process now, and
+                // again only if a response ever DOES carry genres (the one answer worth hearing).
+                if (genresField != null || genreProbeLogged.compareAndSet(false, true)) {
+                    Timber.tag("SpotifyGenreProbe").i(
+                        "artistUnion top-level keys=%s profile keys=%s genresField=%s values=%s",
+                        topKeys, profileKeys, genresField != null, genreValues,
+                    )
+                }
             }
 
             SpotifyArtist(
@@ -1735,10 +1744,16 @@ object Spotify {
                 val topKeys = artistData.keys.sorted()
                 val genresField = artistData["genres"] ?: artistData.obj("profile")?.get("genres")
                 val genreValues = (genresField as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }
-                Timber.tag("SpotifyGenreProbe").i(
-                    "artistUnion top-level keys=%s profile keys=%s genresField=%s values=%s",
-                    topKeys, profileKeys, genresField != null, genreValues,
-                )
+                // Owner log 2026-10-05: 80/80 responses said genresField=false (question of fila #298
+                // answered), at ~600 bytes each — ~48 KB of the size-capped app.log per Novedades
+                // refresh, evicting the lines that diagnose real problems. Once per process now, and
+                // again only if a response ever DOES carry genres (the one answer worth hearing).
+                if (genresField != null || genreProbeLogged.compareAndSet(false, true)) {
+                    Timber.tag("SpotifyGenreProbe").i(
+                        "artistUnion top-level keys=%s profile keys=%s genresField=%s values=%s",
+                        topKeys, profileKeys, genresField != null, genreValues,
+                    )
+                }
             }
 
             val discography = artistData.obj("discography") ?: return@runCatching emptyList()

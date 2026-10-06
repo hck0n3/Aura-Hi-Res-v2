@@ -228,7 +228,25 @@ constructor(
                     // A third-party provider refusing us is an expected, unfixable-by-us condition,
                     // not a crash: log it, trip the breaker on 4xx, and do NOT file a non-fatal.
                     LyricsProviderCircuitBreaker.recordFailure(provider.name, error)
-                    Timber.w(error, "Lyrics provider %s returned no lyrics", provider.name)
+                    // "This provider has no lyrics for this song" is the NORMAL outcome for most of the
+                    // chain (owner log 2026-10-05: 216 such lines, each with a full stack trace — most of
+                    // the size-capped app.log, pushing out the lines that diagnose real problems). Providers
+                    // signal it with error(…) = IllegalStateException: one line, class + message. Anything
+                    // else is unexpected and keeps its stack trace.
+                    // A 4xx from a lyrics endpoint is the same per-song "nothing here" (YouTube's
+                    // get_transcript answers 400 for every video without a transcript — 40 times in that
+                    // log, each with the full JSON body); the breaker above already handles the 4xx that
+                    // are about US (401/403/429).
+                    val httpStatus = (error as? io.ktor.client.plugins.ResponseException)?.response?.status?.value
+                    if (error is IllegalStateException || (httpStatus != null && httpStatus in 400..499)) {
+                        Timber.w(
+                            "Lyrics provider %s returned no lyrics (%s)",
+                            provider.name,
+                            httpStatus?.let { "HTTP $it" } ?: error.message,
+                        )
+                    } else {
+                        Timber.w(error, "Lyrics provider %s returned no lyrics", provider.name)
+                    }
                 }
                 val lyrics = providerResult?.getOrNull()
                 if (!lyrics.isNullOrBlank()) {

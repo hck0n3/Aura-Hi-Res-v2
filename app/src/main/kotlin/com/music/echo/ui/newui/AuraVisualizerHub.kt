@@ -76,6 +76,22 @@ object AuraVisualizerHub {
 
     @Volatile private var rhythmActive = false
     @Volatile private var eqFftActive = false
+
+    /**
+     * Owner 2026-10-06 ("no quiero que deje a los demás celulares calientes y con excesivo consumo de
+     * batería"). The player sheet — and with it the rhythm consumer — stays composed while the activity is
+     * merely STOPPED (screen off, another app on top: MainActivity keeps the player connection), so the
+     * capture kept running through every hour of background listening: up to 20 binder callbacks a
+     * second from audioserver, each computing a waveform AND an FFT that nothing could see. Now the
+     * capture is only wanted while the app is on screen; leaving it releases the effect after
+     * [BACKGROUND_GRACE_MS] (a quick app switch or the notification shade costs nothing), coming back
+     * re-attaches it once.
+     */
+    @Volatile private var appVisible = true
+    private var backgroundTeardownJob: Job? = null
+
+    /** A consumer is on AND someone can see it. */
+    private fun captureWanted(): Boolean = (rhythmActive || eqFftActive) && appVisible
     @Volatile private var eqBarCount = DEFAULT_FFT_BAR_COUNT
 
     /** Last valid session any consumer passed; rebinds target it, never a stale dispose value. */
@@ -147,6 +163,37 @@ object AuraVisualizerHub {
      */
     private const val TEARDOWN_GRACE_MS = 1_500L
 
+    /** See [appVisible]: how long the capture survives the app leaving the screen. */
+    private const val BACKGROUND_GRACE_MS = 30_000L
+
+    /**
+     * Called from MainActivity.onStart / onStop. Idempotent; never touches the audio chain on the
+     * calling thread (everything runs on the hub's IO scope under [mutex]).
+     */
+    fun setAppVisible(visible: Boolean) {
+        if (appVisible == visible) return
+        appVisible = visible
+        scope.launch {
+            mutex.withLock {
+                backgroundTeardownJob?.cancel()
+                backgroundTeardownJob = null
+                if (visible) {
+                    reconcileLocked()
+                } else if (visualizer != null) {
+                    backgroundTeardownJob = scope.launch {
+                        delay(BACKGROUND_GRACE_MS)
+                        mutex.withLock {
+                            if (!appVisible && visualizer != null) {
+                                Timber.tag(TAG).i("Visualizer released: app off screen for %d s", BACKGROUND_GRACE_MS / 1000)
+                                teardownLocked()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /** Bars the EQ meter draws; also the default when a consumer activates without saying. */
     const val DEFAULT_FFT_BAR_COUNT = 24
 
@@ -209,7 +256,7 @@ object AuraVisualizerHub {
         lastRebindAt = now
         scope.launch {
             mutex.withLock {
-                if (!rhythmActive && !eqFftActive) return@withLock
+                if (!captureWanted()) return@withLock
                 if (visualizer != null) teardownLocked()
                 attachLocked()
             }
@@ -224,7 +271,7 @@ object AuraVisualizerHub {
         consecutiveAttachFailures = 0
         scope.launch {
             mutex.withLock {
-                if (!rhythmActive && !eqFftActive) return@withLock
+                if (!captureWanted()) return@withLock
                 teardownJob?.cancel()
                 teardownJob = null
                 if (visualizer == null) attachLocked()
@@ -237,6 +284,9 @@ object AuraVisualizerHub {
             scheduleTeardownLocked()
             return
         }
+        // Off screen: never ATTACH (a consumer flip while stopped must not build a capture nobody can
+        // see); an existing one is left to the background teardown scheduled by [setAppVisible].
+        if (!appVisible) return
         teardownJob?.cancel()
         teardownJob = null
         if (visualizer != null) {

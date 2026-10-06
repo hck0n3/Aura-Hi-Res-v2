@@ -61,12 +61,16 @@ object UnavailableSongs {
     fun recordFailure(id: String?) {
         if (id.isNullOrBlank()) return
         registry.recordFailure(id)
+        Timber.i("UNAVAILABLE content failure pending (confirmed only if another song plays next)")
     }
 
     /** [id] resolved and played: confirms earlier content failures of other songs, and clears [id]. */
     fun recordSuccess(id: String?) {
         if (id.isNullOrBlank()) return
-        if (registry.recordSuccess(id)) persist()
+        if (registry.recordSuccess(id)) {
+            persist()
+            Timber.i("UNAVAILABLE marks now=%d", _ids.value.size)
+        }
     }
 
     /**
