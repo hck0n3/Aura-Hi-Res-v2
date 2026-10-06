@@ -425,12 +425,26 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
                 // arriba, que ligue mover una banda a un cambio de preamp — por eso se instrumenta en vez
                 // de adivinar (regla AGENTS.md #2/#3): si vuelve a pasar, este log (solo números, sin
                 // datos de usuario, regla #4) muestra si `effectivePreamp` cambió de verdad en ese momento.
-                Timber.tag("EqualizerAudioProcessor").i(
-                    "applyProfile: rawPreamp=%.2f autoHeadroom=%b effectivePreamp=%.2f",
-                    profile.preamp,
-                    autoHeadroom,
-                    effectivePreamp,
-                )
+                //
+                // 2026-10-06: the instrument did its job (the owner's log shows auto headroom moving the
+                // preamp on every slider tick) but it ran at slider rate — 256 lines in one shared log,
+                // ~120 per second while dragging, written to disk and pushing older, useful lines out of
+                // the size-capped app.log. Now: always when the raw preamp or the auto-headroom switch
+                // changes, otherwise at most once per second. The answer it gives is the same.
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (profile.preamp != lastLoggedRawPreamp || autoHeadroom != lastLoggedAutoHeadroom ||
+                    now - lastPreampLogAt >= PREAMP_LOG_MIN_INTERVAL_MS
+                ) {
+                    lastLoggedRawPreamp = profile.preamp
+                    lastLoggedAutoHeadroom = autoHeadroom
+                    lastPreampLogAt = now
+                    Timber.tag("EqualizerAudioProcessor").i(
+                        "applyProfile: rawPreamp=%.2f autoHeadroom=%b effectivePreamp=%.2f",
+                        profile.preamp,
+                        autoHeadroom,
+                        effectivePreamp,
+                    )
+                }
                 setPreamp(ptr, effectivePreamp.toFloat())
 
                 allBands.forEachIndexed { index, band ->
@@ -459,6 +473,11 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     }
 
     private var currentProfile: ParametricEQ? = null
+
+    // Throttle state for the applyProfile trace (only touched under eqApplyLock).
+    private var lastLoggedRawPreamp = Double.NaN
+    private var lastLoggedAutoHeadroom: Boolean? = null
+    private var lastPreampLogAt = 0L
 
     // Guards the native EQ apply so applyProfile (called from the UI thread AND the media3 playback thread via
     // onConfigure) is atomic, and so no caller can hand JNI a pointer that onReset/onConfigure has already
@@ -670,6 +689,9 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
          * through unprocessed by the bridge, so [queueInput] never issues one.
          */
         private const val NATIVE_MAX_SAMPLES = 16384 * 2
+
+        /** See the applyProfile trace: at most one line per second unless something the user set changed. */
+        private const val PREAMP_LOG_MIN_INTERVAL_MS = 1000L
 
         /** MUST mirror the `SP_ENGINE_*` constants in SuperpoweredBridge.cpp. */
         private const val NATIVE_ENGINE_HEALTHY = 1

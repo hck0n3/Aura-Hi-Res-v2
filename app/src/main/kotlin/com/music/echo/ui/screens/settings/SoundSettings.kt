@@ -132,8 +132,10 @@ fun SoundSettings(
         val (outputDither, onOutputDitherChange) = rememberPreference(
             iad1tya.echo.music.constants.OutputDitherEnabledKey, defaultValue = true
         )
+        // Exception to "todos los toggles activados por default": owner order 2026-10-06 turns this one OFF
+        // by default (must match MusicService's two reads of the same key, or the switch would lie).
         val (speakerBassProtect, onSpeakerBassProtectChange) = rememberPreference(
-            iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey, defaultValue = true
+            iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey, defaultValue = false
         )
         // Exception to the blanket "todos los toggles activados por default" (2026-09-14): the owner
         // reported (2026-09-22) that moving an EQ band perceptibly changes the overall volume — this
@@ -183,7 +185,7 @@ fun SoundSettings(
                     icon = painterResource(R.drawable.volume_up),
                     title = { Text("Proteger el altavoz del teléfono") },
                     description = {
-                        Text("Atenúa el sub-grave (≈31 Hz) solo cuando suena por el altavoz del teléfono. Con audífonos o Bluetooth no cambia nada.")
+                        Text("Atenúa el sub-grave (por debajo de ≈55 Hz) solo cuando suena por el altavoz del teléfono. Con audífonos o Bluetooth no cambia nada.")
                     },
                     trailingContent = {
                         Switch(

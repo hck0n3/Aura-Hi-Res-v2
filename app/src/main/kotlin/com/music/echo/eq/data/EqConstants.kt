@@ -132,7 +132,19 @@ enum class FactoryPreset(val displayName: String, val description: String, val g
     // AudioDefaultsV2AppliedKey gate). Verified band-by-band (2026-09-13 curve): no other factory
     // preset is within the 0.5 dB match tolerance (closest are off by 2.0 dB), so its chip selects
     // uniquely — and being the LAST enum entry it can never steal another preset's match.
-    AURA_HI_RES_V2("Aura Hi-Res v2", "La firma de la casa, evolución 2026: sub-bajo y bajo con pegada, medios despejados y agudos brillantes con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(3.0f, 4.0f, 1.0f, -1.0f, 0f, 0f, 1.0f, 2.0f, 3.0f, 2.0f))
+    AURA_HI_RES_V2("Aura Hi-Res v2", "La firma de la casa, evolución 2026: sub-bajo y bajo con pegada, medios despejados y agudos brillantes con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(3.0f, 4.0f, 1.0f, -1.0f, 0f, 0f, 1.0f, 2.0f, 3.0f, 2.0f)),
+
+    // Owner request 2026-10-06 ("revisa mi perfil de ecualización, si se puede mejorar más el de Aura
+    // Hi-Res v2"). An ADDITION next to v2, never an edit of it: v2 is his ear-tuned curve and stays the
+    // default — this one is offered for an A/B on his own hardware. Measured with the engine's own RBJ
+    // formulas (EqResponse), v2 sums to +4.7 dB at 61 Hz and +3.5 dB at 8 kHz — right in the sibilance
+    // zone, where the dynamic de-esser (6.5 kHz, up to -5 dB) then fights the boost on loud bright masters.
+    // v3 keeps the signature (31 Hz +4.2, 62 Hz +4.3, 125 Hz +1.6 summed — practically v2's bass) and moves
+    // 1 dB of treble from 6-8 kHz (+1.8/+2.5) to the 16 kHz "air" band (+3.2), with a light 500 Hz de-box
+    // (-0.6): less harshness, less de-esser activity, peak 4.3 dB instead of 4.7 (less limiter work at
+    // the +2.5 dB house preamp). LAST entry, so it can never steal another preset's chip; verified
+    // band-by-band outside the 0.5 dB match tolerance of every other preset (EqFactoryPresetMatchTest).
+    AURA_HI_RES_V3("Aura Hi-Res v3", "Evolución de la v2: el mismo bajo con pegada, medios más despejados y agudos más suaves en las eses, con más aire arriba. Menos fatiga y menos trabajo del limitador.", floatArrayOf(3.5f, 3.5f, 1.0f, -1.0f, -0.5f, 0f, 1.0f, 1.5f, 2.0f, 3.0f))
 }
 
 /** The 2026-09-05 "Aura Hi-Res v2" curve, kept only so the 2026-09-13 migration can recognise it. */

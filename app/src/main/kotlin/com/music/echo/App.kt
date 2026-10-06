@@ -596,6 +596,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // SEPARATE, LAST WORD on the preamp: owner directive 2026-09-25 raises it to +2.5 dB for everyone.
         // MUST run after migrateAudioDefaults20260913 so its +2.2 write can't undo this one.
         migratePreampDefault20260925(settings)
+        // SEPARATE: owner order 2026-10-06 — phone-speaker protection and auto headroom OFF, once.
+        migrateSoundProtectionsOff20261006(settings)
 
         // Establish, at most ONCE per install, where this data came from — and clean up after a
         // platform restore before anything is allowed to act on the restored rows. Must run before
@@ -1396,6 +1398,23 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         if (applied) {
             dataStore.edit { it[iad1tya.echo.music.constants.PreampDefault25DbAppliedKey] = true }
         }
+    }
+
+    /**
+     * One-time (owner order 2026-10-06: *"en la parte del sonido quiero desactivado por default proteger el
+     * altavoz del teléfono y headroom automático"*). Both read defaults are now OFF, but a read default does
+     * nothing for an install that already SAVED true — his own log shows `autoHeadroom=true` — so both are
+     * written OFF exactly once. Afterwards the switches in Ajustes ▸ Sonido are his again.
+     */
+    private suspend fun migrateSoundProtectionsOff20261006(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.SoundProtectionsOff20261006AppliedKey] == true) return
+        runCatching {
+            dataStore.edit {
+                it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] = false
+                it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] = false
+                it[iad1tya.echo.music.constants.SoundProtectionsOff20261006AppliedKey] = true
+            }
+        }.onFailure { reportException(it) }
     }
 
     /**

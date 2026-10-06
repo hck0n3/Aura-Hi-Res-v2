@@ -62,6 +62,20 @@ class EqFactoryPresetMatchTest {
     }
 
     @Test
+    fun auraHiResV3ExactGainsSelectAuraHiResV3() {
+        // Owner request 2026-10-06: the refined curve is offered NEXT TO v2 for an A/B — it must select
+        // its own chip and must not make v2's gains select it either.
+        assertEquals(
+            FactoryPreset.AURA_HI_RES_V3,
+            eqFactoryPresetMatch(FactoryPreset.AURA_HI_RES_V3.gains.copyOf()),
+        )
+        assertEquals(
+            FactoryPreset.AURA_HI_RES_V2,
+            eqFactoryPresetMatch(FactoryPreset.AURA_HI_RES_V2.gains.copyOf()),
+        )
+    }
+
+    @Test
     fun smallDragTickKeepsTheSelection() {
         // The first drag tick moves a single band by a fraction of a dB; the selection must NOT
         // flip on that (this is what used to toggle the description box mid-drag — #181).

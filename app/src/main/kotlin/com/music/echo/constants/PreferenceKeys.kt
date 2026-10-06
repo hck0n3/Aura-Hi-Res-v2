@@ -1287,7 +1287,11 @@ val GlueCompressorEnabledKey = booleanPreferencesKey("mastering_glue_compressor_
 /** Mastering: TPDF dither + noise shaping on the 16-bit output. Default ON (inaudible, cleaner quiet passages). */
 val OutputDitherEnabledKey = booleanPreferencesKey("mastering_output_dither_enabled")
 
-/** Mastering: -5 dB sub-bass shelf while the PHONE SPEAKER is the output route. Default OFF (user opt-in). */
+/**
+ * Mastering: -5 dB sub-bass shelf (below ~55 Hz) while the PHONE SPEAKER is the output route. Default OFF —
+ * owner order 2026-10-06 ("proteger el altavoz del teléfono desactivado por default"); see
+ * [SoundProtectionsOff20261006AppliedKey] for the one-time reset that applies it to existing installs.
+ */
 val SpeakerBassProtectEnabledKey = booleanPreferencesKey("mastering_speaker_bass_protect_enabled")
 
 // Stereo width (Mid/Side) of the Superpowered chain: 1.0 = untouched. Default untouched.
@@ -1295,6 +1299,14 @@ val StereoWidthKey = floatPreferencesKey("mastering_stereo_width")
 
 // Auto headroom: lower the preamp by the curve's highest boost so the EQ never clips. Default off.
 val AutoHeadroomEnabledKey = booleanPreferencesKey("mastering_auto_headroom")
+
+/**
+ * One-time reset (owner order 2026-10-06: "en la parte del sonido quiero desactivado por default proteger
+ * el altavoz del teléfono y headroom automático"). Changing the read default alone does nothing for an
+ * install that already SAVED true — the owner's own log shows `autoHeadroom=true` — so both are written
+ * OFF once; after that the user's own switch stands. Fresh key: never reuse an older migration flag.
+ */
+val SoundProtectionsOff20261006AppliedKey = booleanPreferencesKey("sound_protections_off_20261006_applied")
 
 // Song shares send a song.link universal link (opens in Spotify, Apple Music, Deezer…). Default on.
 val ShareUseSongLinkKey = booleanPreferencesKey("share_use_song_link")
