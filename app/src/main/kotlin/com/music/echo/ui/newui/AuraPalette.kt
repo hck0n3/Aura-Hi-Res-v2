@@ -125,6 +125,14 @@ object AuraPalette {
     private var artworkInk by mutableStateOf<Color?>(null)
 
     /**
+     * Owner 2026-10-06: *"la veo muy oscura… que los colores animados que generan las portadas sean más
+     * notables"*. The ground tinted with the now-playing cover's hue ([auraArtworkGround]) — a deep colour
+     * about twice as light as [BrandGround] instead of the same blue-black for every song. Null when
+     * nothing is playing, with AMOLED, or with a custom Fondo: then the ground is exactly what shipped.
+     */
+    private var artworkGround by mutableStateOf<Color?>(null)
+
+    /**
      * "Radio de esquina de la miniatura" ([ThumbnailCornerRadiusKey]) resolved into the two shapes the
      * redesign cuts its covers with. Held as the finished shapes, not as the multiplier: they are read
      * from composition bodies and from `.clip(…)` chains on every row of every list.
@@ -142,12 +150,14 @@ object AuraPalette {
         coverCorners: AuraCoverCorners,
         roles: CustomThemeRoles = CustomThemeRoles.None,
         artworkInk: Color? = null,
+        artworkGround: Color? = null,
     ) {
         if (accent != next) accent = next
         if (pureBlackGround != pureBlack) pureBlackGround = pureBlack
         if (corners != coverCorners) corners = coverCorners
         if (roleOverrides != roles) roleOverrides = roles
         if (this.artworkInk != artworkInk) this.artworkInk = artworkInk
+        if (this.artworkGround != artworkGround) this.artworkGround = artworkGround
     }
 
     /** Test / process hook: back to the shipped literals. */
@@ -157,6 +167,7 @@ object AuraPalette {
         coverCorners = AuraCoverCorners.Render,
         roles = CustomThemeRoles.None,
         artworkInk = null,
+        artworkGround = null,
     )
 
     // ── Accents ───────────────────────────────────────────────────────────────────────────────────
@@ -180,6 +191,7 @@ object AuraPalette {
         get() = when {
             pureBlackGround -> Color.Black
             roleOverrides.background != null -> roleOverrides.background!!
+            artworkGround != null -> artworkGround!!
             else -> BrandGround
         }
 
@@ -190,6 +202,7 @@ object AuraPalette {
             roleOverrides.surface != null -> roleOverrides.surface!!
             roleOverrides.background != null ->
                 Color.White.copy(alpha = 0.04f).compositeOver(roleOverrides.background!!)
+            artworkGround != null -> Color.White.copy(alpha = 0.04f).compositeOver(artworkGround!!)
             else -> BrandGroundRaised
         }
 
@@ -625,7 +638,13 @@ fun AuraPaletteSync() {
 
     // The ground the accent is measured against is the one that will be PAINTED, AMOLED + custom Fondo
     // included — measuring against `#060A12` and then drawing on another canvas would understate contrast.
-    val ground = customRoles.effectiveAuraGround(pureBlack, fallback = scheme.surface)
+    // Owner 2026-10-06 — the cover-tinted ground (see [auraArtworkGround]). Only where nothing the user
+    // chose already decides the ground: AMOLED and a custom Fondo keep winning, exactly as before.
+    val artworkGround = remember(artworkSeed, pureBlack, customRoles.background) {
+        val seed = artworkSeed
+        if (seed == null || pureBlack || customRoles.background != null) null else auraArtworkGround(seed)
+    }
+    val ground = artworkGround ?: customRoles.effectiveAuraGround(pureBlack, fallback = scheme.surface)
     val resolved = remember(followsUser, scheme.primary, ground, artworkSeed) {
         when {
             artworkSeed != null -> AuraAccent.from(artworkSeed, ground)
@@ -650,8 +669,25 @@ fun AuraPaletteSync() {
         if (scale == 1f) AuraCoverCorners.Render else AuraCoverCorners(scale)
     }
 
-    AuraPalette.apply(resolved, pureBlack, corners, customRoles, artworkInk)
+    AuraPalette.apply(resolved, pureBlack, corners, customRoles, artworkInk, artworkGround)
 }
+
+/**
+ * Owner 2026-10-06 (*"la veo muy oscura"*): the cover's hue as a deep ground — value 0.12 (the shipped
+ * `#060A12` sits at ~0.07) with a moderate saturation, so every song paints its own dark colour instead
+ * of one blue-black. An achromatic (black-and-white) cover keeps zero saturation: a neutral dark grey,
+ * never an invented hue. Measured against the cover-tinted ink [AuraPaletteSync] already uses, the text
+ * steps stay within ~0.12 of the contrast ratio they have on today's ground (AuraAppearanceTest pins it);
+ * a value of 0.13 or more starts costing the faintest text step legibility, so this is as light as it goes.
+ */
+fun auraArtworkGround(seed: Color): Color {
+    val (hue, saturation, _) = ColorPickerConversions.colorToHsv(seed)
+    val s = if (saturation <= 0.05f) 0f else ARTWORK_GROUND_SATURATION
+    return ColorPickerConversions.hsvToColor(hue, s, ARTWORK_GROUND_VALUE)
+}
+
+private const val ARTWORK_GROUND_SATURATION = 0.45f
+private const val ARTWORK_GROUND_VALUE = 0.12f
 
 /**
  * The three blurred radial gradients that sit behind every new screen. Held as data (not as a [Brush])

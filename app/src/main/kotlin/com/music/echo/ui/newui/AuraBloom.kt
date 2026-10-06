@@ -354,13 +354,14 @@ private suspend fun extractAuraBloom(
     val secondary = swatches.getOrNull(1)?.rgb ?: primary
     val tertiary = swatches.getOrNull(2)?.rgb ?: secondary
 
-    // The render's own alphas (.32 / .30 / .24) are kept: they are what makes this a wash on a
-    // near-black ground rather than three coloured blobs.
+    // Owner 2026-10-06: "que los colores animados que generan las portadas sean más notables". The
+    // render's alphas (.32 / .30 / .24) are raised by about a third for COVER colours only — still a
+    // wash, never three opaque blobs, and the brand fallback (no cover) keeps the render's values.
     return AuraBloomEntry(
         colors = AuraBloomColors(
-            topLeft = bloomLobeColor(primary, 0.32f),
-            topRight = bloomLobeColor(secondary, 0.30f),
-            center = bloomLobeColor(tertiary, 0.24f),
+            topLeft = bloomLobeColor(primary, COVER_BLOOM_ALPHA_TOP_LEFT),
+            topRight = bloomLobeColor(secondary, COVER_BLOOM_ALPHA_TOP_RIGHT),
+            center = bloomLobeColor(tertiary, COVER_BLOOM_ALPHA_CENTER),
         ),
         // Opaque, chroma-floored seed — same HSV floors as the lobes, so chrome and wash agree.
         accentSeed = bloomLobeColor(primary, 1f),
@@ -377,10 +378,17 @@ private fun bloomLobeColor(rgb: Int, alpha: Float): Color {
     // An ACHROMATIC cover (black-and-white sleeve) keeps its zero saturation — forcing colour into it
     // would invent a hue the artwork does not have. Anything with a hue gets a floor so it survives
     // the low alpha.
-    if (hsv[1] > 0.05f) hsv[1] = hsv[1].coerceIn(0.35f, 0.95f)
-    hsv[2] = hsv[2].coerceIn(0.55f, 0.95f)
+    // Floors raised 2026-10-06 (0.35 / 0.55 → 0.45 / 0.62) so a muted or dark cover still reads as its
+    // colour on the screen instead of a grey haze.
+    if (hsv[1] > 0.05f) hsv[1] = hsv[1].coerceIn(0.45f, 0.95f)
+    hsv[2] = hsv[2].coerceIn(0.62f, 0.95f)
     return Color(android.graphics.Color.HSVToColor(hsv)).copy(alpha = alpha)
 }
+
+/** Cover-colour lobe alphas (owner 2026-10-06). The brand fallback keeps the render's .32/.30/.24. */
+private const val COVER_BLOOM_ALPHA_TOP_LEFT = 0.44f
+private const val COVER_BLOOM_ALPHA_TOP_RIGHT = 0.40f
+private const val COVER_BLOOM_ALPHA_CENTER = 0.32f
 
 /**
  * Paints the ambient bloom behind the content of a screen. Put it on the ROOT container of a new
@@ -486,7 +494,9 @@ private fun prepareBloomLobes(
     h: Float,
 ): List<PreparedLobe> {
     val bandTop = -0.12f * h
-    val bandHeight = 0.64f * h
+    // 0.64 → 0.78 (owner 2026-10-06): the wash reaches further down the screen instead of stopping at
+    // the top half — the ground below it is cover-tinted now too, so there is no hard edge to hide.
+    val bandHeight = 0.78f * h
     val bandLeft = -0.22f * w
     val bandWidth = 1.44f * w
 

@@ -348,6 +348,44 @@ class AuraAppearanceTest {
         assertEquals(AuraPalette.Teal.copy(alpha = 0.32f), AuraBloomColors.Brand.topLeft)
     }
 
+    // ------------------------------------------------------------------ 5. cover-tinted ground
+
+    /** Owner 2026-10-06: "la veo muy oscura… que los colores de las portadas sean más notables". */
+    @Test
+    fun `the cover-tinted ground is lighter than the shipped one and no less legible`() {
+        val shipped = Color(0xFF060A12)
+        for (hue in 0 until 360 step 15) {
+            val seed = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue.toFloat(), 0.8f, 0.8f)
+            val ground = auraArtworkGround(seed)
+            assertTrue("hue $hue: ground must be lighter than #060A12", ground.luminance() > shipped.luminance())
+            // Same cover-tinted ink AuraPaletteSync paints on it (hue, s 0.10, v 0.96), at the faintest
+            // step that carries text: never less legible than the very same ink on today's ground.
+            val ink = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue.toFloat(), 0.10f, 0.96f)
+            val ghostNew = contrastRatio(ink.copy(alpha = 0.48f).compositeOver(ground), ground)
+            val ghostToday = contrastRatio(ink.copy(alpha = 0.48f).compositeOver(shipped), shipped)
+            assertTrue("hue $hue: $ghostNew vs $ghostToday", ghostNew >= ghostToday - 0.15f)
+            assertTrue("hue $hue: body text", contrastRatio(ink, ground) >= 4.5f)
+        }
+    }
+
+    @Test
+    fun `a black and white cover gets a neutral ground, never an invented hue`() {
+        val ground = auraArtworkGround(Color(0xFF808080))
+        assertEquals(ground.red, ground.green, 0.002f)
+        assertEquals(ground.green, ground.blue, 0.002f)
+    }
+
+    @Test
+    fun `AMOLED and the shipped fallback still win over the cover ground`() {
+        val tinted = auraArtworkGround(Color(0xFFE53935))
+        AuraPalette.apply(AuraAccent.Brand, pureBlack = false, coverCorners = AuraCoverCorners.Render, artworkGround = tinted)
+        assertEquals(tinted, AuraPalette.Ground)
+        AuraPalette.apply(AuraAccent.Brand, pureBlack = true, coverCorners = AuraCoverCorners.Render, artworkGround = tinted)
+        assertEquals(Color.Black, AuraPalette.Ground)
+        AuraPalette.reset()
+        assertEquals(Color(0xFF060A12), AuraPalette.Ground)
+    }
+
     companion object {
         /**
          * WCAG 2.1 body text. The accent carries 11–12 sp technical type in this UI ("◆ HI-RES", the
