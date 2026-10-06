@@ -59,9 +59,15 @@ class OnlinePlaylistViewModel @Inject constructor(
     // Displayed list: liked songs pinned to the top, YouTube relatedness order preserved within each
     // group (sortedBy is stable). The screen builds both the row list AND the play queue from this, so
     // the tapped index stays aligned after the re-sort.
+    //
+    // Owner 2026-10-06 ("cualquier canción que ya no esté disponible no se la muestres… sin importar que
+    // pertenezca a una lista mía"): songs YouTube Music greys out, or that are known unavailable, are left
+    // out of the DISPLAYED list only — and therefore out of the queue built from it. [_rawSongs] keeps them,
+    // so saving the playlist, the repair pass and pagination see exactly what YouTube returned.
     val playlistSongs: StateFlow<List<SongItem>> =
-        combine(_rawSongs, likedIds) { songs, liked ->
-            songs.sortedBy { if (it.id in liked) 0 else 1 }
+        combine(_rawSongs, likedIds, iad1tya.echo.music.utils.UnavailableSongs.ids) { songs, liked, hidden ->
+            songs.filterNot { it.unavailable || it.id in hidden }
+                .sortedBy { if (it.id in liked) 0 else 1 }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val relatedItems = MutableStateFlow<List<YTItem>>(emptyList())
@@ -318,6 +324,8 @@ class OnlinePlaylistViewModel @Inject constructor(
     }
 
     private fun applySongFilters(songs: List<SongItem>): List<SongItem> {
+        // Learn which songs YouTube Music greys out (and which came back) — see playlistSongs.
+        iad1tya.echo.music.utils.UnavailableSongs.learnFrom(songs)
         val hideVideoSongs = context.dataStore.get(HideVideoSongsKey, false)
         val uniqueSongs = songs.distinctBy { it.id }
         if (!hideVideoSongs) return uniqueSongs

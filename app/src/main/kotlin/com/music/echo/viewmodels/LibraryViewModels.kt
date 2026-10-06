@@ -157,6 +157,10 @@ constructor(
                     // LIKED filter this is a harmless no-op since every row is already liked.
                 }).map { it.likedFirst() }
             }
+            // Owner 2026-10-06: songs known to be unavailable are not shown (downloaded ones always are).
+            .combine(iad1tya.echo.music.utils.UnavailableSongs.ids) { songs, hidden ->
+                iad1tya.echo.music.utils.UnavailableSongs.hideUnavailable(songs, hidden)
+            }
             // Collapse the burst of emissions Room fires while a sync writes block after block: conflate
             // keeps only the latest list when Compose is still recomposing the previous one, so we don't
             // re-run the whole list build for every intermediate batch. On the idle (non-sync) path

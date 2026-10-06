@@ -27,7 +27,14 @@ data class MusicResponsiveListItemRenderer(
     val playlistItemData: PlaylistItemData?,
     val overlay: Overlay?,
     val navigationEndpoint: NavigationEndpoint?,
+    // "MUSIC_ITEM_RENDERER_DISPLAY_POLICY_GREY_OUT" on a song YouTube Music itself shows greyed out (deleted,
+    // region-blocked, made private): the same field ytmusicapi reads for `isAvailable`. Absent otherwise.
+    val musicItemRendererDisplayPolicy: String? = null,
 ) {
+    /** YouTube Music shows this row greyed out: the song can no longer be played. */
+    val isGreyedOut: Boolean
+        get() = musicItemRendererDisplayPolicy == "MUSIC_ITEM_RENDERER_DISPLAY_POLICY_GREY_OUT"
+
     val isSong: Boolean
         get() = navigationEndpoint == null || navigationEndpoint.watchEndpoint != null || navigationEndpoint.watchPlaylistEndpoint != null
     val isPlaylist: Boolean

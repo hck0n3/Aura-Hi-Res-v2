@@ -38,10 +38,15 @@ class YouTubeQueue(
                     val nextResult = YouTube.next(endpoint, continuation).getOrThrow()
                     endpoint = nextResult.endpoint
                     continuation = nextResult.continuation
+                    // Owner 2026-10-06 ("no muestres canciones no disponibles"): rows YouTube itself labels
+                    // unplayable never enter the queue — except the one the queue starts ON, which the
+                    // user picked (the player then explains and skips it, as before).
+                    val current = nextResult.currentIndex ?: 0
+                    val kept = nextResult.items.withIndex().filter { (i, song) -> i == current || !song.unavailable }
                     return@withContext Queue.Status(
                         title = nextResult.title,
-                        items = nextResult.items.map { it.toMediaItem() },
-                        mediaItemIndex = nextResult.currentIndex ?: 0,
+                        items = kept.map { it.value.toMediaItem() },
+                        mediaItemIndex = kept.indexOfFirst { it.index == current }.coerceAtLeast(0),
                     )
                 } catch (e: Exception) {
                     lastException = e
@@ -81,7 +86,7 @@ class YouTubeQueue(
                     val nextResult = YouTube.next(endpoint, continuation).getOrThrow()
                     endpoint = nextResult.endpoint
                     continuation = nextResult.continuation
-                    return@withContext nextResult.items.map { it.toMediaItem() }
+                    return@withContext nextResult.items.filterNot { it.unavailable }.map { it.toMediaItem() }
                 } catch (e: Exception) {
                     lastException = e
                     // Brief backoff: the old loop burned all its attempts within milliseconds, so a blip that

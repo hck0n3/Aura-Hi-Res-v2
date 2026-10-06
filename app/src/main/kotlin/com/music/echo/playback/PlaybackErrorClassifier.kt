@@ -131,6 +131,20 @@ object PlaybackErrorClassifier {
         return error.message
     }
 
+    /**
+     * The dead end is a property of the SONG (YouTube's playability verdict: region, Premium/members-only,
+     * removed…), not of a timeout, a missing format or URL — those can be the session or the cipher.
+     * Only this kind may mark a song as unavailable (owner 2026-10-06, see UnavailableRegistry).
+     */
+    fun isContentLevelNoStream(error: PlaybackException): Boolean {
+        var cause: Throwable? = error
+        while (cause != null) {
+            if (cause is YTPlayerUtils.StreamResolutionException) return cause.contentLevel
+            cause = cause.cause
+        }
+        return false
+    }
+
     /** The SINK failed (AudioTrack), not the source. Recovery is a safe player re-create, never a cache purge. */
     fun isAudioRendererError(error: PlaybackException): Boolean {
         return error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED ||

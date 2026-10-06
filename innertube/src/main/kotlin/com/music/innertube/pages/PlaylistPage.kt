@@ -74,7 +74,8 @@ data class PlaylistPage(
                     ?.text?.runs?.firstOrNull()
                     ?.navigationEndpoint?.watchEndpoint?.playlistSetVideoId,
                 libraryAddToken = libraryTokens.addToken,
-                libraryRemoveToken = libraryTokens.removeToken
+                libraryRemoveToken = libraryTokens.removeToken,
+                unavailable = renderer.isGreyedOut,
             )
         }
     }

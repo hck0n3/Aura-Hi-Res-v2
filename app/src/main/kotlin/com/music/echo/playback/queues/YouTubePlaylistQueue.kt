@@ -31,19 +31,23 @@ class YouTubePlaylistQueue(
 
     override suspend fun getInitialStatus(): Queue.Status {
         return withContext(IO) {
+            // Owner 2026-10-06: songs YouTube Music greys out (or that already failed for good) never
+            // enter the queue — the tapped one excepted (see UnavailableSongs.keepPlayable).
             if (initialSongs.isNotEmpty()) {
+                val (songs, index) = iad1tya.echo.music.utils.UnavailableSongs.keepPlayable(initialSongs, startIndex)
                 Queue.Status(
                     title = playlistTitle,
-                    items = initialSongs.map { it.toMediaItem() },
-                    mediaItemIndex = startIndex,
+                    items = songs.map { it.toMediaItem() },
+                    mediaItemIndex = index,
                 )
             } else {
                 val playlistPage = YouTube.playlist(playlistId).getOrThrow()
                 continuation = playlistPage.songsContinuation
+                val (songs, index) = iad1tya.echo.music.utils.UnavailableSongs.keepPlayable(playlistPage.songs, startIndex)
                 Queue.Status(
                     title = playlistPage.playlist.title,
-                    items = playlistPage.songs.map { it.toMediaItem() },
-                    mediaItemIndex = startIndex,
+                    items = songs.map { it.toMediaItem() },
+                    mediaItemIndex = index,
                 )
             }
         }
@@ -61,7 +65,9 @@ class YouTubePlaylistQueue(
                     val continuationPage = YouTube.playlistContinuation(currentContinuation).getOrThrow()
                     continuation = continuationPage.continuation
                     retryCount = 0
-                    return@withContext continuationPage.songs.map { it.toMediaItem() }
+                    return@withContext iad1tya.echo.music.utils.UnavailableSongs
+                        .keepPlayable(continuationPage.songs, startIndex = -1).first
+                        .map { it.toMediaItem() }
                 } catch (e: Exception) {
                     lastException = e
                     retryCount++

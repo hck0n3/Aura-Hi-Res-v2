@@ -317,6 +317,12 @@ object YTPlayerUtils {
     class StreamResolutionException(
         val reason: String,
         cause: Throwable? = null,
+        /**
+         * True only when YouTube itself gave a playability verdict on the SONG (region, Premium/members,
+         * removed…). Timeouts and a missing format/URL stay false: those can be the session or the cipher.
+         * Read by PlaybackErrorClassifier.isContentLevelNoStream (owner 2026-10-06, unavailable songs).
+         */
+        val contentLevel: Boolean = false,
     ) : Exception(reason, cause)
 
     // Hard cap on the WALL-CLOCK time the YouTube resolve (the 12-client fallback loop) may spend before
@@ -785,6 +791,10 @@ object YTPlayerUtils {
         // Carries the most recent real playability reason seen while iterating clients, so an
         // all-clients-exhausted dead-end can surface WHY (region-locked, members-only, …) to the user.
         var lastPlayabilityReason: String? = null
+        // Owner 2026-10-06 (unavailable songs): true while EVERY client that refused this song refused it
+        // with a CONTENT verdict (UNPLAYABLE / ERROR). One session-shaped refusal (LOGIN_REQUIRED, a bot
+        // check…) and the dead end can no longer be blamed on the song.
+        var onlyContentRefusals: Boolean? = null
         var retryMainPlayerResponse: PlayerResponse? = if (usedAgeRestrictedClient != null) mainPlayerResponse else null
 
 
@@ -1086,6 +1096,10 @@ object YTPlayerUtils {
                 // Remember the real reason (e.g. region/premium/members) so an all-clients-exhausted
                 // dead-end can tell the user WHY instead of a generic failure.
                 streamPlayerResponse?.playabilityStatus?.reason?.let { lastPlayabilityReason = it }
+                if (streamPlayerResponse != null) {
+                    val contentVerdict = status == "UNPLAYABLE" || status == "ERROR"
+                    onlyContentRefusals = (onlyContentRefusals ?: true) && contentVerdict
+                }
                 if (status in AUTH_SHAPED_STATUSES) authShaped?.set(true)
                 // Solo con sesión iniciada: sin cookie no hay identidad que YouTube pueda rechazar,
                 // y la rama de invitado ya tiene su propia rotación unas líneas más arriba.
@@ -1107,7 +1121,10 @@ object YTPlayerUtils {
             }
             // DEAD-END (fix #1): no client could serve this song. Typed so the loader maps it to NO_STREAM
             // (skip + message), NEVER a network code — carry the real reason when we captured one.
-            throw StreamResolutionException(lastPlayabilityReason ?: "No hay ninguna fuente disponible para esta canción")
+            throw StreamResolutionException(
+                lastPlayabilityReason ?: "No hay ninguna fuente disponible para esta canción",
+                contentLevel = lastPlayabilityReason != null && onlyContentRefusals == true,
+            )
         }
 
         if (streamPlayerResponse.playabilityStatus.status != "OK") {
@@ -1118,7 +1135,12 @@ object YTPlayerUtils {
             }
             // DEAD-END (fix #1): carry the real playability reason (region/premium/members/…) so the loader
             // maps it to NO_STREAM with that reason instead of a generic REMOTE_ERROR silent pause.
-            throw StreamResolutionException(errorReason ?: lastPlayabilityReason ?: "Esta canción no está disponible")
+            val finalStatus = streamPlayerResponse.playabilityStatus.status
+            throw StreamResolutionException(
+                errorReason ?: lastPlayabilityReason ?: "Esta canción no está disponible",
+                // Only YouTube's verdict on the SONG; LOGIN_REQUIRED & co. are about the session.
+                contentLevel = finalStatus == "UNPLAYABLE" || finalStatus == "ERROR",
+            )
         }
 
         if (streamExpiresInSeconds == null) {

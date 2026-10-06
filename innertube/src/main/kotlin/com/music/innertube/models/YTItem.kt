@@ -40,7 +40,12 @@ data class SongItem(
     val setVideoId: String? = null,
     val libraryAddToken: String? = null,
     val libraryRemoveToken: String? = null,
-    val historyRemoveToken: String? = null
+    val historyRemoveToken: String? = null,
+    /**
+     * YouTube Music marks this song as unavailable (greyed out in a list, or unplayable in a watch queue).
+     * Parsers set it; the app hides/skips such songs instead of failing to play them (owner 2026-10-06).
+     */
+    val unavailable: Boolean = false,
 ) : YTItem() {
     val isVideoSong: Boolean
         get() = musicVideoType != null && musicVideoType != MUSIC_VIDEO_TYPE_ATV

@@ -233,6 +233,12 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             }
         }
 
+        // Owner 2026-10-06 — the songs known to be unavailable (hidden from lists, never queued). One small
+        // SharedPreferences read, off the main thread; until it lands nothing is hidden (fail-open).
+        applicationScope.launch(Dispatchers.IO) {
+            runCatching { iad1tya.echo.music.utils.UnavailableSongs.init(applicationContext) }
+        }
+
         // Best-effort background refresh of the self-healing player configs (owner-hosted JSON). Idempotent
         // and network-optional: on failure the app keeps its built-in hardcoded configs. Never throws. Lets
         // a YouTube cipher rotation be fixed by publishing one config, with no app update.

@@ -542,19 +542,23 @@ fun LocalPlaylistScreen(
     var dragInfo by remember {
         mutableStateOf<Pair<Int, Int>?>(null)
     }
+    // Key-based index mapping (the same pattern AuraLocalPlaylistScreen already uses) instead of
+    // "lazy index − headerItems": since 2026-10-06 the list hides songs known to be unavailable (owner:
+    // "no muestres canciones no disponibles, aunque estén en una lista mía"), so a lazy index no longer
+    // equals a position in [mutableSongs]; mapping by the row's key does, and the move lands on the real
+    // stored order. A drop over a non-song item resolves to -1 and is ignored.
+    fun songIndexOfKey(key: Any?): Int = mutableSongs.indexOfFirst { it.map.id == key }
+
     val reorderableState = rememberReorderableLazyListState(
         lazyListState = lazyListState,
         scrollThresholdPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
     ) { from, to ->
-        if (to.index >= headerItems && from.index >= headerItems) {
+        val safeFrom = songIndexOfKey(from.key)
+        val safeTo = songIndexOfKey(to.key)
+        if (safeFrom >= 0 && safeTo >= 0) {
             val currentDragInfo = dragInfo
-            dragInfo = if (currentDragInfo == null) {
-                (from.index - headerItems) to (to.index - headerItems)
-            } else {
-                currentDragInfo.first to (to.index - headerItems)
-            }
-
-            mutableSongs.move(from.index - headerItems, to.index - headerItems)
+            dragInfo = if (currentDragInfo == null) safeFrom to safeTo else currentDragInfo.first to safeTo
+            mutableSongs.move(safeFrom, safeTo)
         }
     }
 
@@ -592,6 +596,15 @@ fun LocalPlaylistScreen(
             lazyListState.firstVisibleItemIndex > 0
         }
     }
+
+    // Owner 2026-10-06: songs known to be unavailable are hidden at RENDER only — `songs` and
+    // `mutableSongs` keep every entry, so reordering (key-mapped above), AI edits, downloads and every
+    // write see the real playlist. A downloaded song is always shown (it plays from disk).
+    val hiddenSongIds by iad1tya.echo.music.utils.UnavailableSongs.ids.collectAsState()
+    val visibleRows = iad1tya.echo.music.utils.UnavailableSongs.hideUnavailableBy(
+        if (isSearching) filteredSongs else mutableSongs,
+        hiddenSongIds,
+    ) { it.song }
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -685,7 +698,7 @@ fun LocalPlaylistScreen(
             }
 
             itemsIndexed(
-                items = if (isSearching) filteredSongs else mutableSongs,
+                items = visibleRows,
                 key = { _, song -> song.map.id },
             ) { index, song ->
                 ReorderableItem(
@@ -794,7 +807,7 @@ fun LocalPlaylistScreen(
                                 song.song.song.totalPlayTime > 0L,
                             shape = listItemShape(
                                 index = index,
-                                count = if (isSearching) filteredSongs.size else mutableSongs.size
+                                count = visibleRows.size
                             ),
                             trailingContent = {
                                 if (inSelectMode) {

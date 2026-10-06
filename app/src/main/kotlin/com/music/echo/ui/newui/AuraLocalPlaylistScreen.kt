@@ -569,7 +569,14 @@ fun AuraLocalPlaylistScreen(
     val canSwipeRemove = swipeRemoveEnabled && editable && !inSelectMode
 
     val bloom = rememberAuraBloom(mediaMetadata?.id)
-    val rows = if (isSearching) filteredSongs else mutableSongs
+    // Owner 2026-10-06 ("no muestres canciones no disponibles, aunque estén en una lista mía"): hidden at
+    // RENDER only. `songs` / `mutableSongs` keep every entry, so drag-reorder (key-mapped into the full
+    // list above), AI edits, downloads and every write see the real playlist; nothing is removed.
+    val hiddenSongIds by iad1tya.echo.music.utils.UnavailableSongs.ids.collectAsState()
+    val rows = iad1tya.echo.music.utils.UnavailableSongs.hideUnavailableBy(
+        if (isSearching) filteredSongs else mutableSongs,
+        hiddenSongIds,
+    ) { it.song }
 
     Box(modifier = Modifier.fillMaxSize().auraScreenBackground(bloom, intensity = 0.40f)) {
         Column(Modifier.fillMaxSize()) {

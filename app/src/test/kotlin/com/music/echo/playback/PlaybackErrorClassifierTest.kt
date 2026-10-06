@@ -228,6 +228,31 @@ class PlaybackErrorClassifierTest {
         assertTrue(PlaybackErrorClassifier.isNoStreamError(top))
     }
 
+    /**
+     * Owner 2026-10-06 (unavailable songs): only YouTube's verdict on the SONG may mark it — through the
+     * same deep loader wrapping as above. A timeout or a missing URL (session/cipher) never does.
+     */
+    @Test
+    fun onlyAContentVerdictIsContentLevel() {
+        val content = playbackError(
+            PlaybackErrorClassifier.ERROR_CODE_NO_STREAM,
+            cause = YTPlayerUtils.StreamResolutionException("solo para Premium", contentLevel = true),
+        )
+        val wrapped = playbackError(PlaybackException.ERROR_CODE_IO_UNSPECIFIED, cause = java.io.IOException("loader", content))
+        assertTrue(PlaybackErrorClassifier.isContentLevelNoStream(wrapped))
+
+        val timeout = playbackError(
+            PlaybackErrorClassifier.ERROR_CODE_NO_STREAM,
+            cause = YTPlayerUtils.StreamResolutionException("timed out"),
+        )
+        assertFalse(PlaybackErrorClassifier.isContentLevelNoStream(timeout))
+        assertFalse(
+            PlaybackErrorClassifier.isContentLevelNoStream(
+                playbackError(PlaybackException.ERROR_CODE_TIMEOUT, cause = java.net.ConnectException()),
+            ),
+        )
+    }
+
     @Test
     fun ordinaryErrorsAreNotNoStream() {
         assertFalse(

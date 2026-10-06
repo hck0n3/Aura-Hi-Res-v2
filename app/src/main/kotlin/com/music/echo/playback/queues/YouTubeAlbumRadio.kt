@@ -30,11 +30,15 @@ class YouTubeAlbumRadio(
 
     override suspend fun getInitialStatus(): Queue.Status = withContext(IO) {
         val albumSongs = YouTube.albumSongs(playlistId).getOrThrow()
+        // The ORIGINAL count: nextPage() drops the album's own rows from YouTube's watch list by position.
         albumSongCount = albumSongs.size
+        // Owner 2026-10-06: greyed-out / known-unavailable tracks never enter the queue (the first, which
+        // starts the queue, is kept — UnavailableSongs.keepPlayable).
+        val (playable, index) = iad1tya.echo.music.utils.UnavailableSongs.keepPlayable(albumSongs, 0)
         Queue.Status(
             title = albumSongs.first().album?.name.orEmpty(),
-            items = albumSongs.map { it.toMediaItem() },
-            mediaItemIndex = 0
+            items = playable.map { it.toMediaItem() },
+            mediaItemIndex = index
         )
     }
 
@@ -48,9 +52,9 @@ class YouTubeAlbumRadio(
         continuation = nextResult.continuation
         if (!firstTimeLoaded) {
             firstTimeLoaded = true
-            nextResult.items.drop(albumSongCount).map { it.toMediaItem() }
+            nextResult.items.drop(albumSongCount).filterNot { it.unavailable }.map { it.toMediaItem() }
         } else {
-            nextResult.items.map { it.toMediaItem() }
+            nextResult.items.filterNot { it.unavailable }.map { it.toMediaItem() }
         }
     }
 }

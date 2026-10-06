@@ -3883,6 +3883,30 @@ class MusicService :
                 rawStatus.copy(items = deduped, mediaItemIndex = newIndex)
             } else {
                 rawStatus
+            }.let { status ->
+                // Owner 2026-10-06 ("cualquier canción que ya no esté disponible no se la muestres… sin
+                // importar que pertenezca a una lista mía"): songs known to be unavailable (greyed out by
+                // YouTube Music, or confirmed failures — see UnavailableRegistry) never enter ANY queue,
+                // the user's own lists and Me gusta included. The song the queue starts on is kept: the
+                // user picked it, and the player explains and skips it exactly as before. Nothing is
+                // removed from the list itself — only from this playback.
+                val hidden = iad1tya.echo.music.utils.UnavailableSongs.ids.value
+                if (hidden.isEmpty()) return@let status
+                val start = status.mediaItemIndex
+                // A song whose audio is fully on disk (download or complete listen cache) plays with no
+                // network at all, so it is never skipped here.
+                val kept = status.items.withIndex().filter { (i, mi) ->
+                    i == start || mi.mediaId !in hidden || isSongFullyCached(mi.mediaId)
+                }
+                if (kept.size == status.items.size) return@let status
+                Timber.tag(TAG).i(
+                    "UNAVAILABLE playQueue skipped %d of %d",
+                    status.items.size - kept.size, status.items.size,
+                )
+                status.copy(
+                    items = kept.map { it.value },
+                    mediaItemIndex = kept.indexOfFirst { it.index == start }.coerceAtLeast(0),
+                )
             }
             // Fila #311 — a one-song tap (YouTubeQueue + preloadItem) now keeps its OWN list as its
             // continuation instead of having it replaced by a racing seed (see
@@ -4481,7 +4505,10 @@ class MusicService :
                 // inside the pattern; empty for every non-pattern caller (byte-identical to before).
                 inheritedLanes: Map<String, String> = emptyMap(),
             ): Boolean {
-                if (rawItems.isEmpty()) return false
+                // Owner 2026-10-06 — never append a song known to be unavailable (UnavailableRegistry): it
+                // would only fail, toast and skip. An empty result is the normal "this source gave nothing".
+                val playableItems = rawItems.filterNot { iad1tya.echo.music.utils.UnavailableSongs.isUnavailable(it.mediaId) }
+                if (playableItems.isEmpty()) return false
                 // Ronda 10 — see [radioOriginContextId]'s own doc comment. Hard-drop, same strength as
                 // maybeLoadMoreQueuePages' own sessionPlayedIds filter: a persistent, cross-restart
                 // "already served after THIS collection" memory. Never below 1 candidate collapses the
@@ -4492,9 +4519,9 @@ class MusicService :
                     val playedBefore = withContext(Dispatchers.IO) {
                         runCatching { database.radioContinuationPlayedIds(originContextId) }.getOrDefault(emptyList())
                     }.toHashSet()
-                    if (playedBefore.isEmpty()) rawItems else rawItems.filterNot { it.mediaId in playedBefore }
+                    if (playedBefore.isEmpty()) playableItems else playableItems.filterNot { it.mediaId in playedBefore }
                 } else {
-                    rawItems
+                    playableItems
                 }
                 if (items.isEmpty()) return false
                 // ENRICH BEFORE SCORING (see [ENRICH_BEFORE_SCORE_MS]) — the ROOT CAUSE of the genre
@@ -7109,7 +7136,9 @@ class MusicService :
                     }
                     next = next.filterNot {
                         it.mediaId in sessionPlayedIds || it.dedupKeyOrNull() in sessionPlayedDedupKeys ||
-                            it.mediaId in playedBefore
+                            it.mediaId in playedBefore ||
+                            // Owner 2026-10-06: a song known to be unavailable would only fail and skip.
+                            iad1tya.echo.music.utils.UnavailableSongs.isUnavailable(it.mediaId)
                     }
                     // Phase A #2 — route the steady-state continuation through orderedByTaste() too, so it is
                     // taste-ordered + artist-spaced (spacedByArtist) rather than raw YouTube order. We're inside
@@ -8419,6 +8448,14 @@ class MusicService :
                     error,
                     "Unresolvable song (no stream) for $mediaId: ${PlaybackErrorClassifier.noStreamReason(error)}",
                 )
+                // Owner 2026-10-06 — remember a CONTENT-level dead end (region, Premium-only, removed…) so
+                // the song is hidden from lists and never queued again. Pending until another song plays
+                // (UnavailableRegistry), and never while the resolver itself sees an identity-shaped streak.
+                if (PlaybackErrorClassifier.isContentLevelNoStream(error) &&
+                    !iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.isIdentityShaped
+                ) {
+                    iad1tya.echo.music.utils.UnavailableSongs.recordFailure(mediaId)
+                }
                 handleUnresolvableSong(mediaId, PlaybackErrorClassifier.noStreamReason(error))
                 return
             }
@@ -9561,6 +9598,9 @@ class MusicService :
             // Reaching here means the resolve succeeded (every getOrElse branch throws), so close the
             // StreamHealth timing window started above.
             StreamHealth.freshResolveCompleted(android.os.SystemClock.elapsedRealtime() - resolveStartMs)
+            // Owner 2026-10-06 — a song resolved: the session and the network work, so earlier CONTENT
+            // failures of other songs are real (UnavailableRegistry), and this one is playable again.
+            iad1tya.echo.music.utils.UnavailableSongs.recordSuccess(mediaId)
 
             val nonNullPlayback = requireNotNull(playbackData) {
                 getString(R.string.error_unknown)

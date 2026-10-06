@@ -1099,6 +1099,9 @@ class SyncUtils @Inject constructor(
         withRetry {
             var streamedIndex = 0
             YouTube.playlist("LM").completedStreaming { songs ->
+                // Owner 2026-10-06: learn which liked songs YouTube Music greys out (they are then hidden
+                // and never queued; the like itself is untouched — see UnavailableSongs).
+                UnavailableSongs.learnFrom(songs)
                 insertLikedSongsPage(songs, now, streamedIndex)
                 streamedIndex += songs.size
             }
@@ -1179,6 +1182,7 @@ class SyncUtils @Inject constructor(
             YouTube.playlist("LM").completed()
         }.onSuccess { result ->
             result.onSuccess { page ->
+                UnavailableSongs.learnFrom(page.songs)
                 try {
                     val remoteSongs = page.songs
                     val remoteIds = remoteSongs.map { it.id }.toSet()
@@ -1800,6 +1804,8 @@ class SyncUtils @Inject constructor(
             YouTube.playlist(browseId).completed()
         }.onSuccess { result ->
             result.onSuccess { page ->
+                // Owner 2026-10-06: learn greyed-out songs (hidden/never queued; the playlist rows stay).
+                UnavailableSongs.learnFrom(page.songs)
                 // Fila #317 — last line of defence for every other caller (single-playlist op, manual
                 // "Sincronizar ahora"): never rebuild a Spotify mirror from its YouTube copy.
                 if (isSpotifyMirror(playlistId)) {

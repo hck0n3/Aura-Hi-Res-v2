@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -105,6 +106,10 @@ constructor(
 
                     else -> flowOf(emptyList())
                 }
+            }
+            // Owner 2026-10-06: songs known to be unavailable are not shown (downloaded ones always are).
+            .combine(iad1tya.echo.music.utils.UnavailableSongs.ids) { songs, hidden ->
+                iad1tya.echo.music.utils.UnavailableSongs.hideUnavailable(songs, hidden)
             }
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 

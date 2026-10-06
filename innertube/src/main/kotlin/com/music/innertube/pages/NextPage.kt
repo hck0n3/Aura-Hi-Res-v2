@@ -69,7 +69,9 @@ object NextPage {
                     it.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE"
                 } != null,
             libraryAddToken = libraryTokens.addToken,
-            libraryRemoveToken = libraryTokens.removeToken
+            libraryRemoveToken = libraryTokens.removeToken,
+            // A watch-queue row YouTube itself labels unplayable ("Video unavailable" etc.).
+            unavailable = renderer.unplayableText?.runs?.isNotEmpty() == true,
         )
     }
 }
