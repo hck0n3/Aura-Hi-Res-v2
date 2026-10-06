@@ -149,6 +149,38 @@ object ContextPattern {
     }
 
     /**
+     * The lane each candidate INHERITS from the pattern seed whose radio page brought it (owner log
+     * 2026-10-05 11:55: a continuation seeded at the true end of the list — no time to look genres up —
+     * scored 52 candidates with 42 of UNKNOWN genre, so only 8 could be placed in the pattern and the
+     * other 42 played in YouTube's raw order). A song YouTube relates to a cumbia track of the list is,
+     * far more often than not, cumbia: that is a better guess than "nothing", and it costs no lookup.
+     *
+     * Walks [pages] in the SAME round-robin order the caller merges them in (position 0 of every page,
+     * then position 1…), so a candidate several seeds share inherits from the seed that put it in the
+     * batch. A page whose seed has no lane ([seedLanes] entry null or missing) gives nothing.
+     *
+     * ORDER ONLY — the caller must use it exclusively as [arrange]'s fallback for a candidate whose own
+     * genre is unknown: a known genre always wins, and nothing is ever dropped on an inherited lane
+     * (registry #39/#41/#116 — a guess may place a song, never exclude one).
+     */
+    fun inheritedLanes(seedLanes: List<String?>, pages: List<List<String>>): Map<String, String> {
+        val out = HashMap<String, String>()
+        // Claimed by whichever page reached it first, exactly like the merge — a lane-less page that got
+        // there first keeps the candidate lane-less instead of letting a later page relabel it.
+        val claimed = HashSet<String>()
+        val maxSize = pages.maxOfOrNull { it.size } ?: 0
+        for (i in 0 until maxSize) {
+            pages.forEachIndexed { p, page ->
+                if (i >= page.size) return@forEachIndexed
+                val id = page[i]
+                if (!claimed.add(id)) return@forEachIndexed
+                seedLanes.getOrNull(p)?.let { out[id] = it }
+            }
+        }
+        return out
+    }
+
+    /**
      * How many of [n] radio SEEDS each lane gets, in seed order: the same smooth round-robin, so a
      * one-genre list seeds only that genre and a mixed list seeds its genres in proportion (the
      * dominant one first). Empty when the shares are unusable.

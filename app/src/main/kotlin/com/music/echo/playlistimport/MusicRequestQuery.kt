@@ -116,6 +116,12 @@ object MusicRequestQuery {
         // reconoce ("gospel" ya estaba aquí, pero no sus sinónimos), así que la petición se saltaba
         // moodCategoryPlaylists por completo y caía a búsqueda sin curar.
         "cristiana", "cristiano", "alabanza", "worship",
+        // Ronda 12 (dueño, 2026-10-05: "pedí afro gospel y me tiró cualquier cosa menos lo que pedí").
+        // "afro" no era un género conocido: quedaba como resto suelto, se fijaba como si fuera el
+        // título de una canción y la categoría genérica de gospel llenaba todo lo demás. Mismas
+        // palabras que la familia afro de MusicRequestMoods.GENRE_FAMILIES.
+        "afro", "afrobeat", "afrobeats", "afropop", "afro house", "amapiano",
+        "africa", "african", "africana", "africano",
     )
 
     /**
@@ -247,6 +253,17 @@ object MusicRequestQuery {
             .joinToString(" ")
             .trim()
     }
+
+    /**
+     * Ronda 12 (dueño: "afro gospel", "hip hop de eminem", "rock argentino"). Las palabras de contenido
+     * de un resto de [residualBeyondCategory] — ya normalizado — que no sea un artista ni una canción
+     * confirmada: entonces es lo que CALIFICA al género ("argentino", "afro"…) y la categoría o la lista
+     * elegidas tienen que nombrarlo también, en vez de ignorarlo.
+     */
+    fun residualWords(residual: String): List<String> =
+        residual.split(Regex("[^\\p{L}\\p{N}]+"))
+            .filter { it.length >= 3 && it !in CONNECTOR_WORDS }
+            .distinct()
 
     /** Quita la pista de idioma cruda ("en ingles", "in spanish"…) — no aporta nada a una búsqueda literal. */
     private fun stripLanguageHint(text: String): String {

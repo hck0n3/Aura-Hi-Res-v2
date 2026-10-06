@@ -156,4 +156,16 @@ class AiPlaylistGeneratorTest {
         assertTrue(AiPlaylistGenerator.isVersionTitle("Flipando - En Vivo"))
         assertTrue(!AiPlaylistGenerator.isVersionTitle("Flipando"))
     }
+
+    /** Ronda 12 (dueño: "afro gospel" fijaba cualquier título que CONTUVIERA "Afro"). */
+    @Test
+    fun `a single qualifier word only pins a title that IS that word`() {
+        val candidates = listOf(
+            song("1", "Afro Praise Medley", "Choir"),
+            song("2", "Gasolina (Remix)", "Daddy Yankee"),
+            song("3", "Gasolina", "Daddy Yankee"),
+        )
+        assertNull(AiPlaylistGenerator.exactTitleMatch("afro", candidates))
+        assertEquals("3", AiPlaylistGenerator.exactTitleMatch("gasolina", candidates)?.id)
+    }
 }

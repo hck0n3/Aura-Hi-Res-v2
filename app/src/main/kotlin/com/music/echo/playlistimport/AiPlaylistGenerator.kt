@@ -294,8 +294,10 @@ object AiPlaylistGenerator {
         // Ronda 11 (dueño: "nunca me pone exactamente lo que pido"): una canción que él NOMBRÓ y la
         // búsqueda encontró tal cual también es comprobable — la IA propone títulos que habría que
         // volver a buscar, y no garantiza que el primero sea esa canción.
+        // Ronda 12: igual con un artista que el buscador CONFIRMÓ ("hip hop de eminem"): la IA ve la frase
+        // sin ese candado y puede proponer canciones de otros.
         val verifiable = parsedForRace.decade != null || parsedForRace.language != null ||
-            searchOutcome?.pinnedSpecific == true
+            searchOutcome?.pinnedSpecific == true || searchOutcome?.artistLocked == true
         if (verifiable && search.isNotEmpty()) {
             aiJob.cancel()
             return@coroutineScope Produced(
@@ -665,6 +667,14 @@ object AiPlaylistGenerator {
         // una llamada más — lo que cambia es que al final se puede elegir. Ver [MusicRequestRanking].
         val pool = ArrayList<SongItem>()
         val seen = HashSet<String>()
+        // Ronda 12 (dueño: "hip hop de eminem" → solo la primera era de Eminem). El artista único puede
+        // venir de la frase ([AiPlaylistConstraints.extractSoloArtist], "música de X") o confirmarse más
+        // abajo con lo que devuelve el buscador ([MusicRequestArtist.confirm], "hip hop de X"). Todo lo
+        // que filtra por artista lee ESTA variable, no el parámetro.
+        var effectiveSolo: String? = soloArtist
+        // Ronda 12 (dueño: "afro gospel"): palabras que califican al género y que la categoría o la lista
+        // elegida tienen que nombrar también (ver [MusicRequestQuery.residualWords]).
+        var qualifiers: List<String> = emptyList()
         // Ronda 10 (dueño: "cuando pida un nombre de artista con el nombre de la canción" debe
         // reproducir ESO específicamente cada vez, a diferencia de un pedido temático). Id de la
         // canción exacta que el peldaño -1 (bestSpecificMatch) confirma que el usuario nombró — si
@@ -683,7 +693,7 @@ object AiPlaylistGenerator {
                 val titleKey = dedupKey(item.title, item.artists.firstOrNull()?.name)
                 if (seen.add(item.id) &&
                     seenTitles.add(titleKey) &&
-                    soloPrimaryMatch(item.artists.map { it.name }, soloArtist)
+                    soloPrimaryMatch(item.artists.map { it.name }, effectiveSolo)
                 ) {
                     pool += item
                 }
@@ -741,32 +751,75 @@ object AiPlaylistGenerator {
         var pinned: SongItem? = null
         // La misma búsqueda de canciones que el peldaño 3 haría con `query`: se reutiliza, no se repite.
         var songSearchCache: List<SongItem>? = null
+        // Ronda 12: true cuando el resto de la petición resultó ser un ARTISTA (ver [MusicRequestArtist]).
+        var artistLocked = false
         if (residual.length >= 3) {
             // Con género/momento se busca la frase entera (como antes); sin ellos, la consulta limpia
             // de muletillas — "ponme" no ayuda al buscador a encontrar una canción.
             val specificQuery = if (parsed.preferPlaylists) prompt.trim().take(80) else query
-            YouTube.search(specificQuery, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+            val candidates = YouTube.search(specificQuery, YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()
                 ?.also { if (specificQuery == query) songSearchCache = it }
-                ?.let { candidates -> bestSpecificMatch(residual, candidates) }
-                ?.let { match ->
-                    pinned = match
-                    specificMatchId = match.id
-                    // Marcada como vista para que ningún peldaño la vuelva a meter en el montón.
-                    seen.add(match.id)
-                    seenTitles.add(dedupKey(match.title, match.artists.firstOrNull()?.name))
-                    YouTube.next(WatchEndpoint(videoId = match.id, playlistId = "RDAMVM${match.id}"))
-                        .getOrNull()?.items
-                        ?.filter { it.id != match.id }
-                        ?.let { absorb(christianOnly(it)) }
+                .orEmpty()
+            // Ronda 12 (dueño: "pedí hip hop de Eminem y solo la primera fue de Eminem; lo demás era de
+            // otro cantante"). Antes de buscar una CANCIÓN con ese nombre, ¿el resto es un ARTISTA? Lo
+            // decide el propio buscador: el resto tiene que ser exactamente el artista principal de
+            // varias de las canciones que devolvió ([MusicRequestArtist.confirm]), o el artista único
+            // que la frase ya nombró ("música de Eminem" deja "eminem" de resto, y fijar una canción con
+            // "Eminem" en el título era el mismo fallo). Entonces no se fija nada: TODO lo que suena es
+            // de ese artista (filtro de artista principal, el mismo de "solo X"), y las categorías
+            // genéricas del género no se tocan — hip hop de cualquiera no es lo que pidió.
+            val confirmedArtist = MusicRequestArtist.confirm(
+                residual,
+                candidates.map { it.artists.firstOrNull()?.name },
+            ) ?: soloArtist?.takeIf { MusicRequestArtist.sameName(it, residual) }
+            val residualWords = MusicRequestQuery.residualWords(residual)
+            when {
+                confirmedArtist != null -> {
+                    artistLocked = true
+                    if (effectiveSolo == null) effectiveSolo = confirmedArtist
+                    // Lo que el buscador devolvió para la frase entera ("hip hop de eminem") va primero: es
+                    // lo más cercano a lo que pidió dentro del catálogo de ese artista.
+                    absorb(christianOnly(candidates))
                 }
+                // Ronda 12 (dueño: "afro gospel" → una canción con "Afro" en el título y luego gospel de
+                // cualquiera). Una sola palabra junto a un género o momento casi nunca es una canción: es
+                // lo que CALIFICA al género. Solo se fija si el título de una canción ES esa palabra
+                // ("reggaeton gasolina" → "Gasolina"); si no, pasa a ser obligatoria para la categoría y
+                // la lista (más abajo), en vez de fijar cualquier título que la contenga.
+                parsed.preferPlaylists && residualWords.size == 1 -> {
+                    val exact = exactTitleMatch(residual, candidates)
+                    if (exact != null) {
+                        pinned = exact
+                    } else {
+                        qualifiers = residualWords
+                    }
+                }
+                else -> {
+                    pinned = bestSpecificMatch(residual, candidates)
+                        ?.takeIf { soloPrimaryMatch(it.artists.map { a -> a.name }, effectiveSolo) }
+                    // Varias palabras junto a un género que no nombran ninguna canción ("salsa de puerto
+                    // rico"): también califican al género.
+                    if (pinned == null && parsed.preferPlaylists) qualifiers = residualWords
+                }
+            }
+            pinned?.let { match ->
+                specificMatchId = match.id
+                // Marcada como vista para que ningún peldaño la vuelva a meter en el montón.
+                seen.add(match.id)
+                seenTitles.add(dedupKey(match.title, match.artists.firstOrNull()?.name))
+                YouTube.next(WatchEndpoint(videoId = match.id, playlistId = "RDAMVM${match.id}"))
+                    .getOrNull()?.items
+                    ?.filter { it.id != match.id }
+                    ?.let { absorb(christianOnly(it)) }
+            }
         }
         // Otras versiones de la canción fijada (remix, en vivo, otra subida, a nombre de otro artista)
         // no pueden seguirla — salvo que él haya pedido justo una versión ("flipando remix").
         val pinnedBase = pinned?.let { baseTitleKey(it.title) }
         val wantsVersion = residual.split(Regex("[^\\p{L}\\p{N}]+")).any { it in VERSION_WORDS }
 
-        if (parsed.preferPlaylists && soloArtist == null) {
+        if (parsed.preferPlaylists && effectiveSolo == null) {
             // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
             // el peldaño 1: no se le pide a la búsqueda ni a un LLM que ADIVINE qué está de moda —
             // se piden los charts reales de YouTube Music, que es la única fuente que de verdad lo
@@ -787,7 +840,7 @@ object AiPlaylistGenerator {
             // categoría dedicada ("Bachata Cristiana"): una categoría genérica que matcheó por
             // género/década (p. ej. "Bachata") no garantiza que cada canción suya sea cristiana, así
             // que christianOnly se aplica igual que en el resto de peldaños sin verificación de tema.
-            moodCategoryPlaylists(prompt, parsed).take(PLAYLISTS_USED).forEach { pl ->
+            moodCategoryPlaylists(prompt, parsed, qualifiers).take(PLAYLISTS_USED).forEach { pl ->
                 if (pool.size < POOL_TARGET) {
                     YouTube.playlist(pl.id).getOrNull()?.songs?.let { absorb(christianOnly(it)) }
                 }
@@ -804,7 +857,7 @@ object AiPlaylistGenerator {
                 YouTube.search(query, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST).getOrNull()
                     ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)
                     ?.let { candidates += it }
-                val conceptGroups = MusicRequestMoods.conceptGroupsFor(prompt, parsed)
+                val conceptGroups = MusicRequestMoods.conceptGroupsFor(prompt, parsed, qualifiers)
                 MusicRequestMatch.rankedIndices(candidates.map { it.title }, parsed, conceptGroups)
                     .take(PLAYLISTS_USED)
                     .forEach { index ->
@@ -819,6 +872,15 @@ object AiPlaylistGenerator {
         if (pool.size < POOL_TARGET) {
             (songSearchCache ?: YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>())?.let { absorb(christianOnly(it)) }
+        }
+        // Peldaño 3b — EL CATÁLOGO DEL ARTISTA (ronda 12). Con el artista confirmado, una búsqueda por su
+        // nombre trae el resto de sus canciones: más donde elegir y otra lista distinta si vuelve a pedir
+        // lo mismo ([MusicRequestRecents]). Una sola petición más, y solo en este caso.
+        if (artistLocked && pool.size < POOL_TARGET) {
+            effectiveSolo?.let { artist ->
+                YouTube.search(artist, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                    ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
+            }
         }
         // Peldaño 4 — los VÍDEOS son lo menos fiable (recopilaciones de una hora, versiones de
         // aficionado): en una petición de época o momento solo se tocan si no hay NADA.
@@ -860,10 +922,11 @@ object AiPlaylistGenerator {
             pool.removeAll { baseTitleKey(it.title) == pinnedBase }
             versionsDropped = before - pool.size
         }
-        // Solo contadores (regla 4 de AGENTS.md): prueba en el log si la canción nombrada quedó fija.
+        // Solo contadores (regla 4 de AGENTS.md): prueba en el log si la canción nombrada quedó fija, si
+        // el resto era un artista, y cuántas palabras calificaron al género (nunca cuáles).
         timber.log.Timber.i(
-            "MUSIC_REQUEST specific=%b versionsDropped=%d pool=%d",
-            pinned != null, versionsDropped, pool.size,
+            "MUSIC_REQUEST specific=%b artist=%b qualifiers=%d versionsDropped=%d pool=%d",
+            pinned != null, artistLocked, qualifiers.size, versionsDropped, pool.size,
         )
         val fresh = pool.filter { it.id == specificMatchId || !MusicRequestRecents.isRecent(it.id) }
         // Ronda 10 (dueño: "sin importar cuántas veces lo pida, la lista debe ser diferente" para un
@@ -893,11 +956,22 @@ object AiPlaylistGenerator {
         // pedidos pueden moverlo: es literalmente lo que pidió.
         val songs = listOfNotNull(head) + picked
         MusicRequestRecents.markServed(songs.map { it.id })
-        return SearchOutcome(songs.map { it.toMediaMetadata() }, pinnedSpecific = head != null)
+        return SearchOutcome(
+            songs.map { it.toMediaMetadata() },
+            pinnedSpecific = head != null,
+            artistLocked = artistLocked,
+        )
     }
 
-    /** Lo que da la búsqueda, y si su primer puesto es la canción exacta que él nombró. */
-    private data class SearchOutcome(val songs: List<MediaMetadata>, val pinnedSpecific: Boolean)
+    /**
+     * Lo que da la búsqueda, si su primer puesto es la canción exacta que él nombró, y si todo es del
+     * artista que su petición nombró (ronda 12).
+     */
+    private data class SearchOutcome(
+        val songs: List<MediaMetadata>,
+        val pinnedSpecific: Boolean,
+        val artistLocked: Boolean = false,
+    )
 
     /**
      * Las listas editoriales de la categoría de YouTube Music que corresponde a su petición, o vacío
@@ -910,6 +984,7 @@ object AiPlaylistGenerator {
     private suspend fun moodCategoryPlaylists(
         prompt: String,
         parsed: MusicRequestQuery.Parsed,
+        qualifiers: List<String> = emptyList(),
     ): List<PlaylistItem> {
         val cached = cachedMoods
         val now = System.currentTimeMillis()
@@ -923,7 +998,7 @@ object AiPlaylistGenerator {
         }
         val items = sections.flatMap { it.items }
         if (items.isEmpty()) return emptyList()
-        val index = MusicRequestMoods.pickCategory(items.map { it.title }, prompt, parsed)
+        val index = MusicRequestMoods.pickCategory(items.map { it.title }, prompt, parsed, qualifiers)
             ?: return emptyList()
         val endpoint = items[index].endpoint
         val browse = YouTube.browse(endpoint.browseId, endpoint.params).getOrNull() ?: return emptyList()
@@ -1063,6 +1138,21 @@ object AiPlaylistGenerator {
             }
         }
         return best
+    }
+
+    /**
+     * Ronda 12: la canción cuyo título ES exactamente [residual] (una sola palabra junto a un género:
+     * "reggaeton gasolina" → "Gasolina"), o null. A diferencia de [bestSpecificMatch] no basta con que el
+     * título la CONTENGA — "afro gospel" fijaba cualquier título con "Afro". La versión original gana a
+     * un remix/en vivo salvo que él pidiera esa versión; empate → la que el buscador puso antes.
+     */
+    internal fun exactTitleMatch(residual: String, candidates: List<SongItem>): SongItem? {
+        val wanted = fold(residual).trim()
+        if (wanted.isEmpty()) return null
+        val wantsVersion = wanted.split(Regex("[^\\p{L}\\p{N}]+")).any { it in VERSION_WORDS }
+        val matches = candidates.filter { baseTitleKey(it.title) == wanted }
+        if (wantsVersion) return matches.firstOrNull()
+        return matches.firstOrNull { !isVersionTitle(it.title) } ?: matches.firstOrNull()
     }
 
     /**

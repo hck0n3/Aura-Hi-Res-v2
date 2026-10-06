@@ -4474,7 +4474,13 @@ class MusicService :
             // STATE_ENDED into READY-paused, which would make a STATE_ENDED check false and leave the music
             // stopped; !isPlaying still resumes then, yet won't yank playback if the user already started
             // something else during the async fetch.
-            suspend fun appendSeed(rawItems: List<MediaItem>): Boolean {
+            suspend fun appendSeed(
+                rawItems: List<MediaItem>,
+                // Owner log 2026-10-05 — candidate id → the lane of the pattern seed that brought it
+                // (ContextPattern.inheritedLanes). Only ever an ORDER hint for an unknown-genre candidate
+                // inside the pattern; empty for every non-pattern caller (byte-identical to before).
+                inheritedLanes: Map<String, String> = emptyMap(),
+            ): Boolean {
                 if (rawItems.isEmpty()) return false
                 // Ronda 10 — see [radioOriginContextId]'s own doc comment. Hard-drop, same strength as
                 // maybeLoadMoreQueuePages' own sessionPlayedIds filter: a persistent, cross-restart
@@ -4520,7 +4526,14 @@ class MusicService :
                 // the-end case (resumeAfterSeed) still skips the wait entirely.
                 val patternBatch = contextSteerActive && keepGenreLaneHint &&
                     contextProfile?.let { it.active && it.genreShare.isNotEmpty() } == true
-                if (steerNeedsGenres && !resumeAfterSeed) {
+                // Owner log 2026-10-05 11:55 — at a TRUE end of queue (resumeAfterSeed: the player is parked
+                // waiting for these very items) the wait below would be silence, so it is still skipped; but
+                // the lookup used to be skipped WITH it, so that batch — 52 candidates, 42 of unknown genre —
+                // taught the cache nothing, and neither could the next one benefit. Now the lookup always
+                // runs (same budget, same Wi-Fi/mobile preference inside GenreCache); only the WAIT depends
+                // on resumeAfterSeed.
+                if (steerNeedsGenres) {
+                    val waitForGenres = !resumeAfterSeed
                     val anchorArtists = radioAnchorMetadata?.artists.orEmpty().map { it.name }
                         .filter { it.isNotBlank() }.distinct()
                     val candidateArtists = if (patternBatch) {
@@ -4567,12 +4580,19 @@ class MusicService :
                                 }
                             }
                         }
-                        val waitMs = if (patternBatch) CONTEXT_ENRICH_WAIT_MS else ENRICH_BEFORE_SCORE_MS
-                        val waited = withTimeoutOrNull(waitMs) { enrichJob.join() } != null
-                        Timber.tag(TAG).i(
-                            "CTX_GENRE enrich-before-score: %d artists, completed=%b",
-                            candidateArtists.size, waited,
-                        )
+                        if (waitForGenres) {
+                            val waitMs = if (patternBatch) CONTEXT_ENRICH_WAIT_MS else ENRICH_BEFORE_SCORE_MS
+                            val waited = withTimeoutOrNull(waitMs) { enrichJob.join() } != null
+                            Timber.tag(TAG).i(
+                                "CTX_GENRE enrich-before-score: %d artists, completed=%b",
+                                candidateArtists.size, waited,
+                            )
+                        } else {
+                            Timber.tag(TAG).i(
+                                "CTX_GENRE enrich-in-background (parked at end, no wait): %d artists",
+                                candidateArtists.size,
+                            )
+                        }
                     }
                 }
                 // Recompute the index from the LIVE player at append time (not a stale value captured before the
@@ -4698,7 +4718,11 @@ class MusicService :
                     anchorLanePartition(items, radioAnchorMetadata, genres, "appendSeed")
                         ?: (items to emptySet<String>())
                 } else items to emptySet<String>()
-                val toAppend = laneOrdered.first.orderedByTaste(laneOrdered.second, followContextPattern = followPattern)
+                val toAppend = laneOrdered.first.orderedByTaste(
+                    laneOrdered.second,
+                    followContextPattern = followPattern,
+                    inheritedLanes = inheritedLanes,
+                )
                 if (toAppend.isEmpty()) return false
                 // STALE SEED GUARD (ronda 10, ver [queueGeneration]): a NEW queue landed while this seed's
                 // network fetch was in flight — mutating the player now would overwrite THAT queue's tail
@@ -4971,6 +4995,9 @@ class MusicService :
                     contextSeedHistory.clear()
                     contextSeedHistoryPool = radioSeedPool
                 }
+                // Owner log 2026-10-05 — the lane each pattern seed was chosen FOR, so the candidates its radio
+                // page brings can inherit it when iTunes knows nothing about them (ContextPattern.inheritedLanes).
+                val seedLaneOf = HashMap<String, String>()
                 val patternSeeds: List<String> = if (clusters.isNotEmpty()) runCatching {
                     val shares = contextProfile?.genreShare.orEmpty()
                     val chosen = ArrayList<String>()
@@ -4990,6 +5017,7 @@ class MusicService :
                         val pick = newArtist.take(3).randomOrNull(randomSeedSource) ?: continue
                         val id = pick.ytId() ?: continue
                         chosen.add(id)
+                        seedLaneOf[id] = lane
                         pick.artists.firstOrNull()?.name?.trim()?.lowercase()?.let { chosenArtists.add(it) }
                     }
                     contextSeedHistory.addAll(chosen)
@@ -5037,7 +5065,17 @@ class MusicService :
                     .filterExplicit(dataStore.get(HideExplicitKey, false))
                     .filterVideoSongs(dataStore.get(HideVideoSongsKey, false) || dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false))
                     .filterNonMusicForAutoQueue()
-                val ok = appendSeed(items) // appendSeed already runs orderedByTaste + records no-repeat + crossfade
+                // Same round-robin order as `merged`, so a candidate two seeds share inherits from the one that
+                // put it in the batch. Empty unless the seeds came from the pattern (fail-neutral).
+                val inheritedLanes = if (patternSeeded) {
+                    iad1tya.echo.music.reco.ContextPattern.inheritedLanes(
+                        seedLanes = seeds.map { seedLaneOf[it] },
+                        pages = perSeed.map { page -> page.map { it.mediaId } },
+                    )
+                } else {
+                    emptyMap()
+                }
+                val ok = appendSeed(items, inheritedLanes) // appendSeed already runs orderedByTaste + records no-repeat + crossfade
                 if (ok && patternSeeded) {
                     // Owner 2026-10-04 — the WHOLE continuation follows the collection's pattern, not just its
                     // first batch. Priming a single-song radio here (below) made every later batch paginate
@@ -5412,6 +5450,9 @@ class MusicService :
         // laid out following the collection's own genre pattern (ContextPattern.arrange) instead of
         // YouTube's relatedness head. Every other caller keeps the default and is byte-identical.
         followContextPattern: Boolean = false,
+        // Owner log 2026-10-05 — see appendSeed's parameter of the same name. Consulted ONLY by the pattern
+        // layout, and only for a candidate whose own genre is unknown; never a filter.
+        inheritedLanes: Map<String, String> = emptyMap(),
     ): List<MediaItem> {
         if (size < 2) return this
         val disliked = runCatching { dislikeStore.snapshot() }
@@ -5559,25 +5600,33 @@ class MusicService :
             // The pattern does its own artist spacing inside each lane (same 2-slot window), so the generic
             // spacing pass is not stacked on top of it — that pass would swap songs ACROSS lanes and undo
             // exactly the order being built here.
+            // A KNOWN lane always wins; the seed's lane only fills a candidate iTunes knows nothing about.
+            // ContextPattern.arrange never drops anything, so an inherited guess can place a song, never
+            // exclude one (#39/#41/#116).
+            fun laneFor(mi: MediaItem): String? = patternLane[mi.mediaId] ?: inheritedLanes[mi.mediaId]
             iad1tya.echo.music.reco.ContextPattern.arrange(
                 ranked = rankedUnheard,
                 shares = ctxProfile.genreShare,
-                laneOf = { mi -> patternLane[mi.mediaId] },
+                laneOf = { mi -> laneFor(mi) },
                 isContextArtist = { mi -> mi.mediaId in patternContextArtist },
                 artistOf = { mi -> mi.metadata?.artists?.firstOrNull()?.name?.trim()?.lowercase() },
             ).also { arranged ->
                 val lanes = iad1tya.echo.music.reco.ContextPattern.patternShares(ctxProfile.genreShare)
                 val laneIds = lanes.mapTo(HashSet()) { it.first }
-                // Counts only (AGENTS.md rule 4): how many candidates the pattern could place, and whether
-                // the first song of the batch belongs to the collection's pattern at all.
+                // Counts only (AGENTS.md rule 4): how many candidates the pattern could place (and how many
+                // of those only through the seed they came from), and whether the first song of the batch
+                // belongs to the collection's pattern at all.
                 Timber.tag(TAG).i(
-                    "CTX_PATTERN batch=%d lanes=%d patterned=%d contextArtists=%d headInPattern=%b",
+                    "CTX_PATTERN batch=%d lanes=%d patterned=%d inherited=%d contextArtists=%d headInPattern=%b",
                     arranged.size,
                     lanes.size,
-                    rankedUnheard.count { mi -> patternLane[mi.mediaId]?.let { it in laneIds } == true },
+                    rankedUnheard.count { mi -> laneFor(mi)?.let { it in laneIds } == true },
+                    rankedUnheard.count { mi ->
+                        mi.mediaId !in patternLane && inheritedLanes[mi.mediaId]?.let { it in laneIds } == true
+                    },
                     rankedUnheard.count { it.mediaId in patternContextArtist },
                     arranged.firstOrNull()?.let { h ->
-                        patternLane[h.mediaId]?.let { it in laneIds } == true || h.mediaId in patternContextArtist
+                        laneFor(h)?.let { it in laneIds } == true || h.mediaId in patternContextArtist
                     } == true,
                 )
             }

@@ -106,6 +106,13 @@ object MusicRequestMoods {
         listOf("bolero", "boleros") to listOf("bolero"),
         listOf("gospel", "cristiana", "cristiano", "alabanza", "worship") to
             listOf("cristiana", "cristiano", "gospel", "worship"),
+        // Ronda 12 (dueño: "afro gospel"). Con esta familia, "afro gospel" son DOS familias pedidas a la
+        // vez y la categoría/lista tiene que demostrar las dos — "Gospel" a secas ya no cuela.
+        listOf("afro", "amapiano", "africa", "naija") to
+            listOf(
+                "afro", "afrobeats", "afrobeat", "afropop", "amapiano", "africa", "african", "africana",
+                "africano", "naija", "nigeria", "nigerian", "ghana",
+            ),
     )
 
     /**
@@ -149,12 +156,22 @@ object MusicRequestMoods {
     private fun momentGroupsFor(folded: String): List<List<String>> =
         FAMILIES.mapNotNull { (triggers, concepts) -> concepts.takeIf { triggers.any { t -> folded.contains(t) } } }
 
-    internal fun conceptGroupsFor(prompt: String, parsed: MusicRequestQuery.Parsed): List<List<String>> {
+    /**
+     * @param qualifiers Ronda 12 — palabras de la petición que no son ninguna familia conocida pero la
+     *   CALIFICAN ("argentino" en "rock argentino"; ver [MusicRequestQuery.residualWords]). Cada una es
+     *   un grupo propio, así que la categoría o la lista tiene que nombrarla también.
+     */
+    internal fun conceptGroupsFor(
+        prompt: String,
+        parsed: MusicRequestQuery.Parsed,
+        qualifiers: List<String> = emptyList(),
+    ): List<List<String>> {
         val folded = fold(prompt)
         val groups = ArrayList<List<String>>()
         groups += momentGroupsFor(folded)
         groups += genreGroupsFor(folded)
         if (parsed.decade != null) groups += MusicRequestMatch.decadeTokens(parsed.decade)
+        qualifiers.map { fold(it) }.filter { it.isNotBlank() }.distinct().forEach { groups += listOf(it) }
         return groups
     }
 
@@ -173,10 +190,14 @@ object MusicRequestMoods {
         categoryTitles: List<String>,
         prompt: String,
         parsed: MusicRequestQuery.Parsed,
+        // Ronda 12 — ver [conceptGroupsFor]: "afro gospel" no puede caer en la categoría "Gospel" a secas.
+        qualifiers: List<String> = emptyList(),
     ): Int? {
         if (categoryTitles.isEmpty()) return null
+        val qualifierGroups = qualifiers.map { fold(it) }.filter { it.isNotBlank() }.distinct().map { listOf(it) }
         if (parsed.decade != null) {
-            val requiredGroups = listOf(MusicRequestMatch.decadeTokens(parsed.decade)) + genreGroupsFor(fold(prompt))
+            val requiredGroups = listOf(MusicRequestMatch.decadeTokens(parsed.decade)) + genreGroupsFor(fold(prompt)) +
+                qualifierGroups
             categoryTitles.forEachIndexed { index, title ->
                 val t = fold(title)
                 if (requiredGroups.all { group -> group.any { containsToken(t, it) } }) return index
@@ -186,7 +207,7 @@ object MusicRequestMoods {
             // categoría, la escalera sigue por la búsqueda.
             return null
         }
-        val groups = conceptGroupsFor(prompt, parsed)
+        val groups = conceptGroupsFor(prompt, parsed, qualifiers)
         if (groups.isEmpty()) return null
         categoryTitles.forEachIndexed { index, title ->
             val t = fold(title)

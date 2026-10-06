@@ -124,4 +124,52 @@ class ContextPatternTest {
         assertEquals("cumbia", seeds.first())
         assertEquals(3, seeds.count { it == "cumbia" })
     }
+
+    /**
+     * Owner log 2026-10-05 11:55: a batch seeded at the true end of the list (no time to look genres up)
+     * had 42 of 52 candidates with UNKNOWN genre, so only 8 followed the pattern.
+     */
+    @Test
+    fun candidatesInheritTheLaneOfTheSeedThatBroughtThem() {
+        val lanes = ContextPattern.inheritedLanes(
+            seedLanes = listOf("cumbia", "pop"),
+            pages = listOf(listOf("c1", "shared", "c2"), listOf("p1", "p2", "shared")),
+        )
+        assertEquals("cumbia", lanes["c1"])
+        assertEquals("pop", lanes["p1"])
+        // Same round-robin as the merge: position 1 of the cumbia page reaches "shared" before position 2 of pop.
+        assertEquals("cumbia", lanes["shared"])
+        assertEquals("cumbia", lanes["c2"])
+    }
+
+    @Test
+    fun aLanelessSeedThatGotThereFirstKeepsTheCandidateLaneless() {
+        val lanes = ContextPattern.inheritedLanes(
+            seedLanes = listOf(null, "pop"),
+            pages = listOf(listOf("x"), listOf("p1", "x")),
+        )
+        assertEquals(null, lanes["x"])
+        assertEquals("pop", lanes["p1"])
+    }
+
+    @Test
+    fun inheritedLanesPlaceUnknownsInsideThePatternWithoutDroppingAnything() {
+        val inherited = mapOf("u1" to "cumbia", "u2" to "pop")
+        val songs = listOf(
+            Song("u1", null, "a"), Song("u2", null, "b"), Song("u3", null, "c"),
+            Song("k1", "cumbia", "d"),
+        )
+        val out = ContextPattern.arrange(
+            ranked = songs,
+            shares = mapOf("cumbia" to 0.5, "pop" to 0.5),
+            // A KNOWN lane always wins; the inherited one only fills an unknown.
+            laneOf = { it.lane ?: inherited[it.id] },
+            isContextArtist = { false },
+            artistOf = { it.artist },
+        )
+        assertEquals(songs.size, out.size)
+        assertEquals(setOf("u1", "u2", "k1"), out.take(3).map { it.id }.toSet())
+        // The candidate with no lane at all and no inheritance still plays, after the pattern.
+        assertEquals("u3", out.last().id)
+    }
 }
