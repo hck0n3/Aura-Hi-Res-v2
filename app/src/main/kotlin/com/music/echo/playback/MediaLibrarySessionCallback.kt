@@ -82,9 +82,13 @@ constructor(
         session: MediaSession,
         controller: MediaSession.ControllerInfo,
     ): MediaSession.ConnectionResult {
-        val connectionResult = super.onConnect(session, controller)
+        // Explicit accept-all (rows 12/26, row 335). NOT built on super.onConnect: from media3 1.11 the
+        // default is a PLACEHOLDER with EMPTY session and player commands that media3 only fills in when
+        // it gets it back unchanged — copying its empty sets here would give the notification, Android
+        // Auto, Bluetooth, the lock screen and watches zero buttons, silently. These constants are what
+        // the 1.10.1 default returned for a MediaLibrarySession, so this is identical on 1.10.1.
         return MediaSession.ConnectionResult.accept(
-            connectionResult.availableSessionCommands
+            MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                 .buildUpon()
                 .add(MediaSessionConstants.CommandToggleLike)
                 .add(MediaSessionConstants.CommandToggleStartRadio)
@@ -92,7 +96,7 @@ constructor(
                 .add(MediaSessionConstants.CommandToggleShuffle)
                 .add(MediaSessionConstants.CommandToggleRepeatMode)
                 .build(),
-            connectionResult.availablePlayerCommands,
+            MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS,
         )
     }
 
