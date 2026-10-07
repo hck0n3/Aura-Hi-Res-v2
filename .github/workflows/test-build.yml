@@ -52,12 +52,26 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
+      - name: Ensure Android debug keystore (CI runner has none)
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v -keystore ~/.android/debug.keystore \
+              -storepass android -keypass android -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
       - name: Regenerate every lockfile
         # resolveAndLockAll resolves every configuration of every project (all ABIs and variants); the
-        # three CI tasks then lock whatever only a real build resolves (lint, test platform, KSP).
+        # CI tasks then lock whatever only a real build resolves (lint, test platform, KSP). ONE variant
+        # per Gradle invocation, exactly like the other workflows: Room exports its schema JSON to the
+        # same app/schemas for every variant, and two KSP tasks in one run race on that file ("Expected
+        # start of the object '{', but had 'EOF'").
         run: |
           ./gradlew resolveAndLockAll --write-locks --console=plain
-          ./gradlew testUniversalFossDebugUnitTest assembleUniversalGmsDebug --write-locks --console=plain
+          ./gradlew testUniversalFossDebugUnitTest --write-locks --console=plain
+          ./gradlew assembleUniversalGmsDebug --write-locks --console=plain
 
       - name: Verify the new locks without --write-locks
         run: ./gradlew testUniversalFossDebugUnitTest --console=plain
