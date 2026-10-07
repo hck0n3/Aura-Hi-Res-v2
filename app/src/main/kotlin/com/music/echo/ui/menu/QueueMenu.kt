@@ -551,9 +551,12 @@ fun QueueMenu(
                                 coroutineScope.launch(Dispatchers.IO) {
                                     YouTube.queue(listOf(mediaMetadata.id)).onSuccess {
                                         val newSong = it.firstOrNull()
-                                        if (newSong != null && librarySong != null) {
+                                        // Captured before the transaction: its lambda runs later on the DB
+                                        // executor, where a now-null librarySong meant an NPE (`!!`).
+                                        val currentSong = librarySong
+                                        if (newSong != null && currentSong != null) {
                                             database.transaction {
-                                                update(librarySong!!, newSong.toMediaMetadata())
+                                                update(currentSong, newSong.toMediaMetadata())
                                             }
                                         }
                                     }

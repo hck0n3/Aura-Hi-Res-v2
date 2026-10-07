@@ -214,7 +214,13 @@ fun PlaylistMenu(
                         .put("name", playlist.playlist.name)
                         .put("songs", arr)
                         .toString()
-                    context.contentResolver.openOutputStream(uri)?.use { it.write(out.toByteArray()) }
+                    (context.contentResolver.openOutputStream(uri)
+                        ?: throw java.io.IOException("Could not open the export destination (output stream was null)"))
+                        .use { it.write(out.toByteArray()) }
+                }.onFailure {
+                    if (it !is kotlinx.coroutines.CancellationException) {
+                        timber.log.Timber.w("PLAYLIST_EXPORT json failed: %s", iad1tya.echo.music.utils.privacySafeSummary(it))
+                    }
                 }
             }
         }
@@ -234,7 +240,13 @@ fun PlaylistMenu(
                         sb.append(esc(s.song.title)).append(',')
                             .append(esc(s.artists.joinToString("; ") { it.name })).append('\n')
                     }
-                    context.contentResolver.openOutputStream(uri)?.use { it.write(sb.toString().toByteArray()) }
+                    (context.contentResolver.openOutputStream(uri)
+                        ?: throw java.io.IOException("Could not open the export destination (output stream was null)"))
+                        .use { it.write(sb.toString().toByteArray()) }
+                }.onFailure {
+                    if (it !is kotlinx.coroutines.CancellationException) {
+                        timber.log.Timber.w("PLAYLIST_EXPORT csv failed: %s", iad1tya.echo.music.utils.privacySafeSummary(it))
+                    }
                 }
             }
         }

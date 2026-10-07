@@ -571,7 +571,7 @@ fun Queue(
         val mutableQueueWindows = remember { mutableStateListOf<Timeline.Window>() }
         val queueLength =
             remember(queueWindows) {
-                queueWindows.sumOf { it.mediaItem.metadata!!.duration }
+                queueWindows.sumOf { it.mediaItem.metadata?.duration ?: 0 }
             }
 
         val coroutineScope = rememberCoroutineScope()
@@ -1154,6 +1154,10 @@ fun Queue(
                         items = mutableQueueWindows,
                         key = { _, item -> item.uid.hashCode() },
                     ) { index, window ->
+                        // A tag-less MediaItem (e.g. added by an external controller through media3's
+                        // default onAddMediaItems) has no metadata: skip the row instead of crashing
+                        // the whole sheet during composition.
+                        val meta = window.mediaItem.metadata ?: return@itemsIndexed
                         ReorderableItem(
                             state = reorderableState,
                             key = window.uid.hashCode(),
@@ -1213,7 +1217,7 @@ fun Queue(
                                     modifier = Modifier.animateItem(),
                                 ) {
                                     MediaMetadataListItem(
-                                        mediaMetadata = window.mediaItem.metadata!!,
+                                        mediaMetadata = meta,
                                         isSelected = false,
                                         isActive = isActive,
                                         isPlaying = isPlaying && isActive,
@@ -1230,7 +1234,7 @@ fun Queue(
                                                         onClick = {
                                                             menuState.show {
                                                                 QueueMenu(
-                                                                    mediaMetadata = window.mediaItem.metadata!!,
+                                                                    mediaMetadata = meta,
                                                                     navController = navController,
                                                                     playerBottomSheetState = playerBottomSheetState,
                                                                     onShowDetailsDialog = {
@@ -1456,6 +1460,7 @@ private fun AutomixSongRow(
     modifier: Modifier = Modifier,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
+    val meta = item.metadata ?: return
     val menuState = LocalMenuState.current
     val bottomSheetPageState = LocalBottomSheetPageState.current
 
@@ -1482,7 +1487,7 @@ private fun AutomixSongRow(
         horizontalArrangement = Arrangement.Center,
     ) {
         MediaMetadataListItem(
-            mediaMetadata = item.metadata!!,
+            mediaMetadata = meta,
             shape = listItemShape(index, total),
             trailingContent = {
                 if (!isListenTogetherGuest) {
@@ -1539,7 +1544,7 @@ private fun AutomixSongRow(
                         onLongClick = {
                             menuState.show {
                                 QueueMenu(
-                                    mediaMetadata = item.metadata!!,
+                                    mediaMetadata = meta,
                                     navController = navController,
                                     playerBottomSheetState = playerBottomSheetState,
                                     onShowDetailsDialog = {

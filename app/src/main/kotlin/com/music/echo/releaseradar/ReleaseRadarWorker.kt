@@ -189,7 +189,7 @@ class ReleaseRadarWorker(
                     semaphore.withPermit {
                         runCatching { Spotify.artistDiscography(artist.id).getOrThrow() }
                             .onSuccess { discoSuccesses.incrementAndGet() }
-                            .onFailure { Timber.tag(TAG).w(it, "Discography failed for ${artist.name}") }
+                            .onFailure { if (it !is kotlin.coroutines.cancellation.CancellationException) Timber.tag(TAG).w("Discography failed for an artist: %s", iad1tya.echo.music.utils.privacySafeSummary(it)) }
                             .getOrDefault(emptyList())
                             .toReleaseHits(artist.name, followed, today, windowStart)
                     }
@@ -363,7 +363,7 @@ class ReleaseRadarWorker(
                 async {
                     semaphore.withPermit {
                         runCatching { fetchYtCandidates(artist.id, artist.name) }
-                            .onFailure { Timber.tag(TAG).w(it, "Fetch failed for ${artist.name}") }
+                            .onFailure { if (it !is kotlin.coroutines.cancellation.CancellationException) Timber.tag(TAG).w("Fetch failed for an artist: %s", iad1tya.echo.music.utils.privacySafeSummary(it)) }
                             .getOrDefault(emptyList())
                     }
                 }

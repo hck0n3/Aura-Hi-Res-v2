@@ -463,6 +463,14 @@ class AudioExportService : Service() {
                         )
                     }
                 }
+            }.onFailure {
+                // The file is already written; a missing row only hides it from Biblioteca ▸ Exportadas.
+                if (it !is CancellationException) {
+                    timber.log.Timber.tag(TAG).w(
+                        "EXPORT_LIBRARY_ROW insert failed: %s",
+                        iad1tya.echo.music.utils.privacySafeSummary(it),
+                    )
+                }
             }
 
             addExportedVideoId(songId)
@@ -713,6 +721,14 @@ class AudioExportService : Service() {
                             )
                         )
                     }
+                }
+            }.onFailure {
+                // The file is already written; a missing row only hides it from Biblioteca ▸ Exportadas.
+                if (it !is CancellationException) {
+                    timber.log.Timber.tag(TAG).w(
+                        "EXPORT_LIBRARY_ROW insert failed: %s",
+                        iad1tya.echo.music.utils.privacySafeSummary(it),
+                    )
                 }
             }
 

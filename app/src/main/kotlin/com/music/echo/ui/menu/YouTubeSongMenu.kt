@@ -505,6 +505,14 @@ fun YouTubeSongMenu(
                                 onClick = {
                                     coroutineScope.launch {
                                         YouTube.feedback(listOf(song.historyRemoveToken!!))
+                                            .onSuccess { processed ->
+                                                if (!processed) timber.log.Timber.w("HISTORY_FEEDBACK not processed")
+                                            }
+                                            .onFailure { e ->
+                                                if (e !is kotlinx.coroutines.CancellationException) {
+                                                    timber.log.Timber.w("HISTORY_FEEDBACK failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+                                                }
+                                            }
                                         delay(500)
                                         onHistoryRemoved()
                                         onDismiss()

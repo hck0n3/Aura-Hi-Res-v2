@@ -539,7 +539,10 @@ fun AuraLocalPlaylistScreen(
                     playlist?.playlist?.let { update(it.copy(lastUpdateTime = LocalDateTime.now())) }
                 }
 
-                if (viewModel.playlist.value?.playlist?.browseId != null) {
+                // Captured once, before the IO hop: re-reading it there raced a sync/unlink that nulls
+                // browseId (the old `!!` crashed the app mid drag-reorder).
+                val remoteBrowseId = viewModel.playlist.value?.playlist?.browseId
+                if (remoteBrowseId != null) {
                     viewModel.viewModelScope.launch(Dispatchers.IO) {
                         val playlistSongMap = database.playlistSongMaps(viewModel.playlistId, 0)
                         val successorIndex = if (from > to) to else to + 1
@@ -547,10 +550,14 @@ fun AuraLocalPlaylistScreen(
 
                         playlistSongMap.getOrNull(from)?.setVideoId?.let { setVideoId ->
                             YouTube.moveSongPlaylist(
-                                viewModel.playlist.value?.playlist?.browseId!!,
+                                remoteBrowseId,
                                 setVideoId,
                                 successorSetVideoId,
-                            )
+                            ).onFailure { e ->
+                                if (e !is kotlinx.coroutines.CancellationException) {
+                                    timber.log.Timber.w("PLAYLIST_REMOTE_move failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+                                }
+                            }
                         }
                     }
                 }
@@ -705,7 +712,11 @@ fun AuraLocalPlaylistScreen(
                                             browseId,
                                             currentItem.map.songId,
                                             setVideoIdValue,
-                                        )
+                                        ).onFailure { e ->
+                                            if (e !is kotlinx.coroutines.CancellationException) {
+                                                timber.log.Timber.w("PLAYLIST_REMOTE_remove failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+                                            }
+                                        }
                                     }
                                 }
                             }

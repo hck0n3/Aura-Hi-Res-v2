@@ -87,7 +87,8 @@ class BackupRestoreViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
         var dbSnapshot: java.io.File? = null
         runCatching {
-            context.applicationContext.contentResolver.openOutputStream(uri)?.use {
+            (context.applicationContext.contentResolver.openOutputStream(uri)
+                ?: throw java.io.IOException("Could not open the backup destination (output stream was null)")).use {
                 it.buffered().zipOutputStream().use { outputStream ->
                     // LIBRARY-ONLY backup (user request: "que solo guarden lo de la biblioteca, para que
                     // siempre sean funcionales"). We deliberately DO NOT back up settings.preferences_pb —
@@ -520,7 +521,9 @@ class BackupRestoreViewModel @Inject constructor(
                 val text = Json.encodeToString(
                     iad1tya.echo.music.playlistimport.SelectiveBackup.serializer(), bundle,
                 )
-                context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+                (context.contentResolver.openOutputStream(uri)
+                    ?: throw java.io.IOException("Could not open the backup destination (output stream was null)"))
+                    .use { it.write(text.toByteArray()) }
             }.onSuccess {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Exportación creada", Toast.LENGTH_SHORT).show()
@@ -757,7 +760,7 @@ class BackupRestoreViewModel @Inject constructor(
             runCatching {
                 context.applicationContext.contentResolver.openInputStream(uri)?.use { stream ->
                     val lines = stream.bufferedReader().readLines()
-                    if (lines.first().startsWith("#EXTM3U")) {
+                    if (lines.firstOrNull()?.startsWith("#EXTM3U") == true) {
                         lines.forEachIndexed { _, rawLine ->
                             if (rawLine.startsWith("#EXTINF:")) {
 
@@ -777,6 +780,12 @@ class BackupRestoreViewModel @Inject constructor(
                             }
                         }
                     }
+                }
+            }.onFailure {
+                // The user only sees "No songs found": keep the real cause (no message — it can carry the
+                // document URI) in the shared log.
+                if (it !is kotlinx.coroutines.CancellationException) {
+                    Timber.w("M3U_IMPORT read failed: %s", iad1tya.echo.music.utils.privacySafeSummary(it))
                 }
             }
         }

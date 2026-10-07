@@ -63,15 +63,20 @@ class MusicDatabase(
     fun query(block: MusicDatabase.() -> Unit) =
         with(delegate) {
             queryExecutor.execute {
-                block(this@MusicDatabase)
+                runGuardedDbBlock("query") {
+                    block(this@MusicDatabase)
+                }
             }
         }
 
     fun transaction(block: MusicDatabase.() -> Unit) =
         with(delegate) {
             transactionExecutor.execute {
-                runInTransaction {
-                    block(this@MusicDatabase)
+                // The guard sits OUTSIDE runInTransaction, so a failing block still rolls back first.
+                runGuardedDbBlock("transaction") {
+                    runInTransaction {
+                        block(this@MusicDatabase)
+                    }
                 }
             }
         }
@@ -88,6 +93,55 @@ class MusicDatabase(
         }
 
     fun close() = delegate.close()
+}
+
+/**
+ * C3: an exception thrown inside a fire-and-forget [MusicDatabase.query] / [MusicDatabase.transaction]
+ * block escaped on a Room executor thread, where CrashHandler treats it as FATAL. ~150 call sites (the
+ * download resolver's FormatEntity upsert, like/dislike writes...) could kill playback on SQLITE_FULL or
+ * an I/O error, and no caller could catch it. Only [Exception] is caught: an Error (OOM) must still reach
+ * CrashHandler. Logged without the message (it can carry user data; AGENTS.md rule 4) and rate-limited
+ * per throw site, so a full disk failing every write cannot flood app.log.
+ */
+private inline fun runGuardedDbBlock(kind: String, block: () -> Unit) {
+    try {
+        block()
+    } catch (e: Exception) {
+        onDbAsyncBlockFailed(kind, e)
+    }
+}
+
+private val dbAsyncFailureLastLoggedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+private fun onDbAsyncBlockFailed(kind: String, e: Exception) {
+    // Not a failure (AGENTS.md): nothing to log for a cancelled block.
+    if (e is java.util.concurrent.CancellationException) return
+    // Row 19: during a restore restart the DB is closed on purpose; code 21 there is benign.
+    if (iad1tya.echo.music.utils.CrashHandler.isRestoring && e.isDbConnectionClosed()) {
+        Timber.d("DB_ASYNC_BLOCK %s hit the closed DB during restore restart", kind)
+        return
+    }
+    val summary = iad1tya.echo.music.utils.privacySafeSummary(e)
+    val now = android.os.SystemClock.elapsedRealtime()
+    val last = dbAsyncFailureLastLoggedAt[summary]
+    if (last != null && now - last < 60_000L) return
+    if (dbAsyncFailureLastLoggedAt.size > 64) dbAsyncFailureLastLoggedAt.clear()
+    dbAsyncFailureLastLoggedAt[summary] = now
+    Timber.w("DB_ASYNC_BLOCK %s failed: %s", kind, summary)
+    iad1tya.echo.music.utils.CrashReporter.record(e)
+}
+
+/** Same test as CrashHandler's private isConnectionClosed: SQLite code 21 anywhere in the cause chain. */
+private fun Throwable.isDbConnectionClosed(): Boolean {
+    var t: Throwable? = this
+    var depth = 0
+    while (t != null && depth < 12) {
+        val m = t.message?.lowercase().orEmpty()
+        if (m.contains("connection is closed") || m.contains("error code: 21")) return true
+        t = t.cause
+        depth++
+    }
+    return false
 }
 
 @Database(

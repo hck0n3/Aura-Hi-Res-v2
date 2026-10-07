@@ -204,6 +204,7 @@ import iad1tya.echo.music.utils.YTPlayerUtils
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.get
 import iad1tya.echo.music.utils.reportException
+import iad1tya.echo.music.utils.privacySafeSummary
 import iad1tya.echo.music.widget.EchoMusicWidgetManager
 import iad1tya.echo.music.widget.MusicWidgetReceiver
 import iad1tya.echo.music.widget.PlaylistWidgetReceiver
@@ -3095,7 +3096,10 @@ class MusicService :
                     }
                 }.onFailure { error ->
                     Timber.tag(TAG).w(error, "Failed to read player state, clearing data")
-                    clearPersistedQueueFiles()
+                    // C3 — only the unreadable player-state file. The queue file is fine (it was read above)
+                    // and is rewritten only when the queue changes, so deleting it too lost the user's queue
+                    // on the next start whenever this small, frequently-written file was torn.
+                    runCatching { filesDir.resolve(PERSISTENT_PLAYER_STATE_FILE).delete() }
                 }
             }
         }
@@ -4169,7 +4173,7 @@ class MusicService :
                 if (enhancedShuffleHint && openerCtx != null && openerId != null && playWhenReady && !isRestore) {
                     val now = System.currentTimeMillis()
                     scope.launch(enhancedShuffleWriteDispatcher) {
-                        runCatching {
+                        recordPlayedSafely("ENHANCED_SHUFFLE") {
                             database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(openerCtx, openerId, now))
                         }
                     }
@@ -4209,7 +4213,7 @@ class MusicService :
                         if (curCtx != null) {
                             val now = System.currentTimeMillis()
                             scope.launch(enhancedShuffleWriteDispatcher) {
-                                runCatching { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(curCtx, cur, now)) }
+                                recordPlayedSafely("ENHANCED_SHUFFLE") { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(curCtx, cur, now)) }
                             }
                         }
                     }
@@ -4779,7 +4783,7 @@ class MusicService :
                         .map { iad1tya.echo.music.db.entities.RadioContinuationPlayedEntity(originContextId, it, now) }
                     if (rows.isNotEmpty()) {
                         scope.launch(Dispatchers.IO + SilentHandler) {
-                            runCatching { database.insertRadioContinuationPlayed(rows) }
+                            recordPlayedSafely("RADIO_CONTINUATION") { database.insertRadioContinuationPlayed(rows) }
                         }
                     }
                 }
@@ -4803,6 +4807,16 @@ class MusicService :
                 // item with no next). scheduleCrossfade() is idempotent (cancel + reset).
                 scheduleCrossfade()
                 return true
+            }
+
+            // C3 — a source that THROWS used to vanish into getOrDefault(false), so app.log never said why the
+            // infinite queue failed (row 53), and a cancelled seed job kept calling the network. Cancellation
+            // ends the job (invokeOnCompletion below still releases the flags); anything else is logged
+            // without its message (it can carry a URL / video id — AGENTS.md rule 4) and falls through as before.
+            fun radioSourceFailed(source: String, e: Throwable): Boolean {
+                if (e is CancellationException) throw e
+                Timber.tag(TAG).w("RADIO_SOURCE %s failed: %s", source, privacySafeSummary(e))
+                return false
             }
 
             // Source 1 — a proper radio queue seeded from the last song the user heard (or, for a local/direct-URL
@@ -4833,7 +4847,7 @@ class MusicService :
                     }
                 }
                 false
-            }.getOrDefault(false)
+            }.getOrElse { radioSourceFailed("radio", it) }
 
             // Source 2 — "related" songs of the last song (a different YT endpoint; recovers when radio is empty).
             suspend fun tryRelated(): Boolean = runCatching {
@@ -4859,10 +4873,11 @@ class MusicService :
                 if (ok) {
                     val rq = YouTubeQueue(endpoint = WatchEndpoint(videoId = seed), automaticRadio = true)
                     runCatching { withContext(Dispatchers.IO) { rq.getInitialStatus() } }
+                        .onFailure { radioSourceFailed("prime", it) }
                     currentQueue = rq
                 }
                 ok
-            }.getOrDefault(false)
+            }.getOrElse { radioSourceFailed("related", it) }
 
             // Source 0 — ACTIVE MOOD. When the user has selected a Home mood, seed the infinite radio from that
             // mood's Home feed (YouTube.home(params)) instead of the last song. The songs still flow through
@@ -4895,7 +4910,7 @@ class MusicService :
                     currentQueue = EmptyQueue
                 }
                 ok
-            }.getOrDefault(false)
+            }.getOrElse { radioSourceFailed("mood", it) }
 
             // Source 0.5 — CONTEXT multi-seed. When the user started from an album/playlist/list
             // (radioSeedPool > 1), seed the infinite radio from a REPRESENTATIVE SAMPLE of that collection (not
@@ -5125,10 +5140,11 @@ class MusicService :
                     // whatever happened to be first; without cluster info this is seeds.first() as before.
                     val rq = YouTubeQueue(endpoint = WatchEndpoint(videoId = clusterReps.firstOrNull() ?: seeds.first()), automaticRadio = true)
                     runCatching { withContext(Dispatchers.IO) { rq.getInitialStatus() } }
+                        .onFailure { radioSourceFailed("prime", it) }
                     currentQueue = rq
                 }
                 ok
-            }.getOrDefault(false)
+            }.getOrElse { radioSourceFailed("context", it) }
 
             // Mood (if active) first, then radio, then related. If a transient hiccup left us empty, wait
             // briefly and try again — so a momentary network blip / rate-limit window at the exact
@@ -5160,7 +5176,7 @@ class MusicService :
                 // investigable failure — this is what silently produced the exported-playlist
                 // "infinite loop" complaint, since replaying a short curated list reads as a loop).
                 Timber.tag(TAG).w(
-                    "Radio seed yielded nothing after 3 attempts (seed=${seedVideoId ?: "none"}, " +
+                    "Radio seed yielded nothing after 3 attempts (hasSeed=${seedVideoId != null}, " +
                         "poolSize=${radioSeedPool.size}, mood=${activeMoodParams != null}); " +
                         "replaying current queue so playback never stops"
                 )
@@ -6030,7 +6046,11 @@ class MusicService :
             // See the matching comment on SongEntity.toggleLike: timestamp only, for correlating
             // against a possible subscribeChannel call if the owner's report reproduces.
             Timber.i("SONG_DISLIKE_TOGGLE")
-            runCatching { dislikeStore.dislikeSong(mediaId) }
+            runCatching { dislikeStore.dislikeSong(mediaId) }.onFailure {
+                // C3 — the song is still skipped and purged below, but it would NOT be remembered (row 285).
+                if (it is CancellationException) throw it
+                Timber.tag(TAG).w("SONG_DISLIKE persist failed: %s", privacySafeSummary(it))
+            }
             // If it was liked, drop the like (a dislike contradicts it).
             runCatching {
                 val song = currentSong.first()?.song
@@ -6067,7 +6087,10 @@ class MusicService :
             val alreadyDisliked = runCatching { dislikeStore.snapshot().songs.contains(mediaId) }
                 .getOrDefault(false)
             if (alreadyDisliked) {
-                runCatching { dislikeStore.undislikeSong(mediaId) }
+                runCatching { dislikeStore.undislikeSong(mediaId) }.onFailure {
+                    if (it is CancellationException) throw it
+                    Timber.tag(TAG).w("SONG_UNDISLIKE persist failed: %s", privacySafeSummary(it))
+                }
             } else {
                 // Only dislike if the SAME track is still current (the snapshot read suspends briefly;
                 // dislikeCurrentSong re-reads the current item, so a track change mid-await must bail
@@ -6817,7 +6840,7 @@ class MusicService :
             ) {
                 val now = System.currentTimeMillis()
                 scope.launch(enhancedShuffleWriteDispatcher) {
-                    runCatching { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(ctx, playedId, now)) }
+                    recordPlayedSafely("ENHANCED_SHUFFLE") { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(ctx, playedId, now)) }
                 }
             }
         }
@@ -7162,7 +7185,7 @@ class MusicService :
                             .map { iad1tya.echo.music.db.entities.RadioContinuationPlayedEntity(pageOriginContextId, it, now) }
                         if (rows.isNotEmpty()) {
                             scope.launch(Dispatchers.IO + SilentHandler) {
-                                runCatching { database.insertRadioContinuationPlayed(rows) }
+                                recordPlayedSafely("RADIO_CONTINUATION") { database.insertRadioContinuationPlayed(rows) }
                             }
                         }
                     }
@@ -7753,7 +7776,7 @@ class MusicService :
                 if (enhancedShuffleHint && enableCtx != null) {
                     val now = System.currentTimeMillis()
                     scope.launch(enhancedShuffleWriteDispatcher) {
-                        runCatching { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(enableCtx, cur, now)) }
+                        recordPlayedSafely("ENHANCED_SHUFFLE") { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(enableCtx, cur, now)) }
                     }
                 }
             }
@@ -10738,9 +10761,18 @@ class MusicService :
         if (player.mediaItemCount == 0) return
         val state = capturePersistPlayerState()
         scope.launch(Dispatchers.IO) {
-            runCatching { writePersistPlayerState(state) }
+            runCatching { writePersistPlayerState(state) }.onFailure {
+                // C3 — first failure per process only: this runs every ~10 s while playing.
+                if (!positionSaveFailureLogged) {
+                    positionSaveFailureLogged = true
+                    Timber.tag(TAG).w("POSITION_SAVE failed: %s", privacySafeSummary(it))
+                }
+            }
         }
     }
+
+    /** C3 — latch for [savePlaybackPositionToDisk]'s failure log. */
+    @Volatile private var positionSaveFailureLogged = false
 
     /** Same payload as [savePlaybackPositionToDisk] but blocks — for ACTION_SHUTDOWN / REBOOT. */
     private fun savePlaybackPositionToDiskSynchronous() {
@@ -10762,8 +10794,55 @@ class MusicService :
         )
 
     private fun writePersistPlayerState(state: PersistPlayerState) {
-        filesDir.resolve(PERSISTENT_PLAYER_STATE_FILE).outputStream().use { fos ->
-            ObjectOutputStream(fos).use { it.writeObject(state) }
+        writePersistedFileAtomically(PERSISTENT_PLAYER_STATE_FILE, state)
+    }
+
+    /** C3 — serialises the writers of [writePersistedFileAtomically] (IO saves vs. shutdown/onDestroy saves),
+     *  so two of them can never interleave inside the same temp file. */
+    private val persistFileWriteLock = Any()
+
+    /**
+     * C3 — writes [value] to a sibling temp file and renames it over [fileName], so a process kill mid-write
+     * (an app update, an OEM kill, a swipe-away during the ~10 s position checkpoint) leaves the PREVIOUS
+     * complete file instead of a truncated one, which the restore treats as corrupt and clears. Same files,
+     * same format, same readers.
+     */
+    private fun writePersistedFileAtomically(fileName: String, value: Any) {
+        synchronized(persistFileWriteLock) {
+            val target = filesDir.resolve(fileName)
+            val temp = filesDir.resolve("$fileName.tmp")
+            temp.outputStream().use { fos ->
+                ObjectOutputStream(fos).use { oos -> oos.writeObject(value) }
+            }
+            if (!temp.renameTo(target)) {
+                // Not expected inside filesDir; fall back to the previous in-place write rather than lose the save.
+                temp.delete()
+                target.outputStream().use { fos ->
+                    ObjectOutputStream(fos).use { oos -> oos.writeObject(value) }
+                }
+            }
+        }
+    }
+
+    /** C3 — latch for [recordPlayedSafely]: one WARN per process, not one per track on a full disk. */
+    @Volatile private var playedMemoryFailureLogged = false
+
+    /**
+     * C3 — the anti-repeat memory writes (enhanced-shuffle played set, rows 102/142; radio continuation,
+     * row 299) used to fail into a bare runCatching, so shuffle/radio repeated songs with nothing in app.log.
+     * Still swallowed (the write is best-effort, as before), but the first failure per process is logged
+     * without its message (AGENTS.md rule 4). Cancellation is not a failure and is rethrown.
+     */
+    private suspend fun recordPlayedSafely(label: String, write: suspend () -> Unit) {
+        try {
+            write()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if (!playedMemoryFailureLogged) {
+                playedMemoryFailureLogged = true
+                Timber.tag(TAG).w("PLAYED_MEMORY %s write failed: %s", label, privacySafeSummary(e))
+            }
         }
     }
 
@@ -10818,11 +10897,7 @@ class MusicService :
             // Snapshot is built above on the calling (player) thread; only the file IO runs off it.
             val writeAll: () -> Unit = {
                 runCatching {
-                    filesDir.resolve(PERSISTENT_QUEUE_FILE).outputStream().use { fos ->
-                        ObjectOutputStream(fos).use { oos ->
-                            oos.writeObject(persistQueue)
-                        }
-                    }
+                    writePersistedFileAtomically(PERSISTENT_QUEUE_FILE, persistQueue)
                     Timber.tag(TAG).d("Queue saved successfully")
                 }.onFailure {
                     Timber.tag(TAG).e(it, "Failed to save queue")
@@ -10830,11 +10905,7 @@ class MusicService :
                 }
 
                 runCatching {
-                    filesDir.resolve(PERSISTENT_AUTOMIX_FILE).outputStream().use { fos ->
-                        ObjectOutputStream(fos).use { oos ->
-                            oos.writeObject(persistAutomix)
-                        }
-                    }
+                    writePersistedFileAtomically(PERSISTENT_AUTOMIX_FILE, persistAutomix)
                     Timber.tag(TAG).d("Automix saved successfully")
                 }.onFailure {
                     Timber.tag(TAG).e(it, "Failed to save automix")
@@ -10842,11 +10913,7 @@ class MusicService :
                 }
 
                 runCatching {
-                    filesDir.resolve(PERSISTENT_PLAYER_STATE_FILE).outputStream().use { fos ->
-                        ObjectOutputStream(fos).use { oos ->
-                            oos.writeObject(persistPlayerState)
-                        }
-                    }
+                    writePersistedFileAtomically(PERSISTENT_PLAYER_STATE_FILE, persistPlayerState)
                     Timber.tag(TAG).d("Player state saved successfully")
                 }.onFailure {
                     Timber.tag(TAG).e(it, "Failed to save player state")
@@ -11882,7 +11949,7 @@ class MusicService :
             if (enhancedShuffleHint && linearCtx != null && linearId != null) {
                 val now = System.currentTimeMillis()
                 scope.launch(enhancedShuffleWriteDispatcher) {
-                    runCatching { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(linearCtx, linearId, now)) }
+                    recordPlayedSafely("ENHANCED_SHUFFLE") { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(linearCtx, linearId, now)) }
                 }
             }
         }
@@ -11905,7 +11972,7 @@ class MusicService :
             if (enhancedShuffleHint && ctx != null && playedId != null) {
                 val now = System.currentTimeMillis()
                 scope.launch(enhancedShuffleWriteDispatcher) {
-                    runCatching { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(ctx, playedId, now)) }
+                    recordPlayedSafely("ENHANCED_SHUFFLE") { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(ctx, playedId, now)) }
                 }
             }
 

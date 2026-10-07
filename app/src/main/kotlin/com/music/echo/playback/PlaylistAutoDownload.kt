@@ -85,10 +85,14 @@ object PlaylistAutoDownload {
         database: MusicDatabase,
         stateById: Map<String, Int>,
     ) = withContext(Dispatchers.IO) {
-        val playlists = runCatching { database.autoDownloadPlaylists() }.getOrNull().orEmpty()
+        val playlists = runCatching { database.autoDownloadPlaylists() }
+            .onFailure { logDbReadFailure(it) }
+            .getOrNull().orEmpty()
         if (playlists.isEmpty()) return@withContext
         val ids = playlists.flatMap { playlist ->
-            runCatching { database.playlistSongIdsOnce(playlist.id) }.getOrNull().orEmpty()
+            runCatching { database.playlistSongIdsOnce(playlist.id) }
+                .onFailure { logDbReadFailure(it) }
+                .getOrNull().orEmpty()
         }
         val pending = songsToEnqueue(ids, stateById)
         if (pending.isEmpty()) return@withContext
@@ -96,6 +100,7 @@ object PlaylistAutoDownload {
         // y un id sin título en la base (una fila recién insertada por la importación) cae al propio
         // id, que es lo que el resto de la app ya hace.
         val titles = runCatching { database.songTitlesFor(pending) }
+            .onFailure { logDbReadFailure(it) }
             .getOrNull().orEmpty()
             .associate { it.id to it.title }
         Timber.tag("DOWNLOAD").i(
@@ -112,5 +117,14 @@ object PlaylistAutoDownload {
                 DownloadService.sendAddDownload(context, ExoDownloadService::class.java, request, false)
             }.onFailure { Timber.tag("DOWNLOAD").w(it, "auto-download: no se pudo encolar una canción") }
         }
+    }
+
+    /**
+     * A failed read here makes auto-download silently do nothing, so it has to leave a trace in the
+     * shared log — class chain only (the message could carry a playlist id).
+     */
+    private fun logDbReadFailure(e: Throwable) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        Timber.tag("DOWNLOAD").w("auto-download DB read failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
     }
 }

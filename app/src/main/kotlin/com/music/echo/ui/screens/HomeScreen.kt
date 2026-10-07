@@ -619,9 +619,13 @@ fun CommunityPlaylistCard(
                                     }
                                 }
                             } else {
-                                database.transaction {
-                                    val currentPlaylist = dbPlaylist!!.playlist
-                                    update(currentPlaylist.toggleLike())
+                                // Read the Compose state HERE: the transaction lambda runs later on the DB
+                                // executor, where a now-null dbPlaylist meant an NPE on a worker thread.
+                                val currentPlaylist = dbPlaylist?.playlist
+                                if (currentPlaylist != null) {
+                                    database.transaction {
+                                        update(currentPlaylist.toggleLike())
+                                    }
                                 }
                             }
                         }

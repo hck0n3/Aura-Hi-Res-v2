@@ -1138,19 +1138,25 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(navBackStackEntry) {
                     if (inSearchScreen) {
                         val searchQuery = withContext(Dispatchers.IO) {
-                            val rawQuery = navBackStackEntry?.arguments?.getString("query")!!
+                            // No `!!`: navBackStackEntry is re-read here on IO, after the hop, so it can
+                            // already be a newer entry without a "query" arg; that used to be an NPE that
+                            // killed the activity.
+                            val rawQuery = navBackStackEntry?.arguments?.getString("query")
+                                ?: return@withContext null
                             try {
                                 URLDecoder.decode(rawQuery, "UTF-8")
                             } catch (e: IllegalArgumentException) {
                                 rawQuery
                             }
                         }
-                        onQueryChange(
-                            TextFieldValue(
-                                searchQuery,
-                                TextRange(searchQuery.length)
+                        if (searchQuery != null) {
+                            onQueryChange(
+                                TextFieldValue(
+                                    searchQuery,
+                                    TextRange(searchQuery.length)
+                                )
                             )
-                        )
+                        }
                     } else if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
                         onQueryChange(TextFieldValue())
                     }

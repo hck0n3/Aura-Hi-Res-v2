@@ -278,7 +278,7 @@ class SyncUtils @Inject constructor(
                             // running after its job was cancelled, blasting through every song and
                             // flooding logs / pegging the CPU (made playback fail right after a restore).
                             if (e is CancellationException) throw e
-                    Timber.e(e, "Error processing sync operation: $operation")
+                    Timber.e(e, "Error processing sync operation: %s", operation.javaClass.simpleName)
                 }
             }
         }
@@ -497,7 +497,7 @@ class SyncUtils @Inject constructor(
                 // running after its job was cancelled, blasting through every song and
                 // flooding logs / pegging the CPU (made playback fail right after a restore).
                 if (e is CancellationException) throw e
-                Timber.e(e, "Failed to process song: ${song.id}")
+                Timber.e(e, "Failed to process song")
             }
         }
         batchInsertSongs(insertEntities, insertMeta)
@@ -534,7 +534,7 @@ class SyncUtils @Inject constructor(
                 // running after its job was cancelled, blasting through every song and
                 // flooding logs / pegging the CPU (made playback fail right after a restore).
                 if (e is CancellationException) throw e
-                Timber.e(e, "Failed to process song: ${song.id}")
+                Timber.e(e, "Failed to process song")
             }
         }
         batchInsertSongs(insertEntities, insertMeta)
@@ -638,7 +638,7 @@ class SyncUtils @Inject constructor(
                 // running after its job was cancelled, blasting through every song and
                 // flooding logs / pegging the CPU (made playback fail right after a restore).
                 if (e is CancellationException) throw e
-                Timber.e(e, "Failed to process artist: ${artist.id}")
+                Timber.e(e, "Failed to process artist")
             }
         }
         artistsToInsert.chunked(SYNC_BATCH_SIZE).forEach { block ->
@@ -715,7 +715,7 @@ class SyncUtils @Inject constructor(
                 // running after its job was cancelled, blasting through every song and
                 // flooding logs / pegging the CPU (made playback fail right after a restore).
                 if (e is CancellationException) throw e
-                Timber.e(e, "Failed to sync playlist ${playlist.title}")
+                Timber.e(e, "SYNC_PLAYLIST failed (saved playlist)")
             }
         }
     }
@@ -1076,7 +1076,7 @@ class SyncUtils @Inject constructor(
         withRetry {
             YouTube.likeVideo(s.id, s.liked)
         }.onFailure { e ->
-            Timber.e(e, "Failed to like song on YouTube: ${s.id}")
+            Timber.e(e, "Failed to like song on YouTube")
         }
 
 
@@ -1126,7 +1126,7 @@ class SyncUtils @Inject constructor(
                                 withRetry {
                                     YouTube.likeVideo(song.id, true)
                                 }.onFailure { e ->
-                                    Timber.e(e, "Failed to like song on YouTube: ${song.id}")
+                                    Timber.e(e, "Failed to like song on YouTube")
                                 }
                             } else if (AccountLibraryReconcile.remoteListSafeToDropMissing(remoteSongs.size, localSongs.size)) {
                                 // Reconcile: User deliberately unliked this song on YouTube; update local state
@@ -1137,7 +1137,7 @@ class SyncUtils @Inject constructor(
                             // running after its job was cancelled, blasting through every song and
                             // flooding logs / pegging the CPU (made playback fail right after a restore).
                             if (e is CancellationException) throw e
-                            Timber.e(e, "Failed to update song: ${song.id}")
+                            Timber.e(e, "Failed to update song")
                         }
                     }
 
@@ -1223,7 +1223,7 @@ class SyncUtils @Inject constructor(
                             // running after its job was cancelled, blasting through every song and
                             // flooding logs / pegging the CPU (made playback fail right after a restore).
                             if (e is CancellationException) throw e
-                            Timber.e(e, "mirrorLikedSongs: failed to add song ${song.id}")
+                            Timber.e(e, "mirrorLikedSongs: failed to add a song")
                         }
                     }
                     batchInsertSongs(insertEntities, insertMeta)
@@ -1303,7 +1303,7 @@ class SyncUtils @Inject constructor(
                                 withRetry {
                                     YouTube.toggleSongLibrary(song.id, true)
                                 }.onFailure { e ->
-                                    Timber.e(e, "Failed to add song to YouTube library: ${song.id}")
+                                    Timber.e(e, "Failed to add song to YouTube library")
                                 }
                             }
                         } catch (e: Exception) {
@@ -1311,7 +1311,7 @@ class SyncUtils @Inject constructor(
                             // running after its job was cancelled, blasting through every song and
                             // flooding logs / pegging the CPU (made playback fail right after a restore).
                             if (e is CancellationException) throw e
-                            Timber.e(e, "Failed to push library song: ${song.id}")
+                            Timber.e(e, "Failed to push library song")
                         }
                     }
 
@@ -1389,7 +1389,7 @@ class SyncUtils @Inject constructor(
                             // running after its job was cancelled, blasting through every song and
                             // flooding logs / pegging the CPU (made playback fail right after a restore).
                             if (e is CancellationException) throw e
-                            Timber.e(e, "Failed to process song: ${song.id}")
+                            Timber.e(e, "Failed to process song")
                         }
                     }
                     batchInsertSongs(insertEntities, insertMeta)
@@ -1408,11 +1408,11 @@ class SyncUtils @Inject constructor(
             }.onFailure { e ->
                 // Not an error path worth a stack trace: an account with nothing uploaded now comes
                 // back as an empty page, so this only fires when the response shape was unusable.
-                Timber.w("Could not read uploaded songs from YouTube: ${e.message}")
+                Timber.w("Could not read uploaded songs from YouTube: %s", privacySafeSummary(e))
                 updateState { copy(uploadedSongs = SyncStatus.Error(e.message ?: "Unknown error")) }
             }
         }.onFailure { e ->
-            Timber.w("Failed to sync uploaded songs after retries: ${e.message}")
+            Timber.w("Failed to sync uploaded songs after retries: %s", privacySafeSummary(e))
             updateState { copy(uploadedSongs = SyncStatus.Error(e.message ?: "Unknown error")) }
         }
     }
@@ -1462,7 +1462,7 @@ class SyncUtils @Inject constructor(
                             // running after its job was cancelled, blasting through every song and
                             // flooding logs / pegging the CPU (made playback fail right after a restore).
                             if (e is CancellationException) throw e
-                            Timber.e(e, "Failed to process album: ${album.id}")
+                            Timber.e(e, "Failed to process album")
                         }
                     }
 
@@ -1519,7 +1519,7 @@ class SyncUtils @Inject constructor(
                             // running after its job was cancelled, blasting through every song and
                             // flooding logs / pegging the CPU (made playback fail right after a restore).
                             if (e is CancellationException) throw e
-                            Timber.e(e, "Failed to update album: ${album.id}")
+                            Timber.e(e, "Failed to update album")
                         }
                     }
 
@@ -1542,7 +1542,7 @@ class SyncUtils @Inject constructor(
                             // running after its job was cancelled, blasting through every song and
                             // flooding logs / pegging the CPU (made playback fail right after a restore).
                             if (e is CancellationException) throw e
-                            Timber.e(e, "Failed to process album: ${album.id}")
+                            Timber.e(e, "Failed to process album")
                         }
                     }
 
@@ -1557,11 +1557,11 @@ class SyncUtils @Inject constructor(
                     updateState { copy(uploadedAlbums = SyncStatus.Error(e.message ?: "Unknown error")) }
                 }
             }.onFailure { e ->
-                Timber.w("Could not read uploaded albums from YouTube: ${e.message}")
+                Timber.w("Could not read uploaded albums from YouTube: %s", privacySafeSummary(e))
                 updateState { copy(uploadedAlbums = SyncStatus.Error(e.message ?: "Unknown error")) }
             }
         }.onFailure { e ->
-            Timber.w("Failed to sync uploaded albums after retries: ${e.message}")
+            Timber.w("Failed to sync uploaded albums after retries: %s", privacySafeSummary(e))
             updateState { copy(uploadedAlbums = SyncStatus.Error(e.message ?: "Unknown error")) }
         }
     }
@@ -1693,7 +1693,7 @@ class SyncUtils @Inject constructor(
                                 } else false
                             } catch (e: Exception) {
                                 if (e is CancellationException) throw e
-                                Timber.e(e, "Failed to fetch artist image: ${a.id}")
+                                Timber.e(e, "Failed to fetch artist image")
                                 false
                             }
                         }
@@ -1776,7 +1776,7 @@ class SyncUtils @Inject constructor(
                             // running after its job was cancelled, blasting through every song and
                             // flooding logs / pegging the CPU (made playback fail right after a restore).
                             if (e is CancellationException) throw e
-                    Timber.e(e, "Failed to sync playlist ${playlist.playlist.name}")
+                    Timber.e(e, "SYNC_PLAYLIST failed (auto-sync playlist)")
                 }
             }
         } catch (e: Exception) {
@@ -1899,7 +1899,7 @@ class SyncUtils @Inject constructor(
 
             for ((browseId, playlists) in browseIdGroups) {
                 if (playlists.size > 1) {
-                    Timber.w("Found ${playlists.size} duplicate playlists for browseId: $browseId")
+                    Timber.w("Found ${playlists.size} duplicate playlists for one browseId")
                     // Keep the row the REST OF THE APP resolves — same order as playlistByBrowseId
                     // (saved first, then oldest). Picking by song count instead would delete the row the
                     // user actually sees, and its id is referenced elsewhere as "PL:<id>" (Speed Dial

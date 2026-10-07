@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -694,7 +695,9 @@ constructor(
 
                         onlineResults.forEach { songItem ->
                             try {
-                                database.query { insert(songItem.toMediaMetadata()) }
+                                // Awaited insert (C3): database.query{} runs on a different executor, so the
+                                // read below could win the race and drop the result silently.
+                                withContext(Dispatchers.IO) { database.insert(songItem.toMediaMetadata()) }
                                 database.song(songItem.id).first()?.let { newSong ->
                                     searchResults.add(newSong)
                                 }
@@ -716,7 +719,7 @@ constructor(
                     if (searchResults.none { it.id == songId }) {
                         val tapped = database.song(songId).first() ?: runCatching {
                             YouTube.queue(listOf(songId)).getOrNull()?.firstOrNull()?.let { item ->
-                                database.query { insert(item.toMediaMetadata()) }
+                                withContext(Dispatchers.IO) { database.insert(item.toMediaMetadata()) }
                                 database.song(songId).first()
                             }
                         }.getOrNull()

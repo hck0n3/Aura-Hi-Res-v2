@@ -484,13 +484,13 @@ class LibraryUploadSync @Inject constructor(
                     }
                     .onFailure {
                         consecutiveFailures++
-                        Timber.w(it, "Could not subscribe to ${artist.name}")
+                        Timber.w(it, "UPLOAD_SYNC subscribe failed")
                     }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 consecutiveFailures++
-                Timber.w(e, "Could not subscribe to ${artist.name}")
+                Timber.w("UPLOAD_SYNC subscribe failed: %s", privacySafeSummary(e))
             }
         }
 
@@ -530,13 +530,13 @@ class LibraryUploadSync @Inject constructor(
                     // the user subscribes to that artist directly on YouTube. Retiring it removes the
                     // marker; it never touches the account.
                     Timber.i(
-                        "LibraryUploadSync: retiring a stale queued unfollow for '${artist.name}' " +
+                        "LibraryUploadSync: retiring a stale queued unfollow " +
                             "(older than ${ArtistSyncPolicy.PENDING_UNFOLLOW_TTL_DAYS} days)",
                     )
                     cleared.add(artist.id)
                 }
                 else -> Timber.w(
-                    "LibraryUploadSync: REFUSING to unsubscribe '${artist.name}' ($refusal). The query " +
+                    "LibraryUploadSync: REFUSING to unsubscribe an artist ($refusal). The query " +
                         "returned a row the policy does not authorise — a local state change was about " +
                         "to be pushed up as a real unsubscribe.",
                 )
@@ -584,7 +584,7 @@ class LibraryUploadSync @Inject constructor(
                     when (ArtistSyncPolicy.onMissingChannelId(artist, resolutionAttempted = true)) {
                         ArtistSyncPolicy.MissingChannelAction.RETIRE_INTENT -> cleared.add(artist.id)
                         else -> Timber.w(
-                            "LibraryUploadSync: could not resolve a channelId for '${artist.name}'; " +
+                            "LibraryUploadSync: could not resolve a channelId for an artist; " +
                                 "leaving the unsubscribe queued rather than discarding it",
                         )
                     }
@@ -594,11 +594,11 @@ class LibraryUploadSync @Inject constructor(
                 Timber.i("ARTIST_SUBSCRIBE_SYNC subscribing=false")
                 YouTube.subscribeChannel(channelId, false)
                     .onSuccess { cleared.add(artist.id); unsubscribed++ }
-                    .onFailure { Timber.w(it, "Could not unsubscribe from ${artist.name}") }
+                    .onFailure { Timber.w(it, "UPLOAD_SYNC unsubscribe failed") }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Timber.w(e, "Could not unsubscribe from ${artist.name}")
+                Timber.w("UPLOAD_SYNC unsubscribe failed: %s", privacySafeSummary(e))
             }
         }
         if (cleared.isNotEmpty()) {
@@ -646,7 +646,7 @@ class LibraryUploadSync @Inject constructor(
                     .getOrNull().orEmpty()
                 if (songIds.size > MAX_PLAYLIST_SONGS_ATOMIC) {
                     Timber.w(
-                        "LibraryUploadSync: '${playlist.name}' has ${songIds.size} songs " +
+                        "LibraryUploadSync: a playlist has ${songIds.size} songs " +
                             "(> $MAX_PLAYLIST_SONGS_ATOMIC); leaving it pending rather than half-uploading it",
                     )
                     continue
@@ -680,7 +680,7 @@ class LibraryUploadSync @Inject constructor(
 
                 if (!spend()) break
                 val browseId = runCatching { YouTube.createPlaylist(playlist.name) }
-                    .onFailure { Timber.w(it, "Could not create '${playlist.name}' on YouTube") }
+                    .onFailure { Timber.w("UPLOAD_SYNC create playlist failed: %s", privacySafeSummary(it)) }
                     .getOrNull()
                     ?.takeIf { it.isNotBlank() }
                     ?: continue
@@ -694,13 +694,13 @@ class LibraryUploadSync @Inject constructor(
                 for (songId in songIds) {
                     if (!spend()) break
                     YouTube.addToPlaylist(browseId, songId)
-                        .onFailure { Timber.w(it, "Could not add $songId to '${playlist.name}'") }
+                        .onFailure { Timber.w(it, "UPLOAD_SYNC add song to new playlist failed") }
                 }
                 Timber.d("LibraryUploadSync: created '${playlist.name}' as $browseId with ${songIds.size} songs")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Timber.w(e, "Could not upload playlist '${playlist.name}'")
+                Timber.w("UPLOAD_SYNC playlist upload failed: %s", privacySafeSummary(e))
             }
         }
         _progress.value = _progress.value.copy(playlists = _progress.value.playlists.copy(running = false))
@@ -742,7 +742,7 @@ class LibraryUploadSync @Inject constructor(
                 val remote = runCatching { YouTube.playlist(browseId).completed() }
                     .getOrNull()?.getOrNull()?.songs
                     ?: run {
-                        Timber.w("LibraryUploadSync: could not read remote $browseId; Spotify mirror left for next pass")
+                        Timber.w("LibraryUploadSync: could not read a remote playlist; Spotify mirror left for next pass")
                         continue
                     }
                 val localSet = localIds.toHashSet()
@@ -805,7 +805,7 @@ class LibraryUploadSync @Inject constructor(
         val remoteIds = runCatching { YouTube.playlist(browseId).completed() }
             .getOrNull()?.getOrNull()?.songs?.map { it.id }?.toSet()
             ?: run {
-                Timber.w("LibraryUploadSync: could not read remote playlist $browseId; not linking '$name' yet")
+                Timber.w("LibraryUploadSync: could not read a remote playlist; not linking the local one yet")
                 return false
             }
         val missing = localSongIds.filterNot { it in remoteIds }
@@ -817,7 +817,7 @@ class LibraryUploadSync @Inject constructor(
         for (songId in missing) {
             if (!spend()) return false
             YouTube.addToPlaylist(browseId, songId)
-                .onFailure { Timber.w(it, "Could not add $songId to '$name'") }
+                .onFailure { Timber.w(it, "UPLOAD_SYNC top-up add song failed") }
         }
         return true
     }
@@ -854,7 +854,7 @@ class LibraryUploadSync @Inject constructor(
             if (!spend()) break
             pushed++
             YouTube.likeVideo(songId, true)
-                .onFailure { Timber.w(it, "Could not like $songId on YouTube") }
+                .onFailure { Timber.w(it, "UPLOAD_SYNC like song failed") }
         }
 
         _progress.value = _progress.value.copy(
@@ -904,7 +904,7 @@ class LibraryUploadSync @Inject constructor(
             if (!spend()) break
             pushed++
             YouTube.likePlaylist(playlistId, true)
-                .onFailure { Timber.w(it, "Could not favourite album '${album.title}' on YouTube") }
+                .onFailure { Timber.w(it, "UPLOAD_SYNC favourite album failed") }
         }
 
         // Albums with no playlistId can never be pushed up (there is nothing to like), so they are

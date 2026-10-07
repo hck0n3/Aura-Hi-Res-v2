@@ -41,8 +41,10 @@ object Wikipedia {
     }.onFailure {
         if (it is ResponseException && it.response.status == HttpStatusCode.NotFound) {
             Timber.d("No Wikipedia summary found for: $title")
-        } else {
-            Timber.w("Failed to fetch Wikipedia summary for: $title (${it.message})")
+        } else if (it !is kotlin.coroutines.cancellation.CancellationException) {
+            // No title and no message: the request URL (in a ResponseException's message) is built
+            // from the album/artist name, and app.log is the file the user shares (AGENTS.md rule 4).
+            Timber.w("Failed to fetch Wikipedia summary: %s", privacySafeSummary(it))
         }
     }.getOrNull()
 

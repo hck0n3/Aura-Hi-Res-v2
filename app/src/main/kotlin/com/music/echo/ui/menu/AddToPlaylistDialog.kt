@@ -305,7 +305,11 @@ fun AddToPlaylistDialog(
 
                                 playlist.playlist.browseId?.let { plist ->
                                     songIds?.forEach {
-                                        YouTube.addToPlaylist(plist, it)
+                                        YouTube.addToPlaylist(plist, it).onFailure { e ->
+                                            if (e !is kotlinx.coroutines.CancellationException) {
+                                                timber.log.Timber.w("PLAYLIST_REMOTE_add failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -349,7 +353,11 @@ fun AddToPlaylistDialog(
                             playlist.playlist.browseId?.let { plist ->
                                 coroutineScope.launch(Dispatchers.IO) {
                                     addedIds.forEach {
-                                        YouTube.addToPlaylist(plist, it)
+                                        YouTube.addToPlaylist(plist, it).onFailure { e ->
+                                            if (e !is kotlinx.coroutines.CancellationException) {
+                                                timber.log.Timber.w("PLAYLIST_REMOTE_add failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -372,7 +380,11 @@ fun AddToPlaylistDialog(
                             playlist.playlist.browseId?.let { plist ->
                                 coroutineScope.launch(Dispatchers.IO) {
                                     addedIds.forEach {
-                                        YouTube.addToPlaylist(plist, it)
+                                        YouTube.addToPlaylist(plist, it).onFailure { e ->
+                                            if (e !is kotlinx.coroutines.CancellationException) {
+                                                timber.log.Timber.w("PLAYLIST_REMOTE_add failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+                                            }
+                                        }
                                     }
                                 }
                             }

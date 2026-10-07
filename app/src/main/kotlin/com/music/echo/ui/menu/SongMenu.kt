@@ -721,7 +721,11 @@ fun SongMenu(
 
                                 token?.let {
                                     coroutineScope.launch {
-                                        YouTube.feedback(listOf(it))
+                                        YouTube.feedback(listOf(it)).onFailure { e ->
+                                            if (e !is kotlinx.coroutines.CancellationException) {
+                                                timber.log.Timber.w("LIBRARY_FEEDBACK failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+                                            }
+                                        }
                                     }
                                 }
 
@@ -769,7 +773,11 @@ fun SongMenu(
                                                         playlistId,
                                                         playlistSong.map.songId,
                                                         playlistSong.map.setVideoId
-                                                    )
+                                                    ).onFailure { e ->
+                                                        if (e !is kotlinx.coroutines.CancellationException) {
+                                                            timber.log.Timber.w("PLAYLIST_REMOTE_remove failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }

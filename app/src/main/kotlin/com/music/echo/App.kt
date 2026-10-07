@@ -227,9 +227,24 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // (disco + descifrado memoizado de EncryptedSecretsDataStore), antes deja de bloquear Main la
         // semilla. Es el único colector infinito nuevo y vive solo en el proceso por defecto (el guard
         // de arriba lo excluye de :crash/:phoenix — la razón documentada en el bloque anterior).
+        // C3: a single DataStore failure used to end this collector for the life of the process (hot reads
+        // then serve frozen settings) with nothing in app.log. Bounded retry, logged without the message.
+        // The last published snapshot is kept on purpose: nulling it would push Main back onto
+        // runBlocking reads (row 56 ANR).
         applicationScope.launch(Dispatchers.IO) {
-            runCatching {
-                applicationContext.dataStore.data.collect { iad1tya.echo.music.utils.PrefsBridge.publish(it) }
+            var attempt = 0
+            while (true) {
+                val failure = runCatching {
+                    applicationContext.dataStore.data.collect { iad1tya.echo.music.utils.PrefsBridge.publish(it) }
+                }.exceptionOrNull() ?: break
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                attempt++
+                Timber.w(
+                    "PREFS_BRIDGE collector failed (attempt %d/%d): %s",
+                    attempt, 5, iad1tya.echo.music.utils.privacySafeSummary(failure),
+                )
+                if (attempt >= 5) break
+                kotlinx.coroutines.delay(5_000L)
             }
         }
 
