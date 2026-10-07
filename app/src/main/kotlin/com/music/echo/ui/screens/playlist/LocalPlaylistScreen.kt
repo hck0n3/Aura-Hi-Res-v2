@@ -722,22 +722,9 @@ fun LocalPlaylistScreen(
                         // state only, never a second network round-trip on the user's behalf).
                         val removedMap = currentItem.map
                         database.transaction {
-                            coroutineScope.launch {
-                                playlist?.playlist?.browseId?.let { browseId ->
-                                    val setVideoId = getSetVideoId(currentItem.map.songId)
-                                    setVideoId?.setVideoId?.let { setVideoIdValue ->
-                                        YouTube.removeFromPlaylist(
-                                            browseId,
-                                            currentItem.map.songId,
-                                            setVideoIdValue
-                                        ).onFailure { e ->
-                                            if (e !is kotlinx.coroutines.CancellationException) {
-                                                timber.log.Timber.w("PLAYLIST_REMOTE_remove failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            // Row 343: remove on YouTube too (setVideoId from the row, or resolved remotely) and
+                            // stamp the edit so an in-flight sync does not put the song back.
+                            iad1tya.echo.music.utils.RemotePlaylistEdits.removeInBackground(this, listOf(removedMap))
                             move(
                                 currentItem.map.playlistId,
                                 currentItem.map.position,

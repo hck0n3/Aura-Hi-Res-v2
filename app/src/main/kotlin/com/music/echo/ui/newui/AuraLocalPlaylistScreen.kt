@@ -704,22 +704,9 @@ fun AuraLocalPlaylistScreen(
                         // un-sent, matching how every other undo-able action in this app works.
                         val removedMap = currentItem.map
                         database.transaction {
-                            coroutineScope.launch {
-                                playlist?.playlist?.browseId?.let { browseId ->
-                                    val setVideoId = getSetVideoId(currentItem.map.songId)
-                                    setVideoId?.setVideoId?.let { setVideoIdValue ->
-                                        YouTube.removeFromPlaylist(
-                                            browseId,
-                                            currentItem.map.songId,
-                                            setVideoIdValue,
-                                        ).onFailure { e ->
-                                            if (e !is kotlinx.coroutines.CancellationException) {
-                                                timber.log.Timber.w("PLAYLIST_REMOTE_remove failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            // Row 343: remove on YouTube too (setVideoId from the row, or resolved remotely) and
+                            // stamp the edit so an in-flight sync does not put the song back.
+                            iad1tya.echo.music.utils.RemotePlaylistEdits.removeInBackground(this, listOf(removedMap))
                             move(currentItem.map.playlistId, currentItem.map.position, Int.MAX_VALUE)
                             delete(currentItem.map.copy(position = Int.MAX_VALUE))
                             playlist?.playlist?.let { update(it.copy(lastUpdateTime = LocalDateTime.now())) }

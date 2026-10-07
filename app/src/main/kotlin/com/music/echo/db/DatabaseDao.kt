@@ -47,7 +47,6 @@ import iad1tya.echo.music.db.entities.RelatedSongMap
 import iad1tya.echo.music.db.entities.ReleaseRadarItem
 import iad1tya.echo.music.db.entities.UpcomingReleaseEntity
 import iad1tya.echo.music.db.entities.SearchHistory
-import iad1tya.echo.music.db.entities.SetVideoIdEntity
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.db.entities.SongAlbumMap
 import iad1tya.echo.music.db.entities.SongArtistMap
@@ -705,8 +704,9 @@ interface DatabaseDao {
     )
     fun allArtistsByPlayTime(): Flow<List<Artist>>
 
-    @Query("SELECT * FROM set_video_id WHERE videoId = :videoId")
-    suspend fun getSetVideoId(videoId: String): SetVideoIdEntity?
+    // Row 343: `getSetVideoId` (SELECT … FROM set_video_id) removed. Nothing in the app ever writes that
+    // table, so every lookup returned null and playlist removals silently never reached YouTube. The
+    // entry id lives in PlaylistSongMap.setVideoId — use RemotePlaylistEdits.
 
     @Transaction
     @Query("SELECT * FROM format WHERE id = :id")

@@ -1799,6 +1799,9 @@ class SyncUtils @Inject constructor(
     private suspend fun executeSyncPlaylist(browseId: String, playlistId: String) = withContext(Dispatchers.IO) {
         // Auto / scheduled sync never calls executeClearAllSyncedContent — only explicit logout reset does.
         Timber.d("syncPlaylist: Starting sync for browseId=$browseId, playlistId=$playlistId")
+        // Row 343: the local edit stamp BEFORE the fetch — compared again before the rebuild, so a removal
+        // made while the remote copy was downloading is not overwritten by that (stale) copy.
+        val editStampBeforeFetch = database.playlist(playlistId).first()?.playlist?.lastUpdateTime
 
         withRetry {
             YouTube.playlist(browseId).completed()
@@ -1825,12 +1828,41 @@ class SyncUtils @Inject constructor(
                     }
 
                     val remoteIds = songs.map { it.id }
-                    val localIds = database.playlistSongs(playlistId).first()
+                    val localRows = database.playlistSongs(playlistId).first()
                         .sortedBy { it.map.position }
-                        .map { it.song.id }
+                    val localIds = localRows.map { it.song.id }
 
                     if (remoteIds == localIds) {
+                        // Row 343: rows added from the app carry no setVideoId (YouTube's id of that entry),
+                        // and without it a later removal cannot reach YouTube. Same songs in the same order,
+                        // so position i here IS remote entry i: fill the gaps, no extra request.
+                        val backfill = PlaylistSyncGuard.setVideoIdBackfill(
+                            localRows.map { it.map.setVideoId },
+                            songs.map { it.setVideoId },
+                        )
+                        if (backfill.isNotEmpty()) {
+                            database.withTransaction {
+                                backfill.forEach { (i, setVideoId) ->
+                                    database.update(localRows[i].map.copy(setVideoId = setVideoId))
+                                }
+                            }
+                            Timber.i("syncPlaylist: filled %d missing entry ids", backfill.size)
+                        }
                         Timber.d("syncPlaylist: Local and remote are in sync, no changes needed")
+                        return@onSuccess
+                    }
+
+                    // Row 343 (owner: "lo elimino y al segundo vuelve a aparecer"): never rebuild from the
+                    // remote copy right after a local edit — the removal is still on its way to YouTube (or
+                    // was made while this copy downloaded). The next sync reconciles once YouTube has it.
+                    if (PlaylistSyncGuard.standDown(
+                            localEmpty = localIds.isEmpty(),
+                            editedBeforeFetch = editStampBeforeFetch,
+                            editedNow = database.playlist(playlistId).first()?.playlist?.lastUpdateTime,
+                            now = LocalDateTime.now(),
+                        )
+                    ) {
+                        Timber.i("syncPlaylist: local edit in progress; rebuild skipped this round")
                         return@onSuccess
                     }
 

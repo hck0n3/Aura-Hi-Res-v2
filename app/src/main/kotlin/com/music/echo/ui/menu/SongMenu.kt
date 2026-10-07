@@ -766,21 +766,9 @@ fun SongMenu(
                                 },
                                 onClick = {
                                     database.transaction {
-                                        coroutineScope.launch {
-                                            playlistBrowseId?.let { playlistId ->
-                                                if (playlistSong.map.setVideoId != null) {
-                                                    YouTube.removeFromPlaylist(
-                                                        playlistId,
-                                                        playlistSong.map.songId,
-                                                        playlistSong.map.setVideoId
-                                                    ).onFailure { e ->
-                                                        if (e !is kotlinx.coroutines.CancellationException) {
-                                                            timber.log.Timber.w("PLAYLIST_REMOTE_remove failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        // Row 343: remove on YouTube too — the old check skipped every song added from the app
+                                        // (no setVideoId stored), so the next sync put it back.
+                                        iad1tya.echo.music.utils.RemotePlaylistEdits.removeInBackground(this, listOf(playlistSong.map))
                                         move(
                                             playlistSong.map.playlistId,
                                             playlistSong.map.position,

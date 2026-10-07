@@ -498,6 +498,9 @@ fun SelectionSongMenu(
                                 },
                                 onClick = {
                                     onDismiss()
+                                    // Row 343: multi-select delete never told YouTube, so a synced playlist got every
+                                    // song back on the next sync. Same remote path as the swipe and the song menu.
+                                    iad1tya.echo.music.utils.RemotePlaylistEdits.removeInBackground(database, songPosition)
                                     database.query {
                                         // The `- i` compensation only holds if the rows are visited in
                                         // ASCENDING position order, but the selection arrives in TAP
