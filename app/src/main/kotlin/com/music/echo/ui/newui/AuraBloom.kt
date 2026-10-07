@@ -27,10 +27,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.palette.graphics.Palette
@@ -70,6 +71,13 @@ import kotlinx.coroutines.withContext
  *     re-runs on every recomposition of the screen, and the rhythm bucket crossings rebuild the
  *     player's ground layer several times per second while music plays.
  *
+ *  3. **Row 342 — the lobes MOVE (owner 2026-10-07: "los colores de la portada… animados").** Each
+ *     lobe is now its own small raster (256 px, once per track) and every frame is three blits whose
+ *     position and size follow [AuraAmbientMotion.phase]. That phase is ONE app-wide clock at 15 fps,
+ *     read only in the draw phase (nothing recomposes), stopped in background, Performance Mode, a hot
+ *     device, battery saver, low-tier devices and with system animations off. The screen's content
+ *     sits in its own layer ([auraBloom]'s `graphicsLayer`), so a drift step re-records the lobes only.
+ *
  * ## The bloom REACTS to the artwork (0.6.146)
  * It used to claim to and did not: [AuraBloomCache.put] had no caller anywhere in `app/src/main`, so
  * [AuraBloomCache.get] always fell through to [AuraBloomColors.Brand] and every screen, every song and
@@ -80,12 +88,11 @@ import kotlinx.coroutines.withContext
  *    the request `MainActivity` already issues for the dynamic theme, so with the dynamic theme on this
  *    is a memory-cache HIT and costs no decode at all; with it off it is one 100×100 decode per track
  *    change, i.e. ~40 KB and a few ms, once.
- *  · [Palette] on [Dispatchers.Default], `maximumColorCount(8)`, exactly as the classic player's
- *    `GRADIENT` / `APPLE_MUSIC` extractor does.
+ *  · [Palette] on [Dispatchers.Default], `maximumColorCount(24)` since row 341 ([CoverColors]).
  *  · at most ONE extraction in flight per media id ([AuraBloomCache.claim]), because Inicio, the
  *    player sheet and the queue can all be composed at the same instant with the same id.
  *
- * The draw path rasterizes that field once per track and blits it — still no `Modifier.blur`.
+ * The draw path rasterizes the lobes once per track and blits them — still no `Modifier.blur`.
  */
 object AuraBloomCache {
 
@@ -208,51 +215,45 @@ class AuraBloomState internal constructor(initial: AuraBloomColors) {
     internal var progress by mutableFloatStateOf(1f)
 
     // HALLAZGO-060: the raster cache lives on the state instance (one per screen composition,
-    // remembered) instead of inside the drawWithCache block. The modifier lambda is recreated on
-    // EVERY recomposition of the screen — with music playing, the rhythm bucket crossings rebuild
-    // the ground layer several times per second — and each recreation used to re-run the cache
-    // block and re-rasterize up to two ~2 MB bitmaps on the UI thread. Keyed by (from, to, size);
-    // intensity is deliberately NOT part of the key — it is applied as draw-time alpha in
-    // auraBloom, so an intensity change can never invalidate the raster. Draw phase only.
-    private var rasterFromColors: AuraBloomColors? = null
-    private var rasterToColors: AuraBloomColors? = null
-    private var rasterWidth: Float = 0f
-    private var rasterHeight: Float = 0f
-    private var rasterFromImage: ImageBitmap? = null
-    private var rasterToImage: ImageBitmap? = null
+    // remembered) instead of inside the drawWithCache block, which re-runs on every recomposition.
+    // Row 342 (owner 2026-10-07: "los colores de la portada… animados"): ONE small raster PER LOBE —
+    // a radial gradient in that lobe's colour — keyed by the colours only. The geometry (where each
+    // lobe is, how big) is applied at draw time, so the lobes can move without ever re-rasterizing.
+    // Intensity is not part of the key either: it is draw-time alpha.
+    private var lobeFromColors: AuraBloomColors? = null
+    private var lobeToColors: AuraBloomColors? = null
+    private var lobeFromImages: List<ImageBitmap>? = null
+    private var lobeToImages: List<ImageBitmap>? = null
 
     /**
-     * HALLAZGO-060: returns the rasterized lobe field for ([from], [to], [w], [h]), reusing the
-     * cached bitmaps when the key is unchanged. Only rasterizes on a track change, a size change,
-     * or the first call — never on intensity changes or plain recompositions.
+     * The lobe rasters for ([from], [to]): rasterizes only on a track change (and reuses the previous
+     * track's images as the dissolve's "from"), never per frame, per size or per intensity.
      */
-    internal fun rasterFor(
+    internal fun lobesFor(
         from: AuraBloomColors,
         to: AuraBloomColors,
-        w: Float,
-        h: Float,
-    ): Pair<ImageBitmap?, ImageBitmap> {
-        val toImage = rasterToImage
-        if (
-            toImage != null &&
-            rasterToColors == to &&
-            rasterFromColors == from &&
-            rasterWidth == w &&
-            rasterHeight == h
-        ) {
-            return rasterFromImage to toImage
+    ): Pair<List<ImageBitmap>?, List<ImageBitmap>> {
+        val previousToColors = lobeToColors
+        val previousToImages = lobeToImages
+        val toImages = if (previousToImages != null && previousToColors == to) {
+            previousToImages
+        } else {
+            rasterizeBloomLobes(to).also {
+                lobeToColors = to
+                lobeToImages = it
+            }
         }
-        val toLobes = prepareBloomLobes(to, w, h)
-        val fromLobes = if (from == to) null else prepareBloomLobes(from, w, h)
-        val newTo = rasterizeBloomLobes(toLobes, w, h)
-        val newFrom = fromLobes?.let { rasterizeBloomLobes(it, w, h) }
-        rasterToColors = to
-        rasterFromColors = from
-        rasterWidth = w
-        rasterHeight = h
-        rasterToImage = newTo
-        rasterFromImage = newFrom
-        return newFrom to newTo
+        val fromImages = when {
+            from == to -> null
+            lobeFromColors == from && lobeFromImages != null -> lobeFromImages
+            previousToColors == from && previousToImages != null -> previousToImages
+            else -> rasterizeBloomLobes(from)
+        }
+        if (fromImages != null) {
+            lobeFromColors = from
+            lobeFromImages = fromImages
+        }
+        return fromImages to toImages
     }
 
     /** Applied as ONE snapshot so no frame can ever see the new colours at the old progress. */
@@ -402,9 +403,11 @@ private fun bloomLobeColor(rgb: Int, alpha: Float): Color {
 }
 
 /** Cover-colour lobe alphas (owner 2026-10-06). The brand fallback keeps the render's .32/.30/.24. */
-private const val COVER_BLOOM_ALPHA_TOP_LEFT = 0.44f
-private const val COVER_BLOOM_ALPHA_TOP_RIGHT = 0.40f
-private const val COVER_BLOOM_ALPHA_CENTER = 0.32f
+// Row 342 (owner 2026-10-07: "que agarre los colores de la portada", not just the strongest): the three
+// cover colours get (almost) the same weight, so the second and third are as visible as the first.
+private const val COVER_BLOOM_ALPHA_TOP_LEFT = 0.42f
+private const val COVER_BLOOM_ALPHA_TOP_RIGHT = 0.42f
+private const val COVER_BLOOM_ALPHA_CENTER = 0.38f
 
 /**
  * Paints the ambient bloom behind the content of a screen. Put it on the ROOT container of a new
@@ -418,15 +421,11 @@ fun Modifier.auraBloom(
     colors: AuraBloomState,
     intensity: Float = 1f,
 ): Modifier = this.drawWithCache {
-    // HALLAZGO-060: this block used to bake [intensity] into the raster and to re-run (and
-    // re-rasterize ~2 MB bitmaps on the UI thread) on every recomposition of the screen — with
-    // music playing, the rhythm bucket crossings rebuild the ground layer several times per
-    // second, so the "once per track" raster of HALLAZGO-055 had silently become "several times
-    // per second". The raster now lives on the AuraBloomState instance keyed by (from, to, size)
-    // and intensity is applied as draw-time alpha below, so this block is a cheap cache lookup
-    // no matter how often it re-runs. `colors.from` / `colors.to` are read HERE so a track
-    // change rebuilds the raster exactly once; `colors.progress` is read in `onDrawBehind`, so
-    // the one-second dissolve invalidates DRAW only.
+    // HALLAZGO-060: this block re-runs on every recomposition of the screen, so it only does a cache
+    // lookup (the rasters live on [AuraBloomState]) and cheap geometry; intensity is draw-time alpha.
+    // `colors.from` / `colors.to` are read HERE so a track change rebuilds the rasters once;
+    // `colors.progress` (the dissolve) and [AuraAmbientMotion.phase] (the drift) are read in
+    // `onDrawBehind`, so both invalidate DRAW only.
     val w = size.width
     val h = size.height
     val a = intensity.coerceIn(0f, 1f)
@@ -435,19 +434,23 @@ fun Modifier.auraBloom(
         return@drawWithCache onDrawBehind { }
     }
 
-    val (fromImage, toImage) = colors.rasterFor(colors.from, colors.to, w, h)
-    val dst = IntSize(w.toInt(), h.toInt())
+    val (fromImages, toImages) = colors.lobesFor(colors.from, colors.to)
+    val geometry = bloomLobeGeometry(w, h)
 
     onDrawBehind {
+        val phase = AuraAmbientMotion.phase
         val p = colors.progress
-        if (fromImage != null && p < 1f) {
-            drawImage(fromImage, dstSize = dst, alpha = (1f - p) * a)
-            drawImage(toImage, dstSize = dst, alpha = p * a)
+        if (fromImages != null && p < 1f) {
+            drawBloomLobes(fromImages, geometry, phase, (1f - p) * a)
+            drawBloomLobes(toImages, geometry, phase, p * a)
         } else {
-            drawImage(toImage, dstSize = dst, alpha = a)
+            drawBloomLobes(toImages, geometry, phase, a)
         }
     }
 }
+    // Row 342: the screen's content gets its own layer, so each drift step re-records ONLY the ground
+    // and the lobes (three blits), never the rows, text and images of the screen above them.
+    .graphicsLayer()
 
 /** Ground fill + bloom in one modifier, for a screen root. */
 fun Modifier.auraScreenBackground(
@@ -474,104 +477,111 @@ fun bloomRasterScale(width: Float, height: Float, maxDim: Int): Float {
     return (maxDim.toFloat() / largest).coerceAtMost(1f)
 }
 
-/**
- * Renders the (static per track) lobe field into one bitmap, drawn back with a single blit per
- * frame. Called from [AuraBloomState.rasterFor] — once per (size, colours), never per frame and
- * never on an intensity change (HALLAZGO-060).
- */
-private fun rasterizeBloomLobes(lobes: List<PreparedLobe>, w: Float, h: Float): ImageBitmap {
-    val rasterScale = bloomRasterScale(w, h, BLOOM_RASTER_MAX_DIM)
-    val rw = (w * rasterScale).toInt().coerceAtLeast(1)
-    val rh = (h * rasterScale).toInt().coerceAtLeast(1)
-    val image = ImageBitmap(rw, rh)
-    CanvasDrawScope().draw(
-        Density(1f),
-        LayoutDirection.Ltr,
-        Canvas(image),
-        Size(rw.toFloat(), rh.toFloat()),
-    ) {
-        scale(scaleX = rasterScale, scaleY = rasterScale, pivot = Offset.Zero) {
-            lobes.forEach { it.draw(this, 1f) }
+/** Side of one lobe raster, in px. A lobe is one soft radial gradient: 256 px upscaled is indistinguishable. */
+private const val BLOOM_LOBE_RASTER_DIM = 256
+
+/** The three lobes of [colors], each as a small full-strength radial gradient (colour → transparent). */
+private fun rasterizeBloomLobes(colors: AuraBloomColors): List<ImageBitmap> =
+    listOf(colors.topLeft, colors.topRight, colors.center).map { color ->
+        val dim = BLOOM_LOBE_RASTER_DIM
+        val radius = dim / 2f
+        val image = ImageBitmap(dim, dim)
+        CanvasDrawScope().draw(
+            Density(1f),
+            LayoutDirection.Ltr,
+            Canvas(image),
+            Size(dim.toFloat(), dim.toFloat()),
+        ) {
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(color, Color.Transparent),
+                    center = Offset(radius, radius),
+                    radius = radius,
+                ),
+            )
         }
+        image
     }
-    return image
-}
 
 /**
- * `.bl { inset: -12% -22% 48% }` — the bloom band covers the top ~52% of the screen and overhangs the
- * edges, so its falloff is never visibly clipped. Called from the cache block only.
+ * Where the three lobes sit and how they move, for a [w]×[h] surface.
  *
- * HALLAZGO-060: intensity is NOT baked in here anymore — the raster is always full-strength and
- * the caller applies intensity as draw-time alpha, so intensity changes never re-rasterize.
+ * Rest positions are the render's `.bl { inset: -12% -22% 48% }` band (owner 2026-10-06: it reaches 78 %
+ * of the height): top-left, top-right and centre ellipses. Each lobe then orbits its rest point on its
+ * own path — different directions and phases, integer frequencies so the cycle loops seamlessly — and
+ * breathes ±10 % in size, so the cover's colours drift across each other instead of standing still
+ * (row 342). The amplitudes are a fraction of the screen, so the motion reads the same on any panel.
  */
-private fun prepareBloomLobes(
-    colors: AuraBloomColors,
-    w: Float,
-    h: Float,
-): List<PreparedLobe> {
+internal class BloomLobeGeometry(
+    val centerX: FloatArray,
+    val centerY: FloatArray,
+    val radiusX: FloatArray,
+    val radiusY: FloatArray,
+    val amplitudeX: FloatArray,
+    val amplitudeY: FloatArray,
+)
+
+internal fun bloomLobeGeometry(w: Float, h: Float): BloomLobeGeometry {
     val bandTop = -0.12f * h
-    // 0.64 → 0.78 (owner 2026-10-06): the wash reaches further down the screen instead of stopping at
-    // the top half — the ground below it is cover-tinted now too, so there is no hard edge to hide.
     val bandHeight = 0.78f * h
     val bandLeft = -0.22f * w
     val bandWidth = 1.44f * w
-
-    return listOf(
-        // radial-gradient(44% 38% at 26% 20%, rgba(63,231,206,.32))
-        BloomLobe(colors.topLeft, 0.26f, 0.20f, 0.44f, 0.38f),
-        // radial-gradient(48% 42% at 82% 16%, rgba(122,92,255,.30))
-        BloomLobe(colors.topRight, 0.82f, 0.16f, 0.48f, 0.42f),
-        // radial-gradient(52% 38% at 50% 50%, rgba(47,166,240,.24))
-        BloomLobe(colors.center, 0.50f, 0.50f, 0.52f, 0.38f),
-    ).map { lobe ->
-        val cx = bandLeft + lobe.xFraction * bandWidth
-        val cy = bandTop + lobe.yFraction * bandHeight
-        val rx = (lobe.xRadiusFraction * bandWidth).coerceAtLeast(1f)
-        val ry = (lobe.yRadiusFraction * bandHeight).coerceAtLeast(1f)
-        // Compose has no elliptical gradient: build a circle of radius rx and squash it vertically.
-        // The vertical scale IS the ellipse. `blur(26px)` is intentionally not applied — see the KDoc.
-        PreparedLobe(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    lobe.color,
-                    Color.Transparent,
-                ),
-                center = Offset(cx, cy),
-                radius = rx,
-            ),
-            centerX = cx,
-            centerY = cy,
-            verticalScale = (ry / rx).coerceIn(0.05f, 4f),
-            radius = rx,
-        )
-    }
+    // x, y, x-radius, y-radius (fractions of the band) — the render's three radial gradients.
+    val spec = arrayOf(
+        floatArrayOf(0.26f, 0.20f, 0.44f, 0.38f),
+        floatArrayOf(0.82f, 0.16f, 0.48f, 0.42f),
+        floatArrayOf(0.50f, 0.50f, 0.52f, 0.38f),
+    )
+    return BloomLobeGeometry(
+        centerX = FloatArray(3) { bandLeft + spec[it][0] * bandWidth },
+        centerY = FloatArray(3) { bandTop + spec[it][1] * bandHeight },
+        radiusX = FloatArray(3) { (spec[it][2] * bandWidth).coerceAtLeast(1f) },
+        radiusY = FloatArray(3) { (spec[it][3] * bandHeight).coerceAtLeast(1f) },
+        amplitudeX = floatArrayOf(0.18f * w, 0.16f * w, 0.24f * w),
+        amplitudeY = floatArrayOf(0.10f * h, 0.12f * h, 0.14f * h),
+    )
 }
 
-private class BloomLobe(
-    val color: Color,
-    val xFraction: Float,
-    val yFraction: Float,
-    val xRadiusFraction: Float,
-    val yRadiusFraction: Float,
+/** Per-lobe drift: (x frequency, y frequency, phase offset). Integer frequencies → seamless loop. */
+private val LOBE_DRIFT = arrayOf(
+    floatArrayOf(1f, 1f, 0f),
+    floatArrayOf(-1f, 1f, 0.33f),
+    floatArrayOf(1f, -2f, 0.66f),
 )
 
-private class PreparedLobe(
-    val brush: Brush,
-    val centerX: Float,
-    val centerY: Float,
-    val verticalScale: Float,
-    val radius: Float,
+/**
+ * Offset of lobe [index] at [phase], as a fraction of its amplitude (-1..1 on each axis), plus its size
+ * factor. Pure, for test.
+ */
+internal fun bloomLobeDrift(index: Int, phase: Float): Triple<Float, Float, Float> {
+    val twoPi = 2f * kotlin.math.PI.toFloat()
+    val drift = LOBE_DRIFT[index]
+    val offset = drift[2]
+    val dx = kotlin.math.sin(twoPi * (drift[0] * phase + offset))
+    val dy = kotlin.math.cos(twoPi * (drift[1] * phase + offset))
+    val breathe = 1f + 0.10f * kotlin.math.sin(twoPi * (2f * phase + offset))
+    return Triple(dx, dy, breathe)
+}
+
+/** Three blits: the whole per-frame cost of the bloom besides a few sin/cos. */
+private fun DrawScope.drawBloomLobes(
+    images: List<ImageBitmap>,
+    geometry: BloomLobeGeometry,
+    phase: Float,
+    alpha: Float,
 ) {
-    /**
-     * Fills exactly the circle's bounding box (which, once squashed by [verticalScale], is the
-     * ellipse's bounding box) — not the whole screen. Three small transparent-falloff fills per frame.
-     */
-    fun draw(scope: DrawScope, alpha: Float) {
-        if (alpha <= 0f) return
-        val boxTopLeft = Offset(centerX - radius, centerY - radius)
-        val boxSize = Size(radius * 2f, radius * 2f)
-        scope.scale(scaleX = 1f, scaleY = verticalScale, pivot = Offset(centerX, centerY)) {
-            drawRect(brush = brush, topLeft = boxTopLeft, size = boxSize, alpha = alpha)
-        }
+    if (alpha <= 0f) return
+    for (i in 0 until 3) {
+        val (dx, dy, breathe) = bloomLobeDrift(i, phase)
+        val rx = geometry.radiusX[i] * breathe
+        val ry = geometry.radiusY[i] * breathe
+        val cx = geometry.centerX[i] + dx * geometry.amplitudeX[i]
+        val cy = geometry.centerY[i] + dy * geometry.amplitudeY[i]
+        drawImage(
+            image = images[i],
+            dstOffset = IntOffset((cx - rx).toInt(), (cy - ry).toInt()),
+            dstSize = IntSize((rx * 2f).toInt().coerceAtLeast(1), (ry * 2f).toInt().coerceAtLeast(1)),
+            alpha = alpha,
+        )
     }
 }

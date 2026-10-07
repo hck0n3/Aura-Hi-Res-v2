@@ -19,8 +19,10 @@ import kotlin.math.min
  *
  * ## La regla
  * [pick] recibe TODOS los cubos de `Palette` (ahora 24) con su población y elige:
- *  1. **principal** — el color con tono que más pesa en la portada (población × saturación), es decir,
- *    el que el ojo identifica como "el color de la portada". Si la portada no tiene ningún color con
+ *  1. **principal** — el color con tono que MÁS SUPERFICIE ocupa en la portada. No el más intenso:
+ *    *"no quiero que agarre el color más fuerte de la portada, quiero que agarre los colores de la
+ *    portada"* (dueño, 2026-10-07, fila 342) — antes la saturación multiplicaba el peso y un color muy
+ *    vivo le ganaba al que llena la portada. Si la portada no tiene ningún color con
  *    tono (blanco y negro), el cubo más poblado: un gris, nunca un tono inventado.
  *  2. **segundo** y **tercero** — los siguientes por peso cuyo tono se aparta al menos [MIN_HUE_GAP]
  *    de los ya elegidos, para que el degradado muestre la variedad real de la portada en vez de tres
@@ -86,12 +88,11 @@ object CoverColors {
     }
 
     /**
-     * Peso de un color en la portada: su superficie, multiplicada por lo colorido que es — un rojo que
-     * ocupa un cuarto de la portada pesa más que un granate apagado que ocupa lo mismo, porque es el
-     * que el ojo nombra. Los muy oscuros pesan menos: en pantalla se leen como negro.
+     * Peso de un color en la portada: su superficie (fila 342: sin premiar la saturación). Los muy
+     * oscuros pesan menos: en pantalla se leen como negro.
      */
     private fun weight(population: Int, hsv: FloatArray): Float =
-        population * (0.35f + hsv[1]) * (if (hsv[2] < 0.30f) 0.6f else 1f)
+        population * (if (hsv[2] < 0.30f) 0.6f else 1f)
 
     fun hueDistance(a: Float, b: Float): Float {
         val d = abs(a - b) % 360f

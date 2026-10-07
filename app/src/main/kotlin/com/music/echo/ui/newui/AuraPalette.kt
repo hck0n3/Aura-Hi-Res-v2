@@ -221,7 +221,7 @@ object AuraPalette {
 
     /** Technical data / section labels: `opacity:.5` and `.42`. */
     // Text steps raised 2026-10-07 (row 341) with the lighter, more colourful cover ground: measured over
-    // every cover hue with the cover-tinted ink, ghost ≥ 4.5:1, faint ≥ 4.7:1, muted ≥ 5.2:1, nav ≥ 6.5:1.
+    // every cover hue with the cover-tinted ink, ghost ≥ 4.6:1, faint ≥ 4.7:1, muted ≥ 5.1:1, nav ≥ 6.6:1.
     val OnGroundFaint: Color get() = OnGround.copy(alpha = 0.55f)
 
     /**
@@ -232,7 +232,7 @@ object AuraPalette {
      * text at 11–12 sp, which needs 4.5:1. `.48` composites to ~4.55:1 on the same ground, so the step
      * stays visibly below [OnGroundFaint] while clearing AA. Do not take it back down.
      */
-    val OnGroundGhost: Color get() = OnGround.copy(alpha = 0.53f)
+    val OnGroundGhost: Color get() = OnGround.copy(alpha = 0.54f)
 
     /**
      * An UNSELECTED bottom-nav cell — glyph and label together.
@@ -717,7 +717,7 @@ fun AuraPaletteSync() {
  * every song paints its own colour instead of one blue-black. An achromatic (black-and-white) cover keeps
  * zero saturation: a neutral dark grey, never an invented hue. Measured against the cover-tinted ink
  * [AuraPaletteSync] already uses, over every hue: full ink ≥ 12.5:1 and every text step ≥ AA 4.5:1
- * (AuraAppearanceTest pins it). Going lighter would need the text steps above 0.53 to hold AA, so the
+ * (AuraAppearanceTest pins it). Going lighter would need the text steps above 0.54 to hold AA, so the
  * hierarchy between them would start to flatten.
  */
 fun auraArtworkGround(seed: Color): Color {
@@ -729,7 +729,10 @@ fun auraArtworkGround(seed: Color): Color {
 // Owner 2026-10-07: "mejora el modo oscuro volviéndolo un poco más claro y más colorido". 0.12/0.45 →
 // 0.18/0.60: a visibly lighter, richer ground in the cover's own hue. Contrast of the text steps is the
 // same as on 0.12 (the cover-tinted ink brightens with it) and the steps were raised to clear AA (row 341).
-private const val ARTWORK_GROUND_SATURATION = 0.60f
+// Row 342 (owner 2026-10-07: "no quiero que agarre el color más fuerte de la portada"): saturation
+// 0.60 → 0.50, so the ground is the cover's colour without shouting over the moving lobes that carry
+// ALL its colours. Contrast is unchanged within 0.05 (AuraAppearanceTest).
+private const val ARTWORK_GROUND_SATURATION = 0.50f
 internal const val COVER_GLASS_ACCENT_ALPHA = 0.10f
 private const val ARTWORK_GROUND_VALUE = 0.18f
 

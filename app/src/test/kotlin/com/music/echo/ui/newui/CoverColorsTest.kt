@@ -26,6 +26,16 @@ class CoverColorsTest {
         assertEquals(yellow, trio.secondary)
     }
 
+    /** Row 342: "no quiero que agarre el color más fuerte de la portada". */
+    @Test
+    fun `a vivid colour does not beat a calmer one that fills more of the cover`() {
+        val calmTeal = 0xFF4E8F8A.toInt() // s ~0.45
+        val neonPink = 0xFFFF1FA0.toInt() // s ~0.88
+        val trio = CoverColors.pick(listOf(Swatch(neonPink, 3000), Swatch(calmTeal, 4000)))!!
+        assertEquals(calmTeal, trio.primary)
+        assertEquals(neonPink, trio.secondary)
+    }
+
     @Test
     fun `a black cover with a red title is red, not black`() {
         val trio = CoverColors.pick(listOf(Swatch(black, 9000), Swatch(red, 600)))!!

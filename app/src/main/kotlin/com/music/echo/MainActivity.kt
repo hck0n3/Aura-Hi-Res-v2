@@ -249,6 +249,7 @@ import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.component.rememberBottomSheetState
 import iad1tya.echo.music.ui.component.shimmer.ShimmerTheme
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
+import iad1tya.echo.music.ui.newui.AuraAmbientMotionTicker
 import iad1tya.echo.music.ui.newui.AuraGlobalActions
 import iad1tya.echo.music.ui.newui.HomeShortcut
 import iad1tya.echo.music.ui.newui.LocalAuraHomeShortcut
@@ -1724,6 +1725,8 @@ class MainActivity : ComponentActivity() {
                     // HALLAZGO-050).
                     if (newUiShell) {
                         AuraPaletteSync()
+                        // Row 342: the ONE clock that animates the cover colours on every screen.
+                        AuraAmbientMotionTicker()
                     }
 
                     // SHELL GLASS (A1): the one haze source the shell chrome samples — nav bar, mini
