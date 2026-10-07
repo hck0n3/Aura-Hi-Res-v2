@@ -218,6 +218,24 @@ private val COMMON_SPANISH_WORDS = setOf(
     "solo", "aquí", "hoy", "noche", "día", "quiero", "te", "mi", "tú", "yo", "nosotros",
 )
 
+/**
+ * Row 347 (plan C4): does lyric line [index] need the live, per-frame playback position? Only the active
+ * line (by index or by sharing its timestamp) and the one right before it, whose last words are still
+ * fading out. Pure, for test.
+ */
+internal fun lyricsLineIsLive(index: Int, lineTime: Long, currentIndex: Int, currentTime: Long?): Boolean =
+    index == currentIndex || index == currentIndex - 1 || (currentIndex >= 0 && lineTime == currentTime)
+
+/**
+ * Row 347 (plan C4): a fixed position that puts a NON-live line on the right side of its own time — far past
+ * its end for an earlier line (every word sung, every fade finished), just before its start for a later line
+ * (nothing sung yet). Pure, for test.
+ */
+internal fun lyricsFrozenLinePosition(lineTime: Long, nextLineTime: Long?, isPast: Boolean): Long =
+    if (isPast) maxOf(lineTime, nextLineTime ?: lineTime) + LYRICS_FROZEN_PAST_MARGIN_MS else lineTime - 1L
+
+private const val LYRICS_FROZEN_PAST_MARGIN_MS = 60_000L
+
 private fun lyricsLookEnglish(lines: List<LyricsEntry>): Boolean {
     val words = lines
         .asSequence()
@@ -1226,12 +1244,28 @@ fun Lyrics(
                 }
             } else {
                 val lyricsOffset = currentSong?.song?.lyricsOffset?.toLong() ?: 0L
-                val effectivePlaybackPosition = currentPlaybackPosition + lyricsOffset
 
                 itemsIndexed(
                     items = lines,
                     key = { index, item -> "$index-${item.time}" } 
                 ) { index, item ->
+                    // Row 347 (plan C4, battery): the playback position changes EVERY FRAME. It used to be read
+                    // up here for the whole list, so every visible line recomposed every frame while lyrics
+                    // were open. Only the lines that animate with time read it now — the active one(s) and
+                    // the one just before (its words finish fading out). Every other line gets a FIXED
+                    // position on the right side of its own time (all sung / not yet), which draws exactly
+                    // as before and never changes until the active line moves.
+                    val currentTimeForLine = lines.getOrNull(displayedCurrentLineIndex)?.time
+                    val effectivePlaybackPosition =
+                        if (lyricsLineIsLive(index, item.time, displayedCurrentLineIndex, currentTimeForLine)) {
+                            currentPlaybackPosition + lyricsOffset
+                        } else {
+                            lyricsFrozenLinePosition(
+                                lineTime = item.time,
+                                nextLineTime = lines.getOrNull(index + 1)?.time,
+                                isPast = index < displayedCurrentLineIndex,
+                            )
+                        }
                     val isSelected = selectedIndices.contains(index)
                     if (effectiveAnimationStyle == LyricsAnimationStyle.echomusic_1 && item.words?.isNotEmpty() == true) {
                         val currentLineTime = if (displayedCurrentLineIndex >= 0 && displayedCurrentLineIndex < lines.size) {
@@ -2031,7 +2065,8 @@ fun Lyrics(
                             LyricsLineV2(
                                 entry = item,
                                 isActive = isActiveLine,
-                                isPast = !isActiveLine && item.time < currentPlaybackPosition,
+                                // Row 347: same verdict without reading the per-frame position.
+                                isPast = !isActiveLine && index < displayedCurrentLineIndex,
                                 // No per-style fudge: the reading lead now lives in exactly ONE place
                                 // (LyricsUtils.LINE_LOOK_AHEAD_MS, applied when the active line is
                                 // chosen). This style used to add an undocumented +150 ms on top of it,

@@ -172,7 +172,7 @@ riesgo bajo»). Lo que no nombres se queda como está.
 
 ## 8. Estado de la ejecución (2026-10-07)
 
-Rama `claude/nifty-ride-ox6396`. **2.0.64-beta4 publicada como prerelease el 2026-10-07** (canal beta). CI en verde: pruebas
+Rama `claude/nifty-ride-ox6396`. **Betas 2.0.64-beta4 a beta7 publicadas como prerelease el 2026-10-07** (canal beta). CI en verde: pruebas
 unitarias y APK de prueba.
 
 | Punto | Estado | Registro |
@@ -186,14 +186,14 @@ unitarias y APK de prueba.
 | Dependencias de riesgo bajo | ✅ hecho, lockfiles regenerados por Gradle en CI | #333 |
 | A2 descifrador solo cuando se usa | ✅ hecho | #330 |
 | C3 errores tragados y `!!` peligrosos | ✅ hecho (20 grupos) | #332 |
-| C4 recomposiciones (reproductor Aura, ecualizador) | ✅ hecho; letras karaoke pendiente | #334 |
+| C4 recomposiciones (reproductor Aura, ecualizador, letras karaoke) | ✅ hecho | #334, #347 |
 | Media3 1.11.1 | ✅ hecho (2 trampas corregidas); validar en el móvil | #335 |
 | A3 audio en 32 bits | ✅ hecho como ajuste experimental apagado; validar de oído | #336 |
 | B4 APK arm64 | ✅ hecho y publicado en la beta4 (46 MB vs 87 MB) | #331 |
 | A1 config del cifrado 1f293754 | ⏳ acción tuya (verificar con el base.js real) | #330 |
 | A2b PipePipe sin `sts` verificado | ✅ hecho (aprobado) | #337 |
-| Material 3 / Material Kolor / Adaptive (alfas) | ✅ Kolor 5 y Adaptive 1.4 hechos; Material 3 alfa28 rompe ~15 pantallas → se queda en alfa18 | #339 |
+| Material 3 / Material Kolor / Adaptive (alfas) | ↩️ revertido: Kolor 5, Adaptive 1.4 y Coil 3.6 arrastraban Compose 1.12 (cierre de la beta4); se quedan en Kolor 4.1.1, Adaptive 1.3, Coil 3.5 y Material 3 alfa18 hasta que Material 3 pase a Compose 1.12 | #339, #340 |
 | C1 partir `MusicService` | ⏳ pendiente (sin beneficio visible; riesgo medio) | — |
 | D1 pruebas de pantalla | ⏸ en espera: cambia el classpath de todas las pruebas | — |
-| A4 modo claro de Aura | ✅ hecho como opción experimental (apagada por defecto), publicado en la beta4 | #338 |
+| A4 modo claro de Aura | ❌ retirado por orden del dueño (beta5) | #338 |
 | C2 una sola interfaz | ⏳ aprobado; pendiente (grande: hay que comprobar pantalla por pantalla que nada se pierda) | — |
