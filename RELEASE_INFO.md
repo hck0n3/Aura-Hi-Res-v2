@@ -1,6 +1,17 @@
-# Aura Hi-Res v2.0.64-beta6 — Colores de la portada animados, playlists que sí se sincronizan y una cola que no se desvía
+# Aura Hi-Res v2.0.64-beta7 — La cola guardada sobrevive a las actualizaciones
 
-Beta encima de la 2.0.64-beta5. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta6. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Arreglado en esta beta
+
+- **La cola que estabas escuchando ya no se pierde al actualizar la app:** antes cada actualización la
+  borraba. Al instalar esta beta se pierde una última vez; desde la siguiente actualización se conserva.
+- **«Deshacer» tras quitar una canción de una playlist sincronizada la devuelve también en YouTube:** antes
+  solo volvía en el móvil y la siguiente sincronización la quitaba otra vez.
+- **Con el reproductor clásico, al terminar un álbum ya no se cuela la mezcla de YouTube del álbum**
+  por delante de la cola inteligente.
+
+También incluye todo lo de la beta6:
 
 ## Colores animados
 
@@ -25,7 +36,7 @@ Beta encima de la 2.0.64-beta5. Conserva tus datos, tu sesión y tus ajustes: mi
 - **La cola mantiene el idioma:** si lo que escuchas es claramente en español (o en inglés), la
   continuación ya no se pasa a canciones de otro idioma.
 
-También incluye todo lo de la beta5:
+Y lo de la beta5:
 
 ## Arreglado en la beta5
 
