@@ -167,3 +167,32 @@ géneros está acotado y guarda también los fallos para no repetir consultas.
 
 **Para aprobar:** responde con los números (por ejemplo «apruebo A1, B1, B2, A5 y las dependencias de
 riesgo bajo»). Lo que no nombres se queda como está.
+
+---
+
+## 8. Estado de la ejecución (2026-10-07)
+
+Rama `claude/nifty-ride-ox6396`, preparada como **2.0.64-beta4 (sin publicar)**. CI en verde: pruebas
+unitarias y APK de prueba.
+
+| Punto | Estado | Registro |
+|---|---|---|
+| B1 trabajos solo con batería | ✅ hecho | #329 |
+| B2 `println` / `printStackTrace` | ✅ hecho | #329 |
+| B3 registro más largo | ✅ hecho | #329 |
+| A5 no disponibles en búsqueda y artistas | ✅ hecho | #329 |
+| D2 pruebas automáticas al subir la rama | ✅ hecho | #329 |
+| D3 Novedades con viñetas (y se arregló el corte de viñetas) | ✅ hecho | #329 |
+| Dependencias de riesgo bajo | ✅ hecho, lockfiles regenerados por Gradle en CI | #333 |
+| A2 descifrador solo cuando se usa | ✅ hecho | #330 |
+| C3 errores tragados y `!!` peligrosos | ✅ hecho (20 grupos) | #332 |
+| C4 recomposiciones (reproductor Aura, ecualizador) | ✅ hecho; letras karaoke pendiente | #334 |
+| Media3 1.11.1 | ✅ hecho (2 trampas corregidas); validar en el móvil | #335 |
+| A3 audio en 32 bits | ✅ hecho como ajuste experimental apagado; validar de oído | #336 |
+| B4 APK arm64 | 🟡 la app ya elige bien; falta publicar el 2.º APK (cambio en `gradle.yml`, necesita tu permiso) | #331 |
+| A1 config del cifrado 1f293754 | ⏳ acción tuya (verificar con el base.js real) | #330 |
+| A2b PipePipe sin `sts` verificado | ⏳ decisión tuya (cambia qué extractor sirve cada canción) | #330 |
+| Material 3 / Material Kolor / Adaptive (alfas) | ⏳ pendiente: cambian el aspecto, conviene que pruebes antes la beta4 | — |
+| C1 partir `MusicService` | ⏳ pendiente (sin beneficio visible; riesgo medio) | — |
+| D1 pruebas de pantalla | ⏸ en espera: cambia el classpath de todas las pruebas | — |
+| A4 modo claro / C2 una sola interfaz | ⏳ decisiones de diseño tuyas | — |
