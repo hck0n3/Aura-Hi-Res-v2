@@ -804,7 +804,7 @@ class InnerTube {
         playlistId: String,
     ) = withRetry {
         httpClient.post("playlist/delete") {
-            println("deleting $playlistId")
+            timber.log.Timber.i("Deleting a playlist on YouTube")
             ytClient(client, setLogin = true)
             setBody(
                 PlaylistDeleteBody(

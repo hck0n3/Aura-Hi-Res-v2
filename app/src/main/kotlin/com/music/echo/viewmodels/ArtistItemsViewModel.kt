@@ -447,6 +447,7 @@ constructor(
                         .distinctBy { it.id }
                         .filterExplicit(hideExplicit)
                         .filterVideoSongs(hideVideoSongs)
+                        .let { iad1tya.echo.music.utils.UnavailableSongs.playableOnly(it) }
                     // For the albums list, build the COMPLETE discography up front (iTunes-driven, in
                     // parallel) and publish it in ONE shot, so the whole discography shows at once instead
                     // of extra albums popping in seconds later. Other lists publish as-is.
@@ -1359,6 +1360,7 @@ constructor(
                     val newItems = artistItemsContinuationPage.items
                         .filterExplicit(hideExplicit)
                         .filterVideoSongs(hideVideoSongs)
+                        .let { iad1tya.echo.music.utils.UnavailableSongs.playableOnly(it) }
                     itemsPage.update { current ->
                         ItemsPage(
                             // distinctBy keeps the FIRST occurrence, so a completed release already in

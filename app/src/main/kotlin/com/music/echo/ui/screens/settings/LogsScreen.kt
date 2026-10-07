@@ -57,7 +57,13 @@ fun LogsScreen(
     val logText by produceState(initialValue = "", tab, reloadTrigger) {
         value = withContext(Dispatchers.IO) {
             val body = when (tab) {
-                LogTab.APP -> AppLogger.readRecentLog(context)
+                // Only the most recent part on screen: a ~1 MB log in one Text stalls the UI and is too
+                // big for the clipboard. "Compartir" still sends the whole file.
+                LogTab.APP -> AppLogger.readRecentLog(context).let { full ->
+                    if (full.length <= AppLogger.SCREEN_TAIL_CHARS) full
+                    else "[En pantalla solo se muestra lo más reciente. «Compartir» envía el registro completo.]\n" +
+                        full.takeLast(AppLogger.SCREEN_TAIL_CHARS).substringAfter('\n')
+                }
                 LogTab.CRASH -> AppLogger.readLastCrash(context)
                 LogTab.SYSTEM_EXITS -> AppLogger.readExitReasons(context)
             }

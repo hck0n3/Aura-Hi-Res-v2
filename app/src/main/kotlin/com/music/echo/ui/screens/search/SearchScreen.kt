@@ -183,11 +183,11 @@ fun SearchScreen(
         { searchQuery ->
             if (searchQuery.isNotEmpty()) {
                 focusManager.clearFocus()
-                println("[LINK_PARSE_DEBUG] onSearch initiated for: $searchQuery")
+                timber.log.Timber.d("[LINK_PARSE_DEBUG] onSearch initiated for: $searchQuery")
                 
                 when (val parsedUrl = YouTubeUrlParser.parse(searchQuery)) {
                     is YouTubeUrlParser.ParsedUrl.Video -> {
-                        println("[LINK_PARSE_DEBUG] Performing direct playback for Video ID: ${parsedUrl.id}")
+                        timber.log.Timber.d("[LINK_PARSE_DEBUG] Performing direct playback for Video ID: ${parsedUrl.id}")
                         playerConnection?.playQueue(
                             YouTubeQueue(
                                 WatchEndpoint(videoId = parsedUrl.id),
@@ -196,12 +196,12 @@ fun SearchScreen(
                     }
 
                     is YouTubeUrlParser.ParsedUrl.Artist -> {
-                        println("[LINK_PARSE_DEBUG] Navigating to Artist: ${parsedUrl.id}")
+                        timber.log.Timber.d("[LINK_PARSE_DEBUG] Navigating to Artist: ${parsedUrl.id}")
                         navController.navigate("artist/${parsedUrl.id}")
                     }
 
                     null -> {
-                        println("[LINK_PARSE_DEBUG] No URL detected in search action")
+                        timber.log.Timber.d("[LINK_PARSE_DEBUG] No URL detected in search action")
                         // Offline: don't open the online results page. The in-bar LocalSearchScreen
                         // already shows live DB results for the query, so just keep the bar open.
                         if (!offlineMode) {
@@ -225,11 +225,11 @@ fun SearchScreen(
         { searchQuery ->
             if (searchQuery.isNotEmpty()) {
                 focusManager.clearFocus()
-                println("[LINK_PARSE_DEBUG] onSearchFromSuggestion initiated for: $searchQuery")
+                timber.log.Timber.d("[LINK_PARSE_DEBUG] onSearchFromSuggestion initiated for: $searchQuery")
                 
                 when (val parsedUrl = YouTubeUrlParser.parse(searchQuery)) {
                     is YouTubeUrlParser.ParsedUrl.Video -> {
-                        println("[LINK_PARSE_DEBUG] Performing direct playback from suggestion for Video ID: ${parsedUrl.id}")
+                        timber.log.Timber.d("[LINK_PARSE_DEBUG] Performing direct playback from suggestion for Video ID: ${parsedUrl.id}")
                         playerConnection?.playQueue(
                             YouTubeQueue(
                                 WatchEndpoint(videoId = parsedUrl.id),
@@ -238,12 +238,12 @@ fun SearchScreen(
                     }
 
                     is YouTubeUrlParser.ParsedUrl.Artist -> {
-                        println("[LINK_PARSE_DEBUG] Navigating to Artist from suggestion: ${parsedUrl.id}")
+                        timber.log.Timber.d("[LINK_PARSE_DEBUG] Navigating to Artist from suggestion: ${parsedUrl.id}")
                         navController.navigate("artist/${parsedUrl.id}")
                     }
 
                     null -> {
-                        println("[LINK_PARSE_DEBUG] No URL detected in suggestion action")
+                        timber.log.Timber.d("[LINK_PARSE_DEBUG] No URL detected in suggestion action")
                         if (!offlineMode) {
                             navController.navigate("search/${URLEncoder.encode(searchQuery, "UTF-8")}")
                         }

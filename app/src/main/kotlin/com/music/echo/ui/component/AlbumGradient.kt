@@ -66,7 +66,10 @@ fun AlbumGradient(
                         extractedColors = colors
                     }
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    // A song change cancels this effect: not a failure, keep it out of the shared log.
+                    if (e !is kotlinx.coroutines.CancellationException) {
+                        timber.log.Timber.w("Album gradient: palette extraction failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+                    }
                 }
             }
         }

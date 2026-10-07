@@ -12,6 +12,7 @@ import com.music.innertube.models.YTItem
 import com.music.innertube.models.clean
 import com.music.innertube.models.filterExplicit
 import com.music.innertube.models.filterVideoSongs
+import com.music.innertube.models.filterUnavailable
 import com.music.innertube.models.filterYoutubeShorts
 import com.music.innertube.models.oddElements
 import com.music.innertube.models.splitBySeparator
@@ -58,6 +59,19 @@ data class SearchSummaryPage(
         } else {
             this
         }
+
+    /** [List.filterUnavailable] on every section; a section left empty is dropped. */
+    fun filterUnavailable(hiddenIds: Set<String> = emptySet()) =
+        SearchSummaryPage(
+            summaries.mapNotNull { s ->
+                val kept = s.items.filterUnavailable(hiddenIds)
+                when {
+                    kept.size == s.items.size -> s
+                    kept.isEmpty() -> null
+                    else -> s.copy(items = kept)
+                }
+            },
+        )
 
     fun filterYoutubeShorts(enabled: Boolean = false) =
         if (enabled) {
@@ -232,6 +246,7 @@ data class SearchSummaryPage(
                     val libraryTokens = PageHelper.extractLibraryTokensFromMenuItems(renderer.menu?.menuRenderer?.items)
 
                     SongItem(
+                        unavailable = renderer.isGreyedOut,
                         id = renderer.playlistItemData?.videoId ?: renderer.navigationEndpoint?.watchEndpoint?.videoId
                         ?: renderer.overlay?.musicItemThumbnailOverlayRenderer
                             ?.content?.musicPlayButtonRenderer

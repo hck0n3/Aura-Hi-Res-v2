@@ -590,10 +590,7 @@ object YTPlayerUtils {
         if (timing != null) timing.attempts++
         Timber.tag(logTag).d("Fetching player response for videoId: $videoId, playlistId: $playlistId")
         PlaybackLogManager.log(PlaybackLogLevel.INFO, "Resolving playback data", "Video: $videoId")
-        
-        
-        println("[PLAYBACK_DEBUG] playerResponseForPlayback called: videoId=$videoId, playlistId=$playlistId")
-        
+
         val isUploadedTrack = playlistId == "MLPT" || playlistId?.contains("MLPT") == true
 
         // `&& !noLogin` is what makes the anonymous retry ACTUALLY anonymous. Without it this recompute
@@ -725,11 +722,13 @@ object YTPlayerUtils {
 
         
         if (isUploadedTrack || playlistId?.contains("MLPT") == true) {
-            println("[PLAYBACK_DEBUG] Main player response status: ${mainPlayerResponse?.playabilityStatus?.status}")
-            println("[PLAYBACK_DEBUG] Playability reason: ${mainPlayerResponse?.playabilityStatus?.reason}")
-            println("[PLAYBACK_DEBUG] Video details: title=${mainPlayerResponse?.videoDetails?.title}, videoId=${mainPlayerResponse?.videoDetails?.videoId}")
-            println("[PLAYBACK_DEBUG] Streaming data null? ${mainPlayerResponse?.streamingData == null}")
-            println("[PLAYBACK_DEBUG] Adaptive formats count: ${mainPlayerResponse?.streamingData?.adaptiveFormats?.size ?: 0}")
+            // Debug level: formatted only in debug builds. No title or id (AGENTS.md rule 4).
+            Timber.tag(logTag).d(
+                "Uploaded track main response: status=%s streamingData=%b adaptiveFormats=%d",
+                mainPlayerResponse?.playabilityStatus?.status,
+                mainPlayerResponse?.streamingData != null,
+                mainPlayerResponse?.streamingData?.adaptiveFormats?.size ?: 0,
+            )
         }
 
         var usedAgeRestrictedClient: YouTubeClient? = null
@@ -1021,7 +1020,6 @@ object YTPlayerUtils {
                     
                     if (isPrivatelyOwned) {
                         Timber.tag(logTag).d("Skipping validation for privately owned track: ${currentClient.clientName}")
-                        println("[PLAYBACK_DEBUG] Using stream without validation for PRIVATELY_OWNED_TRACK")
                     } else {
                         Timber.tag(logTag).d("Using last fallback client without validation: ${STREAM_FALLBACK_CLIENTS[clientIndex].clientName}")
                     }
@@ -1115,10 +1113,7 @@ object YTPlayerUtils {
         }
 
         if (streamPlayerResponse == null) {
-            Timber.tag(logTag).e("Bad stream player response - all clients failed")
-            if (isUploadedTrack) {
-                println("[PLAYBACK_DEBUG] FAILURE: All clients failed for uploaded track videoId=$videoId")
-            }
+            Timber.tag(logTag).e("Bad stream player response - all clients failed (uploadedTrack=%b)", isUploadedTrack)
             // DEAD-END (fix #1): no client could serve this song. Typed so the loader maps it to NO_STREAM
             // (skip + message), NEVER a network code — carry the real reason when we captured one.
             throw StreamResolutionException(
@@ -1129,10 +1124,10 @@ object YTPlayerUtils {
 
         if (streamPlayerResponse.playabilityStatus.status != "OK") {
             val errorReason = streamPlayerResponse.playabilityStatus.reason
-            Timber.tag(logTag).e("Playability status not OK: $errorReason")
-            if (isUploadedTrack) {
-                println("[PLAYBACK_DEBUG] FAILURE: Playability not OK for uploaded track - status=${streamPlayerResponse.playabilityStatus.status}, reason=$errorReason")
-            }
+            Timber.tag(logTag).e(
+                "Playability status not OK: status=%s reason=%s uploadedTrack=%b",
+                streamPlayerResponse.playabilityStatus.status, errorReason, isUploadedTrack,
+            )
             // DEAD-END (fix #1): carry the real playability reason (region/premium/members/…) so the loader
             // maps it to NO_STREAM with that reason instead of a generic REMOTE_ERROR silent pause.
             val finalStatus = streamPlayerResponse.playabilityStatus.status
@@ -1159,9 +1154,6 @@ object YTPlayerUtils {
         }
 
         Timber.tag(logTag).d("Successfully obtained playback data with format: ${format.mimeType}, bitrate: ${format.bitrate}")
-        if (isUploadedTrack) {
-            println("[PLAYBACK_DEBUG] SUCCESS: Got playback data for uploaded track - format=${format.mimeType}, streamUrl=${streamUrl?.take(100)}...")
-        }
         PlaybackData(
             audioConfig,
             videoDetails,
@@ -1180,10 +1172,6 @@ object YTPlayerUtils {
         }
         Timber.tag(logTag).e(e, "Playback resolution failed")
         PlaybackLogManager.log(PlaybackLogLevel.ERROR, "Playback failed", "${e::class.simpleName}: ${e.message}")
-
-
-        println("[PLAYBACK_DEBUG] EXCEPTION during playback for videoId=$videoId: ${e::class.simpleName}: ${e.message}")
-        e.printStackTrace()
     }
     
     suspend fun playerResponseForMetadata(

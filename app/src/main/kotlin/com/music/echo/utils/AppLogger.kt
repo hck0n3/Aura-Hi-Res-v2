@@ -18,7 +18,14 @@ import java.util.concurrent.Executors
  */
 object AppLogger {
 
-    private const val MAX_SIZE = 256 * 1024 // 256 KB per file, one backup kept
+    // 512 KB per file, one backup kept: ~1 MB of history in what the user shares (plan B3, row 329).
+    // Was 256 KB; with the noise cut in row 328 the same space already held more, and doubling it keeps
+    // a whole listening session for the next report. The Logs SCREEN shows only the tail (see
+    // [SCREEN_TAIL_CHARS]) so the bigger file never lands in one Text; Share always sends it whole.
+    private const val MAX_SIZE = 512 * 1024
+
+    /** How much of the app log the Logs screen renders and Copy takes; Share sends everything. */
+    const val SCREEN_TAIL_CHARS = 160 * 1024
     private const val MAX_EXIT_REASONS_SIZE = 128 * 1024 // 128 KB, oldest entries dropped
     private val timestampFormat = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
     private val ioExecutor = Executors.newSingleThreadExecutor()

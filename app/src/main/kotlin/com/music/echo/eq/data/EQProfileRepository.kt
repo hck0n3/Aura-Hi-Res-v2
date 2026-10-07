@@ -87,7 +87,8 @@ class EQProfileRepository @Inject constructor(
                 _unsavedProfile.value = json.decodeFromString<SavedEQProfile>(unsavedJson)
             }
         } catch (e: Exception) {
-            println("Error loading EQ profiles: ${e.message}")
+            // No message: a JSON error quotes the stored profiles (names the user typed).
+            timber.log.Timber.e("Error loading EQ profiles — saved profiles could not be read, list reset to empty: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
             _profiles.value = emptyList()
             _activeProfile.value = null
             _unsavedProfile.value = null

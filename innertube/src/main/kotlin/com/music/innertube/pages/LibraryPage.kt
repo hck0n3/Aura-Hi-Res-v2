@@ -127,6 +127,7 @@ data class LibraryPage(
                     if (thumbnailUrl == null) return null
 
                     SongItem(
+                        unavailable = renderer.isGreyedOut,
                         id = videoId,
                         title = title,
                         artists = artists,

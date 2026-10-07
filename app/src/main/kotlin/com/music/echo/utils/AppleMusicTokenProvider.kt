@@ -68,7 +68,9 @@ object AppleMusicTokenProvider {
                 cachedTokenExpiryMs = computeExpiryMs(token)
                 token
             } catch (e: Exception) {
-                e.printStackTrace()
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    timber.log.Timber.w("Apple Music token: fetch failed (animated covers fall back): %s", privacySafeSummary(e))
+                }
                 // Fallback token if live extraction fails. It is deliberately NOT
                 // cached, so the very next call re-attempts extraction and the
                 // provider self-heals once Apple's web player is parseable again.

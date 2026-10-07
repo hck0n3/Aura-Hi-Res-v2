@@ -42,6 +42,7 @@ object SearchPage {
                         ?.navigationEndpoint?.watchEndpoint?.videoId
                     ?: return null
                 SongItem(
+                    unavailable = renderer.isGreyedOut,
                     id = songId,
                     title =
                         renderer.flexColumns

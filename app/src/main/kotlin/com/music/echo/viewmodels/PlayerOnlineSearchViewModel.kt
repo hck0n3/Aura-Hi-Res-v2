@@ -94,6 +94,7 @@ constructor(
                 ?.filterExplicit(hideExplicit)
                 ?.filterVideoSongs(hideVideoSongs)
                 ?.filterYoutubeShorts(hideShorts)
+                ?.let { iad1tya.echo.music.utils.UnavailableSongs.playableOnly(it) }
             loading = false
         }
     }

@@ -118,6 +118,13 @@ fun <T : YTItem> List<T>.filterVideoSongs(disableVideos: Boolean = false) =
         this
     }
 
+/**
+ * Without the songs and videos YouTube Music marks unavailable ([SongItem.unavailable]) or that the app
+ * learned are unavailable ([hiddenIds]). Albums, artists and playlists pass untouched.
+ */
+fun <T : YTItem> List<T>.filterUnavailable(hiddenIds: Set<String> = emptySet()) =
+    filterNot { it is SongItem && (it.unavailable || it.id in hiddenIds) }
+
 fun <T : YTItem> List<T>.filterYoutubeShorts(enabled: Boolean = false) =
     if (enabled) {
         filterNot { it is PlaylistItem && it.id.startsWith("SS") }

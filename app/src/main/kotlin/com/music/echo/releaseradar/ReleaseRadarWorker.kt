@@ -529,6 +529,8 @@ class ReleaseRadarWorker(
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
+                // Background refresh, not urgent: never on a nearly empty battery (plan B1, row 329).
+                .setRequiresBatteryNotLow(true)
                 .build()
 
             val request = PeriodicWorkRequestBuilder<ReleaseRadarWorker>(7, TimeUnit.DAYS)

@@ -2,6 +2,9 @@ package iad1tya.echo.music.utils
 
 import android.content.Context
 import com.music.innertube.models.SongItem
+import com.music.innertube.models.YTItem
+import com.music.innertube.models.filterUnavailable
+import com.music.innertube.pages.SearchSummaryPage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,6 +59,31 @@ object UnavailableSongs {
             persist()
         }
     }
+
+    /**
+     * Search results, suggestions and artist pages: learns only the songs marked greyed out — it never
+     * CLEARS a mark from them, because those responses may simply omit the flag — and returns the ids
+     * hidden right now.
+     */
+    fun learnGreyedOnly(items: List<YTItem>): Set<String> {
+        val greyed = items.filter { it is SongItem && it.unavailable }.map { it.id }
+        if (greyed.isNotEmpty() && registry.markGreyedOut(greyed)) {
+            Timber.i("UNAVAILABLE learned greyed=%d from search/artist results", greyed.size)
+            persist()
+        }
+        return ids.value
+    }
+
+    /** [items] without songs or videos known to be unavailable (learning the greyed ones first). */
+    fun <T : YTItem> playableOnly(items: List<T>): List<T> {
+        if (items.isEmpty()) return items
+        val kept = items.filterUnavailable(learnGreyedOnly(items))
+        return if (kept.size == items.size) items else kept
+    }
+
+    /** [playableOnly] for a search summary; a section left empty is dropped. */
+    fun playableOnly(page: SearchSummaryPage): SearchSummaryPage =
+        page.filterUnavailable(learnGreyedOnly(page.summaries.flatMap { it.items }))
 
     /** A playback failure that YouTube attributed to the CONTENT (pending until another song plays). */
     fun recordFailure(id: String?) {

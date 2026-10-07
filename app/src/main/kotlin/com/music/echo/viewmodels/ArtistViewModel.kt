@@ -266,7 +266,7 @@ class ArtistViewModel @Inject constructor(
                         if (artistPage == null) {
                             val filtered = persisted.copy(
                                 sections = persisted.sections
-                                    .map { s -> s.copy(items = s.items.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs).filterYoutubeShorts(hideYoutubeShorts)) }
+                                    .map { s -> s.copy(items = iad1tya.echo.music.utils.UnavailableSongs.playableOnly(s.items.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs).filterYoutubeShorts(hideYoutubeShorts))) }
                                     .filter { s -> s.items.isNotEmpty() }
                             )
                             pageCache[artistId] = filtered
@@ -317,7 +317,7 @@ class ArtistViewModel @Inject constructor(
                 .onSuccess { page ->
                     val filteredSections = page.sections
                         .map { section ->
-                            section.copy(items = section.items.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs).filterYoutubeShorts(hideYoutubeShorts))
+                            section.copy(items = iad1tya.echo.music.utils.UnavailableSongs.playableOnly(section.items.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs).filterYoutubeShorts(hideYoutubeShorts)))
                         }
                         .filter { section -> section.items.isNotEmpty() }
 
@@ -575,6 +575,7 @@ class ArtistViewModel @Inject constructor(
             .filterExplicit(hideExplicit)
             .filterVideoSongs(hideVideoSongs)
             .filterYoutubeShorts(hideYoutubeShorts)
+            .let { iad1tya.echo.music.utils.UnavailableSongs.playableOnly(it) }
             .take(POPULAR_SONGS_CAP)
         if (expanded.size <= shelfSongs.size) return
         _expandedPopularSongs.value = expanded

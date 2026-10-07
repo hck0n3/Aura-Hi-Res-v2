@@ -55,13 +55,13 @@ object YouTubeUrlParser {
      */
     fun parse(url: String): ParsedUrl? {
         val trimmedUrl = url.trim()
-        println("[LINK_PARSE_DEBUG] Parsing URL: $trimmedUrl")
+        timber.log.Timber.d("[LINK_PARSE_DEBUG] Parsing URL: $trimmedUrl")
 
         // Check for video URLs
         for (pattern in VIDEO_URL_PATTERNS) {
             pattern.find(trimmedUrl)?.let { matchResult ->
                 matchResult.groupValues.getOrNull(1)?.let { videoId ->
-                    println("[LINK_PARSE_DEBUG] Detected Video ID: $videoId")
+                    timber.log.Timber.d("[LINK_PARSE_DEBUG] Detected Video ID: $videoId")
                     return ParsedUrl.Video(videoId)
                 }
             }
@@ -72,14 +72,14 @@ object YouTubeUrlParser {
             for (pattern in ARTIST_URL_PATTERNS) {
                 pattern.find(trimmedUrl)?.let { matchResult ->
                     matchResult.groupValues.getOrNull(1)?.let { artistId ->
-                        println("[LINK_PARSE_DEBUG] Detected Artist ID: $artistId")
+                        timber.log.Timber.d("[LINK_PARSE_DEBUG] Detected Artist ID: $artistId")
                         return ParsedUrl.Artist(artistId)
                     }
                 }
             }
         }
 
-        println("[LINK_PARSE_DEBUG] No match found or type restricted")
+        timber.log.Timber.d("[LINK_PARSE_DEBUG] No match found or type restricted")
         return null
     }
 

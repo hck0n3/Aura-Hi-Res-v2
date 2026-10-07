@@ -12,6 +12,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import iad1tya.echo.music.constants.SpotifyAutoSyncFreqDaysKey
 import iad1tya.echo.music.constants.SpotifyAutoSyncSourceIdsKey
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.get
@@ -78,6 +79,16 @@ class SpotifyAutoSyncWorker(
         const val WORK_NAME = "spotify_auto_sync"
 
         /**
+         * Re-asserts the cadence the user chose (nothing when it is off), so a schedule created by an
+         * older version picks up today's constraints. Safe every app start: unique work + UPDATE.
+         * Reads DataStore blocking — call it off the main thread.
+         */
+        fun scheduleFromPrefs(context: Context) {
+            val freq = context.dataStore.get(SpotifyAutoSyncFreqDaysKey, 0)
+            if (freq > 0) schedule(context, freq)
+        }
+
+        /**
          * (Re)schedule the periodic sync. [freqDays] <= 0 cancels it. UPDATE so changing the cadence
          * replaces the existing schedule.
          */
@@ -89,6 +100,8 @@ class SpotifyAutoSyncWorker(
             }
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
+                // Background refresh, not urgent: never on a nearly empty battery (plan B1, row 329).
+                .setRequiresBatteryNotLow(true)
                 .build()
             val request = PeriodicWorkRequestBuilder<SpotifyAutoSyncWorker>(freqDays.toLong(), TimeUnit.DAYS)
                 .setConstraints(constraints)

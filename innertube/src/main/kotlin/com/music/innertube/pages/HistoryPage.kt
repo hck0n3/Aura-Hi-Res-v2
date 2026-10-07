@@ -41,6 +41,7 @@ data class HistoryPage(
                 ?.splitBySeparator()
 
             return SongItem(
+                unavailable = renderer.isGreyedOut,
                 id = renderer.playlistItemData?.videoId ?: renderer.navigationEndpoint?.watchEndpoint?.videoId
                 ?: renderer.overlay?.musicItemThumbnailOverlayRenderer
                     ?.content?.musicPlayButtonRenderer

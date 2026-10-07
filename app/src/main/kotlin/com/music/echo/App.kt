@@ -377,6 +377,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         applicationScope.launch(Dispatchers.IO) {
             runCatching { iad1tya.echo.music.utils.YtmAutoSyncWorker.scheduleFromPrefs(this@App) }
                 .onFailure { onScheduleFailed(it, "Failed to schedule YouTube Music library sync") }
+            runCatching { iad1tya.echo.music.spotifyimport.SpotifyAutoSyncWorker.scheduleFromPrefs(this@App) }
+                .onFailure { onScheduleFailed(it, "Failed to schedule Spotify auto-sync") }
         }
     }
 

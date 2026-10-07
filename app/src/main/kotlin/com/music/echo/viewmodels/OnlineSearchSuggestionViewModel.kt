@@ -118,6 +118,7 @@ constructor(
                                                 ?.filter { it.id != parsedItem?.id }
                                                 ?.filterExplicit(hideExplicit)
                                                 ?.filterVideoSongs(hideVideoSongs)
+                                                ?.let { iad1tya.echo.music.utils.UnavailableSongs.playableOnly(it) }
                                                 .orEmpty(),
                                             isFromLink = parsedUrl != null
                                         )
@@ -132,7 +133,7 @@ constructor(
     }
 
     private suspend fun fetchParsedUrlItem(parsedUrl: YouTubeUrlParser.ParsedUrl): YTItem? {
-        println("[LINK_PARSE_DEBUG] Fetching metadata for: $parsedUrl")
+        timber.log.Timber.d("[LINK_PARSE_DEBUG] Fetching metadata for: $parsedUrl")
         return try {
             val item = when (parsedUrl) {
                 is YouTubeUrlParser.ParsedUrl.Video -> {
@@ -143,11 +144,13 @@ constructor(
                     YouTube.artist(parsedUrl.id).getOrNull()?.artist
                 }
             }
-            println("[LINK_PARSE_DEBUG] Fetch successful: ${item?.id} (${item?.javaClass?.simpleName})")
+            timber.log.Timber.d("[LINK_PARSE_DEBUG] Fetch successful: ${item?.id} (${item?.javaClass?.simpleName})")
             item
         } catch (e: Exception) {
-            println("[LINK_PARSE_DEBUG] Fetch failed: ${e.message}")
-            e.printStackTrace()
+            // A real failure: to app.log, with the link TYPE only — never the pasted link or its id.
+            if (e !is kotlinx.coroutines.CancellationException) {
+                timber.log.Timber.w("Pasted %s link: metadata fetch failed: %s", parsedUrl.javaClass.simpleName, iad1tya.echo.music.utils.privacySafeSummary(e))
+            }
             null
         }
     }

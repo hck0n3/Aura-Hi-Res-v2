@@ -71,7 +71,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             System.loadLibrary("superpowered-bridge")
             nativeLibLoaded = true
         } catch (e: UnsatisfiedLinkError) {
-            e.printStackTrace()
+            Timber.e(e, "SUPERPOWERED native bridge failed to load — EQ is a pure bypass on this device")
             // The bridge is gone: every JNI call below would throw, so the processor is a pure bypass.
             // This is certain (not a heuristic), so it is safe for the UI to act on.
             publishEngineStatus(SuperpoweredEngineStatus.UNAVAILABLE)
@@ -132,7 +132,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
                 SuperpoweredEngineStatus.DEGRADED
             }
         } catch (e: UnsatisfiedLinkError) {
-            e.printStackTrace()
+            Timber.e(e, "SUPERPOWERED getEngineHealth threw UnsatisfiedLinkError — engine reported UNAVAILABLE")
             SuperpoweredEngineStatus.UNAVAILABLE
         }
     }
@@ -536,7 +536,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
                         nativeSampleRate = inputAudioFormat.sampleRate
                     } catch (e: UnsatisfiedLinkError) {
                         // Defensive: should not happen once nativeLibLoaded is true, but never let it crash playback.
-                        e.printStackTrace()
+                        Timber.e(e, "SUPERPOWERED initSuperpowered threw UnsatisfiedLinkError with the library loaded — engine bypassed")
                         nativePtr = 0L
                     }
                     // Read the verdict here (it needs nativePtr, which is guarded by this lock) but PUBLISH it

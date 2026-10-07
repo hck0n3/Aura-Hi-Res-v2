@@ -62,6 +62,18 @@ internal fun exceptionSignature(throwable: Throwable): String {
         "|${normalizeLogMessage(throwable.message.orEmpty().take(200))}"
 }
 
+/**
+ * Exception class chain + throw site, WITHOUT any message — for failures whose message can carry user
+ * data (a file path built from a song title, a request URL with a video id, a response body; AGENTS.md
+ * rule 4). Enough to tell WHAT failed and WHERE in the shared log; release frames are R8-mangled, so
+ * deobfuscate with that tag's r8-mapping artifact (docs/CRASH_REPORTS.md).
+ */
+fun privacySafeSummary(throwable: Throwable): String {
+    val chain = generateSequence(throwable) { it.cause }.take(4).joinToString(" <- ") { it.javaClass.simpleName }
+    val frame = throwable.stackTrace.firstOrNull()
+    return "$chain @ ${frame?.className}.${frame?.methodName}:${frame?.lineNumber}"
+}
+
 fun reportException(throwable: Throwable) {
     // Local logging (unchanged) — keeps stack traces in logcat for local debugging.
     throwable.printStackTrace()

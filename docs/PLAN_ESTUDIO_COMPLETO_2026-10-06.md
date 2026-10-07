@@ -29,7 +29,7 @@ puntos apruebas (por número) y solo esos se harán, cada uno en su propia beta.
 | Pruebas | 🟢 buenas | 1 380 pruebas; la puerta de CI las corre. Faltan pruebas de pantalla y de dispositivo. |
 | Registro de errores | 🟢 bueno tras esta beta | Todo error reportado llega a `app.log`; se quitó el ruido que lo llenaba. |
 | Batería | 🟢 bien, con 3 mejoras posibles | Ver sección 6. |
-| Tamaño de la app | 🔴 grande | El APK universal pesa ~200 MB; uno solo para arm64 pesaría ~1/3 (punto B4). |
+| Tamaño de la app | 🟡 mejorable | El APK publicado pesa 87 MB; 41 MB son librerías nativas de 3 arquitecturas que casi ningún móvil usa. Solo arm64 pesaría ~46 MB (punto B4). |
 | Dependencias | 🟡 algo atrasadas | 15 actualizaciones disponibles; 3 delicadas (sección 5). |
 | Dos interfaces (clásica + Aura) | 🟡 coste doble | Cada arreglo se hace dos veces y a veces solo en una (ya pasó, fila #117). |
 
@@ -75,8 +75,9 @@ puntos apruebas (por número) y solo esos se harán, cada uno en su propia beta.
 - **B3 · Registro más largo sin pantalla lenta.** El registro guarda 2 × 256 KB. Ahora que tiene menos
   ruido rinde más; si quieres aún más historia, se puede subir el tamaño y que la pantalla de Registros
   muestre solo el final (compartir seguiría enviándolo entero). *Riesgo: bajo. Esfuerzo: bajo.*
-- **B4 · APK solo arm64 para las actualizaciones.** El universal incluye las 4 arquitecturas (~200 MB);
-  prácticamente todos los móviles actuales son arm64. El actualizador podría bajar el APK arm64 (~1/3) y
+- **B4 · APK solo arm64 para las actualizaciones.** El universal (87 MB, medido en la beta3) incluye las 4
+  arquitecturas: arm64 ocupa 13 MB y las otras tres 41 MB. Prácticamente todos los móviles actuales son
+  arm64. El actualizador podría bajar el APK arm64 (~46 MB, casi la mitad) y
   dejar el universal para quien lo necesite. Menos datos y menos espera en cada actualización. *Riesgo:
   medio (el actualizador debe elegir bien el archivo; una mala elección deja sin actualizar). Esfuerzo:
   medio. Requiere cambiar el CI de publicación (necesita tu orden).*

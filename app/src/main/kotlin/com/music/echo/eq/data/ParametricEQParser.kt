@@ -95,8 +95,7 @@ object ParametricEQParser {
                 q = q
             )
         } catch (e: Exception) {
-            println("Warning: Failed to parse filter line: $line")
-            println("Error: ${e.message}")
+            timber.log.Timber.w("ParametricEQ: skipped a filter line it could not parse (%s: %s)", e.javaClass.simpleName, e.message)
             return null
         }
     }

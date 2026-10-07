@@ -94,10 +94,11 @@ constructor(
                 .searchSummary(query)
                 .onSuccess {
                     val (hideExplicit, hideVideoSongs, hideYoutubeShorts) = hideFlags()
-                    summaryPage =
+                    summaryPage = iad1tya.echo.music.utils.UnavailableSongs.playableOnly(
                         it.filterExplicit(
                             hideExplicit,
-                        ).filterVideoSongs(hideVideoSongs).filterYoutubeShorts(hideYoutubeShorts)
+                        ).filterVideoSongs(hideVideoSongs).filterYoutubeShorts(hideYoutubeShorts),
+                    )
                 }.onFailure {
                     reportException(it)
                 }
@@ -119,6 +120,7 @@ constructor(
                     ItemsPage(
                         result.items
                             .distinctBy { it.id }
+                            .let { iad1tya.echo.music.utils.UnavailableSongs.playableOnly(it) }
                             .filterExplicit(
                                 hideExplicit,
                             )
@@ -161,6 +163,7 @@ constructor(
                     YouTube.searchContinuation(continuation).getOrNull() ?: return@launch
                 val (hideExplicit, hideVideoSongs, hideYoutubeShorts) = hideFlags()
                 val newItems = searchResult.items
+                    .let { iad1tya.echo.music.utils.UnavailableSongs.playableOnly(it) }
                     .filterExplicit(hideExplicit)
                     .let { items ->
                         if (filter == YouTube.SearchFilter.FILTER_VIDEO.value) items

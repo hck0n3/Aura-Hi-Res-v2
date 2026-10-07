@@ -173,25 +173,12 @@ jobs:
 
       - name: Generate changelog.json
         if: startsWith(github.ref, 'refs/tags/v') || env.DISPATCH_BETA_TAG != '' || env.DISPATCH_STABLE_TAG != ''
+        # Shared with the unit-tests gate (scripts/release_changelog.py): a bullet wrapped onto indented
+        # lines is one item — the old inline parser kept only its first line, so the in-app Novedades
+        # showed every wrapped bullet cut mid-sentence.
         run: |
           mkdir -p app/build/outputs/apk/release-artifacts
-          python3 - <<'PY'
-          import json
-          sections=[]; cur=None
-          for line in open('RELEASE_INFO.md', encoding='utf-8').read().splitlines():
-              s=line.strip()
-              if s.startswith('## '):
-                  cur={'title': s[3:].strip(), 'items': []}; sections.append(cur)
-              elif s.startswith('# '):
-                  continue
-              elif s.startswith('- ') or s.startswith('* '):
-                  if cur is None:
-                      cur={'title': '', 'items': []}; sections.append(cur)
-                  cur['items'].append(s[2:].strip())
-          out={'description': '', 'image': '', 'warning': '', 'changelog': sections}
-          open('app/build/outputs/apk/release-artifacts/changelog.json','w',encoding='utf-8').write(json.dumps(out, ensure_ascii=False, indent=2))
-          print('changelog.json sections:', len(sections))
-          PY
+          python3 scripts/release_changelog.py RELEASE_INFO.md app/build/outputs/apk/release-artifacts/changelog.json
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || env.DISPATCH_BETA_TAG != '' || env.DISPATCH_STABLE_TAG != ''

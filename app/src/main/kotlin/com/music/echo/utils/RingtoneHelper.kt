@@ -93,7 +93,7 @@ object RingtoneHelper {
                 )
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            timber.log.Timber.w("Ringtone: resolving the stream info failed: %s", privacySafeSummary(e))
             null
         }
     }
@@ -242,7 +242,7 @@ object RingtoneHelper {
                     )
                     true
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    timber.log.Timber.w("Ringtone: setting the trimmed file as ringtone failed: %s", privacySafeSummary(e))
                     false
                 }
             } else {
@@ -259,7 +259,7 @@ object RingtoneHelper {
             }
 
         } catch (e: Exception) {
-            e.printStackTrace()
+            timber.log.Timber.w("Ringtone: download-and-trim failed: %s", privacySafeSummary(e))
             withContext(Dispatchers.Main) {
                 onComplete(false, "Error: ${e.message}", null, false)
             }
@@ -326,7 +326,7 @@ object RingtoneHelper {
             }
             copied == length
         } catch (e: Exception) {
-            e.printStackTrace()
+            timber.log.Timber.w("Ringtone: copying the cached song failed: %s", privacySafeSummary(e))
             tempFile.delete()
             false
         } finally {
@@ -459,7 +459,7 @@ object RingtoneHelper {
                 }
                 return@withContext
             } catch (e: IOException) {
-                e.printStackTrace()
+                timber.log.Timber.w("Ringtone: downloading the stream to a file failed: %s", privacySafeSummary(e))
                 lastError = e
             }
         }
@@ -610,7 +610,7 @@ object RingtoneHelper {
             }
             TrimResult(outputFile, outExt, outMime)
         } catch (e: Exception) {
-            e.printStackTrace()
+            timber.log.Timber.w("Ringtone: trimming the audio failed: %s", privacySafeSummary(e))
             null
         } finally {
             try { extractor.release() } catch (_: Exception) {}
@@ -652,7 +652,7 @@ object RingtoneHelper {
             if (!outputFile.exists() || outputFile.length() == 0L) null
             else TrimResult(outputFile, ext, mime)
         } catch (e: Exception) {
-            e.printStackTrace()
+            timber.log.Timber.w("Ringtone: full-copy fallback failed: %s", privacySafeSummary(e))
             null
         }
     }
@@ -695,7 +695,7 @@ object RingtoneHelper {
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            e.printStackTrace()
+            timber.log.Timber.w("Ringtone: opening the system 'modify settings' screen failed: %s", privacySafeSummary(e))
         }
     }
 }

@@ -16,6 +16,11 @@ name: Unit tests
 
 on:
   pull_request:
+  # Plan D2 (2026-10-06): every push to an agent's working branch runs the gate too, so a beta branch
+  # is known green before anyone asks to publish it — no manual test-build needed just for the tests.
+  # Runs tests only: no signing, no release, nothing reaches users.
+  push:
+    branches: ['claude/**']
   workflow_dispatch:
 
 # Solo leer el repositorio: este job ejecuta tests y sube un informe, no escribe nada en GitHub.
@@ -57,6 +62,11 @@ jobs:
 
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      # Plan D3: the in-app "Novedades" screen shows only `## ` titles and `- ` bullets of RELEASE_INFO.md.
+      # Notes without bullets would publish an empty screen; this fails before anyone gets that far.
+      - name: Check RELEASE_INFO.md feeds the in-app changelog
+        run: python3 scripts/release_changelog.py --check RELEASE_INFO.md
 
       - name: Run unit tests
         run: ./gradlew testUniversalFossDebugUnitTest --console=plain

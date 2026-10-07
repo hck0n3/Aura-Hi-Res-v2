@@ -1106,7 +1106,7 @@ object YouTube {
             // Message only. This used to append Json.encodeToString(renderer), dumping the whole item —
             // titles, artist names, video ids — into a log that ships in RELEASE and that the user can read
             // and share from the in-app Logs screen. Same reason the [UPLOAD_DEBUG] dumps were removed.
-            println("Error converting chart item: ${e.message}")
+            timber.log.Timber.w("Error converting chart item: %s: %s", e.javaClass.simpleName, e.message)
             null
         }
     }
@@ -1154,7 +1154,7 @@ object YouTube {
             }
         } catch (e: Exception) {
             // Message only — see the chart-item converter above; the renderer dump is deliberately gone.
-            println("Error converting two row item: ${e.message}")
+            timber.log.Timber.w("Error converting two row item: %s: %s", e.javaClass.simpleName, e.message)
             null
         }
     }

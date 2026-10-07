@@ -1127,7 +1127,7 @@ private fun ThumbnailItem(
                         val songTitle = normalizeCanvasSongTitle(songTitleRaw)
                         val artistName = normalizeCanvasArtistName(artistNameRaw)
                         
-                        println("CanvasFetch: Song='$songTitle' (raw='$songTitleRaw'), Artist='$artistName' (raw='$artistNameRaw'), Album='$albumName'")
+                        timber.log.Timber.d("CanvasFetch: Song='$songTitle' (raw='$songTitleRaw'), Artist='$artistName' (raw='$artistNameRaw'), Album='$albumName'")
                         
                         // SPOTIFY CANVAS FIRST — the same order and the same reason as the classic
                         // player (Player.kt:726): with the toggle on and a session present, the official
@@ -1232,7 +1232,7 @@ private fun ThumbnailItem(
                         if (artistMatches && titleMatches) {
                             artwork
                         } else {
-                            println("CanvasFetch: Validation failed artistMatch=$artistMatches, titleMatches=$titleMatches for '${artwork.name}' by '${artwork.artist}'")
+                            timber.log.Timber.d("CanvasFetch: Validation failed artistMatch=$artistMatches, titleMatches=$titleMatches for '${artwork.name}' by '${artwork.artist}'")
                             null
                         }
                     }

@@ -90,7 +90,10 @@ fun CommentSheet(
             nextToken = token
             isLoading = false
         }.onFailure {
-            it.printStackTrace()
+            // Closing the sheet cancels the load: that is not a failure, keep it out of the shared log.
+            if (it !is kotlinx.coroutines.CancellationException) {
+                timber.log.Timber.w("Comments: loading comments failed: %s", iad1tya.echo.music.utils.privacySafeSummary(it))
+            }
             isLoading = false
             isError = true
         }
@@ -368,7 +371,10 @@ fun CommentDetailPane(
                 repliesNextToken = token
                 isLoadingReplies = false
             }.onFailure {
-                it.printStackTrace()
+                // Closing the sheet cancels the load: that is not a failure, keep it out of the shared log.
+                if (it !is kotlinx.coroutines.CancellationException) {
+                    timber.log.Timber.w("Comments: loading replies failed: %s", iad1tya.echo.music.utils.privacySafeSummary(it))
+                }
                 isLoadingReplies = false
             }
         }
