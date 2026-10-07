@@ -89,3 +89,47 @@ class CollectionContinuationTest {
         assertFalse(CollectionContinuation.offLanguage(null, "Goodness of God"))
     }
 }
+
+/** Row 345b (owner 2026-10-07): "cumbia cristiana… cuando la lista termina no continúa con el mismo género". */
+class CollectionStyleTest {
+    private val tropical = GenreLane.STYLE_TROPICAL
+    private val worship = GenreLane.STYLE_WORSHIP
+
+    @Test
+    fun `the collection's own name decides its style`() {
+        val titleStyle = GenreLane.styleOfTrack(emptyMap(), null, "Cumbias Cristianas 2026")
+        assertEquals(tropical, titleStyle)
+        // Even when iTunes only knows its artists as "Christian" (= worship), a cumbia list stays cumbia.
+        val allowed = CollectionContinuation.allowedStyles(listOf(worship, worship, worship, worship), titleStyle)
+        assertEquals(setOf(tropical), allowed)
+        assertTrue(CollectionContinuation.offStyle(allowed, worship))
+        assertFalse(CollectionContinuation.offStyle(allowed, tropical))
+    }
+
+    @Test
+    fun `a mixed collection keeps every style it really has`() {
+        val styles = listOf(tropical, tropical, tropical, worship, worship, null, null)
+        assertEquals(setOf(tropical, worship), CollectionContinuation.allowedStyles(styles, null))
+        // A single stray track (under the floor) is not a style of the collection.
+        val mostlyTropical = List(9) { tropical } + GenreLane.STYLE_URBAN
+        assertEquals(setOf(tropical), CollectionContinuation.allowedStyles(mostlyTropical, null))
+    }
+
+    @Test
+    fun `too little known means nothing is filtered by style`() {
+        assertNull(CollectionContinuation.allowedStyles(listOf(tropical, null, null, null), null))
+        assertFalse(CollectionContinuation.offStyle(null, worship))
+    }
+
+    @Test
+    fun `an unknown candidate style is never off`() {
+        assertFalse(CollectionContinuation.offStyle(setOf(tropical), null))
+    }
+
+    @Test
+    fun `song titles carry their style`() {
+        assertEquals(tropical, GenreLane.styleOfTrack(emptyMap(), null, "Cumbia del Espíritu"))
+        assertEquals(worship, GenreLane.styleOfTrack(emptyMap(), null, "Alabanza de Júbilo"))
+        assertNull(GenreLane.styleOfTrack(emptyMap(), null, "Mi Dios Es Real"))
+    }
+}

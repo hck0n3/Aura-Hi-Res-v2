@@ -76,8 +76,36 @@ object CollectionContinuation {
         return lang != dominant
     }
 
+    /**
+     * Fila 345b (dueño, 2026-10-07: *"si estoy escuchando cumbia cristiana, cuando la lista termina no
+     * continúa con el mismo género… quiero que sea exacta con todo lo que uno escucha, sin importar género,
+     * religión o idioma"*): los ESTILOS que la continuación de una colección conserva ([GenreLane] —
+     * tropical, urbano, rock, regional, pop, alabanza…), o null si no se sabe lo bastante para filtrar.
+     *
+     *  · Si el NOMBRE de la colección dice su estilo ("Cumbias cristianas", "Salsa de oro"), manda ese.
+     *  · Si no, los estilos que tienen al menos [STYLE_FLOOR] de las pistas de estilo conocido, con al menos
+     *    [MIN_DECIDED] pistas conocidas — una lista mixta conserva TODOS sus estilos, no solo el mayor.
+     *
+     * Hasta aquí el estilo solo protegía la radio de una canción suelta (fila #313); al terminar una lista,
+     * "cristiano" era un solo carril y una cumbia cristiana podía seguir con una balada de alabanza.
+     */
+    fun allowedStyles(trackStyles: List<String?>, titleStyle: String?): Set<String>? {
+        if (titleStyle != null) return setOf(titleStyle)
+        val known = trackStyles.filterNotNull()
+        if (known.size < MIN_DECIDED) return null
+        return known.groupingBy { it }.eachCount()
+            .filter { (_, count) -> count.toDouble() / known.size >= STYLE_FLOOR }
+            .keys
+            .takeIf { it.isNotEmpty() }
+    }
+
+    /** True only when the candidate's style is KNOWN and is none of the collection's. Unknown never counts. */
+    fun offStyle(allowed: Set<String>?, candidateStyle: String?): Boolean =
+        allowed != null && candidateStyle != null && candidateStyle !in allowed
+
     const val MIN_DECIDED = 4
     const val DOMINANT_SHARE = 0.8
+    const val STYLE_FLOOR = 0.15
 }
 
 /**

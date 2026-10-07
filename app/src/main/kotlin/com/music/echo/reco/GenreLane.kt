@@ -52,11 +52,15 @@ object GenreLane {
 
     /** Palabras de estilo en el TÍTULO/ÁLBUM (nunca en el artista), por palabra completa. */
     private val STYLE_WORDS: List<Pair<String, List<String>>> = listOf(
-        STYLE_TROPICAL to listOf("merengue", "bachata", "salsa", "cumbia", "tropical", "vallenato", "tipico"),
+        STYLE_TROPICAL to listOf(
+            "merengue", "bachata", "salsa", "cumbia", "tropical", "vallenato", "tipico",
+            // Row 345b: plurals — a list called "Cumbias cristianas" names its style in the plural.
+            "merengues", "bachatas", "salsas", "cumbias", "tropicales", "vallenatos",
+        ),
         STYLE_URBAN to listOf("reggaeton", "urbano", "urbana", "trap", "rap", "hip hop", "dembow", "perreo", "drill"),
         STYLE_ROCK to listOf("rock", "metal"),
-        STYLE_REGIONAL to listOf("corrido", "corridos", "ranchera", "norteno", "banda", "mariachi"),
-        STYLE_WORSHIP to listOf("worship", "adoracion", "alabanza", "himno", "himnos"),
+        STYLE_REGIONAL to listOf("corrido", "corridos", "ranchera", "rancheras", "norteno", "nortenas", "banda", "mariachi"),
+        STYLE_WORSHIP to listOf("worship", "adoracion", "alabanza", "alabanzas", "himno", "himnos"),
     )
 
     // Separators used by YouTube/media metadata to pack several artists into one string. We only want the

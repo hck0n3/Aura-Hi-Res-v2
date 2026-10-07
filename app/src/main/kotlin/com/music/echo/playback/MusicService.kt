@@ -1020,6 +1020,8 @@ class MusicService :
 
     // Row 344 — the language of the collection in [radioSeedPool] (TitleLanguage over its titles), computed once
     // per pool identity: a few hundred short strings, CPU only, at re-seed time.
+    // Row 345b — the title of the collection in [radioSeedPool] (playlist/album name), set with the pool.
+    @Volatile private var radioSeedTitle: String? = null
     @Volatile private var collectionLanguagePool: List<iad1tya.echo.music.models.MediaMetadata>? = null
     @Volatile private var collectionLanguageValue: String? = null
 
@@ -3827,6 +3829,7 @@ class MusicService :
         // and the old collection's pool. Reset it here, synchronously, to what is already known about
         // the NEW queue; the async block below refines it exactly as before once the items land.
         radioSeedPool = emptyList()
+        radioSeedTitle = null
         contextProfile = null
         contextSteerActive = false
         val tappedAnchor = queue.preloadItem
@@ -4124,6 +4127,8 @@ class MusicService :
             // those are already a single-song radio and must keep last-song seeding. Reassigned every playQueue.
             radioSeedPool = if (queue is iad1tya.echo.music.playback.queues.YouTubeQueue) emptyList()
                 else initialStatus.items.mapNotNull { it.metadata }
+            // Row 345b — the collection's own NAME ("Cumbias cristianas") is the clearest style signal it has.
+            radioSeedTitle = if (queue is iad1tya.echo.music.playback.queues.YouTubeQueue) null else initialStatus.title
             // STUDY THE COLLECTION NOW, not when it ends (owner 2026-10-04: "quiero que la cola antes de
             // empezar estudie la playlist para saber con qué seguir"). The genre profile that steers the
             // continuation is built from GenreCache, and the only lookup of the collection's own artists
@@ -4788,42 +4793,73 @@ class MusicService :
                     anchorLanePartition(items, radioAnchorMetadata, genres, "appendSeed")
                         ?: (items to emptySet<String>())
                 } else items to emptySet<String>()
-                // Row 344 (owner: "después cambia a otro idioma"): a collection that is clearly in ONE language
-                // keeps it. The signal is the candidate's own title/album text (TitleLanguage, CPU only), never
-                // GenreCache, and a doubtful title is never touched; artists of the collection are exempt.
-                // Same contract as the genre sink above: drop only with >= CONTEXT_DROP_MIN_SURVIVORS left,
-                // otherwise sink to the tail.
+                // Row 344 (owner: "después cambia a otro idioma") + row 345b ("cumbia cristiana… no continúa con el
+                // mismo género; quiero que sea exacta sin importar género, religión o idioma"): a finished
+                // collection keeps its LANGUAGE (TitleLanguage, the track's own text) and its STYLES
+                // (GenreLane families; the collection's own name first). Unknown language/style is never judged
+                // (#39/#41), artists of the collection are exempt, and the drop needs >= CONTEXT_DROP_MIN_SURVIVORS
+                // survivors — otherwise the misfits only sink to the tail.
                 val languageOrdered = if (
                     contextSteerActive && keepGenreLaneHint &&
                     iad1tya.echo.music.reco.CollectionContinuation.isCollection(radioAnchorId != null, radioSeedPool.size)
                 ) {
                     val dominant = collectionLanguage()
-                    val collectionArtists = radioSeedPool
+                    val styleGenres = withContext(Dispatchers.IO) {
+                        runCatching { iad1tya.echo.music.reco.GenreCache.snapshot(this@MusicService) }
+                            .getOrDefault(emptyMap())
+                    }
+                    val pool = radioSeedPool
+                    val allowedStyles = iad1tya.echo.music.reco.CollectionContinuation.allowedStyles(
+                        trackStyles = pool.map { mm ->
+                            iad1tya.echo.music.reco.GenreLane.styleOfTrack(
+                                styleGenres, mm.artists.firstOrNull()?.name, mm.title, mm.album?.title,
+                            )
+                        },
+                        titleStyle = radioSeedTitle?.let {
+                            iad1tya.echo.music.reco.GenreLane.styleOfTrack(emptyMap(), null, it)
+                        },
+                    )
+                    val collectionArtists = pool
                         .flatMap { mm -> mm.artists.map { it.name.trim().lowercase() } }
                         .toHashSet()
-                    val (sameLanguage, otherLanguage) = laneOrdered.first.partition { mi ->
+                    var offLanguageCount = 0
+                    var offStyleCount = 0
+                    val (fits, misfits) = laneOrdered.first.partition { mi ->
                         val m = mi.metadata
-                        m?.artists?.any { it.name.trim().lowercase() in collectionArtists } == true ||
-                            !iad1tya.echo.music.reco.CollectionContinuation.offLanguage(
-                                dominant,
-                                listOfNotNull(m?.title, m?.album?.title).joinToString(" "),
-                            )
+                        if (m?.artists?.any { it.name.trim().lowercase() in collectionArtists } == true) {
+                            return@partition true
+                        }
+                        val offLanguage = iad1tya.echo.music.reco.CollectionContinuation.offLanguage(
+                            dominant,
+                            listOfNotNull(m?.title, m?.album?.title).joinToString(" "),
+                        )
+                        val offStyle = iad1tya.echo.music.reco.CollectionContinuation.offStyle(
+                            allowedStyles,
+                            iad1tya.echo.music.reco.GenreLane.styleOfTrack(
+                                styleGenres, m?.artists?.firstOrNull()?.name, m?.title, m?.album?.title,
+                            ),
+                        )
+                        if (offLanguage) offLanguageCount++
+                        if (offStyle) offStyleCount++
+                        !offLanguage && !offStyle
                     }
                     when {
-                        otherLanguage.isEmpty() -> laneOrdered
-                        sameLanguage.size >= CONTEXT_DROP_MIN_SURVIVORS -> {
+                        misfits.isEmpty() -> laneOrdered
+                        fits.size >= CONTEXT_DROP_MIN_SURVIVORS -> {
                             Timber.tag(TAG).i(
-                                "CTX_LANGUAGE dropped %d/%d other-language candidates (%d left)",
-                                otherLanguage.size, laneOrdered.first.size, sameLanguage.size,
+                                "CTX_COLLECTION_FIT dropped %d/%d (language=%d style=%d styles=%s, %d left)",
+                                misfits.size, laneOrdered.first.size, offLanguageCount, offStyleCount,
+                                allowedStyles?.sorted()?.joinToString("+") ?: "unknown", fits.size,
                             )
-                            sameLanguage to (laneOrdered.second + otherLanguage.mapNotNull { it.mediaId })
+                            fits to (laneOrdered.second + misfits.mapNotNull { it.mediaId })
                         }
                         else -> {
                             Timber.tag(TAG).i(
-                                "CTX_LANGUAGE sank %d/%d other-language candidates (only %d left)",
-                                otherLanguage.size, laneOrdered.first.size, sameLanguage.size,
+                                "CTX_COLLECTION_FIT sank %d/%d (language=%d style=%d styles=%s, only %d left)",
+                                misfits.size, laneOrdered.first.size, offLanguageCount, offStyleCount,
+                                allowedStyles?.sorted()?.joinToString("+") ?: "unknown", fits.size,
                             )
-                            (sameLanguage + otherLanguage) to (laneOrdered.second + otherLanguage.mapNotNull { it.mediaId })
+                            (fits + misfits) to (laneOrdered.second + misfits.mapNotNull { it.mediaId })
                         }
                     }
                 } else {
@@ -6634,6 +6670,7 @@ class MusicService :
         // refills the pool from the real timeline. Until then tryContextRadio bails on the empty pool and
         // the continuation degrades to last-song seeding — related to the CAR's song, which is honest.
         radioSeedPool = emptyList()
+        radioSeedTitle = null
         radioAnchorId = null
         radioAnchorMetadata = null
         contextProfile = null
@@ -6679,6 +6716,7 @@ class MusicService :
                 // in-app queue (adoptExternalQueue cleared that). Bounded by the timeline size itself.
                 radioSeedPool = (0 until player.mediaItemCount)
                     .mapNotNull { i -> runCatching { player.getMediaItemAt(i).metadata }.getOrNull() }
+                radioSeedTitle = null
                 // A plain tap (no shuffle action) with shuffle mode REMEMBERED ON: media3 never fires
                 // onShuffleModeEnabledChanged (the value did not change), so without this the session ran
                 // with the PREVIOUS queue's played set — ids overlapping across queues could read the car
