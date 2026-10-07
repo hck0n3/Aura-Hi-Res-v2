@@ -786,6 +786,10 @@ class MusicService :
     @Volatile private var glueCompressorHint: Boolean = true
     @Volatile private var outputDitherHint: Boolean = true
     @Volatile private var speakerBassProtectHint: Boolean = false
+    // PLAN A3: 32-bit float processing for 16-bit decoder output (Opus/AAC). Read by the audio sink on
+    // the PLAYBACK thread at every configure (= every new track), never per buffer. Starts at the shared
+    // default so a configure that beats the DataStore's first emission gets exactly what the switch shows.
+    @Volatile private var float32ProcessingHint: Boolean = iad1tya.echo.music.constants.Float32ProcessingDefault
     @Volatile private var stereoWidthHint: Float = 1f
     // Default OFF (owner report 2026-09-22): this trims the master preamp by the loudest active
     // band's boost on every EQ recompute (each slider drag), so moving a band up perceptibly ducked
@@ -2716,6 +2720,20 @@ class MusicService :
                 }
         }
 
+        // PLAN A3 — "Procesado en 32 bits" (Ajustes ▸ Sonido ▸ Masterización). Only mirrors the switch into
+        // a hint: createRenderersFactory's sink reads it at its NEXT configure (the next track), so a change
+        // never re-creates the AudioTrack under a playing song. Same key + same default constant as the
+        // switch (Float32ProcessingDefaultParityTest).
+        scope.launch {
+            dataStore.data
+                .map {
+                    it[iad1tya.echo.music.constants.Float32ProcessingEnabledKey]
+                        ?: iad1tya.echo.music.constants.Float32ProcessingDefault
+                }
+                .distinctUntilChanged()
+                .collect { enabled -> float32ProcessingHint = enabled }
+        }
+
         // STEREO WIDTH + AUTO HEADROOM (owner directive 2026-09-13).
         scope.launch {
             combine(
@@ -2792,9 +2810,10 @@ class MusicService :
         // INTERACTION WITH THE hiResDsp FLOAT TAKEOVER (createRenderersFactory's ForwardingAudioSink): the two
         // are mutually exclusive BY CONSTRUCTION and cannot both claim the stream. The takeover only arms when
         // MimeTypes.AUDIO_RAW == inputFormat.sampleMimeType; an offloaded track reaches the sink still encoded
-        // (audio/mp4a-latm, audio/opus, ...), so delegateWouldSkipChain is false, hiResDsp stays null and the
-        // takeover does not run. Offload OFF -> the decoder emits raw PCM and the EQ runs either in media3's
-        // int16 chain or, on hi-res float, in the takeover. So "offload ON" always means "no DSP wanted", which
+        // (audio/mp4a-latm, audio/opus, ...), so SinkDspRouting.route returns PASSTHROUGH, hiResDsp stays null
+        // and the takeover does not run. Offload OFF -> the decoder emits raw PCM and the EQ runs either in
+        // media3's int16 chain or, on hi-res float (and on 16-bit with plan A3's opt-in switch), in the
+        // takeover. So "offload ON" always means "no DSP wanted", which
         // is exactly what this gate now guarantees. Getting this wrong in either direction would silently
         // bypass the EQ again — the bug the takeover was added to fix.
         //
@@ -10330,6 +10349,15 @@ class MusicService :
                 val lowEnd = rawTier == iad1tya.echo.music.utils.DeviceTier.LOW ||
                     rawTier == iad1tya.echo.music.utils.DeviceTier.ULTRA ||
                     isLowRamDevice
+                // PLAN A3 gate for the 16-bit float takeover, evaluated by the sink once per configure (the
+                // playback thread, i.e. per track): the "Procesado en 32 bits" switch AND no Listen Together
+                // room. In a room the guest corrects drift by nudging the speed (rows 261/262); a float
+                // route would have to revert on the first nudge, so it is never taken there. If the room
+                // state cannot be read, assume a room: the int16 chain is the conservative answer.
+                val float16Allowed: () -> Boolean = {
+                    float32ProcessingHint &&
+                        !runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
+                }
                 val delegateSink = DefaultAudioSink
                     .Builder(this@MusicService)
                     .setEnableFloatOutput(!lowEnd)
@@ -10379,6 +10407,40 @@ class MusicService :
                     private var hiResAccessUnits = 0
                     private var hiResEosQueued = false
 
+                    /** Zero-length little-endian PCM buffer (see dspActivationPending). */
+                    private val emptyPcm: java.nio.ByteBuffer =
+                        java.nio.ByteBuffer.allocateDirect(0).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+
+                    // ── PLAN A3: 16-bit float takeover (route FLOAT_TAKEOVER_16BIT, opt-in, default OFF) ──
+                    // All of this runs on the playback thread (configure / handleBuffer / setPlaybackParameters
+                    // are all called by the audio renderer), so none of it needs to be volatile.
+                    /** Route chosen by the last configure — see SinkDspRouting. Drives the revert and the log. */
+                    private var route = iad1tya.echo.music.playback.audio.SinkDspRouting.Route.PASSTHROUGH
+                    /** The renderer's ORIGINAL (16-bit) config of the current stream: what the revert re-applies. */
+                    private var lastSinkConfig: androidx.media3.exoplayer.audio.AudioSink.AudioSinkConfig? = null
+                    /** What the player last asked for, whether or not the delegate has been told yet. */
+                    private var requestedParams: PlaybackParameters = PlaybackParameters.DEFAULT
+                    /** Tempo/pitch moved off 1.0 during a 16-bit takeover: hand back to the int16 chain (the
+                     *  only place Sonic exists) at the next handleBuffer. Until then the delegate is NOT told —
+                     *  its float configuration would reset speed and pitch to DEFAULT (DefaultAudioSink 1.11.1
+                     *  applyAudioProcessorPlaybackParametersAndSkipSilence, lines 1704-1712). */
+                    private var revertPending = false
+                    /** A 16-bit takeover that follows media3's int16 chain must not flush (= switch to float) the
+                     *  SHARED EQ processor until the delegate has drained that chain: with tempo at 1.0 the EQ is
+                     *  the chain's last active stage, the delegate keeps writing from the EQ's own output
+                     *  ByteBuffer, and BaseAudioProcessor.replaceOutputBuffer reuses that same buffer for the
+                     *  first float block — the previous song's last milliseconds would be overwritten. */
+                    private var dspActivationPending = false
+                    /** A route that bypasses the chain follows media3's int16 chain: the delegate still has to
+                     *  drain the PREVIOUS track through that chain, which runs the silence detector's in-chain
+                     *  queueEndOfStream = that track's EOS trailing snapshot (DefaultAudioSink 1.11.1
+                     *  handleBuffer: the pending-configuration block calls drainToEndOfStream first). The tap
+                     *  must not feed the new track's first buffer into the shared counter before that, or the
+                     *  previous track's snapshot is taken from a counter that already includes the new track
+                     *  (loud first buffer → ~0 → its learned tail is erased). So externallyFed stays false
+                     *  until handleBuffer has driven that drain with an empty buffer. */
+                    private var chainDrainPending = false
+
                     // media3 1.11 (row 335): the (Format, Int, IntArray?) overload is now FINAL and funnels
                     // into this one; the decision and the takeover below are unchanged.
                     override fun configure(
@@ -10391,7 +10453,8 @@ class MusicService :
                         tapLastBuffer = null
                         tapMeasuredEnd = -1
 
-                        // Mirror of DefaultAudioSink.configure's own decision. Guards, in order:
+                        // Mirror of DefaultAudioSink.configure's own decision, now in SinkDspRouting (pure,
+                        // JVM-tested). Hi-res guards are EXACTLY the ones that shipped, in order:
                         //  - !lowEnd            : matches setEnableFloatOutput(!lowEnd) above.
                         //  - AUDIO_RAW          : the sink only builds a processor pipeline for raw PCM;
                         //                         encoded passthrough/offload has no chain at all.
@@ -10399,13 +10462,25 @@ class MusicService :
                         //  - outputChannels null: a channel map keeps ChannelMappingAudioProcessor active,
                         //                         which is 16-bit-only — leave that (already broken upstream
                         //                         on float) exactly as it behaves today.
-                        val delegateWouldSkipChain = !lowEnd &&
-                            androidx.media3.common.MimeTypes.AUDIO_RAW == inputFormat.sampleMimeType &&
-                            androidx.media3.common.util.Util.isEncodingHighResolutionPcm(inputFormat.pcmEncoding) &&
-                            audioSinkConfig.outputChannelMapping == null
+                        // PLAN A3 adds FLOAT_TAKEOVER_16BIT on top (little-endian 16-bit only), gated by the
+                        // "Procesado en 32 bits" switch, no Listen Together room, and tempo/pitch at 1.0 —
+                        // read HERE, i.e. once per configuration (= per track), never per buffer.
+                        val previousRoute = route
+                        val newRoute = iad1tya.echo.music.playback.audio.SinkDspRouting.route(
+                            isRaw = androidx.media3.common.MimeTypes.AUDIO_RAW == inputFormat.sampleMimeType,
+                            pcmEncoding = inputFormat.pcmEncoding,
+                            lowEnd = lowEnd,
+                            hasOutputChannelMapping = audioSinkConfig.outputChannelMapping != null,
+                            float16Allowed = float16Allowed(),
+                            speed = requestedParams.speed,
+                            pitch = requestedParams.pitch,
+                        )
+                        val takeover16 =
+                            newRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_16BIT
                         var delegateFormat = inputFormat
                         var pipeline: androidx.media3.common.audio.AudioProcessingPipeline? = null
-                        if (delegateWouldSkipChain) {
+                        var activationDeferred = false
+                        if (iad1tya.echo.music.playback.audio.SinkDspRouting.isTakeover(newRoute)) {
                             // ToFloatPcmAudioProcessor is media3's own converter and self-bypasses when the
                             // input is already float, so a float decoder output costs zero extra work.
                             // normProcessor/limiterProcessor are deliberately NOT here: both are inert stubs
@@ -10421,16 +10496,29 @@ class MusicService :
                                     androidx.media3.common.audio.AudioProcessor.AudioFormat(inputFormat),
                                 )
                             } catch (e: androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException) {
-                                throw androidx.media3.exoplayer.audio.AudioSink.ConfigurationException(e, inputFormat)
+                                if (!takeover16) {
+                                    throw androidx.media3.exoplayer.audio.AudioSink.ConfigurationException(e, inputFormat)
+                                }
+                                // 16-bit is an OPTIONAL upgrade: never turn it into a playback error. Unreachable
+                                // in practice (ToFloatPcm takes any linear PCM, the EQ takes float), but the
+                                // proven int16 chain is always the answer if it ever happens.
+                                null
                             }
                             // Only take over when the chain is provably rate/channel/format preserving —
                             // that invariant is what lets handleBuffer forward presentationTimeUs unchanged
                             // and skip any position/latency correction.
-                            if (outFormat.encoding == C.ENCODING_PCM_FLOAT &&
+                            if (outFormat != null &&
+                                outFormat.encoding == C.ENCODING_PCM_FLOAT &&
                                 outFormat.sampleRate == inputFormat.sampleRate &&
                                 outFormat.channelCount == inputFormat.channelCount
                             ) {
-                                built.flush() // activates the processors; the pipeline is inert until this
+                                // Hi-res: activate now, exactly as before. 16-bit right after media3's int16
+                                // chain: defer the activation (see dspActivationPending) to handleBuffer.
+                                activationDeferred = takeover16 &&
+                                    previousRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                                if (!activationDeferred) {
+                                    built.flush() // activates the processors; the pipeline is inert until this
+                                }
                                 pipeline = built
                                 delegateFormat = inputFormat.buildUpon()
                                     .setPcmEncoding(C.ENCODING_PCM_FLOAT)
@@ -10443,6 +10531,7 @@ class MusicService :
                         }
                         hiResDsp = pipeline
                         hiResEosQueued = false
+                        dspActivationPending = activationDeferred
                         // The Builder has no setFormat: copy every other field explicitly (buffer size,
                         // channel map, timeline + period id, which build() checks for consistency).
                         @Suppress("DEPRECATION")
@@ -10457,7 +10546,34 @@ class MusicService :
                                 .build()
                         }
                         super.configure(delegateConfig)
-                        logAudioPath(inputFormat, delegateFormat, pipeline != null)
+                        // What actually happened: a refused takeover falls back to what the delegate does with
+                        // the unchanged format (hi-res → its float branch without our chain; 16-bit → int16).
+                        val effectiveRoute = when {
+                            pipeline != null -> newRoute
+                            newRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_HIRES ->
+                                iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_FLOAT_NO_DSP
+                            takeover16 -> iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                            else -> newRoute
+                        }
+                        route = effectiveRoute
+                        lastSinkConfig = audioSinkConfig
+                        // The silence detector is fed in-chain ONLY on media3's int16 pipeline; on every float
+                        // route the sink tap is its only feed (SilenceDetectorAudioProcessor.externallyFed).
+                        // Coming off the int16 chain, the tap is switched on only after the delegate has
+                        // drained it (see chainDrainPending).
+                        val bypassed =
+                            iad1tya.echo.music.playback.audio.SinkDspRouting.chainBypassedByDelegate(effectiveRoute)
+                        chainDrainPending = bypassed &&
+                            previousRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                        silenceProcessor.externallyFed = bypassed && !chainDrainPending
+                        if (revertPending) {
+                            // A tempo/pitch change was withheld from the delegate during the previous stream's
+                            // 16-bit takeover and the stream ended before the revert ran. The route above
+                            // already honoured it (it read requestedParams); now the delegate hears it too.
+                            revertPending = false
+                            super.setPlaybackParameters(requestedParams)
+                        }
+                        logAudioPath(inputFormat, delegateFormat, pipeline != null, effectiveRoute)
                     }
 
                     override fun handleBuffer(
@@ -10465,6 +10581,36 @@ class MusicService :
                         presentationTimeUs: Long,
                         encodedAccessUnitCount: Int,
                     ): Boolean {
+                        // PLAN A3 revert runs BEFORE the tap: once it hands back to the int16 chain the
+                        // detector is fed in-chain, and measuring this buffer here as well would count it twice.
+                        // Only on a FRESH renderer buffer: one with nothing left was already queued into the
+                        // float pipeline (re-offered because the delegate was full), and reconfiguring with
+                        // it would make the delegate start its clock at that buffer's presentationTimeUs —
+                        // the START of audio already played — leaving the position one decoder buffer
+                        // behind until the next seek (DefaultAudioSink 1.11.1: startMediaTimeUs is set from
+                        // the pts of the call that initializes the new output; the 200 ms resync check never
+                        // catches it). Such a buffer takes the normal float path below (drain, return true)
+                        // and the revert runs on the next buffer, whose pts is exact.
+                        if (revertPending && (hiResDsp == null || buffer.hasRemaining()) && !revertToInt16Chain()) {
+                            return false
+                        }
+                        if (chainDrainPending) {
+                            // An EMPTY buffer makes the delegate finish its pending configuration first —
+                            // drain the previous track through the int16 chain (its in-chain EOS snapshot),
+                            // play it out, switch — and it only returns true once that is done
+                            // (DefaultAudioSink 1.11.1 handleBuffer: the pending-configuration block runs
+                            // before the "empty buffer → return true" check). Costs nothing audible: the same
+                            // drain happens anyway on the first real buffer.
+                            if (!super.handleBuffer(emptyPcm, presentationTimeUs, 0)) return false
+                            chainDrainPending = false
+                            silenceProcessor.externallyFed = true
+                            if (dspActivationPending) {
+                                // PLAN A3 16-bit takeover: only now is the shared EQ processor flushed into
+                                // float, so it can no longer overwrite output the delegate is still writing.
+                                hiResDsp?.flush()
+                                dspActivationPending = false
+                            }
+                        }
                         runCatching {
                             val start = buffer.position()
                             val end = buffer.limit()
@@ -10493,6 +10639,8 @@ class MusicService :
                         }
                         val dsp = hiResDsp
                             ?: return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
+                        // (dspActivationPending is resolved by the chainDrainPending block above: it is only
+                        // ever set together with it — a 16-bit takeover right after the int16 chain.)
                         // Same drain-then-feed loop DefaultAudioSink runs for its own pipeline. The delegate
                         // is handed the pipeline's OUTPUT buffer (a stable instance until drained, which its
                         // `buffer == inputBuffer` assertion requires) and the timestamp of the input that
@@ -10545,6 +10693,16 @@ class MusicService :
                     override fun flush() {
                         hiResDsp?.flush()
                         hiResEosQueued = false
+                        // The flush above activates a deferred 16-bit pipeline, and it is safe here: the
+                        // delegate's flush below drops its output buffer, so nothing still points at the EQ's.
+                        dspActivationPending = false
+                        // The delegate's flush applies a pending configuration WITHOUT draining the old
+                        // pipeline (DefaultAudioSink 1.11.1 flush), so there is no in-chain EOS left to wait
+                        // for: the tap feeds the current route from the next buffer on.
+                        if (chainDrainPending) {
+                            chainDrainPending = false
+                            silenceProcessor.externallyFed = true
+                        }
                         // Seek/discontinuity: the next buffer is unrelated to the measured region, and the
                         // decoder may hand back the SAME ByteBuffer instance with new content.
                         tapLastBuffer = null
@@ -10559,9 +10717,122 @@ class MusicService :
                         hiResDsp?.reset()
                         hiResDsp = null
                         hiResEosQueued = false
+                        dspActivationPending = false
+                        chainDrainPending = false
+                        // The delegate's output is released too, so the next configure starts from nothing
+                        // (no deferred activation needed). revertPending/requestedParams are KEPT on purpose:
+                        // a withheld tempo/pitch is handed to the delegate by the next configure.
+                        route = iad1tya.echo.music.playback.audio.SinkDspRouting.Route.PASSTHROUGH
+                        lastSinkConfig = null
                         tapLastBuffer = null
                         tapMeasuredEnd = -1
                         super.reset()
+                    }
+
+                    override fun setPlaybackParameters(playbackParameters: PlaybackParameters) {
+                        requestedParams = playbackParameters
+                        if (iad1tya.echo.music.playback.audio.SinkDspRouting.shouldRevert(
+                                route, playbackParameters.speed, playbackParameters.pitch,
+                            )
+                        ) {
+                            // Tempo & pitch dialog, or a Listen Together speed nudge, during a 16-bit float
+                            // takeover. Forwarding now would be swallowed (the float branch forces DEFAULT and
+                            // the player's clock would snap back to 1.0); handleBuffer hands back to the int16
+                            // chain instead, and getPlaybackParameters reports the request meanwhile.
+                            revertPending = true
+                            return
+                        }
+                        // Back to 1.0 before the revert ran: the float route can simply stay.
+                        revertPending = false
+                        super.setPlaybackParameters(playbackParameters)
+                    }
+
+                    override fun getPlaybackParameters(): PlaybackParameters =
+                        if (revertPending) requestedParams else super.getPlaybackParameters()
+
+                    /**
+                     * PLAN A3 revert: leave the 16-bit float takeover for media3's int16 chain, the only place
+                     * Sonic (tempo/pitch) exists, in the middle of the stream. Returns false while the delegate
+                     * cannot take the takeover's last float block yet (the renderer simply calls again).
+                     *
+                     * Verified against DefaultAudioSink 1.11.1: configure() on an initialized sink only stores
+                     * a pendingConfiguration (lines 835-839); the next handleBuffer drains the old pipeline,
+                     * plays out the float AudioTrack, flush()es and opens a 16-bit one (lines 941-972) — the
+                     * same path a mid-playlist format change takes — and then re-applies the stored playback
+                     * parameters, which the int16 configuration honours (lines 1704-1745). Cost: one AudioTrack
+                     * re-creation, a short gap, once, when tempo/pitch first move off 1.0 in a 16-bit track.
+                     * handleBuffer only calls this with a FRESH renderer buffer (nothing of it queued into the
+                     * float pipeline yet): the delegate starts its new clock at that call's presentationTimeUs,
+                     * so it must be the pts of audio that has NOT played. A re-offered buffer that ToFloatPcm
+                     * already consumed (the usual state while the delegate is full) is finished on the float
+                     * route first, and the revert waits for the next buffer.
+                     */
+                    private fun revertToInt16Chain(): Boolean {
+                        val dsp = hiResDsp
+                        if (dsp != null) {
+                            // Hand the delegate every float sample already produced, in order, first.
+                            while (true) {
+                                val pendingOutput = dsp.output
+                                if (!pendingOutput.hasRemaining()) break
+                                if (!super.handleBuffer(pendingOutput, hiResPtUs, hiResAccessUnits)) return false
+                            }
+                        }
+                        revertPending = false
+                        val original = lastSinkConfig
+                        if (original == null) {
+                            // Unreachable (configure sets it whenever it picks the 16-bit route); never switch
+                            // routes without a configuration to switch to.
+                            super.setPlaybackParameters(requestedParams)
+                            return true
+                        }
+                        // Same stream, mid-way: its encoder delay (Opus pre-skip) was trimmed at the start
+                        // already. Handing it over again would make the delegate's TrimmingAudioProcessor,
+                        // re-armed by this configure, cut that many frames once more at the switch point
+                        // (TrimmingAudioProcessor 1.11.1 onFlush). Padding is kept: it belongs to the end.
+                        @Suppress("DEPRECATION")
+                        val revertConfig = if (original.format.encoderDelay == 0) {
+                            original
+                        } else {
+                            androidx.media3.exoplayer.audio.AudioSink.AudioSinkConfig.Builder(
+                                original.format.buildUpon().setEncoderDelay(0).build(),
+                            )
+                                .setPreferredBufferSizeOverride(original.preferredBufferSizeOverride)
+                                .setOutputChannelMapping(original.outputChannelMapping)
+                                .setTimeline(original.timeline)
+                                .setMediaPeriodId(original.mediaPeriodId)
+                                .build()
+                        }
+                        try {
+                            super.configure(revertConfig)
+                        } catch (e: androidx.media3.exoplayer.audio.AudioSink.ConfigurationException) {
+                            // Keep playing on the float route (tempo/pitch then stay at 1.0, as on hi-res);
+                            // the next tempo/pitch change tries again. Class name only: the exception text
+                            // carries the track's Format. DefaultAudioSink.configure may already have
+                            // configured the int16 pipeline (and with it the shared EQ processor) before
+                            // failing; re-assert the float format on OUR pipeline so its next flush (a seek)
+                            // cannot activate a 16-bit format under float samples.
+                            runCatching {
+                                dsp?.configure(androidx.media3.common.audio.AudioProcessor.AudioFormat(original.format))
+                            }
+                            Timber.tag(TAG).w("AUDIO_PATH revert failed (%s); keeping route=%s", e.javaClass.simpleName, route)
+                            super.setPlaybackParameters(requestedParams)
+                            return true
+                        }
+                        // The takeover pipeline is dropped WITHOUT reset(), exactly as configure() drops a
+                        // hi-res pipeline at a hi-res → 16-bit track change: the shared EQ processor now
+                        // belongs to the delegate's int16 pipeline, which re-configures it (same sample rate
+                        // → the native instance, Safe Volume level and filter state survive) and frees it on
+                        // its own reset().
+                        hiResDsp = null
+                        hiResEosQueued = false
+                        dspActivationPending = false
+                        chainDrainPending = false
+                        route = iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                        silenceProcessor.externallyFed = false
+                        super.setPlaybackParameters(requestedParams)
+                        // No user data: the route and the reason only.
+                        Timber.tag(TAG).i("AUDIO_PATH revert reason=tempo_pitch route=%s", route)
+                        return true
                     }
 
                     override fun release() {
@@ -10580,6 +10851,7 @@ class MusicService :
                         inputFormat: androidx.media3.common.Format,
                         delegateFormat: androidx.media3.common.Format,
                         rescued: Boolean,
+                        route: iad1tya.echo.music.playback.audio.SinkDspRouting.Route,
                     ) {
                         val isRaw = androidx.media3.common.MimeTypes.AUDIO_RAW == inputFormat.sampleMimeType
                         val path = when {
@@ -10588,7 +10860,7 @@ class MusicService :
                             else -> "MEDIA3_INT16_CHAIN"
                         }
                         Timber.tag(TAG).i(
-                            "AUDIO_PATH mime=%s enc=%s rate=%d ch=%d floatOutEnabled=%b sinkEnc=%s path=%s superpowered=%s eqOn=%b",
+                            "AUDIO_PATH mime=%s enc=%s rate=%d ch=%d floatOutEnabled=%b sinkEnc=%s path=%s route=%s superpowered=%s eqOn=%b",
                             inputFormat.sampleMimeType ?: "?",
                             pcmEncodingName(inputFormat.pcmEncoding),
                             inputFormat.sampleRate,
@@ -10596,6 +10868,7 @@ class MusicService :
                             !lowEnd,
                             pcmEncodingName(delegateFormat.pcmEncoding),
                             path,
+                            route,
                             if (isRaw) "IN_PATH" else "BYPASSED",
                             eqProcessor.isEnabled(),
                         )

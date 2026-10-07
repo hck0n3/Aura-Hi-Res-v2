@@ -132,8 +132,26 @@ class SilenceDetectorAudioProcessor(
      * (`countingLatched` is @Volatile; `isActive` is the plain flag media3's own `isActive()` returns, and
      * it is written on the configure path, not per buffer), no allocation, and it gates exactly the same
      * two conditions the call itself checks first, so skipping on `false` cannot change a measurement.
+     * (Plan A3: the first condition is now [externallyFed] instead of `!isActive` — see there.)
      */
-    fun needsExternalMeasure(): Boolean = !isActive && countingLatched
+    fun needsExternalMeasure(): Boolean = externallyFed && countingLatched
+
+    /**
+     * Set by the ForwardingAudioSink on EVERY sink configure (and on its tempo/pitch revert): true when
+     * the delegate will NOT run the custom chain for this stream (float takeover, hi-res or 16-bit, or
+     * media3's own float branch), so the sink-level tap is the only feed; false on media3's int16 chain,
+     * where this processor is fed in-chain and the tap must stay silent (no double counting).
+     *
+     * WHY NOT `!isActive` ANY MORE (plan A3): `isActive` is only written by [configure], and media3's
+     * float branch never configures the custom chain — DefaultAudioSink 1.11.1 builds a NEW pipeline
+     * without it (configure, lines 753-760) and never resets the old one. So after one int16 track the
+     * flag stays STALE-true for every later float track on the same player: the tap skipped, tail
+     * detection (the crossfade anchor) died for that track, and the EOS snapshot was never taken. With
+     * the A3 tempo/pitch revert, int16 and float configurations alternate inside one sink, which would
+     * have made that stale state routine. The sink knows the route; the processor cannot.
+     */
+    @Volatile
+    var externallyFed: Boolean = false
 
     /**
      * SINK-LEVEL feed (ForwardingAudioSink tap). media3's DefaultAudioSink only inserts custom processors
@@ -144,7 +162,7 @@ class SilenceDetectorAudioProcessor(
      * No-ops when the chain already feeds us (double counting) or the tail mode is off.
      */
     fun measureExternal(buffer: ByteBuffer, extEncoding: Int, extSampleRate: Int, extChannelCount: Int) {
-        if (isActive) return
+        if (!externallyFed) return
         if (!countingLatched) return
         if (extEncoding != C.ENCODING_PCM_16BIT && extEncoding != C.ENCODING_PCM_FLOAT) return
         if (extSampleRate <= 0 || extChannelCount <= 0 || !buffer.hasRemaining()) return
@@ -274,12 +292,12 @@ class SilenceDetectorAudioProcessor(
 
     /** Sink-tap equivalent of [queueEndOfStream]: the FLOAT pipeline bypasses the processor chain, so the
      *  ForwardingAudioSink calls this from playToEndOfStream() to take the same EOS trailing snapshot.
-     *  SAME gates as [measureExternal]: when the chain is active (int pipeline) its own queueEndOfStream
-     *  owns the snapshot — and a STALE-active processor (int track earlier on this player, float track
-     *  now: the sink never re-configures the custom chain) must not snapshot a counter that measured
-     *  nothing, which would erase a valid learned tail via the sub-2s "clears stale entry" path. */
+     *  SAME gates as [measureExternal]: on the int pipeline ([externallyFed] false) the chain's own
+     *  queueEndOfStream owns the snapshot, and a snapshot of a counter the tap never fed would erase a
+     *  valid learned tail via the sub-2s "clears stale entry" path. Gated on [externallyFed] (plan A3)
+     *  rather than the stale-prone `isActive`, so a float track after an int track snapshots again. */
     fun markEndOfStreamExternal() {
-        if (isActive) return
+        if (!externallyFed) return
         if (!countingLatched) return
         snapshotTrailingSilence()
     }

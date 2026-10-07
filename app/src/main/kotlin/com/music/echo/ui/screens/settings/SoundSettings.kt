@@ -132,6 +132,12 @@ fun SoundSettings(
         val (outputDither, onOutputDitherChange) = rememberPreference(
             iad1tya.echo.music.constants.OutputDitherEnabledKey, defaultValue = true
         )
+        // PLAN A3 — opt-in, default OFF. The default is the SAME constant MusicService reads (the switch must
+        // never show a state the audio sink is not in); Float32ProcessingDefaultParityTest pins it.
+        val (float32Processing, onFloat32ProcessingChange) = rememberPreference(
+            iad1tya.echo.music.constants.Float32ProcessingEnabledKey,
+            defaultValue = iad1tya.echo.music.constants.Float32ProcessingDefault,
+        )
         // Exception to "todos los toggles activados por default": owner order 2026-10-06 turns this one OFF
         // by default (must match MusicService's two reads of the same key, or the switch would lie).
         val (speakerBassProtect, onSpeakerBassProtectChange) = rememberPreference(
@@ -170,7 +176,19 @@ fun SoundSettings(
                     icon = painterResource(R.drawable.music_note),
                     title = { Text("Dither de salida") },
                     description = {
-                        Text("Dither triangular con modelado de ruido al convertir a 16 bits: pasajes suaves y colas de reverb más limpios.")
+                        // Stays visible and live in both states: with 32-bit processing ON it still acts
+                        // whenever the output falls back to 16 bits (tempo/pitch, Listen Together, low-end).
+                        Text(
+                            if (float32Processing) {
+                                "Dither triangular con modelado de ruido al convertir a 16 bits. Con «Procesado en 32 bits» " +
+                                    "activado solo actúa cuando la salida vuelve a 16 bits: si cambias tempo o tono, en " +
+                                    "Escuchar juntos o en equipos de gama baja."
+                            } else {
+                                "Dither triangular con modelado de ruido al convertir a 16 bits: pasajes suaves y colas de " +
+                                    "reverb más limpios. Actúa cuando la salida es de 16 bits (lo normal con Opus, AAC y " +
+                                    "MP3); cuando sale en 32 bits, como el Hi-Res en equipos de gama media y alta, no hace falta."
+                            }
+                        )
                     },
                     trailingContent = {
                         Switch(
@@ -180,6 +198,27 @@ fun SoundSettings(
                         )
                     },
                     onClick = { onOutputDitherChange(!outputDither) },
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.music_note),
+                    title = { Text("Procesado en 32 bits (experimental)") },
+                    description = {
+                        Text(
+                            "El ecualizador y la salida trabajan en coma flotante de 32 bits también con audio de " +
+                                "16 bits (Opus, AAC, MP3), como ya pasa con el Hi-Res. Se aplica desde la siguiente " +
+                                "canción. Vuelve a 16 bits si cambias tempo o tono y en Escuchar juntos. Sin " +
+                                "efecto en equipos de gama baja. Solo se nota con una salida de más de 16 bits " +
+                                "(DAC USB, LDAC de 24 bits)."
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = float32Processing,
+                            onCheckedChange = onFloat32ProcessingChange,
+                            thumbContent = thumb(float32Processing),
+                        )
+                    },
+                    onClick = { onFloat32ProcessingChange(!float32Processing) },
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.volume_up),

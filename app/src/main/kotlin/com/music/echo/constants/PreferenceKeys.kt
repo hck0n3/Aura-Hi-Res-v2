@@ -1294,6 +1294,18 @@ val OutputDitherEnabledKey = booleanPreferencesKey("mastering_output_dither_enab
  */
 val SpeakerBassProtectEnabledKey = booleanPreferencesKey("mastering_speaker_bass_protect_enabled")
 
+/**
+ * Plan A3: run the EQ chain and the AudioTrack in 32-bit float ALSO for 16-bit decoder output (the
+ * platform Opus/AAC decoders that ignore media3's float request). Default OFF — opt-in for a dedicated
+ * beta. MusicService (the sink's route gate) and SoundSettings (the switch) MUST both read
+ * [Float32ProcessingDefault]: two literals that drift apart make the switch lie (the row 325 lesson).
+ * Guarded by `Float32ProcessingDefaultParityTest`.
+ */
+val Float32ProcessingEnabledKey = booleanPreferencesKey("mastering_float32_processing")
+
+/** The ONE default of [Float32ProcessingEnabledKey]. */
+const val Float32ProcessingDefault = false
+
 // Stereo width (Mid/Side) of the Superpowered chain: 1.0 = untouched. Default untouched.
 val StereoWidthKey = floatPreferencesKey("mastering_stereo_width")
 

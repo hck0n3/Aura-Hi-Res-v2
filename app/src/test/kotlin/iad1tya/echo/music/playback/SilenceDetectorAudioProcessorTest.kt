@@ -4,6 +4,7 @@ import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
 import iad1tya.echo.music.playback.audio.SilenceDetectorAudioProcessor
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
@@ -75,10 +76,11 @@ class SilenceDetectorAudioProcessorTest {
         assertEquals(0L, proc.trailingSilenceUsOrNegative())
     }
 
-    /** Sink-tap feed: an UNCONFIGURED processor (isActive=false) models the hi-res FLOAT pipeline, where
-     *  the chain never runs and the ForwardingAudioSink feeds measureExternal instead. */
+    /** Sink-tap feed: models a FLOAT route (hi-res, or the plan A3 16-bit takeover), where the chain never
+     *  runs and the ForwardingAudioSink feeds measureExternal instead — the sink says so via externallyFed. */
     private fun newExternalProcessor(): SilenceDetectorAudioProcessor {
         val proc = SilenceDetectorAudioProcessor(onLongSilence = {})
+        proc.externallyFed = true
         proc.tailDetectEnabled = true
         proc.resetTracking()
         return proc
@@ -102,14 +104,68 @@ class SilenceDetectorAudioProcessorTest {
 
     @Test
     fun `external EOS mark no-ops on an ACTIVE chain processor`() {
-        // Int pipeline: the chain is active and its own queueEndOfStream owns the snapshot. A stale-active
-        // processor (int track earlier, float track now) must never snapshot a counter that measured
-        // nothing — that erased valid learned tails via the sub-2s clear path.
+        // Int pipeline (externallyFed=false, the default): the chain's own queueEndOfStream owns the
+        // snapshot. A snapshot of a counter the tap never fed would erase a valid learned tail via the
+        // sub-2s clear path.
         val proc = newArmedProcessor()
         feed(proc, frames = 1000, amplitude = 20000)
         feed(proc, frames = 5000, amplitude = 0)
         proc.markEndOfStreamExternal()
         assertEquals(-1L, proc.trailingSilenceUsOrNegative())
+    }
+
+    @Test
+    fun `stale-active processor still measures when the sink says the tap is the only feed`() {
+        // Plan A3: an int16 track configured the chain (isActive=true) and the next track on the SAME
+        // player goes float — media3 never re-configures the chain, so isActive stays stale-true. Gating
+        // on it killed tail detection (the crossfade anchor) for that track; the sink's flag does not.
+        val proc = newArmedProcessor()
+        proc.externallyFed = true
+        assertTrue(proc.needsExternalMeasure())
+        feedExternal(proc, frames = 1000, amplitude = 20000)
+        feedExternal(proc, frames = 4000, amplitude = 0)
+        assertEquals(4_000_000L, proc.silenceDurationUs())
+        proc.markEndOfStreamExternal()
+        assertEquals(4_000_000L, proc.trailingSilenceUsOrNegative())
+    }
+
+    @Test
+    fun `tap is a no-op on the int16 chain so nothing is counted twice`() {
+        val proc = newArmedProcessor()
+        proc.externallyFed = false
+        assertFalse(proc.needsExternalMeasure())
+        feedExternal(proc, frames = 4000, amplitude = 0)
+        assertEquals(0L, proc.silenceDurationUs())
+    }
+
+    @Test
+    fun `tap waits for the counting latch`() {
+        val proc = SilenceDetectorAudioProcessor(onLongSilence = {})
+        proc.externallyFed = true
+        assertFalse(proc.needsExternalMeasure()) // never armed: no duplicate() on the audio thread
+        proc.tailDetectEnabled = true
+        assertTrue(proc.needsExternalMeasure())
+    }
+
+    @Test
+    fun `int16 to float gapless switch keeps the previous track's EOS snapshot clean`() {
+        // Track A on media3's int16 chain (in-chain feed), then a gapless switch to a float route. The
+        // sink keeps externallyFed=false (chainDrainPending) until the delegate has drained A's chain,
+        // which runs the in-chain queueEndOfStream. B's first (loud) buffer offered to the tap BEFORE that
+        // drain must not reach the counter, or A's 5 s tail would be snapshotted as ~0 and erased.
+        val proc = newArmedProcessor()
+        proc.externallyFed = false
+        feed(proc, frames = 1000, amplitude = 20000)
+        feed(proc, frames = 5000, amplitude = 0) // A's tail
+        // configure(B) on a float route right after the int16 chain: tap still off.
+        feedExternal(proc, frames = 20, amplitude = 20000) // B's first buffer at the tap
+        proc.queueEndOfStream() // delegate drains A's int16 chain (empty-buffer handleBuffer)
+        assertEquals(5_000_000L, proc.trailingSilenceUsOrNegative())
+        // Drain done: the tap is B's only feed from here on.
+        proc.externallyFed = true
+        feedExternal(proc, frames = 20, amplitude = 20000)
+        assertEquals(0L, proc.silenceDurationUs())
+        assertEquals(5_000_000L, proc.trailingSilenceUsOrNegative()) // A's snapshot untouched by B
     }
 
     @Test

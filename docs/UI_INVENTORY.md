@@ -2602,6 +2602,13 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SoundSettings.k
 | Ecualizador — desc. «Activa o desactiva el procesamiento de audio profesional» | Ajustes > Sonido | SoundSettings.kt:69 | navegación | ocasional | siempre |
 | Auto-EQ (por auricular) (hardcoded) — desc. «Busca tu modelo y aplica su perfil AutoEq» (hardcoded) | Ajustes > Sonido | SoundSettings.kt:75 | navegación | rara | siempre |
 | Volumen seguro (hardcoded) — desc. «Baja los temas muy fuertes a un nivel parejo y agrega un limitador suave… Apagado = reproducción bit-perfect Hi-Res.» (hardcoded) | Ajustes > Sonido | SoundSettings.kt:91 | conmutador | ocasional | siempre (por defecto ON) |
+| Simulador Tidal (hardcoded) — desc. «Aplica la configuración DSP (pre-gain + filtros) para emular la firma de sonido de TIDAL.» | Ajustes > Sonido > Volumen | SoundSettings.kt:108 | conmutador | rara | siempre (por defecto ON) |
+| Compresor suave (pegamento) (hardcoded) | Ajustes > Sonido > Masterización | SoundSettings.kt:162 | conmutador | rara | siempre |
+| Dither de salida (hardcoded) — desc. **cambia con «Procesado en 32 bits»**: apagado, explica que actúa cuando la salida es de 16 bits (lo normal con Opus/AAC/MP3) y que el Hi-Res en gama media/alta ya sale en 32 bits; encendido, que solo actúa cuando la salida vuelve a 16 bits (tempo/tono, Escuchar juntos, gama baja). **Sigue visible y activo en los dos estados** — no es un control inerte: el dither sigue actuando en esos casos (plan A3, fila 336) | Ajustes > Sonido > Masterización | SoundSettings.kt:177 | conmutador | rara | siempre (por defecto ON) |
+| **Procesado en 32 bits (experimental)** (hardcoded, NUEVO plan A3) — desc. «El ecualizador y la salida trabajan en coma flotante de 32 bits también con audio de 16 bits (Opus, AAC, MP3)… Se aplica desde la siguiente canción. Vuelve a 16 bits si cambias tempo o tono y en Escuchar juntos. Sin efecto en equipos de gama baja…» | Ajustes > Sonido > Masterización | SoundSettings.kt:204 | conmutador | rara | siempre (por defecto **OFF**, `Float32ProcessingDefault`; fila 336) |
+| Proteger el altavoz del teléfono (hardcoded) | Ajustes > Sonido > Masterización | SoundSettings.kt:225 | conmutador | rara | siempre (por defecto OFF, fila 325) |
+| Headroom automático (hardcoded) | Ajustes > Sonido > Masterización | SoundSettings.kt:240 | conmutador | rara | siempre (por defecto OFF) |
+| Ancho estéreo: N % (hardcoded) — deslizador 50-150 %; tocar la fila lo devuelve a 100 % | Ajustes > Sonido > Masterización | SoundSettings.kt:255 | deslizador | rara | siempre |
 
 Nota: esta pantalla NO tiene barra superior ni botón Atrás propios (`SoundSettings.kt` no declara `TopAppBar`).
 
