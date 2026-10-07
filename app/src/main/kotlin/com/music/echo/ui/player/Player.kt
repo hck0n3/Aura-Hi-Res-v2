@@ -550,7 +550,9 @@ fun BottomSheetPlayer(
     // (the position ticker), and Compose can run the body speculatively — so this enqueued duplicates / looped.
     // Run it as an effect keyed on the real inputs instead.
     LaunchedEffect(canSkipNext, automix) {
-        if (!canSkipNext && automix.isNotEmpty()) {
+        // Row 345: an album/playlist that ends is continued by the collection engine (style + language);
+        // the raw automix only fills in where that engine does not run.
+        if (!canSkipNext && automix.isNotEmpty() && !playerConnection.service.automixDefersToContinuation()) {
             playerConnection.service.addToQueueAutomix(automix[0], 0)
         }
     }

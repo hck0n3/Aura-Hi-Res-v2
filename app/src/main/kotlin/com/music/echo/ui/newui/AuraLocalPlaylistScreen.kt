@@ -699,9 +699,8 @@ fun AuraLocalPlaylistScreen(
 
                     fun deleteFromPlaylist() {
                         // Captured BEFORE the delete below mutates/removes the row, so Undo can
-                        // re-insert the same songId at the same local position. Only the local DB row is
-                        // restored on Undo — a remote (YouTube-synced) removal already sent above is not
-                        // un-sent, matching how every other undo-able action in this app works.
+                        // re-insert the same songId at the same local position. Since row 345 the Undo also
+                        // puts the song back in the YouTube copy (RemotePlaylistEdits.restoreInBackground).
                         val removedMap = currentItem.map
                         database.transaction {
                             // Row 343: remove on YouTube too (setVideoId from the row, or resolved remotely) and
@@ -718,9 +717,13 @@ fun AuraLocalPlaylistScreen(
                                 duration = SnackbarDuration.Short,
                             )
                             if (result == SnackbarResult.ActionPerformed) {
+                                // Row 345: the removal already reached YouTube, so the undo must too — or the next
+                                // sync takes the song out again. The old entry id is gone; the next sync refills it.
+                                val restored = removedMap.copy(id = 0, setVideoId = null)
                                 database.query {
-                                    insert(removedMap.copy(id = 0))
+                                    insert(restored)
                                 }
+                                iad1tya.echo.music.utils.RemotePlaylistEdits.restoreInBackground(database, restored)
                             }
                         }
                     }

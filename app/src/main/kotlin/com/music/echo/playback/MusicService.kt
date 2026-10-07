@@ -5872,6 +5872,15 @@ class MusicService :
         }
     }
 
+    /**
+     * Row 345: true while a finished album/playlist is continued by the collection engine
+     * ([startRadioSeamlessly] → tryContextRadio, row 344). The classic player then leaves its "automix" (the
+     * album's raw YouTube mix, fetched when the album was opened) alone: appending it first jumped the
+     * engine's style/language rules — the off-genre first song after an album.
+     */
+    fun automixDefersToContinuation(): Boolean =
+        iad1tya.echo.music.reco.CollectionContinuation.isCollection(radioAnchorId != null, radioSeedPool.size)
+
     fun addToQueueAutomix(
         item: MediaItem,
         position: Int,

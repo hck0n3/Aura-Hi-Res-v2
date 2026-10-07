@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import java.time.LocalDateTime
 
@@ -40,6 +42,10 @@ import java.time.LocalDateTime
  */
 object RemotePlaylistEdits {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // One remote edit at a time, in the order they were asked: an "Undo" right after a removal must reach
+    // YouTube AFTER that removal, never before it.
+    private val order = Mutex()
 
     /**
      * Pura: el `setVideoId` de cada entrada a borrar ([toRemove] = pares songId → setVideoId local), en
@@ -72,11 +78,36 @@ object RemotePlaylistEdits {
                 // stands down instead of rebuilding the playlist from a remote copy that still has the song.
                 database.update(playlist.copy(lastUpdateTime = LocalDateTime.now()))
                 val browseId = playlist.browseId ?: return@launch
-                remove(browseId, maps)
+                order.withLock { remove(browseId, maps) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Timber.w("PLAYLIST_REMOTE_remove failed: %s", privacySafeSummary(e))
+            }
+        }
+    }
+
+    /**
+     * "Deshacer" of a removal (row 345): the local row is restored by the caller; this puts the song back in
+     * the YouTube copy too, so the next sync does not take it out again. YouTube appends it at the end; the
+     * new entry's setVideoId is filled by the next sync ([PlaylistSyncGuard.setVideoIdBackfill]).
+     */
+    fun restoreInBackground(database: MusicDatabase, map: PlaylistSongMap) {
+        scope.launch {
+            try {
+                val playlist = database.playlist(map.playlistId).first()?.playlist ?: return@launch
+                database.update(playlist.copy(lastUpdateTime = LocalDateTime.now()))
+                val browseId = playlist.browseId ?: return@launch
+                order.withLock {
+                    YouTube.addToPlaylist(browseId, map.songId).onFailure { e ->
+                        if (e is CancellationException) throw e
+                        Timber.w("PLAYLIST_REMOTE_restore failed: %s", privacySafeSummary(e))
+                    }.onSuccess { Timber.i("PLAYLIST_REMOTE_restore ok") }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w("PLAYLIST_REMOTE_restore failed: %s", privacySafeSummary(e))
             }
         }
     }

@@ -125,11 +125,24 @@
 -keep class iad1tya.echo.music.models.QueueData { *; }
 -keep class iad1tya.echo.music.models.QueueType { *; }
 -keep class iad1tya.echo.music.playback.queues.** { *; }
+# Row 345: the SONGS inside the saved queue. Java serialization writes the CLASS NAME into
+# persistent_queue.data; without this R8 renamed MediaMetadata (and Artist/Album) differently in every
+# build ("InvalidClassException: n87; class invalid for deserialization" in the beta4 log), so every app
+# update threw the saved queue away. Names and fields pinned; serialVersionUID is already pinned in code.
+-keep class iad1tya.echo.music.models.MediaMetadata { *; }
+-keep class iad1tya.echo.music.models.MediaMetadata$* { *; }
+-keep class iad1tya.echo.music.models.QueueData$* { *; }
+-keep class iad1tya.echo.music.models.QueueType$* { *; }
 
-# Keep serialization methods for queue persistence
+# Keep serialization members for queue persistence
 -keepclassmembers class * implements java.io.Serializable {
+    static final long serialVersionUID;
+    private static final java.io.ObjectStreamField[] serialPersistentFields;
+    !static !transient <fields>;
     private void writeObject(java.io.ObjectOutputStream);
     private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
 }
 
 ## UCrop Rules
