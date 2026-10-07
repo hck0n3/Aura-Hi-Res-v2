@@ -217,12 +217,6 @@ fun ThemeScreen(
     // black and the player behind it stayed blue-black, in one gesture. `AuraPalette.Ground` now reads
     // PureBlackKey too (`AuraPaletteSync`, ui/newui/AuraPalette.kt), so this card repaints everything.
     val newUiForcesDark = rememberNewUiForcesDarkTheme()
-    // Plan A4 (owner approved 2026-10-07): opt-in light variant of the redesign.
-    val (auraLightMode, onAuraLightModeChange) = rememberPreference(
-        iad1tya.echo.music.constants.AuraLightModeKey,
-        defaultValue = false,
-    )
-    val newUiOn = rememberNewUiEnabled()
     val (pureBlack, onPureBlackChangeRaw) = rememberPreference(PureBlackKey, defaultValue = false)
     val (_, onPureBlackMiniPlayerChange) = rememberPreference(
         PureBlackMiniPlayerKey,
@@ -431,43 +425,15 @@ fun ThemeScreen(
                     // not showing; "Light" is a literal in the card above.
                     if (newUiForcesDark) {
                         Text(
-                            text = "La interfaz nueva se dibuja en oscuro. Por eso las dos opciones claras " +
+                            text = "La interfaz nueva se dibuja siempre en oscuro: su paleta " +
+                                "todavía no tiene versión clara. Por eso las dos opciones claras " +
                                 "(«${stringResource(R.string.dark_theme_follow_system)}» y «Light») " +
-                                "están desactivadas. Actívalas con «Modo claro en Aura» aquí debajo; tu " +
-                                "preferencia se conserva tal cual.",
+                                "están desactivadas. Tu preferencia se conserva tal cual y vuelve a " +
+                                "aplicarse en cuanto apagues «Interfaz nueva» en Ajustes.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
-                    }
-                    // Plan A4: visible whenever the redesign is on, in both states (hiding is losing).
-                    if (newUiOn) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onAuraLightModeChange(!auraLightMode) }
-                                .padding(horizontal = 4.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Modo claro en Aura (experimental)",
-                                    style = MaterialTheme.typography.titleSmall,
-                                )
-                                Text(
-                                    text = "La interfaz nueva sigue las opciones de arriba: " +
-                                        "«${stringResource(R.string.dark_theme_follow_system)}», «Light» o " +
-                                        "«Dark». En claro, el fondo toma un tono suave de la portada. El " +
-                                        "reproductor a pantalla completa sigue en oscuro.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            androidx.compose.material3.Switch(
-                                checked = auraLightMode,
-                                onCheckedChange = onAuraLightModeChange,
-                            )
-                        }
                     }
                 }
             }
