@@ -409,8 +409,12 @@ internal fun AuraSongCollectionScaffold(
                         isPlaying = isPlaying,
                         liked = song.song.liked,
                         explicit = song.song.explicit,
-                        inLibrary = false,
+                        // Row 348 (C2 audit §9.12): the classic rows showed «en biblioteca»; this was hard-coded off.
+                        inLibrary = song.song.inLibrary != null,
                         downloadId = song.id.takeIf { showDownloadTick },
+                        // Row 348: swipe → «Reproducir a continuación» / «Añadir a la cola» (setting «Deslizar
+                        // canción»), as in the classic lists and Aura's Biblioteca > Canciones.
+                        swipeMediaItem = song.toMediaItem().takeIf { !inSelectMode },
                         format = song.format,
                         playedInShuffle = dimmed,
                         selected = selected.takeIf { inSelectMode },

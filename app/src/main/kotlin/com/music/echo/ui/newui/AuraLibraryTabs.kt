@@ -54,6 +54,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.WatchEndpoint
+import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
@@ -115,6 +116,8 @@ import java.text.Collator
 import java.time.LocalDateTime
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -915,6 +918,8 @@ fun AuraLibraryAlbumsTab(
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    val albumPlayScope = rememberCoroutineScope()
+    val albumPlayDatabase = LocalDatabase.current
     val listState = rememberLazyGridState()
     AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
@@ -987,6 +992,23 @@ fun AuraLibraryAlbumsTab(
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     menuState.show { AlbumMenu(album, navController, menuState::dismiss) }
+                },
+                // Row 348 (C2 audit): ▶ on the cover plays the album without opening it, like the classic
+                // grid — same queue and context id as the classic button (Items.kt AlbumPlayButton).
+                onPlay = {
+                    albumPlayScope.launch {
+                        val albumWithSongs = withContext(Dispatchers.IO) {
+                            albumPlayDatabase.albumWithSongs(album.id).firstOrNull()
+                        }
+                        albumWithSongs?.let {
+                            playerConnection.playQueue(
+                                iad1tya.echo.music.playback.queues.LocalAlbumRadio(
+                                    it,
+                                    contextId = ShuffleContexts.album(it.album.id),
+                                ),
+                            )
+                        }
+                    }
                 },
             )
         }

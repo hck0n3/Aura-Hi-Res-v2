@@ -76,6 +76,7 @@ import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.HideExplicitKey
 import iad1tya.echo.music.constants.SuppressedPlaylistIdsKey
 import androidx.datastore.preferences.core.edit
+import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.PlaylistEntity
@@ -450,6 +451,8 @@ fun AuraOnlinePlaylistScreen(
                         format = dbSong?.format,
                         playedInShuffle = alreadyPlayed,
                         dimContent = blocked,
+                        // Row 348 (C2 audit §9.12): swipe → play next / add to queue, as in the classic list.
+                        swipeMediaItem = songItem.toMediaItem().takeIf { !inSelectMode && !blocked },
                         artworkSize = 50.dp,
                         artworkRatio = 1f,
                         artworkShape = AuraShapes.Artwork,

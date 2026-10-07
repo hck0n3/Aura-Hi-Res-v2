@@ -302,7 +302,15 @@ fun AuraSettingsScreen(
         AuraSettingsGroup(
             icon = AuraIcons.Album,
             title = aboutText,
-            entries = listOf(AuraSettingsEntry(aboutText) { navController.navigate("settings/about") }),
+            entries = listOf(
+                // Row 348 (C2 audit): «Actualizaciones» was reachable only from the account sheet (avatar);
+                // the settings index — classic and Aura — had no row for it.
+                AuraSettingsEntry(
+                    title = "Actualizaciones",
+                    description = "Cambios de esta versión y nuevas actualizaciones",
+                ) { navController.navigate("settings/update") },
+                AuraSettingsEntry(aboutText) { navController.navigate("settings/about") },
+            ),
         ),
     )
 

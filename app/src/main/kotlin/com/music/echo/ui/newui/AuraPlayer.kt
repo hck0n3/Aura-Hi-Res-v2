@@ -763,6 +763,21 @@ private fun AuraPlayerShape(
         onExportDirectoryUriChange = onExportDirectoryUriChange,
     )
     val downloadChooserMeta = mediaMetadata
+    // Row 348 (C2 audit, UI_INVENTORY §20.1): «Exportar como MP3» OFF means the download button just
+    // downloads — the classic player honoured it, the Aura chooser opened regardless.
+    val (enableExportAsMp3) = rememberPreference(iad1tya.echo.music.constants.EnableExportAsMp3Key, true)
+    val downloadDirectly: () -> Unit = {
+        downloadChooserMeta?.let { meta ->
+            database.transaction { insert(meta) }
+            enqueueSongDownloads(
+                context,
+                meta.id,
+                meta.title,
+                isVideoSong = meta.isVideoSong,
+                deferWhileLiveVideo = videoMode,
+            )
+        }
+    }
     if (showDownloadOrExportDialog && downloadChooserMeta != null) {
         ExportFormatChooserDialog(
             songId = downloadChooserMeta.id,
@@ -1844,6 +1859,7 @@ private fun AuraPlayerShape(
                                     downloadBusy || downloadDone || downloadHeld ->
                                         removeSongDownloads(context, songId, isVideo)
                                     isExporting -> Unit
+                                    !enableExportAsMp3 -> downloadDirectly()
                                     else -> showDownloadOrExportDialog = true
                                 }
                             },

@@ -564,6 +564,12 @@ fun AuraCoverCard(
     badge: (@Composable BoxScope.() -> Unit)? = null,
     fillBleed: Boolean = true,
     decodeTo: Int = 512,
+    /**
+     * Row 348 (C2 audit, UI_INVENTORY §9.12/§17): the classic album grid had a ▶ on every cover that plays
+     * the album without opening it. Non-null draws that button (hidden while this card is the one playing,
+     * which already shows its own playing badge in the other corner).
+     */
+    onPlay: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -610,6 +616,28 @@ fun AuraCoverCard(
                             tint = AuraPalette.Teal,
                         )
                     }
+                }
+            }
+            if (onPlay != null && !isActive) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(7.dp)
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(AuraPalette.Ground.copy(alpha = 0.72f))
+                        .combinedClickable(
+                            onClick = onPlay,
+                            onClickLabel = stringResource(R.string.play),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AuraIconGlyph(
+                        icon = AuraIcons.Play,
+                        contentDescription = stringResource(R.string.play),
+                        size = 16.dp,
+                        tint = AuraPalette.OnGround,
+                    )
                 }
             }
             badge?.invoke(this)

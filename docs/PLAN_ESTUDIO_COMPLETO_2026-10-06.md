@@ -196,4 +196,4 @@ unitarias y APK de prueba.
 | C1 partir `MusicService` | ⏳ pendiente (sin beneficio visible; riesgo medio) | — |
 | D1 pruebas de pantalla | ⏸ en espera: cambia el classpath de todas las pruebas | — |
 | A4 modo claro de Aura | ❌ retirado por orden del dueño (beta5) | #338 |
-| C2 una sola interfaz | ⏳ aprobado; pendiente (grande: hay que comprobar pantalla por pantalla que nada se pierda) | — |
+| C2 una sola interfaz | 🔄 auditoría completa hecha; 8 huecos arreglados; 5 decisiones tuyas y el plan de retirada en `docs/C2_AUDITORIA_UNA_SOLA_INTERFAZ.md` | #348 |
