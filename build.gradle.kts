@@ -39,6 +39,24 @@ dependencyLocking {
     lockAllConfigurations()
 }
 
+// `./gradlew resolveAndLockAll --write-locks` (plan, fase 2, 2026-10-07): after a version bump, refreshes
+// the lock state of EVERY resolvable configuration of every project — not only the ones a single task
+// happens to resolve, which would leave the other ABIs/variants locked to the old version and fail their
+// next build. Graph resolution is enough to record lock state; no artifact is downloaded or built.
+allprojects {
+    tasks.register("resolveAndLockAll") {
+        notCompatibleWithConfigurationCache("Filters configurations at execution time")
+        doFirst {
+            require(gradle.startParameter.isWriteDependencyLocks) {
+                "$path must be run with --write-locks"
+            }
+        }
+        doLast {
+            configurations.filter { it.isCanBeResolved }.forEach { it.incoming.resolutionResult.root }
+        }
+    }
+}
+
 subprojects {
     dependencyLocking {
         lockAllConfigurations()

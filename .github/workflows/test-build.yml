@@ -8,6 +8,14 @@ name: Test Build (debug APK, no release)
 
 on:
   workflow_dispatch:
+    inputs:
+      write_locks:
+        # Plan, fase 2 (2026-10-07): after bumping versions in gradle/libs.versions.toml, regenerate every
+        # gradle.lockfile with Gradle itself (never by hand) and commit them to THIS branch. Refused on
+        # main. The agent's environment cannot reach Google Maven, so this runs here.
+        description: 'Regenerar los gradle.lockfile y subirlos a esta rama (nunca main)'
+        type: boolean
+        default: false
   push:
     branches:
       - 'test/**'
@@ -23,7 +31,52 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # Only when asked for with write_locks, and never on main. Writes ONLY the lockfiles, to the branch
+  # that was dispatched; the test build below then runs on what was there before (its own checkout).
+  # A push made with GITHUB_TOKEN starts no other workflow, so re-dispatch this one afterwards.
+  write-locks:
+    if: github.event_name == 'workflow_dispatch' && inputs.write_locks && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Regenerate every lockfile
+        # resolveAndLockAll resolves every configuration of every project (all ABIs and variants); the
+        # three CI tasks then lock whatever only a real build resolves (lint, test platform, KSP).
+        run: |
+          ./gradlew resolveAndLockAll --write-locks --console=plain
+          ./gradlew testUniversalFossDebugUnitTest assembleUniversalGmsDebug --write-locks --console=plain
+
+      - name: Verify the new locks without --write-locks
+        run: ./gradlew testUniversalFossDebugUnitTest --console=plain
+
+      - name: Commit and push the lockfiles to this branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- '*gradle.lockfile'
+          if git diff --cached --quiet; then
+            echo "Lockfiles already up to date."
+            exit 0
+          fi
+          git diff --cached --stat
+          git commit -m "Regenerate dependency lockfiles (CI, --write-locks)"
+          git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"
+
   test-build:
+    if: github.event_name != 'workflow_dispatch' || !inputs.write_locks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
