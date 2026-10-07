@@ -403,6 +403,7 @@ fun AuraLibraryHub(
         },
     ) {
         val listState = rememberLazyListState()
+        AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
         // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
         ScrollStateBusReporter { listState.isScrollInProgress }
         LazyColumn(
@@ -681,6 +682,7 @@ fun AuraLibrarySongsTab(
     val shufflePlayedSet = rememberPlayedShuffleSet(libraryContextId)
 
     val listState = rememberLazyListState()
+    AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { listState.isScrollInProgress }
 
@@ -914,6 +916,7 @@ fun AuraLibraryAlbumsTab(
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
     val listState = rememberLazyGridState()
+    AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { listState.isScrollInProgress }
 
@@ -1028,6 +1031,7 @@ fun AuraLibraryArtistsTab(
             )
         }
         val listState = rememberLazyGridState()
+        AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
         // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
         ScrollStateBusReporter { listState.isScrollInProgress }
         LazyVerticalGrid(
@@ -1171,6 +1175,7 @@ fun AuraLibraryPlaylistsTab(
             )
         }
         val listState = rememberLazyGridState()
+        AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
         // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
         ScrollStateBusReporter { listState.isScrollInProgress }
         LazyVerticalGrid(

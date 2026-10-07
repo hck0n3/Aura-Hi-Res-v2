@@ -1097,14 +1097,31 @@ fun AuraMiniPlayer(
                     ?.filter { it.name.isNotBlank() }
                     ?.joinToString { it.name }
                     .orEmpty()
-                if (artists.isNotBlank()) {
-                    Text(
-                        text = artists,
-                        style = AuraType.MiniArtist,
-                        color = AuraPalette.OnGroundMuted,
-                        maxLines = 1,
-                        overflow = AuraDefaultOverflow,
-                    )
+                // Row 348 (C2 audit, UI_INVENTORY §2.12): the classic mini player marks explicit songs; the
+                // Aura pill did not. Same "E" badge the Aura song rows use.
+                val explicit = mediaMetadata?.explicit == true
+                if (artists.isNotBlank() || explicit) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        if (explicit) {
+                            AuraTechnicalText(
+                                text = "E",
+                                color = AuraPalette.OnGroundDisabled,
+                                style = AuraType.QualityBadge,
+                            )
+                        }
+                        if (artists.isNotBlank()) {
+                            Text(
+                                text = artists,
+                                style = AuraType.MiniArtist,
+                                color = AuraPalette.OnGroundMuted,
+                                maxLines = 1,
+                                overflow = AuraDefaultOverflow,
+                            )
+                        }
+                    }
                 }
                 AnimatedVisibility(visible = error != null, enter = fadeIn(), exit = fadeOut()) {
                     Text(

@@ -163,6 +163,7 @@ fun AuraPlayerMenu(
 
     val (exportDirectoryUri, onExportDirectoryUriChange) = rememberPreference(ExportDirectoryUriKey, "")
     val (exportingSongIds) = rememberPreference(ExportingSongIdsKey, "")
+    val (enableExportAsMp3) = rememberPreference(iad1tya.echo.music.constants.EnableExportAsMp3Key, true)
     val (exportedSongIds) = rememberPreference(ExportedSongIdsKey, "")
     val (exportedVideoIds) = rememberPreference(ExportedVideoIdsKey, "")
     val ensureMp3Folder = iad1tya.echo.music.ui.utils.rememberMp3ExportFolderAccess(
@@ -222,7 +223,8 @@ fun AuraPlayerMenu(
     if (showExportFormatDialog) {
         ExportFormatChooserDialog(
             songId = mediaMetadata.id,
-            includeOfflineDownload = true,
+            // Row 348: opened only by the «Exportar» row now — downloading lives on the player's own button.
+            includeOfflineDownload = false,
             hasMusicVideo = mediaMetadata.isVideoSong ||
                 !mediaMetadata.podcastVideoUrl.isNullOrEmpty(),
             onDismiss = { showExportFormatDialog = false },
@@ -594,6 +596,24 @@ fun AuraPlayerMenu(
                     label = stringResource(R.string.add_to_playlist),
                     onClick = { showChoosePlaylistDialog = true },
                 )
+                // Row 348 (C2 audit, UI_INVENTORY §3/§5): export a song that is ALREADY downloaded (or not) as
+                // MP3/video. The dialog was wired here but no row opened it, and the player's download
+                // button only offers export for songs that are not downloaded yet.
+                if (enableExportAsMp3 && !isLocalTrack) {
+                    if (isExporting) {
+                        AuraMenuRow(
+                            icon = AuraIcons.Export,
+                            label = stringResource(R.string.exporting),
+                            onClick = {},
+                        )
+                    } else {
+                        AuraMenuRow(
+                            icon = AuraIcons.Export,
+                            label = stringResource(R.string.action_export),
+                            onClick = { showExportFormatDialog = true },
+                        )
+                    }
+                }
                 AuraMenuRow(
                     icon = AuraIcons.Timer,
                     label = stringResource(R.string.set_as_ringtone),
