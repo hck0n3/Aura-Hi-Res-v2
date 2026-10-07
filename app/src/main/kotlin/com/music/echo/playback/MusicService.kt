@@ -3209,6 +3209,10 @@ class MusicService :
             parameters = buildUponParameters().setMaxVideoSize(maxVideoDim, maxVideoDim).build()
         }
         val player = ExoPlayer.Builder(this)
+            // media3 1.11 turns dynamic scheduling ON by default (row 335). Pinned OFF so the upgrade beta
+            // changes nothing but media3's own fixes; enabling it (fewer CPU wakeups) is its own measured
+            // item, because it interacts with the hiResDsp "not consumed" return in the sink above.
+            .experimentalSetDynamicSchedulingEnabled(false)
             .setMediaSourceFactory(createMediaSourceFactory())
             .setTrackSelector(videoTrackSelector)
             .setRenderersFactory(createRenderersFactory(silenceProcessor, eqProcessor, normProcessor, limiterProcessor))
@@ -10375,11 +10379,12 @@ class MusicService :
                     private var hiResAccessUnits = 0
                     private var hiResEosQueued = false
 
+                    // media3 1.11 (row 335): the (Format, Int, IntArray?) overload is now FINAL and funnels
+                    // into this one; the decision and the takeover below are unchanged.
                     override fun configure(
-                        inputFormat: androidx.media3.common.Format,
-                        specifiedBufferSize: Int,
-                        outputChannels: IntArray?,
+                        audioSinkConfig: androidx.media3.exoplayer.audio.AudioSink.AudioSinkConfig,
                     ) {
+                        val inputFormat = audioSinkConfig.format
                         tapEncoding = inputFormat.pcmEncoding
                         tapSampleRate = inputFormat.sampleRate
                         tapChannels = inputFormat.channelCount
@@ -10397,7 +10402,7 @@ class MusicService :
                         val delegateWouldSkipChain = !lowEnd &&
                             androidx.media3.common.MimeTypes.AUDIO_RAW == inputFormat.sampleMimeType &&
                             androidx.media3.common.util.Util.isEncodingHighResolutionPcm(inputFormat.pcmEncoding) &&
-                            outputChannels == null
+                            audioSinkConfig.outputChannelMapping == null
                         var delegateFormat = inputFormat
                         var pipeline: androidx.media3.common.audio.AudioProcessingPipeline? = null
                         if (delegateWouldSkipChain) {
@@ -10438,7 +10443,20 @@ class MusicService :
                         }
                         hiResDsp = pipeline
                         hiResEosQueued = false
-                        super.configure(delegateFormat, specifiedBufferSize, outputChannels)
+                        // The Builder has no setFormat: copy every other field explicitly (buffer size,
+                        // channel map, timeline + period id, which build() checks for consistency).
+                        @Suppress("DEPRECATION")
+                        val delegateConfig = if (delegateFormat === inputFormat) {
+                            audioSinkConfig
+                        } else {
+                            androidx.media3.exoplayer.audio.AudioSink.AudioSinkConfig.Builder(delegateFormat)
+                                .setPreferredBufferSizeOverride(audioSinkConfig.preferredBufferSizeOverride)
+                                .setOutputChannelMapping(audioSinkConfig.outputChannelMapping)
+                                .setTimeline(audioSinkConfig.timeline)
+                                .setMediaPeriodId(audioSinkConfig.mediaPeriodId)
+                                .build()
+                        }
+                        super.configure(delegateConfig)
                         logAudioPath(inputFormat, delegateFormat, pipeline != null)
                     }
 
