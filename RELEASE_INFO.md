@@ -1,4 +1,4 @@
-# Aura Hi-Res v2.0.64-beta4 — Menos batería, menos errores, Media3 nuevo y audio en 32 bits opcional
+# Aura Hi-Res v2.0.64-beta4 — Modo claro en Aura, menos batería, menos errores y Media3 nuevo
 
 Beta encima de la 2.0.64-beta3. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
@@ -29,6 +29,12 @@ Beta encima de la 2.0.64-beta3. Conserva tus datos, tu sesión y tus ajustes: mi
   navegación por Bluetooth en Android 16/17, un bloqueo con Android Auto y la carátula borrosa en la
   notificación. Los botones de la notificación, Android Auto, Bluetooth y la pantalla de bloqueo siguen
   funcionando igual.
+
+## Aura
+
+- **Nuevo: «Modo claro en Aura (experimental)»** en Ajustes ▸ Apariencia ▸ Tema, apagado por defecto. Con
+  él, la interfaz nueva sigue las opciones Sistema, Claro u Oscuro: en claro el fondo toma un tono suave
+  de la portada y todo el texto se mantiene bien legible. El reproductor a pantalla completa sigue oscuro.
 
 ## Canciones no disponibles
 
