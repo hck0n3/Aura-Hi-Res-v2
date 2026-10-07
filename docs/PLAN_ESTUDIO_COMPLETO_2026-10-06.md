@@ -172,7 +172,7 @@ riesgo bajo»). Lo que no nombres se queda como está.
 
 ## 8. Estado de la ejecución (2026-10-07)
 
-Rama `claude/nifty-ride-ox6396`, preparada como **2.0.64-beta4 (sin publicar)**. CI en verde: pruebas
+Rama `claude/nifty-ride-ox6396`. **2.0.64-beta4 publicada como prerelease el 2026-10-07** (canal beta). CI en verde: pruebas
 unitarias y APK de prueba.
 
 | Punto | Estado | Registro |
@@ -189,10 +189,11 @@ unitarias y APK de prueba.
 | C4 recomposiciones (reproductor Aura, ecualizador) | ✅ hecho; letras karaoke pendiente | #334 |
 | Media3 1.11.1 | ✅ hecho (2 trampas corregidas); validar en el móvil | #335 |
 | A3 audio en 32 bits | ✅ hecho como ajuste experimental apagado; validar de oído | #336 |
-| B4 APK arm64 | 🟡 la app ya elige bien; falta publicar el 2.º APK (cambio en `gradle.yml`, necesita tu permiso) | #331 |
+| B4 APK arm64 | ✅ hecho y publicado en la beta4 (46 MB vs 87 MB) | #331 |
 | A1 config del cifrado 1f293754 | ⏳ acción tuya (verificar con el base.js real) | #330 |
-| A2b PipePipe sin `sts` verificado | ⏳ decisión tuya (cambia qué extractor sirve cada canción) | #330 |
-| Material 3 / Material Kolor / Adaptive (alfas) | ⏳ pendiente: cambian el aspecto, conviene que pruebes antes la beta4 | — |
+| A2b PipePipe sin `sts` verificado | ✅ hecho (aprobado) | #337 |
+| Material 3 / Material Kolor / Adaptive (alfas) | ✅ Kolor 5 y Adaptive 1.4 hechos; Material 3 alfa28 rompe ~15 pantallas → se queda en alfa18 | #339 |
 | C1 partir `MusicService` | ⏳ pendiente (sin beneficio visible; riesgo medio) | — |
 | D1 pruebas de pantalla | ⏸ en espera: cambia el classpath de todas las pruebas | — |
-| A4 modo claro / C2 una sola interfaz | ⏳ decisiones de diseño tuyas | — |
+| A4 modo claro de Aura | ✅ hecho como opción experimental (apagada por defecto), publicado en la beta4 | #338 |
+| C2 una sola interfaz | ⏳ aprobado; pendiente (grande: hay que comprobar pantalla por pantalla que nada se pierda) | — |
