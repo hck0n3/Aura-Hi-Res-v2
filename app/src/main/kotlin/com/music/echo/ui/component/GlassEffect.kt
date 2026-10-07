@@ -31,6 +31,7 @@ import iad1tya.echo.music.ui.component.backdrop.effects.colorControls
 import iad1tya.echo.music.ui.component.backdrop.effects.lens
 import iad1tya.echo.music.ui.component.backdrop.highlight.Highlight
 import iad1tya.echo.music.ui.component.backdrop.shadow.Shadow
+import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceForm
 import iad1tya.echo.music.utils.DeviceTier
@@ -217,12 +218,14 @@ fun Modifier.liquidGlass(
     val lensAmountPx = with(density) { (config.lensAmount * LENS_MAX_DP).dp.toPx() } * resolutionScale
     // Apple's glass is a light material on light content and dark on dark; honor an
     // explicit user color, otherwise follow the theme.
+    // Row 341 (owner 2026-10-07): on a dark theme with a cover playing, the glass takes the cover's
+    // colour instead of a fixed #121212. An explicit user colour still wins.
     val surfaceTintColor = if (config.surfaceTintColor.isSpecified) {
         config.surfaceTintColor
     } else if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
         Color(0xFFFAFAFA)
     } else {
-        Color(0xFF121212)
+        AuraPalette.CoverGlassTint ?: Color(0xFF121212)
     }
 
     return drawBackdrop(
@@ -322,7 +325,9 @@ fun Modifier.liquidGlassInteractive(
     } else if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
         Color.White
     } else {
-        Color.Black
+        // Row 341: the darkening ramp keeps its job (no white wash over a bright cover) in the
+        // cover's own dark colour.
+        AuraPalette.CoverGlassTint ?: Color.Black
     }
     // El deslizador del usuario es el TOPE de la rampa, nunca un valor fijo. Si lo bajó por debajo del
     // suelo, el suelo cede: mandar él es más importante que mi mínimo.

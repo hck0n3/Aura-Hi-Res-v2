@@ -217,10 +217,12 @@ object AuraPalette {
     // ── Derived, non-negotiable alpha steps ────────────────────────────────────────────────────────
     /** Secondary text (artist names): `.a { opacity:.55 }`, or a full override when set. */
     val OnGroundMuted: Color
-        get() = roleOverrides.onSurfaceVariant ?: OnGround.copy(alpha = 0.55f)
+        get() = roleOverrides.onSurfaceVariant ?: OnGround.copy(alpha = 0.58f)
 
     /** Technical data / section labels: `opacity:.5` and `.42`. */
-    val OnGroundFaint: Color get() = OnGround.copy(alpha = 0.50f)
+    // Text steps raised 2026-10-07 (row 341) with the lighter, more colourful cover ground: measured over
+    // every cover hue with the cover-tinted ink, ghost ≥ 4.5:1, faint ≥ 4.7:1, muted ≥ 5.2:1, nav ≥ 6.5:1.
+    val OnGroundFaint: Color get() = OnGround.copy(alpha = 0.55f)
 
     /**
      * The faintest step that is still allowed to carry TEXT.
@@ -230,7 +232,7 @@ object AuraPalette {
      * text at 11–12 sp, which needs 4.5:1. `.48` composites to ~4.55:1 on the same ground, so the step
      * stays visibly below [OnGroundFaint] while clearing AA. Do not take it back down.
      */
-    val OnGroundGhost: Color get() = OnGround.copy(alpha = 0.48f)
+    val OnGroundGhost: Color get() = OnGround.copy(alpha = 0.53f)
 
     /**
      * An UNSELECTED bottom-nav cell — glyph and label together.
@@ -245,7 +247,7 @@ object AuraPalette {
      * it reads ~7:1 on `#060A12` and better still on AMOLED's pure black, for every one of the 46
      * swatches, because no swatch is a term in it.
      */
-    val NavInactive: Color get() = OnGround.copy(alpha = 0.62f)
+    val NavInactive: Color get() = OnGround.copy(alpha = 0.68f)
 
     /**
      * The pill that slides behind the SELECTED nav cell. The accent at a low alpha so the ground still
@@ -305,6 +307,22 @@ object AuraPalette {
     // same warmth the pill picks up from the bloomed screen it blurs.
     val FloatingFill: Color
         get() = Teal.copy(alpha = 0.07f).compositeOver(Color.White.copy(alpha = 0.025f).compositeOver(GroundRaised))
+
+    /**
+     * The tint of the chrome's GLASS — nav bar, mini pill, and the Liquid Glass of the player — while a
+     * cover is playing, or null with no cover resolved (each caller then keeps the tint it shipped with).
+     *
+     * Owner 2026-10-07: *"que el liquid glass del reproductor y la barra de abajo… también se adapten a
+     * los colores de la portada"*. It used to be a fixed `#121212` (Liquid Glass) or the plain raised
+     * ground (shell glass), i.e. a grey-black film over every song. Now it is the cover's own dark
+     * ground plus a tenth of its accent: the same colour family as the screen it floats over.
+     *
+     * 0.10 and not more: measured over every hue and the brightest accents, the nav bar's unselected
+     * labels ([NavInactive]) keep ≥ 4.5:1 on it (AuraAppearanceTest pins it); 0.14 would drop below.
+     */
+    val CoverGlassTint: Color?
+        get() = if (artworkInk == null || roleOverrides.surface != null) null
+        else Teal.copy(alpha = COVER_GLASS_ACCENT_ALPHA).compositeOver(GroundRaised)
 
     /**
      * Frosted overlay plate (dialogs / sheets / menus).
@@ -571,6 +589,21 @@ class AuraAccent(
                 tertiary = stop(TERTIARY_HUE_OFFSET),
             )
         }
+
+        /**
+         * The trio for a now-playing cover (row 341, owner 2026-10-07: "reflejar el color de las
+         * portadas exacto"): the cover's OWN second and third colours ([CoverColors]) instead of hues
+         * rotated off the first, each clamped to the same 4.5:1 as [from]. A single-hue cover has no
+         * second colour to show, so its missing stops fall back to [from]'s rotation, as before.
+         */
+        fun fromCover(seed: Color, second: Color?, third: Color?, ground: Color): AuraAccent {
+            val rotated = from(seed, ground)
+            return AuraAccent(
+                primary = rotated.primary,
+                secondary = second?.let { ensureLegibleOn(it, ground, MIN_TEXT_CONTRAST) } ?: rotated.secondary,
+                tertiary = third?.let { ensureLegibleOn(it, ground, MIN_TEXT_CONTRAST) } ?: rotated.tertiary,
+            )
+        }
     }
 }
 
@@ -630,7 +663,8 @@ fun AuraPaletteSync() {
         if (id.isNullOrEmpty() || url.isNullOrEmpty()) return@LaunchedEffect
         AuraBloomCache.ensure(context, id, url)
     }
-    val artworkSeed = AuraBloomCache.accentSeed(mediaId)
+    val artworkEntry = AuraBloomCache.entry(mediaId)
+    val artworkSeed = artworkEntry?.accentSeed
 
     val followsUser = selectedThemeColorInt != DefaultThemeColor.toArgb() ||
         themePreset != ThemePreset.NONE ||
@@ -645,9 +679,14 @@ fun AuraPaletteSync() {
         if (seed == null || pureBlack || customRoles.background != null) null else auraArtworkGround(seed)
     }
     val ground = artworkGround ?: customRoles.effectiveAuraGround(pureBlack, fallback = scheme.surface)
-    val resolved = remember(followsUser, scheme.primary, ground, artworkSeed) {
+    val resolved = remember(followsUser, scheme.primary, ground, artworkEntry) {
         when {
-            artworkSeed != null -> AuraAccent.from(artworkSeed, ground)
+            artworkEntry != null -> AuraAccent.fromCover(
+                seed = artworkEntry.accentSeed,
+                second = artworkEntry.coverSecondary,
+                third = artworkEntry.coverTertiary,
+                ground = ground,
+            )
             followsUser -> AuraAccent.from(scheme.primary, ground)
             else -> AuraAccent.Brand
         }
@@ -673,12 +712,13 @@ fun AuraPaletteSync() {
 }
 
 /**
- * Owner 2026-10-06 (*"la veo muy oscura"*): the cover's hue as a deep ground — value 0.12 (the shipped
- * `#060A12` sits at ~0.07) with a moderate saturation, so every song paints its own dark colour instead
- * of one blue-black. An achromatic (black-and-white) cover keeps zero saturation: a neutral dark grey,
- * never an invented hue. Measured against the cover-tinted ink [AuraPaletteSync] already uses, the text
- * steps stay within ~0.12 of the contrast ratio they have on today's ground (AuraAppearanceTest pins it);
- * a value of 0.13 or more starts costing the faintest text step legibility, so this is as light as it goes.
+ * Owner 2026-10-06 (*"la veo muy oscura"*) and 2026-10-07 (*"un poco más claro y más colorido"*): the
+ * cover's hue as the ground — value 0.18 (the shipped `#060A12` sits at ~0.07) with a rich saturation, so
+ * every song paints its own colour instead of one blue-black. An achromatic (black-and-white) cover keeps
+ * zero saturation: a neutral dark grey, never an invented hue. Measured against the cover-tinted ink
+ * [AuraPaletteSync] already uses, over every hue: full ink ≥ 12.5:1 and every text step ≥ AA 4.5:1
+ * (AuraAppearanceTest pins it). Going lighter would need the text steps above 0.53 to hold AA, so the
+ * hierarchy between them would start to flatten.
  */
 fun auraArtworkGround(seed: Color): Color {
     val (hue, saturation, _) = ColorPickerConversions.colorToHsv(seed)
@@ -686,8 +726,12 @@ fun auraArtworkGround(seed: Color): Color {
     return ColorPickerConversions.hsvToColor(hue, s, ARTWORK_GROUND_VALUE)
 }
 
-private const val ARTWORK_GROUND_SATURATION = 0.45f
-private const val ARTWORK_GROUND_VALUE = 0.12f
+// Owner 2026-10-07: "mejora el modo oscuro volviéndolo un poco más claro y más colorido". 0.12/0.45 →
+// 0.18/0.60: a visibly lighter, richer ground in the cover's own hue. Contrast of the text steps is the
+// same as on 0.12 (the cover-tinted ink brightens with it) and the steps were raised to clear AA (row 341).
+private const val ARTWORK_GROUND_SATURATION = 0.60f
+internal const val COVER_GLASS_ACCENT_ALPHA = 0.10f
+private const val ARTWORK_GROUND_VALUE = 0.18f
 
 /**
  * The three blurred radial gradients that sit behind every new screen. Held as data (not as a [Brush])

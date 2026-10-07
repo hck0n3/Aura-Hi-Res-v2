@@ -1,6 +1,27 @@
-# Aura Hi-Res v2.0.64-beta4 — Modo claro en Aura, menos batería, menos errores y Media3 nuevo
+# Aura Hi-Res v2.0.64-beta5 — Colores de la portada más vivos y adiós a los cierres al abrir menús
 
-Beta encima de la 2.0.64-beta3. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta4. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Arreglado en esta beta
+
+- **Ya no se cierra la app al tocar «Agregar a playlist» con el reproductor abierto**, y la hoja de
+  «Pedir música» vuelve a abrirse. Lo provocaba una librería de la interfaz actualizada en la beta4;
+  se volvió a la versión probada.
+- **Se quitó el «Modo claro en Aura»** de la beta4: daba fallos y las ventanas flotantes se veían
+  transparentes. Aura vuelve a ser solo oscura.
+
+## Colores de la portada
+
+- **El modo oscuro es un poco más claro y más colorido:** el fondo toma el color de la portada con más
+  intensidad, y los textos se aclararon para que se sigan leyendo bien sobre cualquier color.
+- **Los colores salen exactos de la portada:** la app distingue el triple de colores y elige el que de
+  verdad llena la portada (no un detalle pequeño), y el degradado usa los otros colores reales de la
+  portada en vez de inventarlos.
+- **El cristal del reproductor, del mini reproductor y de la barra de abajo se tiñe con la portada.**
+  Antes era una película gris oscura igual para todas las canciones. Si elegiste un color propio para el
+  cristal en Ajustes, se sigue usando el tuyo.
+
+También incluye todo lo de la beta4:
 
 ## Batería y temperatura
 
@@ -29,12 +50,6 @@ Beta encima de la 2.0.64-beta3. Conserva tus datos, tu sesión y tus ajustes: mi
   navegación por Bluetooth en Android 16/17, un bloqueo con Android Auto y la carátula borrosa en la
   notificación. Los botones de la notificación, Android Auto, Bluetooth y la pantalla de bloqueo siguen
   funcionando igual.
-
-## Aura
-
-- **Nuevo: «Modo claro en Aura (experimental)»** en Ajustes ▸ Apariencia ▸ Tema, apagado por defecto. Con
-  él, la interfaz nueva sigue las opciones Sistema, Claro u Oscuro: en claro el fondo toma un tono suave
-  de la portada y todo el texto se mantiene bien legible. El reproductor a pantalla completa sigue oscuro.
 
 ## Canciones no disponibles
 

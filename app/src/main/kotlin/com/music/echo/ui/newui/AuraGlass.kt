@@ -154,13 +154,18 @@ object ShellScrollBus {
  * the first glass commit, matching the new UI's darker chrome language.
  */
 @Composable
-fun shellGlassStyle(): HazeStyle = HazeStyle(
-    backgroundColor = AuraPalette.GroundRaised,
-    blurRadius = 18.dp,
-    noiseFactor = 0.12f,
-    tints = listOf(HazeTint(AuraPalette.GroundRaised.copy(alpha = 0.85f))),
-    fallbackTint = HazeTint(AuraPalette.GroundRaised),
-)
+fun shellGlassStyle(): HazeStyle {
+    // Row 341 (owner 2026-10-07): with a cover playing the frost carries the cover's colour
+    // ([AuraPalette.CoverGlassTint]); with none it is the raised ground it always was.
+    val tint = AuraPalette.CoverGlassTint ?: AuraPalette.GroundRaised
+    return HazeStyle(
+        backgroundColor = tint,
+        blurRadius = 18.dp,
+        noiseFactor = 0.12f,
+        tints = listOf(HazeTint(tint.copy(alpha = 0.85f))),
+        fallbackTint = HazeTint(tint),
+    )
+}
 
 /**
  * Marks the CONTENT that the shell chrome samples. Put it on the Box that hosts the scaffold body —

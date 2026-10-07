@@ -358,14 +358,64 @@ class AuraAppearanceTest {
             val seed = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue.toFloat(), 0.8f, 0.8f)
             val ground = auraArtworkGround(seed)
             assertTrue("hue $hue: ground must be lighter than #060A12", ground.luminance() > shipped.luminance())
-            // Same cover-tinted ink AuraPaletteSync paints on it (hue, s 0.10, v 0.96), at the faintest
-            // step that carries text: never less legible than the very same ink on today's ground.
+            // Same cover-tinted ink AuraPaletteSync paints on it (hue, s 0.10, v 0.96), at every step that
+            // carries text (row 341: the steps were raised with the lighter 2026-10-07 ground): all AA.
             val ink = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue.toFloat(), 0.10f, 0.96f)
-            val ghostNew = contrastRatio(ink.copy(alpha = 0.48f).compositeOver(ground), ground)
-            val ghostToday = contrastRatio(ink.copy(alpha = 0.48f).compositeOver(shipped), shipped)
-            assertTrue("hue $hue: $ghostNew vs $ghostToday", ghostNew >= ghostToday - 0.15f)
-            assertTrue("hue $hue: body text", contrastRatio(ink, ground) >= 4.5f)
+            AuraPalette.apply(AuraAccent.Brand, pureBlack = false, coverCorners = AuraCoverCorners.Render, artworkInk = ink, artworkGround = ground)
+            listOf(
+                "ghost" to AuraPalette.OnGroundGhost,
+                "faint" to AuraPalette.OnGroundFaint,
+                "muted" to AuraPalette.OnGroundMuted,
+                "nav" to AuraPalette.NavInactive,
+            ).forEach { (step, color) ->
+                val ratio = contrastRatio(color.compositeOver(ground), ground)
+                assertTrue("hue $hue: $step text at $ratio", ratio >= TEXT_AA)
+            }
+            assertTrue("hue $hue: body text", contrastRatio(ink, ground) >= 12f)
         }
+    }
+
+    /** Row 341: the accent shows the cover's own colours, each still AA on the ground. */
+    @Test
+    fun `the cover accent uses the cover's real second and third colours`() {
+        val seed = Color(0xFF1E5BD8)
+        val ground = auraArtworkGround(seed)
+        val red = Color(0xFFD32F2F)
+        val yellow = Color(0xFFF2C21B)
+        val accent = AuraAccent.fromCover(seed, red, yellow, ground)
+        assertEquals(AuraAccent.from(seed, ground).primary, accent.primary)
+        listOf(accent.primary, accent.secondary, accent.tertiary).forEach {
+            assertTrue(contrastRatio(it, ground) >= TEXT_AA)
+        }
+        // Same hue as the cover's colour (only lightness may move to reach AA).
+        val (redHue, _, _) = iad1tya.echo.music.ui.component.ColorPickerConversions.colorToHsv(red)
+        val (secondHue, _, _) = iad1tya.echo.music.ui.component.ColorPickerConversions.colorToHsv(accent.secondary)
+        assertTrue(CoverColors.hueDistance(redHue, secondHue) < 3f)
+        // A single-hue cover keeps the rotated stops it always had.
+        assertEquals(AuraAccent.from(seed, ground), AuraAccent.fromCover(seed, null, null, ground))
+    }
+
+    /** Row 341: the glass carries the cover's colour and the nav bar stays legible on it. */
+    @Test
+    fun `the cover glass tint keeps the nav labels legible on every hue`() {
+        assertEquals(null, AuraPalette.CoverGlassTint)
+        for (hue in 0 until 360 step 10) {
+            val seed = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue.toFloat(), 0.95f, 0.95f)
+            val ground = auraArtworkGround(seed)
+            val ink = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue.toFloat(), 0.10f, 0.96f)
+            AuraPalette.apply(
+                AuraAccent.from(seed, ground),
+                pureBlack = false,
+                coverCorners = AuraCoverCorners.Render,
+                artworkInk = ink,
+                artworkGround = ground,
+            )
+            val glass = AuraPalette.CoverGlassTint!!
+            val ratio = contrastRatio(AuraPalette.NavInactive.compositeOver(glass), glass)
+            assertTrue("hue $hue: nav label on the glass at $ratio", ratio >= TEXT_AA)
+        }
+        AuraPalette.reset()
+        assertEquals(null, AuraPalette.CoverGlassTint)
     }
 
     @Test

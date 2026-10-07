@@ -113,9 +113,12 @@ object AuraBloomCache {
      * resolved yet / there is no now-playing id. [AuraPaletteSync] reads this so Teal / buttons /
      * section titles follow the same cover as the wash — not only the ambient gradients.
      */
-    fun accentSeed(mediaId: String?): Color? {
+    fun accentSeed(mediaId: String?): Color? = entry(mediaId)?.accentSeed
+
+    /** The whole extraction for [mediaId] (seed + the cover's other real colours), or null. */
+    fun entry(mediaId: String?): AuraBloomEntry? {
         if (mediaId.isNullOrEmpty()) return null
-        return entries[mediaId]?.accentSeed
+        return entries[mediaId]
     }
 
     /**
@@ -176,6 +179,13 @@ object AuraBloomCache {
 data class AuraBloomEntry(
     val colors: AuraBloomColors,
     val accentSeed: Color,
+    /**
+     * The cover's second and third REAL colours (row 341, [CoverColors]), opaque, or null when the
+     * cover has a single hue. [AuraAccent.fromCover] uses them for the accent trio instead of hues
+     * rotated off the seed, so the gradients show the cover's own colours.
+     */
+    val coverSecondary: Color? = null,
+    val coverTertiary: Color? = null,
 )
 
 /**
@@ -335,24 +345,28 @@ private suspend fun extractAuraBloom(
         context.imageLoader.execute(request).image?.toBitmap()
     } ?: return null
 
+    // Row 341 (owner 2026-10-07: "reflejar el color de las portadas exacto"): 24 buckets instead of 8, so
+    // neighbouring tones of the cover are no longer merged into an in-between colour it does not have,
+    // and the colours are chosen by how much of the cover they fill ([CoverColors.pick]) instead of
+    // "vibrant first" — the colour the eye names wins, not a small vivid detail.
     val palette = withContext(Dispatchers.Default) {
-        Palette.from(bitmap).maximumColorCount(8).resizeBitmapArea(100 * 100).generate()
+        Palette.from(bitmap).maximumColorCount(CoverColors.MAX_COLORS).resizeBitmapArea(100 * 100).generate()
     }
+    val trio = CoverColors.pick(palette.swatches.map { CoverColors.Swatch(it.rgb, it.population) })
+        ?: return null
 
-    val swatches = listOfNotNull(
+    // A single-hue cover still gets some depth in the wash: its named light/dark variants fill the
+    // empty lobes (same hue, other lightness), exactly as before row 341.
+    val variants = listOfNotNull(
         palette.vibrantSwatch,
         palette.lightVibrantSwatch,
         palette.darkVibrantSwatch,
         palette.dominantSwatch,
         palette.mutedSwatch,
-        palette.lightMutedSwatch,
-        palette.darkMutedSwatch,
-    ).distinctBy { it.rgb }
-    if (swatches.isEmpty()) return null
-
-    val primary = swatches[0].rgb
-    val secondary = swatches.getOrNull(1)?.rgb ?: primary
-    val tertiary = swatches.getOrNull(2)?.rgb ?: secondary
+    ).map { it.rgb or (0xFF shl 24) }.filter { it != trio.primary }.distinct()
+    val primary = trio.primary
+    val secondary = trio.secondary ?: variants.getOrNull(0) ?: primary
+    val tertiary = trio.tertiary ?: variants.firstOrNull { it != secondary } ?: secondary
 
     // Owner 2026-10-06: "que los colores animados que generan las portadas sean más notables". The
     // render's alphas (.32 / .30 / .24) are raised by about a third for COVER colours only — still a
@@ -365,6 +379,8 @@ private suspend fun extractAuraBloom(
         ),
         // Opaque, chroma-floored seed — same HSV floors as the lobes, so chrome and wash agree.
         accentSeed = bloomLobeColor(primary, 1f),
+        coverSecondary = trio.secondary?.let { bloomLobeColor(it, 1f) },
+        coverTertiary = trio.tertiary?.let { bloomLobeColor(it, 1f) },
     )
 }
 
