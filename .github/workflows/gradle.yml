@@ -133,18 +133,46 @@ jobs:
           # it. When the secret is missing the build still succeeds — the shipped app simply has no DSP
           # engine and says so on the EQ screen (Gradle logs a warning).
           SUPERPOWERED_LICENSE_KEY: ${{ secrets.SUPERPOWERED_LICENSE_KEY }}
-        run: ./gradlew assembleUniversalGmsRelease
+        # Plan B4 (row 331, owner approved 2026-10-07): the universal APK (every device) AND an arm64-only
+        # APK (~46 MB instead of ~87) for modern phones. ONE variant per Gradle run: Room exports its schema
+        # JSON to the same app/schemas for every variant, and two KSP tasks in one run race on that file.
+        run: |
+          ./gradlew assembleUniversalGmsRelease
+          ./gradlew assembleArm64GmsRelease
 
       - name: Rename and Organize APKs
         run: |
           VERSION_NAME=$(grep "versionName =" app/build.gradle.kts | head -n 1 | awk -F '"' '{print $2}')
           echo "App Version: $VERSION_NAME"
           mkdir -p app/build/outputs/apk/release-artifacts
-          # ONE universal APK for EVERY device (arm64/armeabi-v7a/x86/x86_64) — phones, Android TV, car head
-          # units, 32-bit boxes — to avoid ABI-compatibility problems. It's the single default download.
+          set -euo pipefail
+          # NAMING CONTRACT (row 331): installed versions choose by NAME — an arm64 device takes the first
+          # APK WITHOUT "universal", any other device the first WITH it. So the universal MUST contain
+          # "universal" and the arm64 one must NEVER contain it, or a 32-bit TV is offered an APK it
+          # cannot install.
           UNIVERSAL_APK=$(find app/build/outputs/apk/universalGms/release -name "*.apk" | head -n 1)
-          cp "$UNIVERSAL_APK" "app/build/outputs/apk/release-artifacts/Aura-Hi-Res-v2-${VERSION_NAME}.apk"
-          echo "universal -> Aura-Hi-Res-v2-${VERSION_NAME}.apk"
+          ARM64_APK=$(find app/build/outputs/apk/arm64Gms/release -name "*.apk" | head -n 1)
+          test -f "$UNIVERSAL_APK" && test -f "$ARM64_APK"
+          cp "$UNIVERSAL_APK" "app/build/outputs/apk/release-artifacts/Aura-Hi-Res-v2-${VERSION_NAME}-universal.apk"
+          cp "$ARM64_APK" "app/build/outputs/apk/release-artifacts/Aura-Hi-Res-v2-${VERSION_NAME}-arm64.apk"
+          ls -l app/build/outputs/apk/release-artifacts/
+
+      - name: Verify both APKs (same signer, same version, arm64 really arm64-only)
+        run: |
+          set -euo pipefail
+          BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -n 1)
+          D=app/build/outputs/apk/release-artifacts
+          U=$(ls "$D"/*-universal.apk); A=$(ls "$D"/*-arm64.apk)
+          CU=$("$BT/apksigner" verify --print-certs "$U" | grep -m1 'SHA-256')
+          CA=$("$BT/apksigner" verify --print-certs "$A" | grep -m1 'SHA-256')
+          echo "universal: $CU"; echo "arm64: $CA"
+          [ "$CU" = "$CA" ] || { echo "::error::the two APKs are signed with different certificates"; exit 1; }
+          VU=$("$BT/aapt2" dump badging "$U" | head -n1); VA=$("$BT/aapt2" dump badging "$A" | head -n1)
+          [ "$VU" = "$VA" ] || { echo "::error::package/version differ: $VU vs $VA"; exit 1; }
+          if unzip -l "$A" | grep ' lib/' | grep -vq ' lib/arm64-v8a/'; then
+            echo "::error::the arm64 APK carries libraries for other ABIs"; exit 1
+          fi
+          echo "Both APKs verified: $VU"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v7
