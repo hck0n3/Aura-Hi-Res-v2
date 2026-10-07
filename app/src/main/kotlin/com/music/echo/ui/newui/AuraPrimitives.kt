@@ -445,11 +445,23 @@ fun AuraSwitch(
     val trackColor by transition.animateColor(
         transitionSpec = { AuraMotion.color() },
         label = "auraSwitchTrack",
-    ) { on -> if (on) AuraPalette.Teal else Color.White.copy(alpha = 0.18f) }
+    ) { on ->
+        when {
+            on -> AuraPalette.Teal
+            AuraPalette.isLight -> Color.Black.copy(alpha = 0.14f) // plan A4: light variant
+            else -> Color.White.copy(alpha = 0.18f)
+        }
+    }
     val knobColor by transition.animateColor(
         transitionSpec = { AuraMotion.color() },
         label = "auraSwitchKnobColor",
-    ) { on -> if (on) AuraPalette.OnAccent else Color(0xFF8FA0B8) }
+    ) { on ->
+        when {
+            on -> AuraPalette.OnAccent
+            AuraPalette.isLight -> Color(0xFF6B7789) // ≥ 3:1 on the light off-track (plan A4)
+            else -> Color(0xFF8FA0B8)
+        }
+    }
 
     Box(
         modifier = modifier
@@ -502,7 +514,13 @@ fun AuraChip(
     val fillColor by transition.animateColor(
         transitionSpec = { AuraMotion.color() },
         label = "auraChipFill",
-    ) { on -> if (on) AuraPalette.Teal else Color.White.copy(alpha = 0.08f) }
+    ) { on ->
+        when {
+            on -> AuraPalette.Teal
+            AuraPalette.isLight -> Color.Black.copy(alpha = 0.06f) // plan A4: light variant
+            else -> Color.White.copy(alpha = 0.08f)
+        }
+    }
     val inkColor by transition.animateColor(
         transitionSpec = { AuraMotion.color() },
         label = "auraChipInk",

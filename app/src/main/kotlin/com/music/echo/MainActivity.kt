@@ -730,8 +730,12 @@ class MainActivity : ComponentActivity() {
         // The redesign is DARK-ONLY: its ground is a near-black literal and every step of its palette
         // is white-at-low-alpha over it, so there is no light variant to fall back to. Forcing dark is
         // therefore part of turning it on, not a preference being ignored quietly — see the report.
-        val useDarkTheme = remember(darkTheme, isSystemInDarkTheme, newUiShell) {
-            newUiShell || if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
+        // Plan A4: "Modo claro en Aura" (default OFF) lifts the forced dark; same term as
+        // EffectiveDarkTheme.rememberNewUiForcesDarkTheme, so every surface agrees with this scheme.
+        val auraLightMode by rememberPreference(iad1tya.echo.music.constants.AuraLightModeKey, defaultValue = false)
+        val newUiForcesDark = newUiShell && !auraLightMode
+        val useDarkTheme = remember(darkTheme, isSystemInDarkTheme, newUiForcesDark) {
+            newUiForcesDark || if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
         }
 
         LaunchedEffect(useDarkTheme) {

@@ -4,10 +4,12 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import iad1tya.echo.music.constants.AuraLightModeKey
 import iad1tya.echo.music.constants.DarkModeKey
 import iad1tya.echo.music.ui.newui.rememberNewUiEnabled
 import iad1tya.echo.music.ui.screens.settings.DarkMode
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberPreference
 
 /**
  * # "Is the app dark right now?" — asked ONCE, in one place
@@ -37,7 +39,7 @@ import iad1tya.echo.music.utils.rememberEnumPreference
  */
 @Composable
 fun rememberEffectiveDarkTheme(): Boolean {
-    val newUiForcesDark = rememberNewUiEnabled()
+    val newUiForcesDark = rememberNewUiForcesDarkTheme()
     val darkMode by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
     val systemDark = isSystemInDarkTheme()
     return remember(darkMode, systemDark, newUiForcesDark) {
@@ -72,4 +74,9 @@ fun effectiveDarkTheme(
  * to fix.
  */
 @Composable
-fun rememberNewUiForcesDarkTheme(): Boolean = rememberNewUiEnabled()
+fun rememberNewUiForcesDarkTheme(): Boolean {
+    val newUi = rememberNewUiEnabled()
+    // Plan A4: with "Modo claro en Aura" ON the redesign stops forcing dark and follows DarkModeKey.
+    val auraLight by rememberPreference(AuraLightModeKey, defaultValue = false)
+    return newUi && !auraLight
+}

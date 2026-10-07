@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -103,6 +104,21 @@ object AuraPalette {
      */
     private val AmoledGroundRaised = Color(0xFF060606)
 
+    // ── Light variant (plan A4, "Modo claro en Aura", opt-in) ─────────────────────────────────────
+    // Same structure as the dark render, inverted: a cool near-white ground, a white raised plate,
+    // dark ink, and every white-at-low-alpha film becomes black-at-low-alpha. Only used while
+    // [lightGround] is true, which only happens when the user turned the switch on AND the app theme
+    // resolved to light.
+
+    /** Light ground: cool off-white, the inverse of [BrandGround]'s blue bias. */
+    private val BrandGroundLight = Color(0xFFF2F5FA)
+
+    /** Light raised plate (mini pill, menus): white, one step above [BrandGroundLight]. */
+    private val BrandGroundRaisedLight = Color(0xFFFFFFFF)
+
+    /** Ink on the light ground: deep blue-black, ~16:1 on [BrandGroundLight]. */
+    private val BrandOnGroundLight = Color(0xFF0E1726)
+
     // ── Resolved state. Written only by [AuraPaletteSync]. ────────────────────────────────────────
 
     /** The three accents in force, plus everything derived from them, resolved once per theme change. */
@@ -110,6 +126,15 @@ object AuraPalette {
 
     /** True while "Negro puro (AMOLED)" is on, which is the only thing that moves the ground past overrides. */
     private var pureBlackGround by mutableStateOf(false)
+
+    /** Plan A4: true while Aura paints its LIGHT tokens (switch on + app theme light). */
+    private var lightGround by mutableStateOf(false)
+
+    /** True while the redesign is in its light variant — for components that pick their own films. */
+    val isLight: Boolean get() = lightGround
+
+    /** The film colour: white over the dark ground, black over the light one. */
+    private val film: Color get() = if (lightGround) Color.Black else Color.White
 
     /**
      * Per-role overrides from Tema ▸ Personalizar roles. [CustomThemeRoles.None] keeps every getter
@@ -151,7 +176,9 @@ object AuraPalette {
         roles: CustomThemeRoles = CustomThemeRoles.None,
         artworkInk: Color? = null,
         artworkGround: Color? = null,
+        light: Boolean = false,
     ) {
+        if (lightGround != light) lightGround = light
         if (accent != next) accent = next
         if (pureBlackGround != pureBlack) pureBlackGround = pureBlack
         if (corners != coverCorners) corners = coverCorners
@@ -168,6 +195,7 @@ object AuraPalette {
         roles = CustomThemeRoles.None,
         artworkInk = null,
         artworkGround = null,
+        light = false,
     )
 
     // ── Accents ───────────────────────────────────────────────────────────────────────────────────
@@ -192,6 +220,7 @@ object AuraPalette {
             pureBlackGround -> Color.Black
             roleOverrides.background != null -> roleOverrides.background!!
             artworkGround != null -> artworkGround!!
+            lightGround -> BrandGroundLight
             else -> BrandGround
         }
 
@@ -201,26 +230,34 @@ object AuraPalette {
             pureBlackGround -> AmoledGroundRaised
             roleOverrides.surface != null -> roleOverrides.surface!!
             roleOverrides.background != null ->
-                Color.White.copy(alpha = 0.04f).compositeOver(roleOverrides.background!!)
-            artworkGround != null -> Color.White.copy(alpha = 0.04f).compositeOver(artworkGround!!)
+                Color.White.copy(alpha = if (lightGround) 0.55f else 0.04f).compositeOver(roleOverrides.background!!)
+            artworkGround != null ->
+                Color.White.copy(alpha = if (lightGround) 0.55f else 0.04f).compositeOver(artworkGround!!)
+            lightGround -> BrandGroundRaisedLight
             else -> BrandGroundRaised
         }
 
     /** Foreground text/icon colour on [Ground]. Cover-tinted while a track's artwork is resolved. */
     val OnGround: Color
-        get() = roleOverrides.onBackground ?: artworkInk ?: BrandOnGround
+        get() = roleOverrides.onBackground ?: artworkInk ?: if (lightGround) BrandOnGroundLight else BrandOnGround
 
     /** Knob colour of a switch and the ink INSIDE the gradient play button. */
     val OnAccent: Color
-        get() = roleOverrides.onPrimary ?: BrandOnAccent
+        // Light variant: the accents are walked DARKER to stay legible on the light ground, so the ink
+        // inside the play button and the switch knob become white.
+        get() = roleOverrides.onPrimary ?: if (lightGround) Color.White else BrandOnAccent
 
     // ── Derived, non-negotiable alpha steps ────────────────────────────────────────────────────────
     /** Secondary text (artist names): `.a { opacity:.55 }`, or a full override when set. */
     val OnGroundMuted: Color
-        get() = roleOverrides.onSurfaceVariant ?: OnGround.copy(alpha = 0.55f)
+        get() = roleOverrides.onSurfaceVariant ?: OnGround.copy(alpha = if (lightGround) 0.76f else 0.55f)
 
     /** Technical data / section labels: `opacity:.5` and `.42`. */
-    val OnGroundFaint: Color get() = OnGround.copy(alpha = 0.50f)
+    // Light variant (plan A4): dark ink at low alpha over a light ground loses contrast much faster than
+    // light ink over a dark one, so every text step has its own light alpha — measured over the brand
+    // light ground AND every cover-tinted light ground (AuraAppearanceTest): faint ≥ 4.9:1, ghost ≥ 4.6:1,
+    // muted ≥ 5.6:1, nav ≥ 7:1, disabled (icons, not text) ≥ 3:1.
+    val OnGroundFaint: Color get() = OnGround.copy(alpha = if (lightGround) 0.71f else 0.50f)
 
     /**
      * The faintest step that is still allowed to carry TEXT.
@@ -230,7 +267,7 @@ object AuraPalette {
      * text at 11–12 sp, which needs 4.5:1. `.48` composites to ~4.55:1 on the same ground, so the step
      * stays visibly below [OnGroundFaint] while clearing AA. Do not take it back down.
      */
-    val OnGroundGhost: Color get() = OnGround.copy(alpha = 0.48f)
+    val OnGroundGhost: Color get() = OnGround.copy(alpha = if (lightGround) 0.69f else 0.48f)
 
     /**
      * An UNSELECTED bottom-nav cell — glyph and label together.
@@ -245,7 +282,7 @@ object AuraPalette {
      * it reads ~7:1 on `#060A12` and better still on AMOLED's pure black, for every one of the 46
      * swatches, because no swatch is a term in it.
      */
-    val NavInactive: Color get() = OnGround.copy(alpha = 0.62f)
+    val NavInactive: Color get() = OnGround.copy(alpha = if (lightGround) 0.83f else 0.62f)
 
     /**
      * The pill that slides behind the SELECTED nav cell. The accent at a low alpha so the ground still
@@ -255,10 +292,10 @@ object AuraPalette {
     val NavIndicator: Color get() = accent.navIndicator
 
     /** Inactive transport icons: `opacity:.3`. Drag handles live here too. */
-    val OnGroundDisabled: Color get() = OnGround.copy(alpha = 0.30f)
+    val OnGroundDisabled: Color get() = OnGround.copy(alpha = if (lightGround) 0.53f else 0.30f)
 
     /** Card / chip fill: `rgba(255,255,255,.07)`. */
-    val SurfaceFill = Color.White.copy(alpha = 0.07f)
+    val SurfaceFill: Color get() = film.copy(alpha = if (lightGround) 0.05f else 0.07f)
 
     /**
      * [SurfaceFill] for a control that FLOATS over other content instead of sitting on the ground.
@@ -304,7 +341,7 @@ object AuraPalette {
     // app"): a whisper of the cover-driven accent ([Teal] follows the artwork via AuraPaletteSync), the
     // same warmth the pill picks up from the bloomed screen it blurs.
     val FloatingFill: Color
-        get() = Teal.copy(alpha = 0.07f).compositeOver(Color.White.copy(alpha = 0.025f).compositeOver(GroundRaised))
+        get() = Teal.copy(alpha = 0.07f).compositeOver(film.copy(alpha = 0.025f).compositeOver(GroundRaised))
 
     /**
      * Frosted overlay plate (dialogs / sheets / menus).
@@ -357,7 +394,7 @@ object AuraPalette {
      * second "floating" line value to keep in step with this one.
      */
     val SurfaceLine: Color
-        get() = roleOverrides.outline ?: Color.White.copy(alpha = 0.10f)
+        get() = roleOverrides.outline ?: film.copy(alpha = 0.10f)
 
     /**
      * Hairline on album / playlist / video / artist artwork — Apple Music's thin cover edge.
@@ -366,19 +403,19 @@ object AuraPalette {
     val ArtworkEdge: Color
         get() = roleOverrides.outline?.copy(
             alpha = (roleOverrides.outline!!.alpha * 1.6f).coerceIn(0.12f, 0.28f),
-        ) ?: Color.White.copy(alpha = 0.16f)
+        ) ?: film.copy(alpha = if (lightGround) 0.12f else 0.16f)
 
     /** Section separators (nav bar top, engine status bar top). */
     val Divider: Color
         get() = roleOverrides.outline?.copy(
             alpha = (roleOverrides.outline!!.alpha * 0.9f).coerceIn(0.05f, 1f),
-        ) ?: Color.White.copy(alpha = 0.09f)
+        ) ?: film.copy(alpha = 0.09f)
 
     /** Empty progress track. */
     val TrackEmpty: Color
         get() = roleOverrides.outline?.copy(
             alpha = (roleOverrides.outline!!.alpha * 1.15f).coerceIn(0.08f, 1f),
-        ) ?: Color.White.copy(alpha = 0.13f)
+        ) ?: film.copy(alpha = 0.13f)
 
     /** "SONANDO" row highlight: fill `rgba(accent,.10)` + border `rgba(accent,.25)`. */
     val NowPlayingFill: Color get() = accent.nowPlayingFill
@@ -602,7 +639,11 @@ class AuraAccent(
 fun AuraPaletteSync() {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
-    val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
+    // Plan A4: the redesign is light exactly when the app scheme it sits in is light — which MainActivity
+    // only allows with "Modo claro en Aura" ON. AMOLED is a dark-only look, so it never applies in light.
+    val light = scheme.surface.luminance() > 0.5f
+    val pureBlackPref by rememberPreference(PureBlackKey, defaultValue = false)
+    val pureBlack = pureBlackPref && !light
     val selectedThemeColorInt by rememberPreference(
         SelectedThemeColorKey,
         defaultValue = DefaultThemeColor.toArgb(),
@@ -640,11 +681,19 @@ fun AuraPaletteSync() {
     // included — measuring against `#060A12` and then drawing on another canvas would understate contrast.
     // Owner 2026-10-06 — the cover-tinted ground (see [auraArtworkGround]). Only where nothing the user
     // chose already decides the ground: AMOLED and a custom Fondo keep winning, exactly as before.
-    val artworkGround = remember(artworkSeed, pureBlack, customRoles.background) {
+    val artworkGround = remember(artworkSeed, pureBlack, customRoles.background, light) {
         val seed = artworkSeed
-        if (seed == null || pureBlack || customRoles.background != null) null else auraArtworkGround(seed)
+        when {
+            seed == null || pureBlack || customRoles.background != null -> null
+            light -> auraArtworkGroundLight(seed)
+            else -> auraArtworkGround(seed)
+        }
     }
-    val ground = artworkGround ?: customRoles.effectiveAuraGround(pureBlack, fallback = scheme.surface)
+    val ground = artworkGround ?: if (light && customRoles.background == null) {
+        AuraPaletteLight.Ground
+    } else {
+        customRoles.effectiveAuraGround(pureBlack, fallback = scheme.surface)
+    }
     val resolved = remember(followsUser, scheme.primary, ground, artworkSeed) {
         when {
             artworkSeed != null -> AuraAccent.from(artworkSeed, ground)
@@ -652,15 +701,24 @@ fun AuraPaletteSync() {
             else -> AuraAccent.Brand
         }
     }
-    val artworkInk = remember(artworkSeed, ground) {
+    val artworkInk = remember(artworkSeed, ground, light) {
         val seed = artworkSeed ?: return@remember null
         val (hue, _, _) = ColorPickerConversions.colorToHsv(seed)
-        // Soft tint of the cover hue at high value — still reads as "white text", not a neon label.
-        ensureLegibleOn(
-            color = ColorPickerConversions.hsvToColor(hue, 0.10f, 0.96f),
-            against = ground,
-            minRatio = 4.5f,
-        )
+        if (light) {
+            // Light variant: a deep shade of the cover hue — still reads as "black text".
+            ensureLegibleOn(
+                color = ColorPickerConversions.hsvToColor(hue, 0.40f, 0.20f),
+                against = ground,
+                minRatio = 4.5f,
+            )
+        } else {
+            // Soft tint of the cover hue at high value — still reads as "white text", not a neon label.
+            ensureLegibleOn(
+                color = ColorPickerConversions.hsvToColor(hue, 0.10f, 0.96f),
+                against = ground,
+                minRatio = 4.5f,
+            )
+        }
     }
     // 3 is the shipped default of ThumbnailCornerRadiusKey and 1.0 the identity multiplier, so a user
     // who never touched the control gets the render's radii to the pixel.
@@ -669,7 +727,7 @@ fun AuraPaletteSync() {
         if (scale == 1f) AuraCoverCorners.Render else AuraCoverCorners(scale)
     }
 
-    AuraPalette.apply(resolved, pureBlack, corners, customRoles, artworkInk, artworkGround)
+    AuraPalette.apply(resolved, pureBlack, corners, customRoles, artworkInk, artworkGround, light)
 }
 
 /**
@@ -688,6 +746,25 @@ fun auraArtworkGround(seed: Color): Color {
 
 private const val ARTWORK_GROUND_SATURATION = 0.45f
 private const val ARTWORK_GROUND_VALUE = 0.12f
+
+/**
+ * Plan A4 — the light variant of [auraArtworkGround]: a pale wash of the cover's hue (value 0.97, low
+ * saturation) so each song tints the light ground the way it tints the dark one, while dark ink keeps
+ * well above AA on it. Achromatic covers stay a neutral near-white.
+ */
+fun auraArtworkGroundLight(seed: Color): Color {
+    val (hue, saturation, _) = ColorPickerConversions.colorToHsv(seed)
+    val s = if (saturation <= 0.05f) 0f else ARTWORK_GROUND_LIGHT_SATURATION
+    return ColorPickerConversions.hsvToColor(hue, s, ARTWORK_GROUND_LIGHT_VALUE)
+}
+
+private const val ARTWORK_GROUND_LIGHT_SATURATION = 0.10f
+private const val ARTWORK_GROUND_LIGHT_VALUE = 0.97f
+
+/** The light variant's fixed ground, public for [AuraPaletteSync] and the contrast tests. */
+object AuraPaletteLight {
+    val Ground = Color(0xFFF2F5FA)
+}
 
 /**
  * The three blurred radial gradients that sit behind every new screen. Held as data (not as a [Brush])

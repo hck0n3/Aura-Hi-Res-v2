@@ -2489,6 +2489,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/ThemeScreen.kt`
 | Light (hardcoded) (tarjeta) | Ajustes > Apariencia > Tema | ThemeScreen.kt:285 | acción primaria (selección exclusiva) | ocasional | siempre |
 | Dark (hardcoded) (tarjeta) | Ajustes > Apariencia > Tema | ThemeScreen.kt:297 | acción primaria (selección exclusiva) | ocasional | siempre |
 | AMOLED (hardcoded) (tarjeta) — activa además negro puro en el minirreproductor | Ajustes > Apariencia > Tema | ThemeScreen.kt:304 | acción primaria (selección exclusiva) | ocasional | siempre |
+| Modo claro en Aura (experimental) (interruptor, apagado por defecto) — con él, la interfaz nueva sigue las tarjetas Sistema/Light/Dark en vez de forzar oscuro; el aviso de tarjetas desactivadas remite a él | Ajustes > Apariencia > Tema | ThemeScreen.kt (debajo de las tarjetas de modo) | ajuste | raro | solo con «Interfaz nueva» activa |
 | Paleta de colores (encabezado) | Ajustes > Apariencia > Tema | ThemeScreen.kt:323 | informativo | — | siempre |
 | 44 muestras de color (una fila de control por muestra) — ver lista abajo | Ajustes > Apariencia > Tema | ThemeScreen.kt:347 (bucle) / definidas en ThemeScreen.kt:129-177 | acción primaria (selección exclusiva) | ocasional | siempre |
 | Intensidad del color (encabezado + texto explicativo variable) | Ajustes > Apariencia > Tema | ThemeScreen.kt:425 | informativo | — | siempre; el texto cambia si hay preset activo / si no hay color elegido |

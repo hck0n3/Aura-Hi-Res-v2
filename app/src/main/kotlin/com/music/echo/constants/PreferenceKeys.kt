@@ -336,6 +336,13 @@ val AccentVividnessKey = stringPreferencesKey("accentVividness")
 val AppThemePresetKey = stringPreferencesKey("appThemePreset")
 val DarkModeKey = stringPreferencesKey("darkMode")
 val PureBlackKey = booleanPreferencesKey("pureBlack")
+
+/**
+ * Plan A4 (owner approved 2026-10-07): "Modo claro en Aura (experimental)". OFF (default) keeps the
+ * redesign forcing the whole app dark, exactly as it always shipped. ON lets "Interfaz nueva" follow the
+ * Sistema / Claro / Oscuro cards like the classic UI does, and AuraPalette switches to its light tokens.
+ */
+val AuraLightModeKey = booleanPreferencesKey("auraLightMode")
 val PureBlackMiniPlayerKey = booleanPreferencesKey("pureBlackMiniPlayer")
 val DensityScaleKey = floatPreferencesKey("density_scale_factor")
 
