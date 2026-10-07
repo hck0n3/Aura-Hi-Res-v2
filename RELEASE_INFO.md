@@ -1,8 +1,33 @@
-# Aura Hi-Res v2.0.64-beta5 — Colores de la portada más vivos y adiós a los cierres al abrir menús
+# Aura Hi-Res v2.0.64-beta6 — Colores de la portada animados, playlists que sí se sincronizan y una cola que no se desvía
 
-Beta encima de la 2.0.64-beta4. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta5. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Arreglado en esta beta
+## Colores animados
+
+- **Los colores de la portada ahora se mueven por la app:** cada color de la portada flota despacio por
+  el fondo y se mezcla con los demás, en todas las pantallas.
+- **Se usan todos los colores de la portada, no solo el más fuerte:** la app elige el color que más ocupa
+  la portada y da el mismo peso a los otros dos.
+- **No gasta batería de más:** la animación es muy ligera y se detiene sola con la app en segundo plano,
+  con el Modo rendimiento, con el ahorro de batería o si el móvil se calienta.
+
+## Playlists sincronizadas con YouTube
+
+- **Al quitar una canción de una playlist sincronizada ya no vuelve a aparecer:** antes solo se borraba
+  del móvil y YouTube la devolvía en la siguiente sincronización. Ahora se borra también en YouTube,
+  desde el gesto de deslizar, el menú de la canción o la selección múltiple.
+
+## Cola inteligente
+
+- **Al terminar un álbum o una playlist la cola sigue con el mismo estilo:** antes, tras unas pocas
+  canciones, se desviaba a otro género. Ahora cada tanda nueva sale de las canciones del propio álbum o
+  playlist, no de la última canción que sonó.
+- **La cola mantiene el idioma:** si lo que escuchas es claramente en español (o en inglés), la
+  continuación ya no se pasa a canciones de otro idioma.
+
+También incluye todo lo de la beta5:
+
+## Arreglado en la beta5
 
 - **Ya no se cierra la app al tocar «Agregar a playlist» con el reproductor abierto**, y la hoja de
   «Pedir música» vuelve a abrirse. Lo provocaba una librería de la interfaz actualizada en la beta4;
@@ -21,7 +46,7 @@ Beta encima de la 2.0.64-beta4. Conserva tus datos, tu sesión y tus ajustes: mi
   Antes era una película gris oscura igual para todas las canciones. Si elegiste un color propio para el
   cristal en Ajustes, se sigue usando el tuyo.
 
-También incluye todo lo de la beta4:
+Y todo lo de la beta4:
 
 ## Batería y temperatura
 
