@@ -1018,6 +1018,22 @@ class MusicService :
     private var pendingRestoreQueue: iad1tya.echo.music.playback.queues.Queue? = null
     private var contextSeedHistoryPool: List<iad1tya.echo.music.models.MediaMetadata>? = null
 
+    // Row 344 — the language of the collection in [radioSeedPool] (TitleLanguage over its titles), computed once
+    // per pool identity: a few hundred short strings, CPU only, at re-seed time.
+    @Volatile private var collectionLanguagePool: List<iad1tya.echo.music.models.MediaMetadata>? = null
+    @Volatile private var collectionLanguageValue: String? = null
+
+    private fun collectionLanguage(): String? {
+        val pool = radioSeedPool
+        if (collectionLanguagePool !== pool) {
+            collectionLanguageValue = iad1tya.echo.music.reco.CollectionContinuation.dominantLanguage(
+                pool.map { mm -> listOfNotNull(mm.title, mm.album?.title).joinToString(" ") },
+            )
+            collectionLanguagePool = pool
+        }
+        return collectionLanguageValue
+    }
+
     // Genre-aware continuation — the CONTEXT PROFILE of the finite collection in [radioSeedPool] (its
     // artists + real genre mix + weak language hint). Built LAZILY (off the player thread, runCatching)
     // on the FIRST startRadioSeamlessly for a context, then reused by every re-seed. Null (pure radio /
@@ -4772,8 +4788,49 @@ class MusicService :
                     anchorLanePartition(items, radioAnchorMetadata, genres, "appendSeed")
                         ?: (items to emptySet<String>())
                 } else items to emptySet<String>()
-                val toAppend = laneOrdered.first.orderedByTaste(
-                    laneOrdered.second,
+                // Row 344 (owner: "después cambia a otro idioma"): a collection that is clearly in ONE language
+                // keeps it. The signal is the candidate's own title/album text (TitleLanguage, CPU only), never
+                // GenreCache, and a doubtful title is never touched; artists of the collection are exempt.
+                // Same contract as the genre sink above: drop only with >= CONTEXT_DROP_MIN_SURVIVORS left,
+                // otherwise sink to the tail.
+                val languageOrdered = if (
+                    contextSteerActive && keepGenreLaneHint &&
+                    iad1tya.echo.music.reco.CollectionContinuation.isCollection(radioAnchorId != null, radioSeedPool.size)
+                ) {
+                    val dominant = collectionLanguage()
+                    val collectionArtists = radioSeedPool
+                        .flatMap { mm -> mm.artists.map { it.name.trim().lowercase() } }
+                        .toHashSet()
+                    val (sameLanguage, otherLanguage) = laneOrdered.first.partition { mi ->
+                        val m = mi.metadata
+                        m?.artists?.any { it.name.trim().lowercase() in collectionArtists } == true ||
+                            !iad1tya.echo.music.reco.CollectionContinuation.offLanguage(
+                                dominant,
+                                listOfNotNull(m?.title, m?.album?.title).joinToString(" "),
+                            )
+                    }
+                    when {
+                        otherLanguage.isEmpty() -> laneOrdered
+                        sameLanguage.size >= CONTEXT_DROP_MIN_SURVIVORS -> {
+                            Timber.tag(TAG).i(
+                                "CTX_LANGUAGE dropped %d/%d other-language candidates (%d left)",
+                                otherLanguage.size, laneOrdered.first.size, sameLanguage.size,
+                            )
+                            sameLanguage to (laneOrdered.second + otherLanguage.mapNotNull { it.mediaId })
+                        }
+                        else -> {
+                            Timber.tag(TAG).i(
+                                "CTX_LANGUAGE sank %d/%d other-language candidates (only %d left)",
+                                otherLanguage.size, laneOrdered.first.size, sameLanguage.size,
+                            )
+                            (sameLanguage + otherLanguage) to (laneOrdered.second + otherLanguage.mapNotNull { it.mediaId })
+                        }
+                    }
+                } else {
+                    laneOrdered
+                }
+                val toAppend = languageOrdered.first.orderedByTaste(
+                    languageOrdered.second,
                     followContextPattern = followPattern,
                     inheritedLanes = inheritedLanes,
                 )
@@ -4842,6 +4899,26 @@ class MusicService :
                 return false
             }
 
+            // Row 344 — the continuation of a finished album/playlist (not a single-song radio).
+            fun inCollection(): Boolean =
+                iad1tya.echo.music.reco.CollectionContinuation.isCollection(radioAnchorId != null, radioSeedPool.size)
+
+            // Row 344 — the fallback seed: the playing song only while it belongs to the collection.
+            fun collectionFallbackSeed(): String? {
+                if (contextSeedHistoryPool !== radioSeedPool) {
+                    contextSeedHistory.clear()
+                    contextSeedHistoryPool = radioSeedPool
+                }
+                return iad1tya.echo.music.reco.CollectionContinuation.fallbackSeed(
+                    current = seedVideoId,
+                    collection = radioSeedPool.map { it.id }
+                        .filter { !it.isLocalMediaId() && !it.startsWith("http", ignoreCase = true) },
+                    used = contextSeedHistory,
+                    anchored = radioAnchorId != null,
+                    random = randomSeedSource,
+                )
+            }
+
             // Source 1 — a proper radio queue seeded from the last song the user heard (or, for a local/direct-URL
             // track, from its resolved YouTube match). No seed id → nothing to seed from → let a later source /
             // the replay last-resort handle it.
@@ -4852,7 +4929,10 @@ class MusicService :
                 // ANCHORED SEEDING (owner directive 2026-09-13): the song the user started from comes first, so
                 // a re-seed continues THAT song's content instead of the drift of the last radio pick. Only when
                 // the anchor's radio has nothing unheard left does the last song seed, as before.
-                val seeds = listOfNotNull(radioAnchorId, seedVideoId).distinct()
+                // Row 344: inside a finished album/playlist the fallback seeds from the COLLECTION, never from a
+                // radio pick that is already playing (that is how each round drifted off the previous drift).
+                val collectionFallback = collectionFallbackSeed()
+                val seeds = listOfNotNull(radioAnchorId, collectionFallback).distinct()
                 if (seeds.isEmpty()) return@runCatching false
                 for (seed in seeds) {
                     val radioQueue = YouTubeQueue(endpoint = WatchEndpoint(videoId = seed), automaticRadio = true)
@@ -4865,7 +4945,9 @@ class MusicService :
                     if (initialStatus.title != null) queueTitle = initialStatus.title
                     val items = initialStatus.items.filter { it.mediaId != seed && it.mediaId != currentMediaId }
                     if (appendSeed(items)) {
-                        currentQueue = radioQueue
+                        // Row 344: a collection never paginates a single-song radio — next round re-seeds from it.
+                        currentQueue = if (inCollection()) EmptyQueue else radioQueue
+                        if (inCollection()) contextSeedHistory.add(seed)
                         return@runCatching true
                     }
                 }
@@ -4874,7 +4956,7 @@ class MusicService :
 
             // Source 2 — "related" songs of the last song (a different YT endpoint; recovers when radio is empty).
             suspend fun tryRelated(): Boolean = runCatching {
-                val seed = seedVideoId ?: return@runCatching false
+                val seed = collectionFallbackSeed() ?: return@runCatching false
                 contextSteerActive = true // same automatic-continuation reasoning as tryRadio
                 val nextResult = withContext(Dispatchers.IO) {
                     YouTube.next(WatchEndpoint(videoId = seed)).getOrNull()
@@ -4893,7 +4975,11 @@ class MusicService :
                 // is true and the onMediaItemTransition pagination keeps loading forever). hasNextPage() is false
                 // on a fresh un-loaded YouTubeQueue, so without priming pagination wouldn't fire. Best-effort: if
                 // priming fails, the always-on STATE_ENDED net still re-seeds when this finite batch ends.
-                if (ok) {
+                if (ok && inCollection()) {
+                    // Row 344: finite, like every collection round — the next one re-seeds from the collection.
+                    contextSeedHistory.add(seed)
+                    currentQueue = EmptyQueue
+                } else if (ok) {
                     val rq = YouTubeQueue(endpoint = WatchEndpoint(videoId = seed), automaticRadio = true)
                     runCatching { withContext(Dispatchers.IO) { rq.getInitialStatus() } }
                         .onFailure { radioSourceFailed("prime", it) }
@@ -4973,7 +5059,10 @@ class MusicService :
                 // profile leaves the seed selection byte-identical to today (fail-neutral rule).
                 val steerActive = contextProfile?.active == true
                 val contextIds = radioSeedPool.mapTo(HashSet()) { it.id }
-                val anchoredTail = if (steerActive) tailPool.filter { it.id in contextIds } else tailPool
+                // Row 344: anchored ALWAYS, not only with an active profile. Ungated, a niche album whose genre
+                // iTunes does not know seeded its re-seeds from the radio picks already playing — the drift
+                // the owner heard ("después mete otra cosa… y cambia a otro idioma y otro género").
+                val anchoredTail = tailPool.filter { it.id in contextIds }
                 // Recent-first so the DISTINCT-artist reps come from the END of what was playing, not the start.
                 // WHOLE-CONTENT STUDY (owner directive 2026-09-13: "que estudie el contenido total de lo que
                 // estoy escuchando"): the anchored tail leads (what JUST played), then EVERY other track of the
@@ -5098,9 +5187,14 @@ class MusicService :
                     if (patternSeeds.size >= 2) patternSeeds
                     else (patternSeeds + perArtistIds + poolIds).distinct().take(2)
                 } else {
-                    (listOfNotNull(seedVideoId?.takeIf { it in contextIds }) + clusterRepsShuffled + perArtistIds + poolIds)
-                        .distinct()
-                        .take(5)
+                    // Row 344: rotate through the collection like the pattern seeds do, so every round of the
+                    // same album/playlist opens new mixes of ITS songs instead of re-fetching the same ones.
+                    iad1tya.echo.music.reco.CollectionContinuation.rotateSeeds(
+                        candidates = listOfNotNull(seedVideoId?.takeIf { it in contextIds }) +
+                            clusterRepsShuffled + perArtistIds + poolIds,
+                        used = contextSeedHistory,
+                        max = 5,
+                    ).also { contextSeedHistory.addAll(it) }
                 }
                 if (seeds.size < 2) return@runCatching false // truly one usable track → let tryRadio do last-song
                 // Fetch each seed's radio page, off the player thread. With an ACTIVE profile the per-seed
@@ -5157,14 +5251,13 @@ class MusicService :
                         iad1tya.echo.music.reco.ContextPattern.patternShares(contextProfile?.genreShare.orEmpty()).size,
                     )
                 } else if (ok) {
-                    // Prime a radio from a seed so the Path A pagination keeps going after this merged batch.
-                    // Prefer the TOP GENRE-CLUSTER representative (the context's dominant genre) so the
-                    // crossfade-OFF pagination continues on that genre instead of a single-song radio of
-                    // whatever happened to be first; without cluster info this is seeds.first() as before.
-                    val rq = YouTubeQueue(endpoint = WatchEndpoint(videoId = clusterReps.firstOrNull() ?: seeds.first()), automaticRadio = true)
-                    runCatching { withContext(Dispatchers.IO) { rq.getInitialStatus() } }
-                        .onFailure { radioSourceFailed("prime", it) }
-                    currentQueue = rq
+                    // Row 344 (owner 2026-10-07: "cuando terminó el álbum la cola no continuó como debería"):
+                    // this used to prime a radio of ONE seed and let the pagination run it forever, filtered by
+                    // the lane of whatever was playing — unfiltered once that song's genre was unknown, which is
+                    // every song of a niche album. Same finite queue as the pattern branch: each round re-seeds
+                    // from the collection's own tracks (rotated). One request fewer per round, too.
+                    currentQueue = EmptyQueue
+                    Timber.tag(TAG).i("CTX_COLLECTION seeds=%d (collection-seeded continuation)", seeds.size)
                 }
                 ok
             }.getOrElse { radioSourceFailed("context", it) }
