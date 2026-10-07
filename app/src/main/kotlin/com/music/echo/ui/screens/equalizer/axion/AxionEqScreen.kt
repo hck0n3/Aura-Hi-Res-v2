@@ -433,6 +433,52 @@ private fun eqFftTrafficColor(level: Float, saturateColor: Color): Color = when 
     else -> EqFftGreen
 }
 
+/** Peak as the user hears it: the meter taps the signal BEFORE the EQ's output gain. */
+private fun eqFftDisplayPeak(rawPeak: Float, expectedGainDb: Double): Float =
+    (rawPeak * 10.0.pow(expectedGainDb / 20.0).toFloat()).coerceIn(0f, 1f)
+
+/** The three colours the preamp badge can show, as the lowest peak of each band (row 334). */
+private fun eqFftBadgeLevel(peak: Float): Float = when {
+    peak >= EQ_FFT_SATURATE_THRESHOLD -> EQ_FFT_SATURATE_THRESHOLD
+    peak >= EQ_FFT_AMBER_THRESHOLD -> EQ_FFT_AMBER_THRESHOLD
+    else -> 0f
+}
+
+/** The FFT meter, reading the per-frame snapshot in ITS OWN scope (row 334). Same math as before. */
+@Composable
+private fun EqFftMeterLive(
+    snapshotState: State<EqFftSnapshot>,
+    expectedGainDb: Double,
+    skin: AuraPanelSkin,
+    needsPermission: Boolean,
+    onPermissionClick: () -> Unit,
+) {
+    val fftSnapshot = snapshotState.value
+    val displayPeak = remember(fftSnapshot.peak, expectedGainDb) {
+        eqFftDisplayPeak(fftSnapshot.peak, expectedGainDb)
+    }
+    val displaySnapshot = remember(fftSnapshot, displayPeak, expectedGainDb) {
+        val scale = if (fftSnapshot.peak > 1e-4f) {
+            displayPeak / fftSnapshot.peak
+        } else {
+            10.0.pow(expectedGainDb / 20.0).toFloat()
+        }
+        EqFftSnapshot(
+            bars = FloatArray(EQ_FFT_BAR_COUNT) { i ->
+                (fftSnapshot.bars.getOrElse(i) { 0f } * scale).coerceIn(0f, 1f)
+            },
+            peak = displayPeak,
+            hasSignal = fftSnapshot.hasSignal,
+        )
+    }
+    EqFftMeter(
+        snapshot = displaySnapshot,
+        skin = skin,
+        needsPermission = needsPermission,
+        onPermissionClick = onPermissionClick,
+    )
+}
+
 private data class EqFftSnapshot(
     val bars: FloatArray = FloatArray(EQ_FFT_BAR_COUNT),
     val peak: Float = 0f,
@@ -744,7 +790,10 @@ private fun ColumnScope.EqMainContent(
         }
     }
 
-    val fftSnapshot by rememberEqFftMeter(
+    // C4 (row 334): the State is NOT read here. Reading it here recomposed this whole EQ column on every
+    // display frame (up to 120 Hz) while music plays; only EqFftMeterLive reads it now, and the preamp
+    // badge reads a 3-level derived value that changes only when its colour does.
+    val fftSnapshotState = rememberEqFftMeter(
         audioSessionId = audioSessionId,
         enabled = fftMeterEnabled,
         playing = meterPlaying,
@@ -760,22 +809,11 @@ private fun ColumnScope.EqMainContent(
             )
         }
     }
-    val displayPeak = remember(fftSnapshot.peak, expectedGainDb) {
-        (fftSnapshot.peak * 10.0.pow(expectedGainDb / 20.0).toFloat()).coerceIn(0f, 1f)
-    }
-    val displaySnapshot = remember(fftSnapshot, displayPeak, expectedGainDb) {
-        val scale = if (fftSnapshot.peak > 1e-4f) {
-            displayPeak / fftSnapshot.peak
-        } else {
-            10.0.pow(expectedGainDb / 20.0).toFloat()
+    val expectedGainState = rememberUpdatedState(expectedGainDb)
+    val preampBadgePeak by remember(fftSnapshotState) {
+        derivedStateOf {
+            eqFftBadgeLevel(eqFftDisplayPeak(fftSnapshotState.value.peak, expectedGainState.value))
         }
-        EqFftSnapshot(
-            bars = FloatArray(EQ_FFT_BAR_COUNT) { i ->
-                (fftSnapshot.bars.getOrElse(i) { 0f } * scale).coerceIn(0f, 1f)
-            },
-            peak = displayPeak,
-            hasSignal = fftSnapshot.hasSignal,
-        )
     }
 
     Material3SettingsGroup(
@@ -879,15 +917,16 @@ private fun ColumnScope.EqMainContent(
         skin = skin,
         preamp = preamp,
         enabled = enabled,
-        fftPeak = if (fftMeterEnabled) displayPeak else null,
+        fftPeak = if (fftMeterEnabled) preampBadgePeak else null,
         onPreampChange = { viewModel.setPreampLive(it) },
         onCommit = { viewModel.commit() },
         onDragActiveChange = onSliderDragActiveChange,
     )
 
     if (fftMeterEnabled) {
-        EqFftMeter(
-            snapshot = displaySnapshot,
+        EqFftMeterLive(
+            snapshotState = fftSnapshotState,
+            expectedGainDb = expectedGainDb,
             skin = skin,
             needsPermission = fftNeedsPermission,
             onPermissionClick = { recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO) },

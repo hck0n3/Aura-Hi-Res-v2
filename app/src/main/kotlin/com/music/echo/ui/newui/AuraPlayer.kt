@@ -593,7 +593,9 @@ private fun AuraPlayerShape(
             }
         }
     }
-    val effectivePosition = if (isCasting) castPosition else position
+    // C4 (row 334): `effectivePosition` is read INSIDE controlsContent (below), not here. Read here, every
+    // 500 ms position tick recomposed this whole ~1,800-line player — mounted on every screen while music
+    // plays, even collapsed. Same pattern as the classic Player.kt.
 
     // Same automix top-up the classic player runs (kept as an effect, never in the composition body).
     LaunchedEffect(canSkipNext, automix) {
@@ -1222,6 +1224,7 @@ private fun AuraPlayerShape(
         // dropped. Nothing is conditional on the shape except size — no control exists in one
         // arrangement and not another.
         val controlsContent: @Composable (Boolean) -> Unit = { dense ->
+            val effectivePosition = if (isCasting) castPosition else position
             val meta = mediaMetadata
             if (meta != null) {
                 // ── Título y artista ──────────────────────────────────────────────────────────────
