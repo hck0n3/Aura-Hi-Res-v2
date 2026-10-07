@@ -914,27 +914,23 @@ suspend fun checkForUpdate(
                 val formattedReleaseDate = formatGitHubDate(publishedAt)
                 val assets = targetRelease.getJSONArray("assets")
 
-                // Collect all installable APK assets (a release may ship an arm64 APK and a larger
-                // "universal" APK that also includes armeabi-v7a/x86 for Android TV and older devices).
-                data class ApkAsset(val name: String, val url: String, val size: Long)
-                val apkAssets = ArrayList<ApkAsset>()
-                for (j in 0 until assets.length()) {
+                // Plan B4 (row 331): arm64 phones take the small arm64 APK, every other device the
+                // universal one; see UpdateApkFiles.pickApkAsset for the naming contract old installs rely on.
+                val apkAssets = (0 until assets.length()).map { j ->
                     val asset = assets.getJSONObject(j)
-                    val assetName = asset.getString("name")
-                    if (assetName.endsWith(".apk", ignoreCase = true) && !assetName.lowercase().contains("debug")) {
-                        apkAssets.add(ApkAsset(assetName, asset.getString("browser_download_url"), asset.getLong("size")))
-                    }
+                    UpdateApkFiles.ReleaseApk(
+                        asset.getString("name"),
+                        asset.getString("browser_download_url"),
+                        asset.optLong("size"),
+                    )
                 }
-
-                // Pick the APK that matches this device's CPU: arm64 devices take the small arch APK;
-                // everything else (e.g. 32-bit Android TVs like Sony's MediaTek sets) takes the
-                // universal APK so it actually installs.
-                val supportsArm64 = android.os.Build.SUPPORTED_ABIS.any { it.equals("arm64-v8a", ignoreCase = true) }
-                fun String.isUniversal() = lowercase().contains("universal")
-                val chosen = if (supportsArm64) {
-                    apkAssets.firstOrNull { !it.name.isUniversal() } ?: apkAssets.firstOrNull()
-                } else {
-                    apkAssets.firstOrNull { it.name.isUniversal() } ?: apkAssets.firstOrNull()
+                val chosen = UpdateApkFiles.pickApkAsset(apkAssets, android.os.Build.SUPPORTED_ABIS.toList())
+                if (chosen != null) {
+                    timber.log.Timber.i(
+                        "UPDATE asset=%s abi=%s",
+                        UpdateApkFiles.kindOf(chosen.name).name.lowercase(),
+                        android.os.Build.SUPPORTED_ABIS.firstOrNull(),
+                    )
                 }
 
                 var apkSizeInMB = ""
@@ -979,10 +975,14 @@ private fun newestReleaseIncludingBetas(): JSONObject? = runCatching {
         val release = releases.getJSONObject(i)
         if (release.optBoolean("draft", false)) continue
         val assets = release.optJSONArray("assets") ?: continue
-        val hasApk = (0 until assets.length()).any { j ->
-            val name = assets.getJSONObject(j).optString("name")
-            name.endsWith(".apk", ignoreCase = true) && !name.lowercase().contains("debug")
-        }
+        // Only a release with an APK THIS device can install (never offer an arm64-only build to a TV).
+        val hasApk = UpdateApkFiles.pickApkAsset(
+            (0 until assets.length()).map { j ->
+                val asset = assets.getJSONObject(j)
+                UpdateApkFiles.ReleaseApk(asset.optString("name"), asset.optString("browser_download_url"), asset.optLong("size"))
+            },
+            android.os.Build.SUPPORTED_ABIS.toList(),
+        ) != null
         if (!hasApk) continue
         val current = best
         if (current == null ||

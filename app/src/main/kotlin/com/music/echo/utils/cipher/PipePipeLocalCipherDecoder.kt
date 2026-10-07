@@ -55,8 +55,18 @@ object PipePipeLocalCipherDecoder : YoutubeJavaScriptDecoder {
      * PipePipe asks for the player identity + signatureTimestamp BEFORE downloading streams.
      * All-or-nothing rule: a WRONG sts poisons the whole player response, so this returns data
      * ONLY when the owner's player table positively knows the CURRENT player hash. Otherwise it
-     * throws and PipePipe proceeds with its own server path (which handles sts itself).
+     * throws. NOTE (2026-10-07, read in PipePipeExtractor f8982ca9e7): unlike decode/decodeBatch,
+     * PipePipe's getPlayerMetadata does NOT catch this throw — the extraction of that song fails and
+     * the resolve falls through to the next extractor. Changing that changes which extractor serves
+     * every song, so it is tracked as its own item (row 330, "A2b"), not changed here.
      */
+    /**
+     * The verified signatureTimestamp of [hash] in the owner's table, or null. The ONE predicate both
+     * [getPlayerData] and [CipherDeobfuscator.prewarm] use (via [CipherWarmPolicy]).
+     */
+    internal fun verifiedStsForHash(hash: String): Int? =
+        CipherWarmPolicy.verifiedSts(RemotePlayerConfig.configFor(hash)?.signatureTimestamp)
+
     override fun getPlayerData(videoId: String): YoutubeJavaScriptDecoder.PlayerData {
         val context = appContext ?: throw ParsingException("Aura cipher decoder not initialized")
         val info = runCatching {
@@ -68,9 +78,8 @@ object PipePipeLocalCipherDecoder : YoutubeJavaScriptDecoder {
             throw ParsingException("Aura: player JS unavailable")
         }
         val (playerJs, hash) = info
-        val config = RemotePlayerConfig.configFor(hash)
-        val sts = config?.signatureTimestamp
-        if (sts == null || sts <= 0) {
+        val sts = verifiedStsForHash(hash)
+        if (sts == null) {
             // No verified entry for this hash in the owner's table → do NOT guess (registry #30:
             // a guessed sts poisons the response for every video until the next rotation).
             Timber.tag(TAG).w("getPlayerData: no verified sts for hash=$hash — handing back to PipePipe server")

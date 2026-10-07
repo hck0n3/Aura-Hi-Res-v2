@@ -288,4 +288,46 @@ object UpdateApkFiles {
         }
         return parts to pre
     }
+
+    // ---------------------------------------------------------------- release asset choice (plan B4)
+
+    /** One APK attached to a GitHub release. */
+    data class ReleaseApk(val name: String, val url: String, val size: Long)
+
+    enum class ApkKind { ARM64, UNIVERSAL, UNLABELED }
+
+    /** An asset the updater may install: an APK, never a debug or no-subscription test build. */
+    fun isInstallableAssetName(name: String): Boolean {
+        val n = name.lowercase()
+        return n.endsWith(APK_SUFFIX) && !n.contains("debug") && !n.contains("nosub")
+    }
+
+    /**
+     * NAMING CONTRACT (row 331): the CI names the universal APK `…-universal.apk` and the arm64 one
+     * `…-arm64.apk`. Every release before B4 shipped one UNLABELED universal APK, and every installed
+     * version picks with "arm64 device → first name WITHOUT 'universal', else first WITH it" — so the
+     * universal must always carry "universal" and the arm64 one must never carry it.
+     */
+    fun kindOf(name: String): ApkKind {
+        val n = name.lowercase()
+        return when {
+            n.contains("universal") -> ApkKind.UNIVERSAL
+            n.contains("arm64") -> ApkKind.ARM64
+            else -> ApkKind.UNLABELED
+        }
+    }
+
+    /**
+     * The APK this device should download. Only a device whose PRIMARY ABI is arm64-v8a gets the arm64
+     * APK (~46 MB instead of ~87); every other device — 32-bit TVs and boxes, x86 Chromebooks or WSA
+     * that merely translate ARM — gets the universal (or the unlabeled one older releases ship). An APK
+     * the device cannot run is never returned, and the result never depends on the API's list order.
+     */
+    fun pickApkAsset(assets: List<ReleaseApk>, supportedAbis: List<String>): ReleaseApk? {
+        val candidates = assets.filter { isInstallableAssetName(it.name) }.sortedBy { it.name }
+        val primaryArm64 = supportedAbis.firstOrNull()?.equals("arm64-v8a", ignoreCase = true) == true
+        if (primaryArm64) candidates.firstOrNull { kindOf(it.name) == ApkKind.ARM64 }?.let { return it }
+        return candidates.firstOrNull { kindOf(it.name) == ApkKind.UNIVERSAL }
+            ?: candidates.firstOrNull { kindOf(it.name) == ApkKind.UNLABELED }
+    }
 }

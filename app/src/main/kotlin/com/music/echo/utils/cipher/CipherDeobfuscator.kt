@@ -5,6 +5,8 @@ import android.net.Uri
 import android.os.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -89,11 +91,38 @@ object CipherDeobfuscator {
      * Idempotent, never throws, never blocks playback. MUST be called off the main thread (the WebView
      * creation hops to Main internally). A prewarm timeout/failure is swallowed and, unlike the real
      * path, is deliberately NOT routed through the renderer-death backoff.
+     *
+     * PLAN A2 (2026-10-07, row 330): the player.js cache is always filled, but the WebView is built
+     * only when [CipherWarmPolicy] says a consumer will use it before the first song (the current hash
+     * has a verified config). Otherwise it stays lazy: every real consumer already builds it on first
+     * use through [getOrCreateWebView], exactly as on LOW/ULTRA tier and Data Saver today. The decision
+     * is logged once with the player hash, so a YouTube rotation stays visible in app.log.
      */
     suspend fun prewarm() {
         if (prewarmed) return
         prewarmed = true
         try {
+            // The config refresh App.kt starts at launch may still be in flight: wait for it (serialized
+            // and 1 h-throttled, so normally no extra GET) so a config published minutes ago is seen.
+            val js = coroutineScope {
+                val cfg = async { runCatching { RemotePlayerConfig.refresh(appContext) } }
+                val playerJs = PlayerJsFetcher.getPlayerJs(forceRefresh = false)
+                cfg.await()
+                playerJs
+            }
+            val hash = js?.second
+            val decision = CipherWarmPolicy.decide(
+                hash,
+                hash?.let { PipePipeLocalCipherDecoder.verifiedStsForHash(it) },
+            )
+            if (decision != CipherWarmPolicy.Decision.CREATE) {
+                Timber.tag(TAG).w(
+                    "CIPHER_WARM skip reason=%s hash=%s (WebView deferred until a client needs sig/n)",
+                    decision.name.lowercase(), hash,
+                )
+                return
+            }
+            Timber.tag(TAG).i("CIPHER_WARM create hash=%s (verified config)", hash)
             deobfuscateMutex.withLock {
                 if (cipherWebView == null) {
                     // forceRefresh=false → reuse the cached player.js and store the created WebView in
