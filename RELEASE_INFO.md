@@ -11,6 +11,14 @@ Beta encima de la 2.0.64-beta3. Conserva tus datos, tu sesión y tus ajustes: mi
 - **Las tareas en segundo plano esperan a que haya batería** (recomendaciones, Radar de novedades, Last.fm y
   la sincronización de Spotify).
 
+## Reproducción y actualizaciones
+
+- **Las canciones cargan por el camino rápido aunque YouTube haya cambiado su reproductor.** Mientras no
+  hay configuración verificada del reproductor nuevo, la app ya no fuerza un método que fallaba en cada
+  canción antes de pasar al siguiente.
+- **Actualizaciones más ligeras en móviles modernos:** a partir de la próxima versión la app descarga un
+  APK de unos 46 MB en vez de 87 (los televisores y equipos antiguos siguen recibiendo el completo).
+
 ## Sonido
 
 - **Nuevo: «Procesado en 32 bits (experimental)»** en Ajustes ▸ Sonido, apagado por defecto. Con él, el

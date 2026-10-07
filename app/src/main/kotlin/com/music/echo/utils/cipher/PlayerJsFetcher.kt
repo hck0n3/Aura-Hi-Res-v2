@@ -122,6 +122,15 @@ object PlayerJsFetcher {
         }
     }
 
+    /**
+     * The player hash last written to the on-disk cache (first line of current_hash.txt), or null.
+     * Tiny file, no network, no 2.8 MB read — cheap enough to call before an extraction (row 337).
+     */
+    fun cachedPlayerHash(): String? = runCatching {
+        getHashFile().takeIf { it.exists() }?.readText()?.lineSequence()?.firstOrNull()?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    }.getOrNull()
+
     private fun readFromCache(): Pair<String, String>? {
         Timber.tag(TAG).d("Checking cache...")
         try {

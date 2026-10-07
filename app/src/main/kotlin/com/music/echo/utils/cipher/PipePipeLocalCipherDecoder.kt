@@ -48,7 +48,36 @@ object PipePipeLocalCipherDecoder : YoutubeJavaScriptDecoder {
      * extraction batch (see class doc for why re-registering matters).
      */
     fun reRegister() {
-        runCatching { YoutubeApiDecoder.setLocalDecoder(this) }
+        // A2b (row 337, owner approved 2026-10-07): PipePipe's getPlayerMetadata does NOT catch a
+        // getPlayerData throw, so registering this decoder for a player hash without a VERIFIED sts made
+        // every PipePipe extraction fail and fall through to the next extractor. Register only when the
+        // current hash is verified; otherwise clear it so PipePipe takes its own metadata path (what it
+        // does with no local decoder at all). Same predicate as getPlayerData and the startup prewarm.
+        val hash = currentHash()
+        val verified = hash != null && verifiedStsForHash(hash) != null
+        runCatching { YoutubeApiDecoder.setLocalDecoder(if (verified) this else null) }
+        val state = (if (verified) "on" else "off") + ":" + hash
+        if (state != lastLoggedState) {
+            lastLoggedState = state
+            Timber.tag(TAG).i(
+                "PIPEPIPE_LOCAL_DECODER %s hash=%s",
+                if (verified) "on" else "off_no_verified_sts", hash,
+            )
+        }
+    }
+
+    @Volatile private var lastLoggedState: String? = null
+    @Volatile private var hashReadAt = 0L
+    @Volatile private var hashCache: String? = null
+
+    /** The cached player hash, re-read from disk at most every 30 s (called before every extraction). */
+    private fun currentHash(): String? {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - hashReadAt > 30_000L || hashCache == null) {
+            hashCache = PlayerJsFetcher.cachedPlayerHash()
+            hashReadAt = now
+        }
+        return hashCache
     }
 
     /**
@@ -56,9 +85,9 @@ object PipePipeLocalCipherDecoder : YoutubeJavaScriptDecoder {
      * All-or-nothing rule: a WRONG sts poisons the whole player response, so this returns data
      * ONLY when the owner's player table positively knows the CURRENT player hash. Otherwise it
      * throws. NOTE (2026-10-07, read in PipePipeExtractor f8982ca9e7): unlike decode/decodeBatch,
-     * PipePipe's getPlayerMetadata does NOT catch this throw — the extraction of that song fails and
-     * the resolve falls through to the next extractor. Changing that changes which extractor serves
-     * every song, so it is tracked as its own item (row 330, "A2b"), not changed here.
+     * PipePipe's getPlayerMetadata does NOT catch this throw — the extraction of that song fails. That
+     * is why [reRegister] only registers this decoder for a verified hash (row 337); this throw stays as
+     * the last guard (a config removed between registration and this call).
      */
     /**
      * The verified signatureTimestamp of [hash] in the owner's table, or null. The ONE predicate both

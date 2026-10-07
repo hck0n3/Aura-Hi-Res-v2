@@ -61,6 +61,12 @@ class CipherWarmPolicyTest {
         assertTrue(getPlayerData.contains("verifiedStsForHash("))
         assertFalse("no second, drifting sts check", getPlayerData.contains("signatureTimestamp"))
 
+        // Row 337 (A2b): PipePipe does not catch a getPlayerData throw, so the decoder is registered
+        // ONLY for a verified hash and cleared otherwise.
+        val reRegister = decoder.substringAfter("fun reRegister()").substringBefore("\n    }\n")
+        assertTrue(reRegister.contains("verifiedStsForHash("))
+        assertTrue(reRegister.contains("setLocalDecoder(if (verified) this else null)"))
+
         // Self-repair through player_configs.json is untouched (rows #30, #226).
         assertTrue(deob.contains("RemotePlayerConfig.forceRefresh("))
         assertTrue(deob.contains("RemotePlayerConfig.configEpoch"))
