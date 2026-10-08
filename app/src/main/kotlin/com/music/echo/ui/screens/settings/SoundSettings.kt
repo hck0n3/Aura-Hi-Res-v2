@@ -77,53 +77,12 @@ fun SoundSettings(
 
         Spacer(Modifier.height(20.dp))
 
-        // ── Volumen ──
+        // Fila 358 (dueño 2026-10-08: "quiero que la parte de sonido y ecualizador estén bien distribuidas en
+        // un orden correcto" + "elimina las funciones repetidas"). Order: the equalizer, then what protects the
+        // ears and the speaker, then the sound's space and dynamics, then the output quality (the technical
+        // part last). "Simulador Tidal" left this screen: it was the same switch as "Firma de sonido Tidal"
+        // inside the equalizer, which it depends on (EqBypass.toneStages) — it lives there now, once.
         val (safeVolume, onSafeVolumeChange) = rememberPreference(SafeVolumeEnabledKey, defaultValue = true)
-        val (tidal, onTidalChange) = rememberPreference(
-            iad1tya.echo.music.constants.TidalSimulationEnabledKey, defaultValue = true
-        )
-        Material3SettingsGroup(
-            title = "Volumen",
-            items = listOf(
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.volume_up),
-                    title = { Text("Volumen seguro") },
-                    description = {
-                        Text(
-                            "Baja los temas muy fuertes a un nivel parejo y agrega un limitador suave, " +
-                                "para que no distorsionen a todo volumen (activado por defecto). Apagado = reproducción bit-perfect Hi-Res."
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = safeVolume,
-                            onCheckedChange = onSafeVolumeChange,
-                            thumbContent = thumb(safeVolume),
-                        )
-                    },
-                    onClick = { onSafeVolumeChange(!safeVolume) },
-                ),
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.music_note),
-                    title = { Text("Simulador Tidal") },
-                    description = {
-                        Text("Aplica la configuración DSP (pre-gain + filtros) para emular la firma de sonido de TIDAL.")
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = tidal,
-                            onCheckedChange = onTidalChange,
-                            thumbContent = thumb(tidal),
-                        )
-                    },
-                    // The row toggles like every other one (it used to do nothing on tap).
-                    onClick = { onTidalChange(!tidal) },
-                ),
-            ),
-        )
-
-        Spacer(Modifier.height(20.dp))
-
         // ── Masterización (owner directive 2026-09-13): every stage is a user toggle ──
         // Every toggle defaults ON (owner directive 2026-09-14: "todos los toggles activados por default").
         val (glueCompressor, onGlueCompressorChange) = rememberPreference(
@@ -155,8 +114,79 @@ fun SoundSettings(
             iad1tya.echo.music.constants.StereoWidthKey, defaultValue = 1f
         )
         Material3SettingsGroup(
-            title = "Masterización",
+            title = "Volumen y protección",
             items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.volume_up),
+                    title = { Text("Volumen seguro") },
+                    description = {
+                        Text(
+                            "Baja los temas muy fuertes a un nivel parejo y agrega un limitador suave, " +
+                                "para que no distorsionen a todo volumen (activado por defecto). Apagado = reproducción bit-perfect Hi-Res."
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = safeVolume,
+                            onCheckedChange = onSafeVolumeChange,
+                            thumbContent = thumb(safeVolume),
+                        )
+                    },
+                    onClick = { onSafeVolumeChange(!safeVolume) },
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.volume_up),
+                    title = { Text("Headroom automático") },
+                    description = {
+                        Text("Baja el preamp tanto como el mayor realce de tu ecualización: los realces nunca saturan.")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = autoHeadroom,
+                            onCheckedChange = onAutoHeadroomChange,
+                            thumbContent = thumb(autoHeadroom),
+                        )
+                    },
+                    onClick = { onAutoHeadroomChange(!autoHeadroom) },
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.volume_up),
+                    title = { Text("Proteger el altavoz del teléfono") },
+                    description = {
+                        Text("Atenúa el sub-grave (por debajo de ≈55 Hz) solo cuando suena por el altavoz del teléfono. Con audífonos o Bluetooth no cambia nada.")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = speakerBassProtect,
+                            onCheckedChange = onSpeakerBassProtectChange,
+                            thumbContent = thumb(speakerBassProtect),
+                        )
+                    },
+                    onClick = { onSpeakerBassProtectChange(!speakerBassProtect) },
+                ),
+            ),
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        Material3SettingsGroup(
+            title = "Espacio y dinámica",
+            items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.music_note),
+                    title = { Text("Ancho estéreo: ${(stereoWidth * 100).toInt()} %") },
+                    description = {
+                        Column {
+                            Text("Mid/Side: abre o cierra los lados sin tocar el centro (voz y bombo). 100 % = sin cambio.")
+                            Slider(
+                                value = stereoWidth,
+                                onValueChange = { onStereoWidthChange((it * 20).toInt() / 20f) },
+                                valueRange = 0.5f..1.5f,
+                            )
+                        }
+                    },
+                    onClick = { onStereoWidthChange(1f) },
+                ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.volume_up),
                     title = { Text("Compresor suave (pegamento)") },
@@ -171,6 +201,35 @@ fun SoundSettings(
                         )
                     },
                     onClick = { onGlueCompressorChange(!glueCompressor) },
+                ),
+            ),
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        Material3SettingsGroup(
+            title = "Calidad de salida",
+            items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.music_note),
+                    title = { Text("Procesado en 32 bits (experimental)") },
+                    description = {
+                        Text(
+                            "El ecualizador y la salida trabajan en coma flotante de 32 bits también con audio de " +
+                                "16 bits (Opus, AAC, MP3), como ya pasa con el Hi-Res. Se aplica desde la siguiente " +
+                                "canción. Vuelve a 16 bits si cambias tempo o tono y en Escuchar juntos. Sin " +
+                                "efecto en equipos de gama baja. Solo se nota con una salida de más de 16 bits " +
+                                "(DAC USB, LDAC de 24 bits)."
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = float32Processing,
+                            onCheckedChange = onFloat32ProcessingChange,
+                            thumbContent = thumb(float32Processing),
+                        )
+                    },
+                    onClick = { onFloat32ProcessingChange(!float32Processing) },
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.music_note),
@@ -198,72 +257,6 @@ fun SoundSettings(
                         )
                     },
                     onClick = { onOutputDitherChange(!outputDither) },
-                ),
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.music_note),
-                    title = { Text("Procesado en 32 bits (experimental)") },
-                    description = {
-                        Text(
-                            "El ecualizador y la salida trabajan en coma flotante de 32 bits también con audio de " +
-                                "16 bits (Opus, AAC, MP3), como ya pasa con el Hi-Res. Se aplica desde la siguiente " +
-                                "canción. Vuelve a 16 bits si cambias tempo o tono y en Escuchar juntos. Sin " +
-                                "efecto en equipos de gama baja. Solo se nota con una salida de más de 16 bits " +
-                                "(DAC USB, LDAC de 24 bits)."
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = float32Processing,
-                            onCheckedChange = onFloat32ProcessingChange,
-                            thumbContent = thumb(float32Processing),
-                        )
-                    },
-                    onClick = { onFloat32ProcessingChange(!float32Processing) },
-                ),
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.volume_up),
-                    title = { Text("Proteger el altavoz del teléfono") },
-                    description = {
-                        Text("Atenúa el sub-grave (por debajo de ≈55 Hz) solo cuando suena por el altavoz del teléfono. Con audífonos o Bluetooth no cambia nada.")
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = speakerBassProtect,
-                            onCheckedChange = onSpeakerBassProtectChange,
-                            thumbContent = thumb(speakerBassProtect),
-                        )
-                    },
-                    onClick = { onSpeakerBassProtectChange(!speakerBassProtect) },
-                ),
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.volume_up),
-                    title = { Text("Headroom automático") },
-                    description = {
-                        Text("Baja el preamp tanto como el mayor realce de tu ecualización: los realces nunca saturan.")
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = autoHeadroom,
-                            onCheckedChange = onAutoHeadroomChange,
-                            thumbContent = thumb(autoHeadroom),
-                        )
-                    },
-                    onClick = { onAutoHeadroomChange(!autoHeadroom) },
-                ),
-                Material3SettingsItem(
-                    icon = painterResource(R.drawable.music_note),
-                    title = { Text("Ancho estéreo: ${(stereoWidth * 100).toInt()} %") },
-                    description = {
-                        Column {
-                            Text("Mid/Side: abre o cierra los lados sin tocar el centro (voz y bombo). 100 % = sin cambio.")
-                            Slider(
-                                value = stereoWidth,
-                                onValueChange = { onStereoWidthChange((it * 20).toInt() / 20f) },
-                                valueRange = 0.5f..1.5f,
-                            )
-                        }
-                    },
-                    onClick = { onStereoWidthChange(1f) },
                 ),
             ),
         )

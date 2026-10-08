@@ -1590,7 +1590,7 @@ private fun AuraPlayerShape(
                         // the player now sits between the times, so the cover gets that height back.
                         if (!dense) {
                             val eqOn = rememberEqEnabledReadOnly()
-                            val safeVolumeOn by rememberPreference(SafeVolumeEnabledKey, false)
+                            val safeVolumeOn by rememberPreference(SafeVolumeEnabledKey, true)
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 AuraEngineStat(label = "EQ", value = if (eqOn) "ON" else "OFF", on = eqOn)
                                 AuraEngineStat(label = "V.SEGURO", value = if (safeVolumeOn) "ON" else "OFF", on = safeVolumeOn)
@@ -2952,7 +2952,7 @@ private fun Modifier.auraGlassFilm(alpha: Float): Modifier = drawWithCache {
 @Composable
 private fun AuraEngineStatusBar(modifier: Modifier = Modifier) {
     val eqEnabled = rememberEqEnabledReadOnly()
-    val safeVolume by rememberPreference(SafeVolumeEnabledKey, false)
+    val safeVolume by rememberPreference(SafeVolumeEnabledKey, true)
 
     Column(modifier.fillMaxWidth()) {
         AuraDivider()

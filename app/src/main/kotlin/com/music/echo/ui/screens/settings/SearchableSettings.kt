@@ -135,6 +135,8 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // --- Sonido / Rendimiento extras (these screens use hardcoded Spanish titles) ---
             Triple("Auto-EQ (por auricular)", "Ecualizador", "settings/sound/autoeq"),
             Triple("Volumen seguro", "Sonido y ecualización", "settings/sound"),
+            // Fila 358: the Tidal switch now lives only inside the equalizer.
+            Triple("Firma de sonido Tidal", "Ecualizador", "settings/equalizer"),
             Triple("Modo alto rendimiento", "Rendimiento", "settings/performance"),
             Triple("Vista dividida estilo Spotify", "Rendimiento", "settings/performance"),
             Triple("Mostrar el panel del reproductor", "Rendimiento", "settings/performance"),

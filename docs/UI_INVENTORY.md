@@ -2602,7 +2602,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SoundSettings.k
 | Ecualizador — desc. «Activa o desactiva el procesamiento de audio profesional» | Ajustes > Sonido | SoundSettings.kt:69 | navegación | ocasional | siempre |
 | Auto-EQ (por auricular) (hardcoded) — desc. «Busca tu modelo y aplica su perfil AutoEq» (hardcoded) | Ajustes > Sonido | SoundSettings.kt:75 | navegación | rara | siempre |
 | Volumen seguro (hardcoded) — desc. «Baja los temas muy fuertes a un nivel parejo y agrega un limitador suave… Apagado = reproducción bit-perfect Hi-Res.» (hardcoded) | Ajustes > Sonido | SoundSettings.kt:91 | conmutador | ocasional | siempre (por defecto ON) |
-| Simulador Tidal (hardcoded) — desc. «Aplica la configuración DSP (pre-gain + filtros) para emular la firma de sonido de TIDAL.» | Ajustes > Sonido > Volumen | SoundSettings.kt:108 | conmutador | rara | siempre (por defecto ON) |
+| ~~Simulador Tidal~~ — **movido (fila 358)**: era el mismo interruptor que «Firma de sonido Tidal» del Ecualizador (misma clave `TidalSimulationEnabledKey`, depende del interruptor del EQ). Sigue en Ajustes > Sonido > Ecualizador > Efectos y en la búsqueda de Ajustes. | — | — | — | — | — |
 | Compresor suave (pegamento) (hardcoded) | Ajustes > Sonido > Masterización | SoundSettings.kt:162 | conmutador | rara | siempre |
 | Dither de salida (hardcoded) — desc. **cambia con «Procesado en 32 bits»**: apagado, explica que actúa cuando la salida es de 16 bits (lo normal con Opus/AAC/MP3) y que el Hi-Res en gama media/alta ya sale en 32 bits; encendido, que solo actúa cuando la salida vuelve a 16 bits (tempo/tono, Escuchar juntos, gama baja). **Sigue visible y activo en los dos estados** — no es un control inerte: el dither sigue actuando en esos casos (plan A3, fila 336) | Ajustes > Sonido > Masterización | SoundSettings.kt:177 | conmutador | rara | siempre (por defecto ON) |
 | **Procesado en 32 bits (experimental)** (hardcoded, NUEVO plan A3) — desc. «El ecualizador y la salida trabajan en coma flotante de 32 bits también con audio de 16 bits (Opus, AAC, MP3)… Se aplica desde la siguiente canción. Vuelve a 16 bits si cambias tempo o tono y en Escuchar juntos. Sin efecto en equipos de gama baja…» | Ajustes > Sonido > Masterización | SoundSettings.kt:204 | conmutador | rara | siempre (por defecto **OFF**, `Float32ProcessingDefault`; fila 336) |
@@ -2612,9 +2612,13 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SoundSettings.k
 
 Nota: esta pantalla NO tiene barra superior ni botón Atrás propios (`SoundSettings.kt` no declara `TopAppBar`).
 
+**Fila 358 (2026-10-08) — orden nuevo de esta pantalla:** Ecualizador → **Volumen y protección** (Volumen seguro, Headroom automático, Proteger el altavoz del teléfono) → **Espacio y dinámica** (Ancho estéreo, Compresor suave) → **Calidad de salida** (Procesado en 32 bits, Dither de salida). Los números de línea de la tabla son anteriores a esta reordenación. La fila «Auto-EQ» de la tabla ya no está aquí desde antes: vive dentro del Ecualizador.
+
 ---
 
 ## 18.7 Ajustes > Sonido > Ecualizador — `settings/equalizer`
+
+**Fila 358 (2026-10-08) — orden nuevo:** interruptor del ecualizador → Preamplificación (+ medidor FFT si está activo) → curva + presets de fábrica → presets guardados → Auto-EQ → Gráfico/Paramétrico + bandas → Guardar → **Efectos** (Firma de sonido Tidal, Audio espacial) → **Herramientas** (Medidor FFT en vivo, Verificar ecualizador) → EQ por dispositivo → Exportar / Importar. «Volumen Seguro» SALE de esta pantalla (era el mismo interruptor que el de Ajustes > Sonido, donde sigue). Fila 357: quedan 14 presets de fábrica (ver `FactoryPreset`). Los números de línea de la tabla son anteriores.
 
 Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqScreen.kt`
 (También accesible desde el reproductor: `ui/menu/PlayerMenu.kt:838` y `ui/player/Player.kt:2100`.)

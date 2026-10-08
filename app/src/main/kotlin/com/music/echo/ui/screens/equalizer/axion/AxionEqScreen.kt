@@ -96,7 +96,6 @@ import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.constants.EqFftMeterEnabledKey
 import iad1tya.echo.music.constants.HighPerformanceModeKey
-import iad1tya.echo.music.constants.SafeVolumeEnabledKey
 import iad1tya.echo.music.constants.SpatialAudioEnabledKey
 import iad1tya.echo.music.constants.SpatialAudioProfileKey
 import iad1tya.echo.music.constants.TidalSimulationEnabledKey
@@ -816,6 +815,11 @@ private fun ColumnScope.EqMainContent(
         }
     }
 
+    // Fila 358 (dueño 2026-10-08: "quiero que la parte de sonido y ecualizador estén bien distribuidas en un
+    // orden correcto"). One reading order, top to bottom: (1) the switch, (2) the gain in, (3) pick a curve
+    // (factory presets, then yours), (4) per-headphone correction, (5) tune it, (6) save, (7) effects that sit on
+    // top of the EQ, (8) tools. Every control that was here is still here — only its place changed — except
+    // "Volumen Seguro", which lives in Ajustes ▸ Sonido (it was the same switch twice).
     Material3SettingsGroup(
         items = listOf(
             Material3SettingsItem(
@@ -836,78 +840,6 @@ private fun ColumnScope.EqMainContent(
                     )
                 },
                 onClick = { viewModel.setEnabled(!enabled) },
-            ),
-            Material3SettingsItem(
-                icon = painterResource(R.drawable.graphic_eq),
-                title = { Text("Medidor FFT en vivo") },
-                description = {
-                    Text(
-                        if (highPerf || DeviceCapabilities.tier(context) == DeviceTier.LOW) {
-                            "Visualiza el espectro en tiempo real. Desactivado por defecto en Modo Rendimiento o gama baja."
-                        } else {
-                            "Visualiza el espectro en tiempo real con semáforo verde / ámbar / cian."
-                        },
-                    )
-                },
-                trailingContent = {
-                    Switch(
-                        checked = fftMeterEnabled,
-                        onCheckedChange = onFftMeterChange,
-                    )
-                },
-                onClick = { onFftMeterChange(!fftMeterEnabled) },
-            ),
-        ),
-    )
-
-    // ── Verificación en el motor real ─────────────────────────────────────────────────────────────
-    val verification by viewModel.verification.collectAsState()
-    Material3SettingsGroup(
-        title = "Verificación",
-        items = listOf(
-            Material3SettingsItem(
-                icon = painterResource(R.drawable.graphic_eq),
-                title = { Text("Verificar ecualizador") },
-                description = {
-                    Text("Mide dentro del motor la ganancia en cada frecuencia y el pico con ruido rosa a −0.1 dBFS, y lo compara con la curva dibujada.")
-                },
-                onClick = { viewModel.runVerification() },
-            ),
-        ),
-    )
-    verification?.let { EqVerificationDialog(result = it, onDismiss = viewModel::dismissVerification) }
-
-    SpatialAudioSection(skin = skin)
-
-    val (safeVolume, onSafeVolumeChange) = rememberPreference(SafeVolumeEnabledKey, defaultValue = true)
-    val (tidalSimulation, onTidalSimulationChange) = rememberPreference(TidalSimulationEnabledKey, defaultValue = true)
-
-    Material3SettingsGroup(
-        title = "Mejoras de Audio y Dinámica",
-        items = listOf(
-            Material3SettingsItem(
-                icon = painterResource(R.drawable.volume_up),
-                title = { Text("Volumen Seguro") },
-                description = { Text("Previene saturación, normaliza volumen entre pistas y protege tu audición.") },
-                trailingContent = {
-                    Switch(
-                        checked = safeVolume,
-                        onCheckedChange = onSafeVolumeChange,
-                    )
-                },
-                onClick = { onSafeVolumeChange(!safeVolume) },
-            ),
-            Material3SettingsItem(
-                icon = painterResource(R.drawable.tune),
-                title = { Text("Firma de sonido Tidal") },
-                description = { Text("Simulación de audio de alta fidelidad con calibración de armónicos cálidos y escenario sonoro expansivo.") },
-                trailingContent = {
-                    Switch(
-                        checked = tidalSimulation,
-                        onCheckedChange = onTidalSimulationChange,
-                    )
-                },
-                onClick = { onTidalSimulationChange(!tidalSimulation) },
             ),
         ),
     )
@@ -947,6 +879,17 @@ private fun ColumnScope.EqMainContent(
             bandGains = selectionGains,
             enabled = graphicEnabled,
             onPresetClick = { viewModel.applyPreset(it) },
+        )
+    }
+
+    if (customProfiles.isNotEmpty()) {
+        CustomPresetRow(
+            customProfiles = customProfiles,
+            // Same frozen-selection rule as FactoryPresetGrid (#181).
+            bandGains = selectionGains,
+            enabled = enabled,
+            onApplyProfile = { viewModel.applySavedProfile(it) },
+            onEditClick = onManageClick,
         )
     }
 
@@ -1036,16 +979,72 @@ private fun ColumnScope.EqMainContent(
         }
     }
 
-    if (customProfiles.isNotEmpty()) {
-        CustomPresetRow(
-            customProfiles = customProfiles,
-            // Same frozen-selection rule as FactoryPresetGrid (#181).
-            bandGains = selectionGains,
-            enabled = enabled,
-            onApplyProfile = { viewModel.applySavedProfile(it) },
-            onEditClick = onManageClick,
-        )
-    }
+    // ── Efectos sobre el ecualizador ──────────────────────────────────────────────────────────────
+    // Both depend on the switch above (EqBypass.toneStages), which is why they live here and not in Sonido.
+    val (tidalSimulation, onTidalSimulationChange) = rememberPreference(TidalSimulationEnabledKey, defaultValue = true)
+    Material3SettingsGroup(
+        title = "Efectos",
+        items = listOf(
+            Material3SettingsItem(
+                icon = painterResource(R.drawable.tune),
+                title = { Text("Firma de sonido Tidal") },
+                description = { Text("Simulación de audio de alta fidelidad con calibración de armónicos cálidos y escenario sonoro expansivo.") },
+                trailingContent = {
+                    Switch(
+                        checked = tidalSimulation,
+                        onCheckedChange = onTidalSimulationChange,
+                    )
+                },
+                onClick = { onTidalSimulationChange(!tidalSimulation) },
+            ),
+        ),
+    )
+
+    SpatialAudioSection(skin = skin)
+
+    // ── Herramientas ──────────────────────────────────────────────────────────────────────────────
+    val verification by viewModel.verification.collectAsState()
+    Material3SettingsGroup(
+        title = "Herramientas",
+        items = listOf(
+            Material3SettingsItem(
+                icon = painterResource(R.drawable.graphic_eq),
+                title = { Text("Medidor FFT en vivo") },
+                description = {
+                    Text(
+                        if (highPerf || DeviceCapabilities.tier(context) == DeviceTier.LOW) {
+                            "Visualiza el espectro en tiempo real. Desactivado por defecto en Modo Rendimiento o gama baja."
+                        } else {
+                            "Visualiza el espectro en tiempo real con semáforo verde / ámbar / cian."
+                        },
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = fftMeterEnabled,
+                        onCheckedChange = onFftMeterChange,
+                    )
+                },
+                onClick = { onFftMeterChange(!fftMeterEnabled) },
+            ),
+            Material3SettingsItem(
+                icon = painterResource(R.drawable.graphic_eq),
+                title = { Text("Verificar ecualizador") },
+                description = {
+                    Text("Mide dentro del motor la ganancia en cada frecuencia y el pico con ruido rosa a −0.1 dBFS, y lo compara con la curva dibujada.")
+                },
+                onClick = { viewModel.runVerification() },
+            ),
+        ),
+    )
+    verification?.let { EqVerificationDialog(result = it, onDismiss = viewModel::dismissVerification) }
+
+    // Assign EQ profiles to output devices (phone / Bluetooth), applied automatically on connect.
+    iad1tya.echo.music.ui.component.AuraOutlinedButton(
+        onClick = onDeviceClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+    ) { Text("EQ por dispositivo") }
 
     // Export / import EQ profiles (EQ curve + effects) as a JSON file.
     val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -1069,13 +1068,6 @@ private fun ColumnScope.EqMainContent(
             shape = MaterialTheme.shapes.medium,
         ) { Text("Importar") }
     }
-
-    // Assign EQ profiles to output devices (phone / Bluetooth), applied automatically on connect.
-    iad1tya.echo.music.ui.component.AuraOutlinedButton(
-        onClick = onDeviceClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-    ) { Text("EQ por dispositivo") }
 
     Spacer(modifier = Modifier.height(60.dp))
 }
