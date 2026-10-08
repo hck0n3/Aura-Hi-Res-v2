@@ -656,6 +656,9 @@ internal fun MusicService.onTailSilenceDetected() {
         "tier=${if (silentNow) "silence" else "quiet"} remaining=${
             player.duration.takeIf { it != C.TIME_UNSET }?.minus(player.currentPosition) ?: -1
         }ms"
+    )
+    startCrossfade()
+}
 
 internal fun MusicService.startCrossfade() {
     if (isCrossfading) return

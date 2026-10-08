@@ -9909,11 +9909,6 @@ class MusicService :
     internal var lastCrossfadeTraceKey: String? = null
 
 
-        )
-        startCrossfade()
-    }
-
-
 
 
 
