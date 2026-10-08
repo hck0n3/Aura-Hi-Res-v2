@@ -193,7 +193,7 @@ unitarias y APK de prueba.
 | A1 config del cifrado 1f293754 | ⏳ acción tuya (verificar con el base.js real) | #330 |
 | A2b PipePipe sin `sts` verificado | ✅ hecho (aprobado) | #337 |
 | Material 3 / Material Kolor / Adaptive (alfas) | ↩️ revertido: Kolor 5, Adaptive 1.4 y Coil 3.6 arrastraban Compose 1.12 (cierre de la beta4); se quedan en Kolor 4.1.1, Adaptive 1.3, Coil 3.5 y Material 3 alfa18 hasta que Material 3 pase a Compose 1.12 | #339, #340 |
-| C1 partir `MusicService` | 🔄 fase 1 hecha (motor de continuación a su archivo); fases 2–4 pendientes | #351 |
+| C1 partir `MusicService` | ✅ fases 1–4 hechas y publicadas en la beta10 (continuación, fundido cruzado, resolución de streams y recuperación de errores, cada una en su archivo; 13 300 → 10 300 líneas) | #351, #352 |
 | D1 pruebas de pantalla | ⏸ en espera: cambia el classpath de todas las pruebas | — |
 | A4 modo claro de Aura | ❌ retirado por orden del dueño (beta5) | #338 |
 | C2 una sola interfaz | ✅ Aura es la única interfaz (huecos cerrados y tus decisiones aplicadas); queda borrar código clásico muerto | #348–#350 |
