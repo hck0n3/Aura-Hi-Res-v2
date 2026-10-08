@@ -299,7 +299,7 @@ class MusicService :
     lateinit var dislikeStore: iad1tya.echo.music.dislike.DislikeStore
 
 
-    private lateinit var audioManager: AudioManager
+    internal lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
     private var lastAudioFocusState = AudioManager.AUDIOFOCUS_NONE
     private var wasPlayingBeforeAudioFocusLoss = false
@@ -310,24 +310,24 @@ class MusicService :
     var preferredDeviceId: Int? = null 
         private set
 
-    private var crossfadeEnabled = false
-    private var crossfadeDuration = 5000f
-    private var crossfadeGapless = true
-    private var crossfadeTriggerJob: Job? = null
+    internal var crossfadeEnabled = false
+    internal var crossfadeDuration = 5000f
+    internal var crossfadeGapless = true
+    internal var crossfadeTriggerJob: Job? = null
     // Builds + buffers the incoming player a few seconds BEFORE the fade so the transition has no gap.
-    private var crossfadePreloadJob: Job? = null
+    internal var crossfadePreloadJob: Job? = null
     // Waits (bounded) for the incoming player to reach STATE_READY at position 0 before the fade actually
     // swaps, so a LATE-ARMED / not-yet-buffered secondary never fades in half-buffered (clipped first ms).
-    private var crossfadeReadyJob: Job? = null
+    internal var crossfadeReadyJob: Job? = null
 
     // TAIL-DETECTION jobs (see scheduleCrossfade / onTailSilenceDetected): arms the silence detector for
     // the final stretch of the current track, and re-checks a too-early "musical end" fire at the moment
     // the fade would actually be due. Cancelled on every reschedule and at fade commit.
-    private var crossfadeTailArmJob: Job? = null
+    internal var crossfadeTailArmJob: Job? = null
 
-    private var tailQuietRecheckJob: Job? = null
+    internal var tailQuietRecheckJob: Job? = null
 
-    private val secondaryPlayerListener = object : Player.Listener {
+    internal val secondaryPlayerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
             Timber.tag(TAG).e(error, "Secondary player error")
             secondaryPlayer?.stop()
@@ -683,14 +683,14 @@ class MusicService :
 
     lateinit var player: ExoPlayer
         private set
-    private var secondaryPlayer: ExoPlayer? = null
-    private var fadingPlayer: ExoPlayer? = null
-    private var isCrossfading = false
+    internal var secondaryPlayer: ExoPlayer? = null
+    internal var fadingPlayer: ExoPlayer? = null
+    internal var isCrossfading = false
     // Read-only OBSERVATION flag only. Mirrors the plain [isCrossfading] boolean so the UI can observe a
     // crossfade swap; it does NOT touch the crossfade timing, duration, curve, equal-power gains, gapless
     // logic or preload. Set true at the existing swap start (performCrossfadeSwap) and false at the existing
     // swap end (cleanupCrossfade) — nothing else in the crossfade changes.
-    private val _isCrossfading = MutableStateFlow(false)
+    internal val _isCrossfading = MutableStateFlow(false)
     /** Read-only view for PlayerConnection: a spurious null-item transition during a crossfade swap must not
      *  blank the now-playing UI, but outside a crossfade a null transition is real and should update. */
     val crossfadingNow: Boolean get() = isCrossfading
@@ -703,11 +703,11 @@ class MusicService :
     // These two members let the lyrics view — and nothing else — follow that outgoing track on its own clock
     // until the fade commits. Pure observation: no fade math, curve, duration, swap ORDER or metadata
     // publication is affected by either of them.
-    private val _crossfadeOutgoingMetadata =
+    internal val _crossfadeOutgoingMetadata =
         MutableStateFlow<iad1tya.echo.music.models.MediaMetadata?>(null)
     val crossfadeOutgoingMetadata: kotlinx.coroutines.flow.StateFlow<iad1tya.echo.music.models.MediaMetadata?> =
         _crossfadeOutgoingMetadata.asStateFlow()
-    private var crossfadeJob: Job? = null
+    internal var crossfadeJob: Job? = null
 
     /**
      * Live playback position of the OUTGOING (fading) player, or null whenever there is no readable fade in
@@ -727,20 +727,20 @@ class MusicService :
         return pos
     }
 
-    private lateinit var mediaSession: MediaLibrarySession
+    internal lateinit var mediaSession: MediaLibrarySession
 
     
     internal val playerInitialized = MutableStateFlow(false)
     val isPlayerReady: kotlinx.coroutines.flow.StateFlow<Boolean> = playerInitialized.asStateFlow()
 
     
-    private val _playerFlow = MutableStateFlow<ExoPlayer?>(null)
+    internal val _playerFlow = MutableStateFlow<ExoPlayer?>(null)
     val playerFlow = _playerFlow.asStateFlow()
 
-    private val playerSilenceProcessors = HashMap<Player, SilenceDetectorAudioProcessor>()
-    private val playerNormProcessors = HashMap<Player, NormalizationGainAudioProcessor>()
-    private val playerLimiterProcessors = HashMap<Player, TruePeakLimiterAudioProcessor>()
-    private val playerEqProcessors = mutableMapOf<ExoPlayer, CustomEqualizerAudioProcessor>()
+    internal val playerSilenceProcessors = HashMap<Player, SilenceDetectorAudioProcessor>()
+    internal val playerNormProcessors = HashMap<Player, NormalizationGainAudioProcessor>()
+    internal val playerLimiterProcessors = HashMap<Player, TruePeakLimiterAudioProcessor>()
+    internal val playerEqProcessors = mutableMapOf<ExoPlayer, CustomEqualizerAudioProcessor>()
 
 
     private val instantSilenceSkipEnabled = MutableStateFlow(false)
@@ -752,33 +752,33 @@ class MusicService :
     // liking + auto-download used to re-store FormatEntity mid-song and the volume jumped. Volatile
     // because the stream resolver (loader thread) also reads/writes it when priming from the same
     // player-response that yields the URL — no extra network, no wait on Room.
-    @Volatile private var lastNormalizedId: String? = null
+    @Volatile internal var lastNormalizedId: String? = null
     // The id of the track currently playing, updated from onMediaItemTransition on the player thread. Lets the
     // ResolvingDataSource loader thread know "is this the current track?" WITHOUT a runBlocking hop to Main
     // (which could deadlock/stall stream resolution when Main is busy).
-    @Volatile private var currentPlayingMediaId: String? = null
+    @Volatile internal var currentPlayingMediaId: String? = null
     // Live EQ processor of the audible player. The loader thread primes Safe Volume here before
     // open() returns, so the first sample is already at the locked level.
-    @Volatile private var currentEqProcessor: CustomEqualizerAudioProcessor? = null
+    @Volatile internal var currentEqProcessor: CustomEqualizerAudioProcessor? = null
     // The gain/makeup actually applied for the current track. Re-asserted whenever setupLoudnessEnhancer is
     // re-invoked for the SAME track (e.g. an audio-effect-session re-open / processor flush when the screen
     // turns off or playback blips), so the chain can never be left at a stale/unity (raw, LOUDER) level — the
     // "volume rises on its own when the screen is off" bug. Re-asserting (not recomputing) means no mid-song jump.
-    @Volatile private var lastAppliedGain: Float = 1.0f
-    @Volatile private var lastAppliedMakeup: Float = 1.0f
+    @Volatile internal var lastAppliedGain: Float = 1.0f
+    @Volatile internal var lastAppliedMakeup: Float = 1.0f
     // In-memory loudness hint cache (mediaId → resolved effectiveLoudnessDb). Populated by setupLoudnessEnhancer
     // (every track start) and the upcoming-track preload (Fix A). Lets the crossfade pre-level (Fix B) resolve
     // the incoming track's gain SYNCHRONOUSLY without a blocking disk read on the main thread — the crossfade
     // runs on Dispatchers.Main and a runBlocking Room/DataStore read there stutters the transition / risks ANR.
-    private val loudnessHintCache = java.util.concurrent.ConcurrentHashMap<String, Double>()
+    internal val loudnessHintCache = java.util.concurrent.ConcurrentHashMap<String, Double>()
     // AudioNormalization toggle mirrored into memory (collector in onCreate) so the crossfade pre-level needn't
     // block on a DataStore read either.
-    @Volatile private var normalizationEnabledHint: Boolean = true
+    @Volatile internal var normalizationEnabledHint: Boolean = true
     // Mirror of SafeVolumeEnabledKey for the crossfade pre-level (so the incoming secondary player gets
     // Safe Volume from the first fade-in sample, not only after the swap settles).
     // Initialised TRUE to match SafeVolumeEnabledKey's own default: starting false left a window before the
     // collector's first emission where a crossfade or instant-video swap would skip priming entirely.
-    @Volatile private var safeVolumeEnabledHint: Boolean = true
+    @Volatile internal var safeVolumeEnabledHint: Boolean = true
     @Volatile private var spatialEnabledHint: Boolean = false
     @Volatile private var spatialProfileNameHint: String = SpatialAudioProfile.WIDE_SURROUND.name
     @Volatile private var tidalEnabledHint: Boolean = true
@@ -814,12 +814,12 @@ class MusicService :
     // que le pasó. Se quita la dependencia de AutoLoadMoreKey por completo: esta bandera ya no se lee de
     // preferencias, queda fija en true, y el interruptor se elimina de Ajustes y de la Cola (ver esos
     // archivos) para que no vuelva a pasar.
-    private val autoLoadMoreHint: Boolean = true
+    internal val autoLoadMoreHint: Boolean = true
     @Volatile private var disableLoadMoreWhenRepeatAllHint: Boolean = false
     // Enhanced Shuffle ("Aleatorio mejorado") master switch mirrored for the player-thread callbacks
     // (onShuffleModeEnabledChanged / onMediaItemTransition) so they read a @Volatile field, never a blocking
     // DataStore read. Default matches EnhancedShuffleKey's default (ON).
-    @Volatile private var enhancedShuffleHint: Boolean = true
+    @Volatile internal var enhancedShuffleHint: Boolean = true
 
     // "¿Volver a la cola anterior?" master switch, mirrored the same way: playQueue is a main-thread path
     // and must not add a blocking DataStore read to it. Default matches PreviousQueueOfferKey's (ON), and
@@ -830,17 +830,17 @@ class MusicService :
     // AIMP-style smooth entry on MANUAL track changes. Default matches FadeOnManualChangeKey (ON).
     @Volatile private var fadeOnManualChangeHint: Boolean = true
 
-    private var manualFadeInJob: Job? = null
+    internal var manualFadeInJob: Job? = null
 
     // Which track the tail detector is currently armed for: re-scheduling the SAME track re-arms without
     // resetting the counters (a reset mid-silence would delay a genuine tail fire); a NEW track resets.
-    private var tailArmedMediaId: String? = null
+    internal var tailArmedMediaId: String? = null
 
     // Monotonic timeline mutation counter (Main-thread writes via onTimelineChanged). Captured by
     // prepareSecondaryPlayer so scheduleCrossfade can prove a preloaded secondary's queue copy is still
     // identical to the live queue before reusing it.
-    private var timelineVersion = 0L
-    private var secondaryTimelineVersion = -1L
+    internal var timelineVersion = 0L
+    internal var secondaryTimelineVersion = -1L
 
     // Shuffle score cache, SPLIT by what each half actually depends on. It used to be one
     // mediaId -> (tasteScore, primaryArtist) map cleared WHOLESALE whenever the taste profile instance
@@ -885,14 +885,14 @@ class MusicService :
     //    heard over real audio instead of dead air.
     // Main-thread only (all writers/readers are Main). Size-capped defensively; a wrong-direction miss is
     // always safe: no hint → exact 0.6.133 behavior.
-    private val tailSilenceHintMs = HashMap<String, Long>()
-    private val leadSilenceHintMs = HashMap<String, Long>()
+    internal val tailSilenceHintMs = HashMap<String, Long>()
+    internal val leadSilenceHintMs = HashMap<String, Long>()
 
     // LEAD-HINT TRUST: the intro measurement is only meaningful if counting started at the song's REAL
     // beginning. A mid-song start (session restore seeks to the persisted position; a near-start seek
     // before the first loud frame) would measure some interior quiet run — storing that as "intro
     // silence" would make later plays seek past REAL music. Set at the arm/reset site, checked at store.
-    private var leadHintTrustedForArmedTrack = false
+    internal var leadHintTrustedForArmedTrack = false
     @Volatile internal var keepGenreLaneHint: Boolean = true
     @Volatile private var persistentQueueHint: Boolean = true
     @Volatile private var historyDurationMsHint: Float = 30000f
@@ -913,7 +913,7 @@ class MusicService :
     @Volatile private var metricsSessionMediaId: String? = null
     // High-Performance Mode master switch, mirrored for the player-thread hot paths (scheduleCrossfade) so
     // they read a @Volatile field instead of a blocking DataStore read on the transition callback thread.
-    @Volatile private var highPerformanceModeHint: Boolean = false
+    @Volatile internal var highPerformanceModeHint: Boolean = false
 
     // SponsorBlock: skip non-music segments (opt-in). Manager holds the current track's segments; the watcher
     // job polls position once a second while enabled and seeks past any segment the playhead enters.
@@ -1068,7 +1068,7 @@ class MusicService :
     // B5 — anti-repeat shuffle memory: media IDs already played in the current shuffle session. While
     // shuffling, not-yet-played songs are ordered ahead of these, so nothing repeats until the whole pool is
     // exhausted (then it auto-resets for a new cycle). Reset whenever shuffle is (re)enabled.
-    private val shufflePlayedIds = LinkedHashSet<String>()
+    internal val shufflePlayedIds = LinkedHashSet<String>()
     // ARTIST SPACING across re-applies: the normalized primary artists of the last few songs actually
     // PLAYED this shuffle session, OLDEST first. applyShuffleOrder rebuilds the entire order from scratch
     // on every mutation — a radio append, the DB seed landing, a manual jump — which with crossfade ON is
@@ -1081,7 +1081,7 @@ class MusicService :
     // Enhanced Shuffle: the persistent context id of the CURRENT queue (e.g. "PL:<id>", "LIBRARY"), or null
     // when the queue has no enhanced memory (raw YT radio, album/artist, etc.) → classic in-memory shuffle.
     // Set in playQueue from the ListQueue's contextId (carried across restart via PersistQueue.contextId).
-    @Volatile private var shuffleContextId: String? = null
+    @Volatile internal var shuffleContextId: String? = null
     /** Continue-shuffle seed from the screen; consumed once in [applyPendingSeedPlayedIds]. */
     @Volatile private var pendingSeedPlayedIds: Set<String> = emptySet()
 
@@ -1179,7 +1179,7 @@ class MusicService :
     // fire-and-forget per-song insert and the cycle-complete DELETE — both scheduled from the same
     // onMediaItemTransition — could interleave, letting a just-cleared context re-gain a stale row.
     // limitedParallelism(1) serialises onto the IO pool without a dedicated leaked thread.
-    private val enhancedShuffleWriteDispatcher = Dispatchers.IO.limitedParallelism(1)
+    internal val enhancedShuffleWriteDispatcher = Dispatchers.IO.limitedParallelism(1)
     /** Recently-played media ids (bounded, most-recent last) so autoplay/radio don't resurface a song you
      *  JUST heard. A soft demotion (not a hard drop) — see [orderedByTaste] — so it can never dead-end the queue. */
     private val recentRadioIds = LinkedHashSet<String>()
@@ -1320,7 +1320,7 @@ class MusicService :
         val requested: iad1tya.echo.music.constants.AudioQuality? = null,
     )
 
-    private val songUrlCache = java.util.concurrent.ConcurrentHashMap<String, CachedStream>()
+    internal val songUrlCache = java.util.concurrent.ConcurrentHashMap<String, CachedStream>()
 
     // REFRESH-AHEAD guard: at most ONE background URL renewal per mediaId at a time (see
     // refreshUrlIfNearExpiry). ConcurrentHashMap-backed so the loader thread and the IO coroutine
@@ -1379,7 +1379,7 @@ class MusicService :
      * survives a process restart / app update — the first play/resume after an update then serves the cached
      * URL instead of re-running the slow resolver. Best-effort, off the main thread; never throws.
      */
-    private fun persistSongUrlCache() {
+    internal fun persistSongUrlCache() {
         // 2026-08-23 owner directive (SimpMusic model): stream URLs are NOT persisted. SimpMusic
         // resolves fresh on every play; persisted URLs from a burnt session were the source of the
         // first-play 403s on cold start. The cache stays in-memory only.
@@ -1488,14 +1488,14 @@ class MusicService :
     // Set by refetchCurrentInOpus(): pins THIS track to the Opus (WebM/Opus) audio format on its next
     // (re)fetch, overriding both the global AudioQuality and the currently-playing "locked quality" (which
     // otherwise pins to the DB format's container). Cleared once a different track becomes current.
-    @Volatile private var forceOpusForMediaId: String? = null
+    @Volatile internal var forceOpusForMediaId: String? = null
 
     // The one entry the quality collector keeps alive when the user changes quality mid-song: it is the
     // container lock for THAT track only (swapping its container under the decoder mid-stream would break it).
     // Tracked so it can be dropped once a different track is current — otherwise it stays pinned to the OLD
     // quality for the rest of the session (the URL TTL is ~5h), and a replay silently re-pins to it, which is
     // the very bug the quality fix exists to kill.
-    @Volatile private var qualityPinnedMediaId: String? = null
+    @Volatile internal var qualityPinnedMediaId: String? = null
 
     /**
      * Drop the quality-change survivor because a FRESH prepare is starting: the pin protects an IN-FLIGHT
@@ -1877,7 +1877,7 @@ class MusicService :
      * REPEAT=YES on a line whose src is the list (not the radio) is a genuine no-repeat failure; the same
      * line tells us which mode, which context, and how full the memory was when it happened.
      */
-    private fun traceNoRepeat(reason: String) {
+    internal fun traceNoRepeat(reason: String) {
         runCatching {
             val id = player.currentMediaItem?.mediaId ?: player.currentMetadata?.id ?: return
             val ctx = shuffleContextId
@@ -1910,7 +1910,7 @@ class MusicService :
      * says for a "how long ago" metric, and collapsing keeps an older artist in scope instead of letting a
      * repeat shift it out.
      */
-    private fun rememberShuffleArtist(item: MediaItem?) {
+    internal fun rememberShuffleArtist(item: MediaItem?) {
         val artist = (item?.metadata ?: player.currentMetadata)
             ?.artists?.firstOrNull()?.name?.trim()?.lowercase()
         if (artist.isNullOrEmpty()) return
@@ -3181,7 +3181,7 @@ class MusicService :
         }
     }
 
-    private fun createExoPlayer(isSecondary: Boolean = false): ExoPlayer {
+    internal fun createExoPlayer(isSecondary: Boolean = false): ExoPlayer {
         // The Context is what lets the processor resolve the Superpowered licence key, which is bound to
         // this app's signing certificate (see SuperpoweredLicense). It keeps only applicationContext.
         val eqProcessor = CustomEqualizerAudioProcessor(this)
@@ -5339,7 +5339,7 @@ class MusicService :
         }
     }
 
-    private fun setupLoudnessEnhancer() {
+    internal fun setupLoudnessEnhancer() {
         val audioSessionId = player.audioSessionId
 
         if (audioSessionId == C.AUDIO_SESSION_ID_UNSET || audioSessionId <= 0) {
@@ -6444,7 +6444,7 @@ class MusicService :
      * Cast follow-along, SponsorBlock, upcoming-track prefetch, the REPEAT_ONE index guard and the speed
      * cache all silently stopped working in the app's default configuration.
      */
-    private fun applyAutoAdvanceSideEffects() {
+    internal fun applyAutoAdvanceSideEffects() {
         previousMediaItemIndex = player.currentMediaItemIndex
         lastPlaybackSpeed = -1.0f
         preloadUpcomingItems()
@@ -6589,7 +6589,7 @@ class MusicService :
      * the Main thread at every song boundary, then re-broadcasting the order to Android Auto over Binder,
      * was the per-boundary burst car users heard as micro-stutters. Starts true so the first apply runs.
      */
-    @Volatile private var shuffleOrderStale = true
+    @Volatile internal var shuffleOrderStale = true
 
     /**
      * True only while WE are inside player.setShuffleOrder. media3 dispatches onTimelineChanged
@@ -7046,7 +7046,7 @@ class MusicService :
      * runs on every auto-advance with crossfade ON, on queues of thousands of items). Any missing/failed id
      * read is treated as "not exhausted" (never a false positive).
      */
-    private fun isEnhancedContextExhausted(): Boolean =
+    internal fun isEnhancedContextExhausted(): Boolean =
         EnhancedShuffleCycle.isCycleComplete(
             timelineSize = player.mediaItemCount,
             coverageSize = currentContextCoverage(),
@@ -7069,7 +7069,7 @@ class MusicService :
      * is re-derived at re-activation time and therefore survives the process dying overnight for free. The
      * in-process set is advisory (trace + one cycle bump per completion).
      */
-    private fun markEnhancedContextCycleComplete(contextId: String) {
+    internal fun markEnhancedContextCycleComplete(contextId: String) {
         val isNew = rememberCompletedContext(contextId)
         if (!isNew) return // already counted this lap in this process; the DB write is not idempotent (a counter)
         val now = System.currentTimeMillis()
@@ -7186,7 +7186,7 @@ class MusicService :
      * a measured 20-60 ms stall. Artist names are trimmed + lowercased so a stray space cannot split one
      * artist in two and defeat the spacing.
      */
-    private class ShuffleItemKeys(
+    internal class ShuffleItemKeys(
         val mediaIds: Array<String?>,
         val taste: DoubleArray,
         val artistKey: IntArray,
@@ -7197,7 +7197,7 @@ class MusicService :
         val distinctArtists: Int get() = interned.size
     }
 
-    private fun shuffleItemKeys(totalCount: Int, p: iad1tya.echo.music.reco.TasteProfile?): ShuffleItemKeys {
+    internal fun shuffleItemKeys(totalCount: Int, p: iad1tya.echo.music.reco.TasteProfile?): ShuffleItemKeys {
         val mediaIds = arrayOfNulls<String>(totalCount)
         val taste = DoubleArray(totalCount)
         val artistKey = IntArray(totalCount)
@@ -8448,7 +8448,7 @@ class MusicService :
         return profile?.preamp ?: prefsPreamp
     }
 
-    private fun safeVolumeAppliedGain(baseGain: Float): Float =
+    internal fun safeVolumeAppliedGain(baseGain: Float): Float =
         safeVolumeGainWithEqPreamp(baseGain, currentEqPreampDb())
 
     /** FASE B: implementation moved verbatim to [VideoModeCoordinator.exitVideoMode]. */
@@ -10891,1062 +10891,25 @@ class MusicService :
         }
     }
 
-    /**
-     * AIMP-style smooth entry: wait until audio is actually rendering, then a short ~400ms sine ramp
-     * so the skip is not a slam. Owner: songs were taking too long to start — the old 1.6s quieterstep
-     * swell (first quarter almost silent) felt like the track had not begun. Volume-only.
-     *
-     * 🔴 2026-09-17 — *"a veces las canciones inician cortadas cuando cambio a mano, y en Android
-     * Auto también"*. Eran DOS agujeros de esta función, los dos con el volumen como víctima; el
-     * razonamiento completo y los umbrales están en [ManualFadeIn]:
-     *
-     *  - la espera muda miraba `isPlaying`, que es FALSO mientras el foco está suprimido (ducking, un
-     *    aviso del coche) aunque ya esté saliendo audio, y aguantaba hasta 8 s con el volumen en 0 —
-     *    hasta ocho segundos de canción sonando a cero, y encima al agotarse rampaba desde cero otra
-     *    vez. Ahora mira el estado real y la espera muda dura poco más de un segundo; si se agota se
-     *    devuelve el volumen ENTERO de golpe, porque perder el fundido es mejor que perder la entrada;
-     *  - la rampa cortaba con `if (isCrossfading) break` y el `finally` restauraba solo
-     *    `if (!isCrossfading)`: la MISMA condición, así que un crossfade encima dejaba el volumen
-     *    clavado en el escalón que tocara. Ahora se restaura siempre (salvo que una entrada más nueva
-     *    ya sea la dueña del volumen); el crossfade fija el suyo en su primer tic, así que no le quita
-     *    nada.
-     */
-    private fun fadeInOnManualChange() {
-        manualFadeInJob?.cancel()
-        if (!::playerVolume.isInitialized) return
-        if (!ManualFadeIn.worthFading(isMuted.value, playerVolume.value)) return
-        val target = playerVolume.value
-        lateinit var self: Job
-        self = scope.launch {
-            try {
-                player.volume = 0f
-                // WAIT for the audio to actually RENDER before ramping (bounded): a wall-clock ramp from
-                // the transition callback finished into SILENCE and the real audio then slammed in.
-                var waited = 0L
-                while (isActive &&
-                    ManualFadeIn.shouldKeepWaiting(
-                        waitedMs = waited,
-                        audible = ManualFadeIn.audible(
-                            ready = player.playbackState == Player.STATE_READY,
-                            playWhenReady = player.playWhenReady,
-                        ),
-                    )
-                ) {
-                    delay(ManualFadeIn.WAIT_POLL_MS)
-                    waited += ManualFadeIn.WAIT_POLL_MS
-                }
-                // Se agotó la espera: la canción ya lleva sonando un rato y rampar desde cero AHORA es
-                // exactamente el corte del que se queja. El `finally` devuelve el volumen entero.
-                if (!isActive ||
-                    !ManualFadeIn.audible(
-                        ready = player.playbackState == Player.STATE_READY,
-                        playWhenReady = player.playWhenReady,
-                    )
-                ) {
-                    return@launch
-                }
-                // Audible on the first step (~−12 dB), full level in ~400ms. Equal-power sine, no
-                // smootherstep hold-at-silence.
-                val stepTime = ManualFadeIn.RAMP_MS / ManualFadeIn.STEPS
-                for (i in 1..ManualFadeIn.STEPS) {
-                    if (!isActive) break
-                    player.volume = target * ManualFadeIn.stepGain(i)
-                    delay(stepTime)
-                }
-            } finally {
-                runCatching {
-                    // Exact restore, mute-aware — never strand the volume below the user's setting.
-                    // IDENTITY guard: on rapid skips a NEWER fade may already own the volume (it just set
-                    // 0f); a cancelled older job restoring FULL volume after that would kill the new
-                    // fade-in. Only the job still registered as current restores.
-                    if (::playerVolume.isInitialized) {
-                        ManualFadeIn.finalVolume(
-                            isCurrentJob = manualFadeInJob === self,
-                            muted = isMuted.value,
-                            userVolume = playerVolume.value,
-                        )?.let { player.volume = it }
-                    }
-                }
-            }
-        }
-        manualFadeInJob = self
-    }
+    // Plan C1 phase 2 (row 352): the crossfade engine (scheduleCrossfade, startCrossfade, the swap,
+    // gains, cleanup, tail-silence) lives in CrossfadeEngine.kt as internal extensions, unchanged.
 
-    internal fun scheduleCrossfade() {
-        crossfadeTriggerJob?.cancel()
-        crossfadeTriggerJob = null
-        crossfadePreloadJob?.cancel()
-        crossfadePreloadJob = null
-        crossfadeReadyJob?.cancel()
-        crossfadeReadyJob = null
-        crossfadeTailArmJob?.cancel()
-        crossfadeTailArmJob = null
-        tailQuietRecheckJob?.cancel()
-        tailQuietRecheckJob = null
-        // Tail-silence detection is only valid inside the fade window this call is about to (re)compute —
-        // disarm on every (re)schedule (track change, seek, queue change) so a stale arm can't fire.
-        playerSilenceProcessors[player]?.tailDetectEnabled = false
-        // Release any incoming player we preloaded for a transition that's no longer happening (user
-        // skipped, seeked, queue changed) so we never leak a second ExoPlayer.
-        if (!isCrossfading) {
-            // REUSE a still-valid preload (thermal audit): scheduleCrossfade fires from ~6 event sites
-            // (playWhenReady flips, rebuffer→READY, in-song seeks...), and unconditionally tearing the
-            // buffered secondary down meant building 2-4 full ExoPlayers per song — each with native
-            // processor init, an O(N) queue copy and up to 12 s of re-buffering (network + decode heat).
-            // Keep it ONLY when:
-            //  • the TIMELINE VERSION is unchanged (a counter bumped by every onTimelineChanged): the
-            //    secondary holds a queue COPY that becomes the LIVE queue at the swap, so ANY timeline
-            //    mutation — append, remove, drag-reorder past the next item, replaceMediaItem with the
-            //    same id (Opus refetch, video URI) — makes the copy stale. Same-target+same-count alone
-            //    provably missed reorders and replacements (adversarial round);
-            //  • the next target still matches (shuffle reorder without timeline change);
-            //  • AND every early-return below would NOT fire — a kept player is only legal on the path
-            //    that reaches the trigger scheduling, otherwise it sits prepared with NO trigger job
-            //    (an orphan holding codecs + 12 s of buffer indefinitely).
-            val keepPreload = secondaryPlayer?.let { sec ->
-                val targetIdx = CrossfadePlanning.crossfadeTargetIndex(
-                    player.repeatMode == REPEAT_MODE_ONE,
-                    player.currentMediaItemIndex,
-                    player.nextMediaItemIndex
-                )
-                val liveTarget = if (targetIdx != C.INDEX_UNSET && targetIdx < player.mediaItemCount) {
-                    runCatching { player.getMediaItemAt(targetIdx).mediaId }.getOrNull()
-                } else null
-                CrossfadePlanning.shouldKeepPreload(
-                    liveTargetMediaId = liveTarget,
-                    timelineVersionUnchanged = secondaryTimelineVersion == timelineVersion,
-                    secondaryMediaId = runCatching { sec.currentMediaItem?.mediaId }.getOrNull(),
-                    highPerformanceModeHint = highPerformanceModeHint,
-                    crossfadeEnabled = crossfadeEnabled,
-                    videoMode = _videoMode.value,
-                    durationMs = player.duration,
-                    crossfadeDurationMs = crossfadeDuration.toLong(),
-                    gaplessBypass = crossfadeGapless && isNextItemGapless()
-                )
-            } == true
-            if (!keepPreload) {
-                secondaryPlayer?.let {
-                    // Silence too — this is the MOST frequent teardown of the three (it runs whenever a
-                    // preloaded incoming player is discarded: skip, seek, queue change), so omitting it here
-                    // leaked a HashMap entry keyed by a released ExoPlayer on nearly every user interaction.
-                    playerSilenceProcessors.remove(it)
-                    playerNormProcessors.remove(it)
-                    playerLimiterProcessors.remove(it)
-                    playerEqProcessors.remove(it)?.let { eq -> equalizerService.removeAudioProcessor(eq) }
-                    it.stop()
-                    // NO clearMediaItems: redundant before release() and a mutation-race trigger (see
-                    // secondaryPlayerListener teardown / CRASH_REPORTS #2).
-                    it.release()
-                }
-                // Inside the if — an unconditional null here ORPHANED the kept player (nulled without
-                // release, rebuilt from scratch anyway): the exact leak this block exists to prevent.
-                secondaryPlayer = null
-            }
-        }
-        // High-Performance Mode: crossfade is force-disabled (crossfadeEnabled already reflects this via the
-        // perf-gated flow at collect time). This explicit, cheap @Volatile guard makes the intent robust and
-        // self-documenting — transitions fall back to normal gapless/simple playback (a single decoder, no
-        // second ExoPlayer) on weak/TV/car devices. No-op on capable devices: perf mode off → hint false →
-        // falls through to the unchanged 9s equal-power crossfade path below. The cleanup above still ran, so
-        // any incoming player preloaded before perf mode toggled on is released rather than leaked.
-        if (highPerformanceModeHint) return
-        if (!crossfadeEnabled || player.duration == C.TIME_UNSET) return
-        if (player.duration <= crossfadeDuration) {
-            traceCrossfade("skip-short", "dur=${player.duration}ms <= fade window — no blend possible")
-            return
-        }
-        // Crossfade builds a SECOND ExoPlayer and copies the queue into it; the video item (a cache-less
-        // muxed source with no TextureView attached on the secondary player) would break. Skip crossfade
-        // entirely while video mode is on.
-        if (_videoMode.value) return
-        if (crossfadeGapless && isNextItemGapless()) {
-            traceCrossfade("gapless-bypass", "same-album pair -> deliberate gapless advance (Ajustes)")
-            return
-        }
-        if (!player.hasNextMediaItem() && player.repeatMode != REPEAT_MODE_ONE) {
-            // Last item with NO next: if auto-radio (infinite queue) is on, seed it NOW — early, while this song
-            // still has time left — so a real crossfade INTO the first radio song is possible. A bare return here
-            // is why the infinite queue used to continue with a hard cut. appendSeed() re-arms scheduleCrossfade()
-            // once the items land, so the fade then targets the freshly-appended next song.
-            if (!radioSeedInFlight && autoLoadMoreHint &&
-                player.currentMediaItem?.mediaId != null
-            ) {
-                startRadioSeamlessly()
-            }
-            return
-        }
 
-        val targetMediaId = player.currentMediaItem?.mediaId
 
-        // PER-SONG TAIL MEMORY: if a previous play measured this song's trailing silence, anchor the
-        // trigger at (musical end - fade window) instead of (file end - fade window) — the decay covers
-        // the last seconds of MUSIC and completes right as the music ends; the silent tail never plays.
-        // Clamped so a bad hint can never pull the trigger absurdly early; no hint → live tail tiers
-        // below remain the first-play path.
-        val tailHint = CrossfadePlanning.effectiveTailHint(
-            rawHintMs = targetMediaId?.let { tailSilenceHintMs[it] } ?: 0L,
-            durationMs = player.duration,
-            crossfadeDurationMs = crossfadeDuration.toLong()
-        )
-        val triggerTime = CrossfadePlanning.triggerTimeMs(
-            player.duration, tailHint, crossfadeDuration.toLong()
-        )
-        // Already INSIDE the fade window (near-end seek; radio items landing during the last seconds and
-        // re-arming this schedule): fire the fade NOW instead of bailing. The old `return` here is why a
-        // late re-arm could still end in a hard cut — every guard re-runs inside startCrossfade anyway.
-        val delayMs = CrossfadePlanning.triggerDelayMs(triggerTime, player.currentPosition)
-        if (tailHint > 0) {
-            traceCrossfade("hint-anchor", "learnedTail=${tailHint}ms — fade covers the last music, not the silence")
-        }
 
-        // Preload (build + buffer) the incoming player a few seconds BEFORE the fade so it's already
-        // playing the instant the fade starts. This removes the occasional cut/gap on slow networks,
-        // where the incoming player used to begin buffering only when the fade had already started.
-        val preloadDelay = CrossfadePlanning.preloadDelayMs(delayMs, CROSSFADE_PRELOAD_LEAD_MS)
-        crossfadePreloadJob = scope.launch {
-            delay(preloadDelay)
-            if (isActive && !isCrossfading && player.isPlaying &&
-                player.currentMediaItem?.mediaId == targetMediaId
-            ) {
-                val targetIndex = CrossfadePlanning.crossfadeTargetIndex(
-                    player.repeatMode == REPEAT_MODE_ONE,
-                    player.currentMediaItemIndex,
-                    player.nextMediaItemIndex
-                )
-                prepareSecondaryPlayer(targetIndex)
-            }
-        }
+    internal var lastCrossfadeTraceKey: String? = null
 
-        // TAIL DETECTION — arm the detector for the final stretch of THIS track (its own job so the
-        // window can be WIDER than the preload lead). Two tiers fire the fade at the end of the MUSIC
-        // instead of the FILE:
-        //  • true silence (≥3.5s under ~-42 dBFS): the audible content is over — long silent tails no
-        //    longer produce a dead gap before the next song;
-        //  • "musical end" (≥2.5s under ~-25 dBFS): the song entered its mastered fade-out / quiet ending
-        //    — the crossfade starts THERE, over a still-audible ending, so the blend (old going down +
-        //    new rising on top) is actually HEARD. Position-guarded in the handler.
-        // Window: the WHOLE track (owner order — no silent gap ever; mid-song safety lives in the
-        // handler's position-tiered thresholds). Measure-only. HONEST
-        // SCOPE: media3 only feeds custom processors on the 16-bit INT pipeline (Opus/AAC/16-bit FLAC —
-        // the vast majority of content); the hi-res FLOAT pipeline (24-bit on capable devices) bypasses
-        // the whole custom chain — covered since 0.6.131 by the sink-level tap (ForwardingAudioSink →
-        // measureExternal), so FLOAT content is measured too.
-        // WHOLE-TRACK arming (owner order: the transition must fire NO MATTER how many seconds of silence
-        // the song carries — never a dead gap). The position-tiered handler keeps mid-song safety: far from
-        // the end TRUE silence needs ≥7s continuous (a skit/grand-pause can't fire), near the end 3.5s, and
-        // the -25dB "musical end" tier only acts inside (fade+4s). Same-track re-arms preserve counters
-        // (identity check + the processor no longer wipes state on a brief disarm); a new track resets.
-        // Cost: per-frame abs+compare on the already-hot audio thread — trivial vs decode/EQ.
-        playerSilenceProcessors[player]?.let {
-            val armId = player.currentMediaItem?.mediaId
-            if (tailArmedMediaId != armId) {
-                it.resetTracking()
-                tailArmedMediaId = armId
-                leadHintTrustedForArmedTrack = player.currentPosition <= 2_000L
-            } else if (player.currentPosition > 2_000L && it.leadingSilenceUsOrNegative() < 0L) {
-                // Same-track re-arm past the intro with nothing finalized yet: a seek moved counting away
-                // from the beginning — the eventual finalize would be interior audio, not the intro.
-                leadHintTrustedForArmedTrack = false
-            }
-            it.tailDetectEnabled = true
-        }
 
-        crossfadeTriggerJob = scope.launch {
-            delay(delayMs)
-            if (isActive && player.isPlaying && player.currentMediaItem?.mediaId == targetMediaId) {
-                startCrossfade()
-            }
-        }
-    }
-
-    private fun isNextItemGapless(): Boolean {
-        val current = player.currentMediaItem?.mediaMetadata ?: return false
-        val nextIndex = player.nextMediaItemIndex
-        if (nextIndex == C.INDEX_UNSET) return false
-        val next = player.getMediaItemAt(nextIndex).mediaMetadata
-        return current.albumTitle != null && current.albumTitle == next.albumTitle
-    }
-
-    /** Per-song tail memory writer. The measurement semantics are pure ([CrossfadePlanning.classifyTailHint]:
-     *  sub-2s "tails" CLEAR any stale learned value, implausible values (> half the song) are ignored
-     *  outright); only the map itself (size cap, put/remove) lives here. */
-    private fun storeTailHint(mediaId: String?, hintMs: Long, durationMs: Long) {
-        if (mediaId == null) return
-        when (CrossfadePlanning.classifyTailHint(hintMs, durationMs)) {
-            CrossfadePlanning.TailHintAction.Ignore -> return
-            CrossfadePlanning.TailHintAction.ClearEntry -> tailSilenceHintMs.remove(mediaId)
-            CrossfadePlanning.TailHintAction.Store -> {
-                if (tailSilenceHintMs.size > 400) tailSilenceHintMs.clear()
-                tailSilenceHintMs[mediaId] = hintMs
-            }
-        }
-    }
-
-    private var lastCrossfadeTraceKey: String? = null
-
-    /**
-     * One shareable-log line per DISTINCT crossfade event (deduped per track+event so the many
-     * reschedules can't spam). Turns every "esta transición falló" report into an attributable verdict
-     * in Ajustes ▸ Registros: fade fired (which tier), swap committed, or WHY it cut instead.
-     */
-    private fun traceCrossfade(event: String, detail: String) {
-        val id = player.currentMediaItem?.mediaId ?: "?"
-        val key = "$id:$event"
-        if (key == lastCrossfadeTraceKey) return
-        lastCrossfadeTraceKey = key
-        runCatching {
-            Timber.tag(TAG).i("CROSSFADE_TRACE id=%s ev=%s %s", id, event, detail)
-            iad1tya.echo.music.utils.PlaybackLogManager.log(
-                iad1tya.echo.music.utils.PlaybackLogLevel.INFO,
-                "CROSSFADE_TRACE",
-                "id=$id ev=$event $detail"
-            )
-        }
-    }
-
-    /**
-     * TAIL-DETECTION handler (Main thread). The CURRENT player's detector — armed for the final stretch
-     * (≤30s) by [scheduleCrossfade]'s tail-arm job — reported one of its two tiers:
-     *  • TRUE SILENCE (≥3.5s under ~-42 dBFS; ≥7s when still far from the end — mid-song skit/pause
-     *    safety): the audible content ended, fire the fade now, every extra second is dead air;
-     *  • "MUSICAL END" (≥2.5s under ~-25 dBFS): the mastered fade-out — fire only within (fade+4s) of
-     *    the real end so the blend covers a STILL-AUDIBLE ending (the audible-crossfade segue); earlier
-     *    fires defer to a live re-check at the moment the fade would be due.
-     * Every normal crossfade guard re-runs inside [startCrossfade]; disarms itself so one detection fires
-     * at most one fade; stale fires after a swap/seek no-op via disarm-on-reschedule + live-state checks.
-     */
-    private fun onTailSilenceDetected() {
-        val proc = playerSilenceProcessors[player] ?: return
-        if (!proc.tailDetectEnabled) return
-        val silentNow = proc.isCurrentlySilent()
-        val quietNow = proc.isCurrentlyQuiet()
-        // Main-hop recheck: if audible content resumed between the audio-thread fire and this hop, that
-        // was a mid-tail pause, not the end of the music — keep the detector armed and bail (a LATER
-        // episode in the window can still fire).
-        if (!silentNow && !quietNow) return
-        // INTRO SILENCE ≠ TAIL. Whole-track arming means opening dead air also accumulates. After ≥7s the
-        // far-from-end path used to fire a "tail" crossfade and SKIP the song (owner log 0.6.163:
-        // OjMLBY2cVPk / "A Man You Would Write About" — tier=silence remaining≈291s ~7s after start).
-        // leadingSilenceUs is finalized only at the FIRST loud frame: while it is still negative we have
-        // never heard music on this arm, so this silence cannot be a trailing tail. Stay armed; do NOT
-        // schedule the 7s recheck (that recheck was the skip). After music starts, notifiedThisSilence
-        // resets and a real end-of-song silence can fire normally.
-        if (silentNow && proc.leadingSilenceUsOrNegative() < 0L) {
-            return
-        }
-        // TIER GATE (pure decision in CrossfadePlanning.tailTierDecision, characterization-locked):
-        // far from the end, TRUE silence must persist LONGER (7s vs 3.5s) before firing — a
-        // skit/grand-pause can't skip real music — and rechecks until the persistence is met; near
-        // the end it fires anywhere (nothing audible remains). The −25dB "musical end" tier only
-        // acts inside (fade+4s) of the real end and defers to a live recheck until then. HOLD bails
-        // armed without a recheck loop while paused (frozen position/counters would re-arm forever);
-        // the file-end trigger remains the fallback after resume.
-        when (
-            val tier = CrossfadePlanning.tailTierDecision(
-                silentNow = silentNow,
-                isPlaying = player.isPlaying,
-                durationMs = player.duration,
-                currentPositionMs = player.currentPosition,
-                silenceDurationMs = proc.silenceDurationUs() / 1_000L,
-                crossfadeDurationMs = crossfadeDuration.toLong()
-            )
-        ) {
-            CrossfadePlanning.TailDecision.Hold -> return
-            is CrossfadePlanning.TailDecision.Recheck -> {
-                tailQuietRecheckJob?.cancel()
-                tailQuietRecheckJob = scope.launch {
-                    delay(tier.delayMs)
-                    onTailSilenceDetected() // re-evaluates LIVE state; bails if the music resumed
-                }
-                return
-            }
-            CrossfadePlanning.TailDecision.Fire -> {}
-        }
-        proc.tailDetectEnabled = false
-        if (isCrossfading || !crossfadeEnabled || highPerformanceModeHint || _videoMode.value) return
-        if (!player.isPlaying) return
-        if (crossfadeGapless && isNextItemGapless()) {
-            traceCrossfade("gapless-bypass", "same-album pair -> deliberate gapless advance (Ajustes)")
-            return
-        }
-        if (!player.hasNextMediaItem() && player.repeatMode != REPEAT_MODE_ONE) return
-        // LEARN this song's tail for the per-song memory (silent tier ONLY: its run start is the true end
-        // of audible content; the quiet tier's run start is the START of a still-audible mastered fade-out
-        // — anchoring 5s before THAT would cut real music on later plays). trailing ≈ remaining + run; the
-        // sink buffer skews it ≤~0.5s toward "earlier", which can only trim threshold-level noise. The EOS
-        // snapshot in cleanupCrossfade refines this with the exact value when the decoder reached EOS.
-        if (silentNow) {
-            val dur = player.duration
-            if (dur != C.TIME_UNSET) {
-                storeTailHint(
-                    player.currentMediaItem?.mediaId,
-                    (dur - player.currentPosition) + proc.silenceDurationUs() / 1_000L,
-                    dur
-                )
-            }
-        }
-        // Deliberately do NOT cancel crossfadeTriggerJob: if this early fade can't actually start (the
-        // secondary misses its READY window, or the user pauses during the bounded wait) the file-end-
-        // anchored trigger must survive as the fallback — cancelling it here left the track with NO fade at
-        // all. If the early fade DOES start, beginCrossfadeSwap cancels the stale jobs at the commit point.
-        traceCrossfade(
-            "tail-fire",
-            "tier=${if (silentNow) "silence" else "quiet"} remaining=${
-                player.duration.takeIf { it != C.TIME_UNSET }?.minus(player.currentPosition) ?: -1
-            }ms"
         )
         startCrossfade()
     }
 
-    private fun startCrossfade() {
-        if (isCrossfading) return
-        // Tail detection's job is done the moment any fade actually starts (either path) — disarm.
-        playerSilenceProcessors[player]?.tailDetectEnabled = false
-
-        
-        
-        // Live values — NOT runBlocking dataStore reads: two blocking disk reads here, right at the
-        // crossfade trigger, stuttered the smooth transition. player.repeatMode/shuffleModeEnabled mirror
-        // the persisted settings already.
-        val savedRepeatMode = player.repeatMode
-        val savedShuffleEnabled = player.shuffleModeEnabled
-
-        
-        val targetIndex = CrossfadePlanning.crossfadeTargetIndex(
-            savedRepeatMode == REPEAT_MODE_ONE,
-            player.currentMediaItemIndex,
-            player.nextMediaItemIndex
-        )
-        if (targetIndex == C.INDEX_UNSET) return
-
-        // Reuse the player we preloaded (already buffering ahead) if present; otherwise build it now.
-        if (secondaryPlayer == null) {
-            prepareSecondaryPlayer(targetIndex)
-        }
-        val secPlayer = secondaryPlayer ?: return
-
-        // START-CLIP FIX: never fade in a half-buffered incoming player. On the normal preloaded path the
-        // secondary is already STATE_READY (buffered at position 0) with the full ~12 s lead, so we swap
-        // immediately — byte-identical to before. On the LATE-ARMED path (radio just appended the next item,
-        // a near-end seek, or the streamed duration arrived late) the secondary was built with ~0 ms buffered;
-        // flipping playWhenReady and swapping NOW left the incoming still resolving its URL / buffering while
-        // the OUTGOING player — capped to its current item — hit STATE_ENDED, so the join went silent and the
-        // new song's first moment was clipped. Instead, wait (bounded) for STATE_READY, THEN swap + fade from a
-        // clean position 0. If it can't ready within the bound, fall through to media3's single-player
-        // auto-advance (a clean hard cut) rather than a clipped pop-in. Curve/duration untouched.
-        if (secPlayer.playbackState == Player.STATE_READY) {
-            beginCrossfadeSwap(secPlayer, savedShuffleEnabled)
-            return
-        }
-        val targetMediaId = player.currentMediaItem?.mediaId
-        crossfadeReadyJob?.cancel()
-        crossfadeReadyJob = scope.launch {
-            // DYNAMIC bound (owner: "algunas transiciones las corta"): the old fixed 2.5s gave up long
-            // before slow-resolving incoming tracks were ready (a Lossless resolve alone can take longer)
-            // and fell to a HARD CUT. Wait as long as the OUTGOING still has audible time left (~800ms
-            // floor to land the swap) — a late, shorter blend always beats a cut.
-            var waited = 0L
-            while (isActive && secPlayer.playbackState != Player.STATE_READY) {
-                val dur = player.duration
-                val remaining = if (dur == C.TIME_UNSET) 0L else dur - player.currentPosition
-                if (!CrossfadePlanning.readyWaitShouldContinue(
-                        outgoingRemainingMs = remaining,
-                        isPlaying = player.isPlaying,
-                        sameTrackStillCurrent = player.currentMediaItem?.mediaId == targetMediaId
-                    )
-                ) break
-                delay(50)
-                waited += 50
-            }
-            // Abort if the world moved on while we waited (user skipped/paused, a new crossfade armed, the
-            // current track changed, or this secondary was already released) — never swap a stale transition.
-            if (!isActive || isCrossfading || secondaryPlayer !== secPlayer ||
-                !player.isPlaying || player.currentMediaItem?.mediaId != targetMediaId
-            ) return@launch
-            if (secPlayer.playbackState == Player.STATE_READY) {
-                beginCrossfadeSwap(secPlayer, savedShuffleEnabled)
-            } else {
-                // Single-player path will hard-cut — make the failure VISIBLE in the shareable log.
-                traceCrossfade("cut-not-ready", "waited=${waited}ms incoming never READY (slow resolve/buffer)")
-            }
-        }
-    }
-
-    /** Flip the (already-READY) incoming player on and run the swap + fade. Extracted so both the fast path
-     *  and the bounded ready-wait in [startCrossfade] share one swap site. */
-    private fun beginCrossfadeSwap(secPlayer: ExoPlayer, savedShuffleEnabled: Boolean) {
-        if (isCrossfading) return
-        secPlayer.playWhenReady = true
-
-        performCrossfadeSwap()
-
-        // The fade COMMITTED — kill the file-end-anchored jobs NOW. They deliberately survive the
-        // can't-start paths (secondary missed READY, pause during the bounded wait) as the fallback, but
-        // once the swap really happened they are stale — and under REPEAT_ONE the swapped-in player plays
-        // the SAME mediaId, so the old trigger's mediaId guard would pass after a short (≤8s) fade ended
-        // and audibly RESTART the song mid-play. Cancelling at the commit point closes that hole while
-        // keeping the fallback intact.
-        crossfadeTriggerJob?.cancel()
-        crossfadeTriggerJob = null
-        crossfadePreloadJob?.cancel()
-        crossfadePreloadJob = null
-        crossfadeTailArmJob?.cancel()
-        crossfadeTailArmJob = null
-        tailQuietRecheckJob?.cancel()
-        tailQuietRecheckJob = null
-
-        traceCrossfade("swap-ok", "blend running (curve+duration per Ajustes)")
-
-        // A crossfade swap IS a natural auto-advance — but it reaches the next track through a path that
-        // never fires onMediaItemTransition. Everything that normally happens there must be mirrored here or
-        // it silently stops working in the app's DEFAULT configuration (crossfade ON): scrobbling, Cast
-        // follow-along, SponsorBlock segments, upcoming-track prefetch, and pulling the next page of a long
-        // playlist/album (whose absence made the queue fall into the infinite radio instead of continuing).
-        applyAutoAdvanceSideEffects()
-        // Same ordering rule as the transition path: trace BEFORE either recording block below, or the
-        // line always reads "repeat=YES" and tells us nothing.
-        traceNoRepeat("crossfade-swap")
-        // REPEAT_ONE swaps the SAME track in over and over; treating those as fresh advances paginated the
-        // queue on every loop (a page fetched + appended per repeat). The transition path suppresses
-        // pagination on repeats for exactly this reason — mirror it.
-        maybeLoadMoreQueuePages(isRepeatTransition = player.repeatMode == REPEAT_MODE_ONE)
-
-        // Linear-play recording under crossfade: the swap path skips onMediaItemTransition, so without
-        // this a LINEAR listen (shuffle off, crossfade on — every auto-advance is a swap) left no trace in
-        // the persistent context memory, and activating shuffle later replayed songs heard minutes before.
-        // Mirrors the ungated insert in onMediaItemTransition; the shuffle branch below records its own.
-        if (!savedShuffleEnabled) {
-            val linearId = player.currentMediaItem?.mediaId ?: player.currentMetadata?.id
-            val linearCtx = shuffleContextId
-            if (enhancedShuffleHint && linearCtx != null && linearId != null) {
-                val now = System.currentTimeMillis()
-                scope.launch(enhancedShuffleWriteDispatcher) {
-                    recordPlayedSafely("ENHANCED_SHUFFLE") { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(linearCtx, linearId, now)) }
-                }
-            }
-        }
-
-        if (savedShuffleEnabled) {
-            // Enhanced Shuffle: the crossfade swap advances the queue via a path that SKIPS
-            // onMediaItemTransition — where B5 + the persistent no-repeat bookkeeping normally record the
-            // just-started song as played. With crossfade ON (every auto-advance is a swap) that recording
-            // NEVER ran, so shufflePlayedIds stayed near-empty and applyShuffleOrder below kept re-shuffling a
-            // pool where nothing was marked played → already-heard songs resurfaced as the "next" song
-            // (reported: the shuffle jumps to a song that isn't the right continuation). Record the song the
-            // swap just made current here, mirroring onMediaItemTransition's B5 block, BEFORE re-applying the
-            // order so played songs correctly sink and the cycle-exhaustion self-reset counts them.
-            val playedId = player.currentMediaItem?.mediaId ?: player.currentMetadata?.id
-            playedId?.let { shufflePlayedIds.add(it) }
-            // ARTIST SPACING mirror: this path skips onMediaItemTransition, so without this line the
-            // artist history would only ever fill with crossfade OFF — i.e. never, for this owner.
-            rememberShuffleArtist(player.currentMediaItem)
-            val ctx = shuffleContextId
-            if (enhancedShuffleHint && ctx != null && playedId != null) {
-                val now = System.currentTimeMillis()
-                scope.launch(enhancedShuffleWriteDispatcher) {
-                    recordPlayedSafely("ENHANCED_SHUFFLE") { database.insertEnhancedPlayed(EnhancedShufflePlayedEntity(ctx, playedId, now)) }
-                }
-            }
-
-            // Enhanced Shuffle — cycle exhaustion. The add above may have just COMPLETED the context (this
-            // swap made the last unplayed song current). This is the ONLY place that's knowable in time
-            // under crossfade: the swap path skips onMediaItemTransition (where the early-handoff lives),
-            // and a plain applyShuffleOrder here would run its all-played self-reset SYNCHRONOUSLY — wiping
-            // the memory before any later check could observe the exhaustion (verified: that made a
-            // scheduleCrossfade-time check dead code). A swap is by definition a NATURAL auto-advance, so
-            // the early-handoff's AUTO-only semantics hold. On exhaustion: MARK the lap complete (the
-            // memory is kept — it resets only when the user re-activates shuffle on this list), detach the
-            // context, seed the infinite radio while this last song still plays, and SKIP this swap's
-            // re-shuffle — the self-reset would un-sink the played tail; appendSeed() re-applies the order
-            // once the radio items land (unplayed radio sorts ahead; the tail stays sunk).
-            val exhaustCtx = shuffleContextId
-            // player.shuffleModeEnabled: LIVE check on top of the captured savedShuffleEnabled — the swap
-            // can run up to 2.5s after capture (READY-wait), and if the user turned shuffle OFF in that
-            // window this destructive branch (memory wipe + radio) must not fire on an un-shuffled queue.
-            if (enhancedShuffleHint && exhaustCtx != null && player.shuffleModeEnabled &&
-                player.repeatMode == REPEAT_MODE_OFF && autoLoadMoreHint &&
-                !radioSeedInFlight && isEnhancedContextExhausted()
-            ) {
-                markEnhancedContextCycleComplete(exhaustCtx)
-                shuffleContextId = null
-                startRadioSeamlessly()
-                // KNOWN bounded edge: until appendSeed re-applies the order, the swapped-in player keeps
-                // media3's own random shuffle order — if this LAST song ends before the seed lands (very
-                // short song + slow network) one already-played song may briefly replay, then the radio
-                // takes over (its items sort ahead; the tail stays sunk via the !radioSeedInFlight reset
-                // gate). Accepted: bounded, self-healing, and never silence.
-            } else {
-                // LAP-COMPLETION probe: with the stale-skip below, the all-played self-reset and the
-                // cycle-complete mark inside applyShuffleOrder would be unreachable in configs where the
-                // exhaustion handoff above does not fire (repeat-all, continuation off) — shuffle would
-                // simply never re-shuffle again. O(1) precheck first so the common mid-lap swap stays
-                // scan-free; the O(N) confirm runs at most once per completed lap. REPEAT_ONE loops the
-                // same song and needs no re-shuffle; radioSeedInFlight defers to the seed's own re-apply.
-                if (!shuffleOrderStale &&
-                    player.repeatMode != REPEAT_MODE_ONE &&
-                    !radioSeedInFlight &&
-                    shufflePlayedIds.size >= player.mediaItemCount &&
-                    player.mediaItemCount > 0
-                ) {
-                    val allPlayed = (0 until player.mediaItemCount).all { i ->
-                        runCatching { player.getMediaItemAt(i).mediaId }.getOrNull()?.let { it in shufflePlayedIds } != false
-                    }
-                    if (allPlayed) shuffleOrderStale = true
-                }
-                if (shuffleOrderStale) {
-                    // Re-apply ONLY when something order-relevant actually changed (an append, a toggle,
-                    // the DB seed landing, a manual SEEK, a completed lap). Re-running the full O(N)
-                    // scoring + sort + spacing on the MAIN thread at EVERY song boundary — during the 5 s
-                    // dual-player fade, with media3 then re-broadcasting the whole shuffle order to
-                    // Android Auto over Binder — was the per-boundary burst car users heard as
-                    // micro-stutters. Deferring the just-played sink is safe within a lap because the
-                    // incoming player CARRIES the in-force curated order (see prepareSecondaryPlayer):
-                    // every unplayed item stays ahead of the play head, so no-repeat holds going forward
-                    // and the sink lands on the next real mutation.
-                    shuffleOrderStale = false
-                    val shufflePlaylistFirst = dataStore.get(ShufflePlaylistFirstKey, false)
-                    applyShuffleOrder(player.currentMediaItemIndex, player.mediaItemCount, shufflePlaylistFirst)
-                }
-            }
-        }
-    }
-
-    /** Build the incoming player (full queue, seeked to [targetIndex], muted, buffering) WITHOUT swapping. */
-    private fun prepareSecondaryPlayer(targetIndex: Int) {
-        if (secondaryPlayer != null || isCrossfading) return
-        if (targetIndex == C.INDEX_UNSET) return
-
-        // INSTANT VIDEO SWAP: the crossfade secondary and the speculative video pre-player must NEVER
-        // coexist (max 2 ExoPlayers, same envelope as before the feature). Crossfade wins — the video
-        // pre-player is pure speculation; the toggle falls back to the normal swap path.
-        teardownInstantVideoSwap("crossfade secondary player preparing")
-
-        val sec = createExoPlayer(isSecondary = true)
-        sec.addListener(secondaryPlayerListener)
-
-        // QUEUE COPY — the secondary BECOMES the live player at the swap (performCrossfadeSwap does
-        // `player = nextPlayer`), so it genuinely needs the WHOLE queue: everything the user can seek back
-        // to and everything still to come. Preparing "only the next item" would destroy the queue once per
-        // song. What CAN go is the per-item cost of reading it.
-        //
-        // ONE timeline read + ONE reusable Window, exactly as in shuffleItemKeys: `getMediaItemAt(i)` is
-        // `getCurrentTimeline().getWindow(i, sharedWindow).mediaItem` and `mediaItemCount` is
-        // `getCurrentTimeline().getWindowCount()` (both verified in the media3-common 1.10.1 bytecode), so
-        // the old loop paid an application-thread check and a playbackInfo hop per item, N+1 times over,
-        // on the Main thread, once per song, on a queue the infinite radio only grows. The ArrayList is
-        // also pre-sized now: mutableListOf() started at capacity 10 and doubled its way up, which on a
-        // four-figure queue is ~9 reallocations plus the array copies behind them.
-        //
-        // IDENTICAL RESULT: same MediaItem instances, same order, same count, handed to the same
-        // setMediaItems call. Deliberately NOT wrapped in runCatching — today this loop has no catch
-        // either, and swallowing a failure here would hand the secondary a PARTIAL queue that becomes the
-        // live one at the swap. Reusing one Window is what media3 itself does across successive
-        // getMediaItemAt calls; `.mediaItem` is a reference read, so the next getWindow cannot disturb it.
-        val liveTimeline = player.currentTimeline
-        val itemCount = liveTimeline.windowCount
-        val copyWindow = Timeline.Window()
-        val items = ArrayList<MediaItem>(itemCount)
-        for (i in 0 until itemCount) {
-            items.add(liveTimeline.getWindow(i, copyWindow).mediaItem)
-        }
-        sec.setMediaItems(items)
-        // Stamp which live-timeline version this COPY mirrors — the reuse check in scheduleCrossfade
-        // compares against it. Read BEFORE this function's own player reads complete; onTimelineChanged
-        // runs on this same Main thread, so no mutation can interleave mid-copy.
-        secondaryTimelineVersion = timelineVersion
-        val incomingId = items.getOrNull(targetIndex)?.mediaId
-        // PER-SONG INTRO MEMORY — APPLICATION DISABLED (owner, 2026-08-18): "La Isla Bonita" measured
-        // ~4s of sub-threshold intro and every later crossfade into it silently skipped straight to 0:04,
-        // which read as the song randomly jumping ahead. The -42dBFS detector can't tell true dead air
-        // from a quiet-but-real intro, and a wrong measurement then applies on EVERY future play, not just
-        // once — too high a cost for a background polish feature. leadSilenceHintMs is still LEARNED below
-        // (harmless, unread) so this can be re-enabled behind a toggle later without rebuilding the
-        // detector; only the seek that SPENT the hint is removed. Always start incoming audio at 0.
-        sec.seekTo(targetIndex, 0L)
-        sec.volume = 0f
-        sec.repeatMode = player.repeatMode
-        sec.shuffleModeEnabled = player.shuffleModeEnabled
-        // CARRY THE IN-FORCE SHUFFLE ORDER ONTO THE SECONDARY. Without this, each secondary rolls media3's
-        // OWN uniform-random permutation (setMediaItems + shuffleModeEnabled builds a fresh
-        // DefaultShuffleOrder) — the curated order lives only inside the LIVE ExoPlayer object and dies
-        // with it at the swap. The per-boundary re-apply used to repaint it microseconds after every swap,
-        // which masked this; with the stale-skip in place nothing repaints it, and shuffle would degenerate
-        // to memoryless random-with-replacement: repeats mid-lap, no artist spacing, premature radio
-        // handoff — the exact bug class rows 90/92/94/96/101/102 exist to prevent. The walk is the same
-        // pointer chase playNext uses; O(N), no scoring, no Binder re-broadcast (the secondary is not the
-        // MediaSession player), and the copy is made microseconds after setMediaItems on this same Main
-        // thread, so the length cannot mismatch.
-        if (player.shuffleModeEnabled && items.isNotEmpty()) {
-            runCatching {
-                // The SAME Timeline instance the copy above walked — not a second `player.currentTimeline`
-                // read. onTimelineChanged runs on this same Main thread, so nothing can have mutated
-                // between the two, and sharing the reference makes that guarantee structural instead of a
-                // comment. The order walk itself is unchanged, and so is the order it produces.
-                val order = IntArray(items.size)
-                var oi = 0
-                var w = liveTimeline.getFirstWindowIndex(true)
-                while (w != C.INDEX_UNSET && oi < order.size) {
-                    order[oi++] = w
-                    w = liveTimeline.getNextWindowIndex(w, Player.REPEAT_MODE_OFF, true)
-                }
-                if (oi == order.size) {
-                    sec.setShuffleOrder(DefaultShuffleOrder(order, System.currentTimeMillis()))
-                }
-            }
-        }
-        // Carry the USER's playback settings across the swap. Speed/pitch and the chosen audio output are
-        // set on the player object, not on a preference — so with crossfade ON (the default) every
-        // auto-advance silently reset 1.25x/+2 semitones back to normal and dropped the selected output.
-        sec.playbackParameters = player.playbackParameters
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            preferredDeviceId?.let { id ->
-                runCatching {
-                    audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                        .find { it.id == id }
-                        ?.let { sec.setPreferredAudioDevice(it) }
-                }
-            }
-        }
-
-        // FIX B: pre-level the incoming track BEFORE sec.prepare() primes its first buffers. The secondary
-        // shares the NormalizationGainAudioProcessor.gain static, which still holds the OUTGOING track's
-        // value — so without this the incoming track primes at the wrong (often louder) level and then
-        // ramps when the async prime below lands ("enters loud then corrects"). After Fix A the incoming
-        // format is usually already cached, so resolve it synchronously here and set the per-instance gain
-        // up front. If it isn't cached yet, the async scope.launch below resolves it (existing fallback).
-        // Resolve the incoming gain from the IN-MEMORY hint cache (populated by setupLoudnessEnhancer on every
-        // track start + by the upcoming-track preload, Fix A) — NO disk read on this thread. prepareSecondaryPlayer
-        // runs on Dispatchers.Main, where a runBlocking Room/DataStore read stutters the transition / risks ANR
-        // (the comment in startCrossfade documents that exact regression). Cache miss → the async fallback below
-        // resolves it off-main before the fade.
-        var primedSyncGain = false
-        if (incomingId != null && (normalizationEnabledHint || safeVolumeEnabledHint)) {
-            loudnessHintCache[incomingId]?.let { loudnessDb ->
-                val mult = normalizationMultiplier(loudnessDb, enabled = true)
-                val makeup = dbToLinear(loudnessMakeupDb(loudnessDb, enabled = true))
-                playerNormProcessors[sec]?.instanceGain = mult
-                playerLimiterProcessors[sec]?.setInstanceMakeup(makeup, null)
-                // Prime Safe Volume on the incoming player's live EQ processor so a loud track is attenuated
-                // from the FIRST fade-in sample (else it swells in at full native level, then drops at swap).
-                // MUST be the SAME full gain (attenuation x makeup) the main path applies when this track
-                // becomes current — priming only the attenuate half would make a quiet track fade in lower
-                // than it plays a moment later, i.e. an audible jump at the swap. No fade timing/curve here.
-                if (safeVolumeEnabledHint) playerEqProcessors[sec]?.applySafeVolume(true, safeVolumeAppliedGain(mult * makeup))
-                primedSyncGain = true
-                Timber.tag(TAG).d("Crossfade: pre-leveled incoming $incomingId from cache (loudnessDb=$loudnessDb)")
-            }
-        }
-
-        sec.playWhenReady = false // buffer ahead silently; startCrossfade flips this on at the fade
-        sec.prepare()
-        secondaryPlayer = sec
-
-        // Prime the incoming player to ITS OWN track's normalization so the moment the fade starts it's
-        // already at the right level (the shared companion statics still hold the OUTGOING track's values).
-        // Fallback for the not-yet-cached case: only runs if the synchronous pre-level above didn't set the
-        // gain (so it never overwrites an already-set instanceGain with a default).
-        if (incomingId != null && !primedSyncGain) {
-            scope.launch {
-                val normalize = withContext(Dispatchers.IO) { dataStore.data.map { it[AudioNormalizationKey] ?: true }.first() }
-                if (!normalize && !safeVolumeEnabledHint) return@launch
-                val fmt = withContext(Dispatchers.IO) { database.format(incomingId).first() }
-                val loudnessDb = effectiveLoudnessDb(fmt?.loudnessDb, fmt?.perceptualLoudnessDb, fmt?.measuredLoudnessDb)
-                loudnessHintCache[incomingId] = loudnessDb
-                withContext(Dispatchers.Main) {
-                    if (secondaryPlayer === sec || (player === sec && isCrossfading)) {
-                        val mult = normalizationMultiplier(loudnessDb, enabled = true)
-                        val makeup = dbToLinear(loudnessMakeupDb(loudnessDb, enabled = true))
-                        playerNormProcessors[sec]?.instanceGain = mult
-                        playerLimiterProcessors[sec]?.setInstanceMakeup(makeup, null)
-                        if (safeVolumeEnabledHint) playerEqProcessors[sec]?.applySafeVolume(true, safeVolumeAppliedGain(mult * makeup))
-                        if (player === sec) {
-                            lastAppliedGain = mult
-                            lastAppliedMakeup = makeup
-                            lastNormalizedId = incomingId
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun performCrossfadeSwap() {
-        isCrossfading = true
-        val nextPlayer = secondaryPlayer ?: return
-        // Observation-only mirror for the UI (set AFTER the null-guard so it can't strand true); does not
-        // alter the swap. Also drop any per-track Opus force from a refetch on the OUTGOING track: the swap
-        // moves us to the next track via a path that skips onMediaItemTransition, so it must be cleared here.
-        _isCrossfading.value = true
-        forceOpusForMediaId = null
-        // Bookkeeping only — no fade math, curve or duration is touched here. This callback-skipping path is
-        // also the ONLY writer gap for currentPlayingMediaId (:3548 in onMediaItemTransition is the other, and
-        // the only one): without this, after ANY swap the field still names the OUTGOING track for the whole of
-        // the incoming one, so the resolver's `isCurrentlyPlaying` is false while that track plays. Its single
-        // reader then falls back to the GLOBAL quality, the container guard compares that against a dbFormat
-        // describing a fallback container, mismatches, and purges the playing track's cached bytes on every
-        // re-open. With crossfade ON (the default here) every advance is a swap, so that was permanent.
-        currentPlayingMediaId = nextPlayer.currentMediaItem?.mediaId
-        // The UI's song identity ALSO only has two writers, and the other one lives in onEvents behind
-        // TIMELINE_CHANGED/POSITION_DISCONTINUITY — neither fires for a swap, and the service listener is
-        // attached to the incoming player only further down (after its own transition already happened).
-        // Without this, with crossfade ON the widget/notification/Android-Auto kept showing the PREVIOUS
-        // song's title, artist, artwork and like state while the progress bar advanced against the new one.
-        nextPlayer.currentMetadata?.let { currentMediaMetadata.value = it }
-        val currentPlayer = player
-
-        // LEARN the outgoing track's intro silence (finalized at its first loud frame): next time this
-        // song ENTERS a crossfade, the incoming player starts right at its music — the rise is heard over
-        // real audio instead of dead intro air. Undercount-safe by construction (frames before arming are
-        // simply not counted), so a stored skip can never eat music.
-        playerSilenceProcessors[currentPlayer]?.leadingSilenceUsOrNegative()?.takeIf { it >= 0 }?.let { us ->
-            val ms = us / 1_000L
-            val id = currentPlayer.currentMediaItem?.mediaId
-            if (id != null && id == tailArmedMediaId && leadHintTrustedForArmedTrack && ms in 1_000..20_000) {
-                if (leadSilenceHintMs.size > 400) leadSilenceHintMs.clear()
-                leadSilenceHintMs[id] = ms
-            }
-        }
-
-        fadingPlayer = currentPlayer
-        // Observation-only, for the lyrics view: this is the track the user KEEPS HEARING for the length of
-        // the fade even though the incoming one was published above. Recorded here so the lyrics can stay on
-        // it (and on its clock) until cleanupCrossfade commits. Null metadata simply leaves the override off,
-        // i.e. the lyrics behave exactly as they did before. Nothing below this line changes.
-        _crossfadeOutgoingMetadata.value = currentPlayer.currentMetadata
-        // Pin the OUTGOING player to its current normalization (the companion statics still hold its
-        // values right now) so when setupLoudnessEnhancer re-writes them for the incoming track, the
-        // fading player keeps its own level instead of "pumping" to the new track's gain.
-        playerNormProcessors[currentPlayer]?.instanceGain = NormalizationGainAudioProcessor.gain
-        playerLimiterProcessors[currentPlayer]?.setInstanceMakeup(TruePeakLimiterAudioProcessor.loudnessMakeup, null)
-        player = nextPlayer
-        _playerFlow.value = player
-        currentEqProcessor = playerEqProcessors[nextPlayer]
-        val incomingIdNow = nextPlayer.currentMediaItem?.mediaId
-        if (incomingIdNow != null && (normalizationEnabledHint || safeVolumeEnabledHint)) {
-            loudnessHintCache[incomingIdNow]?.let { ld ->
-                lastAppliedGain = normalizationMultiplier(ld, enabled = true)
-                lastAppliedMakeup = dbToLinear(loudnessMakeupDb(ld, enabled = true))
-            }
-            lastNormalizedId = incomingIdNow
-        }
-        secondaryPlayer = null
-
-        fadingPlayer?.removeListener(this)
-
-        // Stop the outgoing player from auto-advancing into the NEXT track as it fades out. It still
-        // holds the full queue, so when the current song ends mid-fade it would start the next song —
-        // which the incoming player is ALSO playing → "the next track plays twice at once" at the start
-        // of the transition.
-        //
-        // MUST NOT mutate the fading playlist (removeMediaItems/clearMediaItems): that races media3's
-        // evaluateMediaItemTransitionReason and throws a bare IllegalStateException on the main Handler
-        // (CRASH_REPORTS #2 + #5 — Xiaomi users mid-playlist with crossfade ON). pauseAtEndOfMediaItems
-        // parks the player at EOS without touching the timeline; release() in cleanupCrossfade frees it.
-        try {
-            fadingPlayer?.let { fp ->
-                fp.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
-                fp.pauseAtEndOfMediaItems = true
-            }
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "crossfade: failed to park fading player at end of item")
-        }
 
 
-        player.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (isCrossfading && fadingPlayer != null) {
-                    if (isPlaying) {
-                        fadingPlayer?.play()
-                    } else {
-                        fadingPlayer?.pause()
-                    }
-                } else {
-                    player.removeListener(this)
-                }
-            }
-        })
-
-        nextPlayer.removeListener(secondaryPlayerListener)
-        nextPlayer.addListener(this)
 
 
-        try {
-            (mediaSession as MediaSession).player = player
-        } catch (e: Exception) {
-            timber.log.Timber.e(e, "Failed to swap player in MediaSession")
-        }
-
-        crossfadeJob = scope.launch {
-            val configured = crossfadeDuration.toLong()
-            // OUTGOING decay must COMPLETE within the fading track's audible life (owner: "la que sale
-            // NO baja"): a fade that starts late — dynamic ready-wait, tail fire near the end — used to
-            // run its full configured length, so the outgoing's file ENDED while its ramp was still near
-            // full volume: heard as no decay at all. Cap its ramp to the actual remaining time
-            // (pure decision in CrossfadePlanning.outgoingFadeDurationMs, characterization-locked).
-            val fpRemaining = fadingPlayer?.let { fp ->
-                val d = fp.duration
-                if (d == C.TIME_UNSET) null else (d - fp.currentPosition).coerceAtLeast(0L)
-            }
-            val durOut = CrossfadePlanning.outgoingFadeDurationMs(configured, fpRemaining)
-            val durIn = configured
-            val curve = try { dataStore.get(CrossfadeCurveKey, 4) } catch (e: Exception) { 4 }
-            // NIVEL BASE DEL BLEND = el volumen DEL USUARIO, no el que tuviera el reproductor saliente.
-            //
-            // Leía `fadingPlayer.volume`, y ese valor podía venir de una rampa de entrada manual
-            // abandonada a medias (ver [fadeInOnManualChange]): entonces las DOS rampas se escalaban por,
-            // digamos, 0.3, y la canción ENTRANTE sonaba a un tercio durante toda la mezcla — el "empieza
-            // cortada" pegándose de una canción a la siguiente. El volumen del usuario es lo que ese
-            // `fadingPlayer.volume` pretendía leer siempre; ahora se lee de donde vive de verdad.
-            val startVolume = try {
-                if (::playerVolume.isInitialized) {
-                    if (isMuted.value) 0f else playerVolume.value
-                } else {
-                    fadingPlayer?.volume ?: 1f
-                }
-            } catch (e: Exception) { 1f }
-            // Because LUFS Normalization is fixed and active, tracks play at roughly -14 LUFS,
-            // leaving massive natural headroom. Thus, two tracks summing during an equal-power crossfade
-            // will NEVER clip the Android mixer (they'll sum to ~-11 LUFS). We can safely remove the
-            // old volume dip hack and keep the multiplier at 1.0f for a perfectly transparent blend.
-            val xfHeadroom = 1f
-
-            try {
-                // DUAL-CLOCK blend. The old single stepped loop had a `while (!player.isPlaying) delay`
-                // that FROZE the whole fade while the incoming track buffered its start (routine on
-                // streamed/Lossless songs) — the outgoing sat pinned at full volume for those seconds and
-                // then died with its ramp barely begun: the owner's exact "la que entra está bien pero la
-                // que sale no baja". Now each side runs on ITS OWN playback clock:
-                //  • OUTGOING advances only while the fading player actually renders → its decay is always
-                //    audible, always completes before its content ends, freezes correctly on user pause;
-                //  • INCOMING advances only while the new player renders → a buffering start can neither
-                //    freeze the outgoing nor slam the incoming in at mid-level.
-                var outElapsed = 0L
-                var inElapsed = 0L
-                var lastT = android.os.SystemClock.elapsedRealtime()
-                var safety = 0L
-                while (isActive) {
-                    val now = android.os.SystemClock.elapsedRealtime()
-                    val dt = (now - lastT).coerceAtLeast(0L)
-                    lastT = now
-                    safety += dt
-                    val fp = fadingPlayer
-                    if (fp?.isPlaying == true) outElapsed += dt
-                    if (player.isPlaying) inElapsed += dt
-                    // Outgoing counts as fully faded when it's gone (null/ended) — never stalls the loop.
-                    val outDone = fp == null || fp.playbackState == Player.STATE_ENDED
-                    val outP = if (outDone) 1f else (outElapsed / durOut.toFloat()).coerceAtMost(1f)
-                    val inP = (inElapsed / durIn.toFloat()).coerceAtMost(1f)
-                    val fadeIn = crossfadeGains(curve, inP).first
-                    val fadeOut = crossfadeGains(curve, outP).second
-
-                    try {
-                        // Both players smoothly fade without needing to dynamically duck their headroom
-                        player.volume = startVolume * fadeIn * xfHeadroom
-                        fp?.volume = startVolume * fadeOut * xfHeadroom
-                    } catch (e: Exception) { break }
-
-                    // Release the lyrics pin on AUDIBILITY, not on ramp progress. Without this the pin
-                    // survives until cleanupCrossfade — which waits for BOTH ramps (the incoming one can
-                    // lag seconds behind, or freeze on buffering/pause) — so the panel keeps showing the
-                    // OUTGOING song's lyrics over a track that is already playing: the owner's "aparecen
-                    // letras que no son de esa canción si no de otras". The predicate + its unit tests
-                    // live in CrossfadeLyricsPin; this call is the wiring that was missing.
-                    if (_crossfadeOutgoingMetadata.value != null &&
-                        CrossfadeLyricsPin.shouldRelease(
-                            pinned = true,
-                            outgoingGone = outDone,
-                            outgoingCurveGain = fadeOut,
-                            outgoingDetectedSilent = fp?.let {
-                                playerSilenceProcessors[it]?.isCurrentlySilent()
-                            } ?: false,
-                        )
-                    ) {
-                        _crossfadeOutgoingMetadata.value = null
-                    }
-
-                    if (inP >= 1f && outP >= 1f) break
-                    if (safety > durIn + durOut + 30_000L) break // pathological stall — bail to cleanup
-                    delay(40)
-                }
-            } finally {
-                // ALWAYS end the crossfade cleanly — even if it's cancelled (skip/stop) mid-fade, which
-                // throws from delay() and would otherwise skip the restore and leave the surviving player
-                // silent for the rest of the session. Restore it to the user's real volume + tear down.
-                runCatching {
-                    player.volume = when {
-                        !::playerVolume.isInitialized -> startVolume
-                        isMuted.value -> 0f
-                        else -> playerVolume.value
-                    }
-                }
-                runCatching { cleanupCrossfade() }
-            }
-        }
-    }
-
-    /**
-     * Gain pair (incoming, outgoing) for crossfade progress [p] in 0..1, per the selected style.
-     *  0 = Linear: straight amplitude ramp (1 - p); amplitude sum never exceeds 1.0.
-     *  1 = Smooth/equal-power (default): sin/cos keep incoming^2 + outgoing^2 = 1 (constant power), so
-     *      both tracks carry the SAME power through the blend — the natural, even crossfade.
-     *  2 = Long S-curve: equal-power but eased timing (very gradual in/out).
-     *  3 = Exponential (quick): each track dominates its half, snappier handover.
-     */
-    private fun crossfadeGains(curve: Int, p: Float): Pair<Float, Float> {
-        return CrossfadeMath.getGains(curve, p)
-    }
 
 
-    private fun cleanupCrossfade() {
-        // The crossfade is over: clear the surviving player's per-instance normalization overrides so it
-        // resumes following the shared companion statics, and reset the de-dup guard so the next track
-        // (re)normalizes normally via setupLoudnessEnhancer.
-        playerNormProcessors[player]?.instanceGain = null
-        playerLimiterProcessors[player]?.setInstanceMakeup(null, null)
-        // Incoming track is already the audible one. Do NOT clear lastNormalizedId: that disarmed
-        // the freeze for the rest of the song, so liking it (auto-download) re-levelled mid-play.
-        // Refine the per-song tail memory with the EXACT end-of-stream measurement when the decoder
-        // reached EOS (it runs ahead of the playback clock, so this is usually available even though the
-        // silent tail itself never audibly played). Read BEFORE stop() — duration/item may reset after.
-        fadingPlayer?.let { fp ->
-            val trailingUs = playerSilenceProcessors[fp]?.trailingSilenceUsOrNegative() ?: -1L
-            if (trailingUs >= 0) {
-                runCatching { storeTailHint(fp.currentMediaItem?.mediaId, trailingUs / 1_000L, fp.duration) }
-            }
-        }
-        fadingPlayer?.stop()
-        // NO clearMediaItems: this teardown fires at fade end — often the exact moment the outgoing
-        // player's own content ENDS (the 0.6.133 durOut cap makes that overlap routine). A playlist
-        // mutation landing while its transition machinery evaluates the ended/auto transition hits
-        // media3's bare "impossible state" IllegalStateException in evaluateMediaItemTransitionReason
-        // (retraced client crash, CRASH_REPORTS #2). release() below frees everything anyway.
-        fadingPlayer?.let {
-            // Bookkeeping only — no fade math touched. Silence was the one map this teardown forgot, so every
-            // crossfade left a dead entry holding a released ExoPlayer for the whole session.
-            playerSilenceProcessors.remove(it)
-            playerNormProcessors.remove(it)
-            playerLimiterProcessors.remove(it)
-            playerEqProcessors.remove(it)?.let { eq -> equalizerService.removeAudioProcessor(eq) }
-        }
-        fadingPlayer?.release()
-        fadingPlayer = null
-        isCrossfading = false
-        _isCrossfading.value = false // observation-only mirror for the UI; does not alter the swap
-        // The fade committed: the incoming track is now the audible one, so the lyrics view stops following
-        // the outgoing song and returns to the live one. Observation-only, like the mirror above.
-        _crossfadeOutgoingMetadata.value = null
-        // Collect the quality-change survivor here rather than at the swap: the fade is over and fadingPlayer is
-        // already stopped/cleared/released above, so dropping its URL entry cannot trigger a re-open. Needed
-        // because performCrossfadeSwap skips onMediaItemTransition, and with crossfade ON every advance is a
-        // swap — so the transition-based collector would never run and the pin would outlive its track.
-        qualityPinnedMediaId?.let { pinned ->
-            if (pinned != player.currentMediaItem?.mediaId) {
-                songUrlCache.remove(pinned)
-                qualityPinnedMediaId = null
-                persistSongUrlCache()
-            }
-        }
-    }
 
     companion object {
         // ConcurrentHashMap: read/written from both Main (applyVideoToCurrent, onPlayerError), Dispatchers.IO
@@ -12058,7 +11021,7 @@ class MusicService :
         private const val DEAD_END_RECHECK_MS = 45_000L
         // How early (ms before the fade) to build + buffer the incoming player so the crossfade has no gap.
         // 15s gives slow Lossless/resolve paths enough runway to reach READY before the fade window.
-        private const val CROSSFADE_PRELOAD_LEAD_MS = 15000L
+        internal const val CROSSFADE_PRELOAD_LEAD_MS = 15000L
         // Max time to wait for a LATE-ARMED / not-yet-buffered incoming player to reach STATE_READY before the
         // fade swaps. The outgoing has ~crossfadeDuration of runway from the trigger, so this stays well within
         // it; if READY isn't reached in time, we fall back to a clean single-player hard cut (no clipped pop-in).
