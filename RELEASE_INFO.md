@@ -1,6 +1,31 @@
-# Aura Hi-Res v2.0.64-beta11 — La cola inteligente sigue el estilo exacto de lo que escuchas
+# Aura Hi-Res v2.0.64-beta12 — Cada álbum con sus colores, ecualizador ordenado y Pedir música sin karaoke
 
-Beta encima de la 2.0.64-beta10. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta11. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Colores de la portada
+
+- **Cada álbum, lista, sencillo y artista se pinta con los colores de SU portada**, aunque esté sonando otra
+  cosa. Inicio y el reproductor siguen mostrando los colores de lo que se está reproduciendo.
+
+## Ecualizador y sonido
+
+- **Quedan menos presets, los que sirven:** se quitaron todos los «Aura Hi-Res» excepto **Aura Hi-Res v3**,
+  que ahora es el predeterminado, y también Analog Tape, Olive-Welti, Diffuse Field, Vocal Presence,
+  Sub-Bass Rumble, Cinematic Warmth, Sparkle & Detail, Reference Neutral, Tube Amp, Vinyl y Harman IE. Si
+  tenías uno de esos, pasas a Aura Hi-Res v3; si ajustaste tu ecualizador a mano, no se toca.
+- **Sin funciones repetidas:** «Volumen seguro» queda solo en Sonido y la firma Tidal solo en el Ecualizador
+  (antes cada una aparecía dos veces, una con otro nombre).
+- **Todo en un orden lógico:** Sonido va de Ecualizador a Volumen y protección, Espacio y dinámica y Calidad
+  de salida; el Ecualizador va del interruptor al preamplificador, los presets, el ajuste, guardar, efectos
+  y herramientas.
+
+## Pedir música
+
+- **Ya no pone versiones instrumentales ni de karaoke**, salvo que las pidas («karaoke de…», «instrumental»,
+  «pistas para cantar»).
+
+También incluye todo lo de la beta11:
+
 
 ## Cola inteligente
 
