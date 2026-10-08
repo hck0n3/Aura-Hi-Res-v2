@@ -1,8 +1,31 @@
-# Aura Hi-Res v2.0.64-beta7 — La cola guardada sobrevive a las actualizaciones
+# Aura Hi-Res v2.0.64-beta8 — La cola respeta el estilo exacto de tu lista y Aura recupera lo que le faltaba
 
-Beta encima de la 2.0.64-beta6. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta7. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Arreglado en esta beta
+## Cola inteligente
+
+- **Al terminar una lista o un álbum, la cola sigue con el mismo estilo exacto:** si escuchas cumbia
+  cristiana, continúa con cumbia cristiana, no con baladas de alabanza. Vale para cualquier estilo, religión
+  o idioma, y el nombre de la lista cuenta (por ejemplo «Cumbias cristianas»).
+
+## Interfaz Aura
+
+- **Volver a tocar la pestaña Biblioteca o Novedades sube al inicio**, como ya hacía Inicio.
+- **El menú del reproductor tiene «Exportar MP3 o vídeo»**, también para canciones ya descargadas.
+- **Con «Exportar como MP3» apagado, el botón de descarga descarga directamente.**
+- **Las portadas de Biblioteca ▸ Álbumes tienen ▶** para reproducir el álbum sin abrirlo.
+- **Deslizar una canción para «Reproducir a continuación» o «Añadir a la cola»** funciona también en Me gusta,
+  Descargadas, Caché, Top y en las listas de YouTube (si tienes activado «Deslizar canción»).
+- **El mini reproductor marca las canciones explícitas** con una «E».
+- **«Actualizaciones» aparece en Ajustes ▸ Acerca de.**
+
+## Batería
+
+- **La letra karaoke gasta menos:** solo se redibuja la línea que se está cantando, no todas las visibles.
+
+También incluye todo lo de la beta7:
+
+## Arreglado en la beta7
 
 - **La cola que estabas escuchando ya no se pierde al actualizar la app:** antes cada actualización la
   borraba. Al instalar esta beta se pierde una última vez; desde la siguiente actualización se conserva.
@@ -11,7 +34,7 @@ Beta encima de la 2.0.64-beta6. Conserva tus datos, tu sesión y tus ajustes: mi
 - **Con el reproductor clásico, al terminar un álbum ya no se cuela la mezcla de YouTube del álbum**
   por delante de la cola inteligente.
 
-También incluye todo lo de la beta6:
+Y lo de la beta6:
 
 ## Colores animados
 
