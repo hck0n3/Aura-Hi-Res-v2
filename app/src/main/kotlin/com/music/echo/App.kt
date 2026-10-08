@@ -555,6 +555,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             settings[iad1tya.echo.music.constants.EnableExportAsMp3DefaultOnV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.AddToPlaylistLastUpdatedDefaultV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.ThemeAccentRepairV1AppliedKey] != true ||
+            settings[iad1tya.echo.music.constants.PlayerBgHomeLookV1AppliedKey] != true ||
             // Row 350: a classic-UI user is moved to Aura (the only interface) on the next start.
             (iad1tya.echo.music.ui.newui.SINGLE_UI &&
                 settings[iad1tya.echo.music.constants.NewUiEnabledKey] != true)
@@ -591,6 +592,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                     // Fresh / unset "Interfaz nueva" → ON for this launch (never overwrite explicit false).
                     applyNewUiLaunchDefaultV1(p, settings)
                     applySingleUiV1(p)
+                    // AFTER every seed (a fresh install seeds APPLE_MUSIC above): the Inicio look.
+                    applyPlayerBgHomeLookV1(p, settings)
                 }
             }.onFailure { reportException(it) }
         }
@@ -1886,6 +1889,22 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
      * classic UI is moved to Aura once; the switch is no longer offered (NEW_UI_SWITCH_SHOWN), so
      * nothing writes `false` again. Runs every start and only writes when the value is not already ON.
      */
+    /**
+     * Row 353 (owner 2026-10-08): *"cuando el mini reproductor lo pasamos a pantalla completa… quiero que
+     * sean los mismos colores de Inicio y dinámicos, con los colores de la portada"*. «Predeterminado» IS the
+     * Inicio ground — the cover-tinted ground plus the animated cover-colour bloom (AuraBloom) — so the player
+     * is moved to it once. The style picker stays: anyone can choose another background afterwards.
+     */
+    private fun applyPlayerBgHomeLookV1(
+        p: androidx.datastore.preferences.core.MutablePreferences,
+        settings: androidx.datastore.preferences.core.Preferences,
+    ) {
+        if (settings[iad1tya.echo.music.constants.PlayerBgHomeLookV1AppliedKey] == true) return
+        p[iad1tya.echo.music.constants.PlayerBackgroundStyleKey] =
+            iad1tya.echo.music.constants.PlayerBackgroundStyle.DEFAULT.name
+        p[iad1tya.echo.music.constants.PlayerBgHomeLookV1AppliedKey] = true
+    }
+
     private fun applySingleUiV1(p: androidx.datastore.preferences.core.MutablePreferences) {
         if (!iad1tya.echo.music.ui.newui.SINGLE_UI) return
         if (p[iad1tya.echo.music.constants.NewUiEnabledKey] != true) {

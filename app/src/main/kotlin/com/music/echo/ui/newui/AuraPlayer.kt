@@ -2528,8 +2528,10 @@ internal fun rememberAuraGround(
     // Read unconditionally, decide afterwards — the same discipline as the rest of this file.
     val storedStyle by rememberEnumPreference(
         key = PlayerBackgroundStyleKey,
-        // The classic player's default for the same key (Player.kt:341). One key, one default.
-        defaultValue = PlayerBackgroundStyle.GRADIENT,
+        // Row 353 (owner 2026-10-08): the full-screen player wears the Inicio look by default —
+        // «Predeterminado» = cover-tinted ground + the animated cover-colour bloom. App.kt moves stored
+        // values to it once (applyPlayerBgHomeLookV1).
+        defaultValue = PlayerBackgroundStyle.DEFAULT,
     )
     val stylePref = styleOverride ?: storedStyle
     val highPerfMode by rememberPreference(HighPerformanceModeKey, false)

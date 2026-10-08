@@ -67,3 +67,20 @@ class AuraAmbientMotionTest {
         }
     }
 }
+
+/** Row 353 (owner 2026-10-08): the full-screen player's «Predeterminado» is exactly the Inicio ground. */
+class PlayerHomeLookTest {
+    @Test
+    fun `the default player background is the Inicio bloom and nothing else`() {
+        val recipe = auraGroundRecipe(
+            iad1tya.echo.music.constants.PlayerBackgroundStyle.DEFAULT,
+            hasCover = true,
+            motion = true,
+        )
+        assertEquals(1f, recipe.bloom, 0f)
+        assertEquals(0f, recipe.cover, 0f)
+        assertEquals(0f, recipe.wash, 0f)
+        assertEquals(0f, recipe.lobes, 0f)
+        assertEquals(0f, recipe.film, 0f)
+    }
+}

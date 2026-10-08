@@ -230,6 +230,8 @@ val Defaults0132GaplessOffAppliedKey = booleanPreferencesKey("defaults_0_6_132_g
 /** 0.6.136 one-time repair of the legacy seeded accent (0xFF36C5E0) that made the app look like the user
  *  had picked a custom colour, hiding the dynamic-theme switch and every palette selection. */
 val ThemeAccentRepairV1AppliedKey = booleanPreferencesKey("theme_accent_repair_v1_applied")
+// Row 353: one-time move of the full-screen player's background to «Predeterminado» = the Inicio look.
+val PlayerBgHomeLookV1AppliedKey = booleanPreferencesKey("player_bg_home_look_v1_applied")
 // One-time (V2, FRESH key): re-apply ALL audio defaults — EQ house curve + preamp, crossfade 5s
 // equal-power, Safe Volume ON — for EVERYONE, including
 // users whose per-feature flags were already set by the brief 0.6.75/0.6.76 builds (so the settings

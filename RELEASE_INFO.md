@@ -1,6 +1,20 @@
-# Aura Hi-Res v2.0.64-beta9 — Aura, la única interfaz: vista en lista o cuadrícula, logotipo y avatar en Inicio
+# Aura Hi-Res v2.0.64-beta10 — El reproductor con los colores animados de la portada, como Inicio
 
-Beta encima de la 2.0.64-beta8. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta9. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Reproductor
+
+- **El reproductor a pantalla completa tiene el mismo fondo que Inicio:** los colores de la portada
+  animados sobre el tono de la portada, y además reaccionan al ritmo de la música. Si prefieres otro
+  fondo, lo puedes elegir en Ajustes ▸ Apariencia.
+
+## Por dentro
+
+- **El servicio de música queda dividido en partes** (fundido cruzado, carga de canciones y recuperación de
+  errores, cada una en su propio archivo) para que los próximos arreglos sean más seguros. No cambia cómo
+  suena ni cómo se comporta.
+
+También incluye todo lo de la beta9:
 
 ## Una sola interfaz
 
@@ -22,7 +36,7 @@ Beta encima de la 2.0.64-beta8. Conserva tus datos, tu sesión y tus ajustes: mi
 - **El motor de la cola inteligente vive en su propio archivo**, separado del servicio de música, para que
   los próximos cambios sean más seguros. No cambia cómo suena ni cómo continúa la cola.
 
-También incluye todo lo de la beta8:
+Y lo de la beta8:
 
 ## Cola inteligente
 
