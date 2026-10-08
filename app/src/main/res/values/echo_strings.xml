@@ -1352,4 +1352,12 @@
     <string name="music_request_suggestion_drive">For a long drive</string>
     <string name="music_request_suggestion_party">To get the party going</string>
     <string name="music_request_recent_label">Ask again</string>
+    <!-- Fila 356: the style the smart queue follows -->
+    <string name="style_follow_label">Following: %1$s</string>
+    <string name="style_follow_christian">Christian</string>
+    <string name="style_follow_detected">Exact style (detected)</string>
+    <string name="style_follow_similar">Similar styles</string>
+    <string name="style_follow_any">Any style</string>
+    <string name="style_follow_change">Change to</string>
+    <string name="style_follow_cd">Change the style the queue follows</string>
 </resources>

@@ -154,6 +154,27 @@ object MusicStyle {
 
     private val byId: Map<String, Style> = ALL.associateBy { it.id }
 
+    /** Fila 356 — the name the queue shows for a style (genre names; the app's audience reads Spanish). */
+    private val NAMES = mapOf(
+        "cumbia" to "Cumbia", "salsa" to "Salsa", "merengue" to "Merengue", "bachata" to "Bachata",
+        "vallenato" to "Vallenato", "son" to "Son cubano", "punta" to "Punta", "kompa" to "Kompa",
+        "reggaeton" to "Reguetón", "trap" to "Trap", "rap" to "Rap / Hip hop", "dembow" to "Dembow",
+        "corridos" to "Corridos", "banda" to "Banda", "norteno" to "Norteño", "ranchera" to "Ranchera / Mariachi",
+        "sierreno" to "Sierreño", "huapango" to "Huapango", "duranguense" to "Duranguense",
+        "rock" to "Rock", "metal" to "Metal", "punk" to "Punk", "grunge" to "Grunge", "indie" to "Indie",
+        "pop" to "Pop", "balada" to "Balada", "kpop" to "K-pop", "jpop" to "J-pop",
+        "house" to "House", "techno" to "Techno", "trance" to "Trance", "dubstep" to "Dubstep",
+        "dnb" to "Drum and bass", "edm" to "Electrónica", "lofi" to "Lo-fi",
+        "rnb" to "R&B / Soul", "funk" to "Funk", "jazz" to "Jazz", "blues" to "Blues", "country" to "Country",
+        "reggae" to "Reggae", "dancehall" to "Dancehall", "ska" to "Ska",
+        WORSHIP to "Alabanza y adoración", "gospel" to "Gospel", "classical" to "Clásica",
+        "flamenco" to "Flamenco", "tango" to "Tango", "bolero" to "Bolero", "folklore" to "Folclore",
+        "bossa" to "Bossa nova", "samba" to "Samba / Pagode", "sertanejo" to "Sertanejo", "forro" to "Forró",
+        "funkbr" to "Funk brasileño", "afrobeats" to "Afrobeats",
+    )
+
+    fun displayName(id: String): String = NAMES[id] ?: id.replaceFirstChar { it.uppercase() }
+
     // Every (phrase, style) pair, LONGEST phrase first: "pop punk" must be read before "pop" and "punk",
     // and "cumbia nortena" before "norteno". A matched phrase is consumed so its words do not match again.
     private val phrases: List<Pair<String, String>> = ALL

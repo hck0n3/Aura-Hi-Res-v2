@@ -193,3 +193,49 @@ class ArtistStyleMemoryTest {
         assertEquals(counts, ArtistStyleMemory.decode(ArtistStyleMemory.encode(counts)))
     }
 }
+
+/** Fila 356 — the four improvements the owner approved ("sí, haz los puntos que dices"). */
+class ExactStyleImprovementsTest {
+
+    @Test
+    fun `Last_fm tags name the artist's style when they clearly agree`() {
+        assertEquals("cumbia", ArtistTagStyles.styleFromTags(listOf("cumbia" to 100, "christian" to 80, "latin" to 60)))
+        assertEquals("salsa", ArtistTagStyles.styleFromTags(listOf("salsa" to 100, "salsa romantica" to 40, "cumbia" to 10)))
+        assertEquals("rock", ArtistTagStyles.styleFromTags(listOf("rock en español" to 100, "seen live" to 50)))
+        assertNull(ArtistTagStyles.styleFromTags(listOf("cumbia" to 100, "salsa" to 90))) // no clear leader
+        assertNull(ArtistTagStyles.styleFromTags(listOf("christian" to 100, "latin" to 80))) // say no style
+        assertNull(ArtistTagStyles.styleFromTags(listOf("cumbia" to 3))) // one stray, weak tag
+        assertNull(ArtistTagStyles.styleFromTags(emptyList()))
+    }
+
+    @Test
+    fun `a quickly skipped artist is out for the rest of the queue`() {
+        val target = StyleContinuity.Target(setOf("cumbia"), TitleLanguage.ES, christian = true)
+        val skipped = StyleContinuity.Candidate(
+            textStyle = "cumbia", learnedStyle = null, genre = MusicStyle.fromGenre(null), language = null,
+            ownArtist = false, fromSearch = true, rejected = true,
+        )
+        assertEquals(StyleContinuity.Verdict.OFF, StyleContinuity.verdict(target, skipped))
+    }
+
+    @Test
+    fun `the user's correction reshapes the target`() {
+        val detected = StyleContinuity.Target(setOf("cumbia"), TitleLanguage.ES, christian = true)
+        assertEquals(setOf("merengue"), StyleContinuity.applyOverride(detected, StyleContinuity.Override.Exact("merengue")).styles)
+        val similar = StyleContinuity.applyOverride(detected, StyleContinuity.Override.Similar).styles.orEmpty()
+        assertTrue(similar.containsAll(listOf("cumbia", "salsa", "merengue", "bachata")))
+        assertTrue("rock" !in similar)
+        val any = StyleContinuity.applyOverride(detected, StyleContinuity.Override.AnyStyle)
+        assertNull(any.styles)
+        assertEquals(TitleLanguage.ES, any.language) // the language is still kept
+        assertEquals(detected, StyleContinuity.applyOverride(detected, null))
+    }
+
+    @Test
+    fun `every style has a name for the queue`() {
+        MusicStyle.ALL.forEach { s ->
+            val name = MusicStyle.displayName(s.id)
+            assertTrue(s.id, name.isNotBlank() && name != s.id)
+        }
+    }
+}

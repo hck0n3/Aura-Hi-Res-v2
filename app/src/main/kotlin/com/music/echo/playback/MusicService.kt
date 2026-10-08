@@ -3721,7 +3721,7 @@ class MusicService :
         radioSeedTitle = null
         contextProfile = null
         contextSteerActive = false
-        exactStyle.chipSteered = false
+        exactStyle.resetForNewQueue()
         val tappedAnchor = queue.preloadItem
             ?.takeIf { !it.id.isLocalMediaId() && !it.id.startsWith("http", ignoreCase = true) }
         radioAnchorId = tappedAnchor?.id
@@ -4061,7 +4061,7 @@ class MusicService :
             // fresh pool on the first re-seed (startRadioSeamlessly); steering stays off until then.
             contextProfile = null
             contextSteerActive = false
-            exactStyle.chipSteered = false
+            exactStyle.resetForNewQueue()
             // Content anchor for a one-song start (see [radioAnchorId]): the song now current IS the one the
             // user started from. Collections (pool > 1) anchor on the pool instead.
             radioAnchorId = if (radioSeedPool.size <= 1) {
@@ -5624,7 +5624,7 @@ class MusicService :
         radioAnchorMetadata = null
         contextProfile = null
         contextSteerActive = false
-        exactStyle.chipSteered = false
+        exactStyle.resetForNewQueue()
     }
 
     override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
@@ -5721,6 +5721,8 @@ class MusicService :
         val previousMediaId = currentPlayingMediaId
         currentPlayingMediaId = mediaItem?.mediaId
         val trackChanged = previousMediaId != mediaItem?.mediaId
+        // Fila 356, punto 3 — the exact-style gate learns from quick skips / full listens (no I/O).
+        exactStyleOnTransition(mediaItem, reason)
         // Metrics session net (SimpMusic sendBackToGoogle): a new track means the previous listen is
         // over. Cancel the heartbeat loop and clear the session so the next track's threshold crossing
         // starts a FRESH cpn. (SimpMusic restarts initPlayback per track; a skip mid-listen simply

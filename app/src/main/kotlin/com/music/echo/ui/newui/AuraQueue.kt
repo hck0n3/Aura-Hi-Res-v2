@@ -415,6 +415,7 @@ fun AuraQueue(
         val queueWindows by playerConnection.queueWindows.collectAsState()
         val automix by playerConnection.service.automixItems.collectAsState()
         val autoplayChips by playerConnection.autoplayChips.collectAsState()
+        val styleFollow by playerConnection.styleFollow.collectAsState()
         val autoplaySelectedChip by playerConnection.autoplaySelectedChip.collectAsState()
         val listQueueSize by playerConnection.listQueueSize.collectAsState()
         // Ronda 10: el toggle que apagaba la reproducción infinita se quitó — autoplay queda siempre activo.
@@ -1061,6 +1062,14 @@ fun AuraQueue(
                                                     .fillMaxWidth()
                                                     .padding(top = 6.dp),
                                             )
+                                            // Fila 356, punto 4 — "Siguiendo: Cumbia · cristiana", correctable.
+                                            if (!isListenTogetherGuest) {
+                                                AuraStyleFollowRow(
+                                                    follow = styleFollow,
+                                                    onOverride = { playerConnection.setStyleOverride(it) },
+                                                    modifier = Modifier.padding(top = 8.dp),
+                                                )
+                                            }
                                         }
                                     }
 

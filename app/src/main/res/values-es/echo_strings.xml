@@ -1241,4 +1241,12 @@
     <string name="music_request_suggestion_drive">Para un viaje largo</string>
     <string name="music_request_suggestion_party">Para prender la fiesta</string>
     <string name="music_request_recent_label">Pedir de nuevo</string>
+    <!-- Fila 356: el estilo que sigue la cola inteligente -->
+    <string name="style_follow_label">Siguiendo: %1$s</string>
+    <string name="style_follow_christian">cristiana</string>
+    <string name="style_follow_detected">Estilo exacto (detectado)</string>
+    <string name="style_follow_similar">Estilos parecidos</string>
+    <string name="style_follow_any">Cualquier estilo</string>
+    <string name="style_follow_change">Cambiar a</string>
+    <string name="style_follow_cd">Cambiar el estilo que sigue la cola</string>
 </resources>

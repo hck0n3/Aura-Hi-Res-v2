@@ -168,6 +168,20 @@ class PlayerConnection(
     /** Autoplay suggestion chips for the queue footer (YT Music parity); see MusicService.autoplayChips. */
     val autoplayChips: kotlinx.coroutines.flow.StateFlow<List<AutoplayChip>> = service.autoplayChips
 
+    /** Fila 356 — the style the smart queue follows ("Siguiendo: Cumbia · cristiana"), or null. */
+    val styleFollow: kotlinx.coroutines.flow.StateFlow<iad1tya.echo.music.reco.StyleContinuity.Follow?> =
+        service.exactStyle.follow
+
+    /** Fila 356 — the user's correction of [styleFollow]; null goes back to what the app detected. */
+    fun setStyleOverride(override: iad1tya.echo.music.reco.StyleContinuity.Override?) {
+        if (shouldBlockPlaybackChanges?.invoke() == true) return
+        try {
+            service.setExactStyleOverride(override)
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Error in setStyleOverride")
+        }
+    }
+
     /** The chip currently steering the autoplay (default = the "related" chip of the live seed). */
     val autoplaySelectedChip: kotlinx.coroutines.flow.StateFlow<AutoplayChip?> = service.autoplaySelectedChip
 

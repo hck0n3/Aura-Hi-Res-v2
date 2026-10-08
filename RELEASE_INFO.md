@@ -11,7 +11,14 @@ Beta encima de la 2.0.64-beta10. Conserva tus datos, tu sesión y tus ajustes: m
 - **Cuando hay pocas canciones del mismo estilo, la app las busca:** por ejemplo «cumbia cristiana» si
   escuchabas cumbia cristiana, en vez de rellenar con otro estilo.
 - **También mantiene el idioma:** si lo que escuchas es en español, no se cuelan canciones en otro idioma.
-- **Aprende el estilo de cada artista** con lo que escuchas, y cada vez acierta más.
+- **Sabe el estilo de cada artista desde la primera canción** gracias a las etiquetas de Last.fm, y además
+  lo aprende de lo que escuchas.
+- **Rellena con listas hechas por personas** de ese estilo, con más variedad y sin repetir los mismos éxitos.
+- **Aprende de lo que saltas:** si saltas una canción en los primeros segundos, ese artista no vuelve en esa
+  cola.
+- **Puedes ver y corregir el estilo:** al final de la cola aparece «Siguiendo: Cumbia · cristiana». Tócalo para
+  cambiarlo a otro estilo, abrirlo a estilos parecidos o a cualquier estilo. Si lo corriges, la app lo
+  recuerda.
 - No toca tus propias listas, ni la cola cuando eliges un estado de ánimo o una sugerencia de autoplay.
 
 ## Portadas

@@ -46,14 +46,17 @@ object StyleContinuity {
         val language: String?,
         /** Same artist as the anchor song / one of the finished collection's artists. */
         val ownArtist: Boolean,
-        /** Brought by the search for the target style itself. */
+        /** Brought by the search for the target style itself (or a playlist of that style). */
         val fromSearch: Boolean,
+        /** Fila 356 — the user skipped this artist (or this style) quickly in this queue. */
+        val rejected: Boolean = false,
     )
 
     enum class Verdict { MATCH, UNKNOWN, OFF }
 
     fun verdict(target: Target, c: Candidate): Verdict {
         if (!target.active) return Verdict.MATCH
+        if (c.rejected) return Verdict.OFF
         val styles = target.styles?.takeIf { it.isNotEmpty() }
         // The track's own words are the strongest evidence there is — they decide even over the artist.
         if (styles != null && c.textStyle != null) {
@@ -104,6 +107,39 @@ object StyleContinuity {
             .keys
             .takeIf { it.isNotEmpty() }
     }
+
+    /**
+     * Fila 356 — what the user chose in the queue ("Siguiendo: …"): another exact style, the detected styles'
+     * whole families ("estilos parecidos"), or any style (only the language is kept).
+     */
+    sealed interface Override {
+        data class Exact(val style: String) : Override
+        data object Similar : Override
+        data object AnyStyle : Override
+    }
+
+    /** [target] as the user's [override] reshapes it. */
+    fun applyOverride(target: Target, override: Override?): Target = when (override) {
+        null -> target
+        is Override.Exact -> target.copy(styles = setOf(override.style))
+        Override.Similar -> {
+            val families = target.families
+            target.copy(
+                styles = if (families.isEmpty()) target.styles
+                else MusicStyle.ALL.filter { it.family in families }.map { it.id }.toSet(),
+            )
+        }
+        Override.AnyStyle -> target.copy(styles = null)
+    }
+
+    /** What the queue shows: the style(s) followed, as detected and as applied. */
+    data class Follow(
+        val detected: List<String>,
+        val applied: List<String>,
+        val christian: Boolean,
+        val language: String?,
+        val override: Override?,
+    )
 
     const val COLLECTION_MIN_KNOWN = 3
     const val COLLECTION_STYLE_FLOOR = 0.15

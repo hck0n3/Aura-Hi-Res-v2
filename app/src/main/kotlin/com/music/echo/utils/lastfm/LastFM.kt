@@ -283,6 +283,45 @@ object LastFM {
         }.getOrDefault(emptyList())
     }
 
+    /**
+     * Fila 356 — an artist's top tags (public data, unsigned GET): what Last.fm listeners call their music
+     * ("cumbia", "salsa", "christian", "reggaeton", "rock en español"…), with Last.fm's 0-100 weight.
+     * emptyList() = Last.fm answered and has no tags / no such artist (a definitive miss, cache it); null = the
+     * request failed (transient — never cache). Never throws.
+     */
+    suspend fun getArtistTopTags(artist: String): List<Pair<String, Int>>? {
+        if (!isInitialized() || artist.isBlank()) return null
+        return runCatching {
+            val response = client.get {
+                userAgent("AuraHiRes (https://github.com/hck0n3)")
+                parameter("method", "artist.getTopTags")
+                parameter("artist", artist)
+                parameter("autocorrect", "1")
+                parameter("api_key", API_KEY)
+                parameter("format", "json")
+            }
+            // Last.fm answers its own errors as JSON (status 200 or 4xx); a 5xx is an outage.
+            if (response.status.value >= 500) return@runCatching null
+            val root = json.parseToJsonElement(response.bodyAsText()) as? kotlinx.serialization.json.JsonObject
+                ?: return@runCatching null
+            // Error 6 = "The artist you supplied could not be found": definitive. Any other error is transient.
+            val error = (root["error"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+            if (error != null) return@runCatching if (error == 6) emptyList() else null
+            val tags = (root["toptags"] as? kotlinx.serialization.json.JsonObject)?.get("tag")
+            val list = when (tags) {
+                is kotlinx.serialization.json.JsonArray -> tags
+                is kotlinx.serialization.json.JsonObject -> listOf(tags)
+                else -> emptyList()
+            }
+            list.mapNotNull { el ->
+                val o = el as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                val name = (o["name"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()
+                val count = (o["count"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.toIntOrNull() ?: 0
+                if (name.isNullOrBlank()) null else name to count
+            }
+        }.getOrNull()
+    }
+
     // API keys passed from the app module (loaded from BuildConfig / gradle secrets)
     private var API_KEY = ""
     private var SECRET = ""
