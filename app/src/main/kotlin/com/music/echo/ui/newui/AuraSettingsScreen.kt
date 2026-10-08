@@ -447,7 +447,7 @@ fun AuraSettingsScreen(
             // Guarded by the same beta gate as the classic copy. In practice this screen is only
             // reachable when the flag is already on — which cannot happen in a stable build — but the
             // guard stays so the two copies of the switch can never disagree about when it exists.
-            if (NEW_UI_SWITCH_VISIBLE &&
+            if (NEW_UI_SWITCH_SHOWN &&
                 (searchQuery.isEmpty() ||
                     newUiText.lowercase().contains(searchLower) ||
                     newUiSubtitle.lowercase().contains(searchLower))

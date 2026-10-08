@@ -58,3 +58,11 @@ usando por debajo.
 solo entonces retirar lo clásico que ya no se use. Orden propuesto: (1) tus decisiones del punto 2;
 (2) pantallas Aura para Historial, Artista ▸ canciones/álbumes, Radar y Explorar; (3) quitar el
 interruptor «Interfaz nueva» cuando nada dependa de la clásica; (4) borrar el código clásico muerto.
+
+## 4. Estado (2026-10-08)
+
+- **Hecho:** pasos (1) decisiones del dueño (#349) y (3) **Aura es la única interfaz** (#350): el interruptor
+  «Interfaz nueva» ya no se ofrece y quien tenía la clásica pasa a Aura al arrancar.
+- **Pendiente (sin efecto visible para el usuario):** (2) gemelas Aura de las pantallas clásicas que aún se
+  abren dentro de Aura — la mayoría ya tienen filas y barra con estilo Aura (p. ej. Artista ▸ canciones,
+  Historial) — y (4) borrar el código clásico que quede inalcanzable.

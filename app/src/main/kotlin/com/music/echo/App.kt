@@ -554,7 +554,10 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             settings[iad1tya.echo.music.constants.LyricsEsLatamAutoTranslateV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.EnableExportAsMp3DefaultOnV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.AddToPlaylistLastUpdatedDefaultV1AppliedKey] != true ||
-            settings[iad1tya.echo.music.constants.ThemeAccentRepairV1AppliedKey] != true
+            settings[iad1tya.echo.music.constants.ThemeAccentRepairV1AppliedKey] != true ||
+            // Row 350: a classic-UI user is moved to Aura (the only interface) on the next start.
+            (iad1tya.echo.music.ui.newui.SINGLE_UI &&
+                settings[iad1tya.echo.music.constants.NewUiEnabledKey] != true)
         if (batchAPending) {
             runCatching {
                 dataStore.edit { p ->
@@ -587,6 +590,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                     applyMiniPlayerClassicGlassDefaultV1(p, settings)
                     // Fresh / unset "Interfaz nueva" → ON for this launch (never overwrite explicit false).
                     applyNewUiLaunchDefaultV1(p, settings)
+                    applySingleUiV1(p)
                 }
             }.onFailure { reportException(it) }
         }
@@ -1875,6 +1879,18 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             p[iad1tya.echo.music.constants.NewUiEnabledKey] = true
         }
         p[iad1tya.echo.music.constants.NewUiLaunchDefaultV1AppliedKey] = true
+    }
+
+    /**
+     * Row 350 (plan C2, owner-approved): Aura is the only interface. A user who had switched to the
+     * classic UI is moved to Aura once; the switch is no longer offered (NEW_UI_SWITCH_SHOWN), so
+     * nothing writes `false` again. Runs every start and only writes when the value is not already ON.
+     */
+    private fun applySingleUiV1(p: androidx.datastore.preferences.core.MutablePreferences) {
+        if (!iad1tya.echo.music.ui.newui.SINGLE_UI) return
+        if (p[iad1tya.echo.music.constants.NewUiEnabledKey] != true) {
+            p[iad1tya.echo.music.constants.NewUiEnabledKey] = true
+        }
     }
 
     private fun applyCanvasDefaultOn(

@@ -29,3 +29,19 @@ fun isNewUiSwitchVisible(versionName: String, debugBuild: Boolean): Boolean = tr
  */
 fun isNewUiActive(switchVisible: Boolean, storedPreference: Boolean): Boolean =
     switchVisible && storedPreference
+
+/**
+ * Row 350 — plan C2 «una sola interfaz», approved by the owner (decisions of 2026-10-07/08): Aura is the
+ * ONLY interface. The C2 audit (docs/C2_AUDITORIA_UNA_SOLA_INTERFAZ.md) found every screen and setting
+ * reachable from the Aura shell (classic screens without an Aura twin still open inside it), and its real
+ * gaps were closed (rows #348/#349). So the "Interfaz nueva" escape hatch is no longer offered, and
+ * `App.applySingleUiV1` writes the stored preference to ON for everyone, so every reader of
+ * `NewUiEnabledKey` (the shell, the forced dark theme, the settings) agrees.
+ *
+ * The classic CODE stays for now: Aura still reuses many classic components and screens. Deleting what
+ * is no longer reachable is a later, separate step.
+ */
+const val SINGLE_UI: Boolean = true
+
+/** Whether the "Interfaz nueva" switch is drawn in Ajustes. Never, once [SINGLE_UI]. */
+val NEW_UI_SWITCH_SHOWN: Boolean = NEW_UI_SWITCH_VISIBLE && !SINGLE_UI

@@ -23,7 +23,8 @@ import iad1tya.echo.music.utils.rememberPreference
 @Composable
 fun rememberNewUiEnabled(): Boolean {
     val enabled by rememberPreference(NewUiEnabledKey, defaultValue = true)
-    return isNewUiActive(NEW_UI_SWITCH_VISIBLE, enabled)
+    // Row 350: one interface. The stored key is also forced ON at startup; this covers the first frame.
+    return SINGLE_UI || isNewUiActive(NEW_UI_SWITCH_VISIBLE, enabled)
 }
 
 /**

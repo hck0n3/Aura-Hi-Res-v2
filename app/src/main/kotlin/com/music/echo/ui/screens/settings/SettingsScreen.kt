@@ -376,7 +376,7 @@ fun SettingsScreen(
         // Master switch of the redesigned layer. Lives HERE (classic settings) on purpose: it is the
         // escape hatch, so it must stay reachable no matter which UI is showing. One boolean only —
         // no database, playback, queue, or other preference. Visible in every build since 0.6.150.
-        if (NEW_UI_SWITCH_VISIBLE &&
+        if (iad1tya.echo.music.ui.newui.NEW_UI_SWITCH_SHOWN &&
             (newUiText.lowercase().contains(searchLower) ||
                 newUiSubtitle.lowercase().contains(searchLower))
         ) {

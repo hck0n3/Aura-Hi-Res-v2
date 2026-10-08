@@ -61,3 +61,12 @@ class NewUiAvailabilityTest {
         }
     }
 }
+
+/** Row 350 (plan C2, owner-approved): Aura is the only interface. */
+class SingleUiTest {
+    @org.junit.Test
+    fun `aura is the only interface and the escape hatch is no longer offered`() {
+        org.junit.Assert.assertTrue(SINGLE_UI)
+        org.junit.Assert.assertFalse(NEW_UI_SWITCH_SHOWN)
+    }
+}
