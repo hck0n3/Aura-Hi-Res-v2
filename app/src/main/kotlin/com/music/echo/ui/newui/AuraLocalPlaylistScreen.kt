@@ -575,7 +575,10 @@ fun AuraLocalPlaylistScreen(
     // never offers to delete from a read-only playlist reached through this same screen.
     val canSwipeRemove = swipeRemoveEnabled && editable && !inSelectMode
 
-    val bloom = rememberAuraBloom(mediaMetadata?.id)
+    // Fila 360: this screen wears ITS cover's colours (not the song playing) while it is shown.
+    val screenCover = (playlist?.playlist?.thumbnailUrl ?: playlist?.thumbnails?.firstOrNull())
+    AuraCoverFocusEffect(screenCover)
+    val bloom = rememberAuraBloomForCover(screenCover, mediaMetadata?.id)
     // Owner 2026-10-06 ("no muestres canciones no disponibles, aunque estén en una lista mía"): hidden at
     // RENDER only. `songs` / `mutableSongs` keep every entry, so drag-reorder (key-mapped into the full
     // list above), AI edits, downloads and every write see the real playlist; nothing is removed.

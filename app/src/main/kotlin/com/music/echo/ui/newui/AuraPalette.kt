@@ -655,8 +655,11 @@ fun AuraPaletteSync() {
         remember { mutableStateOf<MediaMetadata?>(null) }
     }
     val nowPlaying by nowPlayingState
-    val mediaId = nowPlaying?.id
-    val thumbnailUrl = nowPlaying?.thumbnailUrl
+    // Fila 360 — a screen with its own cover (album, playlist, single, artist) drives the colours while it is
+    // shown; Inicio and the open player follow the song playing (see AuraCoverFocus).
+    val focus = AuraCoverFocus.active
+    val mediaId = focus?.key ?: nowPlaying?.id
+    val thumbnailUrl = focus?.url ?: nowPlaying?.thumbnailUrl
     LaunchedEffect(mediaId, thumbnailUrl) {
         val id = mediaId
         val url = thumbnailUrl

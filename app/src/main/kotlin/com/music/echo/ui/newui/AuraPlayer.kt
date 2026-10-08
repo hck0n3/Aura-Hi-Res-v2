@@ -607,7 +607,12 @@ private fun AuraPlayerShape(
     // Mirror the sheet's expanded state into the service, exactly as the classic player does.
     DisposableEffect(state.isExpanded) {
         playerConnection.setPlayerSheetExpanded(state.isExpanded)
-        onDispose { playerConnection.setPlayerSheetExpanded(false) }
+        // Fila 360: the open player always shows the colours of what is playing.
+        AuraCoverFocus.playerExpanded = state.isExpanded
+        onDispose {
+            playerConnection.setPlayerSheetExpanded(false)
+            AuraCoverFocus.playerExpanded = false
+        }
     }
 
     // "Mantener la pantalla encendida cuando el reproductor está expandido" (Ajustes ▸ Reproductor).

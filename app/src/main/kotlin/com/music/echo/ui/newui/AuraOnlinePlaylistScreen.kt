@@ -247,7 +247,10 @@ fun AuraOnlinePlaylistScreen(
         if (shouldLoadMore) viewModel.loadMoreSongs()
     }
 
-    val bloom = rememberAuraBloom(mediaMetadata?.id)
+    // Fila 360: this screen wears ITS cover's colours (not the song playing) while it is shown.
+    val screenCover = playlist?.thumbnail
+    AuraCoverFocusEffect(screenCover)
+    val bloom = rememberAuraBloomForCover(screenCover, mediaMetadata?.id)
     val currentPlaylist = playlist
 
     Box(modifier = Modifier.fillMaxSize().auraScreenBackground(bloom, intensity = 0.40f)) {

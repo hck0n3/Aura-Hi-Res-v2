@@ -281,8 +281,6 @@ class AuraBloomState internal constructor(initial: AuraBloomColors) {
  */
 @Composable
 fun rememberAuraBloom(mediaId: String?): AuraBloomState {
-    val target = AuraBloomCache.get(mediaId)
-    val state = remember { AuraBloomState(target) }
 
     // The cover to extract from. Read from the SAME PlayerConnection the caller derived [mediaId] from,
     // and only used when the ids still agree — a stale url must never colour the wrong track.
@@ -294,9 +292,20 @@ fun rememberAuraBloom(mediaId: String?): AuraBloomState {
         metadata?.takeIf { it.id == mediaId }?.thumbnailUrl
     }
 
+    return rememberAuraBloomFromUrl(mediaId, thumbnailUrl)
+}
+
+/**
+ * Fila 360 — the bloom of [key] extracted from [thumbnailUrl] (a now-playing track, or a screen's own cover —
+ * see [rememberAuraBloomForCover]), with the same dissolve.
+ */
+@Composable
+internal fun rememberAuraBloomFromUrl(key: String?, thumbnailUrl: String?): AuraBloomState {
+    val target = AuraBloomCache.get(key)
+    val state = remember { AuraBloomState(target) }
     val context = LocalContext.current
-    LaunchedEffect(mediaId, thumbnailUrl) {
-        val id = mediaId
+    LaunchedEffect(key, thumbnailUrl) {
+        val id = key
         val url = thumbnailUrl
         if (id.isNullOrEmpty() || url.isNullOrEmpty()) return@LaunchedEffect
         AuraBloomCache.ensure(context, id, url)

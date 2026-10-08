@@ -221,7 +221,10 @@ fun AuraArtistScreen(
     val listState = rememberLazyListState()
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { listState.isScrollInProgress }
-    val bloom = rememberAuraBloom(mediaMetadata?.id)
+    // Fila 360: this screen wears ITS cover's colours (not the song playing) while it is shown.
+    val screenCover = (artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl)
+    AuraCoverFocusEffect(screenCover)
+    val bloom = rememberAuraBloomForCover(screenCover, mediaMetadata?.id)
 
     val insets = LocalPlayerAwareWindowInsets.current
     val bottomClearance = insets
