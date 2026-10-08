@@ -1050,7 +1050,9 @@ private fun AuraArtistHero(
                     }
                     translationY = scrolled * 0.35f
                     alpha = (1f - scrolled / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
-                },
+                }
+                // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
+                .auraHeroDissolve(),
         ) {
             // ── El cristal de la parte baja de la portada, como lo hace SimpMusic ─────────────
             // Orden del dueño (2026-09-16): *"lo quiero exactamente como lo hace SimpMusic, ya que lo
@@ -1120,7 +1122,7 @@ private fun AuraArtistHero(
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, AuraPalette.Ground),
+                            colors = listOf(Color.Transparent, AuraPalette.Ground.copy(alpha = HERO_SCRIM_ALPHA)),
                         ),
                     ),
             )

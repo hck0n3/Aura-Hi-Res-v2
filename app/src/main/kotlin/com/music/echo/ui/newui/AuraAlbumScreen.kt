@@ -714,7 +714,9 @@ private fun AuraAlbumHero(
                     }
                     translationY = scrolled * 0.35f
                     alpha = (1f - scrolled / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
-                },
+                }
+                // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
+                .auraHeroDissolve(),
         ) {
             // 🔴 EL MISMO CRISTAL QUE LA PORTADA DE ARTISTA (dueño, 2026-09-17, punto 8:
             // *"aplicar el mismo estilo y efecto de cristal borroso que tienen las portadas de los
@@ -785,7 +787,7 @@ private fun AuraAlbumHero(
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, AuraPalette.Ground),
+                            colors = listOf(Color.Transparent, AuraPalette.Ground.copy(alpha = HERO_SCRIM_ALPHA)),
                         ),
                     ),
             )

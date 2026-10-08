@@ -742,7 +742,9 @@ private fun AuraOnlinePlaylistHeader(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (isWideHero) Modifier.height(320.dp) else Modifier.aspectRatio(1f)),
+                    .then(if (isWideHero) Modifier.height(320.dp) else Modifier.aspectRatio(1f))
+                    // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
+                    .auraHeroDissolve(),
             ) {
                 val heroHaze = remember { HazeState() }
                 Box(modifier = Modifier.fillMaxSize().hazeSource(heroHaze)) {
@@ -779,7 +781,7 @@ private fun AuraOnlinePlaylistHeader(
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, AuraPalette.Ground),
+                                colors = listOf(Color.Transparent, AuraPalette.Ground.copy(alpha = HERO_SCRIM_ALPHA)),
                             ),
                         ),
                 )

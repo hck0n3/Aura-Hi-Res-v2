@@ -734,7 +734,27 @@ fun MusicService.startRadioSeamlessly() {
             } else {
                 laneOrdered
             }
-            val toAppend = languageOrdered.first.orderedByTaste(
+            // Fila 354 (dueño: "cumbia cristiana → salsa y merengue… en general de los géneros"): the EXACT
+            // style and language of what was playing, in every genre — see ExactStyleGate.kt. Last, after the
+            // passes above (which stay as they were); null = gate does not apply, keep the list as is; empty =
+            // nothing in style even after searching the style itself, so this source yields and the caller
+            // tries the next one instead of playing another style.
+            val styled = if (contextSteerActive && keepGenreLaneHint) {
+                exactStyleFilter(
+                    items = languageOrdered.first,
+                    anchor = radioAnchorMetadata ?: currentMediaMetadata,
+                    collection = iad1tya.echo.music.reco.CollectionContinuation.isCollection(
+                        radioAnchorId != null, radioSeedPool.size,
+                    ),
+                    site = "appendSeed",
+                    minMatches = iad1tya.echo.music.reco.StyleContinuity.MIN_MATCHES,
+                    allowSearch = true,
+                )
+            } else {
+                null
+            }
+            if (styled != null && styled.isEmpty()) return false
+            val toAppend = (styled ?: languageOrdered.first).orderedByTaste(
                 languageOrdered.second,
                 followContextPattern = followPattern,
                 inheritedLanes = inheritedLanes,

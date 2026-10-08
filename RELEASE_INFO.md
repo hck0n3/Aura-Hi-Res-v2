@@ -1,6 +1,25 @@
-# Aura Hi-Res v2.0.64-beta10 — El reproductor con los colores animados de la portada, como Inicio
+# Aura Hi-Res v2.0.64-beta11 — La cola inteligente sigue el estilo exacto de lo que escuchas
 
-Beta encima de la 2.0.64-beta9. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta10. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Cola inteligente
+
+- **La cola sigue el estilo exacto, en todos los géneros:** después de una cumbia viene cumbia, no salsa ni
+  merengue; después de corridos, corridos; después de trap, trap; después de rock en español, rock en
+  español. La app distingue ahora más de 50 estilos (tropicales, urbanos, regional mexicano, rock, pop,
+  electrónica, alabanza, brasileños y más), no solo familias grandes.
+- **Cuando hay pocas canciones del mismo estilo, la app las busca:** por ejemplo «cumbia cristiana» si
+  escuchabas cumbia cristiana, en vez de rellenar con otro estilo.
+- **También mantiene el idioma:** si lo que escuchas es en español, no se cuelan canciones en otro idioma.
+- **Aprende el estilo de cada artista** con lo que escuchas, y cada vez acierta más.
+- No toca tus propias listas, ni la cola cuando eliges un estado de ánimo o una sugerencia de autoplay.
+
+## Portadas
+
+- **La foto grande de artistas, álbumes y listas ya no termina en una línea:** se funde suavemente con
+  los colores animados de la pantalla.
+
+También incluye todo lo de la beta10:
 
 ## Reproductor
 

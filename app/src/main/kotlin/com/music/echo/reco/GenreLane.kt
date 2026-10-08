@@ -123,7 +123,7 @@ object GenreLane {
      * Look the artist up in the cache: the full name first (how GenreCache is keyed when we enrich from the
      * library), then the primary artist when the metadata packs several into one string ("A, B", "A feat. B").
      */
-    private fun lookupGenre(genres: Map<String, String>, artistName: String?): String? {
+    internal fun lookupGenre(genres: Map<String, String>, artistName: String?): String? {
         val full = artistName?.trim()?.lowercase().orEmpty()
         if (full.isBlank()) return null
         genres[full]?.takeIf { it.isNotBlank() }?.let { return it }

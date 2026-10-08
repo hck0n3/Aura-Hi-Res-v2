@@ -1051,6 +1051,10 @@ class MusicService :
     // (tryMood) or an autoplay chip (selectAutoplayChip) must always win over the finished context.
     @Volatile internal var contextSteerActive = false
 
+    // Fila 354 — state of the exact-style gate (ExactStyleGate.kt): the chip-steer stand-down and the
+    // style search's page cursor.
+    internal val exactStyle = ExactStyleState()
+
     /**
      * How many items of the CURRENT timeline came from the user's own list (the playlist/album/library
      * selection he started) instead of from the infinite radio: timeline indices `[0, listQueueSize)`
@@ -3717,6 +3721,7 @@ class MusicService :
         radioSeedTitle = null
         contextProfile = null
         contextSteerActive = false
+        exactStyle.chipSteered = false
         val tappedAnchor = queue.preloadItem
             ?.takeIf { !it.id.isLocalMediaId() && !it.id.startsWith("http", ignoreCase = true) }
         radioAnchorId = tappedAnchor?.id
@@ -3885,7 +3890,23 @@ class MusicService :
                         runCatching { iad1tya.echo.music.reco.GenreCache.snapshot(this@MusicService) }
                             .getOrDefault(emptyMap())
                     }
-                    val kept = anchorLanePartition(tail, tappedAnchor, genres, "playQueue")?.first
+                    val laneKept = anchorLanePartition(tail, tappedAnchor, genres, "playQueue")?.first
+                    // Fila 354 — and the tapped song's EXACT style/language (ExactStyleGate.kt). No search here:
+                    // if little survives, the list just ends sooner and the normal seed (which does search the
+                    // style) continues it. A YouTube playlist tap is never judged — only a song's own radio.
+                    val playlistTap = (queue as? YouTubeQueue)?.metricsPlaylistId?.let { !it.startsWith("RD") } == true
+                    val kept = if (playlistTap) {
+                        laneKept
+                    } else {
+                        exactStyleFilter(
+                            items = laneKept ?: tail,
+                            anchor = tappedAnchor,
+                            collection = false,
+                            site = "playQueue",
+                            minMatches = iad1tya.echo.music.reco.StyleContinuity.MIN_MATCHES,
+                            allowSearch = false,
+                        ) ?: laneKept
+                    }
                     if (kept == null || kept == tail) {
                         dedupedStatus
                     } else {
@@ -4040,6 +4061,7 @@ class MusicService :
             // fresh pool on the first re-seed (startRadioSeamlessly); steering stays off until then.
             contextProfile = null
             contextSteerActive = false
+            exactStyle.chipSteered = false
             // Content anchor for a one-song start (see [radioAnchorId]): the song now current IS the one the
             // user started from. Collections (pool > 1) anchor on the pool instead.
             radioAnchorId = if (radioSeedPool.size <= 1) {
@@ -4388,6 +4410,7 @@ class MusicService :
                 // Genre-aware continuation: a chip is an EXPLICIT user steer — it wins over the finished
                 // context, so stop context steering before this batch (and its pagination) is ordered.
                 contextSteerActive = false
+                exactStyle.chipSteered = true // fila 354: an explicit steer — the exact-style gate stands down
                 // Same append semantics as appendSeed in startRadioSeamlessly: recompute the index from the
                 // LIVE player at append time, replace only the tail AFTER the current item (the tail is
                 // radio/autoplay content), and keep the current song playing untouched.
@@ -5601,6 +5624,7 @@ class MusicService :
         radioAnchorMetadata = null
         contextProfile = null
         contextSteerActive = false
+        exactStyle.chipSteered = false
     }
 
     override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
@@ -6117,6 +6141,19 @@ class MusicService :
             val pageGeneration = queueGeneration
             // Ronda 10 — see [radioOriginContextId]'s own doc comment.
             val pageOriginContextId = radioOriginContextId
+            // Fila 354 — the exact-style gate on radio pages (ExactStyleGate.kt). Only on automatic radio
+            // continuations: an automatic radio, an album's radio, or the radio of the single song the user
+            // tapped — never pages of a list the user chose (a YouTube playlist keeps every song).
+            val styleAnchor = anchorMeta ?: curItem?.metadata
+            val styleCollection = iad1tya.echo.music.reco.CollectionContinuation.isCollection(
+                radioAnchorId != null, radioSeedPool.size,
+            )
+            val styleGateQueue = when (val q = currentQueue) {
+                is YouTubeQueue -> q.automaticRadio ||
+                    (radioAnchorId != null && q.metricsPlaylistId.let { it == null || it.startsWith("RD") })
+                is LocalAlbumRadio, is YouTubeAlbumRadio -> true
+                else -> false
+            }
             scope.launch(SilentHandler) {
                 val disliked = runCatching { dislikeStore.snapshot() }.getOrDefault(iad1tya.echo.music.dislike.DislikeStore.Disliked())
                 val mediaItems = withContext(Dispatchers.IO) {
@@ -6251,6 +6288,19 @@ class MusicService :
                             it.mediaId in playedBefore ||
                             // Owner 2026-10-06: a song known to be unavailable would only fail and skip.
                             iad1tya.echo.music.utils.UnavailableSongs.isUnavailable(it.mediaId)
+                    }
+                    // Fila 354 — exact style and language (see the capture above). Null = not applicable;
+                    // empty = nothing in style on this page even after searching the style: append nothing, the
+                    // next transition pulls the next page and the end-of-queue net re-seeds.
+                    if (keepLane && styleGateQueue && next.isNotEmpty()) {
+                        exactStyleFilter(
+                            items = next,
+                            anchor = styleAnchor,
+                            collection = styleCollection,
+                            site = "pagination",
+                            minMatches = 2,
+                            allowSearch = true,
+                        )?.let { next = it }
                     }
                     // Phase A #2 — route the steady-state continuation through orderedByTaste() too, so it is
                     // taste-ordered + artist-spaced (spacedByArtist) rather than raw YouTube order. We're inside
