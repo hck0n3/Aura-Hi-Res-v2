@@ -42,36 +42,11 @@ class EqFactoryPresetMatchTest {
     }
 
     @Test
-    fun auraHiResExactGainsSelectAuraHiRes() {
-        assertEquals(
-            FactoryPreset.AURA_HI_RES,
-            eqFactoryPresetMatch(FactoryPreset.AURA_HI_RES.gains.copyOf()),
-        )
-    }
-
-    @Test
-    fun auraHiResV2ExactGainsSelectAuraHiResV2() {
-        // Owner directive 2026-09-05: the seeded house curve must select ITS OWN chip. If the new
-        // curve ever drifted within the 0.5 dB tolerance of an earlier preset, the match (canonical
-        // order, firstOrNull) would return that earlier preset and this test would fail — pinning
-        // the band-by-band no-collision verification done when the entry was added.
-        assertEquals(
-            FactoryPreset.AURA_HI_RES_V2,
-            eqFactoryPresetMatch(FactoryPreset.AURA_HI_RES_V2.gains.copyOf()),
-        )
-    }
-
-    @Test
     fun auraHiResV3ExactGainsSelectAuraHiResV3() {
-        // Owner request 2026-10-06: the refined curve is offered NEXT TO v2 for an A/B — it must select
-        // its own chip and must not make v2's gains select it either.
+        // Fila 357: the house default must select ITS OWN chip.
         assertEquals(
             FactoryPreset.AURA_HI_RES_V3,
             eqFactoryPresetMatch(FactoryPreset.AURA_HI_RES_V3.gains.copyOf()),
-        )
-        assertEquals(
-            FactoryPreset.AURA_HI_RES_V2,
-            eqFactoryPresetMatch(FactoryPreset.AURA_HI_RES_V2.gains.copyOf()),
         )
     }
 
@@ -79,24 +54,24 @@ class EqFactoryPresetMatchTest {
     fun smallDragTickKeepsTheSelection() {
         // The first drag tick moves a single band by a fraction of a dB; the selection must NOT
         // flip on that (this is what used to toggle the description box mid-drag — #181).
-        val gains = FactoryPreset.AURA_HI_RES.gains.copyOf()
+        val gains = FactoryPreset.AURA_HI_RES_V3.gains.copyOf()
         gains[0] += 0.4f
-        assertEquals(FactoryPreset.AURA_HI_RES, eqFactoryPresetMatch(gains))
+        assertEquals(FactoryPreset.AURA_HI_RES_V3, eqFactoryPresetMatch(gains))
     }
 
     @Test
     fun toleranceIsStrictlyBelowHalfDb() {
-        val gains = FactoryPreset.AURA_HI_RES.gains.copyOf()
+        val gains = FactoryPreset.AURA_HI_RES_V3.gains.copyOf()
         gains[0] += FACTORY_PRESET_MATCH_TOLERANCE_DB
-        // Exactly 0.5 dB off is NOT a match (strict <), and no other preset covers band 0 at 6.5.
+        // Exactly 0.5 dB off is NOT a match (strict <), and no other preset covers that curve.
         assertNull(eqFactoryPresetMatch(gains))
     }
 
     @Test
     fun singleBandBeyondToleranceDeselects() {
-        val gains = FactoryPreset.AURA_HI_RES.gains.copyOf()
+        val gains = FactoryPreset.AURA_HI_RES_V3.gains.copyOf()
         gains[9] = 0f
-        assertTrue(eqFactoryPresetMatch(gains) != FactoryPreset.AURA_HI_RES)
+        assertTrue(eqFactoryPresetMatch(gains) != FactoryPreset.AURA_HI_RES_V3)
     }
 
     @Test

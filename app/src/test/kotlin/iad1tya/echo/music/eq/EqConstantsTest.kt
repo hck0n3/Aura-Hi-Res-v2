@@ -34,22 +34,6 @@ class EqConstantsTest {
     }
 
     @Test
-    fun subBassRumbleOnlyLiftsTheLowestBands() {
-        assertEquals(
-            listOf(6.0f, 3.0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f),
-            FactoryPreset.SUB_BASS_RUMBLE.gains.toList()
-        )
-    }
-
-    @Test
-    fun vocalPresenceCurveMatchesSpec() {
-        assertEquals(
-            listOf(-1.0f, -0.5f, -1.5f, -0.5f, 1.0f, 3.0f, 3.5f, 2.0f, 0.5f, 0f),
-            FactoryPreset.VOCAL_PRESENCE.gains.toList()
-        )
-    }
-
-    @Test
     fun flatIsAllZero() {
         assertEquals(List(10) { 0f }, FactoryPreset.FLAT.gains.toList())
     }
@@ -73,24 +57,45 @@ class EqConstantsTest {
     }
 
     @Test
-    fun auraHiResCurveMatchesOwnerSpec() {
-        // Owner directive 2026-09-04: 31 +5, 62 +4, 125 +2, 250 0, 500 0, 1k +1, 2k 0, 4k +1, 8k +2, 16k +3.
+    fun auraHiResV3IsTheHouseCurve() {
+        // Fila 357 (owner 2026-10-08): "de predeterminado dejas Aura Hi-Res v3".
         assertEquals(
-            listOf(5.0f, 4.0f, 2.0f, 0f, 0f, 1.0f, 0f, 1.0f, 2.0f, 3.0f),
-            FactoryPreset.AURA_HI_RES.gains.toList()
+            listOf(3.5f, 3.5f, 1.0f, -1.0f, -0.5f, 0f, 1.0f, 1.5f, 2.0f, 3.0f),
+            FactoryPreset.AURA_HI_RES_V3.gains.toList()
         )
-        assertEquals("Aura Hi-Res", FactoryPreset.AURA_HI_RES.displayName)
+        assertEquals("Aura Hi-Res v3", FactoryPreset.AURA_HI_RES_V3.displayName)
     }
 
     @Test
-    fun auraHiResV2CurveMatchesOwnerSpec() {
-        // Owner directive 2026-09-13: 31 +3, 62 +4, 125 +1, 250 -1, 500 0, 1k 0, 2k +1, 4k +2,
-        // 8k +3, 16k +2 — the house profile, seeded by migrateAudioDefaultsV2 on fresh installs.
-        assertEquals(
-            listOf(3.0f, 4.0f, 1.0f, -1.0f, 0f, 0f, 1.0f, 2.0f, 3.0f, 2.0f),
-            FactoryPreset.AURA_HI_RES_V2.gains.toList()
+    fun theRetiredPresetsAreGoneAndOnlyV3SaysAuraHiRes() {
+        // Fila 357: "elimina todos los que digan Aura Hi-Res, exceptuando Aura Hi-Res v3; también Analog Tape,
+        // Olive-Welti, Diffuse Field, Vocal Presence, Sub-Bass Rumble, Cinematic Warmth, Sparkle & Detail,
+        // Reference Natural" + "también elimina el preset Tube Amp, Vinyl, Harman IE".
+        val names = FactoryPreset.entries.map { it.displayName }
+        assertEquals(listOf("Aura Hi-Res v3"), names.filter { it.contains("Aura Hi-Res", ignoreCase = true) })
+        listOf(
+            "Analog Tape", "Olive-Welti", "Diffuse Field", "Vocal Presence", "Sub-Bass Rumble",
+            "Cinematic Warmth", "Sparkle & Detail", "Reference Neutral", "Aura Hi-Res", "Aura Hi-Res v2",
+            "Tube Amp", "Vinyl", "Harman IE",
+        ).forEach { retired ->
+            org.junit.Assert.assertFalse(retired, retired in names)
+            org.junit.Assert.assertTrue(retired, retired in iad1tya.echo.music.eq.data.RETIRED_PRESET_GAINS)
+        }
+    }
+
+    @Test
+    fun anEqStillOnARetiredCurveIsRecognisedButAUserCurveIsNot() {
+        iad1tya.echo.music.eq.data.RETIRED_PRESET_GAINS.values.forEach { curve ->
+            org.junit.Assert.assertTrue(iad1tya.echo.music.eq.data.isRetiredPresetCurve(curve.copyOf()))
+        }
+        org.junit.Assert.assertTrue(
+            iad1tya.echo.music.eq.data.isRetiredPresetCurve(iad1tya.echo.music.eq.data.AURA_HI_RES_V2_PREVIOUS_GAINS.copyOf())
         )
-        assertEquals("Aura Hi-Res v2", FactoryPreset.AURA_HI_RES_V2.displayName)
+        FactoryPreset.entries.forEach { preset ->
+            org.junit.Assert.assertFalse(preset.name, iad1tya.echo.music.eq.data.isRetiredPresetCurve(preset.gains.copyOf()))
+        }
+        val tuned = FactoryPreset.AURA_HI_RES_V3.gains.copyOf().also { it[0] += 1f }
+        org.junit.Assert.assertFalse(iad1tya.echo.music.eq.data.isRetiredPresetCurve(tuned))
     }
 
     @Test

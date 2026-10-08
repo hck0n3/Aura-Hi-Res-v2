@@ -60,7 +60,10 @@ enum class EqBandType(val code: Int) {
  * Field, Free Field, Olive-Welti), then RESTORED in full the same day — the owner tested the trimmed set
  * across their actual devices and it sounded worse than "Audiophile" + "Acoustic / Live", which real
  * listening had already validated as their reference combo. Ear feedback on the owner's own hardware
- * overrides theoretical "what reviewers cite" curation every time. Keep all of these.
+ * overrides theoretical "what reviewers cite" curation every time.
+ *
+ * 2026-10-08 (fila 357): the owner himself retired thirteen of them (see [RETIRED_PRESET_GAINS]) and made
+ * "Aura Hi-Res v3" the default. Do not bring them back without his order.
  */
 enum class FactoryPreset(val displayName: String, val description: String, val gains: FloatArray) {
     FLAT("Bypass", "Sonido original sin alteraciones.", FloatArray(10) { 0f }),
@@ -71,36 +74,14 @@ enum class FactoryPreset(val displayName: String, val description: String, val g
 
     SPATIAL_AIR("Spatial & Air", "Maximiza la imagen estéreo y la separación de instrumentos.", floatArrayOf(1.0f, 0.5f, -1.5f, -2.0f, -1.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f)),
 
-    SPARKLE_DETAIL("Sparkle & Detail", "Realza los micro-detalles sutiles sin generar fatiga auditiva.", floatArrayOf(0f, 0f, -0.5f, -1.0f, 0f, 0.5f, 1.0f, 1.5f, 2.0f, 2.5f)),
-
     DEEP_PUNCH("Deep Punch", "Bajos profundos y rápidos que no ahogan a los cantantes.", floatArrayOf(5.0f, 4.0f, 1.0f, -1.5f, -0.5f, 0f, 0.5f, 1.0f, 1.5f, 1.0f)),
-
-    SUB_BASS_RUMBLE("Sub-Bass Rumble", "Solo levanta las frecuencias más profundas (31Hz). Ideal para cine y electrónica.", floatArrayOf(6.0f, 3.0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)),
-
-    VOCAL_PRESENCE("Vocal Presence", "Limpia el lodo musical y resalta específicamente la voz humana.", floatArrayOf(-1.0f, -0.5f, -1.5f, -0.5f, 1.0f, 3.0f, 3.5f, 2.0f, 0.5f, 0f)),
 
     ACOUSTIC_LIVE("Acoustic / Live", "Preserva el timbre orgánico de instrumentos como si fuera un concierto en vivo.", floatArrayOf(1.0f, 1.5f, 0.5f, -1.0f, 0f, 1.5f, 2.5f, 1.5f, 1.0f, 1.5f)),
 
-    TUBE_AMP_WARMTH("Tube Amp", "Simula el sonido cálido y envolvente de un amplificador de tubos clásico.", floatArrayOf(-0.5f, 0.5f, 1.5f, 2.0f, 2.5f, 2.0f, 1.0f, 0.5f, -1.0f, -2.0f)),
-
-    CINEMATIC_WARMTH("Cinematic Warmth", "Sonido denso y rico con agudos suaves. Para inmersión total.", floatArrayOf(3.0f, 2.5f, 2.0f, 1.0f, 0f, -0.5f, -1.0f, -1.0f, -1.5f, -2.0f)),
-
     LOW_VOLUME_LOUDNESS("Low Vol. Enhancer", "Compensa la pérdida de audición en bajos y agudos a volúmenes bajos.", floatArrayOf(5.0f, 4.0f, 2.0f, 0f, -1.0f, 0f, 1.0f, 2.5f, 3.5f, 4.0f)),
 
-    REFERENCE_NEUTRAL("Reference Neutral", "Monitoreo de estudio plano. Mínima coloración, máxima fidelidad a la mezcla original.", floatArrayOf(0.5f, 0f, -0.5f, 0f, 0f, 0f, 0f, 0.5f, 0.5f, 1.0f)),
-
     // Certified-style listening curves (approximate published targets on a 10-band graphic EQ).
-    DIFFUSE_FIELD("Diffuse Field", "Curva DF clásica (B&K): graves contenidos, presencia y aire naturales.", floatArrayOf(1.0f, 0.5f, 0f, -0.5f, -1.0f, 0f, 1.0f, 2.0f, 2.5f, 2.0f)),
-
     FREE_FIELD("Free Field", "Respuesta en campo libre: leve refuerzo de agudos para monitores abiertos.", floatArrayOf(0.5f, 0f, -0.5f, -0.5f, 0f, 0.5f, 1.0f, 1.5f, 2.0f, 2.5f)),
-
-    HARMAN_IE("Harman IE", "Variante Harman para IEM: sub-grave presente, medios limpios, agudos controlados.", floatArrayOf(5.0f, 3.5f, 1.0f, -0.5f, -1.0f, 0f, 1.0f, 2.0f, 1.5f, 0.5f)),
-
-    OLIVE_WELTI("Olive-Welti", "Preferencia de escucha Olive–Welti: grave cálido sin enmascarar la voz.", floatArrayOf(4.0f, 3.0f, 1.5f, 0f, -0.5f, 0f, 1.0f, 1.5f, 1.0f, 0.5f)),
-
-    ANALOG_TAPE("Analog Tape", "Calidez de cinta magnética: graves redondos y agudos suavizados, sin fatiga.", floatArrayOf(2.0f, 2.5f, 1.5f, 0.5f, 0f, -0.5f, -0.5f, -1.0f, -1.5f, -2.0f)),
-
-    VINYL("Vinyl", "El cuerpo cálido y orgánico del vinilo, con agudos dulces y medios presentes.", floatArrayOf(1.5f, 2.0f, 1.0f, 0f, -0.5f, 0f, 0.5f, 0f, -1.0f, -1.5f)),
 
     STUDIO_MIX("Studio Mix", "Balance de consola de mezcla: voces e instrumentos claros, graves controlados.", floatArrayOf(1.0f, 1.0f, 0f, -0.5f, 0f, 0.5f, 1.5f, 2.0f, 1.0f, 0.5f)),
 
@@ -112,43 +93,48 @@ enum class FactoryPreset(val displayName: String, val description: String, val g
 
     AR_SOUND_V2("AR-SOUND V2", "Evolución de la firma del dueño: bajo y sub-bajo con más cuerpo, medios bajos limpios y agudos con más aire.", floatArrayOf(9.0f, 6.0f, 1.0f, -1.0f, -2.0f, 0f, 1.0f, 0f, 2.0f, 3.0f)),
 
-    // Owner directive 2026-08-31 (updated 2026-09-04): the headphone house curve is REPLACED by an
-    // exact 10-band spec — 31 Hz +5, 62 +4, 125 +2, 250 0, 500 0, 1k +1, 2k 0, 4k +1, 8k +2,
-    // 16k +3. Same entry, same name: only the gains change (was the 2026-08-31 spec
-    // 6,4,2,0,0,0,1,1,2,3 — row 163/199 lineage; the original row-163 seed was 6,4,1,-1,0,0,1,0,1,2).
-    // Fresh installs seed this curve via migrateAudioDefaultsV2 (App.kt); existing installs get
-    // it by tapping the "Aura Hi-Res" chip once, same accepted scope as rows 163/199.
-    AURA_HI_RES("Aura Hi-Res", "La firma de la casa: graves con cuerpo, medios limpios y agudos con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(5.0f, 4.0f, 2.0f, 0f, 0f, 1.0f, 0f, 1.0f, 2.0f, 3.0f)),
-
-    // Owner directive 2026-09-13: the "Aura Hi-Res v2" curve is REPLACED by 31 Hz +3, 62 +4, 125 +1,
-    // 250 -1, 500 0, 1k 0, 2k +1, 4k +2, 8k +3, 16k +2 (was the 2026-09-05 spec 4,4,2,1,1,1,1,1,2,3).
-    // Existing installs whose live EQ still sits on the OLD v2 curve are moved to the new one by
-    // migrateAuraHiResV2CurveV2 (App.kt); a user-tuned EQ is never touched.
-    // Owner directive 2026-09-05: NEW house profile "Aura Hi-Res v2" — with the global EQ preamp default raised to +2.3 dB.
-    // Deliberately an ADDITION, not an edit: the AURA_HI_RES curve above is frozen by the owner's
-    // 2026-09-04 spec (registry row 201, EqConstantsTest.auraHiResCurveMatchesOwnerSpec). This entry
-    // inherits the default-seed role: migrateAudioDefaultsV2 (App.kt) now seeds THIS curve on fresh
-    // installs; existing installs keep their tuned EQ untouched (the seed only runs behind the
-    // AudioDefaultsV2AppliedKey gate). Verified band-by-band (2026-09-13 curve): no other factory
-    // preset is within the 0.5 dB match tolerance (closest are off by 2.0 dB), so its chip selects
-    // uniquely — and being the LAST enum entry it can never steal another preset's match.
-    AURA_HI_RES_V2("Aura Hi-Res v2", "La firma de la casa, evolución 2026: sub-bajo y bajo con pegada, medios despejados y agudos brillantes con aire. El perfil activo por defecto desde el primer inicio.", floatArrayOf(3.0f, 4.0f, 1.0f, -1.0f, 0f, 0f, 1.0f, 2.0f, 3.0f, 2.0f)),
-
-    // Owner request 2026-10-06 ("revisa mi perfil de ecualización, si se puede mejorar más el de Aura
-    // Hi-Res v2"). An ADDITION next to v2, never an edit of it: v2 is his ear-tuned curve and stays the
-    // default — this one is offered for an A/B on his own hardware. Measured with the engine's own RBJ
-    // formulas (EqResponse), v2 sums to +4.7 dB at 61 Hz and +3.5 dB at 8 kHz — right in the sibilance
-    // zone, where the dynamic de-esser (6.5 kHz, up to -5 dB) then fights the boost on loud bright masters.
-    // v3 keeps the signature (31 Hz +4.2, 62 Hz +4.3, 125 Hz +1.6 summed — practically v2's bass) and moves
-    // 1 dB of treble from 6-8 kHz (+1.8/+2.5) to the 16 kHz "air" band (+3.2), with a light 500 Hz de-box
-    // (-0.6): less harshness, less de-esser activity, peak 4.3 dB instead of 4.7 (less limiter work at
-    // the +2.5 dB house preamp). LAST entry, so it can never steal another preset's chip; verified
-    // band-by-band outside the 0.5 dB match tolerance of every other preset (EqFactoryPresetMatchTest).
+    // The house curve and the DEFAULT since fila 357 (owner 2026-10-08: "de predeterminado dejas Aura Hi-Res
+    // v3"; "Aura Hi-Res" and "Aura Hi-Res v2" were retired — see RETIRED_PRESET_GAINS). Origin (owner request
+    // 2026-10-06): v2's signature with 1 dB of 6-8 kHz treble moved to the 16 kHz "air" band and a light 500 Hz
+    // de-box — less harshness, less de-esser and limiter work at the +2.5 dB house preamp. LAST entry, so it can
+    // never steal another preset's chip; verified outside the 0.5 dB match tolerance of every other preset.
     AURA_HI_RES_V3("Aura Hi-Res v3", "Evolución de la v2: el mismo bajo con pegada, medios más despejados y agudos más suaves en las eses, con más aire arriba. Menos fatiga y menos trabajo del limitador.", floatArrayOf(3.5f, 3.5f, 1.0f, -1.0f, -0.5f, 0f, 1.0f, 1.5f, 2.0f, 3.0f))
 }
 
+/**
+ * Fila 357 — presets RETIRED by the owner (2026-10-08): *"de los presets quiero que elimines todos los que digan
+ * Aura Hi-Res, exceptuando Aura Hi-Res v3; también elimina Analog Tape, Olive-Welti, Diffuse Field, Vocal
+ * Presence, Sub-Bass Rumble, Cinematic Warmth, Sparkle & Detail, Reference Natural, y de predeterminado dejas
+ * Aura Hi-Res v3"* — y enseguida: *"también elimina el preset Tube Amp, Vinyl, Harman IE"*. Their curves are kept ONLY so `App.migrateRetiredPresetsToV3` can recognise an EQ still
+ * sitting on one of them and move it to [FactoryPreset.AURA_HI_RES_V3]. Never shown, never selectable.
+ */
+val RETIRED_PRESET_GAINS: Map<String, FloatArray> = mapOf(
+    "Sparkle & Detail" to floatArrayOf(0f, 0f, -0.5f, -1.0f, 0f, 0.5f, 1.0f, 1.5f, 2.0f, 2.5f),
+    "Sub-Bass Rumble" to floatArrayOf(6.0f, 3.0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f),
+    "Vocal Presence" to floatArrayOf(-1.0f, -0.5f, -1.5f, -0.5f, 1.0f, 3.0f, 3.5f, 2.0f, 0.5f, 0f),
+    "Cinematic Warmth" to floatArrayOf(3.0f, 2.5f, 2.0f, 1.0f, 0f, -0.5f, -1.0f, -1.0f, -1.5f, -2.0f),
+    "Reference Neutral" to floatArrayOf(0.5f, 0f, -0.5f, 0f, 0f, 0f, 0f, 0.5f, 0.5f, 1.0f),
+    "Diffuse Field" to floatArrayOf(1.0f, 0.5f, 0f, -0.5f, -1.0f, 0f, 1.0f, 2.0f, 2.5f, 2.0f),
+    "Olive-Welti" to floatArrayOf(4.0f, 3.0f, 1.5f, 0f, -0.5f, 0f, 1.0f, 1.5f, 1.0f, 0.5f),
+    "Analog Tape" to floatArrayOf(2.0f, 2.5f, 1.5f, 0.5f, 0f, -0.5f, -0.5f, -1.0f, -1.5f, -2.0f),
+    "Aura Hi-Res" to floatArrayOf(5.0f, 4.0f, 2.0f, 0f, 0f, 1.0f, 0f, 1.0f, 2.0f, 3.0f),
+    "Aura Hi-Res v2" to floatArrayOf(3.0f, 4.0f, 1.0f, -1.0f, 0f, 0f, 1.0f, 2.0f, 3.0f, 2.0f),
+    "Tube Amp" to floatArrayOf(-0.5f, 0.5f, 1.5f, 2.0f, 2.5f, 2.0f, 1.0f, 0.5f, -1.0f, -2.0f),
+    "Harman IE" to floatArrayOf(5.0f, 3.5f, 1.0f, -0.5f, -1.0f, 0f, 1.0f, 2.0f, 1.5f, 0.5f),
+    "Vinyl" to floatArrayOf(1.5f, 2.0f, 1.0f, 0f, -0.5f, 0f, 0.5f, 0f, -1.0f, -1.5f),
+)
+
 /** The 2026-09-05 "Aura Hi-Res v2" curve, kept only so the 2026-09-13 migration can recognise it. */
 val AURA_HI_RES_V2_PREVIOUS_GAINS = floatArrayOf(4.0f, 4.0f, 2.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 3.0f)
+
+/**
+ * True when [gains] is still exactly (±0.05 dB) one of the [RETIRED_PRESET_GAINS] curves or the 2026-09-05 v2
+ * curve — what the fila-357 migration moves to "Aura Hi-Res v3". Pure, JVM-tested.
+ */
+fun isRetiredPresetCurve(gains: FloatArray): Boolean =
+    (RETIRED_PRESET_GAINS.values + AURA_HI_RES_V2_PREVIOUS_GAINS).any { curve ->
+        gains.size == curve.size && gains.indices.all { abs(gains[it] - curve[it]) < 0.05f }
+    }
 
 /** Per-band tolerance (dB) used to decide whether the live gains still "are" a factory preset. */
 const val FACTORY_PRESET_MATCH_TOLERANCE_DB = 0.5f

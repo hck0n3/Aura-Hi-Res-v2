@@ -620,6 +620,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // SEPARATE (same EQ side effects): owner directive 2026-09-13 replaces the "Aura Hi-Res v2"
         // curve. MUST run after the V2 seed so a fresh install's seeded curve is already the new one.
         migrateAuraHiResV2CurveV2(settings)
+        // SEPARATE (same EQ side effects): fila 357 — owner 2026-10-08 retired thirteen presets and made
+        // "Aura Hi-Res v3" the default; an EQ still sitting on a retired curve moves to v3, once.
+        migrateRetiredPresetsToV3(settings)
         // SEPARATE, LAST of the audio defaults: owner directive 2026-09-13 forces crossfade 8 s + preamp
         // +2.2 dB once for everyone, after every older writer so none of them can undo it.
         migrateAudioDefaults20260913(settings)
@@ -1140,7 +1143,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
      * One-time (V2): force the requested AUDIO DEFAULTS for EVERYONE on this update — EQ ON + house
      * preset + preamp, crossfade 5 s equal-power ("transición suave"), and Safe Volume ON. The seeded
      * house curve follows the owner's latest directive: 2026-09-05 seeds "Aura Hi-Res v2"
-     * ([iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V2]) + preamp +2.3 dB; until 2026-09-04 the
+     * ("Aura Hi-Res v2", retired by fila 357 — fresh installs now seed [iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V3]) + preamp +2.3 dB; until 2026-09-04 the
      * seed was "Aura Hi-Res" (+2.0 dB, owner pick of 2026-08-26; before that "Audiophile"). Gated by
      * a FRESH key ([AudioDefaultsV2AppliedKey]) so it re-applies even for users whose per-feature flags were
      * already set by the brief 0.6.75/0.6.76 builds (a single EqAudiophileDefault boolean could only ever
@@ -1177,11 +1180,12 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 return@runCatching true
             }
             // Owner request 2026-09-05 (Aura Hi-Res v2 directive): fresh installs boot with the NEW
-            // "Aura Hi-Res v2" house curve active (matches FactoryPreset.AURA_HI_RES_V2 exactly, so its
+            // "Aura Hi-Res v2" house curve active (fila 357: now FactoryPreset.AURA_HI_RES_V3, so its
             // chip shows selected in the EQ grid). The 2026-08-26..09-04 seed was AURA_HI_RES; existing
             // installs are protected by the AudioDefaultsV2AppliedKey gate above, which returns before
             // this line for them, so only a device with NO EQ state at all lands here.
-            val gains = iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V2.gains
+            // Fila 357: the house default is now "Aura Hi-Res v3" (owner 2026-10-08).
+            val gains = iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V3.gains
             val bands = iad1tya.echo.music.ui.screens.equalizer.axion.buildEqBands(gains, IntArray(gains.size))
             val profile = iad1tya.echo.music.eq.data.SavedEQProfile(
                 id = "echo_tuning",
@@ -1464,7 +1468,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 runCatching { eqRepo.getAllProfiles().isNotEmpty() }.getOrDefault(false)
             if (!hasAnyEqState) return@runCatching false
             val previous = iad1tya.echo.music.eq.data.AURA_HI_RES_V2_PREVIOUS_GAINS
-            val current = iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V2.gains
+            // Fila 357: the v2 preset is retired; an EQ still on its oldest curve goes straight to v3.
+            val current = iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V3.gains
             fun isPrevious(gains: List<Float>) = gains.size == previous.size &&
                 gains.indices.all { kotlin.math.abs(gains[it] - previous[it]) < 0.05f }
 
@@ -1487,6 +1492,50 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         }.onFailure { reportException(it) }.getOrDefault(false)
         if (applied) {
             dataStore.edit { it[iad1tya.echo.music.constants.AuraHiResV2Curve20260913AppliedKey] = true }
+        }
+    }
+
+    /**
+     * One-time (fila 357, owner 2026-10-08): *"de los presets quiero que elimines todos los que digan Aura
+     * Hi-Res, exceptuando Aura Hi-Res v3 … y de predeterminado dejas Aura Hi-Res v3"*. An EQ whose live curve is
+     * STILL exactly one of the retired presets ([iad1tya.echo.music.eq.data.RETIRED_PRESET_GAINS] — including
+     * the old house curves "Aura Hi-Res" and "Aura Hi-Res v2") moves to v3, in BOTH the DSP source of truth
+     * (profile repo) and the `echo_eq_prefs` mirror the EQ screen reads. A user-tuned curve or a preset that
+     * still exists is left untouched. Same two-phase contract as [migrateAuraHiResV2CurveV2]: stamped only on
+     * success, and while no EQ state exists yet it retries instead of stamping.
+     */
+    private suspend fun migrateRetiredPresetsToV3(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.RetiredPresetsToV3AppliedKey] == true) return
+        val applied = runCatching {
+            val eqPrefs = applicationContext.getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
+            val eqRepo = eqProfileRepository.get()
+            val hasAnyEqState = eqPrefs.contains("enabled") || eqPrefs.contains("preampDb") ||
+                eqPrefs.all.keys.any { it.startsWith("band") } ||
+                runCatching { eqRepo.getAllProfiles().isNotEmpty() }.getOrDefault(false)
+            if (!hasAnyEqState) return@runCatching false
+            val target = iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V3.gains
+            fun isRetired(gains: List<Float>) =
+                iad1tya.echo.music.eq.data.isRetiredPresetCurve(gains.toFloatArray())
+
+            val effective = eqRepo.unsavedProfile.value ?: eqRepo.activeProfile.value
+            if (effective != null && isRetired(effective.bands.map { it.gain.toFloat() })) {
+                val moved = effective.copy(
+                    bands = effective.bands.mapIndexed { i, band -> band.copy(gain = target[i].toDouble()) },
+                )
+                eqRepo.saveProfile(moved)
+                eqRepo.setUnsavedProfile(moved)
+                eqRepo.setActiveProfile(moved.id)
+            }
+            val mirrored = target.indices.map { eqPrefs.getFloat("band24_$it", Float.NaN) }
+            if (isRetired(mirrored)) {
+                val ed = eqPrefs.edit()
+                target.forEachIndexed { i, g -> ed.putFloat("band24_$i", g) }
+                ed.apply()
+            }
+            true
+        }.onFailure { reportException(it) }.getOrDefault(false)
+        if (applied) {
+            dataStore.edit { it[iad1tya.echo.music.constants.RetiredPresetsToV3AppliedKey] = true }
         }
     }
 
