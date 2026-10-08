@@ -120,6 +120,8 @@ fun AuraScreenHeader(
     modifier: Modifier = Modifier,
     label: String? = null,
     trailing: (@Composable () -> Unit)? = null,
+    /** Row 349: a styled title (Inicio's «Aura Hi-Res» wordmark). [title] stays the plain-text fallback. */
+    styledTitle: androidx.compose.ui.text.AnnotatedString? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -132,13 +134,23 @@ fun AuraScreenHeader(
                 AuraSectionLabel(label)
                 Spacer(Modifier.height(6.dp))
             }
-            Text(
-                text = title,
-                style = AuraType.ScreenTitle,
-                color = AuraPalette.OnGround,
-                maxLines = 1,
-                overflow = AuraDefaultOverflow,
-            )
+            if (styledTitle != null) {
+                Text(
+                    text = styledTitle,
+                    style = AuraType.ScreenTitle,
+                    color = AuraPalette.OnGround,
+                    maxLines = 1,
+                    overflow = AuraDefaultOverflow,
+                )
+            } else {
+                Text(
+                    text = title,
+                    style = AuraType.ScreenTitle,
+                    color = AuraPalette.OnGround,
+                    maxLines = 1,
+                    overflow = AuraDefaultOverflow,
+                )
+            }
         }
         trailing?.invoke()
     }

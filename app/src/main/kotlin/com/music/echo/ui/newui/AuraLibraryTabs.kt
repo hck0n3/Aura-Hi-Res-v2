@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -71,6 +72,7 @@ import iad1tya.echo.music.constants.ArtistSortTypeKey
 import iad1tya.echo.music.constants.GridItemSize
 import iad1tya.echo.music.constants.GridItemsSizeKey
 import iad1tya.echo.music.constants.HideExplicitKey
+import iad1tya.echo.music.constants.LibraryViewType
 import iad1tya.echo.music.constants.MixSortDescendingKey
 import iad1tya.echo.music.constants.MixSortType
 import iad1tya.echo.music.constants.MixSortTypeKey
@@ -88,6 +90,7 @@ import iad1tya.echo.music.constants.SongFilterKey
 import iad1tya.echo.music.constants.SongSortDescendingKey
 import iad1tya.echo.music.constants.SongSortType
 import iad1tya.echo.music.constants.SongSortTypeKey
+import iad1tya.echo.music.constants.SongViewTypeKey
 import iad1tya.echo.music.constants.YtmSyncKey
 import iad1tya.echo.music.db.entities.Album
 import iad1tya.echo.music.db.entities.Artist
@@ -684,7 +687,12 @@ fun AuraLibrarySongsTab(
     }
     val shufflePlayedSet = rememberPlayedShuffleSet(libraryContextId)
 
-    val listState = rememberLazyListState()
+    // Row 349 (C2 decision 2): list/grid switch, same key and default as the classic Canciones tab.
+    var viewType by rememberEnumPreference(SongViewTypeKey, LibraryViewType.LIST)
+    val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
+    val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    val isGrid = viewType == LibraryViewType.GRID
+    val listState = rememberLazyGridState()
     AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { listState.isScrollInProgress }
@@ -698,14 +706,17 @@ fun AuraLibrarySongsTab(
                     placeholder = stringResource(R.string.search_library),
                 )
             }
-            LazyColumn(
+            LazyVerticalGrid(
                 state = listState,
+                columns = auraLibraryColumns(viewType, gridCellSize),
+                horizontalArrangement = Arrangement.spacedBy(if (isGrid) 11.dp else 0.dp),
                 contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxSize(),
+                    .fillMaxSize()
+                    .then(if (isGrid) Modifier.padding(horizontal = AuraSpacing.Gutter) else Modifier),
             ) {
-            item(key = "aura_songs_subfilters", contentType = "aura_songs_subfilters") {
+            item(key = "aura_songs_subfilters", contentType = "aura_songs_subfilters", span = { GridItemSpan(maxLineSpan) }) {
                 AuraSubFilterRow(
                     options = listOf(
                         SongFilter.LIKED to R.string.filter_liked,
@@ -718,7 +729,7 @@ fun AuraLibrarySongsTab(
                 )
             }
 
-            item(key = "aura_songs_sort", contentType = "aura_songs_sort") {
+            item(key = "aura_songs_sort", contentType = "aura_songs_sort", span = { GridItemSpan(maxLineSpan) }) {
                 AuraSortControl(
                     sortType = sortType,
                     sortDescending = sortDescending,
@@ -741,12 +752,13 @@ fun AuraLibrarySongsTab(
                                 filteredSongs.size,
                             ),
                         )
+                        AuraViewTypeToggle(viewType) { viewType = it }
                     },
                 )
             }
 
             if (libraryContextId != null) {
-                item(key = "aura_songs_shuffle_chip", contentType = "aura_songs_shuffle_chip") {
+                item(key = "aura_songs_shuffle_chip", contentType = "aura_songs_shuffle_chip", span = { GridItemSpan(maxLineSpan) }) {
                     val playedCount = remember(shufflePlayedSet, filteredSongs) {
                         filteredSongs.count { it.id in shufflePlayedSet || it.song.totalPlayTime > 0L }
                     }
@@ -763,6 +775,45 @@ fun AuraLibrarySongsTab(
             }
 
             itemsIndexed(filteredSongs, key = { _, item -> item.song.id }) { index, song ->
+                val playSong: () -> Unit = {
+                    if (song.id == mediaMetadata?.id) {
+                        playerConnection.togglePlayPause()
+                    } else {
+                        playerConnection.playQueue(
+                            ListQueue(
+                                title = context.getString(R.string.queue_all_songs),
+                                items = filteredSongs.map { it.toMediaItem() },
+                                startIndex = index,
+                                contextId = libraryContextId,
+                            ),
+                        )
+                    }
+                }
+                if (isGrid) {
+                    // Row 349: the classic song grid card — cover, title, artists; same tap and menu.
+                    AuraCoverCard(
+                        title = song.song.title,
+                        subtitle = song.artists.joinToString { it.name },
+                        thumbnailUrl = song.song.thumbnailUrl,
+                        seed = song.id,
+                        width = gridCellSize,
+                        isActive = song.id == mediaMetadata?.id,
+                        isPlaying = isPlaying,
+                        modifier = Modifier.animateItem(),
+                        onClick = playSong,
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            menuState.show {
+                                SongMenu(
+                                    originalSong = song,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+                        },
+                    )
+                    return@itemsIndexed
+                }
                 AuraAppleListRowFrame(
                     showDivider = index < filteredSongs.lastIndex,
                     dividerInset = AuraAppleCoverDividerInset,
@@ -918,6 +969,8 @@ fun AuraLibraryAlbumsTab(
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    // Row 349: list/grid switch, same key as the classic tab.
+    var viewType by rememberEnumPreference(iad1tya.echo.music.constants.AlbumViewTypeKey, iad1tya.echo.music.constants.LibraryViewType.GRID)
     val albumPlayScope = rememberCoroutineScope()
     val albumPlayDatabase = LocalDatabase.current
     val listState = rememberLazyGridState()
@@ -927,7 +980,7 @@ fun AuraLibraryAlbumsTab(
 
     LazyVerticalGrid(
         state = listState,
-        columns = GridCells.Adaptive(minSize = gridCellSize),
+        columns = auraLibraryColumns(viewType, gridCellSize),
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
         modifier = Modifier
@@ -962,6 +1015,7 @@ fun AuraLibraryAlbumsTab(
                 modifier = Modifier.padding(start = 0.dp),
                 trailing = {
                     AuraCount(pluralStringResource(R.plurals.n_album, albums.size, albums.size))
+                    AuraViewTypeToggle(viewType) { viewType = it }
                 },
             )
         }
@@ -979,7 +1033,8 @@ fun AuraLibraryAlbumsTab(
         }
 
         items(albums, key = { it.id }) { album ->
-            AuraCoverCard(
+            AuraLibraryCell(
+                viewType = viewType,
                 title = album.album.title,
                 subtitle = album.artists.joinToString { it.name },
                 thumbnailUrl = album.album.thumbnailUrl,
@@ -1042,6 +1097,8 @@ fun AuraLibraryArtistsTab(
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    // Row 349: list/grid switch, same key as the classic tab.
+    var viewType by rememberEnumPreference(iad1tya.echo.music.constants.ArtistViewTypeKey, iad1tya.echo.music.constants.LibraryViewType.GRID)
     val artistVisual = auraTypeVisual(AuraContentKind.Artist)
 
     Column(Modifier.fillMaxSize()) {
@@ -1058,7 +1115,7 @@ fun AuraLibraryArtistsTab(
         ScrollStateBusReporter { listState.isScrollInProgress }
         LazyVerticalGrid(
         state = listState,
-        columns = GridCells.Adaptive(minSize = gridCellSize),
+        columns = auraLibraryColumns(viewType, gridCellSize),
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
         modifier = Modifier
@@ -1094,6 +1151,7 @@ fun AuraLibraryArtistsTab(
                 modifier = Modifier.padding(start = 0.dp),
                 trailing = {
                     AuraCount(pluralStringResource(R.plurals.n_artist, artists.size, artists.size))
+                    AuraViewTypeToggle(viewType) { viewType = it }
                 },
             )
         }
@@ -1115,7 +1173,8 @@ fun AuraLibraryArtistsTab(
         }
 
         items(artists, key = { it.id }) { artist ->
-            AuraCoverCard(
+            AuraLibraryCell(
+                viewType = viewType,
                 title = artist.artist.name,
                 subtitle = pluralStringResource(R.plurals.n_song, artist.songCount, artist.songCount),
                 thumbnailUrl = artist.artist.thumbnailUrl,
@@ -1187,6 +1246,8 @@ fun AuraLibraryPlaylistsTab(
     // it), rounded to the 150 this grid already drew so "Grande" is unchanged from what shipped.
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    // Row 349: list/grid switch, same key as the classic tab.
+    var viewType by rememberEnumPreference(iad1tya.echo.music.constants.PlaylistViewTypeKey, iad1tya.echo.music.constants.LibraryViewType.GRID)
 
     Column(Modifier.fillMaxSize()) {
         if (searchOpen) {
@@ -1202,7 +1263,7 @@ fun AuraLibraryPlaylistsTab(
         ScrollStateBusReporter { listState.isScrollInProgress }
         LazyVerticalGrid(
         state = listState,
-        columns = GridCells.Adaptive(minSize = gridCellSize),
+        columns = auraLibraryColumns(viewType, gridCellSize),
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
         modifier = Modifier
@@ -1236,6 +1297,7 @@ fun AuraLibraryPlaylistsTab(
                             filteredPlaylists.size,
                         ),
                     )
+                    AuraViewTypeToggle(viewType) { viewType = it }
                 },
             )
         }
@@ -1291,7 +1353,8 @@ fun AuraLibraryPlaylistsTab(
         }
 
         items(filteredPlaylists.distinctBy { it.id }, key = { it.id }) { playlist ->
-            AuraCoverCard(
+            AuraLibraryCell(
+                viewType = viewType,
                 title = playlist.playlist.name,
                 subtitle = pluralStringResource(
                     R.plurals.n_song,

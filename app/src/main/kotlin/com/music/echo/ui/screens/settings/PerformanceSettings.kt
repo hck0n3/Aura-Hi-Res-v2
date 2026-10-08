@@ -88,6 +88,7 @@ fun PerformanceSettings(
             )
         )
 
+        val newUiActive = iad1tya.echo.music.ui.newui.rememberNewUiEnabled()
         Material3SettingsGroup(
             title = "Rendimiento",
             items = buildList {
@@ -140,7 +141,7 @@ fun PerformanceSettings(
 
         Material3SettingsGroup(
             title = "Pantalla grande",
-            items = listOf(
+            items = listOfNotNull(
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.speed),
                     title = { Text("Vista dividida estilo Spotify") },
@@ -224,7 +225,9 @@ fun PerformanceSettings(
                 // Registry #48: rotating to landscape with the animated canvas active used to swallow the whole
                 // interface. That immersive view is now opt-in; strings live in resources (the literals above are
                 // pre-existing — see registry #37 on hardcoded Spanish in settings screens).
-                Material3SettingsItem(
+                // Row 349 (owner 2026-10-08, C2 decision 3: «quítalo»): under the new UI this switch did
+                // nothing — only the classic player has the canvas-only landscape view. Shown only there.
+                if (newUiActive) null else Material3SettingsItem(
                     icon = painterResource(R.drawable.speed),
                     title = { Text(stringResource(R.string.immersive_canvas_on_rotate)) },
                     description = { Text(stringResource(R.string.immersive_canvas_on_rotate_desc)) },

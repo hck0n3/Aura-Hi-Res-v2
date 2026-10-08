@@ -198,6 +198,7 @@ fun AuraHomeScreen(
     val isChipLoading by viewModel.isChipLoading.collectAsState()
     val chipError by viewModel.chipError.collectAsState()
     val accountName by viewModel.accountName.collectAsState()
+    val accountAvatarUrl by viewModel.accountImageUrl.collectAsState()
 
     val isLoading by viewModel.isLoading.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
@@ -437,10 +438,26 @@ fun AuraHomeScreen(
                 // classic Home already uses in its 34 call sites, so this decides nothing new.
                 // Every item below has a stable `key`; animateItem does nothing without one.
                 item(key = "aura_home_header", contentType = "aura_home_header") {
+                    // Row 349 (owner 2026-10-08, C2 decision 5): the app's wordmark is back on Inicio — the
+                    // classic top bar showed it, the Aura header showed only «Inicio». "Hi-Res" wears the
+                    // cover-driven accent, so the logo moves with the artwork like the rest of the screen.
+                    val wordmarkAura = stringResource(R.string.app_name_aura)
+                    val wordmarkHiRes = stringResource(R.string.app_name_hi_res)
+                    val wordmarkAccent = AuraPalette.Teal
+                    val wordmark = remember(wordmarkAura, wordmarkHiRes, wordmarkAccent) {
+                        androidx.compose.ui.text.buildAnnotatedString {
+                            append(wordmarkAura)
+                            append(" ")
+                            pushStyle(androidx.compose.ui.text.SpanStyle(color = wordmarkAccent))
+                            append(wordmarkHiRes)
+                            pop()
+                        }
+                    }
                     AuraScreenHeader(
                         modifier = Modifier.animateItem(),
                         label = auraGreeting(),
-                        title = stringResource(R.string.home),
+                        title = "$wordmarkAura $wordmarkHiRes",
+                        styledTitle = wordmark,
                         // The global top bar is no longer drawn on this route (it was a second, opaque
                         // header stacked over this one). Its four actions — Escuchar juntos, Historial,
                         // Modo sin conexión and Cuenta — live here now; see [LocalAuraTopActions].
@@ -971,6 +988,19 @@ fun AuraHomeScreen(
                                             title = stringResource(R.string.your_youtube_playlists),
                                             label = accountName,
                                             onClick = { navController.navigate("account") },
+                                            // Row 349 (C2 decision 5): the account avatar next to its name,
+                                            // as on the classic Home.
+                                            leading = accountAvatarUrl?.let { url ->
+                                                {
+                                                    coil3.compose.AsyncImage(
+                                                        model = url,
+                                                        contentDescription = null,
+                                                        modifier = Modifier
+                                                            .size(32.dp)
+                                                            .clip(CircleShape),
+                                                    )
+                                                }
+                                            },
                                         )
                                         val playlistW = auraTypeVisual(AuraContentKind.Playlist).shelfWidth * cardScale
                                         val uniquePlaylists = remember(playlists) { playlists.distinctBy { it.id } }

@@ -813,7 +813,7 @@ private fun AuraMenuExpandableSection(
  * edge-to-edge inside a parent that already applied a horizontal padding. No-op when the incoming
  * constraints are unbounded.
  */
-private fun Modifier.auraBleedHorizontal(amount: Dp): Modifier = this.layout { measurable, constraints ->
+internal fun Modifier.auraBleedHorizontal(amount: Dp): Modifier = this.layout { measurable, constraints ->
     if (!constraints.hasBoundedWidth) {
         val placeable = measurable.measure(constraints)
         return@layout layout(placeable.width, placeable.height) { placeable.place(0, 0) }

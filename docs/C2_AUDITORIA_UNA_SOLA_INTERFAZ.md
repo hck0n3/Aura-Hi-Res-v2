@@ -19,7 +19,13 @@ usando por debajo.
 | Insignia «en biblioteca» apagada a mano en las auto-listas | Encendida según el dato real |
 | «Actualizaciones» solo se encontraba desde la hoja de la cuenta | Fila en Ajustes ▸ Acerca de |
 
-## 2. Huecos que necesitan TU decisión
+## 2. Tus decisiones (2026-10-08) — aplicadas en la fila #349
+
+- 1 Temporizador: no se recupera. 2 Lista/cuadrícula: recuperado. 3 Canvas al girar: quitado de Aura.
+  4 Ajustes finos del cristal: en Aura se sustituyen por una explicación (no hacían nada). 5 Logotipo y avatar en
+  Inicio: hechos.
+
+### Las preguntas que se hicieron
 
 1. **Temporizador de apagado:** desapareció de **las dos** interfaces antes de este repositorio; solo quedan
    textos e iconos. No hay registro de que lo decidieras. ¿Lo recupero?

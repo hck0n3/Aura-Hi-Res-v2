@@ -277,7 +277,24 @@ fun GlassEffectSettings(
 
         Material3SettingsGroup(
             title = stringResource(R.string.liquid_glass_effects),
-            items = listOf(
+            // Row 349 (owner 2026-10-08, C2 decision 4 — "haz lo que consideres conveniente"): these nine
+            // tuning values only drive `Modifier.liquidGlass`, which only the CLASSIC nav bar and mini player
+            // draw. Under the new UI they changed nothing (a placebo). The Aura glass is tinted by the cover
+            // on its own (AuraPalette.CoverGlassTint), so instead of nine dead rows the screen says so.
+            items = if (newUiEnabled) listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.palette),
+                    title = { Text("El cristal de Aura se ajusta solo") },
+                    description = {
+                        Text(
+                            "En la interfaz Aura el cristal del reproductor, el mini reproductor y la barra de " +
+                                "abajo toma los colores de la portada automáticamente. Los ajustes finos " +
+                                "(viveza, desenfoque, lente, tinte…) solo cambian la interfaz clásica.",
+                        )
+                    },
+                    enabled = false,
+                ),
+            ) else listOf(
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.tune),
                     title = { Text(stringResource(R.string.liquid_glass_vibrancy)) },
