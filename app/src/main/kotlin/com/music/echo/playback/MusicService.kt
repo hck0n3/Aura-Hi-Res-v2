@@ -647,6 +647,10 @@ class MusicService :
         }
 
     lateinit var playerVolume: MutableStateFlow<Float>
+
+    // `::x.isInitialized` only compiles inside the declaring class; the extracted crossfade engine
+    // (CrossfadeEngine.kt, plan C1) asks through this instead.
+    internal val playerVolumeInitialized: Boolean get() = ::playerVolume.isInitialized
     val isMuted = MutableStateFlow(false)
 
     fun toggleMute() {
@@ -682,7 +686,7 @@ class MusicService :
     lateinit var downloadCache: SimpleCache
 
     lateinit var player: ExoPlayer
-        private set
+        internal set // the crossfade swap (CrossfadeEngine.kt) promotes the secondary player
     internal var secondaryPlayer: ExoPlayer? = null
     internal var fadingPlayer: ExoPlayer? = null
     internal var isCrossfading = false

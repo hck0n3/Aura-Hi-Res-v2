@@ -277,7 +277,7 @@ import timber.log.Timber
  */
 internal fun MusicService.fadeInOnManualChange() {
     manualFadeInJob?.cancel()
-    if (!::playerVolume.isInitialized) return
+    if (!playerVolumeInitialized) return
     if (!ManualFadeIn.worthFading(isMuted.value, playerVolume.value)) return
     val target = playerVolume.value
     lateinit var self: Job
@@ -323,7 +323,7 @@ internal fun MusicService.fadeInOnManualChange() {
                 // IDENTITY guard: on rapid skips a NEWER fade may already own the volume (it just set
                 // 0f); a cancelled older job restoring FULL volume after that would kill the new
                 // fade-in. Only the job still registered as current restores.
-                if (::playerVolume.isInitialized) {
+                if (playerVolumeInitialized) {
                     ManualFadeIn.finalVolume(
                         isCurrentJob = manualFadeInJob === self,
                         muted = isMuted.value,
@@ -1160,7 +1160,7 @@ internal fun MusicService.performCrossfadeSwap() {
         // cortada" pegándose de una canción a la siguiente. El volumen del usuario es lo que ese
         // `fadingPlayer.volume` pretendía leer siempre; ahora se lee de donde vive de verdad.
         val startVolume = try {
-            if (::playerVolume.isInitialized) {
+            if (playerVolumeInitialized) {
                 if (isMuted.value) 0f else playerVolume.value
             } else {
                 fadingPlayer?.volume ?: 1f
@@ -1236,7 +1236,7 @@ internal fun MusicService.performCrossfadeSwap() {
             // silent for the rest of the session. Restore it to the user's real volume + tear down.
             runCatching {
                 player.volume = when {
-                    !::playerVolume.isInitialized -> startVolume
+                    !playerVolumeInitialized -> startVolume
                     isMuted.value -> 0f
                     else -> playerVolume.value
                 }

@@ -176,6 +176,7 @@ import iad1tya.echo.music.lyrics.LyricsHelper
 import iad1tya.echo.music.models.PersistPlayerState
 import iad1tya.echo.music.models.PersistQueue
 import iad1tya.echo.music.models.toMediaMetadata
+import iad1tya.echo.music.playback.MusicService.CachedStream
 import iad1tya.echo.music.playback.MusicService.Companion.CHUNK_LENGTH
 import iad1tya.echo.music.playback.MusicService.Companion.ERROR_CODE_NO_STREAM
 import iad1tya.echo.music.playback.MusicService.Companion.TAG
