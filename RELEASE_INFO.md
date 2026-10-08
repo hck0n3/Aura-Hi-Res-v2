@@ -1,6 +1,28 @@
-# Aura Hi-Res v2.0.64-beta8 — La cola respeta el estilo exacto de tu lista y Aura recupera lo que le faltaba
+# Aura Hi-Res v2.0.64-beta9 — Aura, la única interfaz: vista en lista o cuadrícula, logotipo y avatar en Inicio
 
-Beta encima de la 2.0.64-beta7. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta8. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Una sola interfaz
+
+- **Aura es ahora la única interfaz:** el interruptor «Interfaz nueva» ya no aparece, y si tenías la
+  interfaz clásica, la app pasa a Aura al arrancar. Todo lo que tenía la clásica sigue disponible.
+- **Biblioteca vuelve a tener vista en lista o en cuadrícula** en Canciones, Álbumes, Artistas y Listas
+  (botón junto al número de elementos). Recuerda tu elección.
+- **Inicio muestra el logotipo «Aura Hi-Res»** (con «Hi-Res» en el color de la portada) **y el avatar de tu
+  cuenta** junto a tus listas de YouTube.
+
+## Ajustes más claros
+
+- **Se quitó «Fondo animado a pantalla completa en horizontal»**: con Aura no hacía nada.
+- **Los ajustes finos del cristal** (viveza, desenfoque, lente, tinte…) se sustituyen por una explicación: el
+  cristal de Aura toma solo los colores de la portada.
+
+## Por dentro
+
+- **El motor de la cola inteligente vive en su propio archivo**, separado del servicio de música, para que
+  los próximos cambios sean más seguros. No cambia cómo suena ni cómo continúa la cola.
+
+También incluye todo lo de la beta8:
 
 ## Cola inteligente
 
@@ -23,7 +45,7 @@ Beta encima de la 2.0.64-beta7. Conserva tus datos, tu sesión y tus ajustes: mi
 
 - **La letra karaoke gasta menos:** solo se redibuja la línea que se está cantando, no todas las visibles.
 
-También incluye todo lo de la beta7:
+Y lo de la beta7:
 
 ## Arreglado en la beta7
 
