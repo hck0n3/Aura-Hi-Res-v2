@@ -213,9 +213,18 @@ object AiPlaylistGenerator {
     ): Produced? {
         val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
         val startedAt = System.currentTimeMillis()
-        val produced = produceRacing(
+        val raced = produceRacing(
             database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress, taste,
         )
+        // Fila 359 (dueño 2026-10-08): no instrumentals or karaoke tracks unless the request asks for them.
+        // Here, on the way out, so the AI path, the search path and the background top-up all pass it.
+        val produced = raced?.let { r ->
+            val kept = MusicRequestInstrumental.filter(prompt, r.songs)
+            if (kept.size != r.songs.size) {
+                timber.log.Timber.i("MUSIC_REQUEST dropped %d instrumental/karaoke tracks", r.songs.size - kept.size)
+            }
+            if (kept.isEmpty()) null else r.copy(songs = kept)
+        }
         timber.log.Timber.i(
             "MUSIC_REQUEST source=%s tracks=%d tookMs=%d",
             when {
