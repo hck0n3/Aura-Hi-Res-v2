@@ -30,6 +30,7 @@ import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -57,6 +58,10 @@ import iad1tya.echo.music.utils.rememberPerfGatedBoolean
  *   Listen Together guest could still scrub a wavy timeline; the guard is now uniform.
  * @param slimTrackGrowsOnDrag SLIM only: grow the track 10→16 dp while touched. The classic player's
  *   "nuevo diseño" turns this off, so it stays a parameter instead of a second copy of the style.
+ * @param activeTrackPaint optional painter for the PLAYED segment (the new UI's animated cover gradient,
+ *   owner 2026-10-09). Used by DEFAULT (with a buffered extent) and SLIM, and only while [enabled]: a
+ *   disabled timeline keeps its grey disabled colours. The two WAVY styles draw their own wave and keep
+ *   the flat [SliderColors]. Null — every classic caller — is byte-identical to before.
  */
 @Composable
 fun PlayerProgressSlider(
@@ -71,7 +76,9 @@ fun PlayerProgressSlider(
     slimTrackGrowsOnDrag: Boolean = true,
     /** D3: fraction (0..1) of the timeline already buffered, drawn as a translucent inactive track. */
     bufferedFraction: Float? = null,
+    activeTrackPaint: PlayerSliderActivePaint? = null,
 ) {
+    val activePaint = if (enabled) activeTrackPaint else null
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.DEFAULT)
     val squigglySlider by rememberPerfGatedBoolean(SquigglySliderKey, false)
 
@@ -99,6 +106,7 @@ fun PlayerProgressSlider(
                             sliderState = sliderState,
                             colors = colors,
                             bufferedFraction = bufferedFraction,
+                            activePaint = activePaint,
                         )
                     },
                     modifier = modifier,
@@ -170,6 +178,7 @@ fun PlayerProgressSlider(
                         sliderState = sliderState,
                         trackHeight = trackHeight,
                         colors = colors,
+                        activePaint = activePaint,
                     )
                 },
                 modifier = modifier,
@@ -178,13 +187,31 @@ fun PlayerProgressSlider(
     }
 }
 
+/**
+ * Paints the PLAYED segment of the timeline instead of a flat [SliderColors.activeTrackColor] line.
+ * Called from the track's draw phase only — an implementation may read snapshot state there (an
+ * animation clock, the palette) and it then invalidates the track's DRAW, never a recomposition.
+ */
+interface PlayerSliderActivePaint {
+    /**
+     * Draws the played segment from [start] to [end] with a round-capped stroke of [strokeWidth] px,
+     * plus any decoration at [end] (the play head). [trackWidth] is the whole rail, in px.
+     */
+    fun drawPlayed(scope: DrawScope, start: Offset, end: Offset, strokeWidth: Float, trackWidth: Float)
+}
+
+/** The track's own layer when it animates: a paint step then re-records this canvas, not the player. */
+private fun Modifier.activePaintLayer(activePaint: PlayerSliderActivePaint?): Modifier =
+    if (activePaint != null) this.graphicsLayer() else this
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerSliderTrack(
     sliderState: SliderState,
     modifier: Modifier = Modifier,
     colors: SliderColors = SliderDefaults.colors(),
-    trackHeight: Dp = 10.dp
+    trackHeight: Dp = 10.dp,
+    activePaint: PlayerSliderActivePaint? = null,
 ) {
     val inactiveTrackColor = colors.inactiveTrackColor
     val activeTrackColor = colors.activeTrackColor
@@ -195,6 +222,7 @@ fun PlayerSliderTrack(
         modifier
             .fillMaxWidth()
             .height(trackHeight)
+            .activePaintLayer(activePaint)
     ) {
         drawTrack(
             stepsToTickFractions(sliderState.steps),
@@ -208,7 +236,8 @@ fun PlayerSliderTrack(
             activeTrackColor,
             inactiveTickColor,
             activeTickColor,
-            trackHeight
+            trackHeight,
+            activePaint,
         )
     }
 }
@@ -221,7 +250,8 @@ private fun DrawScope.drawTrack(
     activeTrackColor: Color,
     inactiveTickColor: Color,
     activeTickColor: Color,
-    trackHeight: Dp = 2.dp
+    trackHeight: Dp = 2.dp,
+    activePaint: PlayerSliderActivePaint? = null,
 ) {
     val isRtl = layoutDirection == LayoutDirection.Rtl
     val sliderLeft = Offset(0f, center.y)
@@ -247,13 +277,17 @@ private fun DrawScope.drawTrack(
                 (sliderEnd.x - sliderStart.x) * activeRangeStart,
         center.y
     )
-    drawLine(
-        activeTrackColor,
-        sliderValueStart,
-        sliderValueEnd,
-        trackStrokeWidth,
-        StrokeCap.Round
-    )
+    if (activePaint != null) {
+        activePaint.drawPlayed(this, sliderValueStart, sliderValueEnd, trackStrokeWidth, size.width)
+    } else {
+        drawLine(
+            activeTrackColor,
+            sliderValueStart,
+            sliderValueEnd,
+            trackStrokeWidth,
+            StrokeCap.Round
+        )
+    }
     for (tick in tickFractions) {
         val outsideFraction = tick > activeRangeEnd || tick < activeRangeStart
         drawCircle(
@@ -284,6 +318,7 @@ fun BufferedSliderTrack(
     modifier: Modifier = Modifier,
     colors: SliderColors = SliderDefaults.colors(),
     bufferedFraction: Float? = null,
+    activePaint: PlayerSliderActivePaint? = null,
 ) {
     val inactiveTrackColor = colors.inactiveTrackColor
     val activeTrackColor = colors.activeTrackColor
@@ -299,6 +334,7 @@ fun BufferedSliderTrack(
         modifier
             .fillMaxWidth()
             .height(14.dp)
+            .activePaintLayer(activePaint)
     ) {
         val stroke = 10.dp.toPx()
         val y = center.y
@@ -311,12 +347,16 @@ fun BufferedSliderTrack(
             drawLine(bufferedColor, Offset(startX, y), Offset(endX, y), stroke, StrokeCap.Round)
         }
         // Played portion.
-        drawLine(
-            activeTrackColor,
-            Offset(0f, y),
-            Offset(size.width * fraction, y),
-            stroke,
-            StrokeCap.Round,
-        )
+        if (activePaint != null) {
+            activePaint.drawPlayed(this, Offset(0f, y), Offset(size.width * fraction, y), stroke, size.width)
+        } else {
+            drawLine(
+                activeTrackColor,
+                Offset(0f, y),
+                Offset(size.width * fraction, y),
+                stroke,
+                StrokeCap.Round,
+            )
+        }
     }
 }
