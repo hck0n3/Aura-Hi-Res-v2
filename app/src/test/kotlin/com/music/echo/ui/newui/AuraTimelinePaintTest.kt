@@ -50,9 +50,9 @@ class AuraTimelinePaintTest {
     fun `the heart glyph is centred on the title block and its edge sits on the content edge`() {
         val glyph = 26.dp
         val (x, y) = auraHeartOpticalOffset(glyph)
-        // Vertical: the drawing's centre (13.63 of 24) lands on the box centre (12).
-        assertEquals(-(glyph.value * (HEART_VISUAL_CENTER_Y - 12f) / 24f), y.value, 0.01f)
-        assertTrue(y.value < -1.5f && y.value > -2.2f)
+        // Vertical (row 363): the glyph itself is centred now (AuraIcons.heartPath), so no lift is needed.
+        assertEquals(12f, HEART_VISUAL_CENTER_Y, 0f)
+        assertEquals(0f, y.value, 0.01f)
         // Horizontal: box inset (48 − 26) / 2 = 11 dp + the glyph's own right side bearing.
         val expected = (48f - glyph.value) / 2f + glyph.value * (24f - HEART_VISUAL_RIGHT) / 24f
         assertEquals(expected, x.value, 0.01f)
