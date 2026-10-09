@@ -1,6 +1,15 @@
-# Aura Hi-Res v2.0.64-beta13 — Pedir música que entiende lo que pides, y todos los colores de la portada
+# Aura Hi-Res v2.0.64-beta14 — Pedir música responde a cualquier estilo
 
-Beta encima de la 2.0.64-beta12. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta13. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Pedir música
+
+- **Ya no responde «no encontré nada» con estilos de nicho** como trap cristiano: si la revisión estricta
+  deja pocas canciones, se va relajando paso a paso (sin dejar pasar nunca otro estilo ni lo que excluiste).
+- **Lo que encuentra la búsqueda ya no se pierde** si tarda: se usa lo que haya en lugar de tirarlo.
+- **Los artistas pequeños que aún no figuran en Last.fm ya no se descartan** como si fueran inventados.
+
+También incluye todo lo de la beta13:
 
 ## Pedir música
 
