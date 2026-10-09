@@ -710,12 +710,15 @@ private fun PathBuilder.roundedRect(x: Float, y: Float, w: Float, h: Float, r: F
  * — shared by the outline and filled hearts so they stay identical shapes.
  */
 private fun PathBuilder.heartPath() {
-    moveTo(12f, 20.5f)
+    // Row 363 (owner 2026-10-09: "el me gusta del corazón lo veo desalineado"): the drawing spanned y 6.76–20.5,
+    // so its visual centre sat 1.63 units below the 24-unit box's centre and every heart looked low. Lifted by
+    // 1.63 (only the two ABSOLUTE points move; the relative segments follow), it is now centred at y 12.
+    moveTo(12f, 18.87f)
     // s-7.5-4.7-7.5-9.7  →  smooth curve; expanded to an explicit cubic (no reflected control point
     // exists after a moveTo, so the first control point equals the current point).
     curveToRelative(0f, 0f, -7.5f, -4.7f, -7.5f, -9.7f)
     // A4.3 4.3 0 0 1 12 8.2
-    arcTo(4.3f, 4.3f, 0f, false, true, 12f, 8.2f)
+    arcTo(4.3f, 4.3f, 0f, false, true, 12f, 6.57f)
     // a4.3 4.3 0 0 1 7.5 2.6
     arcToRelative(4.3f, 4.3f, 0f, false, true, 7.5f, 2.6f)
     // c0 5-7.5 9.7-7.5 9.7

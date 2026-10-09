@@ -2815,8 +2815,9 @@ private fun AuraCoverGroundImage(
  *
  * One `Brush` per (size, colours, alpha) inside `drawWithCache`, then one rect per frame. `.copy(alpha)`
  * on a bloom colour keeps the hue and replaces the bloom's own alpha — the colours in [AuraBloomColors]
- * are already normalised (saturation floored, value clamped to 0.55..0.95) by the bloom's extractor, so
- * a black-and-white sleeve stays grey and a blown-out one cannot flare.
+ * are already normalised by the bloom's extractor ([AuraCoverMix]: one Oklab lightness band for every
+ * hue, white as soft light, black as a dark lobe), so a black-and-white sleeve stays neutral and a
+ * blown-out one cannot flare.
  */
 private fun Modifier.auraArtworkWash(colors: AuraBloomColors, alpha: Float): Modifier = drawWithCache {
     val a = alpha.coerceIn(0f, 1f)
@@ -3092,8 +3093,8 @@ internal fun auraHeartOpticalOffset(glyph: Dp, touchTarget: Dp = AuraSpacing.Min
 
 private const val AURA_ICON_VIEWPORT = 24f
 
-/** Visual centre (y) of the heart drawing in its 24-unit viewport: (6.76 + 20.5) / 2. */
-internal const val HEART_VISUAL_CENTER_Y = 13.63f
+/** Visual centre (y) of the heart drawing in its 24-unit viewport — 12 since the glyph itself was centred (row 363). */
+internal const val HEART_VISUAL_CENTER_Y = 12f
 
 /** Right edge of the stroked heart in its viewport: 19.51 + half the 1.9 stroke. */
 internal const val HEART_VISUAL_RIGHT = 20.46f

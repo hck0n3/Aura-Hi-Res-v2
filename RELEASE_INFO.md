@@ -1,6 +1,35 @@
-# Aura Hi-Res v2.0.64-beta12 — Cada álbum con sus colores, ecualizador ordenado y Pedir música sin karaoke
+# Aura Hi-Res v2.0.64-beta13 — Pedir música que entiende lo que pides, y todos los colores de la portada
 
-Beta encima de la 2.0.64-beta11. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.64-beta12. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Pedir música
+
+- **Entiende mejor lo que pides:** estilos concretos (más de 50), varios a la vez («salsa y merengue»),
+  cristiano, idioma, año («2026»), «viejitas» o «nuevas», «lo mejor de…», cantidades («pon 50 canciones»),
+  exclusiones («sin reguetón ni trap», «excepto Bad Bunny») y «parecido a Redimi2».
+- **Revisa cada canción antes de ponerla:** si pides merengue cristiano, no se cuelan alabanzas ni baladas,
+  y lo que excluyes no suena.
+- **Fuera los artistas inventados o generados por IA:** se descartan los artistas sin oyentes reales.
+- **Busca primero listas hechas por personas** del estilo que pediste.
+- **El relleno hasta completar la lista ya no se pierde** si sales de Inicio, y respeta la cantidad pedida.
+- **Lo que suena después sigue tu petición:** mismo estilo, idioma y temática.
+
+## Colores de la portada
+
+- **Ya no se pierden el negro ni el blanco:** una portada negra con rojo y dorado se ve negra con rojo y
+  dorado; el blanco se ve como una luz suave.
+- **Más colores de cada portada** (hasta cinco), repartidos por toda la pantalla, también abajo: menos
+  repetitivo.
+- **Cambio suave entre canciones:** el fondo entero se funde, sin saltos.
+- **La barra de tiempo del reproductor lleva los colores de la portada, animados** mientras suena.
+
+## Reproductor
+
+- **El corazón de «Me gusta» ya está bien alineado.**
+- **Fundido cruzado de 6 segundos por defecto** (lo puedes cambiar en Ajustes).
+
+También incluye todo lo de la beta12:
+
 
 ## Colores de la portada
 
