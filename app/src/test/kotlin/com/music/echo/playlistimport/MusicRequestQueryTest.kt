@@ -187,7 +187,7 @@ class MusicRequestQueryTest {
         val p = MusicRequestQuery.build("trap cristiano en ingles")
         assertNull(p.decade)
         assertEquals("en", p.language)
-        assertEquals("trap cristiano english", p.query)
+        assertEquals("trap christian english", p.query)
     }
 
     @Test

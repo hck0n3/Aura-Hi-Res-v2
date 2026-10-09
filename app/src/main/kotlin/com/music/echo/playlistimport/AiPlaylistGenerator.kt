@@ -816,22 +816,44 @@ object AiPlaylistGenerator {
         val christianTags by lazy {
             context?.let { runCatching { iad1tya.echo.music.reco.ArtistTagStyles.snapshot(it) }.getOrNull() }.orEmpty()
         }
-        fun christianArtist(name: String): Boolean {
-            if (iad1tya.echo.music.reco.GenreLane.laneOfTrack(christianGenres, name, null, null) ==
+        // Fila 365: whether Last.fm tags the artist Christian ("christian rock", "ccm") — Petra's STYLE is rock.
+        val christianFlags by lazy {
+            context?.let { runCatching { iad1tya.echo.music.reco.ArtistTagStyles.christianSnapshot(it) }.getOrNull() }
+                .orEmpty()
+        }
+        fun christianArtist(
+            name: String,
+            genres: Map<String, String> = christianGenres,
+            tags: Map<String, String> = christianTags,
+            flags: Map<String, Boolean> = christianFlags,
+        ): Boolean {
+            if (iad1tya.echo.music.reco.GenreLane.laneOfTrack(genres, name, null, null) ==
                 iad1tya.echo.music.reco.GenreLane.CHRISTIAN
             ) {
                 return true
             }
-            val tag = iad1tya.echo.music.reco.ArtistStyleMemory.key(name)?.let { christianTags[it] }
+            val key = iad1tya.echo.music.reco.ArtistStyleMemory.key(name) ?: return false
+            if (flags[key] == true) return true
+            val tag = tags[key]
             return tag == iad1tya.echo.music.reco.MusicStyle.WORSHIP || tag == "gospel"
         }
+        // Fila 365 (dueño 2026-10-09: "música de los 80 cristiana en inglés y dice que no encontró nada"). An artist
+        // the app never looked up (no Last.fm answer yet) was DROPPED here before the check below could learn about
+        // it — every first request for a new scene ended empty. Now such a song waits: it enters the pool marked
+        // pending and stays only if, once its artist is looked up (MusicRequestStyleGate.learn), it IS Christian.
+        val faithPending = HashSet<String>()
         fun christianOnly(items: List<SongItem>): List<SongItem> =
             if (!requireChristian) {
                 items
             } else {
                 items.filter { item ->
-                    MusicRequestMoods.looksChristian(item.title) ||
+                    val sure = MusicRequestMoods.looksChristian(item.title) ||
                         item.artists.any { MusicRequestMoods.looksChristian(it.name) || christianArtist(it.name) }
+                    val unknown = !sure && item.artists.any { artist ->
+                        iad1tya.echo.music.reco.ArtistStyleMemory.key(artist.name)?.let { it !in christianFlags } == true
+                    }
+                    if (unknown) faithPending += item.id
+                    sure || unknown
                 }
             }
 
@@ -1099,7 +1121,8 @@ object AiPlaylistGenerator {
             }
             val knowledge = MusicRequestStyleGate.learn(
                 context,
-                pool.mapNotNull { it.artists.firstOrNull()?.name },
+                // Fila 365: the artists whose faith is still unknown are looked up first (lookups are batched).
+                pool.sortedByDescending { it.id in faithPending }.mapNotNull { it.artists.firstOrNull()?.name },
                 if (intent.checkable) GATE_WAIT_MS else GATE_WAIT_MS / 2,
             )
             val outcome = MusicRequestStyleGate.judgeWithFallback(
@@ -1115,6 +1138,27 @@ object AiPlaylistGenerator {
             MusicRequestStyleGate.log("search", intent, outcome)
             val keep = outcome.keptIds.toHashSet()
             pool.retainAll { it.id in keep }
+        }
+        // Fila 365: the songs whose artist was unknown when found stay only if that artist proved Christian now.
+        if (faithPending.isNotEmpty()) {
+            val genresNow = context?.let { runCatching { iad1tya.echo.music.reco.GenreCache.snapshot(it) }.getOrNull() }
+                .orEmpty()
+            val tagsNow = context?.let { runCatching { iad1tya.echo.music.reco.ArtistTagStyles.snapshot(it) }.getOrNull() }
+                .orEmpty()
+            val flagsNow = context
+                ?.let { runCatching { iad1tya.echo.music.reco.ArtistTagStyles.christianSnapshot(it) }.getOrNull() }
+                .orEmpty()
+            val waiting = pool.count { it.id in faithPending }
+            pool.removeAll { item ->
+                item.id in faithPending && item.id != specificMatchId &&
+                    item.artists.none { christianArtist(it.name, genresNow, tagsNow, flagsNow) }
+            }
+            // Counts only (AGENTS.md rule 4).
+            timber.log.Timber.i(
+                "MUSIC_REQUEST faith pending=%d confirmed=%d",
+                waiting,
+                pool.count { it.id in faithPending },
+            )
         }
         val fresh = pool.filter { it.id == specificMatchId || !MusicRequestRecents.isRecent(it.id) }
         // Ronda 10 (dueño: "sin importar cuántas veces lo pida, la lista debe ser diferente" para un

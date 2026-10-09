@@ -106,4 +106,24 @@ class MusicRequestMatchTest {
         val groups = listOf(listOf("bachata"))
         assertTrue(MusicRequestMatch.score("Bachata Romántica 2024", bachata, groups) > 0)
     }
+
+    /**
+     * Fila 365 (dueño 2026-10-09): "pedí música de los 80 cristiana en inglés y me dice que no encontró nada".
+     * The query went half in Spanish, and no English Christian list says "english" in its title.
+     */
+    @Test
+    fun `an english christian decade request finds the english christian lists`() {
+        val prompt = "musica de los 80 cristiana en ingles"
+        val parsed = MusicRequestQuery.build(prompt)
+        assertEquals("80", parsed.decade)
+        assertEquals("en", parsed.language)
+        assertEquals("christian 80s hits english", parsed.query)
+        val groups = MusicRequestMoods.conceptGroupsFor(prompt, parsed)
+        assertTrue(MusicRequestMatch.score("80s Christian Hits", parsed, groups) > 0)
+        assertTrue(MusicRequestMatch.score("Best Christian Songs of the 80s", parsed, groups) > 0)
+        // Still proven twice over: a Spanish title, a secular list or another decade never pass.
+        assertEquals(MusicRequestMatch.REJECT, MusicRequestMatch.score("Alabanzas cristianas de los 80", parsed, groups))
+        assertEquals(MusicRequestMatch.REJECT, MusicRequestMatch.score("80s Hits", parsed, groups))
+        assertEquals(MusicRequestMatch.REJECT, MusicRequestMatch.score("90s Christian Hits", parsed, groups))
+    }
 }

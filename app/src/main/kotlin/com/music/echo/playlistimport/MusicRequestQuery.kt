@@ -116,6 +116,8 @@ object MusicRequestQuery {
         // reconoce ("gospel" ya estaba aquí, pero no sus sinónimos), así que la petición se saltaba
         // moodCategoryPlaylists por completo y caía a búsqueda sin curar.
         "cristiana", "cristiano", "alabanza", "worship",
+        // Fila 365: plurals and the English word, or "alabanzas cristianas" left "cristianas" as a stray qualifier.
+        "cristianas", "cristianos", "alabanzas", "christian",
         // Ronda 12 (dueño, 2026-10-05: "pedí afro gospel y me tiró cualquier cosa menos lo que pedí").
         // "afro" no era un género conocido: quedaba como resto suelto, se fijaba como si fuera el
         // título de una canción y la categoría genérica de gospel llenaba todo lo demás. Mismas
@@ -164,8 +166,12 @@ object MusicRequestQuery {
         // reemplazaba entera por la plantilla fija "exitos de los 90". Lo que queda de la frase tras
         // quitar la década y las pistas de idioma es el género/tema que sí pidió; si no queda nada
         // (petición de década pura, "música de los 80"), el comportamiento es exactamente el de antes.
-        val genre = if (decade != null) residualGenre(withoutLeadIn, decade) else null
+        val genreRaw = if (decade != null) residualGenre(withoutLeadIn, decade) else null
 
+        // Fila 365 (dueño 2026-10-09: "música de los 80 cristiana en inglés" → "no encontré nada"). Asked in
+        // English, the search got a half-Spanish query ("cristiana 80s hits english") and the English Christian
+        // lists ("80s Christian Hits") never came up: the theme words go in English too.
+        val genre = if (language == "en") genreRaw?.let { toEnglishTerms(it) } else genreRaw
         val query = when {
             // Década + género: se conserva lo que pidió, con el sufijo que el buscador premia.
             decade != null && !genre.isNullOrBlank() && language == "en" ->
@@ -185,7 +191,7 @@ object MusicRequestQuery {
             // el resultado en absoluto (ya se resolvía para década sola / década+género; sin década
             // se quedaba sin arreglar). Mismo tratamiento: se quita la pista cruda y se añade el
             // sufijo que el buscador sí entiende.
-            language == "en" -> "${stripLanguageHint(withoutLeadIn)} english".trim()
+            language == "en" -> "${toEnglishTerms(stripLanguageHint(withoutLeadIn))} english".trim()
             language == "es" -> "${stripLanguageHint(withoutLeadIn)} en espanol".trim()
             // Sin década ni idioma: su propia petición, sin muletillas. Nunca peor que mandar la
             // frase entera.
@@ -264,6 +270,20 @@ object MusicRequestQuery {
         residual.split(Regex("[^\\p{L}\\p{N}]+"))
             .filter { it.length >= 3 && it !in CONNECTOR_WORDS }
             .distinct()
+
+    /** Fila 365 — the Spanish theme words a request in English carries, as the English search knows them. */
+    private val TO_ENGLISH = mapOf(
+        "cristiana" to "christian", "cristiano" to "christian", "cristianas" to "christian",
+        "cristianos" to "christian", "alabanza" to "worship", "alabanzas" to "worship", "adoracion" to "worship",
+        "romantica" to "love songs", "romanticas" to "love songs", "romantico" to "love songs",
+        "romanticos" to "love songs", "baladas" to "ballads", "balada" to "ballads",
+    )
+
+    internal fun toEnglishTerms(text: String): String =
+        text.split(Regex("\\s+")).filter { it.isNotBlank() }
+            .map { TO_ENGLISH[it] ?: it }
+            .distinct()
+            .joinToString(" ")
 
     /** Quita la pista de idioma cruda ("en ingles", "in spanish"…) — no aporta nada a una búsqueda literal. */
     private fun stripLanguageHint(text: String): String {

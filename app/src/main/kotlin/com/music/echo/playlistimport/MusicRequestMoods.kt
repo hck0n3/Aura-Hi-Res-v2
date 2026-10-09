@@ -104,8 +104,12 @@ object MusicRequestMoods {
         listOf("disco") to listOf("disco"),
         listOf("tango") to listOf("tango"),
         listOf("bolero", "boleros") to listOf("bolero"),
-        listOf("gospel", "cristiana", "cristiano", "alabanza", "worship") to
-            listOf("cristiana", "cristiano", "gospel", "worship"),
+        // Fila 365: "christian"/"praise"/"ccm" — "80s Christian Hits" did not prove it was Christian.
+        listOf("gospel", "cristiana", "cristiano", "alabanza", "worship", "christian") to
+            listOf(
+                "cristiana", "cristiano", "cristianas", "cristianos", "gospel", "worship", "christian", "ccm",
+                "praise", "alabanza", "alabanzas",
+            ),
         // Ronda 12 (dueño: "afro gospel"). Con esta familia, "afro gospel" son DOS familias pedidas a la
         // vez y la categoría/lista tiene que demostrar las dos — "Gospel" a secas ya no cuela.
         listOf("afro", "amapiano", "africa", "naija") to
@@ -124,9 +128,11 @@ object MusicRequestMoods {
      * verificar no pasaba por ningún filtro — [AiPlaylistGenerator] usa esto para descartarla si ni
      * su título ni su artista demuestran el tema, en vez de aceptar cualquier resultado del buscador.
      */
-    private val CHRISTIAN_TRIGGERS = listOf("gospel", "cristiana", "cristiano", "alabanza", "worship")
-    private val CHRISTIAN_CONCEPTS =
-        listOf("cristiana", "cristiano", "gospel", "worship", "alabanza", "adoracion", "jesus", "dios")
+    private val CHRISTIAN_TRIGGERS = listOf("gospel", "cristiana", "cristiano", "alabanza", "worship", "christian")
+    private val CHRISTIAN_CONCEPTS = listOf(
+        "cristiana", "cristiano", "cristianas", "cristianos", "gospel", "worship", "alabanza", "alabanzas",
+        "adoracion", "jesus", "dios", "christian", "ccm", "louvor",
+    )
 
     /** true si [prompt] pidió explícitamente música cristiana/gospel — ver [CHRISTIAN_TRIGGERS]. */
     fun requiresChristianContent(prompt: String): Boolean =

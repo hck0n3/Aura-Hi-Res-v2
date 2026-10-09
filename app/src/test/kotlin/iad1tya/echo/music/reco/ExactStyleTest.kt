@@ -4,6 +4,7 @@ import iad1tya.echo.music.reco.StyleContinuity.Verdict.MATCH
 import iad1tya.echo.music.reco.StyleContinuity.Verdict.OFF
 import iad1tya.echo.music.reco.StyleContinuity.Verdict.UNKNOWN
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -206,6 +207,19 @@ class ExactStyleImprovementsTest {
         assertNull(ArtistTagStyles.styleFromTags(listOf("christian" to 100, "latin" to 80))) // say no style
         assertNull(ArtistTagStyles.styleFromTags(listOf("cumbia" to 3))) // one stray, weak tag
         assertNull(ArtistTagStyles.styleFromTags(emptyList()))
+    }
+
+    @Test
+    fun `Last_fm tags tell a Christian artist apart from its style (fila 365)`() {
+        // Petra: the style is rock, and the tags also say it is Christian — both are kept.
+        val petra = listOf("christian rock" to 100, "rock" to 60, "ccm" to 40, "80s" to 20)
+        assertEquals("rock", ArtistTagStyles.styleFromTags(petra))
+        assertTrue(ArtistTagStyles.christianFromTags(petra))
+        assertTrue(ArtistTagStyles.christianFromTags(listOf("pop" to 100, "contemporary christian" to 30)))
+        assertTrue(ArtistTagStyles.christianFromTags(listOf("Alabanza" to 100)))
+        assertFalse(ArtistTagStyles.christianFromTags(listOf("rock" to 100, "80s" to 50)))
+        assertFalse(ArtistTagStyles.christianFromTags(listOf("rock" to 100, "christian" to 5))) // one stray tag
+        assertFalse(ArtistTagStyles.christianFromTags(emptyList()))
     }
 
     @Test

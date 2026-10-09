@@ -62,6 +62,40 @@ object ArtistTagStyles {
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /**
+     * Fila 365 (dueño 2026-10-09: *"música de los 80 cristiana en inglés y dice que no encontró nada"*). The style
+     * above IGNORES "christian" on purpose (it names no style), so Petra or Amy Grant were stored as "rock"/"pop" and
+     * "Pedir música" could never tell they are Christian artists. Whether the tags say Christian is kept apart, in
+     * its own file, from the same Last.fm answer.
+     */
+    private const val CHRISTIAN_PREFS = "artist_lastfm_christian"
+
+    private val CHRISTIAN_TAG_WORDS = setOf(
+        "christian", "ccm", "gospel", "worship", "praise", "cristiano", "cristiana", "cristianos", "cristianas",
+        "alabanza", "alabanzas", "adoracion", "louvor", "adoracao", "catholic", "catolica", "catolico",
+        "evangelico", "evangelica", "hymns", "himnos",
+    )
+
+    /** A Christian tag must carry at least this Last.fm weight (0-100), so one stray tag decides nothing. */
+    const val CHRISTIAN_MIN_WEIGHT = 15
+
+    /** True when the artist's Last.fm tags say Christian/gospel/worship ("christian rock", "ccm", "alabanza"…). Pure. */
+    fun christianFromTags(tags: List<Pair<String, Int>>): Boolean = tags.any { (tag, count) ->
+        count >= CHRISTIAN_MIN_WEIGHT && tagWords(tag).any { it in CHRISTIAN_TAG_WORDS }
+    }
+
+    private fun tagWords(tag: String): List<String> =
+        java.text.Normalizer.normalize(tag.lowercase(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
+            .split(Regex("[^a-z0-9]+"))
+            .filter { it.isNotBlank() }
+
+    private fun christianPrefs(context: Context) = context.getSharedPreferences(CHRISTIAN_PREFS, Context.MODE_PRIVATE)
+
+    /** artist key → whether Last.fm tags it Christian; artists never looked up are left out. Off the main thread. */
+    fun christianSnapshot(context: Context): Map<String, Boolean> =
+        christianPrefs(context).all.mapNotNull { (k, v) -> (v as? Boolean)?.let { k to it } }.toMap()
+
     /** artist key → style id; artists Last.fm had nothing for are left out. One disk read; off the main thread. */
     fun snapshot(context: Context): Map<String, String> =
         prefs(context).all.mapNotNull { (k, v) -> (v as? String)?.takeIf { it.isNotBlank() }?.let { k to it } }.toMap()
@@ -77,10 +111,12 @@ object ArtistTagStyles {
     suspend fun enrich(context: Context, artistNames: List<String>) = withContext(Dispatchers.IO) {
         if (!LastFM.isInitialized()) return@withContext
         val prefs = prefs(context)
+        val christian = christianPrefs(context)
+        // Fila 365: artists looked up before the Christian flag existed are asked once more, for it.
         val pending = artistNames
             .mapNotNull { ArtistStyleMemory.key(it) }
             .distinct()
-            .filter { !prefs.contains(it) && it !in failedThisSession }
+            .filter { (!prefs.contains(it) || !christian.contains(it)) && it !in failedThisSession }
             .take(MAX_BATCH)
         if (pending.isEmpty()) return@withContext
         val allowMobile = context.dataStore.data.first()[GenreEnrichOnMobileKey] ?: true
@@ -99,13 +135,14 @@ object ArtistTagStyles {
                             null
                         } else {
                             failures.set(0)
-                            key to (styleFromTags(tags) ?: "")
+                            Triple(key, styleFromTags(tags) ?: "", christianFromTags(tags))
                         }
                     }
                 }
             }.awaitAll().filterNotNull()
         }
         if (results.isEmpty()) return@withContext
-        prefs.edit().also { e -> results.forEach { (k, style) -> e.putString(k, style) } }.apply()
+        prefs.edit().also { e -> results.forEach { (k, style, _) -> e.putString(k, style) } }.apply()
+        christian.edit().also { e -> results.forEach { (k, _, isChristian) -> e.putBoolean(k, isChristian) } }.apply()
     }
 }

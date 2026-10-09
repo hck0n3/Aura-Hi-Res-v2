@@ -35,6 +35,20 @@ object MusicRequestMatch {
     private val SPANISH_MARKERS =
         listOf("espanol", "espana", "latino", "latina", "castellano", "hispano", "iberoamericano")
 
+    /** Fila 365 — words that show which language a playlist title is written in. */
+    private val EN_TITLE_WORDS = listOf(
+        "hits", "best", "greatest", "songs", "christian", "worship", "praise", "classics", "love", "party",
+        "the", "of", "and", "music", "top", "throwback", "oldies",
+    )
+    private val ES_TITLE_WORDS = listOf(
+        "exitos", "mejores", "canciones", "cristiana", "cristianas", "cristiano", "cristianos", "alabanzas",
+        "alabanza", "adoracion", "clasicos", "clasicas", "romanticas", "baladas", "viejitas", "musica", "los",
+        "las", "del", "de", "para", "y",
+    )
+
+    private fun writtenIn(folded: String, own: List<String>, other: List<String>): Boolean =
+        own.any { containsToken(folded, it) } && other.none { containsToken(folded, it) }
+
     /** Palabras que no dicen nada del contenido y no deben puntuar como coincidencia. */
     private val STOP_WORDS = setOf(
         "de", "del", "la", "el", "los", "las", "un", "una", "y", "en", "para", "por", "con", "the",
@@ -95,8 +109,20 @@ object MusicRequestMatch {
         // Ronda 9 (dueño): "que respete lo que pido siempre" — el idioma explícito deja de ser un
         // simple empuje de puntaje y pasa a ser una condición dura, igual que la década: si pidió
         // inglés y el título no lo demuestra, se rechaza — no se acepta con menos puntos.
+        //
+        // Fila 365 (dueño 2026-10-09: "música de los 80 cristiana en inglés" → "no encontré nada"): almost no
+        // English list says "english" — "80s Christian Hits" IS the English list. For English, a title WRITTEN in
+        // English (its own words: "hits", "christian", "best") with no Spanish word also proves it, with less score
+        // than a marker; a Spanish title, or one with nothing to tell, is still rejected. Each song is then checked
+        // for its language again (MusicRequestStyleGate).
         when (parsed.language) {
-            "en" -> if (ENGLISH_MARKERS.any { containsToken(t, it) }) score += 2 else return REJECT
+            "en" -> when {
+                ENGLISH_MARKERS.any { containsToken(t, it) } -> score += 2
+                writtenIn(t, EN_TITLE_WORDS, ES_TITLE_WORDS) -> score += 1
+                else -> return REJECT
+            }
+            // Not the other way round: Spanish-speaking curators title lists of English hits in Spanish
+            // ("Lo mejor de los 80"), so a Spanish title proves nothing about the songs' language.
             "es" -> if (SPANISH_MARKERS.any { containsToken(t, it) }) score += 2 else return REJECT
         }
 
