@@ -58,6 +58,7 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -1040,17 +1041,29 @@ fun AuraMiniPlayer(
                 // The render's `.mi` has no timeline; the classic mini does, and losing "how far in am
                 // I" is a real loss. Drawn as a hairline along the bottom edge, inside the draw phase:
                 // reading the position here repaints, it does not recompose.
-                .drawWithContent {
-                    drawContent()
-                    val duration = durationState.longValue
-                    if (duration > 0) {
-                        val progress = (positionState.longValue.toFloat() / duration).coerceIn(0f, 1f)
-                        val strokeHeight = 2.dp.toPx()
-                        drawRect(
-                            color = AuraPalette.Teal,
-                            topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - strokeHeight),
-                            size = androidx.compose.ui.geometry.Size(size.width * progress, strokeHeight),
-                        )
+                // Owner 2026-10-09 ("la barra de tiempo… con las combinaciones de colores de la portada"):
+                // the hairline is the cover's colours ([AuraPalette.ProgressSpectrum]) laid across the whole
+                // pill and revealed by the progress. STILL on purpose — the pill is on screen all the time,
+                // so it gets no animation clock; the brush is built once per (size, palette) in the cache
+                // block, never per position tick.
+                .drawWithCache {
+                    val strokeHeight = 2.dp.toPx()
+                    val hairline = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        colors = AuraPalette.ProgressSpectrum,
+                        startX = 0f,
+                        endX = size.width,
+                    )
+                    onDrawWithContent {
+                        drawContent()
+                        val duration = durationState.longValue
+                        if (duration > 0) {
+                            val progress = (positionState.longValue.toFloat() / duration).coerceIn(0f, 1f)
+                            drawRect(
+                                brush = hairline,
+                                topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - strokeHeight),
+                                size = androidx.compose.ui.geometry.Size(size.width * progress, strokeHeight),
+                            )
+                        }
                     }
                 }
                 // Render `.mi`: `padding: 7px 10px 7px 7px`. The trailing 10 is dropped to 2 because

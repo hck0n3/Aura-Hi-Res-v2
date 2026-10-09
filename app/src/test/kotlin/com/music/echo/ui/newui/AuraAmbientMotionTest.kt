@@ -39,7 +39,7 @@ class AuraAmbientMotionTest {
 
     @Test
     fun `the lobes move, loop seamlessly and stay close to their place`() {
-        for (i in 0 until 3) {
+        for (i in 0 until BLOOM_LOBE_COUNT) {
             val start = bloomLobeDrift(i, 0f)
             val end = bloomLobeDrift(i, 0.99999f)
             assertEquals(start.first, end.first, 1e-3f)
@@ -55,15 +55,33 @@ class AuraAmbientMotionTest {
         // The three lobes never move in lockstep: the cover's colours cross each other.
         assertNotEquals(bloomLobeDrift(0, 0.2f), bloomLobeDrift(1, 0.2f))
         assertNotEquals(bloomLobeDrift(1, 0.2f), bloomLobeDrift(2, 0.2f))
+        assertNotEquals(bloomLobeDrift(2, 0.2f), bloomLobeDrift(3, 0.2f))
+        assertNotEquals(bloomLobeDrift(3, 0.2f), bloomLobeDrift(4, 0.2f))
     }
 
     @Test
     fun `lobe amplitudes scale with the screen`() {
         val small = bloomLobeGeometry(1080f, 2400f)
         val big = bloomLobeGeometry(1440f, 3120f)
-        for (i in 0 until 3) {
+        for (i in 0 until BLOOM_LOBE_COUNT) {
             assertEquals(small.amplitudeX[i] / 1080f, big.amplitudeX[i] / 1440f, 1e-4f)
             assertTrue(small.radiusX[i] > 0f && small.radiusY[i] > 0f)
+        }
+    }
+
+    /** Owner 2026-10-09: the cover's colours reach the whole screen, not only the top two thirds. */
+    @Test
+    fun `two lower lobes carry colour below the render's band`() {
+        val h = 2400f
+        val g = bloomLobeGeometry(1080f, h)
+        assertEquals(BLOOM_LOBE_COUNT, g.centerY.size)
+        for (i in 3 until BLOOM_LOBE_COUNT) {
+            // Rest point below the old band's bottom edge (66 % of the height)…
+            assertTrue(g.centerY[i] > 0.66f * h)
+            // …and even at the top of its drift it stays in the lower half.
+            assertTrue(g.centerY[i] - g.amplitudeY[i] > 0.5f * h)
+            // Its glow reaches the bottom edge.
+            assertTrue(g.centerY[i] + g.radiusY[i] * 0.9f >= h * 0.98f)
         }
     }
 }

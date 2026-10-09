@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -1277,6 +1278,63 @@ private fun AuraPlayerShape(
                     Spacer(Modifier.height(if (dense) 6.dp else 8.dp))
                     // TIDAL-STYLE TITLE ROW (owner 2026-09-13): title and artist left-aligned, the like
                     // heart on the right — where TIDAL puts "Agregar a Mi colección".
+                    // Owner 2026-10-09 ("el me gusta del corazón lo veo desalineado"): the reveal state and
+                    // the two navigations are hoisted above the row so the artist chips can open UNDER it.
+                    val hasArtists = meta.artists.any { it.name.isNotBlank() }
+                    var showArtistActions by remember(meta.id) { mutableStateOf(false) }
+                    val goToAlbumFromArtists: () -> Unit = {
+                        resolvedAlbum?.let { album ->
+                            coroutineScope.launch {
+                                val browseId = if (needsOnlineBrowseResolution(album.id)) {
+                                    val query = listOfNotNull(
+                                        album.title.takeIf { it.isNotBlank() },
+                                        meta.artists.joinToString(" ") { it.name }
+                                            .takeIf { it.isNotBlank() },
+                                    ).joinToString(" ")
+                                    withContext(Dispatchers.IO) {
+                                        resolveOnlineAlbumBrowseId(query)
+                                    }
+                                } else {
+                                    album.id
+                                }
+                                if (!browseId.isNullOrBlank()) {
+                                    navController.navigate("album/$browseId")
+                                    state.collapseSoft()
+                                } else if (album.title.isNotBlank()) {
+                                    navController.navigate(
+                                        "search/${URLEncoder.encode(album.title, "UTF-8")}"
+                                    )
+                                    state.collapseSoft()
+                                }
+                            }
+                        }
+                    }
+                    val goToArtist: () -> Unit = {
+                        val named = meta.artists.filter { it.name.isNotBlank() }
+                        if (named.size > 1) {
+                            showSelectArtistDialog = true
+                        } else if (named.isNotEmpty()) {
+                            val artist = named.first()
+                            coroutineScope.launch {
+                                val browseId = if (needsOnlineBrowseResolution(artist.id)) {
+                                    withContext(Dispatchers.IO) {
+                                        resolveOnlineArtistBrowseId(artist.name)
+                                    }
+                                } else {
+                                    artist.id
+                                }
+                                if (!browseId.isNullOrBlank()) {
+                                    navController.navigate("artist/$browseId")
+                                    state.collapseSoft()
+                                } else {
+                                    navController.navigate(
+                                        "search/${URLEncoder.encode(artist.name, "UTF-8")}"
+                                    )
+                                    state.collapseSoft()
+                                }
+                            }
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -1351,60 +1409,6 @@ private fun AuraPlayerShape(
                         //
                         // `remember(meta.id)` y no un `remember` suelto: la fila se cierra sola al cambiar
                         // de canción. Si no, quedaría abierta apuntando al álbum de la canción anterior.
-                        var showArtistActions by remember(meta.id) { mutableStateOf(false) }
-                        val goToAlbumFromArtists: () -> Unit = {
-                            resolvedAlbum?.let { album ->
-                                coroutineScope.launch {
-                                    val browseId = if (needsOnlineBrowseResolution(album.id)) {
-                                        val query = listOfNotNull(
-                                            album.title.takeIf { it.isNotBlank() },
-                                            meta.artists.joinToString(" ") { it.name }
-                                                .takeIf { it.isNotBlank() },
-                                        ).joinToString(" ")
-                                        withContext(Dispatchers.IO) {
-                                            resolveOnlineAlbumBrowseId(query)
-                                        }
-                                    } else {
-                                        album.id
-                                    }
-                                    if (!browseId.isNullOrBlank()) {
-                                        navController.navigate("album/$browseId")
-                                        state.collapseSoft()
-                                    } else if (album.title.isNotBlank()) {
-                                        navController.navigate(
-                                            "search/${URLEncoder.encode(album.title, "UTF-8")}"
-                                        )
-                                        state.collapseSoft()
-                                    }
-                                }
-                            }
-                        }
-                        val goToArtist: () -> Unit = {
-                            val named = meta.artists.filter { it.name.isNotBlank() }
-                            if (named.size > 1) {
-                                showSelectArtistDialog = true
-                            } else if (named.isNotEmpty()) {
-                                val artist = named.first()
-                                coroutineScope.launch {
-                                    val browseId = if (needsOnlineBrowseResolution(artist.id)) {
-                                        withContext(Dispatchers.IO) {
-                                            resolveOnlineArtistBrowseId(artist.name)
-                                        }
-                                    } else {
-                                        artist.id
-                                    }
-                                    if (!browseId.isNullOrBlank()) {
-                                        navController.navigate("artist/$browseId")
-                                        state.collapseSoft()
-                                    } else {
-                                        navController.navigate(
-                                            "search/${URLEncoder.encode(artist.name, "UTF-8")}"
-                                        )
-                                        state.collapseSoft()
-                                    }
-                                }
-                            }
-                        }
                         Text(
                             text = artistText,
                             style = AuraType.PlayerArtist,
@@ -1437,6 +1441,30 @@ private fun AuraPlayerShape(
                                     },
                                 ),
                         )
+                    }
+                    }
+                    val titleRowLiked = currentSong?.song?.liked == true
+                    val heartGlyph = if (dense) 24.dp else 26.dp
+                    AuraIconButton(
+                        icon = if (titleRowLiked) AuraIcons.HeartFilled else AuraIcons.Heart,
+                        contentDescription = stringResource(R.string.action_like),
+                        onClick = playerConnection::toggleLike,
+                        size = heartGlyph,
+                        tint = if (titleRowLiked) transportAccent else AuraPalette.OnGround.copy(alpha = 0.85f),
+                        // Optical alignment (see [auraHeartOpticalOffset]): the 48 dp touch target is kept,
+                        // only where the glyph lands moves — onto the cover/timeline edge and the centre
+                        // of the title+artist block.
+                        modifier = Modifier
+                            .offset(
+                                x = auraHeartOpticalOffset(heartGlyph).first,
+                                y = auraHeartOpticalOffset(heartGlyph).second,
+                            )
+                            .tvFocusable(isTvOrCar, CircleShape),
+                    )
+                    }
+                    // The artist actions open BELOW the title row, not inside it: inside, the row grew and
+                    // the CenterVertically heart slid down to the middle of the chips (owner 2026-10-09).
+                    if (hasArtists) {
                         AnimatedVisibility(
                             visible = showArtistActions,
                             enter = expandVertically() + fadeIn(),
@@ -1469,17 +1497,6 @@ private fun AuraPlayerShape(
                                 )
                             }
                         }
-                    }
-                    }
-                    val titleRowLiked = currentSong?.song?.liked == true
-                    AuraIconButton(
-                        icon = if (titleRowLiked) AuraIcons.HeartFilled else AuraIcons.Heart,
-                        contentDescription = stringResource(R.string.action_like),
-                        onClick = playerConnection::toggleLike,
-                        size = if (dense) 24.dp else 26.dp,
-                        tint = if (titleRowLiked) transportAccent else AuraPalette.OnGround.copy(alpha = 0.85f),
-                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
-                    )
                     }
 
                     // ── Datos técnicos: FLAC · 24 BIT · 96 kHz ────────────────────────────────────
@@ -1572,6 +1589,10 @@ private fun AuraPlayerShape(
                         enabled = !isListenTogetherGuest,
                         colors = auraSliderColors(),
                         isPlaying = effectiveIsPlaying,
+                        // Owner 2026-10-09: the played part in the cover's colours, flowing on the shared
+                        // 15 fps ambient clock while playing ([AuraTimelinePaint]). Disabled timelines
+                        // (Listen Together guest) keep the grey disabled colours.
+                        activeTrackPaint = remember(effectiveIsPlaying) { AuraTimelinePaint(animated = effectiveIsPlaying) },
                         // D3: buffered extent of the timeline (0 when unknown). The scrub haptic is
                         // NOT wired here on purpose — MainActivity's global haptics layer already
                         // ticks CLOCK_TICK on every drag (audit finding: no double-buzz).
@@ -2679,12 +2700,25 @@ internal fun AuraGroundLayer(
     modifier: Modifier = Modifier,
     intensity: Float = 1f,
     base: Color = AuraPalette.Ground,
+    /**
+     * Bottom tone of the two-tone cover ground (owner 2026-10-09). Defaults to [AuraPalette.GroundBottom]
+     * when [base] is the screen ground, and to [base] itself otherwise (the pill's raised ground is flat).
+     */
+    baseBottom: Color = if (base == AuraPalette.Ground) AuraPalette.GroundBottom else base,
     recipe: AuraGroundRecipe = ground.recipe,
     coverCeiling: Float = AURA_COVER_ALPHA,
     scrim: Float = 0f,
 ) {
     val i = intensity.coerceIn(0f, 1f)
-    Box(modifier.fillMaxSize().drawBehind { drawRect(base) }) {
+    // One brush per (top, bottom) — not per frame, not per recomposition of the rhythm buckets.
+    val baseBrush = remember(base, baseBottom) {
+        if (base == baseBottom) null else auraGroundBrush(base, baseBottom)
+    }
+    Box(
+        modifier.fillMaxSize().drawBehind {
+            if (baseBrush != null) drawRect(baseBrush) else drawRect(base)
+        },
+    ) {
         val cover = ground.coverUrl
         if (recipe.cover > 0f && cover != null) {
             AuraCoverGround(url = cover, recipe = recipe, alpha = coverCeiling * recipe.cover * i)
@@ -3032,6 +3066,37 @@ private fun auraSliderColors(): SliderColors = SliderDefaults.colors(
     disabledInactiveTickColor = AuraPalette.TrackEmpty.copy(alpha = 0.06f),
     disabledThumbColor = AuraPalette.OnGroundDisabled,
 )
+
+// ── Title-row heart ───────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Where the title-row heart has to move to LOOK aligned (owner 2026-10-09: *"el me gusta del corazón lo
+ * veo desalineado"*). Two measured causes, neither visible in the layout bounds:
+ *  · **Vertical.** `AuraIcons.heartPath` spans y 6.76…20.5 of its 24-unit viewport (lobes' arc centres at
+ *    y 11.06, radius 4.3; tip at 20.5): its visual centre is [HEART_VISUAL_CENTER_Y], 1.63 units BELOW the
+ *    box centre. Centred on the title+artist block it sat ~1.8 dp low at 26 dp.
+ *  · **Horizontal.** The 48 dp touch box centres the 26 dp glyph (11 dp inset) and the drawing itself
+ *    stops at x 20.46 of 24 (stroke included): the heart's visible edge sat ~15 dp inside the content edge
+ *    the cover and the timeline end on.
+ *
+ * Returns the (x, y) offset for the button: x pushes the glyph's visible edge onto the content edge (the
+ * 48 dp touch target overhangs into the 21 dp gutter, still entirely on screen), y lifts the glyph by its
+ * off-centre. Pure, for test.
+ */
+internal fun auraHeartOpticalOffset(glyph: Dp, touchTarget: Dp = AuraSpacing.MinTouchTarget): Pair<Dp, Dp> {
+    val boxInset = ((touchTarget - glyph) / 2).coerceAtLeast(0.dp)
+    val sideBearing = glyph * ((AURA_ICON_VIEWPORT - HEART_VISUAL_RIGHT) / AURA_ICON_VIEWPORT)
+    val lift = glyph * ((HEART_VISUAL_CENTER_Y - AURA_ICON_VIEWPORT / 2f) / AURA_ICON_VIEWPORT)
+    return Pair(boxInset + sideBearing, -lift)
+}
+
+private const val AURA_ICON_VIEWPORT = 24f
+
+/** Visual centre (y) of the heart drawing in its 24-unit viewport: (6.76 + 20.5) / 2. */
+internal const val HEART_VISUAL_CENTER_Y = 13.63f
+
+/** Right edge of the stroked heart in its viewport: 19.51 + half the 1.9 stroke. */
+internal const val HEART_VISUAL_RIGHT = 20.46f
 
 // ── Technical data ────────────────────────────────────────────────────────────────────────────────
 

@@ -17,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -77,6 +76,9 @@ import kotlinx.coroutines.withContext
  *     read only in the draw phase (nothing recomposes), stopped in background, Performance Mode, a hot
  *     device, battery saver, low-tier devices and with system animations off. The screen's content
  *     sits in its own layer ([auraBloom]'s `graphicsLayer`), so a drift step re-records the lobes only.
+ *     Owner 2026-10-09: FIVE lobes (two lower ones, so the cover's colours reach the whole screen) —
+ *     five 256 px rasters per track (~1.3 MB), five blits per step (ten during the 1 s dissolve). A
+ *     transparent lobe (the brand bloom's lower two) has no raster and no blit.
  *
  * ## The bloom REACTS to the artwork (0.6.146)
  * It used to claim to and did not: [AuraBloomCache.put] had no caller anywhere in `app/src/main`, so
@@ -193,6 +195,16 @@ data class AuraBloomEntry(
      */
     val coverSecondary: Color? = null,
     val coverTertiary: Color? = null,
+    /**
+     * Owner 2026-10-09: the cover's own ground ([AuraCoverMix]) — its main colour's hue, pulled towards the
+     * cover's black as the black fills more of it. Null on an entry built without it ([auraArtworkGround]
+     * of [accentSeed] is then used).
+     */
+    val ground: Color? = null,
+    /** Bottom tone of the two-tone ground (the cover's second colour, same perceptual lightness). */
+    val groundBottom: Color? = null,
+    /** Every light-carrying colour of the cover (hues + its white), opaque — the timeline gradient. */
+    val spectrum: List<Color> = emptyList(),
 )
 
 /**
@@ -222,8 +234,8 @@ class AuraBloomState internal constructor(initial: AuraBloomColors) {
     // Intensity is not part of the key either: it is draw-time alpha.
     private var lobeFromColors: AuraBloomColors? = null
     private var lobeToColors: AuraBloomColors? = null
-    private var lobeFromImages: List<ImageBitmap>? = null
-    private var lobeToImages: List<ImageBitmap>? = null
+    private var lobeFromImages: List<ImageBitmap?>? = null
+    private var lobeToImages: List<ImageBitmap?>? = null
 
     /**
      * The lobe rasters for ([from], [to]): rasterizes only on a track change (and reuses the previous
@@ -232,7 +244,7 @@ class AuraBloomState internal constructor(initial: AuraBloomColors) {
     internal fun lobesFor(
         from: AuraBloomColors,
         to: AuraBloomColors,
-    ): Pair<List<ImageBitmap>?, List<ImageBitmap>> {
+    ): Pair<List<ImageBitmap?>?, List<ImageBitmap?>> {
         val previousToColors = lobeToColors
         val previousToImages = lobeToImages
         val toImages = if (previousToImages != null && previousToColors == to) {
@@ -267,10 +279,23 @@ class AuraBloomState internal constructor(initial: AuraBloomColors) {
 
     private fun blend(a: AuraBloomColors, b: AuraBloomColors, t: Float): AuraBloomColors =
         if (t >= 1f) b else AuraBloomColors(
-            topLeft = lerp(a.topLeft, b.topLeft, t),
-            topRight = lerp(a.topRight, b.topRight, t),
-            center = lerp(a.center, b.center, t),
+            topLeft = lerpLobe(a.topLeft, b.topLeft, t),
+            topRight = lerpLobe(a.topRight, b.topRight, t),
+            center = lerpLobe(a.center, b.center, t),
+            bottomLeft = lerpLobe(a.bottomLeft, b.bottomLeft, t),
+            bottomRight = lerpLobe(a.bottomRight, b.bottomRight, t),
         )
+
+    /**
+     * A lobe that appears or disappears (the brand bloom has no lower lobes) fades in its OWN colour;
+     * lerping from transparent black would darken it on the way.
+     */
+    private fun lerpLobe(a: Color, b: Color, t: Float): Color = when {
+        a.alpha <= 0f && b.alpha <= 0f -> Color.Transparent
+        a.alpha <= 0f -> b.copy(alpha = b.alpha * t)
+        b.alpha <= 0f -> a.copy(alpha = a.alpha * (1f - t))
+        else -> lerp(a, b, t)
+    }
 }
 
 /**
@@ -365,8 +390,8 @@ private suspend fun extractAuraBloom(
     val trio = CoverColors.pick(palette.swatches.map { CoverColors.Swatch(it.rgb, it.population) })
         ?: return null
 
-    // A single-hue cover still gets some depth in the wash: its named light/dark variants fill the
-    // empty lobes (same hue, other lightness), exactly as before row 341.
+    // A cover with few colours still gets some depth in the wash: its named light/dark variants fill the
+    // lobes its own colours cannot (same hue, other lightness), as before row 341.
     val variants = listOfNotNull(
         palette.vibrantSwatch,
         palette.lightVibrantSwatch,
@@ -374,49 +399,28 @@ private suspend fun extractAuraBloom(
         palette.dominantSwatch,
         palette.mutedSwatch,
     ).map { it.rgb or (0xFF shl 24) }.filter { it != trio.primary }.distinct()
-    val primary = trio.primary
-    val secondary = trio.secondary ?: variants.getOrNull(0) ?: primary
-    val tertiary = trio.tertiary ?: variants.firstOrNull { it != secondary } ?: secondary
 
-    // Owner 2026-10-06: "que los colores animados que generan las portadas sean más notables". The
-    // render's alphas (.32 / .30 / .24) are raised by about a third for COVER colours only — still a
-    // wash, never three opaque blobs, and the brand fallback (no cover) keeps the render's values.
+    // Owner 2026-10-09 (*"no quiero que omita los colores de las carátulas, que los mezcle bien"*): the
+    // cover's black, its white and ALL its hues become one mix — see [AuraCoverMix]. Pure maths on ints,
+    // a few microseconds, once per track.
+    val mix = AuraCoverMix.resolve(trio, variants)
     return AuraBloomEntry(
         colors = AuraBloomColors(
-            topLeft = bloomLobeColor(primary, COVER_BLOOM_ALPHA_TOP_LEFT),
-            topRight = bloomLobeColor(secondary, COVER_BLOOM_ALPHA_TOP_RIGHT),
-            center = bloomLobeColor(tertiary, COVER_BLOOM_ALPHA_CENTER),
+            topLeft = Color(mix.lobes[0]),
+            topRight = Color(mix.lobes[1]),
+            center = Color(mix.lobes[2]),
+            bottomLeft = Color(mix.lobes[3]),
+            bottomRight = Color(mix.lobes[4]),
         ),
-        // Opaque, chroma-floored seed — same HSV floors as the lobes, so chrome and wash agree.
-        accentSeed = bloomLobeColor(primary, 1f),
-        coverSecondary = trio.secondary?.let { bloomLobeColor(it, 1f) },
-        coverTertiary = trio.tertiary?.let { bloomLobeColor(it, 1f) },
+        // Opaque seed in the same perceptual band as the lobes, so chrome and wash agree.
+        accentSeed = Color(mix.seed),
+        coverSecondary = mix.second?.let { Color(it) },
+        coverTertiary = mix.third?.let { Color(it) },
+        ground = Color(mix.ground),
+        groundBottom = Color(mix.groundBottom),
+        spectrum = mix.spectrum.map { Color(it) },
     )
 }
-
-/**
- * Normalises one extracted swatch into something the ground can carry: a cover that is nearly black,
- * blown out or muddy must still produce a legible wash, not a grey smear or a white flare.
- */
-private fun bloomLobeColor(rgb: Int, alpha: Float): Color {
-    val hsv = FloatArray(3)
-    android.graphics.Color.colorToHSV(rgb, hsv)
-    // An ACHROMATIC cover (black-and-white sleeve) keeps its zero saturation — forcing colour into it
-    // would invent a hue the artwork does not have. Anything with a hue gets a floor so it survives
-    // the low alpha.
-    // Floors raised 2026-10-06 (0.35 / 0.55 → 0.45 / 0.62) so a muted or dark cover still reads as its
-    // colour on the screen instead of a grey haze.
-    if (hsv[1] > 0.05f) hsv[1] = hsv[1].coerceIn(0.45f, 0.95f)
-    hsv[2] = hsv[2].coerceIn(0.62f, 0.95f)
-    return Color(android.graphics.Color.HSVToColor(hsv)).copy(alpha = alpha)
-}
-
-/** Cover-colour lobe alphas (owner 2026-10-06). The brand fallback keeps the render's .32/.30/.24. */
-// Row 342 (owner 2026-10-07: "que agarre los colores de la portada", not just the strongest): the three
-// cover colours get (almost) the same weight, so the second and third are as visible as the first.
-private const val COVER_BLOOM_ALPHA_TOP_LEFT = 0.42f
-private const val COVER_BLOOM_ALPHA_TOP_RIGHT = 0.42f
-private const val COVER_BLOOM_ALPHA_CENTER = 0.38f
 
 /**
  * Paints the ambient bloom behind the content of a screen. Put it on the ROOT container of a new
@@ -458,7 +462,7 @@ fun Modifier.auraBloom(
     }
 }
     // Row 342: the screen's content gets its own layer, so each drift step re-records ONLY the ground
-    // and the lobes (three blits), never the rows, text and images of the screen above them.
+    // and the lobes (up to five blits), never the rows, text and images of the screen above them.
     .graphicsLayer()
 
 /** Ground fill + bloom in one modifier, for a screen root. */
@@ -466,8 +470,31 @@ fun Modifier.auraScreenBackground(
     colors: AuraBloomState,
     intensity: Float = 1f,
 ): Modifier = this
-    .drawBehind { drawRect(AuraPalette.Ground) }
+    .auraGroundFill()
     .auraBloom(colors, intensity)
+
+/**
+ * The (two-tone) ground: [AuraPalette.Ground] on top, easing into [AuraPalette.GroundBottom] below — the
+ * cover's main and second colour at the same perceptual lightness (owner 2026-10-09). A flat rect when
+ * the two are equal (AMOLED, custom Fondo, no cover). The brush is built once per (size, colours), not
+ * per frame: the colours are read in the cache block, so only a palette change rebuilds it.
+ */
+// No parameters on purpose: the block captures nothing, so recomposing a screen never rebuilds it.
+fun Modifier.auraGroundFill(): Modifier = this.drawWithCache {
+    val topColor = AuraPalette.Ground
+    val bottomColor = AuraPalette.GroundBottom
+    if (topColor == bottomColor) {
+        onDrawBehind { drawRect(topColor) }
+    } else {
+        val brush = auraGroundBrush(topColor, bottomColor)
+        onDrawBehind { drawRect(brush) }
+    }
+}
+
+/** The two-tone ground's gradient: the top tone holds over the upper third (where the text is). */
+internal fun auraGroundBrush(top: Color, bottom: Color): Brush = Brush.verticalGradient(
+    colorStops = arrayOf(0f to top, 0.35f to top, 1f to bottom),
+)
 
 /**
  * HALLAZGO-055: longest side of the bloom raster, in px. The lobes are soft radial gradients —
@@ -489,9 +516,13 @@ fun bloomRasterScale(width: Float, height: Float, maxDim: Int): Float {
 /** Side of one lobe raster, in px. A lobe is one soft radial gradient: 256 px upscaled is indistinguishable. */
 private const val BLOOM_LOBE_RASTER_DIM = 256
 
-/** The three lobes of [colors], each as a small full-strength radial gradient (colour → transparent). */
-private fun rasterizeBloomLobes(colors: AuraBloomColors): List<ImageBitmap> =
-    listOf(colors.topLeft, colors.topRight, colors.center).map { color ->
+/**
+ * The lobes of [colors] (slot order: top-left, top-right, centre, bottom-left, bottom-right), each as a
+ * small full-strength radial gradient (colour → transparent). A transparent lobe is null: no raster, no blit.
+ */
+private fun rasterizeBloomLobes(colors: AuraBloomColors): List<ImageBitmap?> =
+    bloomLobeColors(colors).map { color ->
+        if (color.alpha <= 0f) return@map null
         val dim = BLOOM_LOBE_RASTER_DIM
         val radius = dim / 2f
         val image = ImageBitmap(dim, dim)
@@ -512,8 +543,15 @@ private fun rasterizeBloomLobes(colors: AuraBloomColors): List<ImageBitmap> =
         image
     }
 
+/** The lobes of [colors] in slot order. */
+internal fun bloomLobeColors(colors: AuraBloomColors): List<Color> =
+    listOf(colors.topLeft, colors.topRight, colors.center, colors.bottomLeft, colors.bottomRight)
+
+/** How many lobe slots the bloom has: the render's three plus the two lower ones (owner 2026-10-09). */
+internal const val BLOOM_LOBE_COUNT = 5
+
 /**
- * Where the three lobes sit and how they move, for a [w]×[h] surface.
+ * Where the lobes sit and how they move, for a [w]×[h] surface.
  *
  * Rest positions are the render's `.bl { inset: -12% -22% 48% }` band (owner 2026-10-06: it reaches 78 %
  * of the height): top-left, top-right and centre ellipses. Each lobe then orbits its rest point on its
@@ -535,19 +573,30 @@ internal fun bloomLobeGeometry(w: Float, h: Float): BloomLobeGeometry {
     val bandHeight = 0.78f * h
     val bandLeft = -0.22f * w
     val bandWidth = 1.44f * w
-    // x, y, x-radius, y-radius (fractions of the band) — the render's three radial gradients.
+    // x, y, x-radius, y-radius (fractions of the band) — the render's three radial gradients…
     val spec = arrayOf(
         floatArrayOf(0.26f, 0.20f, 0.44f, 0.38f),
         floatArrayOf(0.82f, 0.16f, 0.48f, 0.42f),
         floatArrayOf(0.50f, 0.50f, 0.52f, 0.38f),
     )
+    // …and (owner 2026-10-09) two lower lobes in SCREEN fractions: below the band, where the screen used
+    // to be flat ground. Wide and shallow, so they carry colour without a hot spot under the lists.
+    val lower = arrayOf(
+        floatArrayOf(0.20f, 0.86f, 0.62f, 0.30f),
+        floatArrayOf(0.84f, 0.80f, 0.60f, 0.32f),
+    )
+    val n = BLOOM_LOBE_COUNT
     return BloomLobeGeometry(
-        centerX = FloatArray(3) { bandLeft + spec[it][0] * bandWidth },
-        centerY = FloatArray(3) { bandTop + spec[it][1] * bandHeight },
-        radiusX = FloatArray(3) { (spec[it][2] * bandWidth).coerceAtLeast(1f) },
-        radiusY = FloatArray(3) { (spec[it][3] * bandHeight).coerceAtLeast(1f) },
-        amplitudeX = floatArrayOf(0.18f * w, 0.16f * w, 0.24f * w),
-        amplitudeY = floatArrayOf(0.10f * h, 0.12f * h, 0.14f * h),
+        centerX = FloatArray(n) { if (it < 3) bandLeft + spec[it][0] * bandWidth else lower[it - 3][0] * w },
+        centerY = FloatArray(n) { if (it < 3) bandTop + spec[it][1] * bandHeight else lower[it - 3][1] * h },
+        radiusX = FloatArray(n) {
+            (if (it < 3) spec[it][2] * bandWidth else lower[it - 3][2] * w).coerceAtLeast(1f)
+        },
+        radiusY = FloatArray(n) {
+            (if (it < 3) spec[it][3] * bandHeight else lower[it - 3][3] * h).coerceAtLeast(1f)
+        },
+        amplitudeX = floatArrayOf(0.18f * w, 0.16f * w, 0.24f * w, 0.20f * w, 0.18f * w),
+        amplitudeY = floatArrayOf(0.10f * h, 0.12f * h, 0.14f * h, 0.06f * h, 0.07f * h),
     )
 }
 
@@ -556,6 +605,8 @@ private val LOBE_DRIFT = arrayOf(
     floatArrayOf(1f, 1f, 0f),
     floatArrayOf(-1f, 1f, 0.33f),
     floatArrayOf(1f, -2f, 0.66f),
+    floatArrayOf(-1f, -1f, 0.15f),
+    floatArrayOf(1f, 2f, 0.50f),
 )
 
 /**
@@ -572,22 +623,23 @@ internal fun bloomLobeDrift(index: Int, phase: Float): Triple<Float, Float, Floa
     return Triple(dx, dy, breathe)
 }
 
-/** Three blits: the whole per-frame cost of the bloom besides a few sin/cos. */
+/** Up to five blits: the whole per-frame cost of the bloom besides a few sin/cos. */
 private fun DrawScope.drawBloomLobes(
-    images: List<ImageBitmap>,
+    images: List<ImageBitmap?>,
     geometry: BloomLobeGeometry,
     phase: Float,
     alpha: Float,
 ) {
     if (alpha <= 0f) return
-    for (i in 0 until 3) {
+    for (i in images.indices) {
+        val image = images[i] ?: continue
         val (dx, dy, breathe) = bloomLobeDrift(i, phase)
         val rx = geometry.radiusX[i] * breathe
         val ry = geometry.radiusY[i] * breathe
         val cx = geometry.centerX[i] + dx * geometry.amplitudeX[i]
         val cy = geometry.centerY[i] + dy * geometry.amplitudeY[i]
         drawImage(
-            image = images[i],
+            image = image,
             dstOffset = IntOffset((cx - rx).toInt(), (cy - ry).toInt()),
             dstSize = IntSize((rx * 2f).toInt().coerceAtLeast(1), (ry * 2f).toInt().coerceAtLeast(1)),
             alpha = alpha,

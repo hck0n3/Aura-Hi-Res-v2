@@ -83,6 +83,68 @@ class CoverColorsTest {
         assertEquals(red, trio!!.primary)
     }
 
+    // ── Owner 2026-10-09: "omite el color negro… los colores blancos los omite también" ─────────────
+
+    @Test
+    fun `a black cover with red and gold keeps its black as a tone, next to both colours`() {
+        val gold = 0xFFD4A537.toInt()
+        val trio = CoverColors.pick(listOf(Swatch(black, 6000), Swatch(red, 2500), Swatch(gold, 1000)))!!
+        assertEquals(red, trio.primary)
+        assertEquals(gold, trio.secondary)
+        val dark = trio.tones.single { it.kind == CoverColors.Kind.DARK }
+        assertEquals(6000f / 9500f, dark.share, 0.01f)
+        assertTrue("the black stays black", Oklab.lightness(dark.rgb) < CoverColors.DARK_L)
+        assertEquals(dark.share, trio.darkShare, 0f)
+        assertEquals(
+            listOf(red, gold),
+            trio.tones.filter { it.kind == CoverColors.Kind.CHROMA }.map { it.rgb },
+        )
+    }
+
+    @Test
+    fun `a white cover with a blue title keeps its white as light`() {
+        val trio = CoverColors.pick(listOf(Swatch(white, 7000), Swatch(blue, 3000)))!!
+        assertEquals(blue, trio.primary)
+        val light = trio.tones.single { it.kind == CoverColors.Kind.LIGHT }
+        assertEquals(0.7f, light.share, 0.01f)
+        assertEquals(0.7f, trio.lightShare, 0.01f)
+        assertTrue(Oklab.lightness(light.rgb) > 0.9)
+    }
+
+    @Test
+    fun `black and white are mixed in Oklab, not dropped, on a black and white cover`() {
+        val trio = CoverColors.pick(listOf(Swatch(white, 2000), Swatch(grey, 5000), Swatch(black, 3000)))!!
+        assertTrue(!trio.chromatic)
+        val light = trio.tones.single { it.kind == CoverColors.Kind.LIGHT }
+        val dark = trio.tones.single { it.kind == CoverColors.Kind.DARK }
+        assertEquals(0.7f, light.share, 0.01f)
+        assertEquals(0.3f, dark.share, 0.01f)
+        // The light tone is the population-weighted mix of the white and the grey: between the two.
+        val l = Oklab.lightness(light.rgb)
+        assertTrue(l > Oklab.lightness(grey) && l < Oklab.lightness(white))
+        // Neutral in, neutral out.
+        assertEquals((light.rgb shr 16) and 0xFF, light.rgb and 0xFF)
+    }
+
+    /** Owner 2026-10-09: "la cantidad de colores… que sea más vasto". */
+    @Test
+    fun `a colourful cover gives up to five real colours, near-duplicates counted once`() {
+        val green = 0xFF2FA84F.toInt()
+        val purple = 0xFF8E44AD.toInt()
+        val almostBlue = 0xFF2060DA.toInt()
+        val trio = CoverColors.pick(
+            listOf(
+                Swatch(blue, 3000), Swatch(yellow, 2500), Swatch(red, 2000),
+                Swatch(almostBlue, 1800), Swatch(green, 1500), Swatch(purple, 1000),
+            ),
+        )!!
+        val hues = trio.tones.filter { it.kind == CoverColors.Kind.CHROMA }.map { it.rgb }
+        assertEquals(CoverColors.MAX_CHROMATIC, hues.size)
+        assertEquals(listOf(blue, yellow, red), hues.take(3))
+        assertTrue(green in hues && purple in hues)
+        assertTrue("a near-copy of the blue is not a new colour", almostBlue !in hues)
+    }
+
     @Test
     fun `hue maths`() {
         assertEquals(0f, CoverColors.hsv(0xFFFF0000.toInt())[0], 0.5f)

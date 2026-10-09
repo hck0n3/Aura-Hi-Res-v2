@@ -7,12 +7,16 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -35,6 +39,7 @@ import iad1tya.echo.music.utils.PrefsBridge
 import iad1tya.echo.music.utils.isWindowBlurSupported
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
+import kotlinx.coroutines.delay
 
 /**
  * The "Interfaz nueva" palette, transcribed 1:1 from the reference render
@@ -133,6 +138,29 @@ object AuraPalette {
     private var artworkGround by mutableStateOf<Color?>(null)
 
     /**
+     * Owner 2026-10-09 (*"que sea más vasto"*): the BOTTOM tone of the two-tone cover ground — the cover's
+     * second colour at the same perceptual lightness as [artworkGround], so text contrast is the same top
+     * and bottom. Null = a flat ground (no cover, AMOLED, custom Fondo).
+     */
+    private var artworkGroundBottom by mutableStateOf<Color?>(null)
+
+    /** The cover's light-carrying colours, each ≥ 3:1 on the ground, for the timeline gradient. */
+    private var coverSpectrum by mutableStateOf<List<Color>?>(null)
+
+    // ── Track-change transition (owner 2026-10-09) ──────────────────────────────────────────────────
+    // The lobes always dissolved over ~1 s on a track change, but the flat ground and the cover-tinted ink
+    // JUMPED — a full-screen colour cut under a slow dissolve. Now they ease too: [apply] samples what is
+    // on screen ("from") and [stepGroundTransition] walks [transition] 0→1 in [GROUND_TRANSITION_STEPS]
+    // quantised steps on a ~16 Hz timer (not per frame): every step is ONE snapshot write, so the screens
+    // that read these colours redraw/recompose at most 16 times per track change, never per frame.
+    private var fromGround by mutableStateOf(BrandGround)
+    private var fromGroundBottom by mutableStateOf(BrandGround)
+    private var fromGroundRaised by mutableStateOf(BrandGroundRaised)
+    private var fromInk by mutableStateOf(BrandOnGround)
+    private var transition by mutableFloatStateOf(1f)
+    private var transitionStartMs = TRANSITION_NOT_STARTED
+
+    /**
      * "Radio de esquina de la miniatura" ([ThumbnailCornerRadiusKey]) resolved into the two shapes the
      * redesign cuts its covers with. Held as the finished shapes, not as the multiplier: they are read
      * from composition bodies and from `.clip(…)` chains on every row of every list.
@@ -151,13 +179,72 @@ object AuraPalette {
         roles: CustomThemeRoles = CustomThemeRoles.None,
         artworkInk: Color? = null,
         artworkGround: Color? = null,
+        artworkGroundBottom: Color? = null,
+        spectrum: List<Color>? = null,
+        /** True from [AuraPaletteSync]: ease ground + ink to the new cover instead of cutting. */
+        animate: Boolean = false,
     ) {
         if (accent != next) accent = next
         if (pureBlackGround != pureBlack) pureBlackGround = pureBlack
         if (corners != coverCorners) corners = coverCorners
         if (roleOverrides != roles) roleOverrides = roles
-        if (this.artworkInk != artworkInk) this.artworkInk = artworkInk
-        if (this.artworkGround != artworkGround) this.artworkGround = artworkGround
+        if (coverSpectrum != spectrum) coverSpectrum = spectrum
+        if (this.artworkInk != artworkInk ||
+            this.artworkGround != artworkGround ||
+            this.artworkGroundBottom != artworkGroundBottom
+        ) {
+            if (animate) {
+                // Sample what is on screen NOW — mid-transition included, so a fast skip never jumps.
+                // Without read observation: the caller is a composition, which must not subscribe to the
+                // transition it is starting.
+                Snapshot.withoutReadObservation {
+                    val ground = eased(fromGround, groundTarget)
+                    val bottom = eased(fromGroundBottom, groundBottomTarget)
+                    val raised = eased(fromGroundRaised, groundRaisedTarget)
+                    val ink = eased(fromInk, inkTarget)
+                    fromGround = ground
+                    fromGroundBottom = bottom
+                    fromGroundRaised = raised
+                    fromInk = ink
+                }
+                transitionStartMs = TRANSITION_NOT_STARTED
+                transition = 0f
+            }
+            this.artworkInk = artworkInk
+            this.artworkGround = artworkGround
+            this.artworkGroundBottom = artworkGroundBottom
+        }
+        // A direct (non-animated) apply — tests, [reset] — always lands on the target, even mid-transition.
+        if (!animate && transition < 1f) transition = 1f
+    }
+
+    /**
+     * Advances the track-change transition to [nowMs] (uptime). Returns true once it has finished. Driven
+     * by [AuraPaletteSync] on a [GROUND_TRANSITION_TICK_MS] timer; idempotent, so several syncs composed at
+     * once (gate, nav bar, mini player) can all drive it without speeding it up.
+     */
+    internal fun stepGroundTransition(nowMs: Long): Boolean {
+        if (transition >= 1f) return true
+        if (transitionStartMs == TRANSITION_NOT_STARTED) transitionStartMs = nowMs
+        val next = groundTransitionProgress(nowMs - transitionStartMs)
+        if (next > transition) transition = next
+        return next >= 1f
+    }
+
+    private val groundTarget: Color get() = artworkGround ?: BrandGround
+    private val groundBottomTarget: Color get() = artworkGroundBottom ?: groundTarget
+    private val groundRaisedTarget: Color
+        get() = artworkGround?.let { Color.White.copy(alpha = 0.04f).compositeOver(it) } ?: BrandGroundRaised
+    private val inkTarget: Color get() = artworkInk ?: BrandOnGround
+
+    /** [to] once the transition is over; until then the Oklab mix (Compose's [lerp]) from [from]. */
+    private fun eased(from: Color, to: Color): Color {
+        val p = transition
+        return when {
+            p >= 1f -> to
+            p <= 0f -> from
+            else -> lerp(from, to, p)
+        }
     }
 
     /** Test / process hook: back to the shipped literals. */
@@ -168,6 +255,8 @@ object AuraPalette {
         roles = CustomThemeRoles.None,
         artworkInk = null,
         artworkGround = null,
+        artworkGroundBottom = null,
+        spectrum = null,
     )
 
     // ── Accents ───────────────────────────────────────────────────────────────────────────────────
@@ -191,8 +280,20 @@ object AuraPalette {
         get() = when {
             pureBlackGround -> Color.Black
             roleOverrides.background != null -> roleOverrides.background!!
-            artworkGround != null -> artworkGround!!
-            else -> BrandGround
+            // The cover ground (or the brand deep), eased on a track change.
+            else -> eased(fromGround, groundTarget)
+        }
+
+    /**
+     * The bottom tone of the two-tone ground. Equal to [Ground] whenever the ground is flat (AMOLED, a
+     * custom Fondo, no cover). Only the full-screen grounds ([auraScreenBackground], the player's
+     * [AuraGroundLayer]) paint the gradient; everything else keeps the flat [Ground].
+     */
+    val GroundBottom: Color
+        get() = when {
+            pureBlackGround -> Color.Black
+            roleOverrides.background != null -> roleOverrides.background!!
+            else -> eased(fromGroundBottom, groundBottomTarget)
         }
 
     /** The lifted ground of the mini pill and the merged player menu sheet. */
@@ -202,13 +303,21 @@ object AuraPalette {
             roleOverrides.surface != null -> roleOverrides.surface!!
             roleOverrides.background != null ->
                 Color.White.copy(alpha = 0.04f).compositeOver(roleOverrides.background!!)
-            artworkGround != null -> Color.White.copy(alpha = 0.04f).compositeOver(artworkGround!!)
-            else -> BrandGroundRaised
+            else -> eased(fromGroundRaised, groundRaisedTarget)
         }
 
     /** Foreground text/icon colour on [Ground]. Cover-tinted while a track's artwork is resolved. */
     val OnGround: Color
-        get() = roleOverrides.onBackground ?: artworkInk ?: BrandOnGround
+        get() = roleOverrides.onBackground ?: eased(fromInk, inkTarget)
+
+    /**
+     * The colours of the player's timeline gradient (owner 2026-10-09: *"la barra de tiempo… con las
+     * combinaciones de colores de la portada"*): every light-carrying colour of the cover (up to five hues
+     * plus its white), each ≥ 3:1 on the ground; the accent trio when the cover has a single colour or no
+     * cover is resolved. Never empty.
+     */
+    val ProgressSpectrum: List<Color>
+        get() = coverSpectrum?.takeIf { it.size >= 2 } ?: accent.progressStops
 
     /** Knob colour of a switch and the ink INSIDE the gradient play button. */
     val OnAccent: Color
@@ -508,6 +617,9 @@ class AuraAccent(
     val tertiary: Color,
 ) {
     val navIndicator: Color = primary.copy(alpha = 0.12f)
+
+    /** The trio as gradient stops, built once (read from a draw lambda on every timeline frame). */
+    val progressStops: List<Color> = listOf(primary, secondary, tertiary)
     val nowPlayingFill: Color = primary.copy(alpha = 0.10f)
     val nowPlayingLine: Color = primary.copy(alpha = 0.25f)
 
@@ -677,11 +789,24 @@ fun AuraPaletteSync() {
     // included — measuring against `#060A12` and then drawing on another canvas would understate contrast.
     // Owner 2026-10-06 — the cover-tinted ground (see [auraArtworkGround]). Only where nothing the user
     // chose already decides the ground: AMOLED and a custom Fondo keep winning, exactly as before.
-    val artworkGround = remember(artworkSeed, pureBlack, customRoles.background) {
-        val seed = artworkSeed
-        if (seed == null || pureBlack || customRoles.background != null) null else auraArtworkGround(seed)
+    // Owner 2026-10-09: the ground is the cover's own mix ([AuraCoverMix]) — near-black when the cover is
+    // mostly black, two-toned with its second colour — instead of only the main colour's hue.
+    val artworkGround = remember(artworkEntry, pureBlack, customRoles.background) {
+        val entry = artworkEntry
+        if (entry == null || pureBlack || customRoles.background != null) null
+        else entry.ground ?: auraArtworkGround(entry.accentSeed)
     }
-    val ground = artworkGround ?: customRoles.effectiveAuraGround(pureBlack, fallback = scheme.surface)
+    val artworkGroundBottom = remember(artworkEntry, artworkGround) {
+        if (artworkGround == null) null else artworkEntry?.groundBottom ?: artworkGround
+    }
+    val paintedGround = artworkGround ?: customRoles.effectiveAuraGround(pureBlack, fallback = scheme.surface)
+    // Text and accents are measured against the LIGHTER of the two ground tones: light ink on a dark
+    // ground has its worst contrast on the lighter one, so the guarantee holds over the whole gradient.
+    val ground = if (artworkGroundBottom != null && artworkGroundBottom.luminance() > paintedGround.luminance()) {
+        artworkGroundBottom
+    } else {
+        paintedGround
+    }
     val resolved = remember(followsUser, scheme.primary, ground, artworkEntry) {
         when {
             artworkEntry != null -> AuraAccent.fromCover(
@@ -696,13 +821,29 @@ fun AuraPaletteSync() {
     }
     val artworkInk = remember(artworkSeed, ground) {
         val seed = artworkSeed ?: return@remember null
-        val (hue, _, _) = ColorPickerConversions.colorToHsv(seed)
-        // Soft tint of the cover hue at high value — still reads as "white text", not a neon label.
+        val (hue, saturation, _) = ColorPickerConversions.colorToHsv(seed)
+        // Soft tint of the cover hue at high value — still reads as "white text", not a neon label. A grey
+        // seed (black-and-white cover) has hue 0 by convention: tinting it would paint pink text.
+        val tint = if (saturation <= 0.05f) 0f else 0.10f
         ensureLegibleOn(
-            color = ColorPickerConversions.hsvToColor(hue, 0.10f, 0.96f),
+            color = ColorPickerConversions.hsvToColor(hue, tint, 0.96f),
             against = ground,
             minRatio = 4.5f,
         )
+    }
+    // The timeline gradient: the cover's colours, each brought to ≥ 3:1 (WCAG 1.4.11, a graphical object)
+    // on the ground. Once per track, like everything else here.
+    val spectrum = remember(artworkEntry, ground) {
+        artworkEntry?.spectrum?.takeIf { it.isNotEmpty() }?.map {
+            ensureLegibleOn(it, ground, PROGRESS_MIN_CONTRAST)
+        }
+    }
+    // Drives the ground/ink ease of [AuraPalette.apply]. A ~16 Hz timer for one second per track change —
+    // not a frame callback — and it ends by itself.
+    LaunchedEffect(artworkGround, artworkGroundBottom, artworkInk) {
+        while (!AuraPalette.stepGroundTransition(android.os.SystemClock.uptimeMillis())) {
+            delay(GROUND_TRANSITION_TICK_MS)
+        }
     }
     // 3 is the shipped default of ThumbnailCornerRadiusKey and 1.0 the identity multiplier, so a user
     // who never touched the control gets the render's radii to the pixel.
@@ -711,33 +852,64 @@ fun AuraPaletteSync() {
         if (scale == 1f) AuraCoverCorners.Render else AuraCoverCorners(scale)
     }
 
-    AuraPalette.apply(resolved, pureBlack, corners, customRoles, artworkInk, artworkGround)
+    AuraPalette.apply(
+        next = resolved,
+        pureBlack = pureBlack,
+        coverCorners = corners,
+        roles = customRoles,
+        artworkInk = artworkInk,
+        artworkGround = artworkGround,
+        artworkGroundBottom = artworkGroundBottom,
+        spectrum = spectrum,
+        animate = true,
+    )
+}
+
+/** Duration of the ground/ink ease on a track change — the feel of the lobes' ~1 s dissolve. */
+internal const val GROUND_TRANSITION_MS = 1_000L
+
+/** Quantised steps of that ease: each one is a single snapshot write. */
+internal const val GROUND_TRANSITION_STEPS = 16
+
+/** Timer of the ease driver (~16 Hz). */
+internal const val GROUND_TRANSITION_TICK_MS = 62L
+
+private const val TRANSITION_NOT_STARTED = Long.MIN_VALUE
+
+/** WCAG 1.4.11 (graphical objects): the timeline's colours against the ground. */
+internal const val PROGRESS_MIN_CONTRAST = 3f
+
+/**
+ * Progress 0..1 of the ground/ink ease [elapsedMs] after it started: ease-out cubic (fast start, soft
+ * landing, like the lobes' no-bounce spring), quantised to [GROUND_TRANSITION_STEPS] so it costs at most
+ * that many writes. Pure, for test.
+ */
+internal fun groundTransitionProgress(elapsedMs: Long): Float {
+    if (elapsedMs <= 0L) return 0f
+    if (elapsedMs >= GROUND_TRANSITION_MS) return 1f
+    val t = elapsedMs.toFloat() / GROUND_TRANSITION_MS
+    val eased = 1f - (1f - t) * (1f - t) * (1f - t)
+    return (kotlin.math.floor(eased * GROUND_TRANSITION_STEPS) / GROUND_TRANSITION_STEPS).coerceIn(0f, 1f)
 }
 
 /**
  * Owner 2026-10-06 (*"la veo muy oscura"*) and 2026-10-07 (*"un poco más claro y más colorido"*): the
- * cover's hue as the ground — value 0.18 (the shipped `#060A12` sits at ~0.07) with a rich saturation, so
- * every song paints its own colour instead of one blue-black. An achromatic (black-and-white) cover keeps
- * zero saturation: a neutral dark grey, never an invented hue. Measured against the cover-tinted ink
- * [AuraPaletteSync] already uses, over every hue: full ink ≥ 12.5:1 and every text step ≥ AA 4.5:1
- * (AuraAppearanceTest pins it). Going lighter would need the text steps above 0.54 to hold AA, so the
- * hierarchy between them would start to flatten.
+ * cover's hue as the ground, so every song paints its own colour instead of one blue-black. An achromatic
+ * (black-and-white) cover keeps zero chroma: a neutral charcoal, never an invented hue.
+ *
+ * Owner 2026-10-09 — PERCEPTUAL now: one Oklab lightness ([AuraCoverMix.GROUND_L] 0.22) for every hue,
+ * chroma ≤ 0.05. The old HSV value 0.18 painted a yellow ground at L ≈ 0.30 and a blue one at L ≈ 0.21 —
+ * "lighter" meant "yellower". Measured against the cover-tinted ink [AuraPaletteSync] uses, over every hue:
+ * full ink ≥ 12.5:1 and every text step ≥ AA 4.5:1 (AuraAppearanceTest pins it).
+ *
+ * This is the single-colour ground (fallback). The full cover mix — near-black when the cover is mostly
+ * black, two-toned with its second colour — is [AuraCoverMix.groundFor], carried by [AuraBloomEntry.ground].
  */
-fun auraArtworkGround(seed: Color): Color {
-    val (hue, saturation, _) = ColorPickerConversions.colorToHsv(seed)
-    val s = if (saturation <= 0.05f) 0f else ARTWORK_GROUND_SATURATION
-    return ColorPickerConversions.hsvToColor(hue, s, ARTWORK_GROUND_VALUE)
-}
+fun auraArtworkGround(seed: Color): Color = Color(AuraCoverMix.colouredGroundArgb(seed.toArgb()))
 
-// Owner 2026-10-07: "mejora el modo oscuro volviéndolo un poco más claro y más colorido". 0.12/0.45 →
-// 0.18/0.60: a visibly lighter, richer ground in the cover's own hue. Contrast of the text steps is the
-// same as on 0.12 (the cover-tinted ink brightens with it) and the steps were raised to clear AA (row 341).
-// Row 342 (owner 2026-10-07: "no quiero que agarre el color más fuerte de la portada"): saturation
-// 0.60 → 0.50, so the ground is the cover's colour without shouting over the moving lobes that carry
-// ALL its colours. Contrast is unchanged within 0.05 (AuraAppearanceTest).
-private const val ARTWORK_GROUND_SATURATION = 0.50f
+// History: 2026-10-07 HSV value 0.18 / saturation 0.50 (rows 341/342); 2026-10-09 Oklab L 0.22, chroma
+// ≤ 0.05 in the cover's hue (AuraCoverMix), measured to keep the same text contrast on every hue.
 internal const val COVER_GLASS_ACCENT_ALPHA = 0.10f
-private const val ARTWORK_GROUND_VALUE = 0.18f
 
 /**
  * The three blurred radial gradients that sit behind every new screen. Held as data (not as a [Brush])
@@ -751,6 +923,12 @@ data class AuraBloomColors(
     val topRight: Color,
     /** `radial-gradient(52% 38% at 50% 50%, rgba(47,166,240,.24))`. */
     val center: Color,
+    /**
+     * Owner 2026-10-09: the two LOWER lobes, so the cover's colours reach the whole screen instead of the
+     * top two thirds. Transparent = not drawn at all (the brand bloom keeps the render's three lobes).
+     */
+    val bottomLeft: Color = Color.Transparent,
+    val bottomRight: Color = Color.Transparent,
 ) {
     companion object {
         /**

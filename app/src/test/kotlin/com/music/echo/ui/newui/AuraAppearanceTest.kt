@@ -436,6 +436,152 @@ class AuraAppearanceTest {
         assertEquals(Color(0xFF060A12), AuraPalette.Ground)
     }
 
+    // ------------------------------------------------------------------ 6. the whole cover (2026-10-09)
+
+    /** The ink [AuraPaletteSync] paints: the seed's hue at s 0.10 (0 for a grey seed), v 0.96, ≥ 4.5:1. */
+    private fun syncInk(seed: Color, ground: Color): Color {
+        val (hue, saturation, _) = iad1tya.echo.music.ui.component.ColorPickerConversions.colorToHsv(seed)
+        val tint = if (saturation <= 0.05f) 0f else 0.10f
+        return iad1tya.echo.music.ui.theme.ensureLegibleOn(
+            iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue, tint, 0.96f),
+            ground,
+            4.5f,
+        )
+    }
+
+    private val coverCases: List<List<CoverColors.Swatch>> = listOf(
+        // black + red + gold
+        listOf(CoverColors.Swatch(0xFF0A0A0A.toInt(), 6000), CoverColors.Swatch(0xFFD32F2F.toInt(), 2500), CoverColors.Swatch(0xFFD4A537.toInt(), 1000)),
+        // black and white
+        listOf(CoverColors.Swatch(0xFFF5F5F5.toInt(), 2000), CoverColors.Swatch(0xFF7A7A7A.toInt(), 5000), CoverColors.Swatch(0xFF0A0A0A.toInt(), 3000)),
+        // white + blue
+        listOf(CoverColors.Swatch(0xFFF5F5F5.toInt(), 7000), CoverColors.Swatch(0xFF1E5BD8.toInt(), 3000)),
+        // colourful (two-tone ground: blue over yellow)
+        listOf(
+            CoverColors.Swatch(0xFF1E5BD8.toInt(), 3000), CoverColors.Swatch(0xFFF2C21B.toInt(), 2500),
+            CoverColors.Swatch(0xFFD32F2F.toInt(), 2000), CoverColors.Swatch(0xFF2FA84F.toInt(), 1500),
+        ),
+        // dark navy + brown + beige
+        listOf(CoverColors.Swatch(0xFF0A1A40.toInt(), 7000), CoverColors.Swatch(0xFF3A2618.toInt(), 2000), CoverColors.Swatch(0xFFC9B48A.toInt(), 1000)),
+        // yellow, the old lightest ground
+        listOf(CoverColors.Swatch(0xFFF2C21B.toInt(), 9000), CoverColors.Swatch(0xFF8E44AD.toInt(), 1000)),
+    )
+
+    /** Owner 2026-10-09: every cover — black, white, colourful — keeps AA text on BOTH ground tones. */
+    @Test
+    fun `text stays AA on both tones of every cover's ground`() {
+        coverCases.forEach { swatches ->
+            val mix = AuraCoverMix.resolve(CoverColors.pick(swatches)!!)
+            val top = Color(mix.ground)
+            val bottom = Color(mix.groundBottom)
+            // AuraPaletteSync measures against the lighter tone.
+            val measured = if (bottom.luminance() > top.luminance()) bottom else top
+            val ink = syncInk(Color(mix.seed), measured)
+            AuraPalette.apply(
+                AuraAccent.fromCover(Color(mix.seed), mix.second?.let { Color(it) }, mix.third?.let { Color(it) }, measured),
+                pureBlack = false,
+                coverCorners = AuraCoverCorners.Render,
+                artworkInk = ink,
+                artworkGround = top,
+                artworkGroundBottom = bottom,
+            )
+            for (tone in listOf(top, bottom)) {
+                assertTrue("body on $tone", contrastRatio(ink, tone) >= 12f)
+                listOf(
+                    "ghost" to AuraPalette.OnGroundGhost,
+                    "faint" to AuraPalette.OnGroundFaint,
+                    "muted" to AuraPalette.OnGroundMuted,
+                    "nav" to AuraPalette.NavInactive,
+                ).forEach { (step, color) ->
+                    val ratio = contrastRatio(color.compositeOver(tone), tone)
+                    assertTrue("$swatches: $step on $tone at $ratio", ratio >= TEXT_AA)
+                }
+                listOf(AuraPalette.Teal, AuraPalette.Blue, AuraPalette.Violet).forEach {
+                    assertTrue("accent $it on $tone", contrastRatio(it, tone) >= TEXT_AA - 0.15f)
+                }
+            }
+            assertEquals(top, AuraPalette.Ground)
+            assertEquals(bottom, AuraPalette.GroundBottom)
+        }
+    }
+
+    @Test
+    fun `a black and white cover gets neutral ink, never pink text`() {
+        val ink = syncInk(Color(0xFFB7B7B7), Color(0xFF1B1B1B))
+        assertEquals(ink.red, ink.green, 0.002f)
+        assertEquals(ink.green, ink.blue, 0.002f)
+    }
+
+    /** Owner 2026-10-09: the ground and the ink ease (~1 s) on a track change instead of jumping. */
+    @Test
+    fun `the ground eases to the next cover and stays legible on the way`() {
+        val redCover = AuraCoverMix.resolve(
+            CoverColors.pick(listOf(CoverColors.Swatch(0xFFD32F2F.toInt(), 9000), CoverColors.Swatch(0xFF0A0A0A.toInt(), 1000)))!!,
+        )
+        val blackCover = AuraCoverMix.resolve(
+            CoverColors.pick(listOf(CoverColors.Swatch(0xFF0A0A0A.toInt(), 8000), CoverColors.Swatch(0xFFF2C21B.toInt(), 2000)))!!,
+        )
+        val groundA = Color(redCover.ground)
+        val groundB = Color(blackCover.ground)
+        val inkA = syncInk(Color(redCover.seed), groundA)
+        val inkB = syncInk(Color(blackCover.seed), groundB)
+        AuraPalette.apply(AuraAccent.Brand, false, AuraCoverCorners.Render, artworkInk = inkA, artworkGround = groundA)
+        AuraPalette.apply(AuraAccent.Brand, false, AuraCoverCorners.Render, artworkInk = inkB, artworkGround = groundB, animate = true)
+        // The instant of the change: still the previous cover — no cut.
+        assertEquals(groundA, AuraPalette.Ground)
+        assertEquals(inkA, AuraPalette.OnGround)
+        val t0 = 10_000L
+        assertTrue(!AuraPalette.stepGroundTransition(t0))
+        var previous = AuraPalette.Ground
+        var sawInBetween = false
+        for (ms in 62L until GROUND_TRANSITION_MS step 62L) {
+            AuraPalette.stepGroundTransition(t0 + ms)
+            val ground = AuraPalette.Ground
+            if (ground != groundA && ground != groundB) sawInBetween = true
+            // Mid-way the text steps still clear AA.
+            val ratio = contrastRatio(AuraPalette.OnGroundGhost.compositeOver(ground), ground)
+            assertTrue("at $ms ms ghost text $ratio", ratio >= TEXT_AA)
+            assertTrue(contrastRatio(AuraPalette.OnGround, ground) >= 12f)
+            previous = ground
+        }
+        assertTrue(sawInBetween)
+        assertTrue(AuraPalette.stepGroundTransition(t0 + GROUND_TRANSITION_MS))
+        assertEquals(groundB, AuraPalette.Ground)
+        assertEquals(inkB, AuraPalette.OnGround)
+        assertTrue(previous != groundA)
+    }
+
+    @Test
+    fun `the ease is quantised, monotonic and ends on time`() {
+        assertEquals(0f, groundTransitionProgress(0L), 0f)
+        assertEquals(1f, groundTransitionProgress(GROUND_TRANSITION_MS), 0f)
+        assertEquals(1f, groundTransitionProgress(GROUND_TRANSITION_MS * 5), 0f)
+        var last = 0f
+        val distinct = HashSet<Float>()
+        for (ms in 0L..GROUND_TRANSITION_MS) {
+            val p = groundTransitionProgress(ms)
+            assertTrue(p >= last)
+            assertEquals(0f, (p * GROUND_TRANSITION_STEPS) % 1f, 1e-4f)
+            distinct += p
+            last = p
+        }
+        // At most one write per step: the screens reading the ground update ≤ 17 times per track change.
+        assertTrue(distinct.size <= GROUND_TRANSITION_STEPS + 1)
+        // Ease-out: most of the change lands in the first half, like the lobes' spring.
+        assertTrue(groundTransitionProgress(GROUND_TRANSITION_MS / 2) >= 0.8f)
+    }
+
+    @Test
+    fun `the timeline spectrum falls back to the accent trio and never empties`() {
+        AuraPalette.reset()
+        assertEquals(listOf(AuraPalette.Teal, AuraPalette.Blue, AuraPalette.Violet), AuraPalette.ProgressSpectrum)
+        val cover = listOf(Color(0xFFE74540), Color(0xFFCD9900), Color(0xFFD4D4D4))
+        AuraPalette.apply(AuraAccent.Brand, false, AuraCoverCorners.Render, spectrum = cover)
+        assertEquals(cover, AuraPalette.ProgressSpectrum)
+        AuraPalette.apply(AuraAccent.Brand, false, AuraCoverCorners.Render, spectrum = listOf(Color(0xFFE74540)))
+        assertEquals(3, AuraPalette.ProgressSpectrum.size)
+    }
+
     companion object {
         /**
          * WCAG 2.1 body text. The accent carries 11–12 sp technical type in this UI ("◆ HI-RES", the
