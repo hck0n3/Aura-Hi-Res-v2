@@ -323,7 +323,7 @@ object LastFM {
     }
 
     /**
-     * Fila 361 — how many Last.fm listeners an artist has (public data, unsigned GET). 0 = Last.fm does not
+     * Fila 361 — how many Last.fm listeners an artist has (public data, unsigned GET). -1 = Last.fm does not
      * know the artist (error 6, a definitive answer); null = the request failed (transient). Never throws.
      * Used to tell real artists from anonymous uploads (AI-generated channels have no listeners).
      */
@@ -342,9 +342,9 @@ object LastFM {
             val root = json.parseToJsonElement(response.bodyAsText()) as? kotlinx.serialization.json.JsonObject
                 ?: return@runCatching null
             val error = (root["error"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
-            if (error != null) return@runCatching if (error == 6) 0L else null
+            if (error != null) return@runCatching if (error == 6) -1L else null
             val stats = ((root["artist"] as? kotlinx.serialization.json.JsonObject)?.get("stats")
-                as? kotlinx.serialization.json.JsonObject) ?: return@runCatching 0L
+                as? kotlinx.serialization.json.JsonObject) ?: return@runCatching -1L
             (stats["listeners"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.toLongOrNull() ?: 0L
         }.getOrNull()
     }

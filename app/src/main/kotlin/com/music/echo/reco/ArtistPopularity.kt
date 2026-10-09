@@ -48,9 +48,15 @@ object ArtistPopularity {
             (v as? String)?.substringBefore(':')?.toLongOrNull()?.let { k to it }
         }.toMap()
 
-    /** True only when Last.fm ANSWERED and the artist has fewer than [MIN_LISTENERS]. Unknown → false. Pure. */
-    fun isUnknownArtist(listeners: Map<String, Long>, artist: String?): Boolean {
+    /**
+     * True when Last.fm ANSWERED that the artist is unknown. [strict]: also when Last.fm has never heard of
+     * the artist at all (≤ 0 — the usual case for an anonymous/AI channel, but also for a small real artist
+     * Last.fm never catalogued); not strict: only an artist Last.fm knows with fewer than [MIN_LISTENERS].
+     * Not looked up yet → false (never judged). Pure.
+     */
+    fun isUnknownArtist(listeners: Map<String, Long>, artist: String?, strict: Boolean = true): Boolean {
         val n = listeners[ArtistStyleMemory.key(artist) ?: return false] ?: return false
+        if (n <= 0L) return strict
         return n < MIN_LISTENERS
     }
 

@@ -59,7 +59,50 @@ internal object MusicRequestStyleGate {
         val off: Int,
         val unpopular: Int,
         val excluded: Int,
+        /** 0 = strict; higher = how far [judgeWithFallback] had to relax to find songs. */
+        val relaxed: Int = 0,
     )
+
+    /** How the real-artist check judges an artist Last.fm has no entry for. */
+    enum class Popularity { STRICT, KNOWN_LOW_ONLY, OFF }
+
+    /**
+     * Fila 364 (dueño 2026-10-09: *"pedí trap cristiano y dice que no encontró nada… cualquier género que pida
+     * debería poder responderlo"*). The strict check is right for popular styles, but a niche one (Christian
+     * trap, regional styles…) is made by small artists Last.fm never catalogued and by songs whose style no
+     * title names — strict, nothing was left. So it relaxes step by step, and only as far as needed:
+     *  1. strict (artists Last.fm does not know are out; with enough confirmed songs, the doubtful ones too);
+     *  2. artists Last.fm does not know are allowed (only KNOWN tiny artists stay out);
+     *  3. songs of unknown style are allowed too (another KNOWN style still never plays);
+     *  4. nothing about the artist is judged.
+     * Excluded styles/words ("sin X") and a known OTHER style never come back at any step.
+     */
+    fun judgeWithFallback(
+        intent: MusicRequestIntent.Intent,
+        cands: List<Cand>,
+        verified: Set<String>,
+        protectedIds: Set<String>,
+        k: Knowledge,
+        target: Int,
+    ): Outcome {
+        val enough = minOf(target, MIN_RESULT).coerceAtLeast(1)
+        val steps = listOf(
+            Popularity.STRICT to target,
+            Popularity.KNOWN_LOW_ONLY to target,
+            Popularity.KNOWN_LOW_ONLY to Int.MAX_VALUE,
+            Popularity.OFF to Int.MAX_VALUE,
+        )
+        var last: Outcome? = null
+        for ((i, step) in steps.withIndex()) {
+            val o = judge(intent, cands, verified, protectedIds, k, step.second, step.first).copy(relaxed = i)
+            if (o.keptIds.size >= enough) return o
+            last = o
+        }
+        return last ?: Outcome(emptyList(), 0, 0, 0, 0, 0)
+    }
+
+    /** A request result this small counts as "found": below it the check relaxes (see [judgeWithFallback]). */
+    const val MIN_RESULT = 5
 
     /** Looks up what is missing about [artists] (Last.fm tags + listeners, iTunes genre), waiting at most [waitMs]. */
     suspend fun learn(context: Context, artists: List<String>, waitMs: Long): Knowledge {
@@ -96,6 +139,7 @@ internal object MusicRequestStyleGate {
         protectedIds: Set<String>,
         k: Knowledge,
         minMatches: Int,
+        popularity: Popularity = Popularity.STRICT,
     ): Outcome {
         val target = StyleContinuity.Target(
             styles = intent.styles.ifEmpty { null },
@@ -124,7 +168,9 @@ internal object MusicRequestStyleGate {
                 excluded++
                 continue
             }
-            if (ArtistPopularity.isUnknownArtist(k.listeners, primary)) {
+            if (popularity != Popularity.OFF &&
+                ArtistPopularity.isUnknownArtist(k.listeners, primary, strict = popularity == Popularity.STRICT)
+            ) {
                 unpopular++
                 continue
             }
@@ -155,12 +201,12 @@ internal object MusicRequestStyleGate {
     fun log(site: String, intent: MusicRequestIntent.Intent, o: Outcome) {
         // Counts and style ids only — never a title, artist or id (AGENTS.md rule 4).
         timber.log.Timber.i(
-            "MUSIC_REQUEST gate %s: styles=%s christian=%b lang=%s match=%d unknown=%d off=%d unpopular=%d excluded=%d kept=%d",
+            "MUSIC_REQUEST gate %s: styles=%s christian=%b lang=%s match=%d unknown=%d off=%d unpopular=%d excluded=%d kept=%d relaxed=%d",
             site,
             intent.styles.sorted().joinToString("+").ifEmpty { "none" },
             intent.christian,
             intent.language ?: "none",
-            o.match, o.unknown, o.off, o.unpopular, o.excluded, o.keptIds.size,
+            o.match, o.unknown, o.off, o.unpopular, o.excluded, o.keptIds.size, o.relaxed,
         )
     }
 }

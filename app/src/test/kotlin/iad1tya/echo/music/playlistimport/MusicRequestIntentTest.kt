@@ -137,6 +137,31 @@ class MusicRequestStyleGateTest {
     }
 
     @Test
+    fun `a niche style never ends with nothing - the check relaxes step by step`() {
+        // Fila 364 (dueño): "pedí trap cristiano y dice que no encontró nada". Small artists Last.fm never
+        // catalogued (-1) and titles that name no style: strict leaves nothing, so it relaxes.
+        val intent = MusicRequestIntent.parse("trap cristiano")
+        val k = MusicRequestStyleGate.Knowledge(
+            genres = emptyMap(),
+            tags = mapOf("artista salsa" to "salsa"),
+            memory = emptyMap(),
+            listeners = mapOf("a1" to -1L, "a2" to -1L, "a3" to -1L, "tiny" to 12L, "artista salsa" to -1L),
+        )
+        val cands = listOf(
+            cand("1", "Fe", "A1"),
+            cand("2", "Gracia", "A2"),
+            cand("3", "Victoria", "A3"),
+            cand("4", "Luz", "Tiny"),
+            cand("5", "Otra", "Artista Salsa"),
+        )
+        val strict = MusicRequestStyleGate.judge(intent, cands, emptySet(), emptySet(), k, minMatches = 8)
+        assertTrue(strict.keptIds.isEmpty())
+        val relaxed = MusicRequestStyleGate.judgeWithFallback(intent, cands, emptySet(), emptySet(), k, target = 3)
+        assertEquals(listOf("1", "2", "3"), relaxed.keptIds) // tiny KNOWN artist and another KNOWN style stay out
+        assertTrue(relaxed.relaxed > 0)
+    }
+
+    @Test
     fun `excluded styles and names are out, what the user named is never judged`() {
         val intent = MusicRequestIntent.parse("música urbana sin reggaeton excepto bad bunny")
         val o = MusicRequestStyleGate.judge(

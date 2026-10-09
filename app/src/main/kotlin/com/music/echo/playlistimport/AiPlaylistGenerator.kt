@@ -141,6 +141,12 @@ object AiPlaylistGenerator {
      */
     internal const val GATE_WAIT_MS = 2_500L
 
+    /**
+     * Fila 364 — the network steps of the search stop here (well inside [MUSIC_REQUEST_SEARCH_BUDGET_MS]), so
+     * the per-song check and the ranking always run on what was found instead of a timeout discarding it all.
+     */
+    internal const val SEARCH_STEPS_BUDGET_MS = 11_000L
+
     /** Doce horas. La taxonomía de estados de ánimo y géneros cambia como mucho cada varios meses. */
     internal const val MOODS_TTL_MS = 12 * 60 * 60 * 1000L
 
@@ -248,7 +254,7 @@ object AiPlaylistGenerator {
             val k = MusicRequestStyleGate.learn(
                 context, racedRaw.songs.mapNotNull { it.artists.firstOrNull()?.name }, GATE_WAIT_MS,
             )
-            val o = MusicRequestStyleGate.judge(
+            val o = MusicRequestStyleGate.judgeWithFallback(
                 intent,
                 racedRaw.songs.map { mm ->
                     MusicRequestStyleGate.Cand(mm.id, mm.title, mm.album?.title, mm.artists.map { it.name })
@@ -256,7 +262,7 @@ object AiPlaylistGenerator {
                 verified = emptySet(),
                 protectedIds = if (soloArtist != null) racedRaw.songs.map { it.id }.toSet() else emptySet(),
                 k = k,
-                minMatches = count,
+                target = count,
             )
             MusicRequestStyleGate.log("ai", intent, o)
             val keep = o.keptIds.toHashSet()
@@ -348,6 +354,7 @@ object AiPlaylistGenerator {
             null
         }
         val search = searchOutcome?.songs.orEmpty()
+        if (searchOutcome == null) timber.log.Timber.w("MUSIC_REQUEST search gave no result (timeout or failure)")
 
         // QUE NO IMPROVISE (dueño, 2026-09-17), y aquí está la regla que lo decide entre las dos
         // rutas: cuando la petición trae algo **comprobable** — una década o un idioma — gana la ruta
@@ -742,6 +749,11 @@ object AiPlaylistGenerator {
         // Fila 361: everything below works on the request WITHOUT its "sin X", count, year and "parecido a X"
         // parts ([MusicRequestIntent.cleanPrompt]) — "rock sin reggaeton" used to search "reggaeton".
         val prompt = intent.cleanPrompt
+        // Fila 364 (dueño 2026-10-09: "pedí trap cristiano y dice que no encontró nada"): the whole search runs
+        // under MUSIC_REQUEST_SEARCH_BUDGET_MS, and a timeout THREW AWAY everything already found. The network
+        // steps now stop at their own deadline, so the check and the ranking below always get the pool they have.
+        val searchDeadline = System.currentTimeMillis() + SEARCH_STEPS_BUDGET_MS
+        fun inBudget(): Boolean = System.currentTimeMillis() < searchDeadline
         val parsed = MusicRequestQuery.build(prompt)
         val query = parsed.query.ifBlank { prompt.trim().take(80) }
         if (query.isBlank()) return SearchOutcome(emptyList(), pinnedSpecific = false)
@@ -929,7 +941,7 @@ object AiPlaylistGenerator {
         val styleVerified = HashSet<String>()
         if (intent.styles.isNotEmpty() && effectiveSolo == null && pinned == null) {
             for (style in intent.styles.take(2)) {
-                if (pool.size >= POOL_TARGET) break
+                if (pool.size >= POOL_TARGET || !inBudget()) break
                 val q = MusicRequestIntent.styleQuery(intent, style) ?: continue
                 val found = ArrayList<PlaylistItem>()
                 YouTube.search(q, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST).getOrNull()
@@ -955,7 +967,7 @@ object AiPlaylistGenerator {
         // Peldaño P (fila 361) — "PARECIDO A X": la radio de una canción de X, con X solo una o dos veces (pidió
         // algo como X, no a X).
         intent.likeArtist?.let { like ->
-            if (pool.size < POOL_TARGET) {
+            if (pool.size < POOL_TARGET && inBudget()) {
                 val seedSong = YouTube.search(like, YouTube.SearchFilter.FILTER_SONG).getOrNull()?.items
                     ?.filterIsInstance<SongItem>()
                     ?.firstOrNull { song -> song.artists.any { MusicRequestArtist.sameName(it.name, like) } }
@@ -968,7 +980,7 @@ object AiPlaylistGenerator {
             }
         }
 
-        if (parsed.preferPlaylists && effectiveSolo == null) {
+        if (parsed.preferPlaylists && effectiveSolo == null && inBudget()) {
             // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
             // el peldaño 1: no se le pide a la búsqueda ni a un LLM que ADIVINE qué está de moda —
             // se piden los charts reales de YouTube Music, que es la única fuente que de verdad lo
@@ -1017,15 +1029,15 @@ object AiPlaylistGenerator {
             }
         }
 
-        // Peldaño 3 — canciones sueltas del buscador.
-        if (pool.size < POOL_TARGET) {
+        // Peldaño 3 — canciones sueltas del buscador (siempre, si todavía no hay nada).
+        if (pool.size < POOL_TARGET && (inBudget() || pool.isEmpty())) {
             (songSearchCache ?: YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>())?.let { absorb(christianOnly(it)) }
         }
         // Peldaño 3b — EL CATÁLOGO DEL ARTISTA (ronda 12). Con el artista confirmado, una búsqueda por su
         // nombre trae el resto de sus canciones: más donde elegir y otra lista distinta si vuelve a pedir
         // lo mismo ([MusicRequestRecents]). Una sola petición más, y solo en este caso.
-        if (artistLocked && pool.size < POOL_TARGET) {
+        if (artistLocked && pool.size < POOL_TARGET && inBudget()) {
             effectiveSolo?.let { artist ->
                 YouTube.search(artist, YouTube.SearchFilter.FILTER_SONG).getOrNull()
                     ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
@@ -1033,7 +1045,8 @@ object AiPlaylistGenerator {
         }
         // Peldaño 4 — los VÍDEOS son lo menos fiable (recopilaciones de una hora, versiones de
         // aficionado): en una petición de época o momento solo se tocan si no hay NADA.
-        val videosAllowed = if (parsed.preferPlaylists) pool.isEmpty() else pool.size < target
+        val videosAllowed = (if (parsed.preferPlaylists) pool.isEmpty() else pool.size < target) &&
+            (inBudget() || pool.isEmpty())
         if (videosAllowed) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
@@ -1051,7 +1064,7 @@ object AiPlaylistGenerator {
         // pool queda corto — y lo poco que sí aparece es casi todo del MISMO artista: exactamente la
         // señal de que era eso lo que pidió. En vez de dejar que [MusicRequestRanking] rellene
         // REPITIENDO lo poco que hay, se completa con más canciones REALES de ese mismo artista.
-        if (pool.size < target) {
+        if (pool.size < target && inBudget()) {
             dominantArtist(pool)?.let { artist ->
                 YouTube.search(artist, YouTube.SearchFilter.FILTER_SONG).getOrNull()
                     ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
@@ -1089,7 +1102,7 @@ object AiPlaylistGenerator {
                 pool.mapNotNull { it.artists.firstOrNull()?.name },
                 if (intent.checkable) GATE_WAIT_MS else GATE_WAIT_MS / 2,
             )
-            val outcome = MusicRequestStyleGate.judge(
+            val outcome = MusicRequestStyleGate.judgeWithFallback(
                 intent,
                 pool.map { item ->
                     MusicRequestStyleGate.Cand(item.id, item.title, item.album?.name, item.artists.map { it.name })
@@ -1097,7 +1110,7 @@ object AiPlaylistGenerator {
                 styleVerified,
                 protectedIds,
                 knowledge,
-                minMatches = target,
+                target = target,
             )
             MusicRequestStyleGate.log("search", intent, outcome)
             val keep = outcome.keptIds.toHashSet()
