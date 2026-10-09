@@ -1054,6 +1054,7 @@ class MusicService :
     // Fila 354 — state of the exact-style gate (ExactStyleGate.kt): the chip-steer stand-down and the
     // style search's page cursor.
     internal val exactStyle = ExactStyleState()
+    private var musicRequestFillJob: Job? = null
 
     /**
      * How many items of the CURRENT timeline came from the user's own list (the playlist/album/library
@@ -1983,6 +1984,13 @@ class MusicService :
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        // Fila 361 — "Pedir música" background fills arrive here, whatever screen is showing.
+        musicRequestFillJob?.cancel()
+        musicRequestFillJob = CoroutineScope(Dispatchers.Main + SupervisorJob()).launch {
+            MusicRequestFill.events.collect { event ->
+                runCatching { extendQueueForContext(event.contextId, event.songs.map { it.toMediaItem() }) }
+            }
+        }
 
         // Catch ForegroundServiceStartNotAllowedException (e.g. when playback is (re)started while the app
         // is in the background) so it's logged/reported instead of crashing. (From upstream Echo-Music.)
@@ -2825,7 +2833,7 @@ class MusicService :
                     (prefs[CrossfadeEnabledKey] ?: false) &&
                         !(prefs[iad1tya.echo.music.constants.HighPerformanceModeKey] ?: false) &&
                         !(prefs[iad1tya.echo.music.constants.DataSaverEnabledKey] ?: false),
-                    prefs[CrossfadeDurationKey] ?: 8f,
+                    prefs[CrossfadeDurationKey] ?: iad1tya.echo.music.constants.CrossfadeDefaultSeconds,
                     prefs[CrossfadeGaplessKey] ?: false
                 )
             },
@@ -9599,6 +9607,8 @@ class MusicService :
 
     override fun onDestroy() {
         isRunning = false
+        musicRequestFillJob?.cancel()
+        musicRequestFillJob = null
         playbackKeepAlive.release()
         // Identity-guarded inside the bridge: a service that has already been replaced must not
         // unwire the new one.

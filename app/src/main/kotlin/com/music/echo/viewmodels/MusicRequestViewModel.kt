@@ -126,10 +126,14 @@ constructor(
                 }.getOrNull()
             }
             val taste = tasteJob.await()
+            // Fila 361: "pon 50 canciones de salsa" — the count he asked for (5..100), else the usual 25.
+            val intent = iad1tya.echo.music.playlistimport.MusicRequestIntent.parse(prompt)
+            val requestedTotal = intent.count?.coerceIn(5, 100) ?: targetCount
             val produced = AiPlaylistGenerator.produce(
                 database = database,
                 prompt = prompt,
-                count = firstBatchCount,
+                count = minOf(firstBatchCount, requestedTotal),
+                context = context,
                 provider = provider,
                 apiKey = apiKey,
                 baseUrl = baseUrl,
@@ -149,6 +153,17 @@ constructor(
             // siendo la MISMA cola antes de sumarle canciones — si mientras tanto puso otra cosa a
             // sonar, el relleno no se mete ahí.
             val contextId = "MR:" + UUID.randomUUID()
+            // Fila 361: the smart queue that continues this request keeps exactly what was asked.
+            if (intent.styles.isNotEmpty() || intent.language != null) {
+                iad1tya.echo.music.reco.RequestStyleTargets.put(
+                    contextId,
+                    iad1tya.echo.music.reco.StyleContinuity.Target(
+                        styles = intent.styles.ifEmpty { null },
+                        language = intent.language,
+                        christian = intent.christian,
+                    ),
+                )
+            }
             _state.value = MusicRequestUiState.Ready(produced.name, produced.songs, contextId)
 
             // EL RELLENO EN SEGUNDO PLANO (dueño, 2026-09-22: "que siempre reproduzca de inmediato y
@@ -159,9 +174,9 @@ constructor(
             // guard de `request()` solo mira `job`, así que pedir otra cosa mientras esto sigue en
             // marcha no espera a que termine (y su resultado, si llega tarde, trae un contextId viejo
             // que `extendQueueForContext` ya no reconoce si el usuario cambió de cola mientras tanto).
-            if (produced.songs.size < targetCount) {
+            if (produced.songs.size < requestedTotal) {
                 viewModelScope.launch(Dispatchers.IO) {
-                    fillInBackground(contextId, prompt, targetCount, provider, apiKey, baseUrl, model, taste, produced.songs)
+                    fillInBackground(contextId, prompt, requestedTotal, provider, apiKey, baseUrl, model, taste, produced.songs)
                 }
             }
         }
@@ -188,19 +203,23 @@ constructor(
             AiPlaylistGenerator.produce(
                 database = database,
                 prompt = prompt,
-                count = target,
+                // Fila 361: only what is MISSING — the first batch is already marked recent, so a full
+                // count here used to bring 25 new songs on top of the first 8 (a 33-song queue).
+                count = (target - alreadyPlaying.size).coerceAtLeast(1),
                 provider = provider,
                 apiKey = apiKey,
                 baseUrl = baseUrl,
                 model = model,
                 taste = taste,
+                context = context,
             )
         }.getOrNull()
         if (fuller == null || fuller.songs.isEmpty()) return
         val already = alreadyPlaying.mapTo(HashSet()) { it.id }
         val extra = fuller.songs.filter { it.id !in already }
         if (extra.isNotEmpty()) {
-            _extend.emit(ExtendQueue(contextId, extra))
+            // Fila 361: straight to the service — the Home card may be gone by now (see MusicRequestFill).
+            iad1tya.echo.music.playback.MusicRequestFill.post(contextId, extra)
         }
     }
 

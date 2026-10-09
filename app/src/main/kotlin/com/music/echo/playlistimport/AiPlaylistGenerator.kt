@@ -134,6 +134,13 @@ object AiPlaylistGenerator {
      */
     internal const val PLAYLISTS_USED = 2
 
+    /**
+     * Fila 361 — how long a request may wait for the per-song check's lookups (Last.fm tags and listeners,
+     * iTunes genre) of artists never seen before. Known artists cost nothing (cached); the lookups that miss
+     * this window still land in the caches for the next request.
+     */
+    internal const val GATE_WAIT_MS = 2_500L
+
     /** Doce horas. La taxonomía de estados de ánimo y géneros cambia como mucho cada varios meses. */
     internal const val MOODS_TTL_MS = 12 * 60 * 60 * 1000L
 
@@ -210,12 +217,53 @@ object AiPlaylistGenerator {
          * el resultado es exactamente el orden de origen.
          */
         taste: iad1tya.echo.music.reco.TasteProfile? = null,
+        /**
+         * Fila 361 — needed to CHECK each song (Last.fm tags/listeners, iTunes genres, learned styles). Null =
+         * no per-song check, exactly as before.
+         */
+        context: android.content.Context? = null,
     ): Produced? {
-        val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
-        val startedAt = System.currentTimeMillis()
-        val raced = produceRacing(
-            database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress, taste,
+        // Fila 361: what was really asked (styles, faith, language, year, count, "sin…", "parecido a…").
+        val intent = MusicRequestIntent.parse(prompt)
+        timber.log.Timber.i(
+            "MUSIC_REQUEST intent: styles=%s christian=%b lang=%s year=%b era=%s best=%b count=%s excluded=%d like=%b",
+            intent.styles.sorted().joinToString("+").ifEmpty { "none" },
+            intent.christian,
+            intent.language ?: "none",
+            intent.year != null,
+            intent.era ?: "none",
+            intent.best,
+            intent.count ?: "none",
+            intent.excludedStyles.size + intent.excludedTerms.size,
+            intent.likeArtist != null,
         )
+        val soloArtist = AiPlaylistConstraints.extractSoloArtist(intent.cleanPrompt)
+        val startedAt = System.currentTimeMillis()
+        val racedRaw = produceRacing(
+            database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress, taste,
+            context, intent,
+        )
+        // Fila 361: the AI's songs are checked like the search's (the search checks its own inside).
+        val raced = if (racedRaw != null && racedRaw.fromAi && context != null) {
+            val k = MusicRequestStyleGate.learn(
+                context, racedRaw.songs.mapNotNull { it.artists.firstOrNull()?.name }, GATE_WAIT_MS,
+            )
+            val o = MusicRequestStyleGate.judge(
+                intent,
+                racedRaw.songs.map { mm ->
+                    MusicRequestStyleGate.Cand(mm.id, mm.title, mm.album?.title, mm.artists.map { it.name })
+                },
+                verified = emptySet(),
+                protectedIds = if (soloArtist != null) racedRaw.songs.map { it.id }.toSet() else emptySet(),
+                k = k,
+                minMatches = count,
+            )
+            MusicRequestStyleGate.log("ai", intent, o)
+            val keep = o.keptIds.toHashSet()
+            racedRaw.copy(songs = racedRaw.songs.filter { it.id in keep })
+        } else {
+            racedRaw
+        }
         // Fila 359 (dueño 2026-10-08): no instrumentals or karaoke tracks unless the request asks for them.
         // Here, on the way out, so the AI path, the search path and the background top-up all pass it.
         val produced = raced?.let { r ->
@@ -271,19 +319,34 @@ object AiPlaylistGenerator {
         model: String,
         onResolveProgress: (done: Int, total: Int) -> Unit,
         taste: iad1tya.echo.music.reco.TasteProfile?,
+        context: android.content.Context?,
+        intent: MusicRequestIntent.Intent,
     ): Produced? = coroutineScope {
-        val aiJob = async {
-            runCatching {
-                withTimeoutOrNull(MUSIC_REQUEST_AI_LEASH_MS) {
-                    aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
-                }
-            }.getOrNull()
-        }
-        val searchOutcome = runCatching {
-            withTimeoutOrNull(MUSIC_REQUEST_SEARCH_BUDGET_MS) {
-                searchFallbackPlaylist(prompt, soloArtist, target, taste)
+        // Fila 361: when the request names something the search can CHECK on every song (a style, Christian
+        // content, a language, an exclusion), the search answers and is checked; the AI — whose titles nobody
+        // can verify — is only asked if the search finds nothing. Saves a slow Worker call (battery, data).
+        val searchFirst = intent.checkable
+        val aiJob = if (searchFirst) {
+            null
+        } else {
+            async {
+                runCatching {
+                    withTimeoutOrNull(MUSIC_REQUEST_AI_LEASH_MS) {
+                        aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
+                    }
+                }.getOrNull()
             }
-        }.getOrNull()
+        }
+        val searchOutcome = try {
+            withTimeoutOrNull(MUSIC_REQUEST_SEARCH_BUDGET_MS) {
+                searchFallbackPlaylist(prompt, soloArtist, target, taste, context, intent)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            timber.log.Timber.w("MUSIC_REQUEST search failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+            null
+        }
         val search = searchOutcome?.songs.orEmpty()
 
         // QUE NO IMPROVISE (dueño, 2026-09-17), y aquí está la regla que lo decide entre las dos
@@ -307,8 +370,8 @@ object AiPlaylistGenerator {
         // sin ese candado y puede proponer canciones de otros.
         val verifiable = parsedForRace.decade != null || parsedForRace.language != null ||
             searchOutcome?.pinnedSpecific == true || searchOutcome?.artistLocked == true
-        if (verifiable && search.isNotEmpty()) {
-            aiJob.cancel()
+        if ((verifiable || searchFirst) && search.isNotEmpty()) {
+            aiJob?.cancel()
             return@coroutineScope Produced(
                 name = prompt.trim().take(MAX_NAME_LENGTH),
                 songs = search,
@@ -317,12 +380,12 @@ object AiPlaylistGenerator {
         }
 
         // Desempate a favor de la IA: solo si YA terminó. Esperarla aquí sería volver a la fila.
-        val aiEarly = if (aiJob.isCompleted) runCatching { aiJob.await() }.getOrNull() else null
+        val aiEarly = if (aiJob != null && aiJob.isCompleted) runCatching { aiJob.await() }.getOrNull() else null
         if (aiEarly != null && aiEarly.songs.isNotEmpty()) {
             return@coroutineScope aiEarly
         }
         if (search.isNotEmpty()) {
-            aiJob.cancel()
+            aiJob?.cancel()
             return@coroutineScope Produced(
                 name = prompt.trim().take(MAX_NAME_LENGTH),
                 songs = search,
@@ -330,7 +393,15 @@ object AiPlaylistGenerator {
             )
         }
         // La búsqueda no dio nada: ahora sí merece la pena esperar a la IA hasta su correa.
-        val aiLate = runCatching { aiJob.await() }.getOrNull()
+        val aiLate = if (aiJob != null) {
+            runCatching { aiJob.await() }.getOrNull()
+        } else {
+            runCatching {
+                withTimeoutOrNull(MUSIC_REQUEST_AI_LEASH_MS) {
+                    aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
+                }
+            }.getOrNull()
+        }
         if (aiLate != null && aiLate.songs.isNotEmpty()) aiLate else null
     }
 
@@ -661,11 +732,16 @@ object AiPlaylistGenerator {
      * del mismo catálogo que ya suena en la app.
      */
     private suspend fun searchFallbackPlaylist(
-        prompt: String,
+        rawPrompt: String,
         soloArtist: String?,
         target: Int,
         taste: iad1tya.echo.music.reco.TasteProfile? = null,
+        context: android.content.Context? = null,
+        intent: MusicRequestIntent.Intent = MusicRequestIntent.parse(rawPrompt),
     ): SearchOutcome {
+        // Fila 361: everything below works on the request WITHOUT its "sin X", count, year and "parecido a X"
+        // parts ([MusicRequestIntent.cleanPrompt]) — "rock sin reggaeton" used to search "reggaeton".
+        val prompt = intent.cleanPrompt
         val parsed = MusicRequestQuery.build(prompt)
         val query = parsed.query.ifBlank { prompt.trim().take(80) }
         if (query.isBlank()) return SearchOutcome(emptyList(), pinnedSpecific = false)
@@ -718,14 +794,32 @@ object AiPlaylistGenerator {
         // verificación hoy — ahí sí hace falta este filtro. Solo se activa si la petición lo
         // menciona: sin la palabra, sigue sin haber ningún filtro extra ("puede poner lo que
         // considere mejor").
-        val requireChristian = MusicRequestMoods.requiresChristianContent(prompt)
+        val requireChristian = MusicRequestMoods.requiresChristianContent(prompt) || intent.christian
+        // Fila 361: the words alone dropped most real Christian songs (Redimi2, Alex Campos say neither "Dios"
+        // nor "Jesús" in their titles). An artist iTunes files as Christian & Gospel, or whose Last.fm tags say
+        // worship/gospel, counts too. Snapshots read once, lazily (memory reads, no network).
+        val christianGenres by lazy {
+            context?.let { runCatching { iad1tya.echo.music.reco.GenreCache.snapshot(it) }.getOrNull() }.orEmpty()
+        }
+        val christianTags by lazy {
+            context?.let { runCatching { iad1tya.echo.music.reco.ArtistTagStyles.snapshot(it) }.getOrNull() }.orEmpty()
+        }
+        fun christianArtist(name: String): Boolean {
+            if (iad1tya.echo.music.reco.GenreLane.laneOfTrack(christianGenres, name, null, null) ==
+                iad1tya.echo.music.reco.GenreLane.CHRISTIAN
+            ) {
+                return true
+            }
+            val tag = iad1tya.echo.music.reco.ArtistStyleMemory.key(name)?.let { christianTags[it] }
+            return tag == iad1tya.echo.music.reco.MusicStyle.WORSHIP || tag == "gospel"
+        }
         fun christianOnly(items: List<SongItem>): List<SongItem> =
             if (!requireChristian) {
                 items
             } else {
                 items.filter { item ->
                     MusicRequestMoods.looksChristian(item.title) ||
-                        item.artists.any { MusicRequestMoods.looksChristian(it.name) }
+                        item.artists.any { MusicRequestMoods.looksChristian(it.name) || christianArtist(it.name) }
                 }
             }
 
@@ -827,6 +921,52 @@ object AiPlaylistGenerator {
         // no pueden seguirla — salvo que él haya pedido justo una versión ("flipando remix").
         val pinnedBase = pinned?.let { baseTitleKey(it.title) }
         val wantsVersion = residual.split(Regex("[^\\p{L}\\p{N}]+")).any { it in VERSION_WORDS }
+
+        // Peldaño S (fila 361) — LISTAS HECHAS POR PERSONAS QUE DEMUESTRAN EL ESTILO PEDIDO. "Merengue cristiano
+        // 2026" busca listas con esas palabras y solo usa las que su TÍTULO prueba que son de ese estilo (y
+        // cristianas, si se pidió); sus canciones cuentan como del estilo en la comprobación por canción. Va
+        // antes que las categorías genéricas: es lo más exacto que hay para un estilo concreto.
+        val styleVerified = HashSet<String>()
+        if (intent.styles.isNotEmpty() && effectiveSolo == null && pinned == null) {
+            for (style in intent.styles.take(2)) {
+                if (pool.size >= POOL_TARGET) break
+                val q = MusicRequestIntent.styleQuery(intent, style) ?: continue
+                val found = ArrayList<PlaylistItem>()
+                YouTube.search(q, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST).getOrNull()
+                    ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)?.let { found += it }
+                YouTube.search(q, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST).getOrNull()
+                    ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)?.let { found += it }
+                val year = intent.year?.toString()
+                found
+                    .filter { MusicRequestIntent.playlistMatches(it.title, style, intent.christian) }
+                    .distinctBy { it.id }
+                    .sortedByDescending { year != null && it.title.contains(year) }
+                    .take(PLAYLISTS_USED + 1)
+                    .forEach { pl ->
+                        if (pool.size >= POOL_TARGET) return@forEach
+                        YouTube.playlist(pl.id).getOrNull()?.songs?.let { songs ->
+                            val before = pool.size
+                            absorb(songs.shuffled())
+                            for (idx in before until pool.size) styleVerified.add(pool[idx].id)
+                        }
+                    }
+            }
+        }
+        // Peldaño P (fila 361) — "PARECIDO A X": la radio de una canción de X, con X solo una o dos veces (pidió
+        // algo como X, no a X).
+        intent.likeArtist?.let { like ->
+            if (pool.size < POOL_TARGET) {
+                val seedSong = YouTube.search(like, YouTube.SearchFilter.FILTER_SONG).getOrNull()?.items
+                    ?.filterIsInstance<SongItem>()
+                    ?.firstOrNull { song -> song.artists.any { MusicRequestArtist.sameName(it.name, like) } }
+                if (seedSong != null) {
+                    val radio = YouTube.next(WatchEndpoint(videoId = seedSong.id, playlistId = "RDAMVM${seedSong.id}"))
+                        .getOrNull()?.items.orEmpty()
+                    val byLike = radio.filter { song -> song.artists.any { MusicRequestArtist.sameName(it.name, like) } }
+                    absorb(christianOnly(radio.filterNot { it in byLike } + byLike.take(1)))
+                }
+            }
+        }
 
         if (parsed.preferPlaylists && effectiveSolo == null) {
             // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
@@ -937,6 +1077,32 @@ object AiPlaylistGenerator {
             "MUSIC_REQUEST specific=%b artist=%b qualifiers=%d versionsDropped=%d pool=%d",
             pinned != null, artistLocked, qualifiers.size, versionsDropped, pool.size,
         )
+        // Fila 361 — LA COMPROBACIÓN POR CANCIÓN ([MusicRequestStyleGate]): estilo, idioma, exclusiones y artista
+        // real. Lo que él nombró (la canción fijada, el artista confirmado) nunca se juzga.
+        if (context != null && pool.isNotEmpty()) {
+            val protectedIds = buildSet {
+                specificMatchId?.let { add(it) }
+                if (artistLocked || soloArtist != null) pool.forEach { add(it.id) }
+            }
+            val knowledge = MusicRequestStyleGate.learn(
+                context,
+                pool.mapNotNull { it.artists.firstOrNull()?.name },
+                if (intent.checkable) GATE_WAIT_MS else GATE_WAIT_MS / 2,
+            )
+            val outcome = MusicRequestStyleGate.judge(
+                intent,
+                pool.map { item ->
+                    MusicRequestStyleGate.Cand(item.id, item.title, item.album?.name, item.artists.map { it.name })
+                },
+                styleVerified,
+                protectedIds,
+                knowledge,
+                minMatches = target,
+            )
+            MusicRequestStyleGate.log("search", intent, outcome)
+            val keep = outcome.keptIds.toHashSet()
+            pool.retainAll { it.id in keep }
+        }
         val fresh = pool.filter { it.id == specificMatchId || !MusicRequestRecents.isRecent(it.id) }
         // Ronda 10 (dueño: "sin importar cuántas veces lo pida, la lista debe ser diferente" para un
         // TEMA en palabras naturales — sueño, ejercicio, género, década). Antes, si excluir lo

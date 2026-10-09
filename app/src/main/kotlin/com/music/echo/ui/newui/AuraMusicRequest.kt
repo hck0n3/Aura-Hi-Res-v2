@@ -101,11 +101,8 @@ fun AuraMusicRequestCard(
     // arriba) — ver MusicRequestViewModel.fillInBackground. Vive fuera de `sheetOpen`/`ready` a
     // propósito: la hoja ya se cerró para cuando esto llega, pero la música sigue sonando y es a esa
     // cola a la que hay que sumarle el resto.
-    LaunchedEffect(Unit) {
-        viewModel.extend.collect { event ->
-            playerConnection.extendQueueForContext(event.contextId, event.songs.map { it.toMediaItem() })
-        }
-    }
+    // Fila 361: the fill now goes straight to the service (MusicRequestFill), so it also arrives when
+    // Inicio is no longer on screen — nothing to collect here any more.
 
     Row(
         verticalAlignment = Alignment.CenterVertically,

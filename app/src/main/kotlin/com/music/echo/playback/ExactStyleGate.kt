@@ -213,10 +213,12 @@ internal suspend fun MusicService.exactStyleFilter(
     } else {
         return@withContext null
     }
+    // Fila 361: a "Pedir música" queue continues what was ASKED (styles, language, faith), not a guess.
+    val base = iad1tya.echo.music.reco.RequestStyleTargets.get(radioOriginContextId) ?: detected
     val override = st.override
-    val target = StyleContinuity.applyOverride(detected, override)
+    val target = StyleContinuity.applyOverride(base, override)
     st.follow.value = StyleContinuity.Follow(
-        detected = detected.styles.orEmpty().sorted(),
+        detected = base.styles.orEmpty().sorted(),
         applied = target.styles.orEmpty().sorted(),
         christian = target.christian,
         language = target.language,

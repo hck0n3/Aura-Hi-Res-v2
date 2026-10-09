@@ -631,6 +631,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         migratePreampDefault20260925(settings)
         // SEPARATE: owner order 2026-10-06 — phone-speaker protection and auto headroom OFF, once.
         migrateSoundProtectionsOff20261006(settings)
+        // SEPARATE, LAST WORD on the crossfade length: fila 362 (owner 2026-10-09) — 6 s for everyone, once,
+        // after every older writer (8 s directives) so none of them can undo it.
+        migrateCrossfade6s20261009(settings)
 
         // Establish, at most ONCE per install, where this data came from — and clean up after a
         // platform restore before anything is allowed to act on the restored rows. Must run before
@@ -1163,7 +1166,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 // runs AFTER batch A on fresh installs, so mismatched values here would silently undo it.
                 // 8 s (owner directive 2026-09-05, re-affirmed 2026-09-13): this seed runs AFTER the batch
                 // that writes CrossfadeDefault8, so its old 5 s silently put every fresh install back on 5 s.
-                p[iad1tya.echo.music.constants.CrossfadeDurationKey] = 8f
+                // Fila 362: fresh installs start on the 6 s owner default.
+                p[iad1tya.echo.music.constants.CrossfadeDurationKey] = iad1tya.echo.music.constants.CrossfadeDefaultSeconds
                 p[iad1tya.echo.music.constants.CrossfadeCurveKey] = 4
                 p[iad1tya.echo.music.constants.SafeVolumeEnabledKey] = true
             }
@@ -1401,6 +1405,23 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         if (crossfadeOk && preampOk) {
             dataStore.edit { it[iad1tya.echo.music.constants.AudioDefaults20260913AppliedKey] = true }
         }
+    }
+
+    /**
+     * One-time (fila 362, owner 2026-10-09: *"el fundido cruzado lo quiero por default en 6 segundos"*): the
+     * crossfade length goes to [iad1tya.echo.music.constants.CrossfadeDefaultSeconds] for everyone ONCE — same
+     * "sí o sí" contract as the 8 s directive (CrossfadeDefault8) it replaces. The on/off switch and the curve
+     * are untouched; changing the length afterwards in Ajustes wins forever.
+     */
+    private suspend fun migrateCrossfade6s20261009(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.CrossfadeDefault6AppliedKey] == true) return
+        runCatching {
+            dataStore.edit {
+                it[iad1tya.echo.music.constants.CrossfadeDurationKey] =
+                    iad1tya.echo.music.constants.CrossfadeDefaultSeconds
+                it[iad1tya.echo.music.constants.CrossfadeDefault6AppliedKey] = true
+            }
+        }.onFailure { reportException(it) }
     }
 
     /**
@@ -2102,7 +2123,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 .map {
                     iad1tya.echo.music.utils.DiagnosticHeader.Settings(
                         crossfadeEnabled = it[iad1tya.echo.music.constants.CrossfadeEnabledKey] ?: true,
-                        crossfadeSeconds = it[iad1tya.echo.music.constants.CrossfadeDurationKey] ?: 8f,
+                        crossfadeSeconds = it[iad1tya.echo.music.constants.CrossfadeDurationKey] ?: iad1tya.echo.music.constants.CrossfadeDefaultSeconds,
                         enhancedShuffle = it[iad1tya.echo.music.constants.EnhancedShuffleKey] ?: false,
                         safeVolume = it[iad1tya.echo.music.constants.SafeVolumeEnabledKey] ?: false,
                         audioOffload = it[iad1tya.echo.music.constants.AudioOffload] ?: false,

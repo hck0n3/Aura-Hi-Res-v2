@@ -322,6 +322,33 @@ object LastFM {
         }.getOrNull()
     }
 
+    /**
+     * Fila 361 — how many Last.fm listeners an artist has (public data, unsigned GET). 0 = Last.fm does not
+     * know the artist (error 6, a definitive answer); null = the request failed (transient). Never throws.
+     * Used to tell real artists from anonymous uploads (AI-generated channels have no listeners).
+     */
+    suspend fun getArtistListeners(artist: String): Long? {
+        if (!isInitialized() || artist.isBlank()) return null
+        return runCatching {
+            val response = client.get {
+                userAgent("AuraHiRes (https://github.com/hck0n3)")
+                parameter("method", "artist.getInfo")
+                parameter("artist", artist)
+                parameter("autocorrect", "1")
+                parameter("api_key", API_KEY)
+                parameter("format", "json")
+            }
+            if (response.status.value >= 500) return@runCatching null
+            val root = json.parseToJsonElement(response.bodyAsText()) as? kotlinx.serialization.json.JsonObject
+                ?: return@runCatching null
+            val error = (root["error"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+            if (error != null) return@runCatching if (error == 6) 0L else null
+            val stats = ((root["artist"] as? kotlinx.serialization.json.JsonObject)?.get("stats")
+                as? kotlinx.serialization.json.JsonObject) ?: return@runCatching 0L
+            (stats["listeners"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.toLongOrNull() ?: 0L
+        }.getOrNull()
+    }
+
     // API keys passed from the app module (loaded from BuildConfig / gradle secrets)
     private var API_KEY = ""
     private var SECRET = ""

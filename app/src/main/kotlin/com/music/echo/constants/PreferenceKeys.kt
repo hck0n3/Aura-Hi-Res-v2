@@ -473,6 +473,12 @@ val ShufflePlaylistFirstKey = booleanPreferencesKey("shufflePlaylistFirst")
 val PreventDuplicateTracksInQueueKey = booleanPreferencesKey("preventDuplicateTracksInQueue")
 val CrossfadeEnabledKey = booleanPreferencesKey("crossfadeEnabled")
 val CrossfadeDurationKey = floatPreferencesKey("crossfadeDuration")
+
+/** Fila 362 (dueño 2026-10-09: "el fundido cruzado lo quiero por default en 6 segundos"). Every read default. */
+const val CrossfadeDefaultSeconds = 6f
+
+/** Fila 362 — one-shot: puts everyone's crossfade on [CrossfadeDefaultSeconds] once. */
+val CrossfadeDefault6AppliedKey = booleanPreferencesKey("crossfade_default_6s_20261009_applied")
 val CrossfadeGaplessKey = booleanPreferencesKey("crossfadeGapless")
 // Transition curve: 0 = Linear, 1 = Smooth/equal-power (default, no volume dip), 2 = Long S-curve,
 // 3 = Exponential (quick). (Matches CrossfadeMath.getGains + the PlayerSettings labels.)

@@ -113,7 +113,7 @@ fun PlayerSettings(
     )
     val (crossfadeDuration, onCrossfadeDurationChange) = rememberPreference(
         CrossfadeDurationKey,
-        defaultValue = 8f
+        defaultValue = iad1tya.echo.music.constants.CrossfadeDefaultSeconds
     )
     val (crossfadeCurve, onCrossfadeCurveChange) = rememberPreference(
         CrossfadeCurveKey,

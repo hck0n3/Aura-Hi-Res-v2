@@ -211,6 +211,25 @@ object MusicStyle {
         }
     }
 
+    /**
+     * Fila 361 — EVERY style a free text names (a request: "salsa y merengue cristiano"), concrete ones only
+     * unless the text names nothing else ("alabanza" alone = worship). Same phrase matching as [fromText].
+     */
+    fun stylesIn(text: String?): Set<String> {
+        if (text.isNullOrBlank()) return emptySet()
+        var padded = " ${fold(text)} "
+        val found = LinkedHashSet<String>()
+        for ((phrase, id) in phrases) {
+            val needle = " $phrase "
+            if (padded.contains(needle)) {
+                found.add(id)
+                padded = padded.replace(needle, " | ")
+            }
+        }
+        val concrete = found.filter { it !in YIELDING }.toSet()
+        return concrete.ifEmpty { found }
+    }
+
     /** What an iTunes primary genre says: a concrete style, or only its family, or nothing. */
     data class GenreInfo(val style: String?, val family: String?)
 
