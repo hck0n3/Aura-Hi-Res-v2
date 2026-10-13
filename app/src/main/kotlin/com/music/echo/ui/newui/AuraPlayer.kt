@@ -1127,12 +1127,17 @@ private fun AuraPlayerShape(
                     ),
             ) {
                 if (showInlineLyrics) {
-                    Box(Modifier.fillMaxSize().padding(horizontal = AuraSpacing.Gutter)) {
-                        InlineLyricsView(
-                            mediaMetadata = mediaMetadata,
-                            showLyrics = true,
-                            positionProvider = { sliderPosition ?: if (isCasting) castPosition else null },
-                        )
+                    // Owner 2026-10-13 ("las letras: no funciona el botón de pantalla completa"): while the
+                    // full-screen overlay below is up it draws its OWN lyrics view, so this slot must not
+                    // compose a second one (two lyric tickers under one screen = needless heat/battery).
+                    if (!isFullScreen) {
+                        Box(Modifier.fillMaxSize().padding(horizontal = AuraSpacing.Gutter)) {
+                            InlineLyricsView(
+                                mediaMetadata = mediaMetadata,
+                                showLyrics = true,
+                                positionProvider = { sliderPosition ?: if (isCasting) castPosition else null },
+                            )
+                        }
                     }
                     if (isFullScreen && enableLyricsThumbnailPlayPause) {
                         // §2.1 — the 56 dp cover doubles as play/pause while the lyrics are full screen.
@@ -2158,6 +2163,21 @@ private fun AuraPlayerShape(
                     }
                 }
             }
+        }
+
+        // FULL-SCREEN LYRICS (owner 2026-10-13: the header button "no funciona"). `isFullScreen` used to
+        // flip a flag that only hid the queue bar — the redesigned container [AuraLyricsScreen] existed but
+        // nothing ever composed it, so tapping the button changed nothing visible. It is drawn here, over the
+        // whole player, only while the lyrics are open AND the flag is on; closing returns to the inline
+        // lyrics (`isFullScreen = false`), and the LaunchedEffect above also clears it if the lyrics close.
+        if (isFullScreen && showInlineLyrics && !immersiveVideo) {
+            AuraLyricsScreen(
+                navController = navController,
+                onClose = { isFullScreen = false },
+                // Consumes taps on empty areas so they never fall through to the player drawn underneath.
+                modifier = Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } },
+                positionProvider = { sliderPosition ?: if (isCasting) castPosition else null },
+            )
         }
 
         // CAST: pinned top-right (owner). Hidden while inline lyrics are open — the lyrics pane owns
