@@ -1,4 +1,27 @@
-# Aura Hi-Res v2.0.64 — La cola sigue tu estilo, Pedir música te entiende y los colores de tu portada
+# Aura Hi-Res v2.0.65-beta1 — Novedades solo de tus artistas, la cola ya no se repite y vuelve el temporizador
+
+Beta SOLO PARA EL DUEÑO, encima de la 2.0.64. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Novedades
+
+- **Solo artistas que sigues:** Novedades y el radar semanal ya no muestran cantantes que solo has escuchado.
+
+## Cola inteligente
+
+- **Al terminar una lista ya no se repite sola** (aunque repetir esté apagado): la cola inteligente sigue con música nueva.
+- **Después de Pedir música la cola continúa** como con cualquier otra lista.
+
+## Favoritos
+
+- **Tus «me gusta» ya no se desmarcan al día siguiente:** si no llegaron a tu cuenta, se reenvían en lugar de borrarse.
+
+## Letras
+
+- **El botón de pantalla completa de la letra funciona** en la interfaz nueva.
+
+## Temporizador
+
+- **Vuelve el temporizador de apagado:** de 5 a 120 minutos o «Al finalizar la canción», desde el menú del reproductor.
 
 Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Reúne todo lo probado en las
 betas de la 2.0.64.
