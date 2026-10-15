@@ -81,4 +81,19 @@ class AuraWideChromeTest {
         assertTrue(left.top >= 0f && left.bottom <= 2000f)
         assertTrue(left.right < right.left)
     }
+
+    @Test
+    fun `the header puts the buttons on their own line only when the title does not fit beside them`() {
+        // A 411 dp phone at 2.6x: 1069 px wide, 40 dp gutters -> ~ 965 px for the row; five 48 dp buttons ~ 650 px.
+        val gap = 21
+        // «Aura Hi-Res» at 29 sp needs ~ 440 px: it did NOT fit beside the buttons (and ended in «…»).
+        assertTrue(!auraHeaderFitsOneRow(titleWidth = 440, actionsWidth = 650, availableWidth = 965, gap = gap))
+        // The same title on a Z Fold 7 (750 dp): plenty of room, the one-row header is unchanged.
+        assertTrue(auraHeaderFitsOneRow(titleWidth = 440, actionsWidth = 650, availableWidth = 1700, gap = gap))
+        // A short title beside fewer buttons still shares the row.
+        assertTrue(auraHeaderFitsOneRow(titleWidth = 200, actionsWidth = 260, availableWidth = 965, gap = gap))
+        // Exactly full is fine; one pixel over is not.
+        assertTrue(auraHeaderFitsOneRow(titleWidth = 100, actionsWidth = 100, availableWidth = 221, gap = 21))
+        assertTrue(!auraHeaderFitsOneRow(titleWidth = 100, actionsWidth = 100, availableWidth = 220, gap = 21))
+    }
 }

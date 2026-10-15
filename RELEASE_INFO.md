@@ -1,6 +1,14 @@
-# Aura Hi-Res v2.0.65-beta8 — El reproductor dividido no se cierra y Inicio vuelve a funcionar
+# Aura Hi-Res v2.0.65-beta9 — Títulos completos en Inicio y Novedades
 
-Beta encima de la 2.0.65-beta7. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta8. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Cabeceras
+
+- **El nombre «Aura Hi-Res» de Inicio y el título de Novedades (y Buscar) se ven completos en el móvil.** Antes los
+  cinco botones de arriba les quitaban el sitio y se cortaban con «…». Ahora, si no caben juntos, los botones pasan
+  a su propia línea encima del título. En el plegable todo queda igual.
+
+También incluye todo lo de la beta8:
 
 ## Plegables y tabletas
 

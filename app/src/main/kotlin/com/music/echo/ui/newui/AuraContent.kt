@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -123,36 +124,89 @@ fun AuraScreenHeader(
     /** Row 349: a styled title (Inicio's «Aura Hi-Res» wordmark). [title] stays the plain-text fallback. */
     styledTitle: androidx.compose.ui.text.AnnotatedString? = null,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    AuraHeaderLayout(
         modifier = modifier
             .fillMaxWidth()
             .padding(start = AuraSpacing.Gutter, end = AuraSpacing.Gutter, top = 8.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            if (label != null) {
-                AuraSectionLabel(label)
-                Spacer(Modifier.height(6.dp))
+        title = {
+            Column {
+                if (label != null) {
+                    AuraSectionLabel(label)
+                    Spacer(Modifier.height(6.dp))
+                }
+                Text(
+                    text = styledTitle ?: androidx.compose.ui.text.AnnotatedString(title),
+                    style = AuraType.ScreenTitle,
+                    color = AuraPalette.OnGround,
+                    maxLines = 1,
+                    overflow = AuraDefaultOverflow,
+                )
             }
-            if (styledTitle != null) {
-                Text(
-                    text = styledTitle,
-                    style = AuraType.ScreenTitle,
-                    color = AuraPalette.OnGround,
-                    maxLines = 1,
-                    overflow = AuraDefaultOverflow,
-                )
-            } else {
-                Text(
-                    text = title,
-                    style = AuraType.ScreenTitle,
-                    color = AuraPalette.OnGround,
-                    maxLines = 1,
-                    overflow = AuraDefaultOverflow,
-                )
+        },
+        trailing = trailing,
+    )
+}
+
+/** Breathing room between a title and the action buttons that share its row. */
+private val AuraHeaderGap = 8.dp
+
+/**
+ * Does the title fit on the SAME row as the action buttons, at full size? Pure, for test.
+ *
+ * Owner 2026-10-15: «en la interfaz cuando no está plegable no se ve completo el nombre de Aura Hi-Res, también en
+ * Novedades no se ve completo lo que dice Novedades de la parte de arriba». The header carries five 48 dp buttons
+ * (reconocer, escuchar juntos, historial, sin conexión, cuenta) ≈ 250 dp: on a phone that leaves ~120 dp for a 29 sp
+ * title that needs ~170 dp, so it ended in «…». Nothing is removed and nothing is shrunk: when it does not fit, the
+ * buttons take their own line.
+ */
+internal fun auraHeaderFitsOneRow(titleWidth: Int, actionsWidth: Int, availableWidth: Int, gap: Int): Boolean =
+    titleWidth + actionsWidth + gap <= availableWidth
+
+/**
+ * Title + action buttons. One row when the title fits beside the buttons (a fold, a tablet, a short title — exactly
+ * what it was); otherwise the buttons sit right-aligned on a line of their own ABOVE the title — the large-title
+ * pattern — and the title gets the whole width, complete.
+ */
+@Composable
+private fun AuraHeaderLayout(
+    modifier: Modifier,
+    title: @Composable () -> Unit,
+    trailing: (@Composable () -> Unit)?,
+) {
+    if (trailing == null) {
+        Box(modifier) { title() }
+        return
+    }
+    androidx.compose.ui.layout.Layout(
+        content = {
+            Box(Modifier.layoutId("title")) { title() }
+            Box(Modifier.layoutId("actions")) { trailing() }
+        },
+        modifier = modifier,
+    ) { measurables, constraints ->
+        val titleM = measurables.first { it.layoutId == "title" }
+        val actionsM = measurables.first { it.layoutId == "actions" }
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val maxW = constraints.maxWidth
+        val actions = actionsM.measure(loose)
+        val gap = AuraHeaderGap.roundToPx()
+        // A single line: its intrinsic width does not depend on the height. A scrolling list hands us an UNBOUNDED height,
+        // which an intrinsic query is better off without.
+        val wanted = titleM.maxIntrinsicWidth(if (constraints.hasBoundedHeight) constraints.maxHeight else 0)
+        if (auraHeaderFitsOneRow(wanted, actions.width, maxW, gap)) {
+            val t = titleM.measure(loose.copy(maxWidth = (maxW - actions.width - gap).coerceAtLeast(0)))
+            val h = maxOf(t.height, actions.height)
+            layout(maxW, h) {
+                t.placeRelative(0, (h - t.height) / 2)
+                actions.placeRelative(maxW - actions.width, (h - actions.height) / 2)
+            }
+        } else {
+            val t = titleM.measure(loose.copy(maxWidth = maxW))
+            layout(maxW, actions.height + t.height) {
+                actions.placeRelative(maxW - actions.width, 0)
+                t.placeRelative(0, actions.height)
             }
         }
-        trailing?.invoke()
     }
 }
 
