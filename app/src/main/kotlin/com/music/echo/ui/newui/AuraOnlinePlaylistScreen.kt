@@ -741,7 +741,7 @@ private fun AuraOnlinePlaylistHeader(
             // Izado: dentro del Box de dentro el receptor implícito más cercano es BoxScope, no
             // BoxWithConstraintsScope, así que `maxWidth` no se alcanza ahí sin receptor explícito.
             val heroWidth = maxWidth
-            val isWideHero = heroWidth >= 840.dp
+            val isWideHero = heroWidth >= AURA_WIDE_HERO_MIN_WIDTH
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

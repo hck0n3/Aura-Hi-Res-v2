@@ -3069,7 +3069,7 @@ private fun rememberEqEnabledReadOnly(): Boolean {
  * so this one does too: the track drops to the disabled foreground step and the thumb goes with it.
  */
 @Composable
-private fun auraSliderColors(): SliderColors = SliderDefaults.colors(
+internal fun auraSliderColors(): SliderColors = SliderDefaults.colors(
     activeTrackColor = AuraPalette.Teal,
     activeTickColor = AuraPalette.Teal,
     thumbColor = AuraPalette.Teal,

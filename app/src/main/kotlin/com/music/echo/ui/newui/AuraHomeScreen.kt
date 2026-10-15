@@ -232,7 +232,10 @@ fun AuraHomeScreen(
     // fighting: `SmallGridThumbnailHeight / GridThumbnailHeight` is exactly the ratio the classic Home
     // shrinks by.
     val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
+    // Capped at a big phone's width: on an unfolded foldable / tablet the shelves keep PHONE-sized cards and
+    // simply show more of them per row. Scaling the cards by the window made them 2× bigger there — the
+    // "todo gigante" the owner reported (2026-10-15), and a Home that did not look like the phone's.
+    val screenWidth = configuration.screenWidthDp.dp.coerceAtMost(AURA_HOME_REFERENCE_MAX_WIDTH)
     // Match the exact width calculation from AuraArtistItemsScreen (GridCells.Fixed(2) with 14.dp gap)
     val twoColumnWidth = (screenWidth - AuraSpacing.Gutter * 2 - 14.dp) / 2
     val referenceScale = twoColumnWidth / 156.dp

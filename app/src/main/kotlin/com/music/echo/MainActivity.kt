@@ -1978,7 +1978,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                             .windowInsetsPadding(
                                             if (showRail) {
-                                                WindowInsets(left = NavigationBarHeight)
+                                                WindowInsets(left = if (newUiShell) iad1tya.echo.music.ui.newui.AuraRailWidth else NavigationBarHeight)
                                                     .add(cutoutInsets.only(WindowInsetsSides.Start))
                                             } else {
                                                 cutoutInsets.only(WindowInsetsSides.Start + WindowInsetsSides.End)
@@ -2238,13 +2238,28 @@ class MainActivity : ComponentActivity() {
                             }
 
                             if (showRail && currentRoute != "update") {
-                                AppNavigationRail(
-                                    navigationItems = navigationItems,
-                                    currentRoute = currentRoute,
-                                    onItemClick = onRailItemClick,
-                                    pureBlack = pureBlack,
-                                    onSearchLongClick = onRailSearchLongClick
-                                )
+                                if (newUiShell) {
+                                    // Owner 2026-10-15: a wide window with the new UI on still drew
+                                    // Material's rail. The Aura rail is the bottom bar turned vertical
+                                    // (same cells, same ink, same selection pill) — see AuraWideChrome.kt.
+                                    iad1tya.echo.music.ui.newui.AuraNavigationRail(
+                                        items = navigationItems,
+                                        isSelected = { screen ->
+                                            currentRoute == screen.route ||
+                                                currentRoute?.startsWith("${screen.route}/") == true
+                                        },
+                                        onItemClick = onRailItemClick,
+                                        onSearchLongClick = onRailSearchLongClick,
+                                    )
+                                } else {
+                                    AppNavigationRail(
+                                        navigationItems = navigationItems,
+                                        currentRoute = currentRoute,
+                                        onItemClick = onRailItemClick,
+                                        pureBlack = pureBlack,
+                                        onSearchLongClick = onRailSearchLongClick
+                                    )
+                                }
                             }
                             // LEFT-side variant of the persistent now-playing panel (some Android-auto users
                             // prefer it on the left). Same gate as the right one; only the position differs.
@@ -2253,16 +2268,19 @@ class MainActivity : ComponentActivity() {
                                 currentRoute != "update" &&
                                 !playerBottomSheetState.isExpanded
                             ) {
-                                NowPlayingSidePanel(
-                                    onExpand = {
-                                        Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelLeft route=%s", currentRoute)
-                                        playerBottomSheetState.expandSoft()
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .widthIn(min = 300.dp, max = 360.dp)
-                                        .width(sidePanelWidth),
-                                )
+                                val onExpandPanel = {
+                                    Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelLeft route=%s", currentRoute)
+                                    playerBottomSheetState.expandSoft()
+                                }
+                                val panelModifier = Modifier
+                                    .fillMaxHeight()
+                                    .widthIn(min = 300.dp, max = 360.dp)
+                                    .width(sidePanelWidth)
+                                if (newUiShell) {
+                                    iad1tya.echo.music.ui.newui.AuraNowPlayingPanel(onExpand = onExpandPanel, modifier = panelModifier)
+                                } else {
+                                    NowPlayingSidePanel(onExpand = onExpandPanel, modifier = panelModifier)
+                                }
                             }
                             // HAZE SOURCE — NEVER UNMOUNTS while children live (unification
                             // 2026-08-31, owner: "problemas de transparencia y lógica"): the
@@ -2425,16 +2443,19 @@ class MainActivity : ComponentActivity() {
                                 currentRoute != "update" &&
                                 !playerBottomSheetState.isExpanded
                             ) {
-                                NowPlayingSidePanel(
-                                    onExpand = {
-                                        Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelRight route=%s", currentRoute)
-                                        playerBottomSheetState.expandSoft()
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .widthIn(min = 300.dp, max = 360.dp)
-                                        .width(sidePanelWidth),
-                                )
+                                val onExpandPanel = {
+                                    Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelRight route=%s", currentRoute)
+                                    playerBottomSheetState.expandSoft()
+                                }
+                                val panelModifier = Modifier
+                                    .fillMaxHeight()
+                                    .widthIn(min = 300.dp, max = 360.dp)
+                                    .width(sidePanelWidth)
+                                if (newUiShell) {
+                                    iad1tya.echo.music.ui.newui.AuraNowPlayingPanel(onExpand = onExpandPanel, modifier = panelModifier)
+                                } else {
+                                    NowPlayingSidePanel(onExpand = onExpandPanel, modifier = panelModifier)
+                                }
                             }
                         }
                     }

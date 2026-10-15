@@ -1040,7 +1040,7 @@ private fun AuraArtistHero(
         // Hoisted: inside the inner Box the closest implicit receiver is BoxScope, not
         // BoxWithConstraintsScope, so `maxWidth` cannot be reached there without an explicit receiver.
         val heroWidth = maxWidth
-        val isWideHero = heroWidth >= 840.dp
+        val isWideHero = heroWidth >= AURA_WIDE_HERO_MIN_WIDTH
         Box(
             modifier = Modifier
                 .fillMaxWidth()
