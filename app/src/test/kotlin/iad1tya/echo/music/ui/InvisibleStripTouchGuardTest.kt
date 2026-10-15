@@ -89,6 +89,14 @@ class InvisibleStripTouchGuardTest {
         // `align(BottomEnd)` and `align(BottomCenter)` aligned inside that, not inside the window.
         assertTrue(main.contains("Box(modifier = if (auraWideBottom) Modifier.fillMaxSize() else Modifier) {"))
         assertTrue(main.contains(".then(if (auraWideBottom) Modifier.fillMaxWidth() else Modifier)"))
+        // Registry row 386: Spotify's two cards are a layout-free frame drawn over the screen and the pane. Margins on the
+        // player sheet itself would misplace its collapsed strip (its position is computed from the whole window).
+        assertTrue(main.contains("AuraSplitCardsFrame("))
+        val shell = source("AuraShell.kt")
+        val capsule = shell.substring(shell.indexOf("fun AuraWideNavCapsule("))
+        // Registry row 387: the capsule wears the mini pill's real liquid glass, behind the same switch.
+        assertTrue(capsule.contains("liquidGlassInteractive("))
+        assertTrue(capsule.contains("glass.interactive && glass.globalEnabled && isGlassSupported()"))
         // The player must size itself by its own pane, not by the window, while it is the right pane.
         val player = source("AuraPlayer.kt")
         assertTrue(player.contains("val isWideLayout = rememberIsWideLayout() && !inSplitPane"))

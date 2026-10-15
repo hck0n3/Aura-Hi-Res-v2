@@ -789,18 +789,32 @@ fun AuraWideNavCapsule(
 ) {
     AuraPaletteSync()
     val hazeState = LocalShellHazeState.current
-    val inPerformanceMode = LocalGlassEffectConfig.current.globalEnabled.not()
+    val glass = LocalGlassEffectConfig.current
+    val inPerformanceMode = glass.globalEnabled.not()
+    // Owner 2026-10-15 (beta5 screenshot): «el flotante de la barra que explora la biblioteca también lo quiero
+    // liquid glass como el del reproductor». Same switch the mini pill and the phone's bar read: the REAL liquid
+    // glass (refraction + light rim) whenever the user has it on and the device supports it; the haze film /
+    // frozen tint / opaque ground fallbacks are unchanged underneath.
+    val liquidGlass = glass.interactive && glass.globalEnabled && isGlassSupported()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .clip(AuraShapes.Card)
-            .then(
+            .let { base ->
                 when {
-                    hazeState == null -> Modifier.background(AuraPalette.GroundRaised)
-                    inPerformanceMode -> Modifier.freezeGlass(hazeState)
-                    else -> Modifier.shellGlass(hazeState)
-                },
-            )
+                    liquidGlass -> base.liquidGlassInteractive(
+                        config = glass,
+                        shape = AuraShapes.Card,
+                        // The mini pill's soft 1.04: a wide surface must not balloon under the finger. The gesture
+                        // does not consume events, so taps on the cells and drags are unaffected.
+                        pressedScale = 1.04f,
+                        interactive = true,
+                    )
+                    hazeState == null -> base.background(AuraPalette.GroundRaised)
+                    inPerformanceMode -> base.freezeGlass(hazeState)
+                    else -> base.shellGlass(hazeState)
+                }
+            }
             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {

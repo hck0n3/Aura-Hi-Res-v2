@@ -1,6 +1,14 @@
-# Aura Hi-Res v2.0.65-beta5 — Plegable arreglado y portadas con el filo de Apple Music
+# Aura Hi-Res v2.0.65-beta6 — Tarjetas como Spotify en el plegable y barra con liquid glass
 
-Beta encima de la 2.0.65-beta4. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta5. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Plegables y tabletas
+
+- **El reproductor dividido se ve como dos tarjetas, como en Spotify:** esquinas redondeadas y un hueco entre la
+  pantalla en la que estabas y el reproductor, sobre el fondo oscuro de la app.
+- **La barra flotante de abajo lleva liquid glass**, igual que el minirreproductor.
+
+También incluye todo lo de la beta5:
 
 ## Portadas
 

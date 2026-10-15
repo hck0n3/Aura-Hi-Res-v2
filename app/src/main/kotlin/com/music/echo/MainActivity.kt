@@ -885,6 +885,7 @@ class MainActivity : ComponentActivity() {
                 val windowsInsets = WindowInsets.systemBars
                 val bottomInset = with(density) { windowsInsets.getBottom(density).toDp() }
                 val bottomInsetDp = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
+                val splitTopInset = with(density) { windowsInsets.getTop(density).toDp() }
 
                 val navController = rememberNavController()
                 val homeViewModel: HomeViewModel = hiltViewModel()
@@ -2111,6 +2112,17 @@ class MainActivity : ComponentActivity() {
                                             } else {
                                                 Modifier
                                             },
+                                        )
+                                    }
+
+                                    // Spotify's two cards: the dark ground with two rounded holes over the screen and the
+                                    // player pane. No layout, no touches — see [AuraSplitCardsFrame]. Under the capsule/pill.
+                                    if (splitActive) {
+                                        iad1tya.echo.music.ui.newui.AuraSplitCardsFrame(
+                                            paneWidth = widePaneWidth,
+                                            topInset = splitTopInset,
+                                            bottomInset = bottomInset,
+                                            progress = { playerBottomSheetState.progress },
                                         )
                                     }
 

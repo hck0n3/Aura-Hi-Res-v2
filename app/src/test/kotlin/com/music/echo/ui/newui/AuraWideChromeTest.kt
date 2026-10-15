@@ -65,4 +65,20 @@ class AuraWideChromeTest {
         assertEquals(720.dp, auraWideNavWidth(1200.dp, playerVisible = false))
         assertTrue(auraWideNavWidth(829.dp, playerVisible = false) > withPlayer)
     }
+
+    @Test
+    fun `the two cards share one centred gap and never overlap or leave the window`() {
+        // 1800 x 2000 px window, a 828 px pane, 26 px gap (10 dp at ~2.6x).
+        val (left, right) = auraSplitCardRects(1800f, 2000f, 828f, 26f, top = 140f, bottom = 8f)
+        assertEquals(26f, left.left, 0f)
+        assertEquals(1800f - 26f, right.right, 0f)
+        // The gap between the cards is the whole gap, centred on the pane boundary (x = 972).
+        assertEquals(26f, right.left - left.right, 0f)
+        assertEquals(972f, (left.right + right.left) / 2f, 0f)
+        // Same vertical extent, inside the window.
+        assertEquals(left.top, right.top, 0f)
+        assertEquals(left.bottom, right.bottom, 0f)
+        assertTrue(left.top >= 0f && left.bottom <= 2000f)
+        assertTrue(left.right < right.left)
+    }
 }

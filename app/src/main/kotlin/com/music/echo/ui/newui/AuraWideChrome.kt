@@ -1,7 +1,18 @@
 package iad1tya.echo.music.ui.newui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -97,4 +108,84 @@ internal fun auraSeeAllColumns(paneWidth: Dp, videoHeavy: Boolean = false): Int 
     val minCard = if (videoHeavy) 300.dp else 168.dp
     val fit = ((available + spacing) / (minCard + spacing)).toInt()
     return fit.coerceAtLeast(if (videoHeavy) 1 else 2)
+}
+
+// ── Tarjetas, como Spotify ────────────────────────────────────────────────────────────────────────
+
+/** Hueco entre las dos tarjetas y hasta el borde de la ventana. */
+val AuraSplitCardGap: Dp = 10.dp
+
+/** Esquinas de las tarjetas. */
+val AuraSplitCardCorner: Dp = 22.dp
+
+/** Aire extra bajo la barra de estado: lo justo para que la tarjeta no pise los iconos del sistema. */
+val AuraSplitCardTopExtra: Dp = 6.dp
+
+/** Aire extra sobre el inset de abajo; MENOR que el margen de la cápsula (8 dp) para que ésta quede DENTRO de la tarjeta. */
+val AuraSplitCardBottomExtra: Dp = 2.dp
+
+/**
+ * Rectángulos de las dos tarjetas en una ventana de [width] × [height] px, en el orden (izquierda, derecha). Pura,
+ * para test. La izquierda termina medio hueco antes del borde del panel y la derecha empieza medio hueco después, así
+ * que el hueco entre ellas mide [gap] enteros y está centrado en el límite del panel.
+ */
+fun auraSplitCardRects(
+    width: Float,
+    height: Float,
+    paneWidth: Float,
+    gap: Float,
+    top: Float,
+    bottom: Float,
+): Pair<Rect, Rect> {
+    val boundary = width - paneWidth
+    val y0 = top
+    val y1 = height - bottom
+    return Rect(gap, y0, boundary - gap / 2f, y1) to Rect(boundary + gap / 2f, y0, width - gap, y1)
+}
+
+/**
+ * Marco de las dos tarjetas del reproductor dividido (dueño, 2026-10-15, captura de Spotify: *«los bordes de las
+ * divisiones… estilo tarjetas, pero que siempre se vean bien con mi diseño»*).
+ *
+ * Es una capa SIN medidas ni toques: pinta el fondo de la app ([AuraPalette.Ground]) en todo lo que queda FUERA de dos
+ * rectángulos de esquinas redondeadas (trazado par-impar). La pantalla de la izquierda y el reproductor de la derecha
+ * siguen componiéndose exactamente como antes, solo que se ven recortados en tarjeta con su hueco — por eso no puede
+ * descolocar el contenido, que es lo que habría hecho meter márgenes en la hoja del reproductor (su posición
+ * colapsada se calcula con la ventana entera).
+ *
+ * Aparece con el progreso de la hoja ([progress], leído en la fase de dibujo: ninguna recomposición por fotograma) y
+ * con el reproductor colapsado tiene alfa 0, así que no se dibuja. Estática: sin animaciones ni muestreo de pantalla.
+ */
+@Composable
+fun AuraSplitCardsFrame(
+    paneWidth: Dp,
+    topInset: Dp,
+    bottomInset: Dp,
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val ground = AuraPalette.Ground
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = ((progress() - 0.15f) / 0.6f).coerceIn(0f, 1f) }
+            .drawWithCache {
+                val (left, right) = auraSplitCardRects(
+                    width = size.width,
+                    height = size.height,
+                    paneWidth = paneWidth.toPx(),
+                    gap = AuraSplitCardGap.toPx(),
+                    top = (topInset + AuraSplitCardTopExtra).toPx(),
+                    bottom = (bottomInset + AuraSplitCardBottomExtra).toPx(),
+                )
+                val corner = CornerRadius(AuraSplitCardCorner.toPx())
+                val frame = Path().apply {
+                    fillType = PathFillType.EvenOdd
+                    addRect(Rect(0f, 0f, size.width, size.height))
+                    addRoundRect(RoundRect(left, corner))
+                    addRoundRect(RoundRect(right, corner))
+                }
+                onDrawBehind { drawPath(frame, ground) }
+            },
+    )
 }
