@@ -55,6 +55,11 @@ class VideoModeCoordinator(private val service: MusicService) {
      */
     private val speculativeVideoBudget = VideoPrefetchBudget()
 
+    private companion object {
+        const val MAX_PREFETCH_RETRIES = 3
+        const val PREFETCH_RETRY_STEP_MS = 2_000L
+    }
+
     /**
      * YouTube Music's Song/Video switch is a PREFERENCE, not a per-track state (owner directive
      * 2026-09-13: "la lógica entre cambiar de música a video y viceversa, igual que YouTube Music").
@@ -207,10 +212,34 @@ class VideoModeCoordinator(private val service: MusicService) {
         // High-Performance Mode defaults to audio-only, but if the user explicitly taps the Video toggle,
         // we should respect their intent and let them switch. We no longer block it here.
         if (service._videoMode.value) {
-            exitVideoMode()
+            // Video → Song the way YouTube Music does it: switch the picture off and keep the audio running.
+            // Falls back to the full rebuild ([exitVideoMode]) whenever the soft gates do not hold.
+            if (!softExitToSong()) exitVideoMode()
         } else {
             enterVideoModeInternal(forceExplicit = true)
         }
+    }
+
+    /** User tapped Song while watching: no rebuild — see [MusicService.trySoftVideoExit]. */
+    private fun softExitToSong(): Boolean {
+        service.swapLogStart("video->audio")
+        if (!service.trySoftVideoExit()) return false
+        service.userExplicitlyExitedVideo = true
+        stickyVideoPreferred = false
+        videoSwapGeneration.incrementAndGet()
+        videoStuckRecoveryJob?.cancel()
+        service.teardownInstantVideoSwap("soft exit video mode")
+        service._videoMode.value = false
+        service._videoUrl.value = null
+        prebuildingIds.clear()
+        videoFormatAttempts.clear()
+        videoFallbackInFlight.clear()
+        // The video no longer loads: hand the network back to the downloads, as the old exit did.
+        resumeOfflineDownloadsAfterVideoPlayback()
+        runCatching { flushAllPendingSongDownloads(service) }
+            .onFailure { Timber.tag(MusicService.TAG).w(it, "flush all pending song downloads failed") }
+        service.swapLogDone("video->audio", "soft")
+        return true
     }
 
     /**
@@ -253,7 +282,10 @@ class VideoModeCoordinator(private val service: MusicService) {
         stickyVideoPreferred = false
         service.player.currentMediaItem?.mediaId?.let { service.resetRetryCount(it) }
         service.videoSwapMeasureStart()
+        service.swapLogStart("audio->video")
         val gen = videoSwapGeneration.incrementAndGet()
+        // Still the same item with its video renderer merely switched off: switch it back on, audio never stops.
+        if (service.trySoftVideoReenter()) return
         if (!service.tryInstantVideoSwap()) {
             service.teardownInstantVideoSwap("video mode on via normal path")
             service._videoMode.value = true
@@ -467,6 +499,7 @@ class VideoModeCoordinator(private val service: MusicService) {
             }
         }
         service.videoSwapMark("applyVideoToCurrent: URL cache MISS → live resolve")
+        service.swapLogPath("rebuild+resolve")
         // Keep playing audio during resolve when arming lazily; spinner only if already in video mode.
         if (!armModeWhenReady) {
             service._videoUrl.value = null  // spinner while resolving
@@ -909,6 +942,25 @@ class VideoModeCoordinator(private val service: MusicService) {
      *   - skip when [iad1tya.echo.music.utils.ThermalManager.isHot]
      *   - a genuine YouTube VIDEO song (isVideoSong == true)
      */
+    /** Postponed prefetch attempts per id (audio resolve was busy). Bounded: [MAX_PREFETCH_RETRIES] per id. */
+    private val prefetchRetries = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /**
+     * The audio resolve was busy: try the speculative video resolve again in a moment, 2 s / 4 s / 6 s later, at
+     * most three times per id, and only while that track is still the current one in audio mode. Every guard of
+     * [prefetchCurrentVideoUrl] runs again on each retry, so heat / data-saver / budget still win.
+     */
+    private fun schedulePrefetchRetry(id: String) {
+        val attempt = prefetchRetries.merge(id, 1) { old, one -> old + one } ?: 1
+        if (attempt > MAX_PREFETCH_RETRIES) return
+        service.scope.launch {
+            delay(PREFETCH_RETRY_STEP_MS * attempt)
+            if (service.player.currentMediaItem?.mediaId == id && !service._videoMode.value) {
+                prefetchCurrentVideoUrl()
+            }
+        }
+    }
+
     internal fun prefetchCurrentVideoUrl() {
         // A toggle-to-video is only possible from audio; when already in video mode the swap has run.
         if (service._videoMode.value) return
@@ -916,8 +968,12 @@ class VideoModeCoordinator(private val service: MusicService) {
         if (service.dataSaverEnabled) return
         // Heat: never start speculative cipher work on a thermally throttled device.
         if (iad1tya.echo.music.utils.ThermalManager.isHot.value) return
-        // Do not contend with the live audio resolve (loader thread) for shared WebView mutexes.
-        if (service.audioStreamResolveInFlight.get() > 0 || YTPlayerUtils.isStreamResolveBusy) return
+        // Do not contend with the live audio resolve (loader thread) for shared WebView mutexes. A busy audio
+        // resolve used to END the attempt for this track for good (the only trigger was the track transition,
+        // which is exactly when the next song's audio is resolving) — so the toggle later paid a cold,
+        // multi-second resolve. Now it only POSTPONES it (see [schedulePrefetchRetry]); decided below, once we
+        // know the track is eligible at all.
+        val audioBusy = service.audioStreamResolveInFlight.get() > 0 || YTPlayerUtils.isStreamResolveBusy
         // Cheap in-memory checks FIRST: bail on a non-video / local / direct-URL track BEFORE paying for the
         // PerformanceMode reads in the first-toggle gate below (those only matter for a genuine video song).
         val id = service.player.currentMediaItem?.mediaId ?: return
@@ -934,7 +990,14 @@ class VideoModeCoordinator(private val service: MusicService) {
         }
         // Already resolved and still fresh → the toggle is already instant; nothing to do.
         val cached = MusicService.videoUrlCache[id]?.takeIf { it.second > System.currentTimeMillis() }?.first
-        if (!cached.isNullOrEmpty()) return
+        if (!cached.isNullOrEmpty()) {
+            prefetchRetries.remove(id)
+            return
+        }
+        if (audioBusy) {
+            schedulePrefetchRetry(id)
+            return
+        }
         if (!prebuildingIds.add(id)) return // a resolve for this id is already in flight (dedupe)
         // Speculative resolves stay capped — in a BURST, which is what protects the audio resolve from
         // WebView mutex contention. The budget refills over time instead of being spent for the life of
@@ -946,8 +1009,11 @@ class VideoModeCoordinator(private val service: MusicService) {
         }
         service.scope.launch(Dispatchers.IO) {
             try {
-                // Bail if audio resolve grabbed the locks while we were queued.
-                if (service.audioStreamResolveInFlight.get() > 0 || YTPlayerUtils.isStreamResolveBusy) return@launch
+                // Bail if audio resolve grabbed the locks while we were queued — and try again shortly.
+                if (service.audioStreamResolveInFlight.get() > 0 || YTPlayerUtils.isStreamResolveBusy) {
+                    withContext(Dispatchers.Main) { schedulePrefetchRetry(id) }
+                    return@launch
+                }
                 if (iad1tya.echo.music.utils.ThermalManager.isHot.value) return@launch
                 val maxH = videoModeMaxHeight
                 var url: String? = null
@@ -980,6 +1046,7 @@ class VideoModeCoordinator(private val service: MusicService) {
                 // Same TTL as the on-demand resolve → applyVideoToCurrent's cache read accepts it as fresh.
                 if (!resolved.isNullOrEmpty()) {
                     MusicService.videoUrlCache[id] = resolved to VideoModePlanning.videoUrlCacheExpiry(System.currentTimeMillis())
+                    prefetchRetries.remove(id)
                     // If the user is looking at the expanded player right now, also warm the connection
                     // (fully re-gated inside: unmetered + capable + video song + once per URL) and attempt
                     // the instant-swap pre-prepare (same trigger moment; delayed so it never competes with
@@ -1003,6 +1070,8 @@ class VideoModeCoordinator(private val service: MusicService) {
      *  the trailing schedule merely re-arms the speculative pre-prepare for a possible re-toggle. */
     fun exitVideoMode() {
         if (!service._videoMode.value && service.videoModeMediaId == null && videoModeItems.isEmpty()) return
+        // The rebuild below makes the soft state moot: re-enable the video track type, forget the flag.
+        service.clearSoftVideoState()
         service.userExplicitlyExitedVideo = true
         stickyVideoPreferred = false
         videoSwapGeneration.incrementAndGet()

@@ -1,6 +1,15 @@
-# Aura Hi-Res v2.0.65-beta6 — Tarjetas como Spotify en el plegable y barra con liquid glass
+# Aura Hi-Res v2.0.65-beta7 — Cambio rápido entre música y vídeo
 
-Beta encima de la 2.0.65-beta5. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta6. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Música y vídeo
+
+- **Cambiar de vídeo a canción es instantáneo y el sonido no se corta**, como en YouTube Music: se apaga la
+  imagen y la música sigue. Volver a vídeo reactiva la imagen sin recargar nada.
+- **Cambiar de canción a vídeo llega más rápido:** el vídeo se prepara en cuanto abres el reproductor y
+  reintenta si en ese momento la app estaba ocupada con el audio.
+
+También incluye todo lo de la beta6:
 
 ## Plegables y tabletas
 

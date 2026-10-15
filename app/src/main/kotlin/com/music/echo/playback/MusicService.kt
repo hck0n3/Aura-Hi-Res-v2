@@ -1461,6 +1461,10 @@ class MusicService :
         playbackState.playerSheetExpanded = expanded
         if (expanded) {
             maybeWarmVideoConnection()
+            // The URL itself: until now it was only ever resolved at the track transition, so a skipped attempt
+            // (audio busy) was never retried and the first toggle paid a cold resolve. Opening the player is the
+            // moment the toggle becomes plausible — self-gated, fire-and-forget, deduped.
+            videoCoordinator.prefetchCurrentVideoUrl()
             // INSTANT VIDEO SWAP: expanding is the "user may toggle video next" moment — attempt the
             // pre-prepare (all hard gates re-checked inside; no-op when anything fails).
             scheduleInstantVideoPrepare()
@@ -6453,6 +6457,13 @@ class MusicService :
      * cache all silently stopped working in the app's default configuration.
      */
     internal fun applyAutoAdvanceSideEffects() {
+        // A soft video item belongs to the track the user was watching: once another track is current (or the
+        // crossfade swap replaced the player) it is rebuilt as plain audio — the old exit, off the playing track.
+        softVideoId?.let { soft ->
+            if (softVideoPlayer !== player || player.currentMediaItem?.mediaId != soft) {
+                hardRestoreSoftVideo("another track is current")
+            }
+        }
         previousMediaItemIndex = player.currentMediaItemIndex
         checkSleepTimerAfterSong()
         lastPlaybackSpeed = -1.0f
@@ -6485,6 +6496,8 @@ class MusicService :
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
+        // A rebuilt video→audio exit has finished the moment audio is audible again (soft exits log themselves).
+        if (isPlaying) swapLogDone("video->audio", "rebuild")
         val autoConnected = isAndroidAutoControllerConnected()
         playbackKeepAlive.setAndroidAutoConnected(autoConnected)
         playbackKeepAlive.setPlaying(isPlaying)
@@ -6754,12 +6767,18 @@ class MusicService :
         }
     }
 
+    /** An audio→video swap has finished when the first video frame is on screen. */
+    override fun onRenderedFirstFrame() {
+        swapLogDone("audio->video", swapLogPathValue)
+    }
+
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
         
         if (playWhenReady && castConnectionHandler?.isCasting?.value == true) {
             player.pause()
             return
         }
+        scheduleSoftVideoRestoreOnPause(playWhenReady)
 
         // Tell OUR error-pause (stopOnError set expectingOwnStopPause right before pausing) apart from a real
         // user/external pause. A pause we did NOT initiate clears pausedByNetwork, so it can never be
@@ -7588,6 +7607,15 @@ class MusicService :
         val mediaId = player.currentMediaItem?.mediaId
         Timber.tag(TAG).w(error, "Player error occurred for $mediaId: errorCode=${error.errorCode}, message=${error.message}")
         reportException(error)
+
+        // A soft video item (Song mode over a still-merged source) failing is an AUDIO failure: leave the soft state
+        // first — video renderer back on, the item rebuilt as plain audio, which also re-prepares it. Otherwise the
+        // tracked item would be classified as a VIDEO failure below, walk the video format ladder and could switch
+        // video mode back on by itself. The next error (if any) takes the normal path, the soft flag is gone.
+        if (softVideoId != null) {
+            hardRestoreSoftVideo("player error while soft")
+            return
+        }
 
         // SESIÓN CADUCADA (registro del dueño, 2026-09-16): 36 canciones distintas seguidas muertas con
         // "Este contenido no está disponible" — un mensaje que culpa a la canción mientras la causa real
@@ -8568,6 +8596,7 @@ class MusicService :
             playerEqProcessors.remove(old)?.let { eq -> equalizerService.removeAudioProcessor(eq) }
             runCatching { old.release() }
             videoSwapMark("INSTANT swap published (pre-prepared dual player)")
+            swapLogPath("instant")
             true
         } catch (e: Exception) {
             if (!committed) {
@@ -8615,6 +8644,155 @@ class MusicService :
         instantVideoPrepareJob?.cancel()
         instantVideoPrepareJob = null
         releaseInstantVideoPlayer(reason)
+    }
+
+    // ── SOFT VIDEO EXIT ───────────────────────────────────────────────────────────────────────────────
+    // Owner 2026-10-15 (third report, rows 148/247): «cuando cambio entre música y vídeo o viceversa no es tan
+    // rápido como YouTube Music». Going Video → Song used to REBUILD the track: replaceMediaItem(audio URI) +
+    // prepare() on the running item — a new source, a new period, the audio halts and refills its start gate.
+    // YouTube Music does not rebuild anything: it stops drawing the picture and the audio carries on.
+    //
+    // The same here. In video mode the current item is a MergingMediaSource (video-only + the app's normal audio).
+    // Disabling the VIDEO track type on the player switches the video renderer off — the decoder is released, the
+    // progressive video period stops loading — while the audio sub-source keeps playing without a single dropped
+    // sample. Song → Video again just re-enables the track type: no resolve, no rebuild, audio never stops.
+    //
+    // The item keeps its video URI while it is "soft"; that is why the soft state is SHORT-LIVED and every other
+    // moment rebuilds the plain audio source exactly like the old exit did:
+    //  · another track becomes current (applyAutoAdvanceSideEffects),
+    //  · playback stays paused for [SOFT_VIDEO_PAUSE_RESTORE_DELAY_MS] (a rebuild is inaudible while paused),
+    //  · the user enters video again (re-enabled, not rebuilt), a video error, or any hard exitVideoMode().
+    // It only applies where the audio sub-source is the app's own (YouTube video-only + merged audio): a muxed
+    // stream carries LOWER-quality audio than the normal one, so those keep the rebuild.
+    @Volatile internal var softVideoId: String? = null
+    private var softVideoPlayer: ExoPlayer? = null
+    private var softVideoPauseJob: Job? = null
+
+    private fun ExoPlayer.setVideoRendererDisabled(disabled: Boolean) {
+        trackSelectionParameters = trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, disabled)
+            .build()
+    }
+
+    /** Video → Song without a rebuild. Returns true only when the video renderer is off and the item stays put. */
+    internal fun trySoftVideoExit(): Boolean {
+        val p = player
+        val id = p.currentMediaItem?.mediaId ?: return false
+        val state = videoCoordinator.videoModeItems[id] ?: return false
+        if (!VideoModePlanning.softExitAllowed(
+                enabled = SOFT_VIDEO_EXIT_ENABLED,
+                isMuxedPodcast = state.isMuxedPodcast,
+                hasSeparateAudioSource = state.originalAudioUri != null,
+                isMuxedStream = id in videoCoordinator.newPipeMuxedVideoIds,
+                // The playing item is THE tracked video item, nothing else is pre-built.
+                onlyCurrentItemTracked = videoModeMediaId == id && videoCoordinator.videoModeItems.size == 1,
+                crossfadeLive = isCrossfading || fadingPlayer != null || secondaryPlayer != null,
+                casting = castConnectionHandler?.isCasting?.value == true,
+                // A buffering / errored / idle player is exactly when the rebuild path is the safe one.
+                playerReady = p.playbackState == Player.STATE_READY,
+            )
+        ) return false
+        return try {
+            p.setVideoRendererDisabled(true)
+            softVideoId = id
+            softVideoPlayer = p
+            Timber.tag("VideoSwap").i("video -> audio: soft (video renderer off, audio untouched)")
+            true
+        } catch (e: Exception) {
+            Timber.tag(TAG).w(e, "Soft video exit failed — using the rebuild path")
+            softVideoId = null
+            softVideoPlayer = null
+            runCatching { p.setVideoRendererDisabled(false) }
+            false
+        }
+    }
+
+    /** Song → Video on an item that is still soft: re-enable the video track, no resolve, no rebuild. */
+    internal fun trySoftVideoReenter(): Boolean {
+        val id = softVideoId ?: return false
+        val cur = player
+        val state = videoCoordinator.videoModeItems[id]
+        if (softVideoPlayer !== cur || cur.currentMediaItem?.mediaId != id || state == null ||
+            cur.playbackState == Player.STATE_IDLE
+        ) {
+            hardRestoreSoftVideo("soft re-entry gates failed")
+            return false
+        }
+        return try {
+            cur.setVideoRendererDisabled(false)
+            softVideoId = null
+            softVideoPlayer = null
+            softVideoPauseJob?.cancel()
+            softVideoPauseJob = null
+            videoModeMediaId = id
+            videoModeOriginalUri = state.originalAudioUri
+            videoModeIsMuxedPodcast = state.isMuxedPodcast
+            _videoMode.value = true
+            _videoUrl.value = state.videoUrl
+            videoCoordinator.pauseOfflineDownloadsForVideoPlayback()
+            videoCoordinator.scheduleVideoStuckRecoveryCheck()
+            Timber.tag("VideoSwap").i("audio -> video: soft re-entry (video renderer back on, no rebuild)")
+            swapLogPath("soft")
+            true
+        } catch (e: Exception) {
+            Timber.tag(TAG).w(e, "Soft video re-entry failed — using the normal path")
+            hardRestoreSoftVideo("soft re-entry exception")
+            false
+        }
+    }
+
+    /** Drop the soft state WITHOUT touching the queue (the caller rebuilds, e.g. the hard [exitVideoMode]). */
+    internal fun clearSoftVideoState() {
+        val pl = softVideoPlayer
+        softVideoId = null
+        softVideoPlayer = null
+        softVideoPauseJob?.cancel()
+        softVideoPauseJob = null
+        if (pl != null) runCatching { pl.setVideoRendererDisabled(false) }
+    }
+
+    /** Leave the soft state the old way: video renderer back on and the item rebuilt as plain audio. */
+    internal fun hardRestoreSoftVideo(reason: String) {
+        if (softVideoId == null) return
+        clearSoftVideoState()
+        Timber.tag("VideoSwap").i("soft video item rebuilt as audio (%s)", reason)
+        videoCoordinator.restoreVideoTracksExcept(null)
+    }
+
+    /** Pause/resume bookkeeping for a soft item: a long pause is the moment to rebuild it, silently. */
+    private fun scheduleSoftVideoRestoreOnPause(playWhenReady: Boolean) {
+        if (softVideoId == null) return
+        softVideoPauseJob?.cancel()
+        softVideoPauseJob = null
+        if (playWhenReady) return
+        softVideoPauseJob = scope.launch {
+            delay(SOFT_VIDEO_PAUSE_RESTORE_DELAY_MS)
+            if (softVideoId != null && !player.playWhenReady) hardRestoreSoftVideo("paused")
+        }
+    }
+
+    // ── Video ↔ Song timing (release-safe): the swap's wall-clock cost, durations only — no ids, no titles. ──
+    @Volatile private var swapLogT0 = 0L
+    @Volatile private var swapLogDirection = ""
+    @Volatile private var swapLogPathValue = "rebuild"
+
+    /** Which route the armed audio→video swap took: soft | instant | rebuild | rebuild+resolve. */
+    internal fun swapLogPath(path: String) {
+        swapLogPathValue = path
+    }
+
+    internal fun swapLogStart(direction: String) {
+        swapLogT0 = android.os.SystemClock.elapsedRealtime()
+        swapLogDirection = direction
+    }
+
+    /** [direction] must match the armed one, so a stale window never logs another swap's end. */
+    internal fun swapLogDone(direction: String, path: String) {
+        val t0 = swapLogT0
+        if (t0 == 0L || swapLogDirection != direction) return
+        swapLogT0 = 0L
+        val ms = android.os.SystemClock.elapsedRealtime() - t0
+        if (ms in 0..30_000) Timber.tag("VideoSwap").i("%s via %s took %d ms", direction, path, ms)
     }
 
     // Video mode is INTEGRATED into the main player: the current track's source is swapped to its muxed
@@ -10173,6 +10351,16 @@ class MusicService :
         // swapToVideo path, zero other behavior change). The safe connection warm-up
         // (maybeWarmVideoConnection) is independent of this flag and stays ACTIVE either way.
         @Volatile
+        /**
+         * Kill switch of the SOFT video exit (Video → Song without rebuilding the track): the video renderer is
+         * switched off and the merged source — and with it the audio — keeps playing untouched. Off = the old
+         * rebuild path, byte-identical. See [trySoftVideoExit].
+         */
+        var SOFT_VIDEO_EXIT_ENABLED = true
+
+        /** A paused soft item is rebuilt as plain audio after this long (nobody hears a rebuild while paused). */
+        private const val SOFT_VIDEO_PAUSE_RESTORE_DELAY_MS = 3_000L
+
         var INSTANT_VIDEO_SWAP_ENABLED = true
         // Delay before pre-preparing after a track transition / video exit, so the speculative player never
         // competes with the running track's own startup buffering. 1200 ms is enough once the URL is warm
