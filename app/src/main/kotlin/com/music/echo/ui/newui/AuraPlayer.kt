@@ -2096,8 +2096,10 @@ private fun AuraPlayerShape(
                     // which carries strictly more than the column does (reordenar, deslizar para quitar,
                     // selección múltiple, las pestañas LETRA y RELACIONADOS). This is the one place this
                     // shape deliberately differs from the classic wide player.
+                    // Hoisted: `maxHeight` belongs to this BoxWithConstraints and is out of reach inside the Row/Column scopes.
+                    val paneTallEnoughForCover = maxHeight >= AURA_WIDE_COVER_MIN_PANE_HEIGHT
                     val showQueuePane = auraShowsQueueColumn(isWideLayout, showInlineLyrics) &&
-                        maxHeight >= AURA_WIDE_COVER_MIN_PANE_HEIGHT
+                        paneTallEnoughForCover
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (showQueuePane) {
                             AuraWideQueuePane(
@@ -2134,7 +2136,7 @@ private fun AuraPlayerShape(
                             // fight over the same state. Same height guard as the queue shape, so a short window
                             // keeps its controls whole instead of a cover squeezed to nothing.
                             val coverBesideLyrics = showInlineLyrics && !isFullScreen && !showQueuePane &&
-                                maxHeight >= AURA_WIDE_COVER_MIN_PANE_HEIGHT
+                                paneTallEnoughForCover
                             if (coverBesideLyrics) {
                                 Box(
                                     contentAlignment = Alignment.Center,

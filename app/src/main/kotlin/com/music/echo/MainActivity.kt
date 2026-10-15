@@ -1092,7 +1092,9 @@ class MainActivity : ComponentActivity() {
                     defaultValue = true,
                 )
                 val splitActive = auraWideBottom && widePlayerSplit
-                val widePaneWidth = auraWidePlayerPaneWidth(maxWidth)
+                // Hoisted: `maxWidth` is the BoxWithConstraints' and is out of reach inside the nested Box scopes below.
+                val windowMaxWidth = maxWidth
+                val widePaneWidth = auraWidePlayerPaneWidth(windowMaxWidth)
                 val widePlayerMode = remember(auraWideBottom, widePlayerSplit) {
                     if (auraWideBottom) {
                         AuraWidePlayerMode(split = widePlayerSplit, onToggle = { setWidePlayerSplit(!widePlayerSplit) })
@@ -2070,7 +2072,7 @@ class MainActivity : ComponentActivity() {
                                     // starts to the capsule's right. In split mode the sheet IS the right pane and needs none.
                                     val playerVisibleWide = !playerBottomSheetState.isDismissed
                                     val miniStartInset = if (auraWideBottom && !splitActive && playerVisibleWide && navBarShown) {
-                                        auraWideNavWidth(maxWidth, playerVisible = true) + AuraWideNavGap
+                                        auraWideNavWidth(windowMaxWidth, playerVisible = true) + AuraWideNavGap
                                     } else {
                                         0.dp
                                     }
@@ -2143,7 +2145,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier
                                                     .align(if (capsuleBesidePlayer) Alignment.TopStart else Alignment.TopCenter)
                                                     .padding(start = if (capsuleBesidePlayer) iad1tya.echo.music.ui.newui.AuraFloatingInset else 0.dp)
-                                                    .width(auraWideNavWidth(maxWidth, capsuleBesidePlayer))
+                                                    .width(auraWideNavWidth(windowMaxWidth, capsuleBesidePlayer))
                                                     .height(AuraNavBarHeight),
                                             )
                                         } else if (newUiShell) {
