@@ -55,10 +55,3 @@ internal fun heroDissolveStops(fadeFraction: Float, steps: Int = 8): Array<Pair<
     return (listOf(0f to Color.Black) + ramp).toTypedArray()
 }
 
-/**
- * Width of the CONTENT pane from which an album / artist / playlist hero stops being a full-width square and
- * becomes a 320 dp band. It was 840 dp, which no foldable reaches: an unfolded Z Fold's pane is ~645 dp
- * (725 minus the rail), so its hero was a 645 dp square — "todo gigante" (owner, 2026-10-15). Phones in
- * portrait are ≤ ~430 dp and keep the square; unfolded foldables, tablets and landscape phones take the band.
- */
-internal val AURA_WIDE_HERO_MIN_WIDTH = 560.dp

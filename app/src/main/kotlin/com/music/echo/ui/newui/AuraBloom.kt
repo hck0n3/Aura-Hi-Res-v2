@@ -493,6 +493,22 @@ fun Modifier.auraBloom(
     // and the lobes (up to five blits), never the rows, text and images of the screen above them.
     .graphicsLayer()
 
+/**
+ * The now-playing cover's ground + bloom behind a screen that does not paint its own — the CLASSIC pages the shell
+ * hosts (every `settings/…` sub-screen). Owner 2026-10-15: *«cada vez que me meto a un apartado de los ajustes no
+ * coinciden los colores de la portada de la app en ellos»* — Inicio, Biblioteca and the Ajustes index drew the
+ * cover's colours, the pages under them sat on the flat theme ground. Drawn by the shell under the NavHost, so the
+ * ~25 classic pages get it without being touched; their transparent columns let it through. [enabled] false = a
+ * no-op (every other route paints its own).
+ */
+@Composable
+fun Modifier.auraShellScreenBackground(enabled: Boolean, intensity: Float = 0.32f): Modifier {
+    val playerConnection = LocalPlayerConnection.current
+    val metadataState = playerConnection?.mediaMetadata?.collectAsState()
+    val bloom = rememberAuraBloom(metadataState?.value?.id)
+    return if (enabled) this.auraScreenBackground(bloom, intensity) else this
+}
+
 /** Ground fill + bloom in one modifier, for a screen root. */
 fun Modifier.auraScreenBackground(
     colors: AuraBloomState,

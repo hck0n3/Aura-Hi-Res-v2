@@ -747,6 +747,51 @@ private fun RowScope.AuraNavItem(
 }
 
 /**
+ * Spotify's floating bottom bar for WIDE windows (owner 2026-10-15): the same cells as [AuraNavigationBar] inside a
+ * rounded capsule. Sized and placed by the caller (`MainActivity`): centred when nothing plays, on the left of the
+ * mini player when something does. The glass/ground recipe is the mini pill's, so the two read as one family.
+ */
+@Composable
+fun AuraWideNavCapsule(
+    items: List<Screens>,
+    isSelected: (Screens) -> Boolean,
+    onItemClick: (Screens, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AuraPaletteSync()
+    val hazeState = LocalShellHazeState.current
+    val inPerformanceMode = LocalGlassEffectConfig.current.globalEnabled.not()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(AuraShapes.Card)
+            .then(
+                when {
+                    hazeState == null -> Modifier.background(AuraPalette.GroundRaised)
+                    inPerformanceMode -> Modifier.freezeGlass(hazeState)
+                    else -> Modifier.shellGlass(hazeState)
+                },
+            )
+            .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+    ) {
+        items.forEach { screen ->
+            val selected = isSelected(screen)
+            AuraNavItem(
+                icon = auraNavIcon(screen),
+                label = stringResource(screen.titleId),
+                selected = selected,
+                onClick = { onItemClick(screen, selected) },
+                modifier = Modifier.background(
+                    if (selected) AuraPalette.NavIndicator else Color.Transparent,
+                    AuraShapes.Highlight,
+                ),
+            )
+        }
+    }
+}
+
+/**
  * Destination → glyph. Exhaustive over the sealed [Screens] hierarchy on purpose: adding a destination
  * without giving it an Aura glyph must fail to compile, not fall back to a blank cell.
  */
@@ -878,8 +923,10 @@ fun AuraMiniPlayer(
         modifier = modifier
             .fillMaxWidth()
             .height(MiniPlayerHeight)
-            // Mismo margen que la cápsula de navegación de debajo — ver [AuraFloatingInset].
-            .padding(horizontal = AuraFloatingInset)
+            // Mismo margen que la cápsula de navegación de debajo — ver [AuraFloatingInset]. En ventanas
+            // anchas con el reproductor en pantalla completa comparte fila con la cápsula (Spotify): empieza a
+            // su derecha. 0 en todo lo demás.
+            .padding(start = AuraFloatingInset + LocalAuraMiniStartInset.current, end = AuraFloatingInset)
             .then(
                 if (swipeEnabled) {
                     Modifier.pointerInputSwipe(

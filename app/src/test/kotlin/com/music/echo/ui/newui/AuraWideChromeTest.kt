@@ -45,8 +45,24 @@ class AuraWideChromeTest {
     }
 
     @Test
-    fun `the rail is as wide as the rail MainActivity reserves room for`() {
-        // MainActivity's `contentHasRoom` subtracts 80 dp for the rail.
-        assertEquals(80.dp, AuraRailWidth)
+    fun `the player pane is phone sized on a foldable and capped on a tablet`() {
+        assertEquals(340.dp, auraWidePlayerPaneWidth(725.dp)) // 46 % = 333 -> floor 340
+        assertEquals(520.dp, auraWidePlayerPaneWidth(1600.dp))
+        assertTrue(auraWidePlayerPaneWidth(1000.dp) in 340.dp..520.dp)
+    }
+
+    @Test
+    fun `the nav capsule shares the row with the mini player and is wide when alone`() {
+        val window = 829.dp
+        val pane = auraWidePlayerPaneWidth(window)
+        val withPlayer = auraWideNavWidth(window, playerVisible = true)
+        // capsule + gap + pane + both outer margins fill the row exactly
+        assertEquals(
+            window.value,
+            (withPlayer + AuraWideNavGap + pane + AuraFloatingInset * 2).value,
+            0.01f,
+        )
+        assertEquals(720.dp, auraWideNavWidth(1200.dp, playerVisible = false))
+        assertTrue(auraWideNavWidth(829.dp, playerVisible = false) > withPlayer)
     }
 }

@@ -558,6 +558,27 @@ object AuraIcons {
         }
     }
 
+    /**
+     * "Ver el reproductor dividido" — a window with a vertical divider (the player takes one pane, the screen
+     * you were on the other). Wide windows only; not part of the reference render.
+     */
+    val SplitView: ImageVector by lazy {
+        stroked("SplitView") {
+            moveTo(3f, 4f); horizontalLineTo(21f); verticalLineTo(20f); horizontalLineTo(3f); close()
+            moveTo(14f, 4f); verticalLineTo(20f)
+        }
+    }
+
+    /** "Ver el reproductor a pantalla completa" — the four corners of a window. Wide windows only. */
+    val FullView: ImageVector by lazy {
+        stroked("FullView") {
+            moveTo(4f, 9f); verticalLineTo(4f); horizontalLineTo(9f)
+            moveTo(15f, 4f); horizontalLineTo(20f); verticalLineTo(9f)
+            moveTo(20f, 15f); verticalLineTo(20f); horizontalLineTo(15f)
+            moveTo(9f, 20f); horizontalLineTo(4f); verticalLineTo(15f)
+        }
+    }
+
     /** `#i-people` — "Escuchar juntos". */
     val People: ImageVector by lazy {
         stroked("People", join = StrokeJoin.Miter) {

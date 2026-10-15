@@ -255,6 +255,15 @@ import iad1tya.echo.music.ui.newui.HomeShortcut
 import iad1tya.echo.music.ui.newui.LocalAuraHomeShortcut
 import iad1tya.echo.music.ui.newui.AuraNavBarHeight
 import iad1tya.echo.music.ui.newui.AuraNavigationBar
+import iad1tya.echo.music.ui.newui.AuraWideBarMargin
+import iad1tya.echo.music.ui.newui.AuraWideNavCapsule
+import iad1tya.echo.music.ui.newui.AuraWideNavGap
+import iad1tya.echo.music.ui.newui.AuraWidePlayerMode
+import iad1tya.echo.music.ui.newui.LocalAuraMiniStartInset
+import iad1tya.echo.music.ui.newui.LocalAuraWidePlayerMode
+import iad1tya.echo.music.ui.newui.auraShellScreenBackground
+import iad1tya.echo.music.ui.newui.auraWideNavWidth
+import iad1tya.echo.music.ui.newui.auraWidePlayerPaneWidth
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraPaletteSync
 import iad1tya.echo.music.ui.newui.BottomSheetPlayerHost
@@ -994,7 +1003,20 @@ class MainActivity : ComponentActivity() {
                 val isWideLayout = iad1tya.echo.music.ui.utils.rememberIsWideLayout()
 
                 // Ambient Mode is a full-screen lean-back view: never overlay the rail on it.
-                val showRail = (isLandscape || isWideLayout) && !inSearchScreen && currentRoute != "ambient_mode"
+                //
+                // Owner 2026-10-15 (with Spotify screenshots): with the NEW UI a wide window gets NO side rail — it gets
+                // the floating bottom bar (nav capsule + mini player on one row) and a split player. The rail stays
+                // for the classic shell only. See AuraWideChrome.kt.
+                val showRail = !newUiShell && (isLandscape || isWideLayout) && !inSearchScreen && currentRoute != "ambient_mode"
+                val auraWideBottom = newUiShell && isWideLayout
+                // In a wide window the capsule is on every route (Spotify's is), except the screens that own the
+                // whole window. Phones keep `shouldShowNavigationBar`.
+                val navBarShown = if (auraWideBottom) {
+                    currentRoute != "update" && currentRoute != "listen_together/chat" &&
+                        currentRoute != "ambient_mode" && currentRoute != "login" && currentRoute != "spotify_login"
+                } else {
+                    shouldShowNavigationBar
+                }
 
                 // The persistent browse now-playing panel shows on any genuinely wide window (or when the user
                 // forced the split via ForceSplitViewKey, which [rememberIsWideLayout] already folds in).
@@ -1036,28 +1058,52 @@ class MainActivity : ComponentActivity() {
                 // shell swap can never mis-pad a list.
                 val shellNavBarHeight = if (newUiShell) AuraNavBarHeight else NavigationBarHeight
 
-                val navPadding = if (shouldShowNavigationBar && !showRail) {
+                val navPadding = if (navBarShown && !showRail) {
                     if (newUiShell) AuraNavBarHeight else NavigationBarHeight + FloatingToolbarBottomPadding
                 } else {
                     0.dp
                 }
 
                 val navigationBarHeight by animateDpAsState(
-                    targetValue = if (shouldShowNavigationBar && !showRail) shellNavBarHeight else 0.dp,
+                    targetValue = if (navBarShown && !showRail) shellNavBarHeight else 0.dp,
                     animationSpec = NavigationBarAnimationSpec,
                     label = "navBarHeight",
                 )
 
                 val playerBottomSheetState = rememberBottomSheetState(
                     dismissedBound = 0.dp,
-                    collapsedBound = bottomInset +
-                        (if (!showRail && shouldShowNavigationBar) navPadding else 0.dp) +
+                    collapsedBound = if (auraWideBottom && navBarShown) {
+                        // Capsule and mini player share ONE row: the strip is the bar's height plus a little air.
+                        bottomInset + AuraNavBarHeight + AuraWideBarMargin
+                    } else bottomInset +
+                        (if (!showRail && navBarShown) navPadding else 0.dp) +
                         // The new shell's mini player is also a detached pill (the render's `.mi`), so it
                         // needs the same breathing room the new classic mini design asks for.
                         (if (useNewMiniPlayerDesign || newUiShell) MiniPlayerBottomSpacing else 0.dp) +
                         MiniPlayerHeight,
                     expandedBound = maxHeight,
                 )
+
+                // ── Wide windows, new UI: split player (owner 2026-10-15, Spotify's behaviour) ──────────────
+                // Expanded, the player is the RIGHT PANE next to the screen you were on (default), or the
+                // full-screen player when the user flips the button at the player's top-left. Remembered.
+                val (widePlayerSplit, setWidePlayerSplit) = rememberPreference(
+                    iad1tya.echo.music.constants.AuraWidePlayerSplitKey,
+                    defaultValue = true,
+                )
+                val splitActive = auraWideBottom && widePlayerSplit
+                val widePaneWidth = auraWidePlayerPaneWidth(maxWidth)
+                val widePlayerMode = remember(auraWideBottom, widePlayerSplit) {
+                    if (auraWideBottom) {
+                        AuraWidePlayerMode(split = widePlayerSplit, onToggle = { setWidePlayerSplit(!widePlayerSplit) })
+                    } else {
+                        null
+                    }
+                }
+                // The screen under the split player gives up the player's width once the sheet is more than half
+                // open. Quantised to one flip (not per frame): the NavHost re-lays out once, not 20 times.
+                val splitOpen by remember { derivedStateOf { playerBottomSheetState.progress > 0.5f } }
+                val splitContentEnd = if (splitActive && splitOpen) widePaneWidth else 0.dp
 
                 // Shuffle FAB removed from the floating toolbar (0.6.92) — only the recognition mic FAB
                 // is surfaced there now, so the shuffle click handler is no longer wired.
@@ -1077,7 +1123,8 @@ class MainActivity : ComponentActivity() {
 
                 val playerAwareWindowInsets = remember(
                     bottomInset,
-                    shouldShowNavigationBar,
+                    navBarShown,
+                    auraWideBottom,
                     playerBottomSheetState.isDismissed,
                     showRail,
                     shellNavBarHeight,
@@ -1087,10 +1134,15 @@ class MainActivity : ComponentActivity() {
                     newUiShell,
                 ) {
                     var bottom = bottomInset
-                    if (shouldShowNavigationBar && !showRail) {
-                        bottom += shellNavBarHeight
+                    if (auraWideBottom && navBarShown) {
+                        // One shared row (capsule + mini): bar + air + a little clearance for the list's last row.
+                        bottom += shellNavBarHeight + AuraWideBarMargin + 8.dp
+                    } else {
+                        if (navBarShown && !showRail) {
+                            bottom += shellNavBarHeight
+                        }
+                        if (!playerBottomSheetState.isDismissed) bottom += MiniPlayerHeight
                     }
-                    if (!playerBottomSheetState.isDismissed) bottom += MiniPlayerHeight
                     windowsInsets
                         .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
                         // IMMERSIVE: `WindowInsets(top = AppBarHeight)` is a 64 dp PHANTOM bar. Every
@@ -1691,9 +1743,9 @@ class MainActivity : ComponentActivity() {
                 // `showRail` también lo apaga: en disposición ancha la navegación vive en el raíl
                 // lateral, que siempre está a la vista, y ahí el atajo no resuelve nada.
                 val auraHomeShortcut: (() -> Unit)? = remember(
-                    newUiShell, shouldShowNavigationBar, showRail, navController,
+                    newUiShell, navBarShown, showRail, navController,
                 ) {
-                    if (newUiShell && !shouldShowNavigationBar && !showRail) {
+                    if (newUiShell && !navBarShown && !showRail) {
                         { navController.goHomeAlways() }
                     } else {
                         null
@@ -1978,7 +2030,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                             .windowInsetsPadding(
                                             if (showRail) {
-                                                WindowInsets(left = if (newUiShell) iad1tya.echo.music.ui.newui.AuraRailWidth else NavigationBarHeight)
+                                                WindowInsets(left = NavigationBarHeight)
                                                     .add(cutoutInsets.only(WindowInsetsSides.Start))
                                             } else {
                                                 cutoutInsets.only(WindowInsetsSides.Start + WindowInsetsSides.End)
@@ -2014,15 +2066,36 @@ class MainActivity : ComponentActivity() {
                                     // The player-sheet haze source is created and provided at SHELL
                                     // level (see LocalOverlayHazeState above) — the player content
                                     // marks itself as that source inside AuraPlayer.
-                                    BottomSheetPlayerHost(
-                                        state = playerBottomSheetState,
-                                        navController = navController,
-                                        pureBlack = pureBlack
-                                    )
+                                    // Wide + full-screen mode: the mini player shares its row with the nav capsule, so it
+                                    // starts to the capsule's right. In split mode the sheet IS the right pane and needs none.
+                                    val playerVisibleWide = !playerBottomSheetState.isDismissed
+                                    val miniStartInset = if (auraWideBottom && !splitActive && playerVisibleWide && navBarShown) {
+                                        auraWideNavWidth(maxWidth, playerVisible = true) + AuraWideNavGap
+                                    } else {
+                                        0.dp
+                                    }
+                                    androidx.compose.runtime.CompositionLocalProvider(
+                                        LocalAuraWidePlayerMode provides widePlayerMode,
+                                        LocalAuraMiniStartInset provides miniStartInset,
+                                    ) {
+                                        BottomSheetPlayerHost(
+                                            state = playerBottomSheetState,
+                                            navController = navController,
+                                            pureBlack = pureBlack,
+                                            // Split mode: the whole sheet (mini pill AND expanded player) lives in the right pane.
+                                            modifier = if (splitActive) {
+                                                Modifier.align(Alignment.BottomEnd).width(widePaneWidth)
+                                            } else {
+                                                Modifier
+                                            },
+                                        )
+                                    }
 
                                     // Derived from [shellNavBarHeight], so the bar, the slide animation and
                                     // the bottom window inset always agree about how tall the bar is.
-                                    val navSlideDistance = if (newUiShell) {
+                                    val navSlideDistance = if (auraWideBottom) {
+                                        bottomInset + AuraNavBarHeight + AuraWideBarMargin
+                                    } else if (newUiShell) {
                                         bottomInset + AuraNavBarHeight
                                     } else {
                                         bottomInset + FloatingToolbarBottomPadding + NavigationBarHeight
@@ -2044,7 +2117,8 @@ class MainActivity : ComponentActivity() {
                                             .align(Alignment.BottomCenter)
                                             .height(navSlideDistance)
                                             .graphicsLayer {
-                                                val slide = if (navHidden) {
+                                                // Split player: the capsule stays under the left pane while the player is open.
+                                                val slide = if (navHidden || splitActive) {
                                                     0f
                                                 } else {
                                                     BottomSheetVisuals.slideOffsetPx(
@@ -2055,7 +2129,24 @@ class MainActivity : ComponentActivity() {
                                                 translationY = navStaticOffsetY.toPx() + slide
                                             },
                                     ) {
-                                        if (newUiShell) {
+                                        if (auraWideBottom) {
+                                            // Spotify's floating bottom bar (owner 2026-10-15): a capsule, centred when nothing
+                                            // plays, on the left sharing the row with the mini player when something does.
+                                            val capsuleBesidePlayer = !playerBottomSheetState.isDismissed
+                                            AuraWideNavCapsule(
+                                                items = navigationItems,
+                                                isSelected = { screen ->
+                                                    currentRoute == screen.route ||
+                                                        currentRoute?.startsWith("${screen.route}/") == true
+                                                },
+                                                onItemClick = onNavItemClick,
+                                                modifier = Modifier
+                                                    .align(if (capsuleBesidePlayer) Alignment.TopStart else Alignment.TopCenter)
+                                                    .padding(start = if (capsuleBesidePlayer) iad1tya.echo.music.ui.newui.AuraFloatingInset else 0.dp)
+                                                    .width(auraWideNavWidth(maxWidth, capsuleBesidePlayer))
+                                                    .height(AuraNavBarHeight),
+                                            )
+                                        } else if (newUiShell) {
                                             // The render's `.nav`: a flush bar on the ground with a
                                             // hairline rule, NOT an M3 HorizontalFloatingToolbar pill
                                             // with per-FAB glass circles ("por qué me sigue saliendo el
@@ -2238,28 +2329,13 @@ class MainActivity : ComponentActivity() {
                             }
 
                             if (showRail && currentRoute != "update") {
-                                if (newUiShell) {
-                                    // Owner 2026-10-15: a wide window with the new UI on still drew
-                                    // Material's rail. The Aura rail is the bottom bar turned vertical
-                                    // (same cells, same ink, same selection pill) — see AuraWideChrome.kt.
-                                    iad1tya.echo.music.ui.newui.AuraNavigationRail(
-                                        items = navigationItems,
-                                        isSelected = { screen ->
-                                            currentRoute == screen.route ||
-                                                currentRoute?.startsWith("${screen.route}/") == true
-                                        },
-                                        onItemClick = onRailItemClick,
-                                        onSearchLongClick = onRailSearchLongClick,
-                                    )
-                                } else {
-                                    AppNavigationRail(
-                                        navigationItems = navigationItems,
-                                        currentRoute = currentRoute,
-                                        onItemClick = onRailItemClick,
-                                        pureBlack = pureBlack,
-                                        onSearchLongClick = onRailSearchLongClick
-                                    )
-                                }
+                                AppNavigationRail(
+                                    navigationItems = navigationItems,
+                                    currentRoute = currentRoute,
+                                    onItemClick = onRailItemClick,
+                                    pureBlack = pureBlack,
+                                    onSearchLongClick = onRailSearchLongClick
+                                )
                             }
                             // LEFT-side variant of the persistent now-playing panel (some Android-auto users
                             // prefer it on the left). Same gate as the right one; only the position differs.
@@ -2268,19 +2344,16 @@ class MainActivity : ComponentActivity() {
                                 currentRoute != "update" &&
                                 !playerBottomSheetState.isExpanded
                             ) {
-                                val onExpandPanel = {
-                                    Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelLeft route=%s", currentRoute)
-                                    playerBottomSheetState.expandSoft()
-                                }
-                                val panelModifier = Modifier
-                                    .fillMaxHeight()
-                                    .widthIn(min = 300.dp, max = 360.dp)
-                                    .width(sidePanelWidth)
-                                if (newUiShell) {
-                                    iad1tya.echo.music.ui.newui.AuraNowPlayingPanel(onExpand = onExpandPanel, modifier = panelModifier)
-                                } else {
-                                    NowPlayingSidePanel(onExpand = onExpandPanel, modifier = panelModifier)
-                                }
+                                NowPlayingSidePanel(
+                                    onExpand = {
+                                        Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelLeft route=%s", currentRoute)
+                                        playerBottomSheetState.expandSoft()
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .widthIn(min = 300.dp, max = 360.dp)
+                                        .width(sidePanelWidth),
+                                )
                             }
                             // HAZE SOURCE — NEVER UNMOUNTS while children live (unification
                             // 2026-08-31, owner: "problemas de transparencia y lógica"): the
@@ -2296,6 +2369,12 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 Modifier
                                     .weight(1f)
+                                    // Split player open: the screen you were on keeps the LEFT pane.
+                                    .padding(end = splitContentEnd)
+                                    // The classic settings pages have no background of their own: give them the cover's.
+                                    .auraShellScreenBackground(
+                                        enabled = newUiShell && (currentRoute?.startsWith("settings/") == true || currentRoute == "uptime"),
+                                    )
                                     .then(
                                         // WebView login screens are left out of the haze source: the
                                         // recorded layer never shows the WebView's own drawing, so the
@@ -2443,19 +2522,16 @@ class MainActivity : ComponentActivity() {
                                 currentRoute != "update" &&
                                 !playerBottomSheetState.isExpanded
                             ) {
-                                val onExpandPanel = {
-                                    Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelRight route=%s", currentRoute)
-                                    playerBottomSheetState.expandSoft()
-                                }
-                                val panelModifier = Modifier
-                                    .fillMaxHeight()
-                                    .widthIn(min = 300.dp, max = 360.dp)
-                                    .width(sidePanelWidth)
-                                if (newUiShell) {
-                                    iad1tya.echo.music.ui.newui.AuraNowPlayingPanel(onExpand = onExpandPanel, modifier = panelModifier)
-                                } else {
-                                    NowPlayingSidePanel(onExpand = onExpandPanel, modifier = panelModifier)
-                                }
+                                NowPlayingSidePanel(
+                                    onExpand = {
+                                        Timber.tag("MainActivity").i("PLAYER_EXPAND sidePanelRight route=%s", currentRoute)
+                                        playerBottomSheetState.expandSoft()
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .widthIn(min = 300.dp, max = 360.dp)
+                                        .width(sidePanelWidth),
+                                )
                             }
                         }
                     }
