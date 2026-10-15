@@ -926,7 +926,8 @@ fun AuraMiniPlayer(
             // Mismo margen que la cápsula de navegación de debajo — ver [AuraFloatingInset]. En ventanas
             // anchas con el reproductor en pantalla completa comparte fila con la cápsula (Spotify): empieza a
             // su derecha. 0 en todo lo demás.
-            .padding(start = AuraFloatingInset + LocalAuraMiniStartInset.current, end = AuraFloatingInset)
+            .padding(horizontal = AuraFloatingInset)
+            .padding(start = LocalAuraMiniStartInset.current)
             .then(
                 if (swipeEnabled) {
                     Modifier.pointerInputSwipe(

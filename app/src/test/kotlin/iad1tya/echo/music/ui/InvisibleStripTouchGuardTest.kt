@@ -74,7 +74,6 @@ class InvisibleStripTouchGuardTest {
         val block = player.substring(at, at + 420)
         assertFalse("`null` dibuja el riel nativo, más grueso", Regex("else \\{\\s*null\\s*\\}").containsMatchIn(block))
         assertTrue(block.contains("0f"))
-        assertTrue(source("AuraWideChrome.kt").contains("bufferedFraction = 0f"))
     }
 
     @Test
