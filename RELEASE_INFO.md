@@ -1,6 +1,21 @@
-# Aura Hi-Res v2.0.65-beta3 — Reproductor dividido y barra flotante en plegables, y Ajustes con los colores de tu portada
+# Aura Hi-Res v2.0.65-beta4 — Ajustes con tus colores completos y el minirreproductor de pantalla ancha
 
-Beta encima de la 2.0.65-beta2. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta3. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Ajustes
+
+- **Los acentos de Ajustes (interruptores, controles) y la barra superior toman los colores de la portada**,
+  los mismos que Inicio y Biblioteca; antes solo el fondo.
+
+## Plegables y tabletas
+
+- **El minirreproductor de pantalla ancha trae «salida de audio» y «me gusta»**, como el de Spotify. Si es
+  estrecho, deja anterior/siguiente para el reproductor (o deslizar la píldora).
+- **Las pantallas a la izquierda del reproductor dividido se ajustan al ancho que de verdad tienen**, en vez de
+  componerse como si tuvieran toda la pantalla.
+
+También incluye todo lo de la beta3:
+
 
 ## Plegables y tabletas
 
