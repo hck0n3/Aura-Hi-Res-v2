@@ -2078,7 +2078,12 @@ class MainActivity : ComponentActivity() {
                             }
 
                             if (!showRail && currentRoute != "update" && currentRoute != "listen_together/chat" && currentRoute != "ambient_mode") {
-                                Box {
+                                // This Box lives in the Scaffold's bottomBar slot, which measures it LOOSE: it is only as big
+                                // as its children. On a phone the player host is `fillMaxSize` so it was always the window; in
+                                // the wide split the host is `width(widePaneWidth)`, the Box collapsed to ~one pane + capsule
+                                // and `align(BottomEnd)` / `align(BottomCenter)` aligned inside THAT, not inside the window
+                                // (beta4: the player showed in the left half, the capsule never centred). Wide = fill the window.
+                                Box(modifier = if (auraWideBottom) Modifier.fillMaxSize() else Modifier) {
                                     // "Interfaz nueva" beta: falls back to the classic BottomSheetPlayer
                                     // whenever the flag is OFF or the new player is not built yet.
                                     // The player-sheet haze source is created and provided at SHELL
@@ -2133,6 +2138,8 @@ class MainActivity : ComponentActivity() {
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.BottomCenter)
+                                            // Wide: the capsule is aligned (centre / start) inside THIS box, so it spans the window.
+                                            .then(if (auraWideBottom) Modifier.fillMaxWidth() else Modifier)
                                             .height(navSlideDistance)
                                             .graphicsLayer {
                                                 // Split player: the capsule stays under the left pane while the player is open.

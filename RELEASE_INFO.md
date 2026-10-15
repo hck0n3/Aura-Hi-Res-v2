@@ -1,6 +1,15 @@
-# Aura Hi-Res v2.0.65-beta4 — Ajustes con tus colores completos y el minirreproductor de pantalla ancha
+# Aura Hi-Res v2.0.65-beta5 — Arreglo de la barra flotante y del reproductor dividido en el plegable
 
-Beta encima de la 2.0.65-beta3. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta4. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Plegables y tabletas
+
+- **Arreglada la interfaz del plegable de la beta4:** el reproductor dividido salía en la mitad izquierda y la
+  barra flotante no se centraba. Ahora, sin música, la cápsula sale **centrada abajo**; al empezar a sonar se
+  **acopla a la izquierda** y el minirreproductor aparece **a su lado, en el borde derecho**; al tocarlo, el
+  reproductor se abre como panel derecho.
+
+También incluye todo lo de la beta4:
 
 ## Ajustes
 

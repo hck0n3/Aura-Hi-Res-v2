@@ -84,6 +84,11 @@ class InvisibleStripTouchGuardTest {
         assertTrue(main.contains("val auraWideBottom = newUiShell && isWideLayout"))
         assertTrue(main.contains("AuraWideNavCapsule("))
         assertTrue(main.contains("Modifier.align(Alignment.BottomEnd).width(widePaneWidth)"))
+        // Registry row 384 (beta4 → beta5): the Box that holds the host and the capsule sits in the Scaffold's
+        // bottomBar slot (loose constraints). Without filling the window it collapsed to ~pane width and both
+        // `align(BottomEnd)` and `align(BottomCenter)` aligned inside that, not inside the window.
+        assertTrue(main.contains("Box(modifier = if (auraWideBottom) Modifier.fillMaxSize() else Modifier) {"))
+        assertTrue(main.contains(".then(if (auraWideBottom) Modifier.fillMaxWidth() else Modifier)"))
         // The player must size itself by its own pane, not by the window, while it is the right pane.
         val player = source("AuraPlayer.kt")
         assertTrue(player.contains("val isWideLayout = rememberIsWideLayout() && !inSplitPane"))
