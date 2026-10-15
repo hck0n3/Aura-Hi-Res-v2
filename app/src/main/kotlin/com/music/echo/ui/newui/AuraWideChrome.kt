@@ -36,6 +36,11 @@ class AuraWidePlayerMode(
     /** true = el reproductor es el panel derecho; false = pantalla completa. */
     val split: Boolean,
     val onToggle: () -> Unit,
+    /**
+     * La píldora del minirreproductor es estrecha (< 460 dp): como la de Spotify, deja los botones de «me gusta»,
+     * «salida de audio» y play/pausa, y anterior/siguiente quedan en el reproductor y en el deslizamiento.
+     */
+    val miniCompact: Boolean = false,
 )
 
 val LocalAuraWidePlayerMode = staticCompositionLocalOf<AuraWidePlayerMode?> { null }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import iad1tya.echo.music.echomusic.AudioDeviceBottomSheet
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -747,6 +748,34 @@ private fun RowScope.AuraNavItem(
 }
 
 /**
+ * «Salida de audio» of the wide mini player (Spotify's devices button): opens the same output picker the queue bar's
+ * speaker opens. A painter glyph, like that button, so it keeps the same drawing.
+ */
+@Composable
+private fun AuraMiniOutputButton(interactive: Boolean) {
+    var show by remember { mutableStateOf(false) }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .sizeIn(minWidth = AuraSpacing.MinTouchTarget, minHeight = AuraSpacing.MinTouchTarget)
+            .clip(CircleShape)
+            .clickable(
+                enabled = interactive,
+                onClickLabel = stringResource(R.string.cd_audio_output),
+                role = Role.Button,
+            ) { show = true },
+    ) {
+        androidx.compose.material3.Icon(
+            painter = androidx.compose.ui.res.painterResource(R.drawable.speaker_apple),
+            contentDescription = null,
+            tint = AuraPalette.OnGround,
+            modifier = Modifier.size(21.dp),
+        )
+    }
+    if (show) AudioDeviceBottomSheet(onDismiss = { show = false })
+}
+
+/**
  * Spotify's floating bottom bar for WIDE windows (owner 2026-10-15): the same cells as [AuraNavigationBar] inside a
  * rounded capsule. Sized and placed by the caller (`MainActivity`): centred when nothing plays, on the left of the
  * mini player when something does. The glass/ground recipe is the mini pill's, so the two read as one family.
@@ -892,6 +921,11 @@ fun AuraMiniPlayer(
     val error by playerConnection.error.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
+    val currentSongForLike by playerConnection.currentSong.collectAsState(initial = null)
+    val songLiked = currentSongForLike?.song?.liked == true
+    // Wide windows (new UI): the pill carries Spotify's «me gusta» and «salida de audio», and when it is narrow it
+    // drops anterior/siguiente (still in the player and on the swipe) to leave the title room.
+    val widePillMode = LocalAuraWidePlayerMode.current
 
     val castHandler = remember(playerConnection) {
         runCatching { playerConnection.service.castConnectionHandler }.getOrNull()
@@ -1226,14 +1260,27 @@ fun AuraMiniPlayer(
                 // consume TODO toque que cae encima, también el del Cast que hay debajo.
                 modifier = if (gesturesEnabled) Modifier.shieldTapsFromAncestorDrags() else Modifier,
             ) {
-                AuraIconButton(
-                    icon = AuraIcons.SkipPrevious,
-                    contentDescription = stringResource(R.string.previous),
-                    onClick = { playerConnection.player.seekToPreviousMediaItem() },
-                    enabled = canSkipPrevious && !isListenTogetherGuest,
-                    interactive = gesturesEnabled,
-                    size = 22.dp,
-                )
+                if (widePillMode != null) {
+                    AuraMiniOutputButton(interactive = gesturesEnabled)
+                    AuraIconButton(
+                        icon = if (songLiked) AuraIcons.HeartFilled else AuraIcons.Heart,
+                        contentDescription = stringResource(R.string.action_like),
+                        onClick = { playerConnection.toggleLike() },
+                        interactive = gesturesEnabled,
+                        size = 22.dp,
+                        tint = if (songLiked) AuraPalette.Teal else AuraPalette.OnGround,
+                    )
+                }
+                if (widePillMode?.miniCompact != true) {
+                    AuraIconButton(
+                        icon = AuraIcons.SkipPrevious,
+                        contentDescription = stringResource(R.string.previous),
+                        onClick = { playerConnection.player.seekToPreviousMediaItem() },
+                        enabled = canSkipPrevious && !isListenTogetherGuest,
+                        interactive = gesturesEnabled,
+                        size = 22.dp,
+                    )
+                }
 
                 AuraIconButton(
                     // A Listen Together GUEST cannot pause the room — the classic mini turns this
@@ -1270,14 +1317,16 @@ fun AuraMiniPlayer(
                     },
                 )
 
-                AuraIconButton(
-                    icon = AuraIcons.SkipNext,
-                    contentDescription = stringResource(R.string.next),
-                    onClick = { playerConnection.player.seekToNext() },
-                    enabled = canSkipNext && !isListenTogetherGuest,
-                    interactive = gesturesEnabled,
-                    size = 22.dp,
-                )
+                if (widePillMode?.miniCompact != true) {
+                    AuraIconButton(
+                        icon = AuraIcons.SkipNext,
+                        contentDescription = stringResource(R.string.next),
+                        onClick = { playerConnection.player.seekToNext() },
+                        enabled = canSkipNext && !isListenTogetherGuest,
+                        interactive = gesturesEnabled,
+                        size = 22.dp,
+                    )
+                }
 
                 // 🔴 INICIO, al final de los controles y solo donde la barra de abajo no está (punto 1
                 // del dueño, 2026-09-17). Ver [LocalAuraHomeShortcut] para por qué llega por un local.

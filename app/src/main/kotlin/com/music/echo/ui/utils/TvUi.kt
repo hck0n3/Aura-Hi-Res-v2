@@ -112,8 +112,19 @@ const val WIDE_LAYOUT_BREAKPOINT_DP = 600
 private fun rememberIsExpandedWidth(): Boolean {
     val widthPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width
     val density = androidx.compose.ui.platform.LocalDensity.current
-    return with(density) { widthPx.toDp() } >= WIDE_LAYOUT_BREAKPOINT_DP.dp
+    // A screen that only owns PART of the window (the split player takes the right pane) is as wide as that part.
+    val paneOverride = LocalContentPaneWidth.current
+    val width = paneOverride ?: with(density) { widthPx.toDp() }
+    return width >= WIDE_LAYOUT_BREAKPOINT_DP.dp
 }
+
+/**
+ * The width the content pane really has when something else takes the rest of the window — the "Interfaz nueva"
+ * split player (owner 2026-10-15). `null` = the whole window. [rememberIsWideLayout] answers for THIS width, so a
+ * collection screen squeezed to the left half of an unfolded foldable stops laying itself out as if it had the
+ * whole screen.
+ */
+val LocalContentPaneWidth = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.ui.unit.Dp?> { null }
 
 /**
  * D-pad focus ring for TV / car remotes: draws a clearly VISIBLE, HIGH-CONTRAST ring around the control while

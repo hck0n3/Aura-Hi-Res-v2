@@ -1095,9 +1095,21 @@ class MainActivity : ComponentActivity() {
                 // Hoisted: `maxWidth` is the BoxWithConstraints' and is out of reach inside the nested Box scopes below.
                 val windowMaxWidth = maxWidth
                 val widePaneWidth = auraWidePlayerPaneWidth(windowMaxWidth)
-                val widePlayerMode = remember(auraWideBottom, widePlayerSplit) {
+                // Width of the mini player's pill: the whole right pane (split) or what the nav capsule leaves.
+                val miniPillWidth = if (widePlayerSplit) {
+                    widePaneWidth - iad1tya.echo.music.ui.newui.AuraFloatingInset * 2
+                } else {
+                    windowMaxWidth - auraWideNavWidth(windowMaxWidth, playerVisible = true) -
+                        AuraWideNavGap - iad1tya.echo.music.ui.newui.AuraFloatingInset * 2
+                }
+                val miniCompact = miniPillWidth < 460.dp
+                val widePlayerMode = remember(auraWideBottom, widePlayerSplit, miniCompact) {
                     if (auraWideBottom) {
-                        AuraWidePlayerMode(split = widePlayerSplit, onToggle = { setWidePlayerSplit(!widePlayerSplit) })
+                        AuraWidePlayerMode(
+                            split = widePlayerSplit,
+                            onToggle = { setWidePlayerSplit(!widePlayerSplit) },
+                            miniCompact = miniCompact,
+                        )
                     } else {
                         null
                     }
@@ -1989,9 +2001,13 @@ class MainActivity : ComponentActivity() {
                                                 navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         } else {
+                                            // Settings pages in the new UI sit on the cover's ground: the bar is that ground at 86 %
+                                            // (still readable over scrolled rows), not Material's flat surfaceContainer.
+                                            val coverBar = newUiShell && !pureBlack &&
+                                                (currentRoute?.startsWith("settings/") == true || currentRoute == "uptime")
                                             TopAppBarDefaults.topAppBarColors(
-                                                containerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
-                                                scrolledContainerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
+                                                containerColor = if (pureBlack) Color.Black else if (coverBar) AuraPalette.Ground.copy(alpha = 0.86f) else MaterialTheme.colorScheme.surfaceContainer,
+                                                scrolledContainerColor = if (pureBlack) Color.Black else if (coverBar) AuraPalette.Ground.copy(alpha = 0.86f) else MaterialTheme.colorScheme.surfaceContainer,
                                                 titleContentColor = MaterialTheme.colorScheme.onSurface,
                                                 actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2399,6 +2415,15 @@ class MainActivity : ComponentActivity() {
                                 // Álbum). No reemplaza ni reordena las transiciones de AuraNavMotion —
                                 // se anima ADEMÁS de ellas, sobre el mismo AnimatedContentScope que
                                 // NavHost ya le da a cada `composable { }`.
+                                // Settings pages (classic) wear the cover's accents and ink; the content pane reports its
+                                // real width while the split player takes the right one (rows 380-381).
+                                androidx.compose.runtime.CompositionLocalProvider(
+                                    iad1tya.echo.music.ui.utils.LocalContentPaneWidth provides
+                                        (if (splitActive && splitOpen) windowMaxWidth - widePaneWidth else null),
+                                ) {
+                                iad1tya.echo.music.ui.newui.AuraCoverThemeScope(
+                                    enabled = newUiShell && (currentRoute?.startsWith("settings/") == true || currentRoute == "uptime"),
+                                ) {
                                 androidx.compose.animation.SharedTransitionLayout {
                                 val sharedTransitionScope = this
                                 NavHost(
@@ -2511,6 +2536,8 @@ class MainActivity : ComponentActivity() {
                                         snackbarHostState = snackbarHostState,
                                         sharedTransitionScope = sharedTransitionScope,
                                     )
+                                }
+                                }
                                 }
                                 }
                             }

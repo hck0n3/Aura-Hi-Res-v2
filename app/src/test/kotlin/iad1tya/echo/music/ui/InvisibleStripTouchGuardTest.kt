@@ -33,10 +33,10 @@ class InvisibleStripTouchGuardTest {
     @Test
     fun `every button of the mini pill answers only while the pill is the visible mini player`() {
         val shell = source("AuraShell.kt")
-        // prev, play, next and home
+        // like (wide only), prev, play, next and home
         assertEquals(
-            "los cuatro botones de la píldora deben llevar `interactive = gesturesEnabled`",
-            4,
+            "los cinco botones de la píldora deben llevar `interactive = gesturesEnabled`",
+            5,
             Regex("interactive = gesturesEnabled,").findAll(shell).count() - 1, // minus the glass recipe's own
         )
         assertTrue(shell.contains("if (gesturesEnabled) Modifier.shieldTapsFromAncestorDrags() else Modifier"))
