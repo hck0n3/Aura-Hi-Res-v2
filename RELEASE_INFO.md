@@ -8,6 +8,11 @@ Beta encima de la 2.0.65-beta5. Conserva tus datos, tu sesión y tus ajustes: mi
   pantalla en la que estabas y el reproductor, sobre el fondo oscuro de la app.
 - **La barra flotante de abajo lleva liquid glass**, igual que el minirreproductor.
 
+## Listas de reproducción
+
+- **«Artistas destacados» ya muestra la foto de todos los artistas** al explorar una playlist: antes salía el
+  icono vacío en los que nunca habías abierto.
+
 También incluye todo lo de la beta5:
 
 ## Portadas
