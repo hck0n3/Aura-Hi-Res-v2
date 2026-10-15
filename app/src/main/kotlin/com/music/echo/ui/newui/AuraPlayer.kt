@@ -1375,7 +1375,7 @@ private fun AuraPlayerShape(
                         modifier = Modifier
                             .fillMaxWidth()
                             .basicMarquee(
-                                iterations = Int.MAX_VALUE,
+                                iterations = if (iad1tya.echo.music.utils.LeanMode.isOn()) 0 else Int.MAX_VALUE, // lean mode: a still title (registry 395)
                                 initialDelayMillis = 1200,
                                 repeatDelayMillis = 1800,
                                 velocity = 30.dp,
@@ -1447,7 +1447,7 @@ private fun AuraPlayerShape(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .basicMarquee(
-                                    iterations = Int.MAX_VALUE,
+                                    iterations = if (iad1tya.echo.music.utils.LeanMode.isOn()) 0 else Int.MAX_VALUE, // lean mode: a still title (registry 395)
                                     initialDelayMillis = 1200,
                                     repeatDelayMillis = 1800,
                                     velocity = 30.dp,
@@ -2667,8 +2667,12 @@ internal fun rememberAuraGround(
 
     // `Modifier.blur` is a no-op below API 31 — drawing an UNBLURRED cover there would be a different
     // style, not a degraded one, so the cover is dropped and the recipe substitutes a colour wash.
+    //
+    // Lean mode (registry 395): the blurred cover is a full-screen RenderEffect (34-46 dp), and the queue draws a
+    // SECOND one under the expanded player. With the Performance mode on the cover is dropped, and the recipe's own
+    // degradation (a colour wash + the bloom, already how a local track looks) takes its place.
     val coverUrl = thumbnailUrl
-        ?.takeIf { it.isNotEmpty() && !isLocalMedia && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S }
+        ?.takeIf { it.isNotEmpty() && !isLocalMedia && !highPerfMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S }
 
     val motion = !(highPerfMode || deviceThrottle || rawTierLow)
     val recipe = remember(style, coverUrl != null, motion) {

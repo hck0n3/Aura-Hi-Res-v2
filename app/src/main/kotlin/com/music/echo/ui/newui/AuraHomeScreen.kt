@@ -273,7 +273,9 @@ fun AuraHomeScreen(
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { lastVisibleIndex ->
                 val len = listState.layoutInfo.totalItemsCount
-                if (lastVisibleIndex != null && lastVisibleIndex >= len - 3) {
+                // Lean mode (registry 395): the Performance mode keeps the Home to four short shelves, so "the last item is
+                // near" is always true and every pass asked for another YouTube page whose shelves are hidden anyway.
+                if (!perfOn && lastVisibleIndex != null && lastVisibleIndex >= len - 3) {
                     viewModel.loadMoreYouTubeItems(homePage?.continuation)
                 }
             }
@@ -1676,7 +1678,9 @@ private fun AuraQuickPicksCarousel(
                         AsyncImage(
                             // Decode for the larger hero frame (~208 dp); 640 keeps edges sharp without
                             // the full-res heat of a 1280 source on every carousel item.
-                            model = url.resize(640, 640),
+                            // Lean mode (registry 395): the carousel is the heaviest thing on Inicio (a masked clip per
+                            // item, redrawn while it scrolls) — 320 px is plenty for a 1-2 GB phone.
+                            model = if (iad1tya.echo.music.utils.LeanMode.isOn()) url.resize(320, 320) else url.resize(640, 640),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize(),

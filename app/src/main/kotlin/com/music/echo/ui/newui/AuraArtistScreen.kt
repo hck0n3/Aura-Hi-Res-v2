@@ -1,5 +1,6 @@
 package iad1tya.echo.music.ui.newui
 
+import iad1tya.echo.music.utils.rememberLeanMode
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -1077,13 +1078,15 @@ private fun AuraArtistHero(
             // (haze 1.7.2): la capa de medios es la FUENTE, y una banda abajo la muestrea con
             // `progressive`.
             val heroHaze = remember { HazeState() }
-            Box(modifier = Modifier.fillMaxSize().hazeSource(heroHaze)) {
+            // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
+            val lean = rememberLeanMode()
+            Box(modifier = Modifier.fillMaxSize().then(if (lean) Modifier else Modifier.hazeSource(heroHaze))) {
                 AuraCover(
                     thumbnailUrl = thumbnailUrl,
                     size = heroWidth,
                     seed = thumbnailUrl ?: artistName,
                     shape = RectangleShape,
-                    decodeTo = 1200,
+                    decodeTo = if (lean) 640 else 1200,
                     ratio = if (isWideHero) heroWidth / 320.dp else 1f,
                 )
 
@@ -1103,13 +1106,19 @@ private fun AuraArtistHero(
                     .fillMaxWidth()
                     .height(200.dp)
                     .align(Alignment.BottomCenter)
-                    .hazeEffect(heroHaze) {
-                        blurRadius = 32.dp
-                        progressive = HazeProgressive.verticalGradient(
-                            startIntensity = 0f,
-                            endIntensity = 1f,
-                        )
-                    },
+                    .then(
+                        if (lean) {
+                            Modifier
+                        } else {
+                            Modifier.hazeEffect(heroHaze) {
+                                blurRadius = 32.dp
+                                progressive = HazeProgressive.verticalGradient(
+                                    startIntensity = 0f,
+                                    endIntensity = 1f,
+                                )
+                            }
+                        },
+                    ),
             )
 
             // El oscurecido va en una caja APARTE y MÁS ALTA, que es el detalle que más se nota y el

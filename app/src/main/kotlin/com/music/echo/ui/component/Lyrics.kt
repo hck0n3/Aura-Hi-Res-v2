@@ -942,22 +942,32 @@ fun Lyrics(
         // updates to the display refresh so the ticker never runs faster than the UI can draw.
         // (Follow-up: further cut recomposition scope so only the active line recomputes — e.g. pass the
         //  position as a () -> Long / wrap the per-line dependency in derivedStateOf.)
+        // Lean mode (registry 395): the Performance mode samples the clock ~8x/s instead of once per display frame
+        // (60-120x/s). Every state write here recomposes the visible lines; on a weak phone that is the heaviest
+        // thing a lyrics screen does, and a line change that lands up to 120 ms late is not something anyone reads.
+        // Capable devices (mode off) keep the frame-aligned ticker exactly as it was.
+        val tick = {
+            val sliderPosition = sliderPositionProvider()
+            isSeeking = sliderPosition != null
+            // While a crossfade swap is in flight the lines on screen belong to the OUTGOING song, so the
+            // highlight has to run on the OUTGOING player's clock: reading the live (incoming) player here
+            // would paint that song's FIRST lines against a position of ~0. Asked for only while the view
+            // is actually showing the outgoing song, and null whenever it is not readable (no swap, fade
+            // committed, player released — the service also self-heals the override on that null), in
+            // which case this is byte-for-byte the previous expression.
+            val outgoingPosition =
+                if (crossfadeOutgoing != null) playerConnection.crossfadeOutgoingPositionMs() else null
+            val position = outgoingPosition ?: sliderPosition ?: playerConnection.player.currentPosition
+            currentPlaybackPosition = position
+            val lyricsOffset = currentSong?.song?.lyricsOffset ?: 0
+            currentLineIndex = findCurrentLineIndex(lines, position + lyricsOffset)
+        }
         while (isActive) {
-            withFrameMillis {
-                val sliderPosition = sliderPositionProvider()
-                isSeeking = sliderPosition != null
-                // While a crossfade swap is in flight the lines on screen belong to the OUTGOING song, so the
-                // highlight has to run on the OUTGOING player's clock: reading the live (incoming) player here
-                // would paint that song's FIRST lines against a position of ~0. Asked for only while the view
-                // is actually showing the outgoing song, and null whenever it is not readable (no swap, fade
-                // committed, player released — the service also self-heals the override on that null), in
-                // which case this is byte-for-byte the previous expression.
-                val outgoingPosition =
-                    if (crossfadeOutgoing != null) playerConnection.crossfadeOutgoingPositionMs() else null
-                val position = outgoingPosition ?: sliderPosition ?: playerConnection.player.currentPosition
-                currentPlaybackPosition = position
-                val lyricsOffset = currentSong?.song?.lyricsOffset ?: 0
-                currentLineIndex = findCurrentLineIndex(lines, position + lyricsOffset)
+            if (perfOn) {
+                tick()
+                delay(120)
+            } else {
+                withFrameMillis { tick() }
             }
         }
     }

@@ -69,6 +69,9 @@ fun ProvideNavSharedTransition(
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun Modifier.auraSharedAlbumCoverElement(albumId: String): Modifier {
+    // Lean mode (registry 395): no per-card bounds tracking — each Inicio album card carried one, and the hero
+    // transition itself is exactly the kind of extra work a 1-2 GB phone should not do.
+    if (iad1tya.echo.music.utils.rememberLeanMode()) return this
     val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current ?: return this
     return with(sharedTransitionScope) {

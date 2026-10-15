@@ -99,8 +99,10 @@ fun PerformanceSettings(
                         description = {
                             Text(
                                 "Un único modo que recorta la app al máximo en CUALQUIER dispositivo. Apaga los fondos " +
-                                    "animados y el video musical, usa carátulas más pequeñas en las filas ligeras del inicio, " +
-                                    "muestra menos carruseles, baja la resolución/buffers y cambia la transición entre canciones " +
+                                    "animados, los desenfoques de portada (reproductor, cola y cabeceras de álbum, artista y " +
+                                    "lista) y el video musical, cambia de pantalla sin animación, usa portadas de menor " +
+                                    "resolución, muestra menos carruseles y no los descarga, refresca la letra a ritmo " +
+                                    "reducido, apaga SponsorBlock, baja el buffer de audio y cambia la transición entre canciones " +
                                     "a corte directo (la precarga ligera de enlaces se mantiene) — solo audio, fluido y fresco. " +
                                     "Se enciende solo en hardware de gama realmente baja (incluidos TV boxes y pantallas de auto " +
                                     "modestos), pero podés activarlo en cualquier equipo. El sonido (ecualizador, volumen seguro) " +

@@ -134,7 +134,10 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // "siguiend igual" after BETA-041). One snapshot at every cold start so the app.log
         // the owner shares already has the version, permissions and capabilities the first
         // reply needs. Values only, no user data, regola 4 AGENTS.
-        logBootDiagnostics()
+        // Off the main thread (registry 395): it does a blocking DataStore read (disk + Keystore decrypt) and a
+        // PackageManager query, on the path to the first frame, for the sake of one log line. On a slow phone that is
+        // tens of milliseconds of a frozen splash; the line only moves a few ms later in app.log.
+        applicationScope.launch(Dispatchers.IO) { logBootDiagnostics() }
 
         // NOTE: do NOT add a destructive deleteDatabase("song.db") on startup. The Room schema has
         // complete migration coverage (see MusicDatabase), so wiping the DB only erases the user's

@@ -2456,7 +2456,13 @@ class MusicService :
         // immediately fetch segments for the current track.
         scope.launch {
             dataStore.data
-                .map { it[iad1tya.echo.music.constants.SponsorBlockEnabledKey] ?: true }
+                // Lean mode (registry 395): off with the Performance mode. SponsorBlock is on by default even for music,
+                // and its watcher wakes the MAIN thread every second for the whole session (also paused, screen off)
+                // plus one network request per track. A weak phone gets neither.
+                .map {
+                    (it[iad1tya.echo.music.constants.SponsorBlockEnabledKey] ?: true) &&
+                        !(it[iad1tya.echo.music.constants.HighPerformanceModeKey] ?: false)
+                }
                 .distinctUntilChanged()
                 .collect { enabled ->
                     sponsorBlockEnabled = enabled
@@ -3193,7 +3199,11 @@ class MusicService :
         // listen-cache gets the WHOLE track. Aura keeps its device tiers: 200s on standard
         // devices, 120s on small-buffer ones (perf-mode/ULTRA/LOW/lowRAM) so low-RAM hardware
         // never risks OOM — the dead zone dies in both tiers because min == max.
-        val maxBufferMs = if (useSmallBuffer) 120_000 else 200_000
+        // Lean profile (registry 395): the cap is on TIME, and with min == max and prioritizeTimeOverSizeThresholds the byte
+        // cap below never wins — so 120 s of a FLAC 24/96 stream is ~45 MB of heap PER PLAYER (and a crossfade has two).
+        // 60 s is above ExoPlayer's own default (50 s) and halves that on the 1-3 GB phones that get reaped by the
+        // low-memory killer. min == max stays: the dead zone documented above does not come back.
+        val maxBufferMs = if (useSmallBuffer) 60_000 else 200_000
         val targetBufferBytes = if (useSmallBuffer) 32 * 1024 * 1024 else 64 * 1024 * 1024
         // Music-VIDEO quality adapts to the device so switching to video never overwhelms a weak TV box / low-end
         // phone. This caps ONLY the video track the ABR selects (audio is untouched, and it's a no-op for

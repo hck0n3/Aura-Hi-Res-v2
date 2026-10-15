@@ -1,4 +1,4 @@
-# Aura Hi-Res v2.0.65-beta10 — El móvil girado ya no se divide como un plegable
+# Aura Hi-Res v2.0.65-beta10 — Móviles de gama baja más fluidos y el móvil girado ya no se divide
 
 Beta encima de la 2.0.65-beta9. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
@@ -7,6 +7,17 @@ Beta encima de la 2.0.65-beta9. Conserva tus datos, tu sesión y tus ajustes: mi
 - **Con el móvil sin plegar, al girarlo la pantalla ya no se divide como si fuera un plegable:** la barra
   flotante, el reproductor dividido y las dos tarjetas solo salen en el plegable abierto y en tabletas, en
   cualquier orientación. El móvil girado conserva su interfaz de móvil.
+
+## Móviles de gama baja
+
+- **Con el Modo alto rendimiento (se enciende solo en móviles de gama baja) la app va mucho más fluida:** las
+  pantallas cambian sin animación, se quitan los desenfoques de las portadas grandes y del fondo del reproductor,
+  las portadas usan menor resolución, las letras se refrescan a menos ritmo, se apagan la marquesina y el
+  indicador animado, y Inicio deja de descargar carruseles que no muestra.
+- **Menos memoria al reproducir:** el buffer baja a 60 s y se apaga SponsorBlock.
+- **Arranque y Biblioteca más ligeros:** el diagnóstico de arranque ya no frena el primer fotograma y la lista
+  de Canciones deja de volver a filtrarse entera en cada cambio.
+- **El resto de móviles no cambia nada:** todo esto solo se aplica con el Modo alto rendimiento encendido.
 
 También incluye todo lo de la beta9:
 

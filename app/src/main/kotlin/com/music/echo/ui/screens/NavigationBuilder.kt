@@ -185,25 +185,38 @@ fun NavGraphBuilder.navigationBuilder(
                 type = NavType.StringType
             },
         ),
+        // Lean mode (registry 395): no transition at all — see [AuraNavMotion].
         enterTransition = {
-            fadeIn(tween(250))
+            if (iad1tya.echo.music.utils.LeanMode.isOn()) {
+                androidx.compose.animation.EnterTransition.None
+            } else {
+                fadeIn(tween(250))
+            }
         },
         exitTransition = {
-            if (targetState.destination.route?.startsWith("search/") == true) {
+            if (iad1tya.echo.music.utils.LeanMode.isOn()) {
+                androidx.compose.animation.ExitTransition.None
+            } else if (targetState.destination.route?.startsWith("search/") == true) {
                 fadeOut(tween(200))
             } else {
                 fadeOut(tween(200)) + slideOutHorizontally { -it / 2 }
             }
         },
         popEnterTransition = {
-            if (initialState.destination.route?.startsWith("search/") == true) {
+            if (iad1tya.echo.music.utils.LeanMode.isOn()) {
+                androidx.compose.animation.EnterTransition.None
+            } else if (initialState.destination.route?.startsWith("search/") == true) {
                 fadeIn(tween(250))
             } else {
                 fadeIn(tween(250)) + slideInHorizontally { -it / 2 }
             }
         },
         popExitTransition = {
-            fadeOut(tween(200))
+            if (iad1tya.echo.music.utils.LeanMode.isOn()) {
+                androidx.compose.animation.ExitTransition.None
+            } else {
+                fadeOut(tween(200))
+            }
         },
     ) {
         // Same AMOLED expression as the Buscar tab above: PureBlackKey only paints black over a dark

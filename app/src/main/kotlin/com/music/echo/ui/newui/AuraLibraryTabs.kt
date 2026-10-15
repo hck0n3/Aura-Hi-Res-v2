@@ -665,12 +665,16 @@ fun AuraLibrarySongsTab(
         }
     }
 
-    val filteredSongs = songs
-        .let { list -> if (hideExplicit) list.filter { !it.song.explicit } else list }
-        .let { list ->
-            if (searchQuery.isBlank()) list
-            else list.filter { it.song.title.contains(searchQuery, ignoreCase = true) }
-        }
+    // `remember`ed (registry 395): this filtered the WHOLE library on every recomposition and every keystroke of the search
+    // box — with 10-20k songs that is a stall on a weak phone, and free to fix on every tier.
+    val filteredSongs = remember(songs, hideExplicit, searchQuery) {
+        songs
+            .let { list -> if (hideExplicit) list.filter { !it.song.explicit } else list }
+            .let { list ->
+                if (searchQuery.isBlank()) list
+                else list.filter { it.song.title.contains(searchQuery, ignoreCase = true) }
+            }
+    }
 
     // Identical bucket derivation to the classic tab — the no-repeat memory must be ONE memory.
     val canonicalCollectionId = when (filter) {

@@ -15,12 +15,24 @@ const val COVER_PLAYER_BUCKET = 1200
  * player, the exact variants the DB and the queue already use), so each logical cover has at
  * most two cache keys. Pure decision — the URL rewrite stays in [resize].
  */
-fun canonicalCoverSize(requested: Int): Int =
-    when {
+fun canonicalCoverSize(requested: Int, lean: Boolean = false): Int {
+    // Lean mode (registry 395): smaller renditions. The sizes in the URL are what is DOWNLOADED — Coil downsamples
+    // to the view afterwards, so a 48 dp row that asks for 256 px still pulled the 544 px file (and the player the
+    // 1200 px one). On a slow connection and a slow disk that is the cost that shows in a scroll.
+    val list = if (lean) COVER_LIST_BUCKET_LEAN else COVER_LIST_BUCKET
+    val player = if (lean) COVER_PLAYER_BUCKET_LEAN else COVER_PLAYER_BUCKET
+    return when {
         requested <= 0 -> requested
-        requested <= (COVER_LIST_BUCKET + COVER_PLAYER_BUCKET) / 2 -> COVER_LIST_BUCKET
-        else -> COVER_PLAYER_BUCKET
+        requested <= (list + player) / 2 -> list
+        else -> player
     }
+}
+
+/** Lean-mode list cover size (grids, queue, notifications). */
+const val COVER_LIST_BUCKET_LEAN = 384
+
+/** Lean-mode player / hero cover size. */
+const val COVER_PLAYER_BUCKET_LEAN = 800
 
 fun String.resize(
     width: Int? = null,
@@ -45,8 +57,9 @@ fun String.resize(
 
     if (this.contains("googleusercontent.com") && this.contains("=w")) {
         val baseUrl = this.split("=w")[0]
-        val w = canonicalCoverSize(width ?: 0)
-        val h = canonicalCoverSize(height ?: width ?: 0)
+        val lean = iad1tya.echo.music.utils.LeanMode.isOn()
+        val w = canonicalCoverSize(width ?: 0, lean)
+        val h = canonicalCoverSize(height ?: width ?: 0, lean)
 
         return "$baseUrl=w$w-h$h-p-l90-rj"
     }
@@ -62,8 +75,9 @@ fun String.resize(
 
 
     "https://lh\\d\\.googleusercontent\\.com/.*".toRegex().matchEntire(this)?.let {
-        val w = canonicalCoverSize(width ?: 0)
-        val h = canonicalCoverSize(height ?: width ?: 0)
+        val lean = iad1tya.echo.music.utils.LeanMode.isOn()
+        val w = canonicalCoverSize(width ?: 0, lean)
+        val h = canonicalCoverSize(height ?: width ?: 0, lean)
         return "${this.split("=")[0]}=w$w-h$h-p-l90-rj"
     }
 

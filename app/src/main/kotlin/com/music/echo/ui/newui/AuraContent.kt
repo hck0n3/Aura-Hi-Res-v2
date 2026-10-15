@@ -483,7 +483,10 @@ fun AuraPlayingBars(
         playerConnection?.service?.castConnectionHandler?.isCasting?.collectAsState()
             ?: remember { mutableStateOf(false) }
         )
-    val animateBars = isPlaying && (playbackState == Player.STATE_READY || isCasting)
+    // Lean mode (registry 395): the animated bars keep three Animatables restarting every ~50 ms for as long as a row
+    // is on screen and playing — a permanent animation clock. The still «play» glyph below says the same thing.
+    val lean = iad1tya.echo.music.utils.rememberLeanMode()
+    val animateBars = !lean && isPlaying && (playbackState == Player.STATE_READY || isCasting)
     Box(
         modifier = modifier.height(17.dp),
         contentAlignment = Alignment.Center,
