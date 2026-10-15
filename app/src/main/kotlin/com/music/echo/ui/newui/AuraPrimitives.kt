@@ -154,6 +154,13 @@ fun AuraIconButton(
     size: Dp = 20.dp,
     tint: Color = AuraPalette.OnGround,
     enabled: Boolean = true,
+    /**
+     * false = the button DRAWS exactly as it would but takes no touch (no dimming, unlike [enabled]). For a
+     * button that is on screen while it must not answer — the mini player's pill is a pre-composed, fading
+     * strip over the top of the expanded player, and its buttons must not catch the taps meant for what is
+     * visible under them (owner 2026-10-15, the Cast button).
+     */
+    interactive: Boolean = true,
 ) {
     Box(
         modifier = modifier
@@ -164,7 +171,7 @@ fun AuraIconButton(
             .clip(CircleShape)
             .auraClickable(
                 onClick = onClick,
-                enabled = enabled,
+                enabled = enabled && interactive,
                 role = Role.Button,
                 contentDescription = contentDescription,
             ),

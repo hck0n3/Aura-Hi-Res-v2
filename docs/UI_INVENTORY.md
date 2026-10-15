@@ -569,6 +569,8 @@ La barra tiene **cuatro implementaciones distintas** según el ajuste de estilo.
 | Siguiente | Panel lateral derecho | `app/.../ui/player/NowPlayingSidePanel.kt:200` | acción primaria | constante | igual |
 | Me gusta | Panel lateral derecho | `app/.../ui/player/NowPlayingSidePanel.kt:207` | conmutador | diaria | igual |
 | Tiempos transcurrido / total | Panel lateral derecho | `app/.../ui/player/NowPlayingSidePanel.kt:148`/`:153` | informativo | constante | igual |
+| (Interfaz nueva) Portada, título/artista, línea de tiempo, tiempos, No me gusta, Anterior, Reproducir/Pausar, Siguiente, Me gusta | Panel lateral «sonando ahora» de Aura | `app/.../ui/newui/AuraWideChrome.kt` (`AuraNowPlayingPanel`) | los mismos que el panel clásico, mismas acciones | igual | **2026-10-15:** con la interfaz nueva encendida `MainActivity` coloca ESTE panel en lugar de `NowPlayingSidePanel`; con ella apagada sigue el clásico. Ningún control se pierde. |
+| (Interfaz nueva) Inicio · Buscar · Biblioteca · Novedades (y Escuchar juntos si está en la barra) · pulsación larga en Buscar → reconocimiento | Riel de navegación vertical de Aura | `app/.../ui/newui/AuraWideChrome.kt` (`AuraNavigationRail`) | navegación | constante | **2026-10-15:** sustituye a `AppNavigationRail` solo con la interfaz nueva encendida, en ventanas anchas (≥ 600 dp: plegable abierto, tableta, móvil apaisado). Mismas celdas y mismo contrato `onItemClick` que la barra de abajo. |
 
 ---
 

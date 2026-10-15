@@ -1182,7 +1182,8 @@ fun AuraMiniPlayer(
                     icon = AuraIcons.SkipPrevious,
                     contentDescription = stringResource(R.string.previous),
                     onClick = { playerConnection.player.seekToPreviousMediaItem() },
-                    enabled = canSkipPrevious && !isListenTogetherGuest && gesturesEnabled,
+                    enabled = canSkipPrevious && !isListenTogetherGuest,
+                    interactive = gesturesEnabled,
                     size = 22.dp,
                 )
 
@@ -1212,7 +1213,7 @@ fun AuraMiniPlayer(
                             else -> playerConnection.togglePlayPause()
                         }
                     },
-                    enabled = gesturesEnabled,
+                    interactive = gesturesEnabled,
                     size = 25.dp,
                     tint = if (isListenTogetherGuest && isMuted) {
                         AuraPalette.OnGroundDisabled
@@ -1225,7 +1226,8 @@ fun AuraMiniPlayer(
                     icon = AuraIcons.SkipNext,
                     contentDescription = stringResource(R.string.next),
                     onClick = { playerConnection.player.seekToNext() },
-                    enabled = canSkipNext && !isListenTogetherGuest && gesturesEnabled,
+                    enabled = canSkipNext && !isListenTogetherGuest,
+                    interactive = gesturesEnabled,
                     size = 22.dp,
                 )
 
@@ -1255,7 +1257,7 @@ fun AuraMiniPlayer(
                         } else {
                             Modifier
                         },
-                        enabled = gesturesEnabled,
+                        interactive = gesturesEnabled,
                         // El valor se captura ARRIBA y no se lee aquí: `CompositionLocal.current` solo
                         // existe en contexto composable, y este `onClick` es una lambda normal. Y
                         // `?.invoke()` en vez de `!!` porque dentro de `AnimatedVisibility` el contenido
