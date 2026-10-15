@@ -1093,6 +1093,24 @@ class MainActivity : ComponentActivity() {
                     defaultValue = true,
                 )
                 val splitActive = auraWideBottom && widePlayerSplit
+                // Split player: navigating never minimizes it (the user does, with the chevron), and Back pops the LEFT
+                // pane before it minimizes anything. Fields on the state so every click handler reads the live value.
+                androidx.compose.runtime.SideEffect {
+                    playerBottomSheetState.keepOpenWhenNavigating = splitActive
+                    playerBottomSheetState.splitBackHandler = if (splitActive) {
+                        {
+                            val onTabRoot = navController.currentBackStackEntry?.destination?.route in topLevelScreens
+                            if (!onTabRoot && navController.previousBackStackEntry != null) {
+                                navController.popBackStack()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    } else {
+                        null
+                    }
+                }
                 // Hoisted: `maxWidth` is the BoxWithConstraints' and is out of reach inside the nested Box scopes below.
                 val windowMaxWidth = maxWidth
                 val widePaneWidth = auraWidePlayerPaneWidth(windowMaxWidth)
@@ -2062,8 +2080,9 @@ class MainActivity : ComponentActivity() {
                         bottomBar = {
                             val onNavItemClick: (Screens, Boolean) -> Unit = remember(navController, coroutineScope, topAppBarScrollBehavior, playerBottomSheetState) {
                                 { screen: Screens, isSelected: Boolean ->
+                                    // In the split player the pane stays open until the user minimizes it.
                                     if (playerBottomSheetState.isExpanded) {
-                                        playerBottomSheetState.collapseSoft()
+                                        playerBottomSheetState.collapseAfterNavigate()
                                     }
 
                                     if (isSelected) {
@@ -2072,8 +2091,15 @@ class MainActivity : ComponentActivity() {
                                             topAppBarScrollBehavior.state.resetHeightOffset()
                                         }
                                     } else {
-                                        // The same options as before, named once — see [navigateAsTab].
-                                        navController.navigateAsTab(screen.route)
+                                        // Inicio: the same three-step ladder the mini player's home shortcut got on 2026-09-17
+                                        // (the bar's own cell never did: `navigateAsTab` alone restores the stack you
+                                        // just left). Any other tab already in the stack lands on ITS ROOT — see
+                                        // [navigateToTab].
+                                        if (screen.route == Screens.Home.route) {
+                                            navController.goHomeAlways()
+                                        } else {
+                                            navController.navigateToTab(screen.route)
+                                        }
                                     }
                                 }
                             }
@@ -3276,6 +3302,27 @@ internal fun NavController.goHomeAlways() {
         if (forced) "forced" else if (popped) "pop" else "tab",
         HomeShortcut.screenName(currentDestination?.route),
     )
+}
+
+/**
+ * A bottom-bar tap. Owner 2026-10-15: «cuando toco el botón de Inicio de la barra de abajo no me funciona, no manda
+ * al inicio».
+ *
+ * [navigateAsTab] is `popUpTo(startDestination) { saveState } + restoreState`. The saved state is keyed by the FIRST
+ * popped entry, so when the tab you tap is itself one of the entries being popped — it sits ABOVE the start
+ * destination (the app's start is not Inicio: the «pestaña inicial» setting or a launcher shortcut), possibly with a
+ * detail screen on top — the restore puts that same stack straight back and you land on the album or search you were
+ * on, not on Inicio.
+ *
+ *  · The tab is the START destination, or it is not in the stack at all → [navigateAsTab] is right and unchanged: it
+ *    pops to the start (nothing keyed by it to restore) or switches to the tab, restoring what it last showed.
+ *  · The tab is in the stack above the start → pop to it. Nothing is saved, so nothing can be restored: it lands on
+ *    the tab's root.
+ */
+internal fun NavController.navigateToTab(route: String) {
+    val isStart = route == graph.startDestinationRoute
+    if (!isStart && popBackStack(route, inclusive = false)) return
+    navigateAsTab(route)
 }
 
 internal fun NavController.navigateAsTab(route: String) {

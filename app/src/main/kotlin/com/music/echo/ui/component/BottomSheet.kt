@@ -149,7 +149,7 @@ fun BottomSheet(
             }
     ) {
         if (!state.isCollapsed && !state.isDismissed) {
-            BackHandler(onBack = state::collapseSoft)
+            BackHandler(onBack = { if (state.splitBackHandler?.invoke() != true) state.collapseSoft() })
         }
 
         
@@ -197,6 +197,26 @@ class BottomSheetState(
     private val onAnchorChanged: (Int) -> Unit,
     val collapsedBound: Dp,
 ) : DraggableState by draggableState {
+    /**
+     * Split player (wide windows, new UI): the sheet IS the right pane, so navigating — a tap on the bottom bar,
+     * «Ver álbum», «Ir al artista», Ajustes… — must leave it open. Owner 2026-10-15: «que si el reproductor está
+     * abierto en pantalla dividida no se minimice hasta que yo lo haga manualmente, porque cada vez que toco un
+     * botón de la barra de exploración se cierra, y eso no me gusta». Set from `MainActivity` (a plain field read by
+     * click handlers, never by composition); false = the sheet collapses after navigating, exactly as before.
+     */
+    var keepOpenWhenNavigating: Boolean = false
+
+    /**
+     * Split mode: the system Back pops the LEFT pane first (Spotify) and only minimizes the player when the left
+     * pane has nowhere to go. Returns true when it consumed the Back.
+     */
+    var splitBackHandler: (() -> Boolean)? = null
+
+    /** Collapse after a navigation — unless this is the split pane, which stays until the user minimizes it. */
+    fun collapseAfterNavigate() {
+        if (!keepOpenWhenNavigating) collapseSoft()
+    }
+
     val dismissedBound: Dp
         get() = animatable.lowerBound!!
 

@@ -1,6 +1,25 @@
-# Aura Hi-Res v2.0.65-beta7 — Cambio rápido entre música y vídeo
+# Aura Hi-Res v2.0.65-beta8 — El reproductor dividido no se cierra y Inicio vuelve a funcionar
 
-Beta encima de la 2.0.65-beta6. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta7. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Plegables y tabletas
+
+- **Con el reproductor abierto en pantalla dividida, no se minimiza hasta que tú lo hagas:** tocar un botón de la
+  barra de abajo, «Ver álbum», «Ir al artista», Ajustes… se abre en la pantalla de la izquierda y el reproductor
+  se queda a la derecha. «Atrás» primero cierra lo de la izquierda.
+
+## Portadas
+
+- **Las orillas de las portadas ahora sí son como las de Apple Music:** una línea fina y clara alrededor de cada
+  portada (se ve también con portadas claras) y las esquinas se redondean según el tamaño —más suaves en las
+  miniaturas de las listas, que antes eran casi píldoras—.
+
+## Barra de abajo
+
+- **El botón Inicio ya te lleva siempre al inicio**, sin importar en qué pantalla estés ni cuál sea tu pestaña
+  inicial. Antes podía devolverte a la pantalla en la que estabas.
+
+También incluye todo lo de la beta7:
 
 ## Música y vídeo
 
@@ -8,6 +27,8 @@ Beta encima de la 2.0.65-beta6. Conserva tus datos, tu sesión y tus ajustes: mi
   imagen y la música sigue. Volver a vídeo reactiva la imagen sin recargar nada.
 - **Cambiar de canción a vídeo llega más rápido:** el vídeo se prepara en cuanto abres el reproductor y
   reintenta si en ese momento la app estaba ocupada con el audio.
+
+
 
 También incluye todo lo de la beta6:
 

@@ -293,7 +293,7 @@ fun AuraPlayerMenu(
                                     )
                                 }
                                 showSelectArtistDialog = false
-                                playerBottomSheetState.collapseSoft()
+                                playerBottomSheetState.collapseAfterNavigate()
                                 onDismiss()
                             }
                         }
@@ -427,7 +427,7 @@ fun AuraPlayerMenu(
                                             "search/${URLEncoder.encode(only.name, "UTF-8")}"
                                         )
                                     }
-                                    playerBottomSheetState.collapseSoft()
+                                    playerBottomSheetState.collapseAfterNavigate()
                                     onDismiss()
                                 }
                             } else {
@@ -460,7 +460,7 @@ fun AuraPlayerMenu(
                                         "search/${URLEncoder.encode(album.title, "UTF-8")}"
                                     )
                                 }
-                                playerBottomSheetState.collapseSoft()
+                                playerBottomSheetState.collapseAfterNavigate()
                                 onDismiss()
                             }
                         },
@@ -470,7 +470,7 @@ fun AuraPlayerMenu(
                     icon = AuraIcons.Equalizer,
                     label = stringResource(R.string.equalizer),
                     onClick = {
-                        playerBottomSheetState.collapseSoft()
+                        playerBottomSheetState.collapseAfterNavigate()
                         navController.navigate("settings/equalizer") { launchSingleTop = true }
                         onDismiss()
                     },
@@ -479,7 +479,7 @@ fun AuraPlayerMenu(
                     icon = AuraIcons.Volume,
                     label = "Sonido",
                     onClick = {
-                        playerBottomSheetState.collapseSoft()
+                        playerBottomSheetState.collapseAfterNavigate()
                         navController.navigate("settings/sound")
                         onDismiss()
                     },
@@ -496,7 +496,7 @@ fun AuraPlayerMenu(
                     icon = AuraIcons.Settings,
                     label = stringResource(R.string.settings),
                     onClick = {
-                        playerBottomSheetState.collapseSoft()
+                        playerBottomSheetState.collapseAfterNavigate()
                         navController.navigateAsTab("settings")
                         onDismiss()
                     },
@@ -656,7 +656,7 @@ fun AuraPlayerMenu(
                             coroutineScope.launch {
                                 val feed = iad1tya.echo.music.podcast.PodcastStoreEntryPoint
                                     .get(context).get(epId)?.feedUrl
-                                playerBottomSheetState.collapseSoft()
+                                playerBottomSheetState.collapseAfterNavigate()
                                 onDismiss()
                                 navController.navigate(
                                     if (!feed.isNullOrBlank())

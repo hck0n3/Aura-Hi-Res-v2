@@ -86,14 +86,16 @@ object AuraSpacing {
 
 object AuraShapes {
     /**
-     * Artwork in a list row — render `border-radius:8px`, i.e. 11 dp scaled.
+     * Artwork in a grid, shelf or row. Apple Music's way (registry row 392): the radius GROWS WITH THE COVER — see
+     * [auraArtworkCornerDp] — instead of the render's fixed 11 dp, which is right for a 180 dp tile and turned a 48 dp
+     * list thumbnail into a pill.
      *
      * NOT a constant any more: "Radio de esquina de la miniatura" (Ajustes ▸ Apariencia ▸ Reproductor)
      * scales both cover radii, and this getter is the single place the redesign reads that. See
      * [AuraCoverCorners] — the shapes are cut once per settings change, so this hands back an existing
      * object rather than allocating per row.
      */
-    val Artwork: RoundedCornerShape get() = AuraPalette.coverCorners.row
+    val Artwork: androidx.compose.ui.graphics.Shape get() = AuraPalette.coverCorners.artwork
 
     /** Player artwork — render `border-radius:14px`, i.e. 20 dp scaled by the same control. */
     val PlayerArtwork: RoundedCornerShape get() = AuraPalette.coverCorners.player
@@ -608,12 +610,13 @@ fun AuraArtwork(
  */
 fun Modifier.auraArtworkEdge(
     shape: androidx.compose.ui.graphics.Shape,
-    color: Color = AuraPalette.ArtworkEdge,
+    color: Color = AuraPalette.ArtworkRing,
 ): Modifier = this
     .clip(shape)
     .drawWithContent {
         drawContent()
-        val hairline = 0.5.dp.toPx().coerceAtLeast(1f)
+        // ~1.7 px at 2.6x, never thinner than 1.5 px: Apple Music's measured line (see [AuraPalette.ArtworkRing]).
+        val hairline = 0.6.dp.toPx().coerceAtLeast(1.5f)
         drawOutline(
             outline = shape.createOutline(size, layoutDirection, this),
             color = color,

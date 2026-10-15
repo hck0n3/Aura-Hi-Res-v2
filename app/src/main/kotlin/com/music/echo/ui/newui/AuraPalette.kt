@@ -1,6 +1,13 @@
 package iad1tya.echo.music.ui.newui
 
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -498,6 +505,17 @@ object AuraPalette {
         get() = roleOverrides.outline ?: Color.White.copy(alpha = 0.10f)
 
     /**
+     * Apple Music's cover FRAME LINE (owner 2026-10-15, Apple Music screenshot, measured pixel by pixel: ~1.7 px of
+     * rgb ≈ 70-83 on black, i.e. ≈ 28-32 % white, sitting OUTSIDE the art with the cover one pixel smaller inside it).
+     *
+     * An OPAQUE neutral — the ink at 28 % composited over the ground — and not a translucent white: a translucent line
+     * painted over a bright cover is invisible (it was: «las orillas… no se ven como las de Apple Music todavía»), an
+     * opaque one reads on any art, light or dark. A user outline colour, when set, replaces the ink.
+     */
+    val ArtworkRing: Color
+        get() = (roleOverrides.outline?.copy(alpha = 0.32f) ?: OnGround.copy(alpha = 0.28f)).compositeOver(Ground)
+
+    /**
      * Hairline on album / playlist / video / artist artwork — Apple Music's thin cover edge.
      * Slightly stronger than [SurfaceLine] so it reads on a photograph, not only on chrome.
      */
@@ -604,6 +622,14 @@ class AuraCoverCorners(val scale: Float) {
      * rather than a lozenge.
      */
     val player: RoundedCornerShape = RoundedCornerShape((20f * scale).coerceAtMost(44f).dp)
+
+    /**
+     * Artwork in a grid / shelf / row — Apple Music's way: the radius GROWS WITH THE COVER instead of being one fixed
+     * number. Measured on the owner's Apple Music screenshot: ≈ 3.5 dp on a 44 dp thumbnail, ≈ 8.5 dp on a 182 dp
+     * tile. The fixed 11 dp of [row] is right for the tile and turned a 48 dp list thumbnail into a pill.
+     * Scaled by the same "Radio de esquina" control as the other two.
+     */
+    val artwork: Shape = AuraArtworkShape(scale)
 
     override fun equals(other: Any?): Boolean = other is AuraCoverCorners && scale == other.scale
     override fun hashCode(): Int = scale.hashCode()
@@ -992,4 +1018,25 @@ data class AuraBloomColors(
                 center = AuraPalette.Blue.copy(alpha = 0.24f),
             )
     }
+}
+
+/**
+ * Corner radius, in dp, of an artwork frame whose shorter side is [sideDp]: a straight line through Apple Music's
+ * two measured points (≈ 3.5 dp at 44 dp, ≈ 8.5 dp at 182 dp), kept between 3 and 14 dp, times the user's [scale],
+ * and never more than half the side. Pure, for test.
+ */
+fun auraArtworkCornerDp(sideDp: Float, scale: Float = 1f): Float =
+    ((2.1f + 0.035f * sideDp).coerceIn(3f, 14f) * scale).coerceIn(0f, (sideDp / 2f).coerceAtLeast(0f))
+
+/** [auraArtworkCornerDp] as a [Shape]: the radius is computed from the frame it is asked to outline. */
+@Immutable
+class AuraArtworkShape(private val scale: Float) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val px = density.density
+        val radius = auraArtworkCornerDp(minOf(size.width, size.height) / px, scale) * px
+        return Outline.Rounded(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
+    }
+
+    override fun equals(other: Any?): Boolean = other is AuraArtworkShape && scale == other.scale
+    override fun hashCode(): Int = scale.hashCode()
 }

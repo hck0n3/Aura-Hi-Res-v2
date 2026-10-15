@@ -854,7 +854,7 @@ private fun AuraPlayerShape(
                                         "search/${URLEncoder.encode(artist.name, "UTF-8")}"
                                     )
                                 }
-                                state.collapseSoft()
+                                state.collapseAfterNavigate()
                             }
                         }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -1328,12 +1328,12 @@ private fun AuraPlayerShape(
                                 }
                                 if (!browseId.isNullOrBlank()) {
                                     navController.navigate("album/$browseId")
-                                    state.collapseSoft()
+                                    state.collapseAfterNavigate()
                                 } else if (album.title.isNotBlank()) {
                                     navController.navigate(
                                         "search/${URLEncoder.encode(album.title, "UTF-8")}"
                                     )
-                                    state.collapseSoft()
+                                    state.collapseAfterNavigate()
                                 }
                             }
                         }
@@ -1354,12 +1354,12 @@ private fun AuraPlayerShape(
                                 }
                                 if (!browseId.isNullOrBlank()) {
                                     navController.navigate("artist/$browseId")
-                                    state.collapseSoft()
+                                    state.collapseAfterNavigate()
                                 } else {
                                     navController.navigate(
                                         "search/${URLEncoder.encode(artist.name, "UTF-8")}"
                                     )
-                                    state.collapseSoft()
+                                    state.collapseAfterNavigate()
                                 }
                             }
                         }
@@ -1404,12 +1404,12 @@ private fun AuraPlayerShape(
                                             }
                                             if (!browseId.isNullOrBlank()) {
                                                 navController.navigate("album/$browseId")
-                                                state.collapseSoft()
+                                                state.collapseAfterNavigate()
                                             } else if (album.title.isNotBlank()) {
                                                 navController.navigate(
                                                     "search/${URLEncoder.encode(album.title, "UTF-8")}"
                                                 )
-                                                state.collapseSoft()
+                                                state.collapseAfterNavigate()
                                             }
                                         }
                                     }
@@ -1963,7 +1963,7 @@ private fun AuraPlayerShape(
                                     onDismiss = bottomSheetPageState::dismiss,
                                     onBrowseAway = {
                                         bottomSheetPageState.dismiss()
-                                        state.collapseSoft()
+                                        state.collapseAfterNavigate()
                                     },
                                     isListenTogetherGuest = isListenTogetherGuest,
                                 )
