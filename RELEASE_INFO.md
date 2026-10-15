@@ -1,6 +1,25 @@
-# Aura Hi-Res v2.0.65-beta10 — Móviles de gama baja más fluidos y el móvil girado ya no se divide
+# Aura Hi-Res v2.0.65-beta10 — Cabecera limpia, pantalla adaptable y móviles de gama baja más fluidos
 
 Beta encima de la 2.0.65-beta9. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Cabecera
+
+- **El nombre va arriba y el saludo (buenos días, tardes, noches) debajo:** Inicio, Buscar y Novedades ya no
+  recortan el título.
+- **Los botones de al lado (reconocer, escuchar juntos, historial, sin conexión, cuenta) se esconden tras un
+  solo botón:** tócalo para mostrarlos u ocultarlos.
+
+## Fluidez de pantalla
+
+- **La app se adapta a la tasa de refresco que tenga tu móvil en ese momento:** usa la más alta de tu panel
+  (por ejemplo 120 Hz) y la baja sola a 90 o 60 Hz si el móvil se calienta o activas el ahorro de batería. Si
+  cambias el ajuste de fluidez del sistema o plegas el móvil, se ajusta al instante.
+
+## Botones al primer toque
+
+- **El botón de transmitir (Cast) responde al primer toque** aunque el dedo se mueva un poco al pulsar. Lo mismo
+  en la salida de audio, los botones de la barra de la cola y los de reproducción (anterior, play, siguiente,
+  aleatorio, repetir).
 
 ## Girar el móvil
 

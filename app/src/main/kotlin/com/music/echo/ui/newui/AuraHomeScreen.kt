@@ -467,6 +467,7 @@ fun AuraHomeScreen(
                         // header stacked over this one). Its four actions — Escuchar juntos, Historial,
                         // Modo sin conexión and Cuenta — live here now; see [LocalAuraTopActions].
                         trailing = { AuraTopActions() },
+                        collapseTrailing = true,
                     )
                 }
 

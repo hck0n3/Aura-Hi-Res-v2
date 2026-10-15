@@ -1249,4 +1249,6 @@
     <string name="style_follow_any">Cualquier estilo</string>
     <string name="style_follow_change">Cambiar a</string>
     <string name="style_follow_cd">Cambiar el estilo que sigue la cola</string>
+    <string name="header_actions_show">Mostrar accesos rápidos</string>
+    <string name="header_actions_hide">Ocultar accesos rápidos</string>
 </resources>

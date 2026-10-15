@@ -1670,7 +1670,10 @@ private fun AuraPlayerShape(
                     verticalAlignment = Alignment.CenterVertically,
                     // TIDAL-STYLE TRANSPORT: shuffle · previous · play · next · repeat spread edge to edge.
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.Gutter),
+                    // Registry row 396: a thumb that rolls past the touch slop on play / next used to hand the gesture
+                    // to the sheet's drag and cancel the tap («los botones no responden al primer toque»).
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.Gutter)
+                        .shieldTapsFromAncestorDrags(),
                 ) {
                     AuraIconButton(
                         icon = AuraIcons.Shuffle,

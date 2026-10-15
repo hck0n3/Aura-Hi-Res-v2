@@ -30,6 +30,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.view.Display
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.WindowManager
@@ -92,6 +93,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -659,40 +661,30 @@ class MainActivity : ComponentActivity() {
      * it is never re-asserted afterwards, leaving the panel at the low-rate bucket for the rest
      * of the session ("las animaciones no se adaptan a la tasa de refresco").
      */
-    private fun applyPreferredRefreshRate(enableHighRefreshRate: Boolean) {
+    private fun applyPreferredRefreshRate(
+        enableHighRefreshRate: Boolean,
+        ceilingHz: Float = iad1tya.echo.music.utils.RefreshRatePlanning.NO_CEILING,
+    ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val layoutParams = window.attributes
-            if (enableHighRefreshRate) {
-                // Actively request the panel's HIGHEST refresh-rate mode at the current resolution,
-                // instead of leaving it to the system (= 0) — several OEMs cap non-game apps at 60 Hz
-                // unless the app asks. This makes scrolling/animations run at 90/120 Hz when supported.
-                val modes = window.windowManager.defaultDisplay.supportedModes
-                val current = window.windowManager.defaultDisplay.mode
-                val best = modes
-                    .filter {
-                        it.physicalWidth == current.physicalWidth &&
-                            it.physicalHeight == current.physicalHeight
-                    }
-                    .maxByOrNull { it.refreshRate }
-                    ?: modes.maxByOrNull { it.refreshRate }
-                layoutParams.preferredDisplayModeId = best?.modeId ?: 0
-            } else {
-                val modes = window.windowManager.defaultDisplay.supportedModes
-                val mode60 = modes.firstOrNull { kotlin.math.abs(it.refreshRate - 60f) < 1f }
-                    ?: modes.minByOrNull { kotlin.math.abs(it.refreshRate - 60f) }
-
-                if (mode60 != null) {
-                    layoutParams.preferredDisplayModeId = mode60.modeId
-                }
+            val display = window.windowManager.defaultDisplay
+            fun Display.Mode.plan() = iad1tya.echo.music.utils.RefreshMode(modeId, physicalWidth, physicalHeight, refreshRate)
+            // With the setting off the request is the 60 Hz bucket; with it on, the panel's best mode that the
+            // device's CURRENT state (battery saver, heat) allows — see [RefreshRatePlanning].
+            val target = iad1tya.echo.music.utils.RefreshRatePlanning.pick(
+                modes = display.supportedModes.map { it.plan() },
+                current = display.mode.plan(),
+                ceilingHz = if (enableHighRefreshRate) ceilingHz else 60f,
+            )
+            // Re-asserting the same mode is pointless and, since a window-attribute change can itself raise
+            // onDisplayChanged, is exactly how a listener would loop on itself.
+            if (target != null && layoutParams.preferredDisplayModeId != target.id) {
+                layoutParams.preferredDisplayModeId = target.id
+                window.attributes = layoutParams
             }
-            window.attributes = layoutParams
         } else {
             val params = window.attributes
-            if (enableHighRefreshRate) {
-                params.preferredRefreshRate = 0f
-            } else {
-                params.preferredRefreshRate = 60f
-            }
+            params.preferredRefreshRate = if (enableHighRefreshRate && ceilingHz > 60f) 0f else 60f
             window.attributes = params
         }
     }
@@ -722,8 +714,46 @@ class MainActivity : ComponentActivity() {
         // HALLAZGO-060: keyed on the Configuration as well so the request is RE-ASSERTED on
         // every display config change (rotation, fold, resolution) — see applyPreferredRefreshRate.
         val configuration = LocalConfiguration.current
-        LaunchedEffect(enableHighRefreshRate, configuration) {
-            applyPreferredRefreshRate(enableHighRefreshRate)
+        //
+        // Owner 2026-10-15 (adaptive rate): the request also follows the device's state AT THAT MOMENT — the system's
+        // smoothness setting or the panel itself changing (a DisplayListener), battery saver, and heat — instead of a
+        // single assertion at launch. See [RefreshRatePlanning] for the ceilings.
+        val thermalStatus by iad1tya.echo.music.utils.ThermalManager.thermalStatus.collectAsState()
+        var powerSave by remember {
+            mutableStateOf(
+                (context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true,
+            )
+        }
+        var displayTick by remember { mutableIntStateOf(0) }
+        DisposableEffect(Unit) {
+            iad1tya.echo.music.utils.ThermalManager.acquire(context)
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(c: Context?, intent: Intent?) {
+                    powerSave = (c?.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
+                }
+            }
+            ContextCompat.registerReceiver(
+                context,
+                receiver,
+                IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+            val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager
+            val listener = object : android.hardware.display.DisplayManager.DisplayListener {
+                override fun onDisplayAdded(displayId: Int) {}
+                override fun onDisplayRemoved(displayId: Int) {}
+                override fun onDisplayChanged(displayId: Int) { displayTick++ }
+            }
+            dm?.registerDisplayListener(listener, null)
+            onDispose {
+                runCatching { context.unregisterReceiver(receiver) }
+                dm?.unregisterDisplayListener(listener)
+                iad1tya.echo.music.utils.ThermalManager.release(context)
+            }
+        }
+        val refreshCeiling = iad1tya.echo.music.utils.RefreshRatePlanning.ceilingHz(powerSave, thermalStatus)
+        LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling, displayTick) {
+            applyPreferredRefreshRate(enableHighRefreshRate, refreshCeiling)
         }
 
         // ── "Interfaz nueva": the SHELL and the APP THEME both follow the flag ────────────────────

@@ -1360,4 +1360,6 @@
     <string name="style_follow_any">Any style</string>
     <string name="style_follow_change">Change to</string>
     <string name="style_follow_cd">Change the style the queue follows</string>
+    <string name="header_actions_show">Show quick actions</string>
+    <string name="header_actions_hide">Hide quick actions</string>
 </resources>

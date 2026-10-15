@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
@@ -759,6 +760,7 @@ private fun AuraMiniOutputButton(interactive: Boolean) {
         modifier = Modifier
             .sizeIn(minWidth = AuraSpacing.MinTouchTarget, minHeight = AuraSpacing.MinTouchTarget)
             .clip(CircleShape)
+            .then(if (interactive) Modifier.unstealableClick { show = true } else Modifier)
             .clickable(
                 enabled = interactive,
                 onClickLabel = stringResource(R.string.cd_audio_output),
@@ -1403,25 +1405,30 @@ fun AuraMiniPlayer(
  * Los dos caminos llaman a lo mismo, y `goHomeAlways` no hace nada si ya estamos en Inicio, así que un
  * doble disparo sería inofensivo.
  */
-private fun Modifier.unstealableClick(onClick: () -> Unit): Modifier = pointerInput(onClick) {
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-        down.consume()
-        var released: PointerInputChange? = null
-        while (true) {
-            val event = awaitPointerEvent(PointerEventPass.Initial)
-            event.changes.forEach { it.consume() }
-            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-            if (!change.pressed) {
-                released = change
-                break
+internal fun Modifier.unstealableClick(onClick: () -> Unit): Modifier = composed {
+    // Keyed on Unit, NOT on the lambda: a recomposition (the cast state, the pill's progress) hands over a fresh
+    // lambda, and re-keying would restart the detector in the middle of a press and drop the tap.
+    val latest by androidx.compose.runtime.rememberUpdatedState(onClick)
+    pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            down.consume()
+            var released: PointerInputChange? = null
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                event.changes.forEach { it.consume() }
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) {
+                    released = change
+                    break
+                }
             }
+            val up = released ?: return@awaitEachGesture
+            // Levantar fuera del botón es cancelar, como en cualquier botón del sistema.
+            val inside = up.position.x >= 0f && up.position.y >= 0f &&
+                up.position.x <= size.width && up.position.y <= size.height
+            if (inside) latest()
         }
-        val up = released ?: return@awaitEachGesture
-        // Levantar fuera del botón es cancelar, como en cualquier botón del sistema.
-        val inside = up.position.x >= 0f && up.position.y >= 0f &&
-            up.position.x <= size.width && up.position.y <= size.height
-        if (inside) onClick()
     }
 }
 
