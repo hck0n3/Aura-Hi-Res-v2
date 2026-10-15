@@ -308,7 +308,8 @@ fun AuraCover(
             .aspectRatio(ratio)
             .clip(shape)
             .background(brush)
-            .border(0.5.dp, AuraPalette.ArtworkEdge, shape),
+            // Painted over the image (registry row 385): `.border` here sat UNDER the cover and never showed.
+            .auraArtworkEdge(shape),
     ) {
         AuraStableCoverImage(
             url = effectiveUrl,
@@ -721,7 +722,7 @@ fun AuraPosterCard(
             .aspectRatio(ratio)
             .clip(shape)
             .background(brush)
-            .border(0.5.dp, AuraPalette.ArtworkEdge, shape)
+            .auraArtworkEdge(shape)
             .then(
                 if (onClick != null || onLongClick != null) {
                     Modifier.combinedClickable(

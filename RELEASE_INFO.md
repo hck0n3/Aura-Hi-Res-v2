@@ -1,6 +1,11 @@
-# Aura Hi-Res v2.0.65-beta5 — Arreglo de la barra flotante y del reproductor dividido en el plegable
+# Aura Hi-Res v2.0.65-beta5 — Plegable arreglado y portadas con el filo de Apple Music
 
 Beta encima de la 2.0.65-beta4. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Portadas
+
+- **Las portadas de álbumes, EPs, singles, vídeos y listas llevan el filo fino de Apple Music** alrededor de las
+  esquinas. Ya existía en el código pero la propia imagen lo tapaba; ahora se dibuja por encima.
 
 ## Plegables y tabletas
 

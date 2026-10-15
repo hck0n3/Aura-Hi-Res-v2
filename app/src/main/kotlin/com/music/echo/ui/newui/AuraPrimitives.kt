@@ -32,8 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawOutline
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -584,11 +587,39 @@ fun AuraArtwork(
             .width(size)
             .aspectRatio(ratio)
             .clip(shape)
-            .background(brush),
+            .background(brush)
+            .auraArtworkEdge(shape),
     ) {
         content?.invoke()
     }
 }
+
+/**
+ * Apple Music's cover edge: a hairline that runs along the rounded outline and is painted ON TOP of the image.
+ *
+ * Owner 2026-10-15 (Apple Music screenshot): *«las orillas de las portadas de los álbumes, EPs, vídeos y
+ * singles idénticas a las de Apple Music»*. The app already had `.border(0.5.dp, ArtworkEdge, shape)` on the
+ * cover frames, and it never showed: `Modifier.border` draws in the frame's OWN layer, i.e. BEFORE the image
+ * child, so every opaque cover painted over it (registry row 385). This one draws after `drawContent()`.
+ *
+ * The frame is clipped to [shape] first, so half of a double-width stroke falls outside the clip: what is
+ * visible is exactly one hairline, hugging the inside of the corner — Apple's inner stroke, not a ring that
+ * grows the cover. Static draw (no animation, no state read per frame): free for heat/battery.
+ */
+fun Modifier.auraArtworkEdge(
+    shape: androidx.compose.ui.graphics.Shape,
+    color: Color = AuraPalette.ArtworkEdge,
+): Modifier = this
+    .clip(shape)
+    .drawWithContent {
+        drawContent()
+        val hairline = 0.5.dp.toPx().coerceAtLeast(1f)
+        drawOutline(
+            outline = shape.createOutline(size, layoutDirection, this),
+            color = color,
+            style = Stroke(width = hairline * 2f),
+        )
+    }
 
 // ── Internals ─────────────────────────────────────────────────────────────────────────────────────
 
