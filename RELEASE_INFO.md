@@ -1,6 +1,14 @@
-# Aura Hi-Res v2.0.65-beta9 — Títulos completos en Inicio y Novedades
+# Aura Hi-Res v2.0.65-beta10 — El móvil girado ya no se divide como un plegable
 
-Beta encima de la 2.0.65-beta8. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta9. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Girar el móvil
+
+- **Con el móvil sin plegar, al girarlo la pantalla ya no se divide como si fuera un plegable:** la barra
+  flotante, el reproductor dividido y las dos tarjetas solo salen en el plegable abierto y en tabletas, en
+  cualquier orientación. El móvil girado conserva su interfaz de móvil.
+
+También incluye todo lo de la beta9:
 
 ## Cabeceras
 

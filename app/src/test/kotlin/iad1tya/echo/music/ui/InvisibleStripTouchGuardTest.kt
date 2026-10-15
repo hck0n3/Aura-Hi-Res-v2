@@ -99,7 +99,7 @@ class InvisibleStripTouchGuardTest {
         assertTrue(capsule.contains("glass.interactive && glass.globalEnabled && isGlassSupported()"))
         // The player must size itself by its own pane, not by the window, while it is the right pane.
         val player = source("AuraPlayer.kt")
-        assertTrue(player.contains("val isWideLayout = rememberIsWideLayout() && !inSplitPane"))
+        assertTrue(player.contains("val isWideLayout = rememberIsWideShell() && !inSplitPane"))
         assertTrue(player.contains("&& !inSplitPane\n"))
     }
 }

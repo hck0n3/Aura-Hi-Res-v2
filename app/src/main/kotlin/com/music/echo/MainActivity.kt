@@ -1001,7 +1001,9 @@ class MainActivity : ComponentActivity() {
                 // ONCE here and reuse: this is a pure layout gate ([rememberIsWideLayout], width-only) and
                 // never [rememberIsTvOrCar], which would light the TV/car D-pad ring on a wide phone and
                 // regress Android Auto / TV (registry #12 / #26).
-                val isWideLayout = iad1tya.echo.music.ui.utils.rememberIsWideLayout()
+                // The app's wide CHROME (capsule bar, split player, cards) needs a window that is tall as well as wide: a
+                // phone turned on its side (~800 x 360 dp) is not an unfolded foldable. See [rememberIsWideShell].
+                val isWideLayout = iad1tya.echo.music.ui.utils.rememberIsWideShell()
 
                 // Ambient Mode is a full-screen lean-back view: never overlay the rail on it.
                 //

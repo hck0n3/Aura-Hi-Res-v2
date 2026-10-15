@@ -198,7 +198,7 @@ import iad1tya.echo.music.ui.utils.ExportFormatChooserDialog
 import iad1tya.echo.music.ui.utils.ShowMediaInfo
 import iad1tya.echo.music.ui.utils.ShowOffsetDialog
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
-import iad1tya.echo.music.ui.utils.rememberIsWideLayout
+import iad1tya.echo.music.ui.utils.rememberIsWideShell
 import iad1tya.echo.music.ui.utils.rememberMp3ExportFolderAccess
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.DeviceCapabilities
@@ -504,7 +504,7 @@ private fun AuraPlayerShape(
     val widePlayerMode = LocalAuraWidePlayerMode.current
     val inSplitPane = widePlayerMode?.split == true
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE && !inSplitPane
-    val isWideLayout = rememberIsWideLayout() && !inSplitPane
+    val isWideLayout = rememberIsWideShell() && !inSplitPane
 
     // TV / coche: land the D-pad on play/pause when the player opens, the same latch-and-retry the
     // classic player uses (Player.kt:425) — Material3 gives a remote no initial focus, so without this
