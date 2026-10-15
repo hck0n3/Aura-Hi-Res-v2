@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Registry rows 366-367 (owner 2026-10-15): «el botón de cast sigue fallando… a veces cambia la canción» and
+ * Registry rows 371-372 (owner 2026-10-15): «el botón de cast sigue fallando… a veces cambia la canción» and
  * «la barra es alta antes de que empiece y luego delgada».
  *
  * Neither gives an error and both compile, which is how they came back three times:

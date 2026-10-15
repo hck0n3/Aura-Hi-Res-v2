@@ -218,6 +218,12 @@ class SyncUtils @Inject constructor(
         private const val MAX_RETRIES = 3
         private const val INITIAL_RETRY_DELAY_MS = 1000L
 
+        /** app_prefs string-set: liked ids the account listed at the last successful liked-songs sync. */
+        private const val LIKED_CONFIRMED_KEY = "liked_confirmed_on_account_ids"
+
+        /** Max local likes re-pushed to the account per sync, so a persistent failure cannot flood the network. */
+        private const val LIKE_REPUSH_PER_SYNC = 25
+
         // HALLAZGO-056: single-flight keys for the coalescing guard below. One key per pull pass.
         // The full-sync composite has TWO keys: a down-only run and an upload-carrying run, because
         // a down-only run does not cover a deliberate upload request (see shouldStartFullSync).
@@ -1074,9 +1080,9 @@ class SyncUtils @Inject constructor(
         }
 
         withRetry {
-            YouTube.likeVideo(s.id, s.liked)
+            YouTube.likeVideo(s.id, s.liked).getOrThrow()
         }.onFailure { e ->
-            Timber.e(e, "Failed to like song on YouTube")
+            Timber.w("Failed to like song on YouTube: %s", privacySafeSummary(e))
         }
 
 
@@ -1114,6 +1120,15 @@ class SyncUtils @Inject constructor(
                     val nowEpochMs = System.currentTimeMillis()
                     val lastLikedSyncMs = context.dataStore.data.first()[LastLikedSyncTimeKey] ?: 0L
 
+                    // Owner 2026-10-13 ("marco favoritos y al día siguiente salen desmarcadas"): the live push
+                    // on a tap is fire-and-forget and YouTube.likeVideo returns a Result nobody read, so a
+                    // failed push left the like only on this phone — and the next sync below saw "not on the
+                    // account" and DROPPED the heart. A local like is now dropped only if the account HAD it at
+                    // the last successful sync (so its absence now really is an unlike made on YouTube). A like
+                    // the account never confirmed is pushed again instead (bounded per sync).
+                    val likeConfirmPrefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                    val confirmedBefore: Set<String>? = likeConfirmPrefs.getStringSet(LIKED_CONFIRMED_KEY, null)
+                    var pushBudget = LIKE_REPUSH_PER_SYNC
                     localSongs.filterNot { it.id in remoteIds || it.song.isLocal }.forEach { song ->
                         try {
                             val likedEpochMs = AccountLibraryReconcile.toEpochMilli(song.song.likedDate)
@@ -1122,11 +1137,15 @@ class SyncUtils @Inject constructor(
                                 lastSuccessfulSyncEpochMs = lastLikedSyncMs,
                                 nowEpochMs = nowEpochMs,
                             )
-                            if (shouldPush) {
-                                withRetry {
-                                    YouTube.likeVideo(song.id, true)
-                                }.onFailure { e ->
-                                    Timber.e(e, "Failed to like song on YouTube")
+                            val everOnAccount = confirmedBefore?.contains(song.id) == true
+                            if (shouldPush || !everOnAccount) {
+                                if (pushBudget > 0) {
+                                    pushBudget--
+                                    withRetry {
+                                        YouTube.likeVideo(song.id, true).getOrThrow()
+                                    }.onFailure { e ->
+                                        Timber.w("Failed to re-push a local like to YouTube: %s", privacySafeSummary(e))
+                                    }
                                 }
                             } else if (AccountLibraryReconcile.remoteListSafeToDropMissing(remoteSongs.size, localSongs.size)) {
                                 // Reconcile: User deliberately unliked this song on YouTube; update local state
@@ -1149,6 +1168,10 @@ class SyncUtils @Inject constructor(
                     // stamp every artist with content as followed — importing a liked song silently
                     // subscribed its artist everywhere. Artists only become followed through
                     // deliberate sources now; see the tombstone in DatabaseDao.kt (registry #154).
+                    // Only a non-empty, complete read may become the "was on the account" reference.
+                    if (remoteIds.isNotEmpty()) {
+                        likeConfirmPrefs.edit().putStringSet(LIKED_CONFIRMED_KEY, HashSet(remoteIds)).apply()
+                    }
                     context.dataStore.edit { it[LastLikedSyncTimeKey] = nowEpochMs }
                     updateState { copy(likedSongs = SyncStatus.Completed) }
                     Timber.d("Synced ${remoteSongs.size} liked songs")

@@ -105,7 +105,7 @@ private const val SECTION_MORE = "more"
  * and does not duplicate quick-access chrome (like / dislike / download icon).
  *
  * **Presentation only.** Every `onClick` still calls the same service / dialog / route the classic
- * menus use. No sleep timer.
+ * menus use. The sleep timer row (2026-10-13) opens the shared [SleepTimerDialog].
  */
 @Composable
 fun AuraPlayerMenu(
@@ -188,6 +188,7 @@ fun AuraPlayerMenu(
     var showPitchTempoDialog by rememberSaveable { mutableStateOf(false) }
     var showAudioDeviceSheet by rememberSaveable { mutableStateOf(false) }
     var showExportFormatDialog by rememberSaveable { mutableStateOf(false) }
+    var showSleepTimerDialog by rememberSaveable { mutableStateOf(false) }
     // Start collapsed: pinned rows (artist/album/EQ/details/settings) are the only visible actions.
     var openSection by rememberSaveable { mutableStateOf("") }
 
@@ -218,6 +219,10 @@ fun AuraPlayerMenu(
 
     if (showAudioDeviceSheet) {
         AudioDeviceBottomSheet(onDismiss = { showAudioDeviceSheet = false })
+    }
+
+    if (showSleepTimerDialog) {
+        iad1tya.echo.music.ui.component.SleepTimerDialog(onDismiss = { showSleepTimerDialog = false })
     }
 
     if (showExportFormatDialog) {
@@ -565,6 +570,11 @@ fun AuraPlayerMenu(
                     icon = AuraIcons.Speed,
                     label = stringResource(R.string.advanced),
                     onClick = { showPitchTempoDialog = true },
+                )
+                AuraMenuRow(
+                    icon = AuraIcons.Timer,
+                    label = stringResource(R.string.sleep_timer),
+                    onClick = { showSleepTimerDialog = true },
                 )
                 AuraMenuRow(
                     icon = AuraIcons.Radio,

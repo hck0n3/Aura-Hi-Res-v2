@@ -149,26 +149,15 @@ class ReleaseRadarWorker(
         //    (artistsBookmarkedByNameAsc() now filters on followedByUserAt — registry #154).
         //    LISTENED = Spotify top artists ∪ local most-played artists.
         val followedSpotify = fetchFollowedSpotifyArtists()
-        val listenedSpotify = runCatching {
-            Spotify.topArtists(timeRange = "medium_term", limit = 50).getOrThrow().items
-        }.getOrDefault(emptyList())
-
         val bookmarked = database.artistsBookmarkedByNameAsc().first().map { it.artist }
-        val localPlayed = runCatching {
-            database.mostPlayedArtists(fromTimeStamp = 0L, limit = 30).first().map { it.artist }
-        }.getOrDefault(emptyList())
-
         val followedNames = (followedSpotify.map { it.name } + bookmarked.map { it.name })
             .map { it.lowercase() }.toSet()
-        val listenedNames = (listenedSpotify.map { it.name } + localPlayed.map { it.name })
-            .map { it.lowercase() }.toSet()
-        val allNames = followedNames + listenedNames
-
         val semaphore = Semaphore(MAX_CONCURRENCY)
 
         // 2. Per-artist discography (exact `date.isoString`). Followed first, capped so a huge library
         //    doesn't fan out into hundreds of requests.
-        val scanArtists = (followedSpotify.map { it to true } + listenedSpotify.map { it to false })
+        // Owner (2026-10-13): only artists he FOLLOWS may appear — listened-only artists are not scanned.
+        val scanArtists = followedSpotify.map { it to true }
             .distinctBy { it.first.id }
             .filter { it.first.id.isNotBlank() }
             .take(MAX_ARTISTS_SCAN)
@@ -204,7 +193,7 @@ class ReleaseRadarWorker(
         val feedResult = Spotify.newReleases(limit = 50)
         val feedReleases = feedResult.getOrNull()?.albums?.items.orEmpty().mapNotNull { album ->
             val artistName = album.artists.firstOrNull()?.name ?: return@mapNotNull null
-            if (artistName.lowercase() !in allNames) return@mapNotNull null
+            if (artistName.lowercase() !in followedNames) return@mapNotNull null
             val date = parseExactDate(album.releaseDate) ?: return@mapNotNull null
             if (date.isBefore(windowStart) || date.isAfter(today)) return@mapNotNull null
             SpotifyReleaseHit(album, artistName, date, followed = artistName.lowercase() in followedNames)
@@ -510,6 +499,9 @@ class ReleaseRadarWorker(
         /** Epoch-ms timestamp of the last successful worker run; gates the on-entry opportunistic refresh. */
         const val LAST_RUN_KEY = "release_radar_last_run"
 
+        /** Set once the table has been rebuilt from followed artists only (see [refreshIfStale]). */
+        private const val FOLLOWED_ONLY_MIGRATED_KEY = "release_radar_followed_only_v1"
+
         /** Minimum spacing between opportunistic on-entry refreshes (6h) — keeps network/CPU spam (and
          *  thus battery/thermal) in check while still healing a stale list when MIUI reaps the weekly worker. */
         const val AUTO_REFRESH_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000L
@@ -587,6 +579,11 @@ class ReleaseRadarWorker(
          */
         fun refreshIfStale(context: Context) {
             val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            // One-time (2026-10-13): rows stored before the radar became followed-only still hold artists the
+            // user merely listened to. Forcing the staleness clock open rebuilds the table on the next entry.
+            if (!prefs.getBoolean(FOLLOWED_ONLY_MIGRATED_KEY, false)) {
+                prefs.edit().putBoolean(FOLLOWED_ONLY_MIGRATED_KEY, true).putLong(LAST_RUN_KEY, 0L).apply()
+            }
             if (System.currentTimeMillis() - prefs.getLong(LAST_RUN_KEY, 0L) >= AUTO_REFRESH_MIN_INTERVAL_MS) {
                 runNow(context)
             }

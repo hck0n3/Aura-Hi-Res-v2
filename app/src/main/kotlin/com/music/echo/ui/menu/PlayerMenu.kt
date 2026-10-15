@@ -295,6 +295,7 @@ fun PlayerMenu(
     var showPitchTempoDialog by rememberSaveable {
         mutableStateOf(false)
     }
+    var showSleepTimerDialog by rememberSaveable { mutableStateOf(false) }
 
     // Refetch icon rotation: each tap subtracts 360°, spinning the icon one full turn as the reload fires.
     var refetchIconDegree by remember { mutableFloatStateOf(0f) }
@@ -303,6 +304,10 @@ fun PlayerMenu(
         animationSpec = tween(durationMillis = 800, easing = LinearEasing),
         label = "refetchRotation"
     )
+
+    if (showSleepTimerDialog) {
+        iad1tya.echo.music.ui.component.SleepTimerDialog(onDismiss = { showSleepTimerDialog = false })
+    }
 
     if (showPitchTempoDialog) {
         TempoPitchDialog(
@@ -902,6 +907,21 @@ fun PlayerMenu(
                                 },
                                 onClick = {
                                     showPitchTempoDialog = true
+                                }
+                            )
+                        )
+                        add(
+                            Material3MenuItemData(
+                                title = { Text(text = stringResource(R.string.sleep_timer)) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.timer),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showSleepTimerDialog = true
                                 }
                             )
                         )

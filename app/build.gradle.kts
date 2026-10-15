@@ -231,18 +231,19 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1056
+        versionCode = 1057
         // BETA 2.0.64-beta3 — SOLO EL DUEÑO (sobre la 2.0.64-beta1 que tiene instalada). Filas 323-328:
         // Pedir música (artista + género, "afro gospel"), cola por patrón con género heredado de la
         // semilla, sonido (protección del altavoz y headroom automático apagados, perfil Aura Hi-Res v3),
         // colores de Aura, canciones no disponibles ocultas/saltadas, batería (captura de audio en
         // segundo plano) y limpieza del registro. Incluye la beta2 preparada y nunca publicada (fila 322)
         // y todo lo de la beta1 (filas 319-321).
-        // BETA 2.0.65-beta1 — SOLO EL DUEÑO (sobre la 2.0.64 estable). Filas 366-371: ancho único de la barra
-        // de progreso, Cast y botones que disparaban otra acción, letras con el color de la portada, colores
-        // al cambiar de canción (sin parpadeo a la marca, precarga, negro/blanco puros), interfaz Aura en
+        // BETA 2.0.65-beta2 — SOLO EL DUEÑO (sobre la 2.0.65-beta1 que tiene instalada). Filas 371-376: ancho único
+        // de la barra de progreso, Cast y botones que disparaban otra acción, letras con el color de la portada,
+        // colores al cambiar de canción (sin parpadeo a la marca, precarga, negro/blanco puros), interfaz Aura en
         // plegable/tableta (riel, panel, héroes, cuadrículas, Inicio) y rotación con el plegable abierto.
-        versionName = "2.0.65-beta1"
+        // Incluye todo lo de la beta1 (filas 366-370).
+        versionName = "2.0.65-beta2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

@@ -1482,6 +1482,69 @@ class MusicService :
     internal val _mixActive get() = playbackState.mixActive
     val mixActive: kotlinx.coroutines.flow.StateFlow<Boolean> get() = playbackState.mixActive
 
+    // ── Sleep timer ───────────────────────────────────────────────────────────────────────────────
+    // Owner 2026-10-13: "el temporizador lo quiero devuelta, para que si pongo un tiempo la reproducción
+    // pare" (it had been removed in the 2026-10-08 audit, row 349). Two modes, never both:
+    //  · a deadline in `SystemClock.elapsedRealtime()` terms (counts deep sleep, unlike wall-clock edits);
+    //  · "end of this song": armed with the current media id, fires when another item becomes current.
+    // Pausing (not stopping) keeps the queue and position, so the user resumes where it paused. Heat/battery:
+    // ONE coroutine that sleeps until the deadline (re-checked, because a main-looper delay can fire late
+    // or early across doze) — nothing runs per frame or per second.
+    private val _sleepTimerEndsAt = MutableStateFlow<Long?>(null)
+    /** Deadline ([android.os.SystemClock.elapsedRealtime]) of the running minutes timer, null when none. */
+    val sleepTimerEndsAt: kotlinx.coroutines.flow.StateFlow<Long?> get() = _sleepTimerEndsAt
+    private val _sleepTimerAfterSong = MutableStateFlow(false)
+    /** True while the "stop at the end of this song" timer is armed. */
+    val sleepTimerAfterSong: kotlinx.coroutines.flow.StateFlow<Boolean> get() = _sleepTimerAfterSong
+    private var sleepTimerJob: Job? = null
+    private var sleepAfterSongId: String? = null
+
+    fun startSleepTimer(minutes: Int) {
+        cancelSleepTimer()
+        if (minutes <= 0) return
+        val deadline = android.os.SystemClock.elapsedRealtime() + minutes * 60_000L
+        _sleepTimerEndsAt.value = deadline
+        if (!scope.isActive) scope = CoroutineScope(Dispatchers.Main) + Job()
+        sleepTimerJob = scope.launch {
+            while (true) {
+                val left = deadline - android.os.SystemClock.elapsedRealtime()
+                if (left <= 0L) break
+                delay(left)
+            }
+            fireSleepTimer()
+        }
+    }
+
+    fun startSleepTimerAfterSong() {
+        val id = player.currentMediaItem?.mediaId ?: return
+        cancelSleepTimer()
+        sleepAfterSongId = id
+        _sleepTimerAfterSong.value = true
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        sleepAfterSongId = null
+        _sleepTimerEndsAt.value = null
+        _sleepTimerAfterSong.value = false
+    }
+
+    private fun fireSleepTimer() {
+        cancelSleepTimer()
+        // A crossfade keeps a second/fading player audible: pause every one, as the foreground-refusal path does.
+        runCatching { player.pause() }
+        secondaryPlayer?.let { runCatching { it.pause() } }
+        fadingPlayer?.let { runCatching { it.pause() } }
+        Timber.tag(TAG).i("SLEEP_TIMER fired, playback paused")
+    }
+
+    /** "End of this song" mode: called from [applyAutoAdvanceSideEffects] once another item is current. */
+    private fun checkSleepTimerAfterSong() {
+        val armed = sleepAfterSongId ?: return
+        if (player.currentMediaItem?.mediaId != armed) fireSleepTimer()
+    }
+
     internal val _videoMode get() = playbackState.videoMode
     val videoMode: kotlinx.coroutines.flow.StateFlow<Boolean> get() = playbackState.videoMode
 
@@ -6391,6 +6454,7 @@ class MusicService :
      */
     internal fun applyAutoAdvanceSideEffects() {
         previousMediaItemIndex = player.currentMediaItemIndex
+        checkSleepTimerAfterSong()
         lastPlaybackSpeed = -1.0f
         preloadUpcomingItems()
         applySponsorBlockFor(player.currentMediaItem?.mediaId)
