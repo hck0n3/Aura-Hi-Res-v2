@@ -1128,11 +1128,13 @@ private fun AuraPlayerShape(
             ) {
                 if (showInlineLyrics) {
                     Box(Modifier.fillMaxSize().padding(horizontal = AuraSpacing.Gutter)) {
-                        InlineLyricsView(
-                            mediaMetadata = mediaMetadata,
-                            showLyrics = true,
-                            positionProvider = { sliderPosition ?: if (isCasting) castPosition else null },
-                        )
+                        AuraLyricsInk {
+                            InlineLyricsView(
+                                mediaMetadata = mediaMetadata,
+                                showLyrics = true,
+                                positionProvider = { sliderPosition ?: if (isCasting) castPosition else null },
+                            )
+                        }
                     }
                     if (isFullScreen && enableLyricsThumbnailPlayPause) {
                         // §2.1 — the 56 dp cover doubles as play/pause while the lyrics are full screen.
@@ -1596,12 +1598,18 @@ private fun AuraPlayerShape(
                         // D3: buffered extent of the timeline (0 when unknown). The scrub haptic is
                         // NOT wired here on purpose — MainActivity's global haptics layer already
                         // ticks CLOCK_TICK on every drag (audit finding: no double-buzz).
+                        // Owner 2026-10-15: *"cuando cambio la canción la barra es alta antes de que
+                        // empiece y luego se vuelve a reducir"*. This used to be `null` while the
+                        // duration is unknown (every track change), and `null` makes the DEFAULT style
+                        // draw Material's NATIVE track — a different, thicker rail — until the duration
+                        // arrives and the 10 dp [BufferedSliderTrack] takes over. Never null here: 0f
+                        // ("nothing buffered yet") keeps ONE rail for the whole life of the screen.
                         bufferedFraction = if (songFullyCached && !isCasting) {
                             1f
                         } else if (duration > 0) {
                             (buffered.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                         } else {
-                            null
+                            0f
                         },
                     )
                     Row(
@@ -2185,7 +2193,13 @@ private fun AuraPlayerShape(
                     // exactly; 0 dp vertical keeps the 48 dp box inside the 48 dp header so it never spills
                     // onto the artwork's swipe-to-skip.
                     .padding(start = 8.dp, end = 8.dp, top = 0.dp, bottom = 0.dp)
-                    .size(48.dp),
+                    .size(48.dp)
+                    // Owner 2026-10-15 (third report): the button sits INSIDE the sheet's vertical drag
+                    // detector, which claims any touch whose finger rolls past the touch slop and cancels
+                    // the click. The shield (see [shieldTapsFromAncestorDrags]) is an ancestor of the
+                    // button's clickable, so it consumes the gesture after the button saw it: the tap
+                    // fires even if the thumb drifts, and the sheet does not start dragging from here.
+                    .shieldTapsFromAncestorDrags(),
                 tintColor = AuraPalette.OnGround,
             )
         }

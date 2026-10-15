@@ -73,6 +73,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -261,6 +262,14 @@ private fun lyricsLookSpanish(lines: List<LyricsEntry>): Boolean {
     val hits = words.count { it in COMMON_SPANISH_WORDS }
     return hits.toDouble() / words.size >= 0.12
 }
+
+/**
+ * Ink the lyrics are drawn in, when the host UI has one of its own. `null` (every classic caller) keeps
+ * the old rule below: the theme primary for «Predeterminado», white for every other background. The
+ * "Interfaz nueva" provides the now-playing cover's colour here (owner 2026-10-15: *"las letras de las
+ * canciones no coinciden con su color de la portada"*), so one lyrics implementation serves both UIs.
+ */
+val LocalLyricsInk = compositionLocalOf<Color?> { null }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @SuppressLint("UnusedBoxWithConstraintsScope", "StringFormatInvalid")
@@ -795,7 +804,8 @@ fun Lyrics(
     }
 
     
-    val expressiveAccent = when (playerBackground) {
+    val hostLyricsInk = LocalLyricsInk.current
+    val expressiveAccent = hostLyricsInk ?: when (playerBackground) {
         PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.primary
         PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.LIQUID_GLASS -> {
             

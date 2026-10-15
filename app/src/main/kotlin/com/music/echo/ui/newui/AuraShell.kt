@@ -827,6 +827,14 @@ fun AuraMiniPlayer(
      * expandida no dibuje ni robe toques"*. **Al gesto de deslizar se le olvidó esa misma regla**:
      * seguía vivo sobre una franja con alfa 0, y deslizar ahí — o un toque que se mueve unos píxeles —
      * cambia de canción sin que nada visible lo explique.
+     *
+     * 🔴 Y **los cuatro botones** de la píldora (anterior / play / siguiente / inicio) siguen la misma
+     * regla (dueño, 2026-10-15: *"el botón de cast sigue fallando, lo tengo que tocar varias veces y a
+     * veces cambió la canción"*). La franja invisible mide 64 dp ARRIBA de la hoja expandida, que es
+     * justo donde vive el botón de Cast del reproductor, y está encima en el orden de dibujo: un toque
+     * en Cast caía en el «siguiente» invisible (cambia de canción) o en el escudo de la fila de
+     * controles, que consume cualquier toque aunque el dedo no se haya movido (el Cast "no reaccionaba").
+     * Con la hoja expandida ninguno de esos botones debe existir para el tacto.
      */
     gesturesEnabled: Boolean = true,
 ) {
@@ -1023,6 +1031,10 @@ fun AuraMiniPlayer(
                             config = pillGlassConfig,
                             shape = AuraShapes.Card,
                             pressedScale = 1.04f,
+                            // Its `pointerInput` is a hit-test target: left on, the invisible strip of the
+                            // expanded sheet would own the whole top 64 dp (header, Cast) and give the
+                            // player under it none of those touches.
+                            interactive = gesturesEnabled,
                         )
                     } else if (pillHazeState != null) {
                         // ALWAYS-SAMPLING chrome (owner 2026-08-31) — same contract as the nav
@@ -1162,13 +1174,15 @@ fun AuraMiniPlayer(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
-                modifier = Modifier.shieldTapsFromAncestorDrags(),
+                // Sin escudo cuando la píldora es la franja invisible de la hoja expandida: el escudo
+                // consume TODO toque que cae encima, también el del Cast que hay debajo.
+                modifier = if (gesturesEnabled) Modifier.shieldTapsFromAncestorDrags() else Modifier,
             ) {
                 AuraIconButton(
                     icon = AuraIcons.SkipPrevious,
                     contentDescription = stringResource(R.string.previous),
                     onClick = { playerConnection.player.seekToPreviousMediaItem() },
-                    enabled = canSkipPrevious && !isListenTogetherGuest,
+                    enabled = canSkipPrevious && !isListenTogetherGuest && gesturesEnabled,
                     size = 22.dp,
                 )
 
@@ -1198,6 +1212,7 @@ fun AuraMiniPlayer(
                             else -> playerConnection.togglePlayPause()
                         }
                     },
+                    enabled = gesturesEnabled,
                     size = 25.dp,
                     tint = if (isListenTogetherGuest && isMuted) {
                         AuraPalette.OnGroundDisabled
@@ -1210,7 +1225,7 @@ fun AuraMiniPlayer(
                     icon = AuraIcons.SkipNext,
                     contentDescription = stringResource(R.string.next),
                     onClick = { playerConnection.player.seekToNext() },
-                    enabled = canSkipNext && !isListenTogetherGuest,
+                    enabled = canSkipNext && !isListenTogetherGuest && gesturesEnabled,
                     size = 22.dp,
                 )
 
@@ -1233,7 +1248,14 @@ fun AuraMiniPlayer(
                         contentDescription = stringResource(R.string.home),
                         // 🔴 SÍ O SÍ (dueño, 2026-09-17). Ver [unstealableClick]: este botón no se
                         // fía del `clickable` de dentro, se queda el gesto en la pasada INICIAL.
-                        modifier = Modifier.unstealableClick { homeShortcut?.invoke() },
+                        // Invisible strip of the expanded sheet: no gesture grabbing at all (it would
+                        // swallow the Cast tap that lands on top of this corner).
+                        modifier = if (gesturesEnabled) {
+                            Modifier.unstealableClick { homeShortcut?.invoke() }
+                        } else {
+                            Modifier
+                        },
+                        enabled = gesturesEnabled,
                         // El valor se captura ARRIBA y no se lee aquí: `CompositionLocal.current` solo
                         // existe en contexto composable, y este `onClick` es una lambda normal. Y
                         // `?.invoke()` en vez de `!!` porque dentro de `AnimatedVisibility` el contenido
@@ -1318,7 +1340,7 @@ private fun Modifier.unstealableClick(onClick: () -> Unit): Modifier = pointerIn
  * superficie. Solo la fila de botones deja de ser zona de arrastre, y ahí el arrastre nunca fue una
  * función: era el fallo.
  */
-private fun Modifier.shieldTapsFromAncestorDrags(): Modifier = pointerInput(Unit) {
+internal fun Modifier.shieldTapsFromAncestorDrags(): Modifier = pointerInput(Unit) {
     awaitEachGesture {
         // `requireUnconsumed = false`: el `clickable` del botón consume el down antes de llegar aquí
         // (está más adentro), y si lo exigiéramos limpio el escudo no se armaría nunca.

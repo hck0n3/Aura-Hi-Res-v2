@@ -264,11 +264,13 @@ fun AuraLyricsScreen(
                     )
                 } else {
                     Box(Modifier.fillMaxSize().padding(horizontal = AuraSpacing.Gutter)) {
-                        InlineLyricsView(
-                            mediaMetadata = meta,
-                            showLyrics = true,
-                            positionProvider = positionProvider,
-                        )
+                        AuraLyricsInk {
+                            InlineLyricsView(
+                                mediaMetadata = meta,
+                                showLyrics = true,
+                                positionProvider = positionProvider,
+                            )
+                        }
                     }
                     if (enableLyricsThumbnailPlayPause) {
                         // The 56 dp cover that doubles as play/pause while the lyrics are full screen

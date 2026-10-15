@@ -3,6 +3,7 @@ package iad1tya.echo.music.ui.newui
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -27,8 +28,10 @@ import iad1tya.echo.music.constants.PureBlackKey
 import iad1tya.echo.music.constants.LiquidGlassGlobalEnabledKey
 import iad1tya.echo.music.constants.SelectedThemeColorKey
 import iad1tya.echo.music.constants.ThumbnailCornerRadiusKey
+import iad1tya.echo.music.extensions.metadata
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.ui.component.ColorPickerConversions
+import iad1tya.echo.music.ui.component.LocalLyricsInk
 import iad1tya.echo.music.ui.theme.CustomThemeRoles
 import iad1tya.echo.music.ui.theme.DefaultThemeColor
 import iad1tya.echo.music.ui.theme.ThemePreset
@@ -365,6 +368,14 @@ object AuraPalette {
      */
     val NavIndicator: Color get() = accent.navIndicator
 
+    /**
+     * The lyrics' ink (owner 2026-10-15: *"las letras no coinciden con su color de la portada"*): the
+     * cover-driven accent ([Teal] — already clamped to ≥ 4.5:1 on the ground) lifted a little toward
+     * white so the sung line stays the brightest thing on the screen while keeping the cover's hue.
+     * Read from composition only; the lyrics' own dimmer steps are alpha steps of this colour.
+     */
+    val LyricsInk: Color get() = lerp(Teal, Color.White, 0.18f)
+
     /** Inactive transport icons: `opacity:.3`. Drag handles live here too. */
     val OnGroundDisabled: Color get() = OnGround.copy(alpha = 0.30f)
 
@@ -604,6 +615,16 @@ class AuraCoverCorners(val scale: Float) {
 }
 
 /**
+ * Hands the lyrics view the now-playing cover's ink ([AuraPalette.LyricsInk]). Wrap every Aura call of
+ * `InlineLyricsView` in it: the lyrics composable itself lives in the shared `ui/component/Lyrics.kt`
+ * and falls back to white / theme primary when nobody provides one.
+ */
+@Composable
+fun AuraLyricsInk(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalLyricsInk provides AuraPalette.LyricsInk, content = content)
+}
+
+/**
  * The three accents in force plus every value derived from them, computed ONCE per theme change.
  *
  * Immutable and cached on purpose: [AuraPalette.PlayButtonGradient] and [AuraPalette.coverPlaceholder]
@@ -772,13 +793,38 @@ fun AuraPaletteSync() {
     val focus = AuraCoverFocus.active
     val mediaId = focus?.key ?: nowPlaying?.id
     val thumbnailUrl = focus?.url ?: nowPlaying?.thumbnailUrl
+    var gaveUp by remember(mediaId, thumbnailUrl) { mutableStateOf(false) }
     LaunchedEffect(mediaId, thumbnailUrl) {
         val id = mediaId
         val url = thumbnailUrl
         if (id.isNullOrEmpty() || url.isNullOrEmpty()) return@LaunchedEffect
         AuraBloomCache.ensure(context, id, url)
+        if (AuraBloomCache.entry(id) == null) {
+            delay(AURA_COVER_HOLD_MS)
+            if (AuraBloomCache.entry(id) == null) gaveUp = true
+        }
     }
-    val artworkEntry = AuraBloomCache.entry(mediaId)
+    // Owner 2026-10-15: the NEXT song's cover is resolved while this one plays, so its colours exist the
+    // moment it starts (no wait, no stale tint) — one 100 px decode per track change, already cached by
+    // Coil when the queue or the notification showed that cover. Only the song-following case: a screen
+    // with its own cover (album, playlist) has no "next".
+    val player = playerConnection?.player
+    LaunchedEffect(nowPlaying?.id, focus == null) {
+        if (focus != null || player == null) return@LaunchedEffect
+        val next = player.nextMediaItemIndex
+        if (next == androidx.media3.common.C.INDEX_UNSET || next >= player.mediaItemCount) return@LaunchedEffect
+        val upcoming = player.getMediaItemAt(next).metadata ?: return@LaunchedEffect
+        val url = upcoming.thumbnailUrl
+        if (upcoming.id.isEmpty() || url.isNullOrEmpty()) return@LaunchedEffect
+        AuraBloomCache.ensure(context, upcoming.id, url)
+    }
+    val cachedEntry = AuraBloomCache.entry(mediaId)
+    // Same rule as [rememberAuraBloomFromUrl]: while THIS cover is still being resolved, keep the colours
+    // that were on screen instead of dropping to the brand palette and only then moving to the cover's.
+    val heldEntry = remember { arrayOfNulls<AuraBloomEntry>(1) }
+    if (cachedEntry != null) heldEntry[0] = cachedEntry
+    val wantsCover = !mediaId.isNullOrEmpty() && !thumbnailUrl.isNullOrEmpty()
+    val artworkEntry = cachedEntry ?: if (wantsCover && !gaveUp) heldEntry[0] else null
     val artworkSeed = artworkEntry?.accentSeed
 
     val followsUser = selectedThemeColorInt != DefaultThemeColor.toArgb() ||
