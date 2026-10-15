@@ -1,6 +1,24 @@
-# Aura Hi-Res v2.0.65-beta2 — Cast fiable, letras con el color de tu portada y la interfaz Aura en plegables
+# Aura Hi-Res v2.0.65-beta3 — Reproductor dividido y barra flotante en plegables, y Ajustes con los colores de tu portada
 
-Beta encima de la 2.0.65-beta1. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta2. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Plegables y tabletas
+
+- **La barra de abajo es una cápsula flotante** (como en Spotify) en vez del riel lateral: centrada cuando no
+  suena nada y, al reproducir, a la izquierda y **compartiendo fila con el minirreproductor**.
+- **Al tocar el minirreproductor, el reproductor se abre en pantalla dividida:** a la derecha el reproductor y a
+  la izquierda la pantalla en la que estabas (álbum, playlist, EP…) con su barra.
+- **Puedes elegir pantalla completa:** el botón de arriba a la izquierda del reproductor alterna entre dividido y
+  completo, y recuerda tu elección.
+- **Con la letra abierta ahora se ve la portada** junto al título, en el espacio que sobraba.
+
+## Ajustes
+
+- **Las pantallas de Ajustes (Sonido, Ecualizador, Apariencia…) toman los colores de la portada** que suena,
+  como Inicio y Biblioteca.
+
+También incluye todo lo de la beta2:
+
 
 ## Botones
 
@@ -28,8 +46,6 @@ Beta encima de la 2.0.65-beta1. Conserva tus datos, tu sesión y tus ajustes: mi
 
 ## Plegables y tabletas
 
-- **La interfaz Aura completa en pantalla ancha:** el riel de navegación y el panel «sonando ahora»
-  ahora son Aura (antes eran los grises clásicos), con la línea de tiempo en los colores de la portada.
 - **Nada se ve gigante:** las portadas grandes de álbum, artista y playlist pasan a una banda en
   pantallas anchas, las cuadrículas de «ver todo» usan más columnas y Inicio mantiene el tamaño de
   tarjeta del móvil mostrando más por fila.

@@ -76,4 +76,18 @@ class InvisibleStripTouchGuardTest {
         assertTrue(block.contains("0f"))
         assertTrue(source("AuraWideChrome.kt").contains("bufferedFraction = 0f"))
     }
+
+    @Test
+    fun `a wide window with the new UI never gets the side rail, it gets the floating bar and the split player`() {
+        // Registry row 377: the rail was the wrong answer to "no se parece a la normal".
+        val main = File(repoRoot, "app/src/main/kotlin/com/music/echo/MainActivity.kt").readText()
+        assertTrue(main.contains("val showRail = !newUiShell &&"))
+        assertTrue(main.contains("val auraWideBottom = newUiShell && isWideLayout"))
+        assertTrue(main.contains("AuraWideNavCapsule("))
+        assertTrue(main.contains("Modifier.align(Alignment.BottomEnd).width(widePaneWidth)"))
+        // The player must size itself by its own pane, not by the window, while it is the right pane.
+        val player = source("AuraPlayer.kt")
+        assertTrue(player.contains("val isWideLayout = rememberIsWideLayout() && !inSplitPane"))
+        assertTrue(player.contains("&& !inSplitPane\n"))
+    }
 }
