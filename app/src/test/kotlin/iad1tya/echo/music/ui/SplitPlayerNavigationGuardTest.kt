@@ -44,7 +44,8 @@ class SplitPlayerNavigationGuardTest {
         // Ambient mode is a full-screen route: it keeps its collapse.
         val menu = src("ui/newui/AuraPlayerMenu.kt")
         assertEquals(1, Regex("""playerBottomSheetState\.collapseSoft\(\)""").findAll(menu).count())
-        val ambient = menu.indexOf("ambient_mode")
+        val ambient = menu.indexOf("navigate(\"ambient_mode\")")
+        assertTrue(ambient > 0)
         assertTrue(menu.indexOf("playerBottomSheetState.collapseSoft()") in (ambient - 400) until ambient)
         // «Ver álbum» / «Ir al artista» go through the split-aware collapse.
         assertTrue(Regex("""navigate\("album/\${'$'}browseId"\)\s*\n\s*state\.collapseAfterNavigate\(\)""").containsMatchIn(src("ui/newui/AuraPlayer.kt")))
