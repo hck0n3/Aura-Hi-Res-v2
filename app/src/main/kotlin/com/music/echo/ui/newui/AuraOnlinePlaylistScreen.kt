@@ -394,7 +394,7 @@ fun AuraOnlinePlaylistScreen(
                             thumbnailUrl = songItem.thumbnail,
                             seed = songItem.id,
                             ratio = 16f / 9f,
-                            shape = AuraShapes.Card,
+                            shape = AuraShapes.Artwork,
                             isActive = isActive,
                             isPlaying = isActive && isPlaying,
                             typeIcon = AuraIcons.Video,

@@ -113,7 +113,7 @@ fun auraTypeVisual(kind: AuraContentKind): AuraTypeVisual {
     return when (kind) {
         // YTM hero landscape — wide enough that one card dominates the shelf. The height reference.
         AuraContentKind.Video -> AuraTypeVisual(
-            kind, label, icon, AuraShapes.Card, VIDEO_RATIO,
+            kind, label, icon, AuraShapes.Artwork, VIDEO_RATIO,
             shelfWidth = VIDEO_SHELF_WIDTH, rowWidth = VIDEO_ROW_WIDTH, badgeShowsLabel = true,
         )
         AuraContentKind.Song -> AuraTypeVisual(
@@ -142,7 +142,7 @@ fun auraTypeVisual(kind: AuraContentKind): AuraTypeVisual {
             shelfWidth = 132.dp, rowWidth = 52.dp,
         )
         AuraContentKind.Podcast -> AuraTypeVisual(
-            kind, label, icon, AuraShapes.Card, 1f,
+            kind, label, icon, AuraShapes.Artwork, 1f,
             shelfWidth = COVER_SHELF_HEIGHT, rowWidth = COVER_ROW_HEIGHT, badgeShowsLabel = true,
         )
     }

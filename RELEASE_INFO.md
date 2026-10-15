@@ -20,7 +20,8 @@ También incluye todo lo de la beta8:
 
 - **Las orillas de las portadas ahora sí son como las de Apple Music:** una línea fina y clara alrededor de cada
   portada (se ve también con portadas claras) y las esquinas se redondean según el tamaño —más suaves en las
-  miniaturas de las listas, que antes eran casi píldoras—.
+  miniaturas de las listas, que antes eran casi píldoras—. También en vídeos y en las portadas grandes de álbum,
+  EP y lista.
 
 ## Barra de abajo
 
