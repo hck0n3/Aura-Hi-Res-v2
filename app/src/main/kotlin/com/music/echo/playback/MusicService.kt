@@ -836,6 +836,20 @@ class MusicService :
 
     internal var manualFadeInJob: Job? = null
 
+    /**
+     * `elapsedRealtime` of the last IN-PLACE source swap of the current track (song↔video, see
+     * [markSourceSwap]). media3 reports `replaceMediaItem` on the current item as a transition
+     * (PLAYLIST_CHANGED / SEEK) of the SAME mediaId; without this mark the AIMP-style manual fade-in
+     * treated it as the user skipping to another song, dropped the volume to 0 and held it there until
+     * the rebuilt source was READY — the "pausa" the owner heard when switching song↔video.
+     */
+    @Volatile private var sourceSwapAtMs = 0L
+
+    /** Called right before an in-place audio↔video source swap of the CURRENT item. */
+    internal fun markSourceSwap() {
+        sourceSwapAtMs = android.os.SystemClock.elapsedRealtime()
+    }
+
     // Which track the tail detector is currently armed for: re-scheduling the SAME track re-arms without
     // resetting the counters (a reset mid-silence would delay a genuine tail fire); a NEW track resets.
     internal var tailArmedMediaId: String? = null
@@ -967,6 +981,8 @@ class MusicService :
     // time (no per-append DB hit, no heat). Refreshed on the same ~5-min TTL as [cachedTaste].
     @Volatile private var cachedPlayedIds: Set<String>? = null
     @Volatile private var cachedPlayedIdsAt: Long = 0L
+    @Volatile private var cachedEverPlayedIds: Set<String>? = null
+    @Volatile private var cachedEverPlayedIdsAt: Long = 0L
 
     // Active "mood" (a Home mood chip the user tapped). When set, the infinite radio SEEDS from the mood
     // (YouTube.home(params = moodParams) sections' songs) instead of the last song — still passed through
@@ -1217,7 +1233,7 @@ class MusicService :
     )
     internal fun MediaItem.dedupKeyOrNull(): String? {
         val md = metadata ?: return null
-        return iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey(md.title, md.artists.firstOrNull()?.name)
+        return NoRepeatKey.of(md.title, md.artists.firstOrNull()?.name)
     }
     private fun rememberRecentRadioId(id: String?, dedupKey: String? = null) {
         if (id.isNullOrBlank()) return
@@ -4427,7 +4443,7 @@ class MusicService :
                 // Order FIRST, then decide (same reason as appendSeed): orderedByTaste() can return EMPTY when
                 // every candidate is hard-disliked, and truncating the tail before knowing that leaves the queue
                 // with nothing after the current track.
-                val toAppend = items.orderedByTaste()
+                val toAppend = items.orderedByTaste(strictNoRepeat = true, queued = liveQueueSnapshot())
                 if (toAppend.isEmpty()) return@launch
                 if (queueGeneration != chipGeneration) {
                     Timber.tag(TAG).i("QUEUE_RACE_GUARD selectAutoplayChip aborted stale mine=%d now=%d", chipGeneration, queueGeneration)
@@ -4582,6 +4598,39 @@ class MusicService :
     }
 
     /**
+     * The LONG memory the smart queue's no-repeat rule uses: every distinct song id the user has played,
+     * newest first, up to [NO_REPEAT_HISTORY_LIMIT]. [recentlyPlayedIds] only reaches back 600 plays; the
+     * owner asked that the smart queue never bring back ANY song he has heard. One id-only query (no
+     * relations materialised), cached ~5 min like its sibling, O(1) membership at append time.
+     */
+    private suspend fun everPlayedIds(): Set<String> {
+        val now = System.currentTimeMillis()
+        cachedEverPlayedIds?.let { if (now - cachedEverPlayedIdsAt < 5 * 60_000L) return it }
+        val ids = runCatching {
+            withContext(Dispatchers.IO) { database.recentPlayedSongIds(NO_REPEAT_HISTORY_LIMIT) }.toHashSet()
+        }.getOrDefault(emptySet())
+        cachedEverPlayedIds = ids
+        cachedEverPlayedIdsAt = now
+        return ids
+    }
+
+    /**
+     * Ids and [NoRepeatKey]s of everything sitting in the live queue right now (played, current and
+     * upcoming — including what the user queued by hand). PLAYER THREAD ONLY: callers capture it before
+     * hopping to IO and hand the result to [orderedByTaste].
+     */
+    internal fun liveQueueSnapshot(): Pair<Set<String>, Set<String>> {
+        val ids = HashSet<String>()
+        val keys = HashSet<String>()
+        for (i in 0 until player.mediaItemCount) {
+            val mi = runCatching { player.getMediaItemAt(i) }.getOrNull() ?: continue
+            if (mi.mediaId.isNotEmpty()) ids.add(mi.mediaId)
+            mi.dedupKeyOrNull()?.let { keys.add(it) }
+        }
+        return ids to keys
+    }
+
+    /**
      * Order "what plays next" so it still FEELS like a continuation of the LAST song. The incoming list is
      * already in YouTube's relatedness order (most-related-to-the-seed first); we KEEP that as the backbone and
      * let taste only NUDGE a song up/down a few spots, instead of fully re-sorting by taste — which scrambled the
@@ -4605,8 +4654,16 @@ class MusicService :
         // Owner log 2026-10-05 — see appendSeed's parameter of the same name. Consulted ONLY by the pattern
         // layout, and only for a candidate whose own genre is unknown; never a filter.
         inheritedLanes: Map<String, String> = emptyMap(),
+        // SMART-QUEUE NO-REPEAT (owner 2026-10-17: "la cola inteligente no debe repetir ninguna canción en la
+        // misma cola ni en el listado álbum o EP o cualquier canción que se haya escuchado antes … y durante").
+        // true = the batch may contain NOTHING already heard: the long play history (everPlayedIds) joins the
+        // exclusion and the "everything is heard, so replay the heard tail" fallback is gone — an empty
+        // result is the honest answer and every caller already falls through to its next source.
+        strictNoRepeat: Boolean = false,
+        // Ids / NoRepeatKeys of the live queue (see liveQueueSnapshot) — also off-limits when non-null.
+        queued: Pair<Set<String>, Set<String>>? = null,
     ): List<MediaItem> {
-        if (size < 2) return this
+        if (size < 2 && !strictNoRepeat) return this
         val disliked = runCatching { dislikeStore.snapshot() }
             .getOrDefault(iad1tya.echo.music.dislike.DislikeStore.Disliked())
         val filtered = this.filter { mi ->
@@ -4621,7 +4678,7 @@ class MusicService :
         // safety philosophy as the old +1000 soft penalty). YouTube relatedness ORDER is preserved WITHIN each
         // bucket: the per-item sort key keeps `index` (relatedness rank) as its dominant term.
         val recentSnapshot = synchronized(recentRadioIds) { HashSet(recentRadioIds) }
-        val playedHistory = recentlyPlayedIds()
+        val playedHistory = if (strictNoRepeat) recentlyPlayedIds() + everPlayedIds() else recentlyPlayedIds()
         // Phase B #5 — read the cached co-relatedness counts ONCE here (NEVER per item): candidateId -> how many
         // liked-song anchors YouTube says it's related to. Empty on cold start / until the WiFi-gated graph fills.
         val coRelCounts = coRelMap()
@@ -4716,12 +4773,11 @@ class MusicService :
             // session), broadened beyond the last-~120 [recentSnapshot] and the ~5-min DB [playedHistory].
             // Ronda 10: also caught by TITLE+artist ([sessionPlayedDedupKeys]) so a different upload of a
             // song already heard (same name, different mediaId) counts as heard too.
-            val dedupKey = m?.let {
-                iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey(it.title, it.artists.firstOrNull()?.name)
-            }
+            val dedupKey = m?.let { NoRepeatKey.of(it.title, it.artists.firstOrNull()?.name) }
             val heard = m != null && (
                 m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory ||
-                    dedupKey in sessionPlayedDedupKeys
+                    dedupKey in sessionPlayedDedupKeys ||
+                    (queued != null && (m.id in queued.first || dedupKey in queued.second))
             )
             Triple(mi, key, heard)
         }
@@ -4747,7 +4803,16 @@ class MusicService :
         // exploration quota — which lifted an artist outside the taste profile into roughly every 15th slot —
         // is no longer applied to automatic continuations. The batch keeps its content-faithful order
         // (relatedness backbone + taste/context steer); only the artist-spacing pass runs.
-        val rankedUnheard = keyed.filterNot { it.third }.sortedBy { it.second }.map { it.first }
+        // A batch never carries the same song twice either (two uploads of one song, or YouTube returning
+        // the same id on two continuation slots): keep the best-ranked copy, by id AND by NoRepeatKey.
+        val batchIds = HashSet<String>()
+        val batchKeys = HashSet<String>()
+        val rankedUnheard = keyed.filterNot { it.third }.sortedBy { it.second }.map { it.first }.filter { mi ->
+            val freshId = mi.mediaId.isEmpty() || batchIds.add(mi.mediaId)
+            val k = mi.dedupKeyOrNull()
+            val freshKey = k == null || batchKeys.add(k)
+            freshId && freshKey
+        }
         val unheard = if (usePattern && patternLane != null && patternContextArtist != null && ctxProfile != null) {
             // The pattern does its own artist spacing inside each lane (same 2-slot window), so the generic
             // spacing pass is not stacked on top of it — that pass would swap songs ACROSS lanes and undo
@@ -4791,7 +4856,7 @@ class MusicService :
         // soft tail). Only when everything is already heard do we fall back to the heard tail — the last-resort
         // "never dead-end / never silence" guarantee. `index` still dominates each bucket's sort (relatedness
         // order preserved; taste only nudges — we filter, never re-sort).
-        return if (unheard.isNotEmpty()) unheard else heardTail
+        return if (unheard.isNotEmpty() || strictNoRepeat) unheard else heardTail
     }
 
     // Artist spacing and the exploration quota moved to RadioQueueShaping (HALLAZGO-021 split, phase A).
@@ -5764,7 +5829,7 @@ class MusicService :
         rememberRecentRadioId(
             mediaItem?.mediaId ?: player.currentMetadata?.id,
             mediaItem?.dedupKeyOrNull() ?: player.currentMetadata?.let {
-                iad1tya.echo.music.playlistimport.AiPlaylistGenerator.dedupKey(it.title, it.artists.firstOrNull()?.name)
+                NoRepeatKey.of(it.title, it.artists.firstOrNull()?.name)
             },
         )
         // Automatic YouTube radio only: skip non-music uploads (tutorials/how-tos) with null musicVideoType.
@@ -5914,7 +5979,10 @@ class MusicService :
         // AUTO advances are untouched (the crossfade owns those); a running crossfade is never fought.
         // NO playWhenReady guard here: on the tap-a-song path this callback can arrive before playQueue
         // sets playWhenReady, and the fade itself WAITS for real audio anyway (see fadeInOnManualChange).
-        if (fadeOnManualChangeHint && !isCrossfading &&
+        // A song↔video swap of the SAME track is not a manual track change: no volume dip, no silent wait.
+        val sameTrackSourceSwap = !trackChanged &&
+            android.os.SystemClock.elapsedRealtime() - sourceSwapAtMs < SOURCE_SWAP_WINDOW_MS
+        if (fadeOnManualChangeHint && !isCrossfading && !sameTrackSourceSwap &&
             (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||
                 reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
         ) {
@@ -6151,6 +6219,8 @@ class MusicService :
             val pageGeneration = queueGeneration
             // Ronda 10 — see [radioOriginContextId]'s own doc comment.
             val pageOriginContextId = radioOriginContextId
+            // Live queue (ids + song keys) captured NOW, on the player thread — see liveQueueSnapshot.
+            val queuedNow = liveQueueSnapshot()
             // Fila 354 — the exact-style gate on radio pages (ExactStyleGate.kt). Only on automatic radio
             // continuations: an automatic radio, an album's radio, or the radio of the single song the user
             // tapped — never pages of a list the user chose (a YouTube playlist keeps every song).
@@ -6316,7 +6386,13 @@ class MusicService :
                     // taste-ordered + artist-spaced (spacedByArtist) rather than raw YouTube order. We're inside
                     // withContext(Dispatchers.IO) so calling the suspend member is fine; it re-dedupes/dislike-
                     // filters (harmless after the manual filters above) and preserves the relatedness backbone.
-                    next = next.orderedByTaste()
+                    // Automatic radio / album radio pages are the SMART queue: never a repeat (see orderedByTaste).
+                    // A page of a list the user chose keeps the lenient behaviour. `queuedNow` was captured on
+                    // the player thread before hopping to IO.
+                    next = next.orderedByTaste(
+                        strictNoRepeat = filterAutoNonMusic || styleGateQueue,
+                        queued = queuedNow,
+                    )
                     next
                 }
                 if (mediaItems.isNotEmpty() && player.playbackState != STATE_IDLE && queueGeneration != pageGeneration) {
@@ -7938,6 +8014,7 @@ class MusicService :
                                                 c.startsWith("WEB", true) -> com.music.innertube.models.YouTubeClient.USER_AGENT_WEB
                                                 c.startsWith("TV", true) -> com.music.innertube.models.YouTubeClient.TVHTML5.userAgent
                                                 c.startsWith("IOS", true) -> com.music.innertube.models.YouTubeClient.IOS.userAgent
+                                                c.startsWith("VISIONOS", true) -> com.music.innertube.models.YouTubeClient.VISIONOS.userAgent
                                                 c.startsWith("ANDROID_VR", true) -> com.music.innertube.models.YouTubeClient.ANDROID_VR_NO_AUTH.userAgent
                                                 c.startsWith("ANDROID", true) -> com.music.innertube.models.YouTubeClient.MOBILE.userAgent
                                                 else -> com.music.innertube.models.YouTubeClient.ANDROID_VR_NO_AUTH.userAgent
@@ -8114,6 +8191,7 @@ class MusicService :
                     c.startsWith("WEB", true) -> com.music.innertube.models.YouTubeClient.USER_AGENT_WEB
                     c.startsWith("TV", true) -> com.music.innertube.models.YouTubeClient.TVHTML5.userAgent
                     c.startsWith("IOS", true) -> com.music.innertube.models.YouTubeClient.IOS.userAgent
+                    c.startsWith("VISIONOS", true) -> com.music.innertube.models.YouTubeClient.VISIONOS.userAgent
                     c.startsWith("ANDROID_VR", true) -> com.music.innertube.models.YouTubeClient.ANDROID_VR_NO_AUTH.userAgent
                     c.startsWith("ANDROID", true) -> com.music.innertube.models.YouTubeClient.MOBILE.userAgent
                     else -> com.music.innertube.models.YouTubeClient.USER_AGENT_WEB
@@ -8289,6 +8367,8 @@ class MusicService :
         if (dataSaverEnabled) return
         if (!playerSheetExpanded) return
         if (_videoMode.value) return
+        // Casting: the phone does not decode video, so a speculative second ExoPlayer would be pure heat.
+        if (castConnectionHandler?.isCasting?.value == true) return
         if (!playerInitialized.value) return
         // Crossfade coexistence guard (direction 1: don't prepare while crossfade machinery is live).
         // Direction 2 is in prepareSecondaryPlayer, which tears the pre-player down before building its own.
@@ -10037,6 +10117,9 @@ class MusicService :
          */
         internal const val ENRICH_BEFORE_SCORE_MS = 1500L
 
+        /** How many distinct played songs the smart queue's no-repeat rule remembers (see everPlayedIds). */
+        private const val NO_REPEAT_HISTORY_LIMIT = 5000
+
         const val ROOT = "root"
         const val SONG = "song"
         const val ARTIST = "artist"
@@ -10114,6 +10197,9 @@ class MusicService :
         // competes with the running track's own startup buffering. 1200 ms is enough once the URL is warm
         // without waiting a full 2.5 s of dead air before the speculative path can help.
         internal const val INSTANT_VIDEO_PREPARE_DELAY_MS = 1200L
+
+        /** How long after [markSourceSwap] a same-track transition still counts as the swap's own echo. */
+        private const val SOURCE_SWAP_WINDOW_MS = 2_500L
         // Never pre-prepare inside this margin of the crossfade preload moment (preload lead + margin):
         // guarantees the video pre-player and the crossfade secondary never race to exist at once.
         private const val INSTANT_VIDEO_CROSSFADE_MARGIN_MS = 3000L

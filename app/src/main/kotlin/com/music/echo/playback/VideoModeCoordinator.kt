@@ -203,6 +203,40 @@ class VideoModeCoordinator(private val service: MusicService) {
         return VideoModePlanning.bandwidthAwareVideoHeight(estimate)
     }
 
+    /** True while a Cast session owns playback: the picture then goes to the TV, never to this phone. */
+    private fun isCastingNow(): Boolean = service.castConnectionHandler?.isCasting?.value == true
+
+    /**
+     * Cast + Video: the switch is ON but nothing is decoded here. The Cast handler reacts to
+     * [MusicService.videoMode] and tells the TV to play the video rendition; the phone keeps its cover.
+     * Downloads are NOT paused (no video stream is being pulled on this device).
+     */
+    private fun armVideoForCast() {
+        service.teardownInstantVideoSwap("video mode for Cast")
+        videoSwapGeneration.incrementAndGet()
+        service._videoMode.value = true
+        service._videoUrl.value = null
+    }
+
+    /**
+     * A Cast session started (or the track changed under it) with video mode ON: the TV now shows the
+     * video, so give back the local video source/decoder and its network. Video mode stays ON.
+     */
+    internal fun releaseLocalVideoForCast() {
+        videoSwapGeneration.incrementAndGet()
+        videoStuckRecoveryJob?.cancel()
+        service.teardownInstantVideoSwap("Cast took over the picture")
+        restoreVideoTracksExcept(null)
+        service._videoUrl.value = null
+        resumeOfflineDownloadsAfterVideoPlayback()
+    }
+
+    /** The Cast session ended while video mode was ON: show that video on the phone again (paused, same spot). */
+    internal fun reapplyVideoAfterCast() {
+        if (!service._videoMode.value || isCastingNow()) return
+        applyVideoToCurrent(swapGeneration = videoSwapGeneration.incrementAndGet(), forceExplicit = true)
+    }
+
     fun toggleVideoMode() {
         // High-Performance Mode defaults to audio-only, but if the user explicitly taps the Video toggle,
         // we should respect their intent and let them switch. We no longer block it here.
@@ -252,6 +286,10 @@ class VideoModeCoordinator(private val service: MusicService) {
         // MUSIC FIRST (owner directive 2026-09-14): video is never carried to the next track.
         stickyVideoPreferred = false
         service.player.currentMediaItem?.mediaId?.let { service.resetRetryCount(it) }
+        if (isCastingNow()) {
+            armVideoForCast()
+            return
+        }
         service.videoSwapMeasureStart()
         val gen = videoSwapGeneration.incrementAndGet()
         if (!service.tryInstantVideoSwap()) {
@@ -369,6 +407,11 @@ class VideoModeCoordinator(private val service: MusicService) {
     ) {
         val item = service.player.currentMediaItem ?: return
         val id = item.mediaId
+        // Casting: the TV plays the video; never build a second, local video pipeline on the phone.
+        if (isCastingNow()) {
+            if (armModeWhenReady || forceExplicit) armVideoForCast()
+            return
+        }
         // 🔴 Un id que ya agotó la escalera NO se reintenta solo: se queda en audio y listo, que es
         // exactamente lo que él pidió (*"si detecta el error en video que pase al modo música y
         // listo"*). Sin esta guarda, cualquier re-armado — el sticky, un cambio de pista, el
@@ -722,6 +765,7 @@ class VideoModeCoordinator(private val service: MusicService) {
                 else item.localConfiguration?.tag
             )
             .build()
+        service.markSourceSwap()
         service.player.replaceMediaItem(idx, videoItem)
         // Video swap: seek keyframe-aligned (CLOSEST_SYNC) so the first video frame decodes sooner — an EXACT
         // seek must decode every frame from the previous keyframe up to pos before it can show anything.
@@ -770,6 +814,7 @@ class VideoModeCoordinator(private val service: MusicService) {
                     val isCurrent = i == service.player.currentMediaItemIndex
                     val pos = if (isCurrent) service.player.currentPosition else 0L
                     val playing = service.player.playWhenReady
+                    if (isCurrent) service.markSourceSwap()
                     service.player.replaceMediaItem(i, it.buildUpon().setUri(origUri).build())
                     if (isCurrent) {
                         service.player.seekTo(i, pos)

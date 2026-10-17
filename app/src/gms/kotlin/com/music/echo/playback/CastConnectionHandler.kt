@@ -21,6 +21,8 @@ import com.google.android.gms.common.images.WebImage
 import iad1tya.echo.music.extensions.metadata
 import iad1tya.echo.music.models.MediaMetadata as AppMediaMetadata
 import iad1tya.echo.music.ui.utils.resize
+import iad1tya.echo.music.utils.YTPlayerUtils
+import iad1tya.echo.music.utils.isLocalMediaId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,6 +30,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -103,6 +107,16 @@ class CastConnectionHandler(
     private var currentMediaId: String? = null
     private var lastCastItemId: Int = -1
     private var isReloadingQueue: Boolean = false
+
+    // What the TV was last told to play for the CURRENT track: its id and whether it is the VIDEO
+    // rendition. Mode changes compare against THIS (our own bookkeeping), not against MediaStatus,
+    // which lags the load by a second or more and would make a quick toggle look like a no-op.
+    private var loadedCurrentMediaId: String? = null
+    private var loadedCurrentAsVideo: Boolean = false
+
+    // The user flipped Song/Video while a queue load was still settling: replay the decision once it is.
+    private var reconcilePending: Boolean = false
+    private var videoModeJob: Job? = null
     
     // Flag to prevent reverse sync when Cast triggers local player update
     var isSyncingFromCast: Boolean = false
@@ -166,6 +180,8 @@ class CastConnectionHandler(
 
         if (castMediaId != null && castMediaId != currentMediaId) {
             currentMediaId = castMediaId
+            loadedCurrentMediaId = castMediaId
+            loadedCurrentAsVideo = currentQueueItem.media?.customData?.optBoolean("video", false) == true
 
             // Cancel any pending sync reset
             syncResetJob?.cancel()
@@ -434,7 +450,13 @@ class CastConnectionHandler(
             // Pause local playback when disconnecting from Cast.
             // THREAD CONTRACT (registry row 195): this callback fires on a GMS executor thread —
             // hop to the player's application thread.
-            onPlayerThread { musicService.player.pause() }
+            onPlayerThread {
+                musicService.player.pause()
+                // The TV was showing the video; hand it back to the phone (paused, same position).
+                musicService.videoCoordinator.reapplyVideoAfterCast()
+            }
+            loadedCurrentMediaId = null
+            loadedCurrentAsVideo = false
         }
         
         override fun onSessionResuming(session: CastSession, sessionId: String) {
@@ -478,6 +500,13 @@ class CastConnectionHandler(
                 .build()
             
             sessionManager?.addSessionManagerListener(sessionManagerListener, CastSession::class.java)
+
+            // Song <-> Video follows the TV: the same switch that changes what the phone shows now
+            // changes what the TV plays (video file vs. audio only), from the position it is at.
+            videoModeJob?.cancel()
+            videoModeJob = scope.launch {
+                musicService.videoMode.drop(1).distinctUntilChanged().collect { reconcileVideoMode() }
+            }
             
             // Check if already connected
             sessionManager?.currentCastSession?.let { session ->
@@ -564,9 +593,66 @@ class CastConnectionHandler(
     }
     
     /**
-     * Build MediaInfo for a single track
+     * Whether the TV should get the VIDEO rendition of [mediaId]: only the track that is current on the
+     * phone AND only while the Song/Video switch is on Video. Neighbours in the Cast queue (prev/next)
+     * stay audio-only, exactly like the phone ("music first": video is never carried to the next track).
+     * Reads only StateFlows, so it is safe from any thread.
      */
-    private suspend fun buildMediaInfo(metadata: AppMediaMetadata): MediaInfo? {
+    private fun wantsVideo(mediaId: String): Boolean =
+        MusicService.VIDEO_PROVIDERS_ENABLED &&
+            musicService.videoMode.value &&
+            musicService.currentMediaMetadata.value?.id == mediaId
+
+    /**
+     * The video rendition the Cast Default Media Receiver can actually play: a MUXED progressive MP4
+     * (itag 22 = 720p, 18 = 360p; picture and sound in one file). The phone's own video mode prefers
+     * video-only adaptive streams and merges a separate audio track on the device — the receiver cannot
+     * do that merge, so asking it for those would give a silent or blank TV. null = none available.
+     */
+    private suspend fun resolveCastVideoUrl(mediaId: String): String? =
+        withContext(Dispatchers.IO) {
+            YTPlayerUtils.adaptiveVideoStreamNewPipe(
+                mediaId,
+                musicService.connectivityManager,
+                maxHeight = 720,
+                forceMuxed = true,
+            ).getOrNull()?.url?.takeIf { it.isNotEmpty() }
+        }
+
+    /**
+     * Build MediaInfo for a single track. With [asVideo] the TV is sent the video file (and told it is a
+     * movie so it shows the picture, not an album-art card); if no playable video exists the track
+     * falls back to audio and [onVideoUnavailable] is told, so the caller can put the switch back.
+     */
+    private suspend fun buildMediaInfo(
+        metadata: AppMediaMetadata,
+        asVideo: Boolean = false,
+        onVideoUnavailable: () -> Unit = {},
+    ): MediaInfo? {
+        if (asVideo) {
+            // Local files, podcasts and direct URLs have no cloud video the TV could fetch.
+            val videoUrl = if (metadata.id.isLocalMediaId() || metadata.id.startsWith("http", ignoreCase = true)) {
+                null
+            } else {
+                runCatching { resolveCastVideoUrl(metadata.id) }.getOrNull()
+            }
+            if (videoUrl != null) {
+                val movie = MediaMetadata(MediaMetadata.MEDIA_TYPE_MOVIE).apply {
+                    putString(MediaMetadata.KEY_TITLE, metadata.title)
+                    putString(MediaMetadata.KEY_SUBTITLE, metadata.artists.joinToString(", ") { it.name })
+                    metadata.thumbnailUrl?.let { addImage(WebImage(Uri.parse(it.resize(1080, 1080)))) }
+                }
+                return MediaInfo.Builder(videoUrl)
+                    .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
+                    .setContentType("video/mp4")
+                    .setMetadata(movie)
+                    .setCustomData(org.json.JSONObject().put("mediaId", metadata.id).put("video", true))
+                    .build()
+            }
+            Timber.w("Cast: no playable video rendition, sending audio only")
+            onVideoUnavailable()
+        }
+
         val streamUrl = musicService.getStreamUrl(metadata.id) ?: return null
         
         val castMetadata = MediaMetadata(MediaMetadata.MEDIA_TYPE_MUSIC_TRACK).apply {
@@ -584,8 +670,25 @@ class CastConnectionHandler(
             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
             .setContentType("audio/mp4")
             .setMetadata(castMetadata)
-            .setCustomData(org.json.JSONObject().put("mediaId", metadata.id))
+            .setCustomData(org.json.JSONObject().put("mediaId", metadata.id).put("video", false))
             .build()
+    }
+
+    /**
+     * The Song/Video switch moved (or the track under it did). If what the TV is playing no longer
+     * matches what the switch asks for, reload ONLY the current track in the other rendition from where
+     * the TV is, so the song carries on instead of restarting.
+     */
+    private fun reconcileVideoMode() {
+        if (!_isCasting.value) return
+        val current = musicService.currentMediaMetadata.value ?: return
+        if (isReloadingQueue) {
+            reconcilePending = true
+            return
+        }
+        if (current.id == loadedCurrentMediaId && wantsVideo(current.id) == loadedCurrentAsVideo) return
+        val position = remoteMediaClient?.approximateStreamPosition?.takeIf { it > 0 }
+        loadMediaWithQueue(current, startPositionOverride = position)
     }
     
     /**
@@ -593,7 +696,7 @@ class CastConnectionHandler(
      * Loads up to 5 items: 2 previous, current, and 2 next for smoother transitions
      * Respects shuffle mode when determining prev/next items
      */
-    private fun loadMediaWithQueue(metadata: AppMediaMetadata) {
+    private fun loadMediaWithQueue(metadata: AppMediaMetadata, startPositionOverride: Long? = null) {
         if (!_isCasting.value) return
         
         isReloadingQueue = true // Prevent sync logic from triggering during load
@@ -634,13 +737,17 @@ class CastConnectionHandler(
                 val startIndex = queueItems.size // Current item index after previous items
                 
                 // Add current item
-                val currentMediaInfo = buildMediaInfo(metadata)
+                val wantVideo = wantsVideo(metadata.id)
+                var videoFellBack = false
+                val currentMediaInfo = buildMediaInfo(metadata, asVideo = wantVideo) { videoFellBack = true }
                 if (currentMediaInfo == null) {
                     Timber.e("Failed to get stream URL for Cast")
                     _castIsBuffering.value = false
                     return@launch
                 }
                 queueItems.add(MediaQueueItem.Builder(currentMediaInfo).build())
+                loadedCurrentMediaId = metadata.id
+                loadedCurrentAsVideo = wantVideo && !videoFellBack
                 
                 // Get next items respecting shuffle order
                 if (!timeline.isEmpty) {
@@ -658,7 +765,7 @@ class CastConnectionHandler(
                 }
                 
                 // Get current position from local player if same song
-                val startPosition = if (player.currentMediaItem?.mediaId == metadata.id) {
+                val startPosition = startPositionOverride ?: if (player.currentMediaItem?.mediaId == metadata.id) {
                     player.currentPosition
                 } else {
                     0L
@@ -680,6 +787,20 @@ class CastConnectionHandler(
                     
                     // Pause local playback
                     musicService.player.pause()
+
+                    if (videoFellBack) {
+                        // The TV got audio only: say so, and put the switch back on Song so the app
+                        // never claims a video that is not on the screen.
+                        android.widget.Toast.makeText(
+                            context,
+                            context.getString(iad1tya.echo.music.R.string.cast_video_unavailable),
+                            android.widget.Toast.LENGTH_LONG,
+                        ).show()
+                        musicService.exitVideoMode()
+                    } else if (wantVideo) {
+                        // The picture lives on the TV now: free the phone's own video decoder/stream.
+                        musicService.videoCoordinator.releaseLocalVideoForCast()
+                    }
                 }
                 
                 Timber.d("Loaded media on Cast: ${metadata.title}")
@@ -690,6 +811,10 @@ class CastConnectionHandler(
                 // Allow sync logic after a delay
                 delay(1500)
                 isReloadingQueue = false
+                if (reconcilePending) {
+                    reconcilePending = false
+                    reconcileVideoMode()
+                }
             }
         }
     }
@@ -777,9 +902,21 @@ class CastConnectionHandler(
             return false
         }
         
+        // The Cast queue holds neighbours as audio. If the Song/Video switch wants the VIDEO of this
+        // track (or the audio of a track that was loaded as video), jumping to the stored item would
+        // show the wrong rendition: report "not in the queue" so the caller reloads it properly.
+        val storedAsVideo = queueItems[targetIndex].media?.customData?.optBoolean("video", false) == true
+        if (storedAsVideo != wantsVideo(mediaId)) {
+            Timber.d("Media $mediaId is queued as ${if (storedAsVideo) "video" else "audio"}, needs the other rendition")
+            return false
+        }
+
         val currentItemId = mediaStatus.currentItemId
         val currentIndex = queueItems.indexOfFirst { it.itemId == currentItemId }
         
+        loadedCurrentMediaId = mediaId
+        loadedCurrentAsVideo = storedAsVideo
+
         if (targetIndex == currentIndex) {
             // Already on this item - ensure local player is paused
             currentMediaId = mediaId
@@ -905,6 +1042,8 @@ class CastConnectionHandler(
     }
     
     fun release() {
+        videoModeJob?.cancel()
+        videoModeJob = null
         stopPositionUpdates()
         remoteMediaClient?.unregisterCallback(remoteMediaClientCallback)
         sessionManager?.removeSessionManagerListener(sessionManagerListener, CastSession::class.java)

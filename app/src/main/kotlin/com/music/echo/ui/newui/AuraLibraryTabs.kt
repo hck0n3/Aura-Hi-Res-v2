@@ -563,6 +563,7 @@ fun AuraLibraryHub(
                         val visual = auraTypeVisual(AuraContentKind.Playlist)
                         AuraSongRow(
                             title = item.playlist.name,
+                            fullTitle = true,
                             subtitle = "${visual.label} · " + pluralStringResource(
                                 R.plurals.n_song,
                                 item.songCount,
@@ -1356,6 +1357,7 @@ fun AuraLibraryPlaylistsTab(
             AuraLibraryCell(
                 viewType = viewType,
                 title = playlist.playlist.name,
+                fullTitle = true,
                 subtitle = pluralStringResource(
                     R.plurals.n_song,
                     playlist.songCount,

@@ -508,6 +508,12 @@ fun Thumbnail(
 
     val videoModeOn by playerConnection.videoMode.collectAsState()
     val videoUrl by playerConnection.videoUrl.collectAsState()
+    // Casting a video: the picture is on the TV and this device resolves no stream, so "no URL yet" is
+    // the normal state here, not a load in progress.
+    val castingVideo by (
+        playerConnection.service.castConnectionHandler?.isCasting
+            ?: kotlinx.coroutines.flow.MutableStateFlow(false)
+        ).collectAsState()
 
     // NOTE: the Android back gesture must NOT exit video (the user wants it to just minimize the player,
     // keeping video mode on) — so there is intentionally no BackHandler here.
@@ -527,7 +533,7 @@ fun Thumbnail(
         // fight the immersive surface during the video↔song crossfade). While the stream is still resolving
         // (no URL yet), show a spinner over the still-visible cover; once it's ready the immersive branch
         // takes over (and this Thumbnail isn't composed there at all).
-        if (videoModeOn && videoUrl.isNullOrEmpty()) {
+        if (videoModeOn && videoUrl.isNullOrEmpty() && !castingVideo) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

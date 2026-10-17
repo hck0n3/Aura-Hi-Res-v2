@@ -311,6 +311,8 @@ fun AuraRow(
     leading: (@Composable () -> Unit)? = null,
     artwork: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
+    /** Lines the title may use before it is cut with an ellipsis. Lists pass [Int.MAX_VALUE] to show the whole name. */
+    titleMaxLines: Int = 1,
 ) {
     val titleColor by animateColorAsState(
         targetValue = when {
@@ -353,7 +355,7 @@ fun AuraRow(
                 text = title,
                 style = AuraType.RowTitle,
                 color = titleColor,
-                maxLines = 1,
+                maxLines = titleMaxLines,
                 overflow = AuraDefaultOverflow,
             )
             if (subtitle != null) {

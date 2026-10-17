@@ -481,6 +481,7 @@ object RingtoneHelper {
         return when {
             c.startsWith("WEB", true) -> YouTubeClient.USER_AGENT_WEB
             c.startsWith("IOS", true) -> YouTubeClient.IOS.userAgent
+            c.startsWith("VISIONOS", true) -> YouTubeClient.VISIONOS.userAgent
             c.startsWith("ANDROID_VR", true) -> YouTubeClient.ANDROID_VR_NO_AUTH.userAgent
             c.startsWith("ANDROID", true) -> YouTubeClient.MOBILE.userAgent
             else -> YouTubeClient.USER_AGENT_WEB

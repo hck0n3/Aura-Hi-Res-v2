@@ -582,6 +582,12 @@ fun AuraCoverCard(
      * which already shows its own playing badge in the other corner).
      */
     onPlay: (() -> Unit)? = null,
+    /**
+     * Lists ("Listas") show the WHOLE name: the title block grows to as many lines as the name needs
+     * instead of the fixed two-line, ellipsised block every other shelf shares. Cards in the same grid
+     * row simply take the height of the tallest one.
+     */
+    fullTitle: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -665,11 +671,14 @@ fun AuraCoverCard(
             text = title,
             style = AuraType.CoverTitle,
             color = AuraPalette.OnGround,
-            maxLines = 2,
+            maxLines = if (fullTitle) Int.MAX_VALUE else 2,
             overflow = AuraDefaultOverflow,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(titleBlockHeight),
+                .then(
+                    if (fullTitle) Modifier.heightIn(min = titleBlockHeight)
+                    else Modifier.height(titleBlockHeight),
+                ),
         )
         Box(
             modifier = Modifier
@@ -902,6 +911,8 @@ fun AuraSongRow(
     onMenuClick: (() -> Unit)? = null,
     menuContentDescription: String = title,
     contentDescription: String? = title,
+    /** Show the whole title (wrapping onto as many lines as it needs) instead of cutting it at one line. */
+    fullTitle: Boolean = false,
 ) {
     val playedCheck = playedInShuffle && !isActive
     val dimmed = dimContent || playedCheck
@@ -912,6 +923,7 @@ fun AuraSongRow(
             subtitle = subtitle,
             highlighted = isActive,
             dimmed = dimmed,
+            titleMaxLines = if (fullTitle) Int.MAX_VALUE else 1,
             contentDescription = contentDescription,
             leading = leading,
             onClick = onClick,

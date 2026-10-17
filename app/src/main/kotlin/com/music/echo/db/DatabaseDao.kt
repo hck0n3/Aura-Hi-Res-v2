@@ -1364,6 +1364,10 @@ interface DatabaseDao {
     @Query("SELECT * FROM event ORDER BY rowId DESC LIMIT :limit")
     fun recentEventsWithSong(limit: Int): Flow<List<EventWithSong>>
 
+    /** Distinct song ids ever played, newest first. Id-only on purpose: no relations are materialised. */
+    @Query("SELECT songId FROM event GROUP BY songId ORDER BY MAX(id) DESC LIMIT :limit")
+    suspend fun recentPlayedSongIds(limit: Int): List<String>
+
     @Transaction
     @Query("SELECT * FROM event ORDER BY rowId ASC LIMIT 1")
     fun firstEvent(): Flow<EventWithSong?>

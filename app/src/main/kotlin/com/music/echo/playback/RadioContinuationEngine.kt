@@ -754,10 +754,17 @@ fun MusicService.startRadioSeamlessly() {
                 null
             }
             if (styled != null && styled.isEmpty()) return false
+            // The smart queue NEVER brings back a song: not one already in the queue (album/EP/playlist it
+            // continues, or anything queued by hand), nor one heard earlier in the session, nor one the
+            // user has ever played (long on-device history). strictNoRepeat also removes the old "everything
+            // is heard → replay the heard tail" fallback: an empty result just means "this source had
+            // nothing new" and the next source is tried.
             val toAppend = (styled ?: languageOrdered.first).orderedByTaste(
                 languageOrdered.second,
                 followContextPattern = followPattern,
                 inheritedLanes = inheritedLanes,
+                strictNoRepeat = true,
+                queued = liveQueueSnapshot(),
             )
             if (toAppend.isEmpty()) return false
             // STALE SEED GUARD (ronda 10, ver [queueGeneration]): a NEW queue landed while this seed's

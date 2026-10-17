@@ -69,6 +69,8 @@ internal fun AuraLibraryCell(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onPlay: (() -> Unit)? = null,
+    /** Lists pass true: their name is shown in full, never cut with an ellipsis. */
+    fullTitle: Boolean = false,
 ) {
     if (viewType == LibraryViewType.LIST) {
         AuraSongRow(
@@ -80,6 +82,7 @@ internal fun AuraLibraryCell(
             isPlaying = isPlaying,
             artworkShape = shape,
             showQualityBadge = false,
+            fullTitle = fullTitle,
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = modifier.auraBleedHorizontal(AuraSpacing.Gutter),
@@ -98,6 +101,7 @@ internal fun AuraLibraryCell(
             onClick = onClick,
             onLongClick = onLongClick,
             onPlay = onPlay,
+            fullTitle = fullTitle,
         )
     }
 }
