@@ -232,7 +232,10 @@ fun AuraHomeScreen(
     // fighting: `SmallGridThumbnailHeight / GridThumbnailHeight` is exactly the ratio the classic Home
     // shrinks by.
     val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
+    // Capped at a big phone's width: on an unfolded foldable / tablet the shelves keep PHONE-sized cards and
+    // simply show more of them per row. Scaling the cards by the window made them 2× bigger there — the
+    // "todo gigante" the owner reported (2026-10-15), and a Home that did not look like the phone's.
+    val screenWidth = configuration.screenWidthDp.dp.coerceAtMost(AURA_HOME_REFERENCE_MAX_WIDTH)
     // Match the exact width calculation from AuraArtistItemsScreen (GridCells.Fixed(2) with 14.dp gap)
     val twoColumnWidth = (screenWidth - AuraSpacing.Gutter * 2 - 14.dp) / 2
     val referenceScale = twoColumnWidth / 156.dp
@@ -270,7 +273,9 @@ fun AuraHomeScreen(
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { lastVisibleIndex ->
                 val len = listState.layoutInfo.totalItemsCount
-                if (lastVisibleIndex != null && lastVisibleIndex >= len - 3) {
+                // Lean mode (registry 395): the Performance mode keeps the Home to four short shelves, so "the last item is
+                // near" is always true and every pass asked for another YouTube page whose shelves are hidden anyway.
+                if (!perfOn && lastVisibleIndex != null && lastVisibleIndex >= len - 3) {
                     viewModel.loadMoreYouTubeItems(homePage?.continuation)
                 }
             }
@@ -462,6 +467,7 @@ fun AuraHomeScreen(
                         // header stacked over this one). Its four actions — Escuchar juntos, Historial,
                         // Modo sin conexión and Cuenta — live here now; see [LocalAuraTopActions].
                         trailing = { AuraTopActions() },
+                        collapseTrailing = true,
                     )
                 }
 
@@ -1673,7 +1679,9 @@ private fun AuraQuickPicksCarousel(
                         AsyncImage(
                             // Decode for the larger hero frame (~208 dp); 640 keeps edges sharp without
                             // the full-res heat of a 1280 source on every carousel item.
-                            model = url.resize(640, 640),
+                            // Lean mode (registry 395): the carousel is the heaviest thing on Inicio (a masked clip per
+                            // item, redrawn while it scrolls) — 320 px is plenty for a 1-2 GB phone.
+                            model = if (iad1tya.echo.music.utils.LeanMode.isOn()) url.resize(320, 320) else url.resize(640, 640),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize(),

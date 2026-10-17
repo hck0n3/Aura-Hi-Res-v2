@@ -1,8 +1,16 @@
 package iad1tya.echo.music.ui.newui
 
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -27,8 +35,10 @@ import iad1tya.echo.music.constants.PureBlackKey
 import iad1tya.echo.music.constants.LiquidGlassGlobalEnabledKey
 import iad1tya.echo.music.constants.SelectedThemeColorKey
 import iad1tya.echo.music.constants.ThumbnailCornerRadiusKey
+import iad1tya.echo.music.extensions.metadata
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.ui.component.ColorPickerConversions
+import iad1tya.echo.music.ui.component.LocalLyricsInk
 import iad1tya.echo.music.ui.theme.CustomThemeRoles
 import iad1tya.echo.music.ui.theme.DefaultThemeColor
 import iad1tya.echo.music.ui.theme.ThemePreset
@@ -365,6 +375,14 @@ object AuraPalette {
      */
     val NavIndicator: Color get() = accent.navIndicator
 
+    /**
+     * The lyrics' ink (owner 2026-10-15: *"las letras no coinciden con su color de la portada"*): the
+     * cover-driven accent ([Teal] — already clamped to ≥ 4.5:1 on the ground) lifted a little toward
+     * white so the sung line stays the brightest thing on the screen while keeping the cover's hue.
+     * Read from composition only; the lyrics' own dimmer steps are alpha steps of this colour.
+     */
+    val LyricsInk: Color get() = lerp(Teal, Color.White, 0.18f)
+
     /** Inactive transport icons: `opacity:.3`. Drag handles live here too. */
     val OnGroundDisabled: Color get() = OnGround.copy(alpha = 0.30f)
 
@@ -487,6 +505,17 @@ object AuraPalette {
         get() = roleOverrides.outline ?: Color.White.copy(alpha = 0.10f)
 
     /**
+     * Apple Music's cover FRAME LINE (owner 2026-10-15, Apple Music screenshot, measured pixel by pixel: ~1.7 px of
+     * rgb ≈ 70-83 on black, i.e. ≈ 28-32 % white, sitting OUTSIDE the art with the cover one pixel smaller inside it).
+     *
+     * An OPAQUE neutral — the ink at 28 % composited over the ground — and not a translucent white: a translucent line
+     * painted over a bright cover is invisible (it was: «las orillas… no se ven como las de Apple Music todavía»), an
+     * opaque one reads on any art, light or dark. A user outline colour, when set, replaces the ink.
+     */
+    val ArtworkRing: Color
+        get() = (roleOverrides.outline?.copy(alpha = 0.32f) ?: OnGround.copy(alpha = 0.28f)).compositeOver(Ground)
+
+    /**
      * Hairline on album / playlist / video / artist artwork — Apple Music's thin cover edge.
      * Slightly stronger than [SurfaceLine] so it reads on a photograph, not only on chrome.
      */
@@ -594,6 +623,14 @@ class AuraCoverCorners(val scale: Float) {
      */
     val player: RoundedCornerShape = RoundedCornerShape((20f * scale).coerceAtMost(44f).dp)
 
+    /**
+     * Artwork in a grid / shelf / row — Apple Music's way: the radius GROWS WITH THE COVER instead of being one fixed
+     * number. Measured on the owner's Apple Music screenshot: ≈ 3.5 dp on a 44 dp thumbnail, ≈ 8.5 dp on a 182 dp
+     * tile. The fixed 11 dp of [row] is right for the tile and turned a 48 dp list thumbnail into a pill.
+     * Scaled by the same "Radio de esquina" control as the other two.
+     */
+    val artwork: Shape = AuraArtworkShape(scale)
+
     override fun equals(other: Any?): Boolean = other is AuraCoverCorners && scale == other.scale
     override fun hashCode(): Int = scale.hashCode()
 
@@ -601,6 +638,16 @@ class AuraCoverCorners(val scale: Float) {
         /** The render's own radii, i.e. the shipped default of 3. */
         val Render = AuraCoverCorners(1f)
     }
+}
+
+/**
+ * Hands the lyrics view the now-playing cover's ink ([AuraPalette.LyricsInk]). Wrap every Aura call of
+ * `InlineLyricsView` in it: the lyrics composable itself lives in the shared `ui/component/Lyrics.kt`
+ * and falls back to white / theme primary when nobody provides one.
+ */
+@Composable
+fun AuraLyricsInk(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalLyricsInk provides AuraPalette.LyricsInk, content = content)
 }
 
 /**
@@ -772,13 +819,38 @@ fun AuraPaletteSync() {
     val focus = AuraCoverFocus.active
     val mediaId = focus?.key ?: nowPlaying?.id
     val thumbnailUrl = focus?.url ?: nowPlaying?.thumbnailUrl
+    var gaveUp by remember(mediaId, thumbnailUrl) { mutableStateOf(false) }
     LaunchedEffect(mediaId, thumbnailUrl) {
         val id = mediaId
         val url = thumbnailUrl
         if (id.isNullOrEmpty() || url.isNullOrEmpty()) return@LaunchedEffect
         AuraBloomCache.ensure(context, id, url)
+        if (AuraBloomCache.entry(id) == null) {
+            delay(AURA_COVER_HOLD_MS)
+            if (AuraBloomCache.entry(id) == null) gaveUp = true
+        }
     }
-    val artworkEntry = AuraBloomCache.entry(mediaId)
+    // Owner 2026-10-15: the NEXT song's cover is resolved while this one plays, so its colours exist the
+    // moment it starts (no wait, no stale tint) — one 100 px decode per track change, already cached by
+    // Coil when the queue or the notification showed that cover. Only the song-following case: a screen
+    // with its own cover (album, playlist) has no "next".
+    val player = playerConnection?.player
+    LaunchedEffect(nowPlaying?.id, focus == null) {
+        if (focus != null || player == null) return@LaunchedEffect
+        val next = player.nextMediaItemIndex
+        if (next == androidx.media3.common.C.INDEX_UNSET || next >= player.mediaItemCount) return@LaunchedEffect
+        val upcoming = player.getMediaItemAt(next).metadata ?: return@LaunchedEffect
+        val url = upcoming.thumbnailUrl
+        if (upcoming.id.isEmpty() || url.isNullOrEmpty()) return@LaunchedEffect
+        AuraBloomCache.ensure(context, upcoming.id, url)
+    }
+    val cachedEntry = AuraBloomCache.entry(mediaId)
+    // Same rule as [rememberAuraBloomFromUrl]: while THIS cover is still being resolved, keep the colours
+    // that were on screen instead of dropping to the brand palette and only then moving to the cover's.
+    val heldEntry = remember { arrayOfNulls<AuraBloomEntry>(1) }
+    if (cachedEntry != null) heldEntry[0] = cachedEntry
+    val wantsCover = !mediaId.isNullOrEmpty() && !thumbnailUrl.isNullOrEmpty()
+    val artworkEntry = cachedEntry ?: if (wantsCover && !gaveUp) heldEntry[0] else null
     val artworkSeed = artworkEntry?.accentSeed
 
     val followsUser = selectedThemeColorInt != DefaultThemeColor.toArgb() ||
@@ -946,4 +1018,25 @@ data class AuraBloomColors(
                 center = AuraPalette.Blue.copy(alpha = 0.24f),
             )
     }
+}
+
+/**
+ * Corner radius, in dp, of an artwork frame whose shorter side is [sideDp]: a straight line through Apple Music's
+ * two measured points (≈ 3.5 dp at 44 dp, ≈ 8.5 dp at 182 dp), kept between 3 and 14 dp, times the user's [scale],
+ * and never more than half the side. Pure, for test.
+ */
+fun auraArtworkCornerDp(sideDp: Float, scale: Float = 1f): Float =
+    ((2.1f + 0.035f * sideDp).coerceIn(3f, 14f) * scale).coerceIn(0f, (sideDp / 2f).coerceAtLeast(0f))
+
+/** [auraArtworkCornerDp] as a [Shape]: the radius is computed from the frame it is asked to outline. */
+@Immutable
+class AuraArtworkShape(private val scale: Float) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val px = density.density
+        val radius = auraArtworkCornerDp(minOf(size.width, size.height) / px, scale) * px
+        return Outline.Rounded(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
+    }
+
+    override fun equals(other: Any?): Boolean = other is AuraArtworkShape && scale == other.scale
+    override fun hashCode(): Int = scale.hashCode()
 }

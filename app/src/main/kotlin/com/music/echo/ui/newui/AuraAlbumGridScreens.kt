@@ -89,7 +89,7 @@ fun AuraFavoriteAlbumsScreen(
             .auraScreenBackground(bloom, intensity = 0.42f),
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val columns = 2
+            val columns = auraSeeAllColumns(maxWidth)
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Fixed(columns),
@@ -223,7 +223,7 @@ fun AuraArtistSectionGridScreen(
             .auraScreenBackground(bloom, intensity = 0.42f),
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val columns = if (videoHeavy) 1 else 2
+            val columns = auraSeeAllColumns(maxWidth, videoHeavy)
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Fixed(columns),

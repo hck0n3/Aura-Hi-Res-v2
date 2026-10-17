@@ -78,6 +78,37 @@ object VideoModePlanning {
         DeviceTier.HIGH -> Int.MAX_VALUE
     }
 
+    /**
+     * Video → Song WITHOUT rebuilding the track (owner 2026-10-15, third report of «cambiar entre música y vídeo
+     * no es tan rápido como YouTube Music»): the video renderer is switched off and the merged source keeps playing.
+     *
+     * Allowed ONLY when every one of these holds — each is a case where the rebuild is the safe or the correct exit:
+     *  · [enabled] — the kill switch;
+     *  · the audio sub-source is the app's OWN ([hasSeparateAudioSource], not a muxed podcast, not a muxed stream):
+     *    a muxed file carries LOWER-quality audio than the normal stream, and Song must restore the real one;
+     *  · [onlyCurrentItemTracked] — the playing item is the single tracked video item (nothing pre-built);
+     *  · no crossfade machinery is live ([crossfadeLive]) — two players, one of them about to be released;
+     *  · not casting ([casting]) — the receiver is fed from the item;
+     *  · the player is READY ([playerReady]) — a buffering / idle / errored player is when a rebuild is right.
+     */
+    fun softExitAllowed(
+        enabled: Boolean,
+        isMuxedPodcast: Boolean,
+        hasSeparateAudioSource: Boolean,
+        isMuxedStream: Boolean,
+        onlyCurrentItemTracked: Boolean,
+        crossfadeLive: Boolean,
+        casting: Boolean,
+        playerReady: Boolean,
+    ): Boolean = enabled &&
+        !isMuxedPodcast &&
+        hasSeparateAudioSource &&
+        !isMuxedStream &&
+        onlyCurrentItemTracked &&
+        !crossfadeLive &&
+        !casting &&
+        playerReady
+
     /** Region 4a — the video URL cache read: an entry is a hit only while its expiry is in the future. */
     fun cachedVideoUrl(entry: Pair<String, Long>?, nowMs: Long): String? =
         entry?.takeIf { it.second > nowMs }?.first

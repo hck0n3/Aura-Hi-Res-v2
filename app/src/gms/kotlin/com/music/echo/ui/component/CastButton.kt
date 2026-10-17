@@ -34,6 +34,7 @@ import com.google.android.gms.cast.framework.CastContext
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.EnableGoogleCastKey
+import iad1tya.echo.music.ui.newui.unstealableClick
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.rememberPreference
 import timber.log.Timber
@@ -116,6 +117,96 @@ fun CastButton(
     // inicialización en el momento si `LaunchedEffect` todavía no terminó, así que el primer toque
     // SIEMPRE hace algo (abre el selector, o un aviso si Cast de verdad no está disponible) en vez de
     // no reaccionar.
+    // The whole tap, as ONE action shared by two paths (owner 2026-10-15, 4th report: «el botón de transmitir hay que
+    // darle varias veces»). [unstealableClick] owns the gesture from the INITIAL pass and fires on lift inside the
+    // button even if the thumb rolled a few pixels — a plain `clickable` is cancelled the moment any ancestor (the
+    // player sheet's drag, the cover's swipe) claims the movement. The `clickable` stays for TalkBack, which invokes
+    // the semantics action, not the gesture; both call this, and the second sheet it would open is the same one.
+    val onCastClick: () -> Unit = fun() {
+        if (currentMetadata == null && !isCasting) {
+            Toast.makeText(context, "Play a song first to cast", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // First tap can land before the LaunchedEffect above finishes its (real, non-
+        // instant) CastContext.getSharedInstance() call — do the same setup right here so
+        // this tap still does something instead of silently going nowhere. Cheap on every
+        // later tap: the Cast SDK caches its own singleton, so this is then just a few
+        // field reads.
+        if (!castAvailable || mediaRouter == null || routeSelector == null) {
+            runCatching {
+                CastContext.getSharedInstance(context)
+                mediaRouter = MediaRouter.getInstance(context)
+                routeSelector = MediaRouteSelector.Builder()
+                    .addControlCategory(CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID))
+                    .build()
+                playerConnection?.service?.castConnectionHandler?.initialize()
+                castAvailable = true
+            }.onFailure { e ->
+                Timber.d("Cast not available: ${e.message}")
+                Toast.makeText(context, "Cast no está disponible ahora mismo", Toast.LENGTH_SHORT).show()
+                return
+            }
+        }
+
+        // Refresh the route snapshot before showing the sheet (cheap — reads MediaRouter's
+        // current list, no scan). Active discovery then fills it in while the sheet is open.
+        routeSelector?.let { selector ->
+            updateRoutes(mediaRouter, selector) { availableRoutes = it }
+        }
+
+        // Get current connected route if casting
+        val currentRoute = if (isCasting) {
+            mediaRouter?.routes?.find { route ->
+                routeSelector?.let { selector ->
+                    route.matchesSelector(selector) && route.isSelected
+                } == true
+            }
+        } else null
+
+        // Show bottom sheet with cast picker
+        menuState.show {
+            // ACTIVE discovery scoped to the sheet: registering here starts scanning when
+            // the picker composes and onDispose stops it as soon as the sheet is dismissed
+            // (any path — route picked, disconnect, scrim tap, replaced by another menu).
+            DisposableEffect(Unit) {
+                val router = mediaRouter
+                val selector = routeSelector
+                val callback = object : MediaRouter.Callback() {
+                    override fun onRouteAdded(r: MediaRouter, route: MediaRouter.RouteInfo) {
+                        updateRoutes(r, selector) { availableRoutes = it }
+                    }
+
+                    override fun onRouteRemoved(r: MediaRouter, route: MediaRouter.RouteInfo) {
+                        updateRoutes(r, selector) { availableRoutes = it }
+                    }
+
+                    override fun onRouteChanged(r: MediaRouter, route: MediaRouter.RouteInfo) {
+                        updateRoutes(r, selector) { availableRoutes = it }
+                    }
+                }
+                if (router != null && selector != null) {
+                    router.addCallback(selector, callback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
+                    updateRoutes(router, selector) { availableRoutes = it }
+                }
+                onDispose { router?.removeCallback(callback) }
+            }
+            CastPickerSheet(
+                routes = availableRoutes,
+                isConnecting = isConnecting,
+                currentlyConnectedRoute = currentRoute,
+                onRouteSelected = { route ->
+                    castHandler?.connectToRoute(route)
+                    menuState.dismiss()
+                },
+                onDisconnect = {
+                    castHandler?.disconnect()
+                    menuState.dismiss()
+                }
+            )
+        }
+    }
+
     if (enableGoogleCast) {
         Box(
             modifier = modifier
@@ -148,90 +239,8 @@ fun CastButton(
                     // TV/car: visible D-pad focus ring observing the .clickable below (same pattern as the
                     // player's transport buttons) — the button is pinned top-right of the expanded player.
                     .tvFocusable(iad1tya.echo.music.ui.utils.rememberIsTvOrCar(), RoundedCornerShape(24.dp))
-                    .clickable {
-                    if (currentMetadata == null && !isCasting) {
-                        Toast.makeText(context, "Play a song first to cast", Toast.LENGTH_SHORT).show()
-                        return@clickable
-                    }
-
-                    // First tap can land before the LaunchedEffect above finishes its (real, non-
-                    // instant) CastContext.getSharedInstance() call — do the same setup right here so
-                    // this tap still does something instead of silently going nowhere. Cheap on every
-                    // later tap: the Cast SDK caches its own singleton, so this is then just a few
-                    // field reads.
-                    if (!castAvailable || mediaRouter == null || routeSelector == null) {
-                        runCatching {
-                            CastContext.getSharedInstance(context)
-                            mediaRouter = MediaRouter.getInstance(context)
-                            routeSelector = MediaRouteSelector.Builder()
-                                .addControlCategory(CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID))
-                                .build()
-                            playerConnection?.service?.castConnectionHandler?.initialize()
-                            castAvailable = true
-                        }.onFailure { e ->
-                            Timber.d("Cast not available: ${e.message}")
-                            Toast.makeText(context, "Cast no está disponible ahora mismo", Toast.LENGTH_SHORT).show()
-                            return@clickable
-                        }
-                    }
-
-                    // Refresh the route snapshot before showing the sheet (cheap — reads MediaRouter's
-                    // current list, no scan). Active discovery then fills it in while the sheet is open.
-                    routeSelector?.let { selector ->
-                        updateRoutes(mediaRouter, selector) { availableRoutes = it }
-                    }
-
-                    // Get current connected route if casting
-                    val currentRoute = if (isCasting) {
-                        mediaRouter?.routes?.find { route ->
-                            routeSelector?.let { selector ->
-                                route.matchesSelector(selector) && route.isSelected
-                            } == true
-                        }
-                    } else null
-
-                    // Show bottom sheet with cast picker
-                    menuState.show {
-                        // ACTIVE discovery scoped to the sheet: registering here starts scanning when
-                        // the picker composes and onDispose stops it as soon as the sheet is dismissed
-                        // (any path — route picked, disconnect, scrim tap, replaced by another menu).
-                        DisposableEffect(Unit) {
-                            val router = mediaRouter
-                            val selector = routeSelector
-                            val callback = object : MediaRouter.Callback() {
-                                override fun onRouteAdded(r: MediaRouter, route: MediaRouter.RouteInfo) {
-                                    updateRoutes(r, selector) { availableRoutes = it }
-                                }
-
-                                override fun onRouteRemoved(r: MediaRouter, route: MediaRouter.RouteInfo) {
-                                    updateRoutes(r, selector) { availableRoutes = it }
-                                }
-
-                                override fun onRouteChanged(r: MediaRouter, route: MediaRouter.RouteInfo) {
-                                    updateRoutes(r, selector) { availableRoutes = it }
-                                }
-                            }
-                            if (router != null && selector != null) {
-                                router.addCallback(selector, callback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
-                                updateRoutes(router, selector) { availableRoutes = it }
-                            }
-                            onDispose { router?.removeCallback(callback) }
-                        }
-                        CastPickerSheet(
-                            routes = availableRoutes,
-                            isConnecting = isConnecting,
-                            currentlyConnectedRoute = currentRoute,
-                            onRouteSelected = { route ->
-                                castHandler?.connectToRoute(route)
-                                menuState.dismiss()
-                            },
-                            onDisconnect = {
-                                castHandler?.disconnect()
-                                menuState.dismiss()
-                            }
-                        )
-                    }
-                }
+                    .unstealableClick(onCastClick)
+                    .clickable(onClick = onCastClick)
             ) {
                 Image(
                     painter = painterResource(

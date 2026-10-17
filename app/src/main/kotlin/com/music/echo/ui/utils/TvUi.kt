@@ -84,7 +84,10 @@ fun rememberIsTvOrCar(): Boolean {
  * `>= 700` stayed false exactly as `>= 840` had. Read the width directly instead.
  *
  * 600dp is Material's own "medium" boundary and the classic sw600dp tablet line: ordinary phones in portrait
- * are ~360-430dp (excluded), while unfolded foldables, tablets and phones in landscape are above it.
+ * are ~360-430dp (excluded), while unfolded foldables and tablets are above it. A phone turned on its side is
+ * ~800 dp wide but only ~360 dp TALL: the app's wide CHROME (capsule bar, split player, cards) therefore asks
+ * [rememberIsWideShell] / [isWideLayoutWindow], which also needs [WIDE_LAYOUT_MIN_HEIGHT_DP] of height (owner
+ * 2026-10-15). This function keeps answering the width-only question for the layouts that want it.
  *
  * REACTIVE: it reads the CURRENT window, not the physical screen, so folding/unfolding, entering split-screen
  * or free-form multiwindow, and rotating all flip it live without a restart — and a narrow multiwindow pane on
@@ -105,6 +108,19 @@ fun rememberIsWideLayout(): Boolean {
 const val WIDE_LAYOUT_BREAKPOINT_DP = 600
 
 /**
+ * Window HEIGHT (dp) the wide layouts also need. Material's own "compact height" line: below it the window is a phone
+ * turned on its side. Owner 2026-10-15: «cuando giro la app en modo no plegable se divide la pantalla como si fuera
+ * plegable, eso no me gusta». A phone in landscape is ~800 x 360 dp — wide enough for the width test alone, so it was
+ * dressed as an unfolded foldable (capsule bar, split player, two cards). An unfolded Z Fold 7 is ~750 x 832 dp in
+ * EITHER orientation and a tablet is taller than this in both, so they keep the wide layout.
+ */
+const val WIDE_LAYOUT_MIN_HEIGHT_DP = 480
+
+/** Is a window of [widthDp] x [heightDp] big enough for the wide layouts? Pure, for test. */
+fun isWideLayoutWindow(widthDp: Float, heightDp: Float): Boolean =
+    widthDp >= WIDE_LAYOUT_BREAKPOINT_DP && heightDp >= WIDE_LAYOUT_MIN_HEIGHT_DP
+
+/**
  * The CURRENT window is at least [WIDE_LAYOUT_BREAKPOINT_DP] dp wide, from the real container size rather than
  * a bucketed size class (see [rememberIsWideLayout] for why the size-class API cannot express this).
  */
@@ -112,8 +128,36 @@ const val WIDE_LAYOUT_BREAKPOINT_DP = 600
 private fun rememberIsExpandedWidth(): Boolean {
     val widthPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width
     val density = androidx.compose.ui.platform.LocalDensity.current
-    return with(density) { widthPx.toDp() } >= WIDE_LAYOUT_BREAKPOINT_DP.dp
+    // A screen that only owns PART of the window (the split player takes the right pane) is as wide as that part.
+    val paneOverride = LocalContentPaneWidth.current
+    val width = paneOverride ?: with(density) { widthPx.toDp() }
+    return width >= WIDE_LAYOUT_BREAKPOINT_DP.dp
 }
+
+/**
+ * Is the WINDOW big enough for the app's wide CHROME — the floating capsule bar, the split player, the two cards?
+ * [rememberIsWideLayout] answers a different question (width alone: lyrics, the equalizer, the classic screens keep
+ * using it, so a phone on its side still gets its two-column landscape layouts there). Whole window, not a pane.
+ * [ForceSplitViewKey] still forces it on.
+ */
+@Composable
+fun rememberIsWideShell(): Boolean {
+    val forceSplit by iad1tya.echo.music.utils.rememberPreference(
+        iad1tya.echo.music.constants.ForceSplitViewKey, false,
+    )
+    val size = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val wide = with(density) { isWideLayoutWindow(size.width.toDp().value, size.height.toDp().value) }
+    return forceSplit || wide
+}
+
+/**
+ * The width the content pane really has when something else takes the rest of the window — the "Interfaz nueva"
+ * split player (owner 2026-10-15). `null` = the whole window. [rememberIsWideLayout] answers for THIS width, so a
+ * collection screen squeezed to the left half of an unfolded foldable stops laying itself out as if it had the
+ * whole screen.
+ */
+val LocalContentPaneWidth = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.ui.unit.Dp?> { null }
 
 /**
  * D-pad focus ring for TV / car remotes: draws a clearly VISIBLE, HIGH-CONTRAST ring around the control while

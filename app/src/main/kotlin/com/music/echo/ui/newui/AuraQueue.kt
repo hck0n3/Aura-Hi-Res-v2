@@ -394,6 +394,11 @@ fun AuraQueue(
         collapsedContentHeight = state.dismissedBound,
         collapsedContent = {
             AuraQueueBar(
+                // Owner 2026-10-15 (*"no me gusta que cuando toque un botón accione otra cosa"*): this
+                // strip is pre-composed and sits, invisible, over the TOP of the expanded queue. Its four
+                // buttons must not exist for the touch then, or a tap on the queue's header lands on
+                // «letra» / «salida de audio» / «más». Same rule as [BottomSheet]'s own clickable.
+                interactive = state.isCollapsed,
                 onOpenQueue = { state.expandSoft() },
                 isBluetoothConnected = isBluetoothConnected,
                 onAudioOutput = { showAudioDeviceBottomSheet = true },
@@ -763,11 +768,13 @@ fun AuraQueue(
                                             .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
                                     ),
                             ) {
-                                InlineLyricsView(
-                                    mediaMetadata = mediaMetadata,
-                                    showLyrics = true,
-                                    positionProvider = { if (isCasting) castPosition else null },
-                                )
+                                AuraLyricsInk {
+                                    InlineLyricsView(
+                                        mediaMetadata = mediaMetadata,
+                                        showLyrics = true,
+                                        positionProvider = { if (isCasting) castPosition else null },
+                                    )
+                                }
                             }
                         }
 
@@ -1173,6 +1180,7 @@ fun AuraQueue(
  */
 @Composable
 private fun AuraQueueBar(
+    interactive: Boolean,
     onOpenQueue: () -> Unit,
     isBluetoothConnected: Boolean,
     onAudioOutput: () -> Unit,
@@ -1209,6 +1217,7 @@ private fun AuraQueueBar(
             .wrapContentHeight(Alignment.CenterVertically),
     ) {
         AuraBarButton(
+            interactive = interactive,
             contentDescription = stringResource(R.string.cd_open_queue),
             active = false,
             onClick = onOpenQueue,
@@ -1220,6 +1229,7 @@ private fun AuraQueueBar(
         // ⚠️ The app's ONLY audio-output picker. It used to be reachable only with the old player
         // design; here it is unconditional.
         AuraBarButton(
+            interactive = interactive,
             contentDescription = stringResource(R.string.cd_audio_output),
             active = false,
             onClick = onAudioOutput,
@@ -1238,6 +1248,7 @@ private fun AuraQueueBar(
         }
 
         AuraBarButton(
+            interactive = interactive,
             contentDescription = stringResource(R.string.queue_tab_lyrics),
             active = showInlineLyrics,
             onClick = onToggleLyrics,
@@ -1248,6 +1259,7 @@ private fun AuraQueueBar(
 
         if (showCommentButton) {
             AuraBarButton(
+            interactive = interactive,
                 contentDescription = stringResource(R.string.comments),
                 active = false,
                 onClick = onComments,
@@ -1273,6 +1285,7 @@ private fun AuraQueueBar(
         // lone ⋮ in the top header while lyrics are closed. Header ⋮ remains only for the lyrics menu
         // while inline lyrics are open. Queue sheet expanded still has its own header ⋮.
         AuraBarButton(
+            interactive = interactive,
             contentDescription = stringResource(R.string.more_options),
             active = false,
             onClick = onMore,
@@ -1286,6 +1299,7 @@ private fun AuraQueueBar(
 /** One 48 dp button of [AuraQueueBar]: pill fill when active, hairline outline otherwise. */
 @Composable
 private fun AuraBarButton(
+    interactive: Boolean,
     contentDescription: String,
     active: Boolean,
     onClick: () -> Unit,
@@ -1309,7 +1323,10 @@ private fun AuraBarButton(
                 else Modifier.background(contentColor.copy(alpha = 0.12f), shape)
             )
             .tvFocusable(iad1tya.echo.music.ui.utils.rememberIsTvOrCar(), shape)
-            .clickable(enabled = enabled, onClickLabel = contentDescription, role = Role.Button, onClick = onClick),
+            // Registry row 396: fires on lift even if the thumb rolled a few pixels (a plain clickable is cancelled by
+            // the sheet's drag); off while the strip is invisible (`interactive`), like the clickable below.
+            .then(if (enabled && interactive) Modifier.unstealableClick(onClick) else Modifier)
+            .clickable(enabled = enabled && interactive, onClickLabel = contentDescription, role = Role.Button, onClick = onClick),
     ) {
         content(if (enabled) tint else tint.copy(alpha = tint.alpha * 0.35f))
     }

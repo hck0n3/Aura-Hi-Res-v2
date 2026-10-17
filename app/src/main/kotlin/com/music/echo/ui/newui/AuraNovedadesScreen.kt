@@ -180,6 +180,7 @@ fun AuraNovedadesScreen(
                 AuraScreenHeader(
                     title = stringResource(R.string.tab_novedades),
                     trailing = { AuraTopActions() },
+                    collapseTrailing = true,
                 )
                 Column(
                     modifier = Modifier
@@ -230,6 +231,7 @@ fun AuraNovedadesScreen(
                     AuraScreenHeader(
                         title = stringResource(R.string.tab_novedades),
                         trailing = { AuraTopActions() },
+                    collapseTrailing = true,
                     )
                 }
 

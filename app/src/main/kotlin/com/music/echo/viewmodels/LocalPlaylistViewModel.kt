@@ -14,6 +14,7 @@ import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.db.entities.PlaylistSong
 import iad1tya.echo.music.db.entities.Song
+import iad1tya.echo.music.ui.utils.resize
 import iad1tya.echo.music.extensions.reversed
 import iad1tya.echo.music.extensions.toEnum
 import iad1tya.echo.music.models.toMediaMetadata
@@ -804,6 +805,31 @@ constructor(
 
             playlist.first { it != null }?.playlist?.browseId?.let { browseId ->
                 syncUtils.syncPlaylist(browseId, playlistId)
+            }
+        }
+
+        // "Artistas destacados" avatars (owner 2026-10-15: «no carga la portada de todos los artistas»). The artists
+        // come from the songs' artist rows, which have NO thumbnail until someone opens that artist's page — so the
+        // row drew the empty placeholder for most of them. Fetch the missing ones from YouTube, once per artist per
+        // screen, and store them: the row re-emits by itself (Room invalidates the relation), and the next playlist
+        // finds them already filled. Only real YouTube channels; nothing user-visible is logged.
+        viewModelScope.launch(Dispatchers.IO) {
+            val attempted = HashSet<String>()
+            featuredArtists.collect { artists ->
+                for (artist in artists) {
+                    if (!artist.thumbnailUrl.isNullOrBlank() || !artist.isYouTubeArtist) continue
+                    if (!attempted.add(artist.id)) continue
+                    val thumbnail = runCatching { YouTube.artist(artist.id).getOrNull()?.artist?.thumbnail }
+                        .getOrNull()
+                        ?.takeIf { it.isNotBlank() }
+                        ?.resize(544, 544)
+                        ?: continue
+                    database.query {
+                        getArtistById(artist.id)
+                            ?.takeIf { it.thumbnailUrl.isNullOrBlank() }
+                            ?.let { update(it.copy(thumbnailUrl = thumbnail, lastUpdateTime = java.time.LocalDateTime.now())) }
+                    }
+                }
             }
         }
 

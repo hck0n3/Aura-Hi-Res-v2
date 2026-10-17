@@ -1034,12 +1034,19 @@ class HomeViewModel @Inject constructor(
         // Hard ceiling so a throttled/hung YouTube call (e.g. while a big Spotify import is hammering
         // the network) can NEVER leave the home stuck "loading forever" — whatever arrived in time is
         // shown, the rest is cancelled and the refresh spinner clears.
+        //
+        // Lean mode (registry 395): with the Performance mode the Home draws only SpeedDial, QuickPicks, the time-of-day
+        // mix and the FIRST daily mix (`computeHomeSections`) — the community, similar-artist, YouTube-home and
+        // new-release shelves are hidden, yet this phase still fetched all of them in parallel (network, CPU and the
+        // RAM of the pages kept alive) at cold start, the worst moment on a weak phone. The three light shelves are
+        // local; the daily mixes and the account playlists are kept.
+        val lean = iad1tya.echo.music.utils.LeanMode.isOn()
         withTimeoutOrNull(25_000) {
         coroutineScope {
             launch(Dispatchers.IO) { getDailyMixes() }
-            launch(Dispatchers.IO) { getCommunityPlaylists() }
-            launch(Dispatchers.IO) { loadSimilarRecommendations() }
-            launch(Dispatchers.IO) {
+            if (!lean) launch(Dispatchers.IO) { getCommunityPlaylists() }
+            if (!lean) launch(Dispatchers.IO) { loadSimilarRecommendations() }
+            if (!lean) launch(Dispatchers.IO) {
                 YouTube.home().onSuccess { page ->
                     homePage.value = page.copy(
                         sections = page.sections.mapNotNull { section ->
@@ -1053,7 +1060,7 @@ class HomeViewModel @Inject constructor(
                     )
                 }.onFailure { reportException(it) }
             }
-            launch(Dispatchers.IO) {
+            if (!lean) launch(Dispatchers.IO) {
                 YouTube.explore().onSuccess { page ->
                     // Owner: "Álbumes recién lanzados" must only show releases from subscribed /
                     // followed artists — not the global YTM explore dump.
@@ -1112,8 +1119,11 @@ class HomeViewModel @Inject constructor(
         runCatching { loadNetworkDataPhase() }.onFailure { reportException(it) }
 
         // The new taste shelves run LAST and fully isolated, so they can never delay or break the core load.
-        runCatching { getNewFromArtists() }.onFailure { reportException(it) }
-        runCatching { getGenreMix() }.onFailure { reportException(it) }
+        // Lean mode: both feed shelves the Performance mode hides.
+        if (!iad1tya.echo.music.utils.LeanMode.isOn()) {
+            runCatching { getNewFromArtists() }.onFailure { reportException(it) }
+            runCatching { getGenreMix() }.onFailure { reportException(it) }
+        }
 
         saveSnapshot()
     }

@@ -264,11 +264,13 @@ fun AuraLyricsScreen(
                     )
                 } else {
                     Box(Modifier.fillMaxSize().padding(horizontal = AuraSpacing.Gutter)) {
-                        InlineLyricsView(
-                            mediaMetadata = meta,
-                            showLyrics = true,
-                            positionProvider = positionProvider,
-                        )
+                        AuraLyricsInk {
+                            InlineLyricsView(
+                                mediaMetadata = meta,
+                                showLyrics = true,
+                                positionProvider = positionProvider,
+                            )
+                        }
                     }
                     if (enableLyricsThumbnailPlayPause) {
                         // The 56 dp cover that doubles as play/pause while the lyrics are full screen
@@ -332,7 +334,7 @@ fun AuraLyricsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .basicMarquee(
-                                iterations = Int.MAX_VALUE,
+                                iterations = if (iad1tya.echo.music.utils.LeanMode.isOn()) 0 else Int.MAX_VALUE, // lean mode: a still title (registry 395)
                                 initialDelayMillis = 1200,
                                 repeatDelayMillis = 1800,
                                 velocity = 30.dp,
@@ -368,7 +370,7 @@ fun AuraLyricsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .basicMarquee(
-                                iterations = Int.MAX_VALUE,
+                                iterations = if (iad1tya.echo.music.utils.LeanMode.isOn()) 0 else Int.MAX_VALUE, // lean mode: a still title (registry 395)
                                 initialDelayMillis = 1200,
                                 repeatDelayMillis = 1800,
                                 velocity = 30.dp,

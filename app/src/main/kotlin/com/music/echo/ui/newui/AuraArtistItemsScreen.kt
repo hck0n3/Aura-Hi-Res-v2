@@ -313,7 +313,7 @@ fun AuraArtistItemsScreen(
                     val videoHeavy = pageItems.any { it is SongItem && it.isVideoSong }
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     // Two wide columns (Apple/YTM “see all”) — never a dense postage stamp wall.
-                    val columns = if (videoHeavy) 1 else 2
+                    val columns = auraSeeAllColumns(maxWidth, videoHeavy)
                     LazyVerticalGrid(
                         state = lazyGridState,
                         columns = GridCells.Fixed(columns),

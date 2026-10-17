@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -106,13 +107,20 @@ import kotlinx.coroutines.launch
 // ── Headers ───────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The screen header of the render: a tracked mono label over a big title, plus an optional trailing
+ * The screen header of the render: the big title with a tracked mono label UNDER it, plus an optional trailing
  * action ("Biblioteca" has a search glyph at its right).
  *
  * ```
+ * Aura Hi-Res
  * BUENAS NOCHES
- * Inicio
  * ```
+ *
+ * Owner 2026-10-15: «no quiero que el nombre quede abajo… y el buenas tardes/días/noches que quede abajo del nombre» —
+ * the name leads, the greeting follows it.
+ *
+ * [collapseTrailing] (Inicio, Buscar, Novedades): the action buttons are the five 48 dp circles that crowded the title
+ * («y que los otros botones que estorbaban a la par del título estén ocultos y que con un botón puedan mostrarse»). With
+ * it set, the row holds only the title and ONE toggle; the buttons live behind it, in their own line.
  */
 @Composable
 fun AuraScreenHeader(
@@ -122,37 +130,146 @@ fun AuraScreenHeader(
     trailing: (@Composable () -> Unit)? = null,
     /** Row 349: a styled title (Inicio's «Aura Hi-Res» wordmark). [title] stays the plain-text fallback. */
     styledTitle: androidx.compose.ui.text.AnnotatedString? = null,
+    /** Hide [trailing] behind a single show/hide button. */
+    collapseTrailing: Boolean = false,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(start = AuraSpacing.Gutter, end = AuraSpacing.Gutter, top = 8.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
+    val titleBlock: @Composable () -> Unit = {
+        Column {
+            Text(
+                text = styledTitle ?: androidx.compose.ui.text.AnnotatedString(title),
+                style = AuraType.ScreenTitle,
+                color = AuraPalette.OnGround,
+                maxLines = 1,
+                overflow = AuraDefaultOverflow,
+            )
             if (label != null) {
+                Spacer(Modifier.height(2.dp))
                 AuraSectionLabel(label)
-                Spacer(Modifier.height(6.dp))
-            }
-            if (styledTitle != null) {
-                Text(
-                    text = styledTitle,
-                    style = AuraType.ScreenTitle,
-                    color = AuraPalette.OnGround,
-                    maxLines = 1,
-                    overflow = AuraDefaultOverflow,
-                )
-            } else {
-                Text(
-                    text = title,
-                    style = AuraType.ScreenTitle,
-                    color = AuraPalette.OnGround,
-                    maxLines = 1,
-                    overflow = AuraDefaultOverflow,
-                )
             }
         }
-        trailing?.invoke()
+    }
+    val headerModifier = modifier
+        .fillMaxWidth()
+        .padding(start = AuraSpacing.Gutter, end = AuraSpacing.Gutter, top = 8.dp)
+    if (collapseTrailing && trailing != null) {
+        AuraCollapsibleHeader(headerModifier, titleBlock, trailing)
+    } else {
+        AuraHeaderLayout(modifier = headerModifier, title = titleBlock, trailing = trailing)
+    }
+}
+
+/** Whether the header's action buttons are showing. Shared by every screen's header, so the choice follows the user. */
+internal object AuraHeaderActions {
+    var expanded by mutableStateOf(false)
+}
+
+/**
+ * Title and a single toggle on one row — always fits, whatever the phone — with the action buttons revealed on their own
+ * line under it. Collapsed by default: the title is never squeezed by the buttons.
+ */
+@Composable
+private fun AuraCollapsibleHeader(
+    modifier: Modifier,
+    title: @Composable () -> Unit,
+    actions: @Composable () -> Unit,
+) {
+    val expanded = AuraHeaderActions.expanded
+    val lean = iad1tya.echo.music.utils.rememberLeanMode()
+    val turn by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = if (lean) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(180),
+        label = "aura_header_actions_chevron",
+    )
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { title() }
+            AuraIconButton(
+                icon = AuraIcons.ChevronDown,
+                contentDescription = stringResource(
+                    if (expanded) R.string.header_actions_hide else R.string.header_actions_show,
+                ),
+                onClick = { AuraHeaderActions.expanded = !AuraHeaderActions.expanded },
+                modifier = Modifier.graphicsLayer { rotationZ = turn },
+            )
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = expanded,
+            enter = if (lean) {
+                androidx.compose.animation.EnterTransition.None
+            } else {
+                androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically()
+            },
+            exit = if (lean) {
+                androidx.compose.animation.ExitTransition.None
+            } else {
+                androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+            },
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
+        }
+    }
+}
+
+/** Breathing room between a title and the action buttons that share its row. */
+private val AuraHeaderGap = 8.dp
+
+/**
+ * Does the title fit on the SAME row as the action buttons, at full size? Pure, for test.
+ *
+ * Owner 2026-10-15: «en la interfaz cuando no está plegable no se ve completo el nombre de Aura Hi-Res, también en
+ * Novedades no se ve completo lo que dice Novedades de la parte de arriba». The header carries five 48 dp buttons
+ * (reconocer, escuchar juntos, historial, sin conexión, cuenta) ≈ 250 dp: on a phone that leaves ~120 dp for a 29 sp
+ * title that needs ~170 dp, so it ended in «…». Nothing is removed and nothing is shrunk: when it does not fit, the
+ * buttons take their own line.
+ */
+internal fun auraHeaderFitsOneRow(titleWidth: Int, actionsWidth: Int, availableWidth: Int, gap: Int): Boolean =
+    titleWidth + actionsWidth + gap <= availableWidth
+
+/**
+ * Title + action buttons. One row when the title fits beside the buttons (a fold, a tablet, a short title — exactly
+ * what it was); otherwise the buttons sit right-aligned on a line of their own ABOVE the title — the large-title
+ * pattern — and the title gets the whole width, complete.
+ */
+@Composable
+private fun AuraHeaderLayout(
+    modifier: Modifier,
+    title: @Composable () -> Unit,
+    trailing: (@Composable () -> Unit)?,
+) {
+    if (trailing == null) {
+        Box(modifier) { title() }
+        return
+    }
+    androidx.compose.ui.layout.Layout(
+        content = {
+            Box(Modifier.layoutId("title")) { title() }
+            Box(Modifier.layoutId("actions")) { trailing() }
+        },
+        modifier = modifier,
+    ) { measurables, constraints ->
+        val titleM = measurables.first { it.layoutId == "title" }
+        val actionsM = measurables.first { it.layoutId == "actions" }
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val maxW = constraints.maxWidth
+        val actions = actionsM.measure(loose)
+        val gap = AuraHeaderGap.roundToPx()
+        // A single line: its intrinsic width does not depend on the height. A scrolling list hands us an UNBOUNDED height,
+        // which an intrinsic query is better off without.
+        val wanted = titleM.maxIntrinsicWidth(if (constraints.hasBoundedHeight) constraints.maxHeight else 0)
+        if (auraHeaderFitsOneRow(wanted, actions.width, maxW, gap)) {
+            val t = titleM.measure(loose.copy(maxWidth = (maxW - actions.width - gap).coerceAtLeast(0)))
+            val h = maxOf(t.height, actions.height)
+            layout(maxW, h) {
+                t.placeRelative(0, (h - t.height) / 2)
+                actions.placeRelative(maxW - actions.width, (h - actions.height) / 2)
+            }
+        } else {
+            val t = titleM.measure(loose.copy(maxWidth = maxW))
+            layout(maxW, actions.height + t.height) {
+                actions.placeRelative(maxW - actions.width, 0)
+                t.placeRelative(0, actions.height)
+            }
+        }
     }
 }
 
@@ -308,7 +425,8 @@ fun AuraCover(
             .aspectRatio(ratio)
             .clip(shape)
             .background(brush)
-            .border(0.5.dp, AuraPalette.ArtworkEdge, shape),
+            // Painted over the image (registry row 385): `.border` here sat UNDER the cover and never showed.
+            .auraArtworkEdge(shape),
     ) {
         AuraStableCoverImage(
             url = effectiveUrl,
@@ -428,7 +546,10 @@ fun AuraPlayingBars(
         playerConnection?.service?.castConnectionHandler?.isCasting?.collectAsState()
             ?: remember { mutableStateOf(false) }
         )
-    val animateBars = isPlaying && (playbackState == Player.STATE_READY || isCasting)
+    // Lean mode (registry 395): the animated bars keep three Animatables restarting every ~50 ms for as long as a row
+    // is on screen and playing — a permanent animation clock. The still «play» glyph below says the same thing.
+    val lean = iad1tya.echo.music.utils.rememberLeanMode()
+    val animateBars = !lean && isPlaying && (playbackState == Player.STATE_READY || isCasting)
     Box(
         modifier = modifier.height(17.dp),
         contentAlignment = Alignment.Center,
@@ -730,7 +851,7 @@ fun AuraPosterCard(
             .aspectRatio(ratio)
             .clip(shape)
             .background(brush)
-            .border(0.5.dp, AuraPalette.ArtworkEdge, shape)
+            .auraArtworkEdge(shape)
             .then(
                 if (onClick != null || onLongClick != null) {
                     Modifier.combinedClickable(

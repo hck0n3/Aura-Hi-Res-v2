@@ -281,6 +281,13 @@ val AddToPlaylistLastUpdatedDefaultV1AppliedKey =
 // the manual escape hatch for rememberIsTvOrCar(), since TV boxes / car head units running plain Android
 // don't report as TV.
 val ForceSplitViewKey = booleanPreferencesKey("force_split_view")
+
+/**
+ * Wide windows with the "Interfaz nueva" (foldable open, tablet): the expanded player opens as a RIGHT PANE next to
+ * the screen you were browsing (true, the default — Spotify's split view) or as the full-screen player (false).
+ * Toggled from the button at the top-left of the player.
+ */
+val AuraWidePlayerSplitKey = booleanPreferencesKey("aura_wide_player_split")
 // Rotating to landscape with the Apple-Music animated canvas active used to REPLACE the whole player with a
 // bare fullscreen canvas + an auto-hiding transport — no cover, title, progress, queue or lyrics (registry
 // #48: "en horizontal se pierde toda la interfaz, solo queda la imagen animada"). That immersive view is now

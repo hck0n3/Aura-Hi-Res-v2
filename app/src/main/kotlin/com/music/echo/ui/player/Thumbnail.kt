@@ -1086,7 +1086,8 @@ private fun ThumbnailItem(
 
                 // DATA SAVER (audit 2026-09-13): a 1200 px cover is several times the bytes of a 544 px
                 // one; with the switch ON the player requests the smaller rendition.
-                val coverPx = if (dataSaverForCover) 544 else 1200
+                // Lean mode (registry 395): 800 px (the lean player bucket) instead of 1200.
+                val coverPx = if (dataSaverForCover) 544 else if (iad1tya.echo.music.utils.LeanMode.isOn()) 800 else 1200
                 ThumbnailImage(
                     artworkUri = artworkUriToUse?.resize(coverPx, coverPx),
                     cropArtwork = cropAlbumArt || isVideoCover,
@@ -1343,7 +1344,8 @@ private fun ThumbnailImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(currentUrl)
                     .size(coil3.size.Size.ORIGINAL)
-                    .crossfade(true)
+                    // Lean mode (registry 395): no cross-fade (it keeps two full-size bitmaps alive while it runs).
+                    .crossfade(!iad1tya.echo.music.utils.LeanMode.isOn())
                     .memoryCachePolicy(CachePolicy.ENABLED)
                     .diskCachePolicy(CachePolicy.ENABLED)
                     .networkCachePolicy(CachePolicy.ENABLED)

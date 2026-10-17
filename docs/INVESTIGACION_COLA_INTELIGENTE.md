@@ -36,7 +36,7 @@ Cifras de «pesos» y «canalizaciones» de blogs de marketing (Dynamoi, totalau
 
 ## Qué se aplicó (2026-10-17)
 El hueco real no era «falta de algoritmo», sino **repetición** — lo que más rompe la percepción de calidad en cualquier cola:
-`NoRepeatKey` + `orderedByTaste(strictNoRepeat)` (ver fila 369 del registro). Detalle: nunca relleno con oídas, historial de hasta 5000 canciones distintas, cola viva incluida lo añadido a mano, duplicados dentro del lote, y una clave título+artista que ignora remasters/feat./acentos/Topic sin fundir en vivo/remix/acústica.
+`NoRepeatKey` + `orderedByTaste(strictNoRepeat)` (ver fila 400 del registro). Detalle: nunca relleno con oídas, historial de hasta 5000 canciones distintas, cola viva incluida lo añadido a mano, duplicados dentro del lote, y una clave título+artista que ignora remasters/feat./acentos/Topic sin fundir en vivo/remix/acústica.
 
 ## Ideas respaldadas pero NO aplicadas (decisión del dueño)
 1. **Memoria ACT-R para el gusto** (recencia+frecuencia, Deezer 2025): ponderar el perfil de gusto con decaimiento temporal. Requiere medir en dispositivo; riesgo de estrechar la cola.

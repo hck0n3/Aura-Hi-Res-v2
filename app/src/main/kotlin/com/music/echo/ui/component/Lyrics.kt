@@ -73,6 +73,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -261,6 +262,14 @@ private fun lyricsLookSpanish(lines: List<LyricsEntry>): Boolean {
     val hits = words.count { it in COMMON_SPANISH_WORDS }
     return hits.toDouble() / words.size >= 0.12
 }
+
+/**
+ * Ink the lyrics are drawn in, when the host UI has one of its own. `null` (every classic caller) keeps
+ * the old rule below: the theme primary for «Predeterminado», white for every other background. The
+ * "Interfaz nueva" provides the now-playing cover's colour here (owner 2026-10-15: *"las letras de las
+ * canciones no coinciden con su color de la portada"*), so one lyrics implementation serves both UIs.
+ */
+val LocalLyricsInk = compositionLocalOf<Color?> { null }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @SuppressLint("UnusedBoxWithConstraintsScope", "StringFormatInvalid")
@@ -795,7 +804,8 @@ fun Lyrics(
     }
 
     
-    val expressiveAccent = when (playerBackground) {
+    val hostLyricsInk = LocalLyricsInk.current
+    val expressiveAccent = hostLyricsInk ?: when (playerBackground) {
         PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.primary
         PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.LIQUID_GLASS -> {
             
@@ -932,22 +942,32 @@ fun Lyrics(
         // updates to the display refresh so the ticker never runs faster than the UI can draw.
         // (Follow-up: further cut recomposition scope so only the active line recomputes — e.g. pass the
         //  position as a () -> Long / wrap the per-line dependency in derivedStateOf.)
+        // Lean mode (registry 395): the Performance mode samples the clock ~8x/s instead of once per display frame
+        // (60-120x/s). Every state write here recomposes the visible lines; on a weak phone that is the heaviest
+        // thing a lyrics screen does, and a line change that lands up to 120 ms late is not something anyone reads.
+        // Capable devices (mode off) keep the frame-aligned ticker exactly as it was.
+        val tick = {
+            val sliderPosition = sliderPositionProvider()
+            isSeeking = sliderPosition != null
+            // While a crossfade swap is in flight the lines on screen belong to the OUTGOING song, so the
+            // highlight has to run on the OUTGOING player's clock: reading the live (incoming) player here
+            // would paint that song's FIRST lines against a position of ~0. Asked for only while the view
+            // is actually showing the outgoing song, and null whenever it is not readable (no swap, fade
+            // committed, player released — the service also self-heals the override on that null), in
+            // which case this is byte-for-byte the previous expression.
+            val outgoingPosition =
+                if (crossfadeOutgoing != null) playerConnection.crossfadeOutgoingPositionMs() else null
+            val position = outgoingPosition ?: sliderPosition ?: playerConnection.player.currentPosition
+            currentPlaybackPosition = position
+            val lyricsOffset = currentSong?.song?.lyricsOffset ?: 0
+            currentLineIndex = findCurrentLineIndex(lines, position + lyricsOffset)
+        }
         while (isActive) {
-            withFrameMillis {
-                val sliderPosition = sliderPositionProvider()
-                isSeeking = sliderPosition != null
-                // While a crossfade swap is in flight the lines on screen belong to the OUTGOING song, so the
-                // highlight has to run on the OUTGOING player's clock: reading the live (incoming) player here
-                // would paint that song's FIRST lines against a position of ~0. Asked for only while the view
-                // is actually showing the outgoing song, and null whenever it is not readable (no swap, fade
-                // committed, player released — the service also self-heals the override on that null), in
-                // which case this is byte-for-byte the previous expression.
-                val outgoingPosition =
-                    if (crossfadeOutgoing != null) playerConnection.crossfadeOutgoingPositionMs() else null
-                val position = outgoingPosition ?: sliderPosition ?: playerConnection.player.currentPosition
-                currentPlaybackPosition = position
-                val lyricsOffset = currentSong?.song?.lyricsOffset ?: 0
-                currentLineIndex = findCurrentLineIndex(lines, position + lyricsOffset)
+            if (perfOn) {
+                tick()
+                delay(120)
+            } else {
+                withFrameMillis { tick() }
             }
         }
     }

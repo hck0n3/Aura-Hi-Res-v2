@@ -296,6 +296,9 @@
     <string name="lyrics_not_found">Lyrics not found</string>
     <string name="sleep_timer">Sleep timer</string>
     <string name="end_of_song">End of song</string>
+    <string name="sleep_timer_turn_off">Turn off timer</string>
+    <string name="sleep_timer_stops_in">Stops in %1$s</string>
+    <string name="sleep_timer_stops_after_song">Stops when this song ends</string>
     <plurals name="minute">
         <item quantity="one">1 minute</item>
         <item quantity="other">%d minutes</item>

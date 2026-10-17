@@ -124,6 +124,7 @@ import iad1tya.echo.music.ui.newui.AuraIcons
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraQualityBadge
 import iad1tya.echo.music.ui.newui.AuraShapes
+import iad1tya.echo.music.ui.newui.auraArtworkEdge
 import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
 import iad1tya.echo.music.ui.newui.rememberNewUiEnabled
@@ -1654,6 +1655,14 @@ fun ItemThumbnail(
             .aspectRatio(thumbnailRatio)
             .clip(frameShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            // Apple Music's hairline over the cover — only on the new skin and never on circular artist avatars.
+            .then(
+                if (LocalAuraItemSkin.current.enabled && frameShape != CircleShape) {
+                    Modifier.auraArtworkEdge(frameShape)
+                } else {
+                    Modifier
+                },
+            )
     ) {
         if (albumIndex == null) {
             AsyncImage(
@@ -1748,6 +1757,14 @@ fun LocalThumbnail(
             .aspectRatio(thumbnailRatio)
             .clip(frameShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            // Apple Music's hairline over the cover — only on the new skin and never on circular artist avatars.
+            .then(
+                if (LocalAuraItemSkin.current.enabled && frameShape != CircleShape) {
+                    Modifier.auraArtworkEdge(frameShape)
+                } else {
+                    Modifier
+                },
+            )
     ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
@@ -1844,6 +1861,8 @@ fun PlaylistThumbnail(
     val cropAlbumArt by rememberPreference(CropAlbumArtKey, false)
     // Same 11 dp artwork radius as `ItemThumbnail`; identity off the new skin.
     val frameShape = LocalAuraItemSkin.current.thumbnailShape(shape)
+    // Apple Music's cover hairline: new skin only, never on circular avatars.
+    val coverEdge = LocalAuraItemSkin.current.enabled && frameShape != CircleShape
 
     // A single non-null thumbnailUrl can still be DEAD (purged content:// custom cover, rotted
     // Spotify/YT mosaic link). Playlist.thumbnails can't know that — only coil finds out at load
@@ -1879,11 +1898,13 @@ fun PlaylistThumbnail(
             modifier = Modifier
                 .size(size)
                 .clip(frameShape)
+                .then(if (coverEdge) Modifier.auraArtworkEdge(frameShape) else Modifier)
         )
         else -> Box(
             modifier = Modifier
                 .size(size)
                 .clip(frameShape)
+                .then(if (coverEdge) Modifier.auraArtworkEdge(frameShape) else Modifier)
         ) {
             listOf(
                 Alignment.TopStart,

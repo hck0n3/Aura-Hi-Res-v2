@@ -173,7 +173,7 @@ fun QueueMenu(
                                 navController.navigate("search/${java.net.URLEncoder.encode(artist.name, "UTF-8")}")
                             }
                             showSelectArtistDialog = false
-                            playerBottomSheetState.collapseSoft()
+                            playerBottomSheetState.collapseAfterNavigate()
                             onDismiss()
                         }
                         .padding(horizontal = 12.dp),
@@ -479,7 +479,7 @@ fun QueueMenu(
                                         } else {
                                             navController.navigate("search/${java.net.URLEncoder.encode(artists[0].name, "UTF-8")}")
                                         }
-                                        playerBottomSheetState.collapseSoft()
+                                        playerBottomSheetState.collapseAfterNavigate()
                                         onDismiss()
                                     } else {
                                         showSelectArtistDialog = true
@@ -508,7 +508,7 @@ fun QueueMenu(
                                 },
                                 onClick = {
                                     navController.navigate("album/${album.id}")
-                                    playerBottomSheetState.collapseSoft()
+                                    playerBottomSheetState.collapseAfterNavigate()
                                     onDismiss()
                                 }
                             )

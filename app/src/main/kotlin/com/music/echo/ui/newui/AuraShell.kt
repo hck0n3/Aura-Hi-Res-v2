@@ -17,6 +17,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import iad1tya.echo.music.echomusic.AudioDeviceBottomSheet
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -57,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
@@ -747,6 +749,94 @@ private fun RowScope.AuraNavItem(
 }
 
 /**
+ * «Salida de audio» of the wide mini player (Spotify's devices button): opens the same output picker the queue bar's
+ * speaker opens. A painter glyph, like that button, so it keeps the same drawing.
+ */
+@Composable
+private fun AuraMiniOutputButton(interactive: Boolean) {
+    var show by remember { mutableStateOf(false) }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .sizeIn(minWidth = AuraSpacing.MinTouchTarget, minHeight = AuraSpacing.MinTouchTarget)
+            .clip(CircleShape)
+            .then(if (interactive) Modifier.unstealableClick { show = true } else Modifier)
+            .clickable(
+                enabled = interactive,
+                onClickLabel = stringResource(R.string.cd_audio_output),
+                role = Role.Button,
+            ) { show = true },
+    ) {
+        androidx.compose.material3.Icon(
+            painter = androidx.compose.ui.res.painterResource(R.drawable.speaker_apple),
+            contentDescription = null,
+            tint = AuraPalette.OnGround,
+            modifier = Modifier.size(21.dp),
+        )
+    }
+    if (show) AudioDeviceBottomSheet(onDismiss = { show = false })
+}
+
+/**
+ * Spotify's floating bottom bar for WIDE windows (owner 2026-10-15): the same cells as [AuraNavigationBar] inside a
+ * rounded capsule. Sized and placed by the caller (`MainActivity`): centred when nothing plays, on the left of the
+ * mini player when something does. The glass/ground recipe is the mini pill's, so the two read as one family.
+ */
+@Composable
+fun AuraWideNavCapsule(
+    items: List<Screens>,
+    isSelected: (Screens) -> Boolean,
+    onItemClick: (Screens, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AuraPaletteSync()
+    val hazeState = LocalShellHazeState.current
+    val glass = LocalGlassEffectConfig.current
+    val inPerformanceMode = glass.globalEnabled.not()
+    // Owner 2026-10-15 (beta5 screenshot): «el flotante de la barra que explora la biblioteca también lo quiero
+    // liquid glass como el del reproductor». Same switch the mini pill and the phone's bar read: the REAL liquid
+    // glass (refraction + light rim) whenever the user has it on and the device supports it; the haze film /
+    // frozen tint / opaque ground fallbacks are unchanged underneath.
+    val liquidGlass = glass.interactive && glass.globalEnabled && isGlassSupported()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(AuraShapes.Card)
+            .let { base ->
+                when {
+                    liquidGlass -> base.liquidGlassInteractive(
+                        config = glass,
+                        shape = AuraShapes.Card,
+                        // The mini pill's soft 1.04: a wide surface must not balloon under the finger. The gesture
+                        // does not consume events, so taps on the cells and drags are unaffected.
+                        pressedScale = 1.04f,
+                        interactive = true,
+                    )
+                    hazeState == null -> base.background(AuraPalette.GroundRaised)
+                    inPerformanceMode -> base.freezeGlass(hazeState)
+                    else -> base.shellGlass(hazeState)
+                }
+            }
+            .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+    ) {
+        items.forEach { screen ->
+            val selected = isSelected(screen)
+            AuraNavItem(
+                icon = auraNavIcon(screen),
+                label = stringResource(screen.titleId),
+                selected = selected,
+                onClick = { onItemClick(screen, selected) },
+                modifier = Modifier.background(
+                    if (selected) AuraPalette.NavIndicator else Color.Transparent,
+                    AuraShapes.Highlight,
+                ),
+            )
+        }
+    }
+}
+
+/**
  * Destination → glyph. Exhaustive over the sealed [Screens] hierarchy on purpose: adding a destination
  * without giving it an Aura glyph must fail to compile, not fall back to a blank cell.
  */
@@ -827,6 +917,14 @@ fun AuraMiniPlayer(
      * expandida no dibuje ni robe toques"*. **Al gesto de deslizar se le olvidó esa misma regla**:
      * seguía vivo sobre una franja con alfa 0, y deslizar ahí — o un toque que se mueve unos píxeles —
      * cambia de canción sin que nada visible lo explique.
+     *
+     * 🔴 Y **los cuatro botones** de la píldora (anterior / play / siguiente / inicio) siguen la misma
+     * regla (dueño, 2026-10-15: *"el botón de cast sigue fallando, lo tengo que tocar varias veces y a
+     * veces cambió la canción"*). La franja invisible mide 64 dp ARRIBA de la hoja expandida, que es
+     * justo donde vive el botón de Cast del reproductor, y está encima en el orden de dibujo: un toque
+     * en Cast caía en el «siguiente» invisible (cambia de canción) o en el escudo de la fila de
+     * controles, que consume cualquier toque aunque el dedo no se haya movido (el Cast "no reaccionaba").
+     * Con la hoja expandida ninguno de esos botones debe existir para el tacto.
      */
     gesturesEnabled: Boolean = true,
 ) {
@@ -839,6 +937,11 @@ fun AuraMiniPlayer(
     val error by playerConnection.error.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
+    val currentSongForLike by playerConnection.currentSong.collectAsState(initial = null)
+    val songLiked = currentSongForLike?.song?.liked == true
+    // Wide windows (new UI): the pill carries Spotify's «me gusta» and «salida de audio», and when it is narrow it
+    // drops anterior/siguiente (still in the player and on the swipe) to leave the title room.
+    val widePillMode = LocalAuraWidePlayerMode.current
 
     val castHandler = remember(playerConnection) {
         runCatching { playerConnection.service.castConnectionHandler }.getOrNull()
@@ -870,8 +973,11 @@ fun AuraMiniPlayer(
         modifier = modifier
             .fillMaxWidth()
             .height(MiniPlayerHeight)
-            // Mismo margen que la cápsula de navegación de debajo — ver [AuraFloatingInset].
+            // Mismo margen que la cápsula de navegación de debajo — ver [AuraFloatingInset]. En ventanas
+            // anchas con el reproductor en pantalla completa comparte fila con la cápsula (Spotify): empieza a
+            // su derecha. 0 en todo lo demás.
             .padding(horizontal = AuraFloatingInset)
+            .padding(start = LocalAuraMiniStartInset.current)
             .then(
                 if (swipeEnabled) {
                     Modifier.pointerInputSwipe(
@@ -1023,6 +1129,10 @@ fun AuraMiniPlayer(
                             config = pillGlassConfig,
                             shape = AuraShapes.Card,
                             pressedScale = 1.04f,
+                            // Its `pointerInput` is a hit-test target: left on, the invisible strip of the
+                            // expanded sheet would own the whole top 64 dp (header, Cast) and give the
+                            // player under it none of those touches.
+                            interactive = gesturesEnabled,
                         )
                     } else if (pillHazeState != null) {
                         // ALWAYS-SAMPLING chrome (owner 2026-08-31) — same contract as the nav
@@ -1162,15 +1272,31 @@ fun AuraMiniPlayer(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
-                modifier = Modifier.shieldTapsFromAncestorDrags(),
+                // Sin escudo cuando la píldora es la franja invisible de la hoja expandida: el escudo
+                // consume TODO toque que cae encima, también el del Cast que hay debajo.
+                modifier = if (gesturesEnabled) Modifier.shieldTapsFromAncestorDrags() else Modifier,
             ) {
-                AuraIconButton(
-                    icon = AuraIcons.SkipPrevious,
-                    contentDescription = stringResource(R.string.previous),
-                    onClick = { playerConnection.player.seekToPreviousMediaItem() },
-                    enabled = canSkipPrevious && !isListenTogetherGuest,
-                    size = 22.dp,
-                )
+                if (widePillMode != null) {
+                    AuraMiniOutputButton(interactive = gesturesEnabled)
+                    AuraIconButton(
+                        icon = if (songLiked) AuraIcons.HeartFilled else AuraIcons.Heart,
+                        contentDescription = stringResource(R.string.action_like),
+                        onClick = { playerConnection.toggleLike() },
+                        interactive = gesturesEnabled,
+                        size = 22.dp,
+                        tint = if (songLiked) AuraPalette.Teal else AuraPalette.OnGround,
+                    )
+                }
+                if (widePillMode?.miniCompact != true) {
+                    AuraIconButton(
+                        icon = AuraIcons.SkipPrevious,
+                        contentDescription = stringResource(R.string.previous),
+                        onClick = { playerConnection.player.seekToPreviousMediaItem() },
+                        enabled = canSkipPrevious && !isListenTogetherGuest,
+                        interactive = gesturesEnabled,
+                        size = 22.dp,
+                    )
+                }
 
                 AuraIconButton(
                     // A Listen Together GUEST cannot pause the room — the classic mini turns this
@@ -1198,6 +1324,7 @@ fun AuraMiniPlayer(
                             else -> playerConnection.togglePlayPause()
                         }
                     },
+                    interactive = gesturesEnabled,
                     size = 25.dp,
                     tint = if (isListenTogetherGuest && isMuted) {
                         AuraPalette.OnGroundDisabled
@@ -1206,13 +1333,16 @@ fun AuraMiniPlayer(
                     },
                 )
 
-                AuraIconButton(
-                    icon = AuraIcons.SkipNext,
-                    contentDescription = stringResource(R.string.next),
-                    onClick = { playerConnection.player.seekToNext() },
-                    enabled = canSkipNext && !isListenTogetherGuest,
-                    size = 22.dp,
-                )
+                if (widePillMode?.miniCompact != true) {
+                    AuraIconButton(
+                        icon = AuraIcons.SkipNext,
+                        contentDescription = stringResource(R.string.next),
+                        onClick = { playerConnection.player.seekToNext() },
+                        enabled = canSkipNext && !isListenTogetherGuest,
+                        interactive = gesturesEnabled,
+                        size = 22.dp,
+                    )
+                }
 
                 // 🔴 INICIO, al final de los controles y solo donde la barra de abajo no está (punto 1
                 // del dueño, 2026-09-17). Ver [LocalAuraHomeShortcut] para por qué llega por un local.
@@ -1233,7 +1363,14 @@ fun AuraMiniPlayer(
                         contentDescription = stringResource(R.string.home),
                         // 🔴 SÍ O SÍ (dueño, 2026-09-17). Ver [unstealableClick]: este botón no se
                         // fía del `clickable` de dentro, se queda el gesto en la pasada INICIAL.
-                        modifier = Modifier.unstealableClick { homeShortcut?.invoke() },
+                        // Invisible strip of the expanded sheet: no gesture grabbing at all (it would
+                        // swallow the Cast tap that lands on top of this corner).
+                        modifier = if (gesturesEnabled) {
+                            Modifier.unstealableClick { homeShortcut?.invoke() }
+                        } else {
+                            Modifier
+                        },
+                        interactive = gesturesEnabled,
                         // El valor se captura ARRIBA y no se lee aquí: `CompositionLocal.current` solo
                         // existe en contexto composable, y este `onClick` es una lambda normal. Y
                         // `?.invoke()` en vez de `!!` porque dentro de `AnimatedVisibility` el contenido
@@ -1268,25 +1405,30 @@ fun AuraMiniPlayer(
  * Los dos caminos llaman a lo mismo, y `goHomeAlways` no hace nada si ya estamos en Inicio, así que un
  * doble disparo sería inofensivo.
  */
-private fun Modifier.unstealableClick(onClick: () -> Unit): Modifier = pointerInput(onClick) {
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-        down.consume()
-        var released: PointerInputChange? = null
-        while (true) {
-            val event = awaitPointerEvent(PointerEventPass.Initial)
-            event.changes.forEach { it.consume() }
-            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-            if (!change.pressed) {
-                released = change
-                break
+internal fun Modifier.unstealableClick(onClick: () -> Unit): Modifier = composed {
+    // Keyed on Unit, NOT on the lambda: a recomposition (the cast state, the pill's progress) hands over a fresh
+    // lambda, and re-keying would restart the detector in the middle of a press and drop the tap.
+    val latest by androidx.compose.runtime.rememberUpdatedState(onClick)
+    pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            down.consume()
+            var released: PointerInputChange? = null
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                event.changes.forEach { it.consume() }
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) {
+                    released = change
+                    break
+                }
             }
+            val up = released ?: return@awaitEachGesture
+            // Levantar fuera del botón es cancelar, como en cualquier botón del sistema.
+            val inside = up.position.x >= 0f && up.position.y >= 0f &&
+                up.position.x <= size.width && up.position.y <= size.height
+            if (inside) latest()
         }
-        val up = released ?: return@awaitEachGesture
-        // Levantar fuera del botón es cancelar, como en cualquier botón del sistema.
-        val inside = up.position.x >= 0f && up.position.y >= 0f &&
-            up.position.x <= size.width && up.position.y <= size.height
-        if (inside) onClick()
     }
 }
 
@@ -1318,7 +1460,7 @@ private fun Modifier.unstealableClick(onClick: () -> Unit): Modifier = pointerIn
  * superficie. Solo la fila de botones deja de ser zona de arrastre, y ahí el arrastre nunca fue una
  * función: era el fallo.
  */
-private fun Modifier.shieldTapsFromAncestorDrags(): Modifier = pointerInput(Unit) {
+internal fun Modifier.shieldTapsFromAncestorDrags(): Modifier = pointerInput(Unit) {
     awaitEachGesture {
         // `requireUnconsumed = false`: el `clickable` del botón consume el down antes de llegar aquí
         // (está más adentro), y si lo exigiéramos limpio el escudo no se armaría nunca.

@@ -1,5 +1,6 @@
 package iad1tya.echo.music.ui.newui
 
+import iad1tya.echo.music.utils.rememberLeanMode
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -704,7 +705,7 @@ private fun AuraAlbumHero(
         // Hoisted: inside the inner Box the closest implicit receiver is BoxScope, not
         // BoxWithConstraintsScope, so `maxWidth` cannot be reached there without an explicit receiver.
         val heroWidth = maxWidth
-        val isWideHero = heroWidth >= 840.dp
+        val isWideHero = heroWidth >= AURA_WIDE_HERO_MIN_WIDTH
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -740,7 +741,9 @@ private fun AuraAlbumHero(
             // también, que es justo lo que la primera versión de la de artista no podía hacer y por lo
             // que había que saltarse el efecto mientras el vídeo sonaba.
             val heroHaze = remember { HazeState() }
-            Box(modifier = Modifier.fillMaxSize().hazeSource(heroHaze)) {
+            // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
+            val lean = rememberLeanMode()
+            Box(modifier = Modifier.fillMaxSize().then(if (lean) Modifier else Modifier.hazeSource(heroHaze))) {
                 AuraCover(
                     thumbnailUrl = thumbnailUrl,
                     size = heroWidth,
@@ -750,7 +753,7 @@ private fun AuraAlbumHero(
                     } else Modifier,
                     seed = thumbnailUrl,
                     shape = androidx.compose.ui.graphics.RectangleShape,
-                    decodeTo = 1200,
+                    decodeTo = if (lean) 640 else 1200,
                     ratio = if (isWideHero) heroWidth / 320.dp else 1f,
                 )
 
@@ -772,13 +775,19 @@ private fun AuraAlbumHero(
                     .fillMaxWidth()
                     .height(200.dp)
                     .align(Alignment.BottomCenter)
-                    .hazeEffect(heroHaze) {
-                        blurRadius = 32.dp
-                        progressive = HazeProgressive.verticalGradient(
-                            startIntensity = 0f,
-                            endIntensity = 1f,
-                        )
-                    },
+                    .then(
+                        if (lean) {
+                            Modifier
+                        } else {
+                            Modifier.hazeEffect(heroHaze) {
+                                blurRadius = 32.dp
+                                progressive = HazeProgressive.verticalGradient(
+                                    startIntensity = 0f,
+                                    endIntensity = 1f,
+                                )
+                            }
+                        },
+                    ),
             )
 
             // El oscurecido, en una caja APARTE y MÁS ALTA que el desenfoque — ver el comentario de

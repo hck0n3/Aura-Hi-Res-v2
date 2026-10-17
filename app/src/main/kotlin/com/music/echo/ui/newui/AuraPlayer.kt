@@ -31,6 +31,7 @@ import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -197,7 +198,7 @@ import iad1tya.echo.music.ui.utils.ExportFormatChooserDialog
 import iad1tya.echo.music.ui.utils.ShowMediaInfo
 import iad1tya.echo.music.ui.utils.ShowOffsetDialog
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
-import iad1tya.echo.music.ui.utils.rememberIsWideLayout
+import iad1tya.echo.music.ui.utils.rememberIsWideShell
 import iad1tya.echo.music.ui.utils.rememberMp3ExportFolderAccess
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.DeviceCapabilities
@@ -497,8 +498,13 @@ private fun AuraPlayerShape(
     // that is what makes rotation free of playback consequences. See the KDoc for why the two terms are
     // kept apart instead of collapsed into "not portrait".
     val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val isWideLayout = rememberIsWideLayout()
+    // Owner 2026-10-15: in a wide window the expanded player may be a RIGHT PANE (Spotify's split view). Then the
+    // shape must follow the width of ITS pane, not the window's — a 340 dp pane drawing the three-part wide shape
+    // would be a queue column and a cover side by side in a phone's width. Everything below reads these two.
+    val widePlayerMode = LocalAuraWidePlayerMode.current
+    val inSplitPane = widePlayerMode?.split == true
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE && !inSplitPane
+    val isWideLayout = rememberIsWideShell() && !inSplitPane
 
     // TV / coche: land the D-pad on play/pause when the player opens, the same latch-and-retry the
     // classic player uses (Player.kt:425) — Material3 gives a remote no initial focus, so without this
@@ -848,7 +854,7 @@ private fun AuraPlayerShape(
                                         "search/${URLEncoder.encode(artist.name, "UTF-8")}"
                                     )
                                 }
-                                state.collapseSoft()
+                                state.collapseAfterNavigate()
                             }
                         }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -1018,6 +1024,22 @@ private fun AuraPlayerShape(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = headerModifier,
             ) {
+                if (widePlayerMode != null) {
+                    // Owner 2026-10-15 (Spotify, top-left of the player): flips between the split pane and the
+                    // full-screen player. Remembered (AuraWidePlayerSplitKey).
+                    AuraIconButton(
+                        icon = if (widePlayerMode.split) AuraIcons.FullView else AuraIcons.SplitView,
+                        contentDescription = if (widePlayerMode.split) {
+                            "Ver el reproductor a pantalla completa"
+                        } else {
+                            "Ver el reproductor en pantalla dividida"
+                        },
+                        onClick = widePlayerMode.onToggle,
+                        size = 20.dp,
+                        tint = AuraPalette.OnGround.copy(alpha = 0.6f),
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                    )
+                }
                 AuraIconButton(
                     icon = AuraIcons.ChevronDown,
                     contentDescription = "Minimizar el reproductor",
@@ -1127,12 +1149,19 @@ private fun AuraPlayerShape(
                     ),
             ) {
                 if (showInlineLyrics) {
-                    Box(Modifier.fillMaxSize().padding(horizontal = AuraSpacing.Gutter)) {
-                        InlineLyricsView(
-                            mediaMetadata = mediaMetadata,
-                            showLyrics = true,
-                            positionProvider = { sliderPosition ?: if (isCasting) castPosition else null },
-                        )
+                    // Owner 2026-10-13 ("las letras: no funciona el botón de pantalla completa"): while the
+                    // full-screen overlay below is up it draws its OWN lyrics view, so this slot must not
+                    // compose a second one (two lyric tickers under one screen = needless heat/battery).
+                    if (!isFullScreen) {
+                        Box(Modifier.fillMaxSize().padding(horizontal = AuraSpacing.Gutter)) {
+                            AuraLyricsInk {
+                                InlineLyricsView(
+                                    mediaMetadata = mediaMetadata,
+                                    showLyrics = true,
+                                    positionProvider = { sliderPosition ?: if (isCasting) castPosition else null },
+                                )
+                            }
+                        }
                     }
                     if (isFullScreen && enableLyricsThumbnailPlayPause) {
                         // §2.1 — the 56 dp cover doubles as play/pause while the lyrics are full screen.
@@ -1299,12 +1328,12 @@ private fun AuraPlayerShape(
                                 }
                                 if (!browseId.isNullOrBlank()) {
                                     navController.navigate("album/$browseId")
-                                    state.collapseSoft()
+                                    state.collapseAfterNavigate()
                                 } else if (album.title.isNotBlank()) {
                                     navController.navigate(
                                         "search/${URLEncoder.encode(album.title, "UTF-8")}"
                                     )
-                                    state.collapseSoft()
+                                    state.collapseAfterNavigate()
                                 }
                             }
                         }
@@ -1325,12 +1354,12 @@ private fun AuraPlayerShape(
                                 }
                                 if (!browseId.isNullOrBlank()) {
                                     navController.navigate("artist/$browseId")
-                                    state.collapseSoft()
+                                    state.collapseAfterNavigate()
                                 } else {
                                     navController.navigate(
                                         "search/${URLEncoder.encode(artist.name, "UTF-8")}"
                                     )
-                                    state.collapseSoft()
+                                    state.collapseAfterNavigate()
                                 }
                             }
                         }
@@ -1346,7 +1375,7 @@ private fun AuraPlayerShape(
                         modifier = Modifier
                             .fillMaxWidth()
                             .basicMarquee(
-                                iterations = Int.MAX_VALUE,
+                                iterations = if (iad1tya.echo.music.utils.LeanMode.isOn()) 0 else Int.MAX_VALUE, // lean mode: a still title (registry 395)
                                 initialDelayMillis = 1200,
                                 repeatDelayMillis = 1800,
                                 velocity = 30.dp,
@@ -1375,12 +1404,12 @@ private fun AuraPlayerShape(
                                             }
                                             if (!browseId.isNullOrBlank()) {
                                                 navController.navigate("album/$browseId")
-                                                state.collapseSoft()
+                                                state.collapseAfterNavigate()
                                             } else if (album.title.isNotBlank()) {
                                                 navController.navigate(
                                                     "search/${URLEncoder.encode(album.title, "UTF-8")}"
                                                 )
-                                                state.collapseSoft()
+                                                state.collapseAfterNavigate()
                                             }
                                         }
                                     }
@@ -1418,7 +1447,7 @@ private fun AuraPlayerShape(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .basicMarquee(
-                                    iterations = Int.MAX_VALUE,
+                                    iterations = if (iad1tya.echo.music.utils.LeanMode.isOn()) 0 else Int.MAX_VALUE, // lean mode: a still title (registry 395)
                                     initialDelayMillis = 1200,
                                     repeatDelayMillis = 1800,
                                     velocity = 30.dp,
@@ -1596,12 +1625,18 @@ private fun AuraPlayerShape(
                         // D3: buffered extent of the timeline (0 when unknown). The scrub haptic is
                         // NOT wired here on purpose — MainActivity's global haptics layer already
                         // ticks CLOCK_TICK on every drag (audit finding: no double-buzz).
+                        // Owner 2026-10-15: *"cuando cambio la canción la barra es alta antes de que
+                        // empiece y luego se vuelve a reducir"*. This used to be `null` while the
+                        // duration is unknown (every track change), and `null` makes the DEFAULT style
+                        // draw Material's NATIVE track — a different, thicker rail — until the duration
+                        // arrives and the 10 dp [BufferedSliderTrack] takes over. Never null here: 0f
+                        // ("nothing buffered yet") keeps ONE rail for the whole life of the screen.
                         bufferedFraction = if (songFullyCached && !isCasting) {
                             1f
                         } else if (duration > 0) {
                             (buffered.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                         } else {
-                            null
+                            0f
                         },
                     )
                     Row(
@@ -1635,7 +1670,10 @@ private fun AuraPlayerShape(
                     verticalAlignment = Alignment.CenterVertically,
                     // TIDAL-STYLE TRANSPORT: shuffle · previous · play · next · repeat spread edge to edge.
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.Gutter),
+                    // Registry row 396: a thumb that rolls past the touch slop on play / next used to hand the gesture
+                    // to the sheet's drag and cancel the tap («los botones no responden al primer toque»).
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.Gutter)
+                        .shieldTapsFromAncestorDrags(),
                 ) {
                     AuraIconButton(
                         icon = AuraIcons.Shuffle,
@@ -1928,7 +1966,7 @@ private fun AuraPlayerShape(
                                     onDismiss = bottomSheetPageState::dismiss,
                                     onBrowseAway = {
                                         bottomSheetPageState.dismiss()
-                                        state.collapseSoft()
+                                        state.collapseAfterNavigate()
                                     },
                                     isListenTogetherGuest = isListenTogetherGuest,
                                 )
@@ -2061,8 +2099,10 @@ private fun AuraPlayerShape(
                     // which carries strictly more than the column does (reordenar, deslizar para quitar,
                     // selección múltiple, las pestañas LETRA y RELACIONADOS). This is the one place this
                     // shape deliberately differs from the classic wide player.
+                    // Hoisted: `maxHeight` belongs to this BoxWithConstraints and is out of reach inside the Row/Column scopes.
+                    val paneTallEnoughForCover = maxHeight >= AURA_WIDE_COVER_MIN_PANE_HEIGHT
                     val showQueuePane = auraShowsQueueColumn(isWideLayout, showInlineLyrics) &&
-                        maxHeight >= AURA_WIDE_COVER_MIN_PANE_HEIGHT
+                        paneTallEnoughForCover
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (showQueuePane) {
                             AuraWideQueuePane(
@@ -2091,7 +2131,43 @@ private fun AuraPlayerShape(
                                 .focusGroup(),
                         ) {
                             headerContent(Modifier.fillMaxWidth().padding(horizontal = 8.dp))
-                            if (showQueuePane) {
+                            // Owner 2026-10-15 (foldable, lyrics open): the left pane is the lyrics, and the right
+                            // pane left its whole top half EMPTY — "habiendo espacio para que se vea la portada".
+                            // The cover goes back above the title there. It is a still cover on purpose, not a second
+                            // [Thumbnail]: the carousel, the canvas and every cover gesture belong to the one
+                            // [Thumbnail] that is not composed while the lyrics take its slot, and two of them would
+                            // fight over the same state. Same height guard as the queue shape, so a short window
+                            // keeps its controls whole instead of a cover squeezed to nothing.
+                            val coverBesideLyrics = showInlineLyrics && !isFullScreen && !showQueuePane &&
+                                paneTallEnoughForCover
+                            if (coverBesideLyrics) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                        .padding(horizontal = AuraSpacing.Gutter, vertical = 8.dp),
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .aspectRatio(1f, matchHeightConstraintsFirst = true)
+                                            .clip(AuraShapes.Card)
+                                            .background(AuraPalette.coverPlaceholder(mediaMetadata?.id)),
+                                    ) {
+                                        AuraStableCoverImage(
+                                            url = mediaMetadata?.thumbnailUrl,
+                                            contentScale = if (cropAlbumArt || mediaMetadata?.isVideoSong == true) {
+                                                ContentScale.Crop
+                                            } else {
+                                                ContentScale.Fit
+                                            },
+                                            decodeTo = 800,
+                                            seed = mediaMetadata?.id,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    }
+                                }
+                            } else if (showQueuePane) {
                                 // Cover ON TOP of the controls — the balanced now-playing pane, not a
                                 // huge cover beside a thin column jammed against the screen edge. The
                                 // height guard above is what makes this `weight` safe.
@@ -2117,7 +2193,7 @@ private fun AuraPlayerShape(
                                 Spacer(Modifier.height(6.dp))
                                 AuraEngineStatusBar()
                             }
-                            if (!showQueuePane) Spacer(Modifier.weight(1f))
+                            if (!showQueuePane && !coverBesideLyrics) Spacer(Modifier.weight(1f))
                         }
                     }
                 }
@@ -2160,6 +2236,21 @@ private fun AuraPlayerShape(
             }
         }
 
+        // FULL-SCREEN LYRICS (owner 2026-10-13: the header button "no funciona"). `isFullScreen` used to
+        // flip a flag that only hid the queue bar — the redesigned container [AuraLyricsScreen] existed but
+        // nothing ever composed it, so tapping the button changed nothing visible. It is drawn here, over the
+        // whole player, only while the lyrics are open AND the flag is on; closing returns to the inline
+        // lyrics (`isFullScreen = false`), and the LaunchedEffect above also clears it if the lyrics close.
+        if (isFullScreen && showInlineLyrics && !immersiveVideo) {
+            AuraLyricsScreen(
+                navController = navController,
+                onClose = { isFullScreen = false },
+                // Consumes taps on empty areas so they never fall through to the player drawn underneath.
+                modifier = Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } },
+                positionProvider = { sliderPosition ?: if (isCasting) castPosition else null },
+            )
+        }
+
         // CAST: pinned top-right (owner). Hidden while inline lyrics are open — the lyrics pane owns
         // that corner; Cast must not float over the text. Also gated on immersiveControlsVisible so
         // fullscreen video tap-to-hide stays a clean view.
@@ -2185,7 +2276,13 @@ private fun AuraPlayerShape(
                     // exactly; 0 dp vertical keeps the 48 dp box inside the 48 dp header so it never spills
                     // onto the artwork's swipe-to-skip.
                     .padding(start = 8.dp, end = 8.dp, top = 0.dp, bottom = 0.dp)
-                    .size(48.dp),
+                    .size(48.dp)
+                    // Owner 2026-10-15 (third report): the button sits INSIDE the sheet's vertical drag
+                    // detector, which claims any touch whose finger rolls past the touch slop and cancels
+                    // the click. The shield (see [shieldTapsFromAncestorDrags]) is an ancestor of the
+                    // button's clickable, so it consumes the gesture after the button saw it: the tap
+                    // fires even if the thumb drifts, and the sheet does not start dragging from here.
+                    .shieldTapsFromAncestorDrags(),
                 tintColor = AuraPalette.OnGround,
             )
         }
@@ -2573,8 +2670,12 @@ internal fun rememberAuraGround(
 
     // `Modifier.blur` is a no-op below API 31 — drawing an UNBLURRED cover there would be a different
     // style, not a degraded one, so the cover is dropped and the recipe substitutes a colour wash.
+    //
+    // Lean mode (registry 395): the blurred cover is a full-screen RenderEffect (34-46 dp), and the queue draws a
+    // SECOND one under the expanded player. With the Performance mode on the cover is dropped, and the recipe's own
+    // degradation (a colour wash + the bloom, already how a local track looks) takes its place.
     val coverUrl = thumbnailUrl
-        ?.takeIf { it.isNotEmpty() && !isLocalMedia && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S }
+        ?.takeIf { it.isNotEmpty() && !isLocalMedia && !highPerfMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S }
 
     val motion = !(highPerfMode || deviceThrottle || rawTierLow)
     val recipe = remember(style, coverUrl != null, motion) {
@@ -3055,7 +3156,7 @@ private fun rememberEqEnabledReadOnly(): Boolean {
  * so this one does too: the track drops to the disabled foreground step and the thumb goes with it.
  */
 @Composable
-private fun auraSliderColors(): SliderColors = SliderDefaults.colors(
+internal fun auraSliderColors(): SliderColors = SliderDefaults.colors(
     activeTrackColor = AuraPalette.Teal,
     activeTickColor = AuraPalette.Teal,
     thumbColor = AuraPalette.Teal,

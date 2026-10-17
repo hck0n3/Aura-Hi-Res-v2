@@ -1120,21 +1120,22 @@ private fun AuraLocalPlaylistHeader(
                 modifier = Modifier
                     .width(coverSize)
                     .aspectRatio(1f)
-                    .clip(AuraShapes.PlayerArtwork),
+                    .clip(AuraShapes.Artwork)
+                    .auraArtworkEdge(AuraShapes.Artwork),
             ) {
                 when (playlist.thumbnails.size) {
                     0 -> AuraCover(
                         thumbnailUrl = null,
                         size = coverSize,
                         seed = contextId,
-                        shape = AuraShapes.PlayerArtwork,
+                        shape = AuraShapes.Artwork,
                     )
 
                     1 -> AuraCover(
                         thumbnailUrl = coverEditor.displayThumbnail,
                         size = coverSize,
                         seed = contextId,
-                        shape = AuraShapes.PlayerArtwork,
+                        shape = AuraShapes.Artwork,
                         decodeTo = 512,
                     )
 

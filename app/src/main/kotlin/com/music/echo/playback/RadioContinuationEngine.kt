@@ -415,6 +415,13 @@ fun MusicService.startRadioSeamlessly() {
         // STATE_ENDED into READY-paused, which would make a STATE_ENDED check false and leave the music
         // stopped; !isPlaying still resumes then, yet won't yank playback if the user already started
         // something else during the async fetch.
+        // Owner 2026-10-13 ("al terminar una lista se repite en vez de seguir con la cola inteligente" +
+        // "después de pedir música la cola no continúa"): when every source came back empty the engine used
+        // to REPLAY the finished list. The usual cause is not "nothing exists" but our own filters eating the
+        // whole batch (the persistent "already served after this list" memory, the exact-style gate). Level 1
+        // drops the persistent memory, level 2 also drops the style gate; session no-repeat, dislikes and
+        // the genre/language ordering (which only sinks) stay on at every level.
+        var relaxLevel = 0
         suspend fun appendSeed(
             rawItems: List<MediaItem>,
             // Owner log 2026-10-05 — candidate id → the lane of the pattern seed that brought it
@@ -432,7 +439,7 @@ fun MusicService.startRadioSeamlessly() {
             // batch to nothing when the whole batch was already heard last time — that degrades to
             // "nothing new this attempt", which the caller already treats as a normal empty batch
             // (falls through to the next source / the replay last-resort), never a crash or silence.
-            val items = if (originContextId != null) {
+            val items = if (originContextId != null && relaxLevel < 1) {
                 val playedBefore = withContext(Dispatchers.IO) {
                     runCatching { database.radioContinuationPlayedIds(originContextId) }.getOrDefault(emptyList())
                 }.toHashSet()
@@ -739,7 +746,7 @@ fun MusicService.startRadioSeamlessly() {
             // passes above (which stay as they were); null = gate does not apply, keep the list as is; empty =
             // nothing in style even after searching the style itself, so this source yields and the caller
             // tries the next one instead of playing another style.
-            val styled = if (contextSteerActive && keepGenreLaneHint) {
+            val styled = if (contextSteerActive && keepGenreLaneHint && relaxLevel < 2) {
                 exactStyleFilter(
                     items = languageOrdered.first,
                     anchor = radioAnchorMetadata ?: currentMediaMetadata,
@@ -1211,27 +1218,31 @@ fun MusicService.startRadioSeamlessly() {
             kotlinx.coroutines.delay(5000)
             appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
         }
+        // Nothing worked with every filter on: loosen OUR OWN filters step by step (see [relaxLevel]) before
+        // giving up, so the smart queue still continues the list instead of ending it.
+        if (!appended) {
+            relaxLevel = 1
+            appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
+        }
+        if (!appended) {
+            relaxLevel = 2
+            appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
+            if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the style gate off")
+        }
         // Autoplay chips: the seed just landed (appendSeed ran) → refresh the queue-footer
         // suggestions for THIS seed. Bounded: no-ops if this seed's chips are already loaded.
         if (appended) seedVideoId?.let { refreshAutoplaySuggestions(it) }
-        // Absolute last resort: at a TRUE end-of-queue, never leave the user in silence — replay the queue.
-        if (!appended && (resumeAfterSeed || advanceIntoRadioRequested) &&
-            !player.isPlaying && player.mediaItemCount > 0
-        ) {
-            // Named WHY, not just THAT: "yielded nothing" alone was indistinguishable between "no
-            // YouTube identity for this track" (seedVideoId null — expected for some local/http
-            // items) and "had a valid seed but every source rejected/errored 3 times" (a real,
-            // investigable failure — this is what silently produced the exported-playlist
-            // "infinite loop" complaint, since replaying a short curated list reads as a loop).
+        // Owner 2026-10-13: the old "absolute last resort" REPLAYED the finished queue (seekTo(0,0)) — that is
+        // exactly "la lista se vuelve a repetir aunque no tenga el repetir activado". Repeating is the repeat
+        // button's job (REPEAT_MODE_ALL is handled in onPlaybackStateChanged), never ours. If even the relaxed
+        // sources are empty (offline, no YouTube identity) the player simply stays at the end of the list.
+        if (!appended && (resumeAfterSeed || advanceIntoRadioRequested)) {
             Timber.tag(TAG).w(
-                "Radio seed yielded nothing after 3 attempts (hasSeed=${seedVideoId != null}, " +
-                    "poolSize=${radioSeedPool.size}, mood=${activeMoodParams != null}); " +
-                    "replaying current queue so playback never stops"
+                "Radio seed yielded nothing after relaxed retries (hasSeed=${seedVideoId != null}, " +
+                    "poolSize=${radioSeedPool.size}, mood=${activeMoodParams != null}); not repeating the list"
             )
             resumeAfterSeed = false
             advanceIntoRadioRequested = false
-            player.seekTo(0, 0)
-            player.play()
         }
     }
     // Release the claim from a completion handler rather than a `finally`. invokeOnCompletion fires even

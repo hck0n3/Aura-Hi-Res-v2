@@ -32,8 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -83,14 +86,16 @@ object AuraSpacing {
 
 object AuraShapes {
     /**
-     * Artwork in a list row — render `border-radius:8px`, i.e. 11 dp scaled.
+     * Artwork in a grid, shelf or row. Apple Music's way (registry row 392): the radius GROWS WITH THE COVER — see
+     * [auraArtworkCornerDp] — instead of the render's fixed 11 dp, which is right for a 180 dp tile and turned a 48 dp
+     * list thumbnail into a pill.
      *
      * NOT a constant any more: "Radio de esquina de la miniatura" (Ajustes ▸ Apariencia ▸ Reproductor)
      * scales both cover radii, and this getter is the single place the redesign reads that. See
      * [AuraCoverCorners] — the shapes are cut once per settings change, so this hands back an existing
      * object rather than allocating per row.
      */
-    val Artwork: RoundedCornerShape get() = AuraPalette.coverCorners.row
+    val Artwork: androidx.compose.ui.graphics.Shape get() = AuraPalette.coverCorners.artwork
 
     /** Player artwork — render `border-radius:14px`, i.e. 20 dp scaled by the same control. */
     val PlayerArtwork: RoundedCornerShape get() = AuraPalette.coverCorners.player
@@ -154,6 +159,13 @@ fun AuraIconButton(
     size: Dp = 20.dp,
     tint: Color = AuraPalette.OnGround,
     enabled: Boolean = true,
+    /**
+     * false = the button DRAWS exactly as it would but takes no touch (no dimming, unlike [enabled]). For a
+     * button that is on screen while it must not answer — the mini player's pill is a pre-composed, fading
+     * strip over the top of the expanded player, and its buttons must not catch the taps meant for what is
+     * visible under them (owner 2026-10-15, the Cast button).
+     */
+    interactive: Boolean = true,
 ) {
     Box(
         modifier = modifier
@@ -164,7 +176,7 @@ fun AuraIconButton(
             .clip(CircleShape)
             .auraClickable(
                 onClick = onClick,
-                enabled = enabled,
+                enabled = enabled && interactive,
                 role = Role.Button,
                 contentDescription = contentDescription,
             ),
@@ -579,11 +591,40 @@ fun AuraArtwork(
             .width(size)
             .aspectRatio(ratio)
             .clip(shape)
-            .background(brush),
+            .background(brush)
+            .auraArtworkEdge(shape),
     ) {
         content?.invoke()
     }
 }
+
+/**
+ * Apple Music's cover edge: a hairline that runs along the rounded outline and is painted ON TOP of the image.
+ *
+ * Owner 2026-10-15 (Apple Music screenshot): *«las orillas de las portadas de los álbumes, EPs, vídeos y
+ * singles idénticas a las de Apple Music»*. The app already had `.border(0.5.dp, ArtworkEdge, shape)` on the
+ * cover frames, and it never showed: `Modifier.border` draws in the frame's OWN layer, i.e. BEFORE the image
+ * child, so every opaque cover painted over it (registry row 385). This one draws after `drawContent()`.
+ *
+ * The frame is clipped to [shape] first, so half of a double-width stroke falls outside the clip: what is
+ * visible is exactly one hairline, hugging the inside of the corner — Apple's inner stroke, not a ring that
+ * grows the cover. Static draw (no animation, no state read per frame): free for heat/battery.
+ */
+fun Modifier.auraArtworkEdge(
+    shape: androidx.compose.ui.graphics.Shape,
+    color: Color = AuraPalette.ArtworkRing,
+): Modifier = this
+    .clip(shape)
+    .drawWithContent {
+        drawContent()
+        // ~1.7 px at 2.6x, never thinner than 1.5 px: Apple Music's measured line (see [AuraPalette.ArtworkRing]).
+        val hairline = 0.6.dp.toPx().coerceAtLeast(1.5f)
+        drawOutline(
+            outline = shape.createOutline(size, layoutDirection, this),
+            color = color,
+            style = Stroke(width = hairline * 2f),
+        )
+    }
 
 // ── Internals ─────────────────────────────────────────────────────────────────────────────────────
 

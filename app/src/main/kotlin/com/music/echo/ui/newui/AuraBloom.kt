@@ -43,6 +43,7 @@ import coil3.size.Precision
 import coil3.toBitmap
 import iad1tya.echo.music.LocalPlayerConnection
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
@@ -326,15 +327,30 @@ fun rememberAuraBloom(mediaId: String?): AuraBloomState {
  */
 @Composable
 internal fun rememberAuraBloomFromUrl(key: String?, thumbnailUrl: String?): AuraBloomState {
-    val target = AuraBloomCache.get(key)
-    val state = remember { AuraBloomState(target) }
+    // Owner 2026-10-15 (*"el tiempo que todavía les falta para estar más acordado con la portada"*): the
+    // colours used to fall back to the BRAND bloom for the whole time the new cover was being decoded and
+    // sampled, and only then dissolve to the cover's own — two colour changes per song, the first one
+    // wrong, and the right one arriving late. Now, while the cover of THIS key is still being resolved,
+    // the bloom HOLDS what it was showing (one dissolve, straight to the right colours); the brand bloom
+    // only returns when there is no cover to wait for, or when it never resolved (HOLD_MS).
+    val cached = AuraBloomCache.entry(key)?.colors
+    val state = remember { AuraBloomState(cached ?: AuraBloomColors.Brand) }
     val context = LocalContext.current
+    val wantsCover = !key.isNullOrEmpty() && !thumbnailUrl.isNullOrEmpty()
+    var gaveUp by remember(key, thumbnailUrl) { mutableStateOf(false) }
     LaunchedEffect(key, thumbnailUrl) {
         val id = key
         val url = thumbnailUrl
         if (id.isNullOrEmpty() || url.isNullOrEmpty()) return@LaunchedEffect
         AuraBloomCache.ensure(context, id, url)
+        if (AuraBloomCache.entry(id) == null) {
+            // Another composition may still be resolving it (ensure returns at once then): wait, don't flash.
+            delay(AURA_COVER_HOLD_MS)
+            if (AuraBloomCache.entry(id) == null) gaveUp = true
+        }
     }
+    val target = cached
+        ?: if (wantsCover && !gaveUp) Snapshot.withoutReadObservation { state.to } else AuraBloomColors.Brand
 
     LaunchedEffect(target) {
         if (target == state.to) return@LaunchedEffect
@@ -353,6 +369,9 @@ internal fun rememberAuraBloomFromUrl(key: String?, thumbnailUrl: String?): Aura
 
     return state
 }
+
+/** How long the colours keep what they showed while a new cover is being resolved, before giving up. */
+internal const val AURA_COVER_HOLD_MS = 4_000L
 
 /**
  * One 100×100 decode (shared with the dynamic theme's Coil memory-cache slot) → [Palette] → three
@@ -385,7 +404,16 @@ private suspend fun extractAuraBloom(
     // and the colours are chosen by how much of the cover they fill ([CoverColors.pick]) instead of
     // "vibrant first" — the colour the eye names wins, not a small vivid detail.
     val palette = withContext(Dispatchers.Default) {
-        Palette.from(bitmap).maximumColorCount(CoverColors.MAX_COLORS).resizeBitmapArea(100 * 100).generate()
+        Palette.from(bitmap)
+            .maximumColorCount(CoverColors.MAX_COLORS)
+            .resizeBitmapArea(100 * 100)
+            // Palette's DEFAULT filter throws away near-pure black (L ≤ 0.05) and near-pure white
+            // (L ≥ 0.95) before counting. A cover that is mostly black or white then reported the share of
+            // the few pixels left over — a black sleeve with a small coloured logo read as "all logo", and
+            // an all-black one produced no palette at all. [CoverColors] already knows what to do with
+            // black and white (they are the DARK / LIGHT tones), so every pixel counts.
+            .clearFilters()
+            .generate()
     }
     val trio = CoverColors.pick(palette.swatches.map { CoverColors.Swatch(it.rgb, it.population) })
         ?: return null
@@ -464,6 +492,22 @@ fun Modifier.auraBloom(
     // Row 342: the screen's content gets its own layer, so each drift step re-records ONLY the ground
     // and the lobes (up to five blits), never the rows, text and images of the screen above them.
     .graphicsLayer()
+
+/**
+ * The now-playing cover's ground + bloom behind a screen that does not paint its own — the CLASSIC pages the shell
+ * hosts (every `settings/…` sub-screen). Owner 2026-10-15: *«cada vez que me meto a un apartado de los ajustes no
+ * coinciden los colores de la portada de la app en ellos»* — Inicio, Biblioteca and the Ajustes index drew the
+ * cover's colours, the pages under them sat on the flat theme ground. Drawn by the shell under the NavHost, so the
+ * ~25 classic pages get it without being touched; their transparent columns let it through. [enabled] false = a
+ * no-op (every other route paints its own).
+ */
+@Composable
+fun Modifier.auraShellScreenBackground(enabled: Boolean, intensity: Float = 0.32f): Modifier {
+    val playerConnection = LocalPlayerConnection.current
+    val metadataState = playerConnection?.mediaMetadata?.collectAsState()
+    val bloom = rememberAuraBloom(metadataState?.value?.id)
+    return if (enabled) this.auraScreenBackground(bloom, intensity) else this
+}
 
 /** Ground fill + bloom in one modifier, for a screen root. */
 fun Modifier.auraScreenBackground(

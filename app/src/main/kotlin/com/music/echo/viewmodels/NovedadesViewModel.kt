@@ -33,7 +33,7 @@ import iad1tya.echo.music.utils.filterToSubscribedArtists
 import iad1tya.echo.music.utils.filterToTasteArtists
 import iad1tya.echo.music.utils.get
 import iad1tya.echo.music.utils.SubscribedArtistKeys
-import iad1tya.echo.music.utils.tasteArtistKeys
+import iad1tya.echo.music.utils.subscribedArtistKeys
 import java.time.LocalDate
 import java.time.ZoneOffset
 import javax.inject.Inject
@@ -66,6 +66,8 @@ constructor(
     private val dislikeStore: DislikeStore,
 ) : ViewModel() {
 
+    // Owner (2026-10-13): Novedades showed artists he does not follow. The radar table is now seeded by
+    // ReleaseRadarWorker from FOLLOWED artists only (and wiped once on this update), so the rows are read as is.
     val radarReleases: StateFlow<List<ReleaseRadarItem>> =
         database.releasesByDateDesc()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -177,7 +179,7 @@ constructor(
             }
 
             val albums = albumsJob.await()
-            val keys = database.tasteArtistKeys()
+            val keys = database.subscribedArtistKeys()
             val taste = tasteJob.await()
             val filteredAlbums = albums.filterToSubscribedArtists(keys)
             _newAlbums.value = MusicRequestRanking.pick(

@@ -217,6 +217,9 @@
     <string name="lyrics_not_found">Letras no encontradas</string>
     <string name="sleep_timer">Temporizador de apagado</string>
     <string name="end_of_song">Al finalizar la canción</string>
+    <string name="sleep_timer_turn_off">Apagar el temporizador</string>
+    <string name="sleep_timer_stops_in">Se detiene en %1$s</string>
+    <string name="sleep_timer_stops_after_song">Se detiene al terminar esta canción</string>
     <plurals name="minute">
         <item quantity="one">1 minuto</item>
         <item quantity="many">%d de minutos</item>

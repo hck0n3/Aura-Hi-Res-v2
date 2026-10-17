@@ -275,7 +275,7 @@ fun PlayerMenu(
                                 navController.navigate("search/${java.net.URLEncoder.encode(artist.name, "UTF-8")}")
                             }
                             showSelectArtistDialog = false
-                            playerBottomSheetState.collapseSoft()
+                            playerBottomSheetState.collapseAfterNavigate()
                             onDismiss()
                         }
                         .padding(horizontal = 24.dp),
@@ -295,6 +295,7 @@ fun PlayerMenu(
     var showPitchTempoDialog by rememberSaveable {
         mutableStateOf(false)
     }
+    var showSleepTimerDialog by rememberSaveable { mutableStateOf(false) }
 
     // Refetch icon rotation: each tap subtracts 360°, spinning the icon one full turn as the reload fires.
     var refetchIconDegree by remember { mutableFloatStateOf(0f) }
@@ -303,6 +304,10 @@ fun PlayerMenu(
         animationSpec = tween(durationMillis = 800, easing = LinearEasing),
         label = "refetchRotation"
     )
+
+    if (showSleepTimerDialog) {
+        iad1tya.echo.music.ui.component.SleepTimerDialog(onDismiss = { showSleepTimerDialog = false })
+    }
 
     if (showPitchTempoDialog) {
         TempoPitchDialog(
@@ -480,7 +485,7 @@ fun PlayerMenu(
                                         } else {
                                             navController.navigate("search/${java.net.URLEncoder.encode(artists[0].name, "UTF-8")}")
                                         }
-                                        playerBottomSheetState.collapseSoft()
+                                        playerBottomSheetState.collapseAfterNavigate()
                                         onDismiss()
                                     } else {
                                         showSelectArtistDialog = true
@@ -509,7 +514,7 @@ fun PlayerMenu(
                                 },
                                 onClick = {
                                     navController.navigate("album/${album.id}")
-                                    playerBottomSheetState.collapseSoft()
+                                    playerBottomSheetState.collapseAfterNavigate()
                                     onDismiss()
                                 }
                             )
@@ -539,7 +544,7 @@ fun PlayerMenu(
                                     val epId = mediaMetadata.id
                                     coroutineScope.launch {
                                         val feed = iad1tya.echo.music.podcast.PodcastStoreEntryPoint.get(context).get(epId)?.feedUrl
-                                        playerBottomSheetState.collapseSoft()
+                                        playerBottomSheetState.collapseAfterNavigate()
                                         onDismiss()
                                         navController.navigate(
                                             if (!feed.isNullOrBlank()) "podcasts?feedUrl=" + java.net.URLEncoder.encode(feed, "UTF-8")
@@ -883,7 +888,7 @@ fun PlayerMenu(
                                 onClick = {
                                     // launchSingleTop so a duplicate EQ entry can't land on the backstack
                                     // (which made the first back press return to the same EQ screen).
-                                    playerBottomSheetState.collapseSoft()
+                                    playerBottomSheetState.collapseAfterNavigate()
                                     navController.navigate("settings/equalizer") { launchSingleTop = true }
                                     onDismiss()
                                 }
@@ -902,6 +907,21 @@ fun PlayerMenu(
                                 },
                                 onClick = {
                                     showPitchTempoDialog = true
+                                }
+                            )
+                        )
+                        add(
+                            Material3MenuItemData(
+                                title = { Text(text = stringResource(R.string.sleep_timer)) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.timer),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showSleepTimerDialog = true
                                 }
                             )
                         )

@@ -232,7 +232,7 @@ fun OldPlayerMenu(
                                 navController.navigate("search/${java.net.URLEncoder.encode(artist.name, "UTF-8")}")
                             }
                             showSelectArtistDialog = false
-                            playerBottomSheetState.collapseSoft()
+                            playerBottomSheetState.collapseAfterNavigate()
                             onDismiss()
                         }
                         .padding(horizontal = 24.dp),
@@ -571,7 +571,7 @@ fun OldPlayerMenu(
                                         } else {
                                             navController.navigate("search/${java.net.URLEncoder.encode(mediaMetadata.artists[0].name, "UTF-8")}")
                                         }
-                                        playerBottomSheetState.collapseSoft()
+                                        playerBottomSheetState.collapseAfterNavigate()
                                         onDismiss()
                                     } else {
                                         showSelectArtistDialog = true
@@ -601,7 +601,7 @@ fun OldPlayerMenu(
                                 },
                                 onClick = {
                                     navController.navigate("album/${album.id}")
-                                    playerBottomSheetState.collapseSoft()
+                                    playerBottomSheetState.collapseAfterNavigate()
                                     onDismiss()
                                 }
                             )
@@ -631,7 +631,7 @@ fun OldPlayerMenu(
                                     val epId = mediaMetadata.id
                                     coroutineScope.launch {
                                         val feed = iad1tya.echo.music.podcast.PodcastStoreEntryPoint.get(context).get(epId)?.feedUrl
-                                        playerBottomSheetState.collapseSoft()
+                                        playerBottomSheetState.collapseAfterNavigate()
                                         onDismiss()
                                         navController.navigate(
                                             if (!feed.isNullOrBlank()) "podcasts?feedUrl=" + java.net.URLEncoder.encode(feed, "UTF-8")
@@ -804,7 +804,7 @@ fun OldPlayerMenu(
                                 )
                             },
                             onClick = {
-                                playerBottomSheetState.collapseSoft()
+                                playerBottomSheetState.collapseAfterNavigate()
                                 navController.navigate("settings/sound")
                                 onDismiss()
                             }
@@ -823,7 +823,7 @@ fun OldPlayerMenu(
                                 )
                             },
                             onClick = {
-                                playerBottomSheetState.collapseSoft()
+                                playerBottomSheetState.collapseAfterNavigate()
                                 navController.navigate("settings")
                                 onDismiss()
                             }

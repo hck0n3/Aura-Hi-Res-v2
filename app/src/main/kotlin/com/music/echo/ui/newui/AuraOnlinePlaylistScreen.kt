@@ -1,5 +1,6 @@
 package iad1tya.echo.music.ui.newui
 
+import iad1tya.echo.music.utils.rememberLeanMode
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -394,7 +395,7 @@ fun AuraOnlinePlaylistScreen(
                             thumbnailUrl = songItem.thumbnail,
                             seed = songItem.id,
                             ratio = 16f / 9f,
-                            shape = AuraShapes.Card,
+                            shape = AuraShapes.Artwork,
                             isActive = isActive,
                             isPlaying = isActive && isPlaying,
                             typeIcon = AuraIcons.Video,
@@ -741,7 +742,7 @@ private fun AuraOnlinePlaylistHeader(
             // Izado: dentro del Box de dentro el receptor implícito más cercano es BoxScope, no
             // BoxWithConstraintsScope, así que `maxWidth` no se alcanza ahí sin receptor explícito.
             val heroWidth = maxWidth
-            val isWideHero = heroWidth >= 840.dp
+            val isWideHero = heroWidth >= AURA_WIDE_HERO_MIN_WIDTH
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -750,13 +751,15 @@ private fun AuraOnlinePlaylistHeader(
                     .auraHeroDissolve(),
             ) {
                 val heroHaze = remember { HazeState() }
-                Box(modifier = Modifier.fillMaxSize().hazeSource(heroHaze)) {
+                // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
+                val lean = rememberLeanMode()
+                Box(modifier = Modifier.fillMaxSize().then(if (lean) Modifier else Modifier.hazeSource(heroHaze))) {
                     AuraCover(
                         thumbnailUrl = playlist.thumbnail,
                         size = heroWidth,
                         seed = playlist.id,
                         shape = RectangleShape,
-                        decodeTo = 1200,
+                        decodeTo = if (lean) 640 else 1200,
                         ratio = if (isWideHero) heroWidth / 320.dp else 1f,
                     )
                 }
@@ -767,13 +770,19 @@ private fun AuraOnlinePlaylistHeader(
                         .fillMaxWidth()
                         .height(200.dp)
                         .align(Alignment.BottomCenter)
-                        .hazeEffect(heroHaze) {
-                            blurRadius = 32.dp
-                            progressive = HazeProgressive.verticalGradient(
-                                startIntensity = 0f,
-                                endIntensity = 1f,
-                            )
-                        },
+                        .then(
+                            if (lean) {
+                                Modifier
+                            } else {
+                                Modifier.hazeEffect(heroHaze) {
+                                    blurRadius = 32.dp
+                                    progressive = HazeProgressive.verticalGradient(
+                                        startIntensity = 0f,
+                                        endIntensity = 1f,
+                                    )
+                                }
+                            },
+                        ),
                 )
 
                 // El oscurecido, APARTE y más alto que el desenfoque — ver arriba.

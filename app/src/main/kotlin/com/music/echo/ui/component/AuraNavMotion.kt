@@ -65,11 +65,19 @@ object AuraNavMotion {
      */
     fun popForward(fromIndex: Int, toIndex: Int): Boolean = fromIndex != -1 && fromIndex < toIndex
 
-    /** Entra la pantalla nueva: barrido de ancho completo, resorte por defecto. */
+    /**
+     * Entra la pantalla nueva: barrido de ancho completo, resorte por defecto.
+     *
+     * Modo ligero (fila 395): sin transición. El barrido dibuja las DOS pantallas completas durante ~400 ms y el fade
+     * las pasa por una capa con alfa: en un móvil de 1-2 GB es el primer tirón al tocar la barra de abajo. Con el
+     * modo rendimiento activado la pantalla cambia al instante.
+     */
     fun enter(forward: Boolean): EnterTransition =
-        fadeIn() + slideInHorizontally { if (forward) it else -it }
+        if (iad1tya.echo.music.utils.LeanMode.isOn()) EnterTransition.None
+        else fadeIn() + slideInHorizontally { if (forward) it else -it }
 
-    /** Sale la pantalla vieja hacia el lado contrario, para que se lean como una sola tira. */
+    /** Sale la pantalla vieja hacia el lado contrario, para que se lean como una sola tira. Modo ligero: ninguna. */
     fun exit(forward: Boolean): ExitTransition =
-        fadeOut() + slideOutHorizontally { if (forward) -it else it }
+        if (iad1tya.echo.music.utils.LeanMode.isOn()) ExitTransition.None
+        else fadeOut() + slideOutHorizontally { if (forward) -it else it }
 }

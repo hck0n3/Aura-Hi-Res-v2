@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
 
 /**
  * Fila 355 — the full-bleed hero cover (artist, album, YouTube playlist) DISSOLVES into the page instead of
@@ -53,3 +54,4 @@ internal fun heroDissolveStops(fadeFraction: Float, steps: Int = 8): Array<Pair<
     }
     return (listOf(0f to Color.Black) + ramp).toTypedArray()
 }
+

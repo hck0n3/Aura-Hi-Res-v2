@@ -30,6 +30,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.view.Display
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.WindowManager
@@ -92,6 +93,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -255,6 +257,15 @@ import iad1tya.echo.music.ui.newui.HomeShortcut
 import iad1tya.echo.music.ui.newui.LocalAuraHomeShortcut
 import iad1tya.echo.music.ui.newui.AuraNavBarHeight
 import iad1tya.echo.music.ui.newui.AuraNavigationBar
+import iad1tya.echo.music.ui.newui.AuraWideBarMargin
+import iad1tya.echo.music.ui.newui.AuraWideNavCapsule
+import iad1tya.echo.music.ui.newui.AuraWideNavGap
+import iad1tya.echo.music.ui.newui.AuraWidePlayerMode
+import iad1tya.echo.music.ui.newui.LocalAuraMiniStartInset
+import iad1tya.echo.music.ui.newui.LocalAuraWidePlayerMode
+import iad1tya.echo.music.ui.newui.auraShellScreenBackground
+import iad1tya.echo.music.ui.newui.auraWideNavWidth
+import iad1tya.echo.music.ui.newui.auraWidePlayerPaneWidth
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraPaletteSync
 import iad1tya.echo.music.ui.newui.BottomSheetPlayerHost
@@ -650,40 +661,30 @@ class MainActivity : ComponentActivity() {
      * it is never re-asserted afterwards, leaving the panel at the low-rate bucket for the rest
      * of the session ("las animaciones no se adaptan a la tasa de refresco").
      */
-    private fun applyPreferredRefreshRate(enableHighRefreshRate: Boolean) {
+    private fun applyPreferredRefreshRate(
+        enableHighRefreshRate: Boolean,
+        ceilingHz: Float = iad1tya.echo.music.utils.RefreshRatePlanning.NO_CEILING,
+    ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val layoutParams = window.attributes
-            if (enableHighRefreshRate) {
-                // Actively request the panel's HIGHEST refresh-rate mode at the current resolution,
-                // instead of leaving it to the system (= 0) — several OEMs cap non-game apps at 60 Hz
-                // unless the app asks. This makes scrolling/animations run at 90/120 Hz when supported.
-                val modes = window.windowManager.defaultDisplay.supportedModes
-                val current = window.windowManager.defaultDisplay.mode
-                val best = modes
-                    .filter {
-                        it.physicalWidth == current.physicalWidth &&
-                            it.physicalHeight == current.physicalHeight
-                    }
-                    .maxByOrNull { it.refreshRate }
-                    ?: modes.maxByOrNull { it.refreshRate }
-                layoutParams.preferredDisplayModeId = best?.modeId ?: 0
-            } else {
-                val modes = window.windowManager.defaultDisplay.supportedModes
-                val mode60 = modes.firstOrNull { kotlin.math.abs(it.refreshRate - 60f) < 1f }
-                    ?: modes.minByOrNull { kotlin.math.abs(it.refreshRate - 60f) }
-
-                if (mode60 != null) {
-                    layoutParams.preferredDisplayModeId = mode60.modeId
-                }
+            val display = window.windowManager.defaultDisplay
+            fun Display.Mode.plan() = iad1tya.echo.music.utils.RefreshMode(modeId, physicalWidth, physicalHeight, refreshRate)
+            // With the setting off the request is the 60 Hz bucket; with it on, the panel's best mode that the
+            // device's CURRENT state (battery saver, heat) allows — see [RefreshRatePlanning].
+            val target = iad1tya.echo.music.utils.RefreshRatePlanning.pick(
+                modes = display.supportedModes.map { it.plan() },
+                current = display.mode.plan(),
+                ceilingHz = if (enableHighRefreshRate) ceilingHz else 60f,
+            )
+            // Re-asserting the same mode is pointless and, since a window-attribute change can itself raise
+            // onDisplayChanged, is exactly how a listener would loop on itself.
+            if (target != null && layoutParams.preferredDisplayModeId != target.id) {
+                layoutParams.preferredDisplayModeId = target.id
+                window.attributes = layoutParams
             }
-            window.attributes = layoutParams
         } else {
             val params = window.attributes
-            if (enableHighRefreshRate) {
-                params.preferredRefreshRate = 0f
-            } else {
-                params.preferredRefreshRate = 60f
-            }
+            params.preferredRefreshRate = if (enableHighRefreshRate && ceilingHz > 60f) 0f else 60f
             window.attributes = params
         }
     }
@@ -713,8 +714,46 @@ class MainActivity : ComponentActivity() {
         // HALLAZGO-060: keyed on the Configuration as well so the request is RE-ASSERTED on
         // every display config change (rotation, fold, resolution) — see applyPreferredRefreshRate.
         val configuration = LocalConfiguration.current
-        LaunchedEffect(enableHighRefreshRate, configuration) {
-            applyPreferredRefreshRate(enableHighRefreshRate)
+        //
+        // Owner 2026-10-15 (adaptive rate): the request also follows the device's state AT THAT MOMENT — the system's
+        // smoothness setting or the panel itself changing (a DisplayListener), battery saver, and heat — instead of a
+        // single assertion at launch. See [RefreshRatePlanning] for the ceilings.
+        val thermalStatus by iad1tya.echo.music.utils.ThermalManager.thermalStatus.collectAsState()
+        var powerSave by remember {
+            mutableStateOf(
+                (context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true,
+            )
+        }
+        var displayTick by remember { mutableIntStateOf(0) }
+        DisposableEffect(Unit) {
+            iad1tya.echo.music.utils.ThermalManager.acquire(context)
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(c: Context?, intent: Intent?) {
+                    powerSave = (c?.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
+                }
+            }
+            ContextCompat.registerReceiver(
+                context,
+                receiver,
+                IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+            val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager
+            val listener = object : android.hardware.display.DisplayManager.DisplayListener {
+                override fun onDisplayAdded(displayId: Int) {}
+                override fun onDisplayRemoved(displayId: Int) {}
+                override fun onDisplayChanged(displayId: Int) { displayTick++ }
+            }
+            dm?.registerDisplayListener(listener, null)
+            onDispose {
+                runCatching { context.unregisterReceiver(receiver) }
+                dm?.unregisterDisplayListener(listener)
+                iad1tya.echo.music.utils.ThermalManager.release(context)
+            }
+        }
+        val refreshCeiling = iad1tya.echo.music.utils.RefreshRatePlanning.ceilingHz(powerSave, thermalStatus)
+        LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling, displayTick) {
+            applyPreferredRefreshRate(enableHighRefreshRate, refreshCeiling)
         }
 
         // ── "Interfaz nueva": the SHELL and the APP THEME both follow the flag ────────────────────
@@ -876,6 +915,7 @@ class MainActivity : ComponentActivity() {
                 val windowsInsets = WindowInsets.systemBars
                 val bottomInset = with(density) { windowsInsets.getBottom(density).toDp() }
                 val bottomInsetDp = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
+                val splitTopInset = with(density) { windowsInsets.getTop(density).toDp() }
 
                 val navController = rememberNavController()
                 val homeViewModel: HomeViewModel = hiltViewModel()
@@ -991,10 +1031,25 @@ class MainActivity : ComponentActivity() {
                 // ONCE here and reuse: this is a pure layout gate ([rememberIsWideLayout], width-only) and
                 // never [rememberIsTvOrCar], which would light the TV/car D-pad ring on a wide phone and
                 // regress Android Auto / TV (registry #12 / #26).
-                val isWideLayout = iad1tya.echo.music.ui.utils.rememberIsWideLayout()
+                // The app's wide CHROME (capsule bar, split player, cards) needs a window that is tall as well as wide: a
+                // phone turned on its side (~800 x 360 dp) is not an unfolded foldable. See [rememberIsWideShell].
+                val isWideLayout = iad1tya.echo.music.ui.utils.rememberIsWideShell()
 
                 // Ambient Mode is a full-screen lean-back view: never overlay the rail on it.
-                val showRail = (isLandscape || isWideLayout) && !inSearchScreen && currentRoute != "ambient_mode"
+                //
+                // Owner 2026-10-15 (with Spotify screenshots): with the NEW UI a wide window gets NO side rail — it gets
+                // the floating bottom bar (nav capsule + mini player on one row) and a split player. The rail stays
+                // for the classic shell only. See AuraWideChrome.kt.
+                val showRail = !newUiShell && (isLandscape || isWideLayout) && !inSearchScreen && currentRoute != "ambient_mode"
+                val auraWideBottom = newUiShell && isWideLayout
+                // In a wide window the capsule is on every route (Spotify's is), except the screens that own the
+                // whole window. Phones keep `shouldShowNavigationBar`.
+                val navBarShown = if (auraWideBottom) {
+                    currentRoute != "update" && currentRoute != "listen_together/chat" &&
+                        currentRoute != "ambient_mode" && currentRoute != "login" && currentRoute != "spotify_login"
+                } else {
+                    shouldShowNavigationBar
+                }
 
                 // The persistent browse now-playing panel shows on any genuinely wide window (or when the user
                 // forced the split via ForceSplitViewKey, which [rememberIsWideLayout] already folds in).
@@ -1036,28 +1091,84 @@ class MainActivity : ComponentActivity() {
                 // shell swap can never mis-pad a list.
                 val shellNavBarHeight = if (newUiShell) AuraNavBarHeight else NavigationBarHeight
 
-                val navPadding = if (shouldShowNavigationBar && !showRail) {
+                val navPadding = if (navBarShown && !showRail) {
                     if (newUiShell) AuraNavBarHeight else NavigationBarHeight + FloatingToolbarBottomPadding
                 } else {
                     0.dp
                 }
 
                 val navigationBarHeight by animateDpAsState(
-                    targetValue = if (shouldShowNavigationBar && !showRail) shellNavBarHeight else 0.dp,
+                    targetValue = if (navBarShown && !showRail) shellNavBarHeight else 0.dp,
                     animationSpec = NavigationBarAnimationSpec,
                     label = "navBarHeight",
                 )
 
                 val playerBottomSheetState = rememberBottomSheetState(
                     dismissedBound = 0.dp,
-                    collapsedBound = bottomInset +
-                        (if (!showRail && shouldShowNavigationBar) navPadding else 0.dp) +
+                    collapsedBound = if (auraWideBottom && navBarShown) {
+                        // Capsule and mini player share ONE row: the strip is the bar's height plus a little air.
+                        bottomInset + AuraNavBarHeight + AuraWideBarMargin
+                    } else bottomInset +
+                        (if (!showRail && navBarShown) navPadding else 0.dp) +
                         // The new shell's mini player is also a detached pill (the render's `.mi`), so it
                         // needs the same breathing room the new classic mini design asks for.
                         (if (useNewMiniPlayerDesign || newUiShell) MiniPlayerBottomSpacing else 0.dp) +
                         MiniPlayerHeight,
                     expandedBound = maxHeight,
                 )
+
+                // ── Wide windows, new UI: split player (owner 2026-10-15, Spotify's behaviour) ──────────────
+                // Expanded, the player is the RIGHT PANE next to the screen you were on (default), or the
+                // full-screen player when the user flips the button at the player's top-left. Remembered.
+                val (widePlayerSplit, setWidePlayerSplit) = rememberPreference(
+                    iad1tya.echo.music.constants.AuraWidePlayerSplitKey,
+                    defaultValue = true,
+                )
+                val splitActive = auraWideBottom && widePlayerSplit
+                // Split player: navigating never minimizes it (the user does, with the chevron), and Back pops the LEFT
+                // pane before it minimizes anything. Fields on the state so every click handler reads the live value.
+                androidx.compose.runtime.SideEffect {
+                    playerBottomSheetState.keepOpenWhenNavigating = splitActive
+                    playerBottomSheetState.splitBackHandler = if (splitActive) {
+                        {
+                            val onTabRoot = navController.currentBackStackEntry?.destination?.route in topLevelScreens
+                            if (!onTabRoot && navController.previousBackStackEntry != null) {
+                                navController.popBackStack()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    } else {
+                        null
+                    }
+                }
+                // Hoisted: `maxWidth` is the BoxWithConstraints' and is out of reach inside the nested Box scopes below.
+                val windowMaxWidth = maxWidth
+                val widePaneWidth = auraWidePlayerPaneWidth(windowMaxWidth)
+                // Width of the mini player's pill: the whole right pane (split) or what the nav capsule leaves.
+                val miniPillWidth = if (widePlayerSplit) {
+                    widePaneWidth - iad1tya.echo.music.ui.newui.AuraFloatingInset * 2
+                } else {
+                    windowMaxWidth - auraWideNavWidth(windowMaxWidth, playerVisible = true) -
+                        AuraWideNavGap - iad1tya.echo.music.ui.newui.AuraFloatingInset * 2
+                }
+                val miniCompact = miniPillWidth < 460.dp
+                val widePlayerMode = remember(auraWideBottom, widePlayerSplit, miniCompact) {
+                    if (auraWideBottom) {
+                        AuraWidePlayerMode(
+                            split = widePlayerSplit,
+                            onToggle = { setWidePlayerSplit(!widePlayerSplit) },
+                            miniCompact = miniCompact,
+                        )
+                    } else {
+                        null
+                    }
+                }
+                // The screen under the split player gives up the player's width once the sheet is more than half
+                // open. Quantised to one flip (not per frame): the NavHost re-lays out once, not 20 times.
+                val splitOpen by remember { derivedStateOf { playerBottomSheetState.progress > 0.5f } }
+                val splitContentEnd = if (splitActive && splitOpen) widePaneWidth else 0.dp
 
                 // Shuffle FAB removed from the floating toolbar (0.6.92) — only the recognition mic FAB
                 // is surfaced there now, so the shuffle click handler is no longer wired.
@@ -1077,7 +1188,8 @@ class MainActivity : ComponentActivity() {
 
                 val playerAwareWindowInsets = remember(
                     bottomInset,
-                    shouldShowNavigationBar,
+                    navBarShown,
+                    auraWideBottom,
                     playerBottomSheetState.isDismissed,
                     showRail,
                     shellNavBarHeight,
@@ -1087,10 +1199,15 @@ class MainActivity : ComponentActivity() {
                     newUiShell,
                 ) {
                     var bottom = bottomInset
-                    if (shouldShowNavigationBar && !showRail) {
-                        bottom += shellNavBarHeight
+                    if (auraWideBottom && navBarShown) {
+                        // One shared row (capsule + mini): bar + air + a little clearance for the list's last row.
+                        bottom += shellNavBarHeight + AuraWideBarMargin + 8.dp
+                    } else {
+                        if (navBarShown && !showRail) {
+                            bottom += shellNavBarHeight
+                        }
+                        if (!playerBottomSheetState.isDismissed) bottom += MiniPlayerHeight
                     }
-                    if (!playerBottomSheetState.isDismissed) bottom += MiniPlayerHeight
                     windowsInsets
                         .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
                         // IMMERSIVE: `WindowInsets(top = AppBarHeight)` is a 64 dp PHANTOM bar. Every
@@ -1691,9 +1808,9 @@ class MainActivity : ComponentActivity() {
                 // `showRail` también lo apaga: en disposición ancha la navegación vive en el raíl
                 // lateral, que siempre está a la vista, y ahí el atajo no resuelve nada.
                 val auraHomeShortcut: (() -> Unit)? = remember(
-                    newUiShell, shouldShowNavigationBar, showRail, navController,
+                    newUiShell, navBarShown, showRail, navController,
                 ) {
-                    if (newUiShell && !shouldShowNavigationBar && !showRail) {
+                    if (newUiShell && !navBarShown && !showRail) {
                         { navController.goHomeAlways() }
                     } else {
                         null
@@ -1935,9 +2052,13 @@ class MainActivity : ComponentActivity() {
                                                 navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         } else {
+                                            // Settings pages in the new UI sit on the cover's ground: the bar is that ground at 86 %
+                                            // (still readable over scrolled rows), not Material's flat surfaceContainer.
+                                            val coverBar = newUiShell && !pureBlack &&
+                                                (currentRoute?.startsWith("settings/") == true || currentRoute == "uptime")
                                             TopAppBarDefaults.topAppBarColors(
-                                                containerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
-                                                scrolledContainerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
+                                                containerColor = if (pureBlack) Color.Black else if (coverBar) AuraPalette.Ground.copy(alpha = 0.86f) else MaterialTheme.colorScheme.surfaceContainer,
+                                                scrolledContainerColor = if (pureBlack) Color.Black else if (coverBar) AuraPalette.Ground.copy(alpha = 0.86f) else MaterialTheme.colorScheme.surfaceContainer,
                                                 titleContentColor = MaterialTheme.colorScheme.onSurface,
                                                 actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1991,8 +2112,9 @@ class MainActivity : ComponentActivity() {
                         bottomBar = {
                             val onNavItemClick: (Screens, Boolean) -> Unit = remember(navController, coroutineScope, topAppBarScrollBehavior, playerBottomSheetState) {
                                 { screen: Screens, isSelected: Boolean ->
+                                    // In the split player the pane stays open until the user minimizes it.
                                     if (playerBottomSheetState.isExpanded) {
-                                        playerBottomSheetState.collapseSoft()
+                                        playerBottomSheetState.collapseAfterNavigate()
                                     }
 
                                     if (isSelected) {
@@ -2001,28 +2123,72 @@ class MainActivity : ComponentActivity() {
                                             topAppBarScrollBehavior.state.resetHeightOffset()
                                         }
                                     } else {
-                                        // The same options as before, named once — see [navigateAsTab].
-                                        navController.navigateAsTab(screen.route)
+                                        // Inicio: the same three-step ladder the mini player's home shortcut got on 2026-09-17
+                                        // (the bar's own cell never did: `navigateAsTab` alone restores the stack you
+                                        // just left). Any other tab already in the stack lands on ITS ROOT — see
+                                        // [navigateToTab].
+                                        if (screen.route == Screens.Home.route) {
+                                            navController.goHomeAlways()
+                                        } else {
+                                            navController.navigateToTab(screen.route)
+                                        }
                                     }
                                 }
                             }
 
                             if (!showRail && currentRoute != "update" && currentRoute != "listen_together/chat" && currentRoute != "ambient_mode") {
-                                Box {
+                                // This Box lives in the Scaffold's bottomBar slot, which measures it LOOSE: it is only as big
+                                // as its children. On a phone the player host is `fillMaxSize` so it was always the window; in
+                                // the wide split the host is `width(widePaneWidth)`, the Box collapsed to ~one pane + capsule
+                                // and `align(BottomEnd)` / `align(BottomCenter)` aligned inside THAT, not inside the window
+                                // (beta4: the player showed in the left half, the capsule never centred). Wide = fill the window.
+                                Box(modifier = if (auraWideBottom) Modifier.fillMaxSize() else Modifier) {
                                     // "Interfaz nueva" beta: falls back to the classic BottomSheetPlayer
                                     // whenever the flag is OFF or the new player is not built yet.
                                     // The player-sheet haze source is created and provided at SHELL
                                     // level (see LocalOverlayHazeState above) — the player content
                                     // marks itself as that source inside AuraPlayer.
-                                    BottomSheetPlayerHost(
-                                        state = playerBottomSheetState,
-                                        navController = navController,
-                                        pureBlack = pureBlack
-                                    )
+                                    // Wide + full-screen mode: the mini player shares its row with the nav capsule, so it
+                                    // starts to the capsule's right. In split mode the sheet IS the right pane and needs none.
+                                    val playerVisibleWide = !playerBottomSheetState.isDismissed
+                                    val miniStartInset = if (auraWideBottom && !splitActive && playerVisibleWide && navBarShown) {
+                                        auraWideNavWidth(windowMaxWidth, playerVisible = true) + AuraWideNavGap
+                                    } else {
+                                        0.dp
+                                    }
+                                    androidx.compose.runtime.CompositionLocalProvider(
+                                        LocalAuraWidePlayerMode provides widePlayerMode,
+                                        LocalAuraMiniStartInset provides miniStartInset,
+                                    ) {
+                                        BottomSheetPlayerHost(
+                                            state = playerBottomSheetState,
+                                            navController = navController,
+                                            pureBlack = pureBlack,
+                                            // Split mode: the whole sheet (mini pill AND expanded player) lives in the right pane.
+                                            modifier = if (splitActive) {
+                                                Modifier.align(Alignment.BottomEnd).width(widePaneWidth)
+                                            } else {
+                                                Modifier
+                                            },
+                                        )
+                                    }
+
+                                    // Spotify's two cards: the dark ground with two rounded holes over the screen and the
+                                    // player pane. No layout, no touches — see [AuraSplitCardsFrame]. Under the capsule/pill.
+                                    if (splitActive) {
+                                        iad1tya.echo.music.ui.newui.AuraSplitCardsFrame(
+                                            paneWidth = widePaneWidth,
+                                            topInset = splitTopInset,
+                                            bottomInset = bottomInset,
+                                            progress = { playerBottomSheetState.progress },
+                                        )
+                                    }
 
                                     // Derived from [shellNavBarHeight], so the bar, the slide animation and
                                     // the bottom window inset always agree about how tall the bar is.
-                                    val navSlideDistance = if (newUiShell) {
+                                    val navSlideDistance = if (auraWideBottom) {
+                                        bottomInset + AuraNavBarHeight + AuraWideBarMargin
+                                    } else if (newUiShell) {
                                         bottomInset + AuraNavBarHeight
                                     } else {
                                         bottomInset + FloatingToolbarBottomPadding + NavigationBarHeight
@@ -2042,9 +2208,12 @@ class MainActivity : ComponentActivity() {
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.BottomCenter)
+                                            // Wide: the capsule is aligned (centre / start) inside THIS box, so it spans the window.
+                                            .then(if (auraWideBottom) Modifier.fillMaxWidth() else Modifier)
                                             .height(navSlideDistance)
                                             .graphicsLayer {
-                                                val slide = if (navHidden) {
+                                                // Split player: the capsule stays under the left pane while the player is open.
+                                                val slide = if (navHidden || splitActive) {
                                                     0f
                                                 } else {
                                                     BottomSheetVisuals.slideOffsetPx(
@@ -2055,7 +2224,24 @@ class MainActivity : ComponentActivity() {
                                                 translationY = navStaticOffsetY.toPx() + slide
                                             },
                                     ) {
-                                        if (newUiShell) {
+                                        if (auraWideBottom) {
+                                            // Spotify's floating bottom bar (owner 2026-10-15): a capsule, centred when nothing
+                                            // plays, on the left sharing the row with the mini player when something does.
+                                            val capsuleBesidePlayer = !playerBottomSheetState.isDismissed
+                                            AuraWideNavCapsule(
+                                                items = navigationItems,
+                                                isSelected = { screen ->
+                                                    currentRoute == screen.route ||
+                                                        currentRoute?.startsWith("${screen.route}/") == true
+                                                },
+                                                onItemClick = onNavItemClick,
+                                                modifier = Modifier
+                                                    .align(if (capsuleBesidePlayer) Alignment.TopStart else Alignment.TopCenter)
+                                                    .padding(start = if (capsuleBesidePlayer) iad1tya.echo.music.ui.newui.AuraFloatingInset else 0.dp)
+                                                    .width(auraWideNavWidth(windowMaxWidth, capsuleBesidePlayer))
+                                                    .height(AuraNavBarHeight),
+                                            )
+                                        } else if (newUiShell) {
                                             // The render's `.nav`: a flush bar on the ground with a
                                             // hairline rule, NOT an M3 HorizontalFloatingToolbar pill
                                             // with per-FAB glass circles ("por qué me sigue saliendo el
@@ -2278,6 +2464,12 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 Modifier
                                     .weight(1f)
+                                    // Split player open: the screen you were on keeps the LEFT pane.
+                                    .padding(end = splitContentEnd)
+                                    // The classic settings pages have no background of their own: give them the cover's.
+                                    .auraShellScreenBackground(
+                                        enabled = newUiShell && (currentRoute?.startsWith("settings/") == true || currentRoute == "uptime"),
+                                    )
                                     .then(
                                         // WebView login screens are left out of the haze source: the
                                         // recorded layer never shows the WebView's own drawing, so the
@@ -2300,6 +2492,15 @@ class MainActivity : ComponentActivity() {
                                 // Álbum). No reemplaza ni reordena las transiciones de AuraNavMotion —
                                 // se anima ADEMÁS de ellas, sobre el mismo AnimatedContentScope que
                                 // NavHost ya le da a cada `composable { }`.
+                                // Settings pages (classic) wear the cover's accents and ink; the content pane reports its
+                                // real width while the split player takes the right one (rows 380-381).
+                                androidx.compose.runtime.CompositionLocalProvider(
+                                    iad1tya.echo.music.ui.utils.LocalContentPaneWidth provides
+                                        (if (splitActive && splitOpen) windowMaxWidth - widePaneWidth else null),
+                                ) {
+                                iad1tya.echo.music.ui.newui.AuraCoverThemeScope(
+                                    enabled = newUiShell && (currentRoute?.startsWith("settings/") == true || currentRoute == "uptime"),
+                                ) {
                                 androidx.compose.animation.SharedTransitionLayout {
                                 val sharedTransitionScope = this
                                 NavHost(
@@ -2412,6 +2613,8 @@ class MainActivity : ComponentActivity() {
                                         snackbarHostState = snackbarHostState,
                                         sharedTransitionScope = sharedTransitionScope,
                                     )
+                                }
+                                }
                                 }
                                 }
                             }
@@ -3131,6 +3334,27 @@ internal fun NavController.goHomeAlways() {
         if (forced) "forced" else if (popped) "pop" else "tab",
         HomeShortcut.screenName(currentDestination?.route),
     )
+}
+
+/**
+ * A bottom-bar tap. Owner 2026-10-15: «cuando toco el botón de Inicio de la barra de abajo no me funciona, no manda
+ * al inicio».
+ *
+ * [navigateAsTab] is `popUpTo(startDestination) { saveState } + restoreState`. The saved state is keyed by the FIRST
+ * popped entry, so when the tab you tap is itself one of the entries being popped — it sits ABOVE the start
+ * destination (the app's start is not Inicio: the «pestaña inicial» setting or a launcher shortcut), possibly with a
+ * detail screen on top — the restore puts that same stack straight back and you land on the album or search you were
+ * on, not on Inicio.
+ *
+ *  · The tab is the START destination, or it is not in the stack at all → [navigateAsTab] is right and unchanged: it
+ *    pops to the start (nothing keyed by it to restore) or switches to the tab, restoring what it last showed.
+ *  · The tab is in the stack above the start → pop to it. Nothing is saved, so nothing can be restored: it lands on
+ *    the tab's root.
+ */
+internal fun NavController.navigateToTab(route: String) {
+    val isStart = route == graph.startDestinationRoute
+    if (!isStart && popBackStack(route, inclusive = false)) return
+    navigateAsTab(route)
 }
 
 internal fun NavController.navigateAsTab(route: String) {
