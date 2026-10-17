@@ -51,6 +51,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
@@ -157,6 +158,9 @@ fun BottomSheetMenu(
                         fadeOut(animationSpec = tween(160)),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
+                        // Plegable abierto / tableta: hoja centrada con ancho máximo, no de borde a borde.
+                        // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
+                        .widthIn(max = iad1tya.echo.music.ui.newui.AuraSheetMaxWidthDp.dp)
                         .fillMaxWidth()
                         // TOPE, no objetivo (dueño 2026-09-17: *"la ventana se desplaza muy alto y su
                         // contenido es poco"*). Esto pedía `fillMaxHeight(0.85f)` y dentro un
@@ -219,6 +223,7 @@ fun BottomSheetMenu(
 
     AnimatedBottomSheet(
         isVisible = state.isVisible,
+        sheetMaxWidth = iad1tya.echo.music.ui.newui.AuraSheetMaxWidthDp.dp,
         onDismissRequest = {
             focusManager.clearFocus()
             state.isVisible = false

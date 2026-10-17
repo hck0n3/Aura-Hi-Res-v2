@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.widthIn
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
@@ -140,6 +141,14 @@ fun BottomSheetPage(
                         fadeOut(animationSpec = tween(160)),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
+                        // Plegable abierto / tableta: centrada con ancho máximo (ver AuraSheetMaxWidthDp).
+                        // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
+                        .widthIn(
+                            max = (
+                                if (state.fullScreen) iad1tya.echo.music.ui.newui.AuraFullScreenSheetMaxWidthDp
+                                else iad1tya.echo.music.ui.newui.AuraSheetMaxWidthDp
+                                ).dp,
+                        )
                         .fillMaxWidth()
                         // A pantalla completa se llena de verdad (la búsqueda rápida la pide así, con
                         // el teclado arriba). En el resto el 85 % pasa a ser TOPE y no objetivo: una

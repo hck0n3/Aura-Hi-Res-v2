@@ -101,6 +101,20 @@ private fun glassForcedPreference(): Boolean =
 const val AuraSheetMaxHeightFraction = 0.85f
 
 /**
+ * Ancho máximo de las hojas inferiores y de los diálogos (dueño, 2026-10-17, plegable abierto: «estas
+ * ventanas que abren no me parecen bien estéticamente»). Antes ocupaban TODO el ancho de la ventana
+ * (~750 dp en un plegable abierto): el contenido quedaba pegado a la izquierda y vacío a la derecha. Es un
+ * TOPE: en un móvil normal (< 560 dp) no cambia nada, y en pantallas anchas la hoja queda centrada.
+ */
+const val AuraSheetMaxWidthDp = 560
+
+/** La hoja que ocupa toda la pantalla (la búsqueda rápida) admite algo más de ancho. */
+const val AuraFullScreenSheetMaxWidthDp = 720
+
+/** Diálogos centrados: tarjetas, no láminas. */
+const val AuraDialogMaxWidthDp = 520
+
+/**
  * El tope en dp para una ventana de [screenHeightDp] de alto.
  *
  * Separado de la función composable para poder fijarlo por test: lo que hay que impedir que vuelva no

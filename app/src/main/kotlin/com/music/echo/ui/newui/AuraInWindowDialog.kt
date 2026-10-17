@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.widthIn
 
 /**
  * The in-window floating-dialog host (owner directive 2026-09-01: "ese mismo estilo que sale
@@ -175,9 +176,13 @@ private fun AuraInWindowDialogPanel(
                     Modifier
                         .align(Alignment.Center)
                         .padding(horizontal = 32.dp)
+                        // Tarjeta, no lámina: en un plegable abierto no se estira a todo el ancho.
+                        .widthIn(max = AuraDialogMaxWidthDp.dp)
                 } else {
                     Modifier
                         .align(Alignment.BottomCenter)
+                        // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
+                        .widthIn(max = AuraSheetMaxWidthDp.dp)
                         .fillMaxWidth()
                         .then(if (fullHeight) Modifier.fillMaxHeight(fraction = 0.85f) else Modifier)
                 },
