@@ -102,7 +102,9 @@ fun AuraModalBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     sheetState: SheetState = rememberModalBottomSheetState(),
-    sheetMaxWidth: Dp = BottomSheetDefaults.SheetMaxWidth,
+    // Same cap as the glass sheets (BottomSheetMenu / BottomSheetPage), so every bottom sheet in the app is
+    // the same width on a foldable or tablet instead of 560 here and 640 there.
+    sheetMaxWidth: Dp = iad1tya.echo.music.ui.newui.AuraSheetMaxWidthDp.dp,
     sheetGesturesEnabled: Boolean = true,
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     containerColor: Color = BottomSheetDefaults.ContainerColor,
