@@ -208,6 +208,17 @@ val LocalAuraTopActions = compositionLocalOf<(@Composable () -> Unit)?> { null }
  */
 val LocalAuraHomeShortcut = compositionLocalOf<(() -> Unit)?> { null }
 
+/** Which of the global actions [AuraGlobalActions] draws. See [LocalAuraTopActionsPart]. */
+enum class AuraTopActionsPart { All, AccountOnly, WithoutAccount }
+
+/**
+ * A collapsible header (Inicio, Buscar, Novedades) keeps the account avatar ALWAYS visible next to its show/hide
+ * toggle and hides only the other buttons behind it (owner 2026-10-17: «el avatar siempre se mire y los demás
+ * botones de arriba quedan ocultos»). The same [LocalAuraTopActions] lambda is composed twice with a different
+ * part, so no screen has to know how the actions are built.
+ */
+val LocalAuraTopActionsPart = compositionLocalOf { AuraTopActionsPart.All }
+
 /** Renders [LocalAuraTopActions], or nothing. Put it in `AuraScreenHeader(trailing = ...)`. */
 @Composable
 fun AuraTopActions() {
@@ -243,11 +254,15 @@ fun AuraGlobalActions(
     onRecognitionClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val part = LocalAuraTopActionsPart.current
+    val showOthers = part != AuraTopActionsPart.AccountOnly
+    val showAccount = part != AuraTopActionsPart.WithoutAccount
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         modifier = modifier,
     ) {
+      if (showOthers) {
         AuraIconButton(
             icon = AuraIcons.Mic,
             contentDescription = stringResource(R.string.recognition),
@@ -282,6 +297,8 @@ fun AuraGlobalActions(
             size = 20.dp,
             tint = if (offlineMode) AuraPalette.Teal else AuraPalette.OnGroundFaint,
         )
+      }
+      if (showAccount) {
         // Cuenta / ajustes. With a signed-in avatar it is the avatar, exactly as today; otherwise the
         // render's cog. Drawn small, touched at 48 dp.
         val accountLabel = stringResource(R.string.account)
@@ -317,6 +334,7 @@ fun AuraGlobalActions(
                 tint = AuraPalette.OnGroundFaint,
             )
         }
+      }
     }
 }
 

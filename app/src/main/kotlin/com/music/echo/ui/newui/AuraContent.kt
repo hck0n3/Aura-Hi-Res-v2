@@ -183,6 +183,10 @@ private fun AuraCollapsibleHeader(
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { title() }
+            // The account avatar never hides: it sits beside the toggle, the other buttons live behind it.
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalAuraTopActionsPart provides AuraTopActionsPart.AccountOnly,
+            ) { actions() }
             AuraIconButton(
                 icon = AuraIcons.ChevronDown,
                 contentDescription = stringResource(
@@ -205,7 +209,11 @@ private fun AuraCollapsibleHeader(
                 androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
             },
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalAuraTopActionsPart provides AuraTopActionsPart.WithoutAccount,
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
+            }
         }
     }
 }
