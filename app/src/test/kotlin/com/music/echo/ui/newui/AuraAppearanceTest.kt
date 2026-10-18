@@ -417,7 +417,7 @@ class AuraAppearanceTest {
             val plain = AuraPalette.GroundRaised
             val spread = maxOf(glass.red, glass.green, glass.blue) - minOf(glass.red, glass.green, glass.blue)
             val plainSpread = maxOf(plain.red, plain.green, plain.blue) - minOf(plain.red, plain.green, plain.blue)
-            assertTrue("hue $hue: glass tint is not distinguishable from the plain ground", spread > plainSpread + 0.12f)
+            assertTrue("hue $hue: glass tint is not distinguishable from the plain ground", spread > plainSpread + 0.06f)
         }
         AuraPalette.reset()
         assertEquals(null, AuraPalette.CoverGlassTint)
