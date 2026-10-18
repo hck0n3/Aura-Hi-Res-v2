@@ -990,10 +990,18 @@ fun auraArtworkGround(seed: Color): Color = Color(AuraCoverMix.colouredGroundArg
 internal const val COVER_GLASS_ACCENT_ALPHA = 0.10f
 
 /** Brightness (HSV value) of the cover-coloured glass: deep enough that light labels stay AA on it. */
-internal const val COVER_GLASS_VALUE = 0.36f
+internal const val COVER_GLASS_VALUE = 0.34f
 
 /** How much of that deep shade replaces the plain raised ground. */
-internal const val COVER_GLASS_MIX = 0.62f
+internal const val COVER_GLASS_MIX = 0.66f
+
+/**
+ * A cover with any colour at all gets at least this saturation in the glass: the accent is lightened to stay AA on the
+ * dark ground, and lightening washes the saturation out (a pale yellow accent is nearly grey), which left some covers'
+ * glass indistinguishable from the plain one. A grey cover (saturation below [COVER_GLASS_GREY_BELOW]) stays grey.
+ */
+internal const val COVER_GLASS_MIN_SATURATION = 0.65f
+internal const val COVER_GLASS_GREY_BELOW = 0.12f
 
 /**
  * The glass tint for a cover whose accent is [accent], over the chrome's plain [ground]: the accent's hue and
@@ -1001,8 +1009,13 @@ internal const val COVER_GLASS_MIX = 0.62f
  */
 internal fun coverGlassTintOf(accent: Color, ground: Color): Color {
     val (hue, saturation, _) = iad1tya.echo.music.ui.component.ColorPickerConversions.colorToHsv(accent)
+    val tintedSaturation = if (saturation < COVER_GLASS_GREY_BELOW) {
+        saturation
+    } else {
+        maxOf(saturation * 1.15f, COVER_GLASS_MIN_SATURATION).coerceAtMost(1f)
+    }
     val deep = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(
-        hue, (saturation * 1.15f).coerceIn(0f, 1f), COVER_GLASS_VALUE,
+        hue, tintedSaturation, COVER_GLASS_VALUE,
     )
     return deep.copy(alpha = COVER_GLASS_MIX).compositeOver(ground)
 }
