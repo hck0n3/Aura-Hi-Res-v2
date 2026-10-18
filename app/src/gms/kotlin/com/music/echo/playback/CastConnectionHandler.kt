@@ -25,6 +25,9 @@ import iad1tya.echo.music.utils.YTPlayerUtils
 import iad1tya.echo.music.utils.isLocalMediaId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -122,11 +125,25 @@ class CastConnectionHandler(
     var isSyncingFromCast: Boolean = false
         private set
     
+    // The last «state/idle reason/rendition» written to the shared log: one line per CHANGE, not per status tick.
+    private var lastLoggedCastState: String? = null
+
     private val remoteMediaClientCallback = object : RemoteMediaClient.Callback() {
         override fun onStatusUpdated() {
             remoteMediaClient?.let { client ->
                 val mediaStatus = client.mediaStatus
                 val playerState = mediaStatus?.playerState
+                val rendition = mediaStatus?.mediaInfo?.customData?.optBoolean("video", false) == true
+                val stateSignature = "$playerState/${mediaStatus?.idleReason}/$rendition"
+                if (stateSignature != lastLoggedCastState) {
+                    lastLoggedCastState = stateSignature
+                    // Enough to tell, next time the TV goes black, whether it was playing, buffering, idle (and why) and
+                    // whether the item on it was the video one. Numbers and flags only (AGENTS.md rule 4).
+                    Timber.i(
+                        "CAST_STATE state=%s idleReason=%s video=%b items=%d",
+                        playerState, mediaStatus?.idleReason, rendition, mediaStatus?.queueItemCount ?: 0,
+                    )
+                }
                 // Show as "playing" when playing OR buffering/loading (so pause icon shows during buffering)
                 _castIsPlaying.value = playerState == MediaStatus.PLAYER_STATE_PLAYING ||
                                        playerState == MediaStatus.PLAYER_STATE_BUFFERING ||
@@ -148,7 +165,12 @@ class CastConnectionHandler(
         }
         
         override fun onMediaError(error: com.google.android.gms.cast.MediaError) {
-            Timber.e("Cast media error: ${error.reason}")
+            // INFO so it reaches the shared log (it used to print «Cast media error: null» and nothing else). Codes and the
+            // rendition only — never a URL or a title (AGENTS.md rule 4).
+            Timber.i(
+                "CAST_ERROR type=%s reason=%s detail=%s asVideo=%b",
+                error.type, error.reason, error.detailedErrorCode, loadedCurrentAsVideo,
+            )
         }
         
         override fun onQueueStatusUpdated() {
@@ -589,6 +611,16 @@ class CastConnectionHandler(
     }
     
     fun loadMedia(metadata: AppMediaMetadata) {
+        // The TV already plays exactly this (same track, same rendition): a local re-prepare of the track must not restart
+        // it from a stale phone position (registry row 446: the timeline «no continúa»). Session start passes through
+        // loadCurrentMedia, whose bookkeeping is empty, so it still loads.
+        val tvQueue = remoteMediaClient?.mediaStatus?.queueItemCount ?: 0
+        if (_isCasting.value && !isReloadingQueue && tvQueue > 0 &&
+            metadata.id == loadedCurrentMediaId && wantsVideo(metadata.id) == loadedCurrentAsVideo
+        ) {
+            Timber.i("CAST_LOAD skipped: the TV already plays this track as %s", if (loadedCurrentAsVideo) "video" else "audio")
+            return
+        }
         loadMediaWithQueue(metadata)
     }
     
@@ -698,7 +730,17 @@ class CastConnectionHandler(
             return
         }
         if (current.id == loadedCurrentMediaId && wantsVideo(current.id) == loadedCurrentAsVideo) return
+        // The TV is on ANOTHER track than the one the phone reports (the user skipped on the TV or in the app and the local
+        // player has not caught up yet): reloading «current» here dragged the TV back to the previous song (owner
+        // 2026-10-18: «cambia pero luego se devuelve a la canción anterior», registry row 446). The track change has its own
+        // path (onMediaItemTransition → navigate/load); a mode flip must only re-render the track the TV is playing.
+        val tvTrack = loadedCurrentMediaId
+        if (tvTrack != null && current.id != tvTrack) {
+            Timber.i("CAST_RECONCILE skipped: the TV is on another track than the phone's current one")
+            return
+        }
         val position = remoteMediaClient?.approximateStreamPosition?.takeIf { it > 0 }
+        Timber.i("CAST_RECONCILE reload wantVideo=%b tvHasVideo=%b", wantsVideo(current.id), loadedCurrentAsVideo)
         loadMediaWithQueue(current, startPositionOverride = position)
     }
     
@@ -713,6 +755,8 @@ class CastConnectionHandler(
         isReloadingQueue = true // Prevent sync logic from triggering during load
         scope.launch {
             try {
+                // Read BEFORE the bookkeeping below is overwritten: did the TV already hold this very track?
+                val tvHadTrack = loadedCurrentMediaId == metadata.id
                 currentMediaId = metadata.id
                 _castIsBuffering.value = true
                 lastCastItemId = -1 // Reset to prevent false change detection
@@ -723,10 +767,10 @@ class CastConnectionHandler(
                 val shuffleEnabled = player.shuffleModeEnabled
                 val timeline = player.currentTimeline
                 
-                // Build queue items: up to 2 previous, current, and up to 2 next songs
-                val queueItems = mutableListOf<MediaQueueItem>()
-                
-                // Get previous items respecting shuffle order
+                // Build queue items: up to 2 previous, current, and up to 2 next songs.
+                // The neighbours used to be resolved ONE AT A TIME (~1.7 s each, plus the video rendition), so the TV
+                // waited ~10 s to start («tardas bastante»); the log of 2026-10-18 shows the four resolutions back to
+                // back. They run concurrently now, and the order of the queue is unchanged.
                 val prevItems = mutableListOf<androidx.media3.common.MediaItem>()
                 if (!timeline.isEmpty) {
                     var prevIdx = currentIndex
@@ -736,52 +780,54 @@ class CastConnectionHandler(
                         prevItems.add(0, player.getMediaItemAt(prevIdx)) // Add at beginning to maintain order
                     }
                 }
-                
-                // Add previous items
-                for (prevItem in prevItems) {
-                    prevItem.metadata?.let { prevMetadata ->
-                        buildMediaInfo(prevMetadata)?.let { mediaInfo ->
-                            queueItems.add(MediaQueueItem.Builder(mediaInfo).build())
-                        }
-                    }
-                }
-                val startIndex = queueItems.size // Current item index after previous items
-                
-                // Add current item
-                val wantVideo = wantsVideo(metadata.id)
-                var videoFellBack = false
-                val currentMediaInfo = buildMediaInfo(metadata, asVideo = wantVideo) { videoFellBack = true }
-                if (currentMediaInfo == null) {
-                    Timber.e("Failed to get stream URL for Cast")
-                    _castIsBuffering.value = false
-                    return@launch
-                }
-                queueItems.add(MediaQueueItem.Builder(currentMediaInfo).build())
-                loadedCurrentMediaId = metadata.id
-                loadedCurrentAsVideo = wantVideo && !videoFellBack
-                
-                // Get next items respecting shuffle order
+                val nextItems = mutableListOf<androidx.media3.common.MediaItem>()
                 if (!timeline.isEmpty) {
                     var nextIdx = currentIndex
                     for (i in 0 until 2) {
                         nextIdx = timeline.getNextWindowIndex(nextIdx, Player.REPEAT_MODE_OFF, shuffleEnabled)
                         if (nextIdx == androidx.media3.common.C.INDEX_UNSET) break
-                        val nextItem = player.getMediaItemAt(nextIdx)
-                        nextItem.metadata?.let { nextMetadata ->
-                            buildMediaInfo(nextMetadata)?.let { mediaInfo ->
-                                queueItems.add(MediaQueueItem.Builder(mediaInfo).build())
-                            }
-                        }
+                        nextItems.add(player.getMediaItemAt(nextIdx))
                     }
                 }
-                
-                // Get current position from local player if same song
-                val startPosition = startPositionOverride ?: if (player.currentMediaItem?.mediaId == metadata.id) {
-                    player.currentPosition
-                } else {
-                    0L
+
+                val wantVideo = wantsVideo(metadata.id)
+                var videoFellBack = false
+                val (prevInfos, currentMediaInfo, nextInfos) = coroutineScope {
+                    val prev = prevItems.map { item -> async { item.metadata?.let { runCatching { buildMediaInfo(it) }.getOrNull() } } }
+                    val cur = async { buildMediaInfo(metadata, asVideo = wantVideo) { videoFellBack = true } }
+                    val next = nextItems.map { item -> async { item.metadata?.let { runCatching { buildMediaInfo(it) }.getOrNull() } } }
+                    Triple(prev.awaitAll(), cur.await(), next.awaitAll())
                 }
-                
+                if (currentMediaInfo == null) {
+                    Timber.e("Failed to get stream URL for Cast")
+                    _castIsBuffering.value = false
+                    return@launch
+                }
+                val queueItems = mutableListOf<MediaQueueItem>()
+                prevInfos.filterNotNull().forEach { queueItems.add(MediaQueueItem.Builder(it).build()) }
+                val startIndex = queueItems.size // Current item index after previous items
+                queueItems.add(MediaQueueItem.Builder(currentMediaInfo).build())
+                loadedCurrentMediaId = metadata.id
+                loadedCurrentAsVideo = wantVideo && !videoFellBack
+                nextInfos.filterNotNull().forEach { queueItems.add(MediaQueueItem.Builder(it).build()) }
+
+                // Where the TV starts. The phone's own player is PAUSED while casting, so its position is stale: using it
+                // restarted the song on the TV from wherever the phone had stopped every time the queue was reloaded
+                // (rendition change, track re-prepare) — the timeline «no continúa» (registry row 446). When the TV
+                // already holds this track, its position wins.
+                val tvPosition = remoteMediaClient?.approximateStreamPosition?.takeIf { it > 0 }
+                val startPosition = startPositionOverride
+                    ?: tvPosition?.takeIf { tvHadTrack }
+                    ?: if (player.currentMediaItem?.mediaId == metadata.id) {
+                        player.currentPosition
+                    } else {
+                        0L
+                    }
+                Timber.i(
+                    "CAST_LOAD items=%d wantVideo=%b fellBack=%b start=%ds",
+                    queueItems.size, wantVideo, videoFellBack, startPosition / 1000,
+                )
+
                 Timber.d("Loading Cast queue: ${queueItems.size} items, startIndex=$startIndex, shuffle=$shuffleEnabled")
                 
                 withContext(Dispatchers.Main) {
@@ -809,7 +855,10 @@ class CastConnectionHandler(
                         ).show()
                         musicService.exitVideoMode()
                     } else if (wantVideo) {
-                        // The picture lives on the TV now: free the phone's own video decoder/stream.
+                        // The picture lives on the TV now: free the phone's own video decoder/stream. Mark THIS track as the
+                        // one the TV shows as video first, so the local re-prepare that follows is not mistaken for a track
+                        // change that leaves video mode (registry row 446).
+                        musicService.videoCoordinator.castVideoMediaId = metadata.id
                         musicService.videoCoordinator.releaseLocalVideoForCast()
                     }
                 }

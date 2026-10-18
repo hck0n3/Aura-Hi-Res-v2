@@ -221,7 +221,22 @@ class VideoModeCoordinator(private val service: MusicService) {
         videoSwapGeneration.incrementAndGet()
         service._videoMode.value = true
         service._videoUrl.value = null
+        castVideoMediaId = service.player.currentMediaItem?.mediaId
     }
+
+    /**
+     * The track whose VIDEO the TV is showing (or about to). Under Cast the phone decodes nothing, so
+     * [MusicService.videoModeMediaId] is null — and the track-change rule «music first» (video belongs only to the track
+     * the user switched to Video) mistook the local player's own re-prepare of that SAME track (after
+     * [releaseLocalVideoForCast]) for a track change, left video mode, and the TV flipped back to audio.
+     * Owner 2026-10-18: «el tv hace el cambio… luego hace otro cambio y lo vuelve a poner en modo música» (registry row 446).
+     */
+    @Volatile
+    internal var castVideoMediaId: String? = null
+
+    /** True while casting and [mediaId] is the track the TV is showing as video. */
+    internal fun isCastVideoTrack(mediaId: String?): Boolean =
+        mediaId != null && mediaId == castVideoMediaId && isCastingNow()
 
     /**
      * A Cast session started (or the track changed under it) with video mode ON: the TV now shows the
@@ -238,6 +253,7 @@ class VideoModeCoordinator(private val service: MusicService) {
 
     /** The Cast session ended while video mode was ON: show that video on the phone again (paused, same spot). */
     internal fun reapplyVideoAfterCast() {
+        castVideoMediaId = null
         if (!service._videoMode.value || isCastingNow()) return
         applyVideoToCurrent(swapGeneration = videoSwapGeneration.incrementAndGet(), forceExplicit = true)
     }
@@ -1134,6 +1150,7 @@ class VideoModeCoordinator(private val service: MusicService) {
      *  releases a speculative pre-player (normally none exists while video mode is on — defensive), and
      *  the trailing schedule merely re-arms the speculative pre-prepare for a possible re-toggle. */
     fun exitVideoMode() {
+        castVideoMediaId = null
         if (!service._videoMode.value && service.videoModeMediaId == null && videoModeItems.isEmpty()) return
         // The rebuild below makes the soft state moot: re-enable the video track type, forget the flag.
         service.clearSoftVideoState()

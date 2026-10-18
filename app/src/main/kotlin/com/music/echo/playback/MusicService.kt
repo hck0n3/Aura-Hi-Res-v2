@@ -6000,11 +6000,13 @@ class MusicService :
             // [VideoModePlanning.keepVideoOnTrackChange].
             val keepVideo = VideoModePlanning.keepVideoOnTrackChange(
                 incomingIsVideoSong = mediaItem.metadata?.isVideoSong == true,
-                sameTrack = mediaItem.mediaId == videoModeMediaId,
+                // Under Cast the phone holds no video source (videoModeMediaId is null) but the TV does: its track is
+                // "the same track" too, or the local re-prepare after Cast took over would leave video mode.
+                sameTrack = mediaItem.mediaId == videoModeMediaId || videoCoordinator.isCastVideoTrack(mediaItem.mediaId),
             )
             if (!keepVideo) {
                 videoCoordinator.exitVideoMode()
-            } else if (mediaItem.mediaId != videoModeMediaId) {
+            } else if (mediaItem.mediaId != videoModeMediaId && !videoCoordinator.isCastVideoTrack(mediaItem.mediaId)) {
                 // Sigue en vídeo, pero es OTRA pista: hay que resolver y colocar SU stream de vídeo, y
                 // devolver a audio la que se acaba de dejar (eso lo hace applyVideoToCurrent con su
                 // restoreVideoTracksExcept). `stickyVideoPreferred` queda marcado para que una pista
