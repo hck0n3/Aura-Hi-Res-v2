@@ -1,34 +1,27 @@
-# Aura Hi-Res v2.0.65-beta11 — Cast con vídeo, listas con nombre completo y la cola inteligente no repite
+# Aura Hi-Res v2.0.65-beta12 — Plegable más cuidado, Inicio con carrusel y portadas con borde más brillante
 
-Beta encima de la 2.0.65-beta10. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta11. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Cast
+## Plegable y pantallas anchas
 
-- **El TV sigue el interruptor Canción/Vídeo:** en Vídeo, el TV reproduce el vídeo de la canción que suena; en
-  Canción, solo el audio. Al cambiar de uno a otro, el TV continúa desde donde iba. Si ese vídeo no se puede
-  enviar al TV, te avisa y sigue solo con el audio.
-- **Con Cast activo, el móvil no descarga ni decodifica el vídeo:** menos calor y batería. Al desconectar, el
-  vídeo vuelve al móvil en el mismo punto.
-- **El vídeo al TV sale en 720p o 360p como máximo,** porque es lo que el receptor de Cast puede reproducir.
+- **Las ventanas que se abren desde abajo (añadir a lista, menú del reproductor, Cast, menú de canción, menú de
+  cuenta), la búsqueda rápida y los diálogos ya no se estiran de borde a borde:** quedan centradas, con un ancho
+  máximo. En un móvil normal no cambia nada.
+- **Álbumes, EP, sencillos y listas de YouTube: la portada se ve entera** en un cuadrado con borde, sobre una
+  copia suave de sí misma, en vez de un banner estirado que recortaba la imagen.
+- **Biblioteca (Listas, Canciones, Álbumes y Artistas): miniaturas más grandes** en el plegable abierto y en
+  tabletas, unas cuatro por fila en lugar de seis.
 
-## Canción ↔ Vídeo
+## Inicio
 
-- **Sin bajón de volumen al cambiar de canción a vídeo (y al revés):** el cambio de la misma canción ya no se
-  trata como un salto manual, que bajaba el volumen a cero hasta que cargaba.
+- **El carrusel de arriba siempre aparece:** si aún no hay recomendaciones, muestra lo que reprodujiste
+  recientemente (esa lista ya no se repite más abajo).
+- **Puntos de página bajo el carrusel y un botón «⋯» en cada tarjeta** que abre el menú de la canción con un solo
+  toque.
+- **El avatar de tu cuenta siempre se ve** junto al botón de mostrar u ocultar; el resto de botones de arriba
+  siguen escondidos tras ese botón. Lo mismo en Buscar y Novedades.
+- **Las tarjetas ya no dejan un hueco entre el título y el artista.**
 
-## Listas
+## Portadas
 
-- **En Listas de la Biblioteca se ve el nombre completo** de cada lista, en cuadrícula y en lista.
-
-## Cola inteligente
-
-- **No repite canciones:** ni las que ya están en la cola (el álbum, EP o lista que continúa, o lo que
-  añadiste a mano), ni las que ya escuchaste en la sesión, ni las de tu historial (hasta 5000 canciones).
-- **Reconoce la misma canción aunque cambie la versión** («Remastered», «feat.», acentos, «- Topic»). Las
-  versiones en vivo, remix y acústicas se siguen contando como canciones distintas.
-- **Un lote ya no trae la misma canción dos veces.**
-
-## Correcciones
-
-- **Descargas con el agente correcto para los enlaces del cliente VISIONOS:** evita el error 403 que cortaba la
-  precarga del fundido cruzado (sobre todo con Android Auto).
+- **El borde de todas las portadas (álbum, vídeo, lista, sencillo…) es más brillante,** como en Apple Music.
