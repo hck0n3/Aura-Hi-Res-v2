@@ -30,9 +30,15 @@ object StyleContinuity {
         val language: String?,
         /** Christian context: searches ask for the Christian version of the style. */
         val christian: Boolean,
+        /**
+         * Row 435: the years the request asked for ("del 2004 a 2010", "años 70 y 80"), or null. A candidate whose
+         * year is KNOWN and outside it is OFF — the queue that continues a "Pedir música" request used to drift to
+         * any year once the generated list ended (owner 2026-10-18).
+         */
+        val era: iad1tya.echo.music.playlistimport.MusicRequestEra.Range? = null,
     ) {
         val families: Set<String> = styles.orEmpty().mapNotNull { MusicStyle.familyOf(it) }.toSet()
-        val active: Boolean get() = !styles.isNullOrEmpty() || language != null
+        val active: Boolean get() = !styles.isNullOrEmpty() || language != null || era != null
     }
 
     data class Candidate(
@@ -50,17 +56,32 @@ object StyleContinuity {
         val fromSearch: Boolean,
         /** Fila 356 — the user skipped this artist (or this style) quickly in this queue. */
         val rejected: Boolean = false,
+        /** Row 435: the release year of the candidate's album when it is known and trustworthy, else null. */
+        val year: Int? = null,
     )
 
     enum class Verdict { MATCH, UNKNOWN, OFF }
 
+    /** True when [style] is the parent of, or a style related to, one of the requested [styles] (row 434). */
+    private fun isParentOf(style: String, styles: Set<String>): Boolean =
+        styles.any { requested -> MusicStyle.style(requested)?.let { it.parent == style || style in it.related } == true }
+
     fun verdict(target: Target, c: Candidate): Verdict {
         if (!target.active) return Verdict.MATCH
         if (c.rejected) return Verdict.OFF
+        // Row 435: a KNOWN year outside the requested years is decisive; an unknown one says nothing.
+        if (target.era != null && c.year != null && c.year !in target.era.from..target.era.to) return Verdict.OFF
         val styles = target.styles?.takeIf { it.isNotEmpty() }
+        // An era-only request ("música del 2004 al 2010"): nothing else to judge.
+        if (styles == null && target.language == null) return Verdict.MATCH
         // The track's own words are the strongest evidence there is — they decide even over the artist.
+        // Row 434: ...except that a PARENT style ("corridos" for a "corridos tumbados" request) is not proof either way.
         if (styles != null && c.textStyle != null) {
-            return if (c.textStyle in styles) Verdict.MATCH else Verdict.OFF
+            return when {
+                c.textStyle in styles -> Verdict.MATCH
+                isParentOf(c.textStyle, styles) -> Verdict.UNKNOWN
+                else -> Verdict.OFF
+            }
         }
         if (target.language != null && c.language != null && c.language != target.language) return Verdict.OFF
         if (styles == null) {
@@ -69,7 +90,13 @@ object StyleContinuity {
         }
         if (c.ownArtist || c.fromSearch) return Verdict.MATCH
         val known = c.learnedStyle ?: c.genre.style
-        if (known != null) return if (known in styles) Verdict.MATCH else Verdict.OFF
+        if (known != null) {
+            return when {
+                known in styles -> Verdict.MATCH
+                isParentOf(known, styles) -> Verdict.UNKNOWN
+                else -> Verdict.OFF
+            }
+        }
         val family = c.genre.family
         if (family != null && family !in target.families) return Verdict.OFF
         return Verdict.UNKNOWN

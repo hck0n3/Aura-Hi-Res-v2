@@ -28,7 +28,8 @@ class MusicStyleTest {
 
     @Test
     fun `every genre family has concrete styles, not only the examples`() {
-        assertEquals("corridos", MusicStyle.fromText("Corridos Tumbados 2024"))
+        assertEquals("tumbados", MusicStyle.fromText("Corridos Tumbados 2024"))
+        assertEquals("corridos", MusicStyle.fromText("Corridos Clásicos"))
         assertEquals("banda", MusicStyle.fromText("Éxitos de Banda Sinaloense"))
         assertEquals("norteno", MusicStyle.fromText("Puro Norteño"))
         assertEquals("reggaeton", MusicStyle.fromText("Reguetón Viejo"))
@@ -261,3 +262,76 @@ class ExactStyleImprovementsTest {
         }
     }
 }
+
+/**
+ * Registry rows 434-435 (owner 2026-10-18): «pido corridos tumbados y me pone corridos normales», «no conoce todos los
+ * géneros», «reggaetón cristiano del 2004 a 2010 y me pone años de 2012».
+ */
+class SubStyleAndEraTest {
+    private fun candidate(learned: String? = null, text: String? = null, year: Int? = null, own: Boolean = false) =
+        StyleContinuity.Candidate(
+            textStyle = text,
+            learnedStyle = learned,
+            genre = MusicStyle.GenreInfo(null, null),
+            language = null,
+            ownArtist = own,
+            fromSearch = false,
+            year = year,
+        )
+
+    @Test
+    fun `corridos tumbados is its own style, bossa nova and the newer genres are recognised`() {
+        assertEquals(setOf("tumbados"), MusicStyle.stylesIn("corridos tumbados"))
+        assertEquals(setOf("tumbados"), MusicStyle.stylesIn("pon tumbados"))
+        assertEquals(setOf("corridos"), MusicStyle.stylesIn("corridos clasicos"))
+        assertEquals(setOf("bossa"), MusicStyle.stylesIn("bossa nova"))
+        for ((text, id) in listOf(
+            "phonk" to "phonk", "hyperpop" to "hyperpop", "city pop" to "citypop", "synthwave" to "synthwave",
+            "shoegaze" to "shoegaze", "emo" to "emo", "post punk" to "postpunk", "grupera" to "grupera",
+            "tejano" to "tejano", "trip hop" to "triphop", "uk garage" to "garage", "bandas sonoras" to "soundtrack",
+            "plena" to "plena", "rock progresivo" to "prog", "musica infantil" to "infantil",
+        )) {
+            assertEquals(text, setOf(id), MusicStyle.stylesIn(text))
+        }
+        assertEquals("corridos tumbados", StyleContinuity.searchQuery("tumbados", TitleLanguage.ES, christian = false))
+        assertEquals("corridos", MusicStyle.style("tumbados")!!.parent)
+        assertEquals(setOf("tumbados"), MusicStyle.childrenOf("corridos"))
+    }
+
+    @Test
+    fun `a plain corridos song is unknown for a tumbados request, never a match, and another style is off`() {
+        val target = StyleContinuity.Target(setOf("tumbados"), null, christian = false)
+        assertEquals(UNKNOWN, StyleContinuity.verdict(target, candidate(learned = "corridos")))
+        assertEquals(UNKNOWN, StyleContinuity.verdict(target, candidate(text = "corridos")))
+        assertEquals(MATCH, StyleContinuity.verdict(target, candidate(learned = "tumbados")))
+        assertEquals(OFF, StyleContinuity.verdict(target, candidate(learned = "salsa")))
+        // The other way round, a corridos request is not satisfied by tumbados (it is a different thing to the listener).
+        val corridos = StyleContinuity.Target(setOf("corridos"), null, christian = false)
+        assertEquals(OFF, StyleContinuity.verdict(corridos, candidate(learned = "tumbados")))
+    }
+
+    @Test
+    fun `an artist known only as a neighbour style is a filler for bossa nova, never off`() {
+        val bossa = StyleContinuity.Target(setOf("bossa"), null, christian = false)
+        assertEquals(UNKNOWN, StyleContinuity.verdict(bossa, candidate(learned = "jazz")))
+        assertEquals(UNKNOWN, StyleContinuity.verdict(bossa, candidate(learned = "mpb")))
+        assertEquals(OFF, StyleContinuity.verdict(bossa, candidate(learned = "reggaeton")))
+        assertEquals(MATCH, StyleContinuity.verdict(bossa, candidate(learned = "bossa")))
+    }
+
+    @Test
+    fun `the years of a request are judged on each candidate`() {
+        val era = MusicRequestEraRange(2004, 2010)
+        val onlyYears = StyleContinuity.Target(null, null, christian = false, era = era)
+        assertTrue(onlyYears.active)
+        assertEquals(OFF, StyleContinuity.verdict(onlyYears, candidate(year = 2012)))
+        assertEquals(OFF, StyleContinuity.verdict(onlyYears, candidate(year = 1999)))
+        assertEquals(MATCH, StyleContinuity.verdict(onlyYears, candidate(year = 2005)))
+        assertEquals(MATCH, StyleContinuity.verdict(onlyYears, candidate(year = null))) // unknown says nothing
+        val styled = StyleContinuity.Target(setOf("reggaeton"), null, christian = false, era = era)
+        assertEquals(OFF, StyleContinuity.verdict(styled, candidate(year = 2012, own = true))) // even the same artist
+        assertEquals(MATCH, StyleContinuity.verdict(styled, candidate(year = 2006, own = true)))
+    }
+}
+
+private typealias MusicRequestEraRange = iad1tya.echo.music.playlistimport.MusicRequestEra.Range

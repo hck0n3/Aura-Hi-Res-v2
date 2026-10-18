@@ -35,6 +35,19 @@ object MusicStyle {
         val latinNative: Boolean = false,
         /** Spanish noun gender for "cristiana/cristiano" in searches. */
         val feminine: Boolean = false,
+        /**
+         * Row 434: a SUB-style ("corridos tumbados" inside "corridos"). A request for the sub-style must not be
+         * answered with plain parent songs (owner 2026-10-18: *«pido corridos tumbados y me pone corridos pero
+         * normales»*), yet a song that is only known as the parent (an artist iTunes files under "Corridos") is not
+         * proof against it either — [iad1tya.echo.music.reco.StyleContinuity] treats that as UNKNOWN, not OFF.
+         */
+        val parent: String? = null,
+        /**
+         * Row 434: styles a listener may also hear under this one ("bossa" ↔ "jazz", "mpb"): an artist KNOWN only as one
+         * of them (iTunes files João Gilberto's neighbours under "Jazz") is UNKNOWN for a request of this style — a
+         * filler when nothing surer exists — instead of OFF, which silently emptied or replaced the request.
+         */
+        val related: List<String> = emptyList(),
     )
 
     const val FAMILY_TROPICAL = "tropical"
@@ -76,6 +89,8 @@ object MusicStyle {
             "mambo"), "son cubano", latinNative = true),
         Style("punta", FAMILY_TROPICAL, listOf("punta garifuna", "punta catracha"), "punta", latinNative = true, feminine = true),
         Style("kompa", FAMILY_TROPICAL, listOf("kompa", "konpa", "zouk"), "kompa"),
+        Style("plena", FAMILY_TROPICAL, listOf("plena", "plenas", "bomba y plena", "bomba puertorriquena"), "plena",
+            latinNative = true, feminine = true),
         // ── Urbano ──────────────────────────────────────────────────────────────────────────────────
         Style("reggaeton", FAMILY_URBAN, listOf("reggaeton", "regueton", "reggaetton", "reguetton", "perreo",
             "reggaeton cristiano", "reggaeton viejo"), "reggaeton", latinNative = true),
@@ -83,8 +98,15 @@ object MusicStyle {
         Style("rap", FAMILY_URBAN, listOf("rap", "hip hop", "hiphop", "rap cristiano", "drill", "boom bap"), "rap"),
         Style("dembow", FAMILY_URBAN, listOf("dembow", "dembo"), "dembow", latinNative = true),
         // ── Regional mexicano ───────────────────────────────────────────────────────────────────────
-        Style("corridos", FAMILY_REGIONAL, listOf("corrido", "corridos", "corridos tumbados", "corrido tumbado", "tumbado",
-            "tumbados", "belico", "belicos", "corridos belicos"), "corridos", latinNative = true),
+        Style("corridos", FAMILY_REGIONAL, listOf("corrido", "corridos", "belico", "belicos", "corridos belicos"),
+            "corridos", latinNative = true),
+        // Row 434: its own style (it used to be an alias of "corridos", so the search asked YouTube for plain corridos).
+        Style("tumbados", FAMILY_REGIONAL, listOf("corridos tumbados", "corrido tumbado", "tumbado", "tumbados",
+            "corridos tumbado", "trap corridos"), "corridos tumbados", latinNative = true, parent = "corridos",
+            related = listOf("sierreno")),
+        Style("grupera", FAMILY_REGIONAL, listOf("grupera", "gruperas", "grupero", "gruperos", "musica grupera"),
+            "grupera", latinNative = true, feminine = true),
+        Style("tejano", FAMILY_REGIONAL, listOf("tejano", "tejana", "tex mex", "texmex"), "tejano", latinNative = true),
         Style("banda", FAMILY_REGIONAL, listOf("banda", "banda sinaloense", "sinaloense", "tambora"),
             "banda sinaloense", latinNative = true, feminine = true),
         Style("norteno", FAMILY_REGIONAL, listOf("norteno", "nortena", "nortenos", "nortenas", "conjunto norteno", "redova"),
@@ -101,6 +123,14 @@ object MusicStyle {
             "black metal", "nu metal", "power metal", "deathcore"), "metal"),
         Style("punk", FAMILY_ROCK, listOf("punk", "pop punk", "punk rock", "hardcore punk", "ska punk"), "punk"),
         Style("grunge", FAMILY_ROCK, listOf("grunge"), "grunge"),
+        Style("emo", FAMILY_ROCK, listOf("emo", "screamo", "midwest emo", "emo pop"), "emo"),
+        Style("postpunk", FAMILY_ROCK, listOf("post punk", "postpunk", "new wave", "darkwave", "dark wave", "gothic rock",
+            "goth rock", "coldwave"), "post punk"),
+        Style("shoegaze", FAMILY_ROCK, listOf("shoegaze", "dream pop", "noise pop"), "shoegaze"),
+        Style("psych", FAMILY_ROCK, listOf("psychedelic rock", "rock psicodelico", "psicodelico", "psicodelia",
+            "psychedelia", "stoner rock"), "psychedelic rock"),
+        Style("prog", FAMILY_ROCK, listOf("progressive rock", "prog rock", "rock progresivo", "art rock", "krautrock",
+            "math rock"), "progressive rock"),
         Style("indie", FAMILY_ROCK, listOf("indie", "indie rock", "indie pop", "indie folk"), "indie"),
         // ── Pop ─────────────────────────────────────────────────────────────────────────────────────
         Style("pop", FAMILY_POP, listOf("pop", "pop latino", "latin pop", "dance pop", "synthpop", "synth pop"), "pop"),
@@ -108,6 +138,10 @@ object MusicStyle {
             "ballads"), "baladas romanticas", latinNative = true, feminine = true),
         Style("kpop", FAMILY_POP, listOf("kpop", "k pop"), "kpop"),
         Style("jpop", FAMILY_POP, listOf("jpop", "j pop", "anime opening"), "jpop"),
+        Style("hyperpop", FAMILY_POP, listOf("hyperpop", "hyper pop", "digicore"), "hyperpop"),
+        Style("citypop", FAMILY_POP, listOf("city pop", "citypop", "shibuya kei"), "city pop"),
+        Style("infantil", FAMILY_POP, listOf("infantil", "infantiles", "musica infantil", "canciones infantiles",
+            "nursery rhymes", "kids songs"), "canciones infantiles", latinNative = true, feminine = true),
         // ── Electrónica ─────────────────────────────────────────────────────────────────────────────
         Style("house", FAMILY_ELECTRONIC, listOf("deep house", "tech house", "house music", "progressive house",
             "afro house", "tropical house"), "deep house"),
@@ -118,12 +152,21 @@ object MusicStyle {
         Style("edm", FAMILY_ELECTRONIC, listOf("edm", "electronica", "electronic", "electro", "big room", "dance music",
             "guaracha aleteo", "aleteo"), "edm"),
         Style("lofi", FAMILY_CHILL, listOf("lofi", "lo fi", "chillhop", "chill hop"), "lofi"),
+        Style("ambient", FAMILY_CHILL, listOf("ambient", "dark ambient", "chillout", "chill out", "downtempo", "new age"),
+            "ambient music"),
+        Style("triphop", FAMILY_CHILL, listOf("trip hop", "triphop"), "trip hop"),
+        Style("phonk", FAMILY_ELECTRONIC, listOf("phonk", "drift phonk", "brazilian phonk", "memphis phonk"), "phonk"),
+        Style("synthwave", FAMILY_ELECTRONIC, listOf("synthwave", "retrowave", "outrun", "vaporwave"), "synthwave"),
+        Style("garage", FAMILY_ELECTRONIC, listOf("uk garage", "speed garage", "garage house", "2 step"), "uk garage"),
+        Style("hardstyle", FAMILY_ELECTRONIC, listOf("hardstyle", "gabber", "happy hardcore", "hard dance"), "hardstyle"),
         // ── R&B / soul / funk ───────────────────────────────────────────────────────────────────────
         Style("rnb", FAMILY_RNB, listOf("rnb", "r b", "neo soul", "soul music", "contemporary r b"), "r&b"),
         Style("funk", FAMILY_RNB, listOf("funk", "disco funk"), "funk"),
         // ── Jazz / blues / country / reggae ─────────────────────────────────────────────────────────
         Style("jazz", FAMILY_JAZZ_BLUES, listOf("jazz", "bebop", "smooth jazz", "jazz latino", "latin jazz"), "jazz"),
         Style("blues", FAMILY_JAZZ_BLUES, listOf("blues", "delta blues", "blues rock"), "blues"),
+        Style("swing", FAMILY_JAZZ_BLUES, listOf("swing", "big band", "jazz swing", "dixieland"), "swing jazz"),
+        Style("motown", FAMILY_RNB, listOf("motown", "northern soul", "soul clasico"), "motown soul"),
         Style("country", FAMILY_COUNTRY, listOf("country music", "bluegrass", "country pop", "outlaw country"), "country music"),
         Style("reggae", FAMILY_REGGAE, listOf("reggae", "roots reggae", "reggae cristiano", "lovers rock"), "reggae"),
         Style("dancehall", FAMILY_REGGAE, listOf("dancehall"), "dancehall"),
@@ -136,14 +179,21 @@ object MusicStyle {
         // ── Clásica ─────────────────────────────────────────────────────────────────────────────────
         Style("classical", FAMILY_CLASSICAL, listOf("classical", "sinfonia", "symphony", "concerto", "sonata",
             "nocturne", "requiem", "orchestral", "orquestal"), "classical music"),
+        Style("opera", FAMILY_CLASSICAL, listOf("opera", "operas"), "opera"),
+        Style("soundtrack", FAMILY_CLASSICAL, listOf("banda sonora", "bandas sonoras", "soundtrack", "ost", "film score"),
+            "soundtrack", feminine = true),
         // ── Ibérica / rioplatense / bolero ──────────────────────────────────────────────────────────
         Style("flamenco", FAMILY_IBERIAN, listOf("flamenco", "bulerias", "sevillanas", "rumba flamenca"), "flamenco", latinNative = true),
         Style("tango", FAMILY_IBERIAN, listOf("tango", "tangos"), "tango", latinNative = true),
         Style("bolero", FAMILY_IBERIAN, listOf("bolero", "boleros"), "boleros", latinNative = true),
+        Style("trova", FAMILY_IBERIAN, listOf("trova", "nueva trova", "trova cubana", "trova yucateca"), "trova",
+            latinNative = true, feminine = true),
         Style("folklore", FAMILY_IBERIAN, listOf("folklore", "chacarera", "zamba", "huayno", "cueca", "joropo",
             "musica llanera", "llanera"), "folklore latinoamericano", latinNative = true),
         // ── Brasil ──────────────────────────────────────────────────────────────────────────────────
-        Style("bossa", FAMILY_BRAZIL, listOf("bossa nova", "bossa"), "bossa nova"),
+        Style("bossa", FAMILY_BRAZIL, listOf("bossa nova", "bossanova", "bossa"), "bossa nova",
+            related = listOf("jazz", "mpb", "samba")),
+        Style("mpb", FAMILY_BRAZIL, listOf("mpb", "musica popular brasileira"), "mpb", related = listOf("bossa", "samba")),
         Style("samba", FAMILY_BRAZIL, listOf("samba", "pagode"), "samba"),
         Style("sertanejo", FAMILY_BRAZIL, listOf("sertanejo", "sertaneja", "sertanejo universitario"), "sertanejo"),
         Style("forro", FAMILY_BRAZIL, listOf("forro", "piseiro", "arrocha"), "forró"),
@@ -171,7 +221,17 @@ object MusicStyle {
         "flamenco" to "Flamenco", "tango" to "Tango", "bolero" to "Bolero", "folklore" to "Folclore",
         "bossa" to "Bossa nova", "samba" to "Samba / Pagode", "sertanejo" to "Sertanejo", "forro" to "Forró",
         "funkbr" to "Funk brasileño", "afrobeats" to "Afrobeats",
+        "tumbados" to "Corridos tumbados", "grupera" to "Grupera", "tejano" to "Tejano", "plena" to "Plena",
+        "emo" to "Emo", "postpunk" to "Post-punk / New wave", "shoegaze" to "Shoegaze / Dream pop",
+        "psych" to "Rock psicodélico", "prog" to "Rock progresivo", "hyperpop" to "Hyperpop", "citypop" to "City pop",
+        "infantil" to "Infantil", "ambient" to "Ambient / Chillout", "triphop" to "Trip hop", "phonk" to "Phonk",
+        "synthwave" to "Synthwave", "garage" to "UK garage", "hardstyle" to "Hardstyle", "swing" to "Swing / Big band",
+        "motown" to "Motown / Soul", "opera" to "Ópera", "soundtrack" to "Bandas sonoras", "trova" to "Trova",
+        "mpb" to "MPB",
     )
+
+    /** Row 434: the sub-styles [id] contains ("corridos" → "tumbados"). Empty for a style that has none. */
+    fun childrenOf(id: String): Set<String> = ALL.filter { it.parent == id }.map { it.id }.toSet()
 
     fun displayName(id: String): String = NAMES[id] ?: id.replaceFirstChar { it.uppercase() }
 

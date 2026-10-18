@@ -47,11 +47,13 @@ object MusicRequestIntent {
         val count: Int?,
         val likeArtist: String?,
         val cleanPrompt: String,
+        /** Row 435: the years asked for ("del 2004 a 2010", "años 70 y 80", "2026"), enforced on each song. */
+        val eraRange: MusicRequestEra.Range? = null,
     ) {
         /** Something in the request can be CHECKED on each song (style, faith, language or an exclusion). */
         val checkable: Boolean
             get() = styles.isNotEmpty() || christian || language != null ||
-                excludedStyles.isNotEmpty() || excludedTerms.isNotEmpty()
+                excludedStyles.isNotEmpty() || excludedTerms.isNotEmpty() || eraRange != null
     }
 
     private val NEGATIONS = setOf("sin", "excepto", "menos", "without", "except", "salvo")
@@ -94,8 +96,9 @@ object MusicRequestIntent {
     private val YEAR = Regex("^(19[5-9]\\d|20[0-4]\\d)$")
     private val NUMBER = Regex("^\\d{1,3}$")
 
-    fun parse(prompt: String): Intent {
-        val tokens = prompt.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    fun parse(prompt: String, currentYear: Int = java.time.Year.now().value): Intent {
+        // "2004-2010" and "70's" would otherwise be swallowed whole by the whitespace split (row 435).
+        val tokens = MusicRequestEra.normalize(prompt).trim().split(Regex("\\s+")).filter { it.isNotBlank() }
         val folded = tokens.map { fold(it) }
         val drop = BooleanArray(tokens.size)
         val excludedStyles = LinkedHashSet<String>()
@@ -181,6 +184,12 @@ object MusicRequestIntent {
         // ── Count and year ──
         var count: Int? = null
         var year: Int? = null
+        // Row 435: the years asked for, as a RANGE (the loop below only ever understood one year).
+        val eraHit = MusicRequestEra.find(folded, drop, currentYear)
+        if (eraHit != null) {
+            for (k in eraHit.dropIndexes) drop[k] = true
+            if (eraHit.range.singleYear) year = eraHit.range.from
+        }
         for (k in folded.indices) {
             if (drop[k]) continue
             val w = folded[k]
@@ -245,6 +254,7 @@ object MusicRequestIntent {
             count = count,
             likeArtist = likeArtist,
             cleanPrompt = clean.ifBlank { prompt.trim() },
+            eraRange = eraHit?.range,
         )
     }
 
@@ -257,6 +267,7 @@ object MusicRequestIntent {
         val base = iad1tya.echo.music.reco.StyleContinuity.searchQuery(style, intent.language, intent.christian)
             ?: return null
         val suffix = when {
+            intent.eraRange != null -> intent.eraRange.searchWord()
             intent.year != null -> intent.year.toString()
             intent.era == Era.OLD -> "clasicos"
             intent.era == Era.NEW -> "nuevo"

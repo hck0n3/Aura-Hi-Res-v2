@@ -95,6 +95,9 @@ private const val FILL_PAGES_PER_CALL = 2
 /** Last.fm lookups for this batch's artists may delay the batch by at most this much (silent: early seed). */
 private const val TAG_ENRICH_WAIT_MS = 1_500L
 
+/** Row 435: the longest the continuation gate waits for album years before judging a batch (bounded; the rest is unknown). */
+private const val ERA_PREFETCH_MS = 3_500L
+
 /** A user skip within this time of a song's start says "this does not fit". */
 private const val QUICK_SKIP_MS = 30_000L
 
@@ -229,6 +232,14 @@ internal suspend fun MusicService.exactStyleFilter(
         return@withContext null
     }
 
+    // Row 435: a request for YEARS ("del 2004 a 2010") is kept by the queue that continues it — the album years of this
+    // batch are asked once, bounded, before judging (an album that never answers simply has no year).
+    if (target.era != null) {
+        iad1tya.echo.music.playlistimport.MusicRequestEraYears.prefetch(
+            items.mapNotNull { it.metadata?.album?.id }, ERA_PREFETCH_MS,
+        )
+    }
+
     fun judge(mi: MediaItem, fromSearch: Boolean): StyleContinuity.Verdict {
         val t = mi.trackText()
         val textStyle = MusicStyle.fromText(t.text)
@@ -248,6 +259,9 @@ internal suspend fun MusicService.exactStyleFilter(
                 ownArtist = t.artists.any { it.trim().lowercase() in ownArtists },
                 fromSearch = fromSearch,
                 rejected = rejected,
+                year = if (target.era == null) null else iad1tya.echo.music.playlistimport.MusicRequestEraYears.yearOf(
+                    mi.mediaId, mi.metadata?.album?.id, mi.metadata?.album?.title,
+                ),
             ),
         )
     }
@@ -280,6 +294,11 @@ internal suspend fun MusicService.exactStyleFilter(
                     .filterExplicit(hideExplicit)
                     .filterVideoSongs(hideVideos)
                     .filterNonMusicForAutoQueue()
+                if (target.era != null) {
+                    iad1tya.echo.music.playlistimport.MusicRequestEraYears.prefetch(
+                        found.mapNotNull { it.metadata?.album?.id }, ERA_PREFETCH_MS,
+                    )
+                }
                 learnFrom(found.map { it.trackText() }, impliedStyle = style)
                 val fresh = found.filter { mi ->
                     seen.add(mi.mediaId) &&

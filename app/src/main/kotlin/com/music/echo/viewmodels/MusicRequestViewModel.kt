@@ -244,13 +244,15 @@ constructor(
             // sonar, el relleno no se mete ahí.
             val contextId = "MR:" + UUID.randomUUID()
             // Fila 361: the smart queue that continues this request keeps exactly what was asked.
-            if (intent.styles.isNotEmpty() || intent.language != null) {
+            if (intent.styles.isNotEmpty() || intent.language != null || intent.eraRange != null) {
                 iad1tya.echo.music.reco.RequestStyleTargets.put(
                     contextId,
                     iad1tya.echo.music.reco.StyleContinuity.Target(
                         styles = intent.styles.ifEmpty { null },
                         language = intent.language,
                         christian = intent.christian,
+                        // Row 435: the queue that continues the request keeps the YEARS too (it used to drift to any year).
+                        era = intent.eraRange,
                     ),
                 )
             }

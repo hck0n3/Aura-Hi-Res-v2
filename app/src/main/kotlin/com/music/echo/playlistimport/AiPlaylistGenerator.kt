@@ -147,6 +147,9 @@ object AiPlaylistGenerator {
      */
     internal const val SEARCH_STEPS_BUDGET_MS = 11_000L
 
+    /** Row 435: how long the per-song year check may spend asking YouTube Music for album years. */
+    internal const val ERA_LOOKUP_BUDGET_MS = 6_000L
+
     /** Doce horas. La taxonomía de estados de ánimo y géneros cambia como mucho cada varios meses. */
     internal const val MOODS_TTL_MS = 12 * 60 * 60 * 1000L
 
@@ -1002,7 +1005,17 @@ object AiPlaylistGenerator {
             }
         }
 
-        if (parsed.preferPlaylists && effectiveSolo == null && inBudget()) {
+        // Peldaño E (fila 435) — ÁLBUMES QUE YA ESTÁN EN LOS AÑOS PEDIDOS. La búsqueda de canciones sueltas no filtra por
+        // año y las listas solo prueban la década por su título; aquí se buscan ÁLBUMES (la búsqueda de álbumes sí da el
+        // año), se quedan los del rango y se traen sus canciones, que además llegan con año seguro.
+        val eraRange = intent.eraRange
+        if (eraRange != null && effectiveSolo == null && pinned == null && pool.size < POOL_TARGET && inBudget()) {
+            val eraText = intent.styles.firstNotNullOfOrNull { MusicRequestIntent.styleQuery(intent, it) }
+                ?: "$query ${eraRange.searchWord()}"
+            absorb(christianOnly(MusicRequestEraYears.songsOfAlbumsIn(eraText, eraRange)))
+        }
+
+        if ((parsed.preferPlaylists || intent.styles.isNotEmpty()) && effectiveSolo == null && inBudget()) {
             // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
             // el peldaño 1: no se le pide a la búsqueda ni a un LLM que ADIVINE qué está de moda —
             // se piden los charts reales de YouTube Music, que es la única fuente que de verdad lo
@@ -1159,6 +1172,24 @@ object AiPlaylistGenerator {
                 waiting,
                 pool.count { it.id in faithPending },
             )
+        }
+        // Fila 435 — LA COMPROBACIÓN POR AÑO. Una canción de año seguro FUERA del rango pedido no suena nunca; las de año
+        // desconocido solo rellenan cuando las seguras son pocas, y van detrás (ver [MusicRequestEra.select]).
+        if (eraRange != null && pool.isNotEmpty()) {
+            MusicRequestEraYears.prefetch(pool.mapNotNull { it.album?.id }, ERA_LOOKUP_BUDGET_MS)
+            val selection = MusicRequestEra.select(
+                items = pool.toList(),
+                yearOf = { MusicRequestEraYears.yearOf(it) },
+                range = eraRange,
+                isProtected = { it.id == specificMatchId },
+            )
+            // Counts and years only (AGENTS.md rule 4): never a title, artist or id.
+            timber.log.Timber.i(
+                "MUSIC_REQUEST era=%d-%d in=%d unknown=%d out=%d kept=%d",
+                eraRange.from, eraRange.to, selection.inRange, selection.unknown, selection.out, selection.kept.size,
+            )
+            pool.clear()
+            pool.addAll(selection.kept)
         }
         val fresh = pool.filter { it.id == specificMatchId || !MusicRequestRecents.isRecent(it.id) }
         // Ronda 10 (dueño: "sin importar cuántas veces lo pida, la lista debe ser diferente" para un
