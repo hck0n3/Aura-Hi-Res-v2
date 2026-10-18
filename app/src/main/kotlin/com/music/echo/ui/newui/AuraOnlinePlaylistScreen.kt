@@ -105,6 +105,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -713,59 +714,309 @@ private fun AuraOnlinePlaylistHeader(
     val hasExplicitContent = remember(songs) { songs.any { it.explicit } }
     val totalDuration = remember(songs) { songs.sumOf { it.duration ?: 0 } }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // 🔴 LA PORTADA, DE LADO A LADO (dueño, 2026-09-17, punto 6: *"hacer que la portada ocupe
-        // todo el ancho de la pantalla, de lado a lado, sin orillas, manteniendo el efecto de cristal
-        // borroso en la parte inferior para crear un diseño en armonía y que se vea completa, similar
-        // a las portadas de los artistas"*).
-        //
-        // Era una tarjeta CENTRADA de 260/320 dp con 48 dp de margen a cada lado y esquinas
-        // redondeadas. Ahora es la receta del héroe de artista: ancho completo, cuadrada, y con el
-        // mismo cristal de abajo — la capa de la portada es la FUENTE del haze y una banda de 200 dp
-        // la muestrea con `progressive`, así que el radio CRECE hacia abajo en vez de ser uniforme con
-        // la opacidad en rampa. Esa diferencia es la que se lee "como cristal".
-        //
-        // El espaciador de 56 dp se va con la tarjeta: existía para despegarla de la barra superior, y
-        // "sin orillas" significa precisamente que la imagen llega al borde de arriba — igual que la de
-        // artista, que tampoco lo tiene.
-        //
-        // El contrato térmico se respeta igual: el desenfoque NO es a pantalla completa, se queda en
-        // 200 dp para que su coste no crezca con el alto de la portada, mientras el oscurecido — que es
-        // solo color — dispone del 70 % para subir. Una rampa corta obliga a una pendiente de opacidad
-        // fuerte, y una pendiente fuerte ES el borde visible que se intenta evitar.
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            // Izado: dentro del Box de dentro el receptor implícito más cercano es BoxScope, no
-            // BoxWithConstraintsScope, así que `maxWidth` no se alcanza ahí sin receptor explícito.
-            val heroWidth = maxWidth
-            val isWideHero = heroWidth >= AURA_WIDE_HERO_MIN_WIDTH
-            Box(
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        // Wide pane (an unfolded foldable, a tablet): the cover on the left and this information on its right,
+        // start-aligned; narrow: the full-bleed hero with everything centred under it (as it always was).
+        val wide = maxWidth >= AURA_WIDE_HERO_MIN_WIDTH
+        val textPad = if (wide) 0.dp else 32.dp
+        val rowPad = if (wide) 0.dp else AuraSpacing.Gutter
+        val rowArrangement = Arrangement.spacedBy(12.dp, if (wide) Alignment.Start else Alignment.CenterHorizontally)
+        val info: @Composable ColumnScope.() -> Unit = {
+            Text(
+                text = playlist.title,
+                style = AuraType.ScreenTitle,
+                color = AuraPalette.OnGround,
+                maxLines = 2,
+                overflow = AuraDefaultOverflow,
+                modifier = Modifier.padding(horizontal = textPad),
+            )
+
+            playlist.author?.name?.let { authorName ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = authorName,
+                    style = AuraType.RowSubtitle,
+                    color = AuraPalette.Teal,
+                    maxLines = 1,
+                    overflow = AuraDefaultOverflow,
+                    modifier = Modifier.padding(horizontal = textPad),
+                )
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            Text(
+                text = buildString {
+                    append(
+                        if (videoPlaylist) {
+                            pluralStringResource(R.plurals.n_video, songs.size, songs.size)
+                        } else {
+                            pluralStringResource(R.plurals.n_song, songs.size, songs.size)
+                        },
+                    )
+                    if (totalDuration > 0) {
+                        append(" • ")
+                        val hours = totalDuration / 3600
+                        val minutes = (totalDuration % 3600) / 60
+                        if (hours > 0) append("${hours}h ${minutes}m") else append("${minutes}m")
+                    }
+                    if (hasExplicitContent) {
+                        append(" • ")
+                        append(stringResource(R.string.explicit))
+                    }
+                },
+                style = AuraType.RowSubtitle,
+                color = AuraPalette.OnGroundMuted,
+                maxLines = 1,
+                overflow = AuraDefaultOverflow,
+            )
+
+            run {
+                val playedCount = remember(shufflePlayedSet, heardIds, songs) {
+                    songs.count { it.id in shufflePlayedSet || it.id in heardIds }
+                }
+                EnhancedShuffleChip(
+                    playedCount = playedCount,
+                    total = songs.size,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (isWideHero) Modifier.height(AURA_WIDE_HERO_HEIGHT) else Modifier.aspectRatio(1f))
-                    // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
-                    .then(
-                        // The wide hero dissolves over a shorter stretch so the whole cover stays above it.
-                        if (isWideHero) Modifier.auraHeroDissolve(AURA_WIDE_HERO_DISSOLVE) else Modifier.auraHeroDissolve(),
-                    ),
+                    .padding(horizontal = rowPad),
+                horizontalArrangement = rowArrangement,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                val heroHaze = remember { HazeState() }
-                // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
-                val lean = rememberLeanMode()
-                Box(modifier = Modifier.fillMaxSize().then(if (lean) Modifier else Modifier.hazeSource(heroHaze))) {
-                    if (isWideHero) {
-                        // WIDE: the cover whole over a soft copy of itself — see [AuraWideHeroCover].
-                        AuraWideHeroCover(
-                            thumbnailUrl = playlist.thumbnail,
-                            heroWidth = heroWidth,
-                            seed = playlist.id,
-                            lean = lean,
-                        )
+                // Hybrid (Apple + YTM): primary actions keep their name; search/more stay icon-only.
+                val contextId = shuffleContextId ?: ShuffleContexts.onlinePlaylist(playlist.id)
+                val onShuffleClick = rememberShuffleMemoryPrompt(
+                    contextId = contextId,
+                    playedCount = songs.count { it.id in shufflePlayedSet || it.id in heardIds },
+                    totalCount = songs.size,
+                ) { resetMemory ->
+                    val seed = ShuffleContexts.seedPlayedIds(
+                        resetMemory = resetMemory,
+                        songIds = songs.map { it.id },
+                        shufflePlayed = shufflePlayedSet,
+                        playTimeMs = { id -> if (id in heardIds) 1L else 0L },
+                    )
+                    val ordered = if (resetMemory) {
+                        songs.shuffled()
                     } else {
+                        val (unheard, heard) = songs.partition { it.id !in seed }
+                        unheard.shuffled() + heard.shuffled()
+                    }
+                    playerConnection.playQueue(
+                        YouTubePlaylistQueue(
+                            playlistId = playlist.id,
+                            playlistTitle = playlist.title,
+                            initialSongs = ordered,
+                            initialContinuation = continuation,
+                            contextId = contextId,
+                            startShuffled = true,
+                            seedPlayedIds = seed,
+                        ),
+                    )
+                }
+                AuraHeaderButton(
+                    icon = AuraIcons.Shuffle,
+                    label = stringResource(R.string.shuffle_label),
+                    onClick = onShuffleClick,
+                    accent = false,
+                    enabled = songs.isNotEmpty(),
+                    modifier = Modifier.weight(1f).tvFocusable(isTvOrCar, scaleFocused = 1f),
+                )
+                AuraHeaderButton(
+                    icon = if (playingThisPlaylist) AuraIcons.Pause else AuraIcons.Play,
+                    label = stringResource(if (playingThisPlaylist) R.string.pause else R.string.play),
+                    onClick = {
+                        if (songs.isNotEmpty()) {
+                            playerConnection.playQueue(
+                                YouTubePlaylistQueue(
+                                    playlistId = playlist.id,
+                                    playlistTitle = playlist.title,
+                                    initialSongs = songs,
+                                    initialContinuation = continuation,
+                                    contextId = shuffleContextId ?: ShuffleContexts.onlinePlaylist(playlist.id),
+                                ),
+                            )
+                        }
+                    },
+                    accent = true,
+                    enabled = songs.isNotEmpty(),
+                    modifier = Modifier.weight(1f).tvFocusable(isTvOrCar, scaleFocused = 1f),
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Guardar · Descargar · Compartir · Buscar · Más — secondary row.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = rowPad),
+                horizontalArrangement = rowArrangement,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AuraHeaderCircleButton(
+                    icon = if (saved) AuraIcons.HeartFilled else AuraIcons.Heart,
+                    contentDescription = stringResource(if (saved) R.string.saved else R.string.save),
+                    onClick = {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            context.dataStore.edit { prefs ->
+                                val current = prefs[SuppressedPlaylistIdsKey].orEmpty().split(',').filter { it.isNotBlank() && it != playlist.id }
+                                prefs[SuppressedPlaylistIdsKey] = current.joinToString(",")
+                            }
+                            if (dbPlaylist != null) {
+                                database.withTransaction {
+                                    // Save/un-save ONLY. Deliberately does NOT refresh metadata here: this
+                                    // screen's PlaylistItem comes from YouTube.playlist(), which hardcodes
+                                    // playEndpoint = null and can yield an empty title/thumbnail; and
+                                    // refreshing thumbnailUrl would DESTROY a custom cover. The library sync
+                                    // owns metadata refresh. This also un-tombstones a row removed from the
+                                    // app, so saving again reuses it instead of creating a duplicate.
+                                    update(dbPlaylist.playlist.toggleLike())
+                                }
+                            } else {
+                                // Never persist a NEW playlist before its songs have loaded: the header
+                                // renders as soon as `playlist` is set (songs arrive later), and saving in
+                                // that window wrote a PlaylistEntity with remoteSongCount = N and ZERO
+                                // PlaylistSongMap rows. `enabled` below already blocks the tap; this is the
+                                // backstop.
+                                if (songs.isEmpty()) return@launch
+                                database.withTransaction {
+                                    val playlistEntity = PlaylistEntity(
+                                        name = playlist.title,
+                                        browseId = playlist.id,
+                                        thumbnailUrl = playlist.thumbnail,
+                                        isEditable = playlist.isEditable,
+                                        remoteSongCount = playlist.songCountText?.let {
+                                            Regex("""\d+""").find(it)?.value?.toIntOrNull()
+                                        },
+                                        playEndpointParams = playlist.playEndpoint?.params,
+                                        shuffleEndpointParams = playlist.shuffleEndpoint?.params,
+                                        radioEndpointParams = playlist.radioEndpoint?.params,
+                                    ).toggleLike()
+                                    insert(playlistEntity)
+                                    songs.map { it.toMediaMetadata() }
+                                        .onEach { insert(it) }
+                                        .mapIndexed { index, song ->
+                                            PlaylistSongMap(
+                                                songId = song.id,
+                                                playlistId = playlistEntity.id,
+                                                position = index,
+                                                setVideoId = song.setVideoId,
+                                            )
+                                        }
+                                        .forEach { insert(it) }
+                                }
+                            }
+                        }
+                    },
+                    accent = false,
+                    // Saving a playlist that has no songs yet would store an empty one; un-saving an already
+                    // saved playlist stays available because it touches no song rows.
+                    enabled = songs.isNotEmpty() || dbPlaylist != null,
+                    modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
+                )
+                // 🔴 EL BOTÓN DE DESCARGA SE FUE AL MENÚ (punto 5 del dueño, 2026-09-17: *"eliminar el
+                // botón de descarga principal de la vista y mover esta función exclusivamente dentro del
+                // menú desplegable de los tres puntos"*).
+                //
+                // Nada se pierde: el menú ⋮ de esta pantalla YA tenía "Descargar" con su descripción
+                // (`YouTubePlaylistMenu`), y esa entrada es la que hace el mismo trabajo. Este círculo era
+                // un duplicado que ocupaba un sitio de la fila de acciones — la misma razón por la que en
+                // 2026-09-13 quitó Ajustes de la barra de abajo: *"no me gusta el que está en la barra,
+                // elíminalo y solo deja el de arriba"*.
+                AuraHeaderCircleButton(
+                    icon = AuraIcons.Share,
+                    contentDescription = stringResource(R.string.share),
+                    onClick = {
+                        val intent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, playlist.shareLink)
+                        }
+                        context.startActivity(Intent.createChooser(intent, null))
+                    },
+                    modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
+                )
+                AuraHeaderCircleButton(
+                    icon = AuraIcons.Search,
+                    contentDescription = stringResource(R.string.search),
+                    onClick = onSearch,
+                    modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
+                )
+                AuraHeaderCircleButton(
+                    icon = AuraIcons.More,
+                    contentDescription = stringResource(R.string.more_options),
+                    onClick = {
+                        menuState.show {
+                            YouTubePlaylistMenu(
+                                playlist = playlist,
+                                songs = songs,
+                                coroutineScope = coroutineScope,
+                                onDismiss = menuState::dismiss,
+                            )
+                        }
+                    },
+                    modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
+                )
+            }
+        }
+        if (wide) {
+            AuraWideTop(
+                thumbnailUrl = playlist.thumbnail,
+                seed = playlist.id,
+                lean = rememberLeanMode(),
+                modifier = Modifier.padding(bottom = 8.dp),
+                info = info,
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+            // 🔴 LA PORTADA, DE LADO A LADO (dueño, 2026-09-17, punto 6: *"hacer que la portada ocupe
+            // todo el ancho de la pantalla, de lado a lado, sin orillas, manteniendo el efecto de cristal
+            // borroso en la parte inferior para crear un diseño en armonía y que se vea completa, similar
+            // a las portadas de los artistas"*).
+            //
+            // Era una tarjeta CENTRADA de 260/320 dp con 48 dp de margen a cada lado y esquinas
+            // redondeadas. Ahora es la receta del héroe de artista: ancho completo, cuadrada, y con el
+            // mismo cristal de abajo — la capa de la portada es la FUENTE del haze y una banda de 200 dp
+            // la muestrea con `progressive`, así que el radio CRECE hacia abajo en vez de ser uniforme con
+            // la opacidad en rampa. Esa diferencia es la que se lee "como cristal".
+            //
+            // El espaciador de 56 dp se va con la tarjeta: existía para despegarla de la barra superior, y
+            // "sin orillas" significa precisamente que la imagen llega al borde de arriba — igual que la de
+            // artista, que tampoco lo tiene.
+            //
+            // El contrato térmico se respeta igual: el desenfoque NO es a pantalla completa, se queda en
+            // 200 dp para que su coste no crezca con el alto de la portada, mientras el oscurecido — que es
+            // solo color — dispone del 70 % para subir. Una rampa corta obliga a una pendiente de opacidad
+            // fuerte, y una pendiente fuerte ES el borde visible que se intenta evitar.
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                // Izado: dentro del Box de dentro el receptor implícito más cercano es BoxScope, no
+                // BoxWithConstraintsScope, así que `maxWidth` no se alcanza ahí sin receptor explícito.
+                val heroWidth = maxWidth
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
+                        .auraHeroDissolve(),
+                ) {
+                    val heroHaze = remember { HazeState() }
+                    // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
+                    val lean = rememberLeanMode()
+                    Box(modifier = Modifier.fillMaxSize().then(if (lean) Modifier else Modifier.hazeSource(heroHaze))) {
                         AuraCover(
                             thumbnailUrl = playlist.thumbnail,
                             size = heroWidth,
@@ -775,290 +1026,47 @@ private fun AuraOnlinePlaylistHeader(
                             ratio = 1f,
                         )
                     }
-                }
 
-                // El desenfoque progresivo. 200 dp y radio 32 dp, los valores del original.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .align(Alignment.BottomCenter)
-                        .then(
-                            if (lean) {
-                                Modifier
-                            } else {
-                                Modifier.hazeEffect(heroHaze) {
-                                    blurRadius = 32.dp
-                                    progressive = HazeProgressive.verticalGradient(
-                                        startIntensity = 0f,
-                                        endIntensity = 1f,
-                                    )
-                                }
-                            },
-                        ),
-                )
-
-                // El oscurecido, APARTE y más alto que el desenfoque — ver arriba.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height((if (isWideHero) AURA_WIDE_HERO_HEIGHT else heroWidth) * 0.7f)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, AuraPalette.Ground.copy(alpha = HERO_SCRIM_ALPHA)),
-                            ),
-                        ),
-                )
-            }
-        }
-
-        Spacer(Modifier.height(18.dp))
-
-        Text(
-            text = playlist.title,
-            style = AuraType.ScreenTitle,
-            color = AuraPalette.OnGround,
-            maxLines = 2,
-            overflow = AuraDefaultOverflow,
-            modifier = Modifier.padding(horizontal = 32.dp),
-        )
-
-        playlist.author?.name?.let { authorName ->
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = authorName,
-                style = AuraType.RowSubtitle,
-                color = AuraPalette.Teal,
-                maxLines = 1,
-                overflow = AuraDefaultOverflow,
-                modifier = Modifier.padding(horizontal = 32.dp),
-            )
-        }
-
-        Spacer(Modifier.height(6.dp))
-
-        Text(
-            text = buildString {
-                append(
-                    if (videoPlaylist) {
-                        pluralStringResource(R.plurals.n_video, songs.size, songs.size)
-                    } else {
-                        pluralStringResource(R.plurals.n_song, songs.size, songs.size)
-                    },
-                )
-                if (totalDuration > 0) {
-                    append(" • ")
-                    val hours = totalDuration / 3600
-                    val minutes = (totalDuration % 3600) / 60
-                    if (hours > 0) append("${hours}h ${minutes}m") else append("${minutes}m")
-                }
-                if (hasExplicitContent) {
-                    append(" • ")
-                    append(stringResource(R.string.explicit))
-                }
-            },
-            style = AuraType.RowSubtitle,
-            color = AuraPalette.OnGroundMuted,
-            maxLines = 1,
-            overflow = AuraDefaultOverflow,
-        )
-
-        run {
-            val playedCount = remember(shufflePlayedSet, heardIds, songs) {
-                songs.count { it.id in shufflePlayedSet || it.id in heardIds }
-            }
-            EnhancedShuffleChip(
-                playedCount = playedCount,
-                total = songs.size,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-        }
-
-        Spacer(Modifier.height(18.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = AuraSpacing.Gutter),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Hybrid (Apple + YTM): primary actions keep their name; search/more stay icon-only.
-            val contextId = shuffleContextId ?: ShuffleContexts.onlinePlaylist(playlist.id)
-            val onShuffleClick = rememberShuffleMemoryPrompt(
-                contextId = contextId,
-                playedCount = songs.count { it.id in shufflePlayedSet || it.id in heardIds },
-                totalCount = songs.size,
-            ) { resetMemory ->
-                val seed = ShuffleContexts.seedPlayedIds(
-                    resetMemory = resetMemory,
-                    songIds = songs.map { it.id },
-                    shufflePlayed = shufflePlayedSet,
-                    playTimeMs = { id -> if (id in heardIds) 1L else 0L },
-                )
-                val ordered = if (resetMemory) {
-                    songs.shuffled()
-                } else {
-                    val (unheard, heard) = songs.partition { it.id !in seed }
-                    unheard.shuffled() + heard.shuffled()
-                }
-                playerConnection.playQueue(
-                    YouTubePlaylistQueue(
-                        playlistId = playlist.id,
-                        playlistTitle = playlist.title,
-                        initialSongs = ordered,
-                        initialContinuation = continuation,
-                        contextId = contextId,
-                        startShuffled = true,
-                        seedPlayedIds = seed,
-                    ),
-                )
-            }
-            AuraHeaderButton(
-                icon = AuraIcons.Shuffle,
-                label = stringResource(R.string.shuffle_label),
-                onClick = onShuffleClick,
-                accent = false,
-                enabled = songs.isNotEmpty(),
-                modifier = Modifier.weight(1f).tvFocusable(isTvOrCar, scaleFocused = 1f),
-            )
-            AuraHeaderButton(
-                icon = if (playingThisPlaylist) AuraIcons.Pause else AuraIcons.Play,
-                label = stringResource(if (playingThisPlaylist) R.string.pause else R.string.play),
-                onClick = {
-                    if (songs.isNotEmpty()) {
-                        playerConnection.playQueue(
-                            YouTubePlaylistQueue(
-                                playlistId = playlist.id,
-                                playlistTitle = playlist.title,
-                                initialSongs = songs,
-                                initialContinuation = continuation,
-                                contextId = shuffleContextId ?: ShuffleContexts.onlinePlaylist(playlist.id),
-                            ),
-                        )
-                    }
-                },
-                accent = true,
-                enabled = songs.isNotEmpty(),
-                modifier = Modifier.weight(1f).tvFocusable(isTvOrCar, scaleFocused = 1f),
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        // Guardar · Descargar · Compartir · Buscar · Más — secondary row.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = AuraSpacing.Gutter),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            AuraHeaderCircleButton(
-                icon = if (saved) AuraIcons.HeartFilled else AuraIcons.Heart,
-                contentDescription = stringResource(if (saved) R.string.saved else R.string.save),
-                onClick = {
-                    coroutineScope.launch(Dispatchers.IO) {
-                        context.dataStore.edit { prefs ->
-                            val current = prefs[SuppressedPlaylistIdsKey].orEmpty().split(',').filter { it.isNotBlank() && it != playlist.id }
-                            prefs[SuppressedPlaylistIdsKey] = current.joinToString(",")
-                        }
-                        if (dbPlaylist != null) {
-                            database.withTransaction {
-                                // Save/un-save ONLY. Deliberately does NOT refresh metadata here: this
-                                // screen's PlaylistItem comes from YouTube.playlist(), which hardcodes
-                                // playEndpoint = null and can yield an empty title/thumbnail; and
-                                // refreshing thumbnailUrl would DESTROY a custom cover. The library sync
-                                // owns metadata refresh. This also un-tombstones a row removed from the
-                                // app, so saving again reuses it instead of creating a duplicate.
-                                update(dbPlaylist.playlist.toggleLike())
-                            }
-                        } else {
-                            // Never persist a NEW playlist before its songs have loaded: the header
-                            // renders as soon as `playlist` is set (songs arrive later), and saving in
-                            // that window wrote a PlaylistEntity with remoteSongCount = N and ZERO
-                            // PlaylistSongMap rows. `enabled` below already blocks the tap; this is the
-                            // backstop.
-                            if (songs.isEmpty()) return@launch
-                            database.withTransaction {
-                                val playlistEntity = PlaylistEntity(
-                                    name = playlist.title,
-                                    browseId = playlist.id,
-                                    thumbnailUrl = playlist.thumbnail,
-                                    isEditable = playlist.isEditable,
-                                    remoteSongCount = playlist.songCountText?.let {
-                                        Regex("""\d+""").find(it)?.value?.toIntOrNull()
-                                    },
-                                    playEndpointParams = playlist.playEndpoint?.params,
-                                    shuffleEndpointParams = playlist.shuffleEndpoint?.params,
-                                    radioEndpointParams = playlist.radioEndpoint?.params,
-                                ).toggleLike()
-                                insert(playlistEntity)
-                                songs.map { it.toMediaMetadata() }
-                                    .onEach { insert(it) }
-                                    .mapIndexed { index, song ->
-                                        PlaylistSongMap(
-                                            songId = song.id,
-                                            playlistId = playlistEntity.id,
-                                            position = index,
-                                            setVideoId = song.setVideoId,
+                    // El desenfoque progresivo. 200 dp y radio 32 dp, los valores del original.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .align(Alignment.BottomCenter)
+                            .then(
+                                if (lean) {
+                                    Modifier
+                                } else {
+                                    Modifier.hazeEffect(heroHaze) {
+                                        blurRadius = 32.dp
+                                        progressive = HazeProgressive.verticalGradient(
+                                            startIntensity = 0f,
+                                            endIntensity = 1f,
                                         )
                                     }
-                                    .forEach { insert(it) }
-                            }
-                        }
-                    }
-                },
-                accent = false,
-                // Saving a playlist that has no songs yet would store an empty one; un-saving an already
-                // saved playlist stays available because it touches no song rows.
-                enabled = songs.isNotEmpty() || dbPlaylist != null,
-                modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
-            )
-            // 🔴 EL BOTÓN DE DESCARGA SE FUE AL MENÚ (punto 5 del dueño, 2026-09-17: *"eliminar el
-            // botón de descarga principal de la vista y mover esta función exclusivamente dentro del
-            // menú desplegable de los tres puntos"*).
-            //
-            // Nada se pierde: el menú ⋮ de esta pantalla YA tenía "Descargar" con su descripción
-            // (`YouTubePlaylistMenu`), y esa entrada es la que hace el mismo trabajo. Este círculo era
-            // un duplicado que ocupaba un sitio de la fila de acciones — la misma razón por la que en
-            // 2026-09-13 quitó Ajustes de la barra de abajo: *"no me gusta el que está en la barra,
-            // elíminalo y solo deja el de arriba"*.
-            AuraHeaderCircleButton(
-                icon = AuraIcons.Share,
-                contentDescription = stringResource(R.string.share),
-                onClick = {
-                    val intent = Intent().apply {
-                        action = Intent.ACTION_SEND
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, playlist.shareLink)
-                    }
-                    context.startActivity(Intent.createChooser(intent, null))
-                },
-                modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
-            )
-            AuraHeaderCircleButton(
-                icon = AuraIcons.Search,
-                contentDescription = stringResource(R.string.search),
-                onClick = onSearch,
-                modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
-            )
-            AuraHeaderCircleButton(
-                icon = AuraIcons.More,
-                contentDescription = stringResource(R.string.more_options),
-                onClick = {
-                    menuState.show {
-                        YouTubePlaylistMenu(
-                            playlist = playlist,
-                            songs = songs,
-                            coroutineScope = coroutineScope,
-                            onDismiss = menuState::dismiss,
-                        )
-                    }
-                },
-                modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
-            )
+                                },
+                            ),
+                    )
+
+                    // El oscurecido, APARTE y más alto que el desenfoque — ver arriba.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(heroWidth * 0.7f)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, AuraPalette.Ground.copy(alpha = HERO_SCRIM_ALPHA)),
+                                ),
+                            ),
+                    )
+                }
+            }
+
+                Spacer(Modifier.height(18.dp))
+
+                info()
+            }
         }
     }
 }

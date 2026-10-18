@@ -96,4 +96,20 @@ class AuraWideChromeTest {
         assertTrue(auraHeaderFitsOneRow(titleWidth = 100, actionsWidth = 100, availableWidth = 221, gap = 21))
         assertTrue(!auraHeaderFitsOneRow(titleWidth = 100, actionsWidth = 100, availableWidth = 220, gap = 21))
     }
+
+    @Test
+    fun `the cover frame line softens with the cover size and keeps the full line on thumbnails`() {
+        assertEquals(1f, auraArtworkEdgeStrength(48f), 1e-6f)
+        assertEquals(1f, auraArtworkEdgeStrength(120f), 1e-6f)
+        assertEquals(ARTWORK_EDGE_MIN_STRENGTH, auraArtworkEdgeStrength(260f), 1e-6f)
+        val mid = auraArtworkEdgeStrength(180f)
+        assertTrue(mid < 1f && mid > ARTWORK_EDGE_MIN_STRENGTH)
+        // Monotonic: a bigger cover never gets a stronger line.
+        var previous = 1f
+        for (dp in 100..300 step 10) {
+            val v = auraArtworkEdgeStrength(dp.toFloat())
+            assertTrue(v <= previous + 1e-6f)
+            previous = v
+        }
+    }
 }

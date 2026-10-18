@@ -291,11 +291,14 @@ fun AuraAlbumScreen(
 
     val album = albumWithSongs
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .auraScreenBackground(bloom, intensity = 0.45f),
     ) {
+        // Wide pane (an unfolded foldable, a tablet): the cover on the left and the title / actions on its right,
+        // songs right below — instead of a stacked hero that pushed the track list off the first screen.
+        val wideTop = maxWidth >= AURA_WIDE_HERO_MIN_WIDTH
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -306,20 +309,10 @@ fun AuraAlbumScreen(
             contentPadding = PaddingValues(bottom = bottomClearance + 56.dp),
         ) {
             if (album != null && album.songs.isNotEmpty()) {
-                item(key = "aura_album_hero", contentType = "aura_album_hero") {
-                    AuraAlbumHero(
-                        thumbnailUrl = album.album.thumbnailUrl,
-                        albumId = album.album.id,
-                        canvasPrimaryUrl = canvasArtwork?.animated,
-                        canvasFallbackUrl = canvasArtwork?.videoUrl,
-                        canvasEnabled = albumCanvasEnabled,
-                        isPlaying = isPlaying,
-                        listState = listState,
-                    )
-                }
-
-                item(key = "aura_album_header", contentType = "aura_album_header") {
+                // One header, two placements: centred under the full-bleed hero (phone) or beside the cover (wide).
+                val albumHeader: @Composable (Boolean) -> Unit = { startAligned ->
                     AuraAlbumHeader(
+                        startAligned = startAligned,
                         album = album,
                         filteredSongs = filteredSongs,
                         playlistId = playlistId,
@@ -345,6 +338,46 @@ fun AuraAlbumScreen(
                             }
                         },
                     )
+                }
+
+                if (wideTop) {
+                    item(key = "aura_album_hero", contentType = "aura_album_wide_top") {
+                        val lean = rememberLeanMode()
+                        AuraWideTop(
+                            thumbnailUrl = album.album.thumbnailUrl,
+                            seed = album.album.thumbnailUrl,
+                            lean = lean,
+                            coverModifier = Modifier.auraSharedAlbumCoverElement(album.album.id),
+                            coverOverlay = if (albumCanvasEnabled &&
+                                (canvasArtwork?.animated != null || canvasArtwork?.videoUrl != null)
+                            ) {
+                                {
+                                    CanvasArtworkPlayer(
+                                        primaryUrl = canvasArtwork?.animated,
+                                        fallbackUrl = canvasArtwork?.videoUrl,
+                                        isPlaying = isPlaying,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                            } else null,
+                        ) { albumHeader(true) }
+                    }
+                } else {
+                    item(key = "aura_album_hero", contentType = "aura_album_hero") {
+                        AuraAlbumHero(
+                            thumbnailUrl = album.album.thumbnailUrl,
+                            albumId = album.album.id,
+                            canvasPrimaryUrl = canvasArtwork?.animated,
+                            canvasFallbackUrl = canvasArtwork?.videoUrl,
+                            canvasEnabled = albumCanvasEnabled,
+                            isPlaying = isPlaying,
+                            listState = listState,
+                        )
+                    }
+
+                    item(key = "aura_album_header", contentType = "aura_album_header") {
+                        albumHeader(false)
+                    }
                 }
 
                 if (filteredSongs.isNotEmpty()) {
@@ -686,9 +719,9 @@ fun AuraAlbumScreen(
  * hero translates and fades without recomposing anything, which is what keeps a scrolling album off
  * the thermal budget.
  *
- * A pane ≥ 840 dp (the expanded breakpoint, measured on the CONTENT pane so a narrow split-screen
- * still behaves like a phone) gets the wide hero (see AuraWideHero.kt) instead of a full-width square — the
- * same rule the classic header applies, for the same reason: a square hero on a TV eats the screen.
+ * A wide pane (see [AURA_WIDE_HERO_MIN_WIDTH], measured on the CONTENT pane so a narrow split-screen still behaves
+ * like a phone) does not use this hero at all: the screen draws [AuraWideTop] (AuraWideHero.kt) — cover on the
+ * left, title and actions on its right — because a full-width square hero on a foldable or a TV eats the screen.
  */
 @Composable
 private fun AuraAlbumHero(
@@ -705,11 +738,10 @@ private fun AuraAlbumHero(
         // Hoisted: inside the inner Box the closest implicit receiver is BoxScope, not
         // BoxWithConstraintsScope, so `maxWidth` cannot be reached there without an explicit receiver.
         val heroWidth = maxWidth
-        val isWideHero = heroWidth >= AURA_WIDE_HERO_MIN_WIDTH
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (isWideHero) Modifier.height(AURA_WIDE_HERO_HEIGHT) else Modifier.aspectRatio(1f))
+                .aspectRatio(1f)
                 .graphicsLayer {
                     val scrolled = if (listState.firstVisibleItemIndex == 0) {
                         listState.firstVisibleItemScrollOffset.toFloat()
@@ -720,10 +752,7 @@ private fun AuraAlbumHero(
                     alpha = (1f - scrolled / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
                 }
                 // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
-                .then(
-                    // The wide hero dissolves over a shorter stretch so the whole cover stays above it.
-                    if (isWideHero) Modifier.auraHeroDissolve(AURA_WIDE_HERO_DISSOLVE) else Modifier.auraHeroDissolve(),
-                ),
+                .auraHeroDissolve(),
         ) {
             // 🔴 EL MISMO CRISTAL QUE LA PORTADA DE ARTISTA (dueño, 2026-09-17, punto 8:
             // *"aplicar el mismo estilo y efecto de cristal borroso que tienen las portadas de los
@@ -747,32 +776,18 @@ private fun AuraAlbumHero(
             // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
             val lean = rememberLeanMode()
             Box(modifier = Modifier.fillMaxSize().then(if (lean) Modifier else Modifier.hazeSource(heroHaze))) {
-                if (isWideHero) {
-                    // WIDE: the cover whole over a soft copy of itself — see [AuraWideHeroCover].
-                    AuraWideHeroCover(
-                        thumbnailUrl = thumbnailUrl,
-                        heroWidth = heroWidth,
-                        seed = thumbnailUrl,
-                        lean = lean,
-                        // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
-                        coverModifier = if (albumId != null) {
-                            Modifier.auraSharedAlbumCoverElement(albumId)
-                        } else Modifier,
-                    )
-                } else {
-                    AuraCover(
-                        thumbnailUrl = thumbnailUrl,
-                        size = heroWidth,
-                        // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
-                        modifier = if (albumId != null) {
-                            Modifier.auraSharedAlbumCoverElement(albumId)
-                        } else Modifier,
-                        seed = thumbnailUrl,
-                        shape = androidx.compose.ui.graphics.RectangleShape,
-                        decodeTo = if (lean) 640 else 1200,
-                        ratio = 1f,
-                    )
-                }
+                AuraCover(
+                    thumbnailUrl = thumbnailUrl,
+                    size = heroWidth,
+                    // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
+                    modifier = if (albumId != null) {
+                        Modifier.auraSharedAlbumCoverElement(albumId)
+                    } else Modifier,
+                    seed = thumbnailUrl,
+                    shape = androidx.compose.ui.graphics.RectangleShape,
+                    decodeTo = if (lean) 640 else 1200,
+                    ratio = 1f,
+                )
 
                 if (canvasEnabled && (canvasPrimaryUrl != null || canvasFallbackUrl != null)) {
                     CanvasArtworkPlayer(
@@ -812,7 +827,7 @@ private fun AuraAlbumHero(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((if (isWideHero) AURA_WIDE_HERO_HEIGHT else heroWidth) * 0.7f)
+                    .height(heroWidth * 0.7f)
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(
@@ -847,6 +862,8 @@ private fun AuraAlbumHeader(
     onOpenArtist: (String) -> Unit,
     onToggleSave: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Wide layout: text starts at the left of the column beside the cover instead of centring under it. */
+    startAligned: Boolean = false,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
 
@@ -892,8 +909,8 @@ private fun AuraAlbumHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = AuraSpacing.Gutter),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(horizontal = if (startAligned) 0.dp else AuraSpacing.Gutter),
+        horizontalAlignment = if (startAligned) Alignment.Start else Alignment.CenterHorizontally,
     ) {
         Text(
             text = album.album.title,
@@ -901,7 +918,8 @@ private fun AuraAlbumHeader(
             color = AuraPalette.OnGround,
             maxLines = 2,
             overflow = AuraDefaultOverflow,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = if (startAligned) androidx.compose.ui.text.style.TextAlign.Start
+            else androidx.compose.ui.text.style.TextAlign.Center,
         )
 
         val singleArtist = album.artists.singleOrNull()

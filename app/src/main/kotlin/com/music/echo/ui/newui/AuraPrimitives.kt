@@ -619,12 +619,31 @@ fun Modifier.auraArtworkEdge(
         drawContent()
         // ~1.7 px at 2.6x, never thinner than 1.5 px: Apple Music's measured line (see [AuraPalette.ArtworkRing]).
         val hairline = 0.75.dp.toPx().coerceAtLeast(1.7f)
+        // A big cover with the same bright outline as a thumbnail reads as a white box around it (owner 2026-10-18,
+        // the album page): the line softens with the cover's size. Thumbnails keep the full line.
+        val strength = auraArtworkEdgeStrength(size.minDimension / density)
         drawOutline(
             outline = shape.createOutline(size, layoutDirection, this),
-            color = color,
+            color = color.copy(alpha = color.alpha * strength),
             style = Stroke(width = hairline * 2f),
         )
     }
+
+/** Covers up to this size (dp) keep the full frame line. */
+internal const val ARTWORK_EDGE_FULL_UP_TO_DP = 120f
+
+/** From this size (dp) up the frame line stays at [ARTWORK_EDGE_MIN_STRENGTH]. */
+internal const val ARTWORK_EDGE_SOFTEST_FROM_DP = 240f
+
+internal const val ARTWORK_EDGE_MIN_STRENGTH = 0.35f
+
+/** 1 for a thumbnail, falling linearly to [ARTWORK_EDGE_MIN_STRENGTH] for a big cover. Pure: a test pins it. */
+internal fun auraArtworkEdgeStrength(sizeDp: Float): Float {
+    if (sizeDp <= ARTWORK_EDGE_FULL_UP_TO_DP) return 1f
+    if (sizeDp >= ARTWORK_EDGE_SOFTEST_FROM_DP) return ARTWORK_EDGE_MIN_STRENGTH
+    val t = (sizeDp - ARTWORK_EDGE_FULL_UP_TO_DP) / (ARTWORK_EDGE_SOFTEST_FROM_DP - ARTWORK_EDGE_FULL_UP_TO_DP)
+    return 1f - t * (1f - ARTWORK_EDGE_MIN_STRENGTH)
+}
 
 // ── Internals ─────────────────────────────────────────────────────────────────────────────────────
 
