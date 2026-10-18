@@ -1241,6 +1241,20 @@
     <string name="music_request_suggestion_drive">Para un viaje largo</string>
     <string name="music_request_suggestion_party">Para prender la fiesta</string>
     <string name="music_request_recent_label">Pedir de nuevo</string>
+    <string name="music_request_clear_history">Borrar todo</string>
+    <string name="music_request_remove_entry">Quitar del historial</string>
+    <string name="music_request_suggestion_like_artist">Algo parecido a %1$s</string>
+    <string name="music_request_suggestion_morning">Para empezar la mañana</string>
+    <string name="music_request_suggestion_afternoon">Para la tarde</string>
+    <string name="music_request_suggestion_night">Para esta noche</string>
+    <string name="music_request_suggestion_focus">Para concentrarme y trabajar</string>
+    <string name="music_request_suggestion_rain">Para un día de lluvia</string>
+    <string name="music_request_suggestion_sunday">Para un domingo tranquilo</string>
+    <string name="music_request_suggestion_cleaning">Para limpiar la casa</string>
+    <string name="music_request_suggestion_throwback">Éxitos de los 2000</string>
+    <string name="music_request_suggestion_deepcuts">Joyas escondidas</string>
+    <string name="music_request_suggestion_worship">Alabanza para empezar el día</string>
+    <string name="music_request_suggestion_new">Lo más nuevo</string>
     <!-- Fila 356: el estilo que sigue la cola inteligente -->
     <string name="style_follow_label">Siguiendo: %1$s</string>
     <string name="style_follow_christian">cristiana</string>

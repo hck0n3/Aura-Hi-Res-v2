@@ -1352,6 +1352,20 @@
     <string name="music_request_suggestion_drive">For a long drive</string>
     <string name="music_request_suggestion_party">To get the party going</string>
     <string name="music_request_recent_label">Ask again</string>
+    <string name="music_request_clear_history">Clear all</string>
+    <string name="music_request_remove_entry">Remove from history</string>
+    <string name="music_request_suggestion_like_artist">Something like %1$s</string>
+    <string name="music_request_suggestion_morning">To start the morning</string>
+    <string name="music_request_suggestion_afternoon">For the afternoon</string>
+    <string name="music_request_suggestion_night">For tonight</string>
+    <string name="music_request_suggestion_focus">To focus and work</string>
+    <string name="music_request_suggestion_rain">For a rainy day</string>
+    <string name="music_request_suggestion_sunday">For a quiet Sunday</string>
+    <string name="music_request_suggestion_cleaning">To clean the house</string>
+    <string name="music_request_suggestion_throwback">Hits from the 2000s</string>
+    <string name="music_request_suggestion_deepcuts">Hidden gems</string>
+    <string name="music_request_suggestion_worship">Worship to start the day</string>
+    <string name="music_request_suggestion_new">The latest releases</string>
     <!-- Fila 356: the style the smart queue follows -->
     <string name="style_follow_label">Following: %1$s</string>
     <string name="style_follow_christian">Christian</string>

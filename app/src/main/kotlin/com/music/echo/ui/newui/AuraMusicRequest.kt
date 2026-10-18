@@ -337,32 +337,76 @@ private fun AuraMusicRequestSheetBody(
 
         // HISTORIAL / "OTRA TANDA" (ronda 6, dueño): repetir la última petición sin reescribirla es
         // "otra tanda" (canciones distintas, gracias al TTL de MusicRequestRecents); repetir una
-        // anterior es el historial — el mismo mecanismo cubre las dos. `remember` sin claves: se lee
-        // una vez al abrir la hoja, que es cuando importa; no hace falta que se actualice mientras la
-        // hoja sigue abierta y el usuario todavía no mandó nada nuevo.
-        val recentPrompts = remember { MusicRequestHistory.recentPrompts() }
+        // anterior es el historial — el mismo mecanismo cubre las dos.
+        //
+        // 2026-10-18 (dueño): cada petición ya completada se puede QUITAR por separado (la ✕ de su
+        // chip) o todas a la vez ("Borrar todo"). La lista es observable: antes se leía una sola vez al
+        // abrir la hoja y una entrada quitada se habría quedado en pantalla.
+        val recentPrompts by MusicRequestHistory.prompts.collectAsState()
         if (recentPrompts.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = stringResource(R.string.music_request_recent_label),
-                    style = AuraType.MiniArtist,
-                    color = AuraPalette.OnGroundMuted,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.music_request_recent_label),
+                        style = AuraType.MiniArtist,
+                        color = AuraPalette.OnGroundMuted,
+                    )
+                    Text(
+                        text = stringResource(R.string.music_request_clear_history),
+                        style = AuraType.MiniArtist,
+                        color = AuraPalette.Teal,
+                        modifier = Modifier
+                            .clip(AuraShapes.Pill)
+                            .auraClickableInternal(
+                                onClick = { MusicRequestHistory.clear() },
+                                contentDescription = stringResource(R.string.music_request_clear_history),
+                            )
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
                 ) {
                     recentPrompts.forEach { text ->
-                        AuraChip(
-                            text = "↻ $text",
-                            selected = false,
-                            onClick = {
-                                prompt = text
-                                send(text)
-                            },
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            AuraChip(
+                                text = "↻ $text",
+                                selected = false,
+                                onClick = {
+                                    prompt = text
+                                    send(text)
+                                },
+                            )
+                            // Quita SOLO esta petición: no toca las demás ni lo que ya suena.
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .auraClickableInternal(
+                                        onClick = { MusicRequestHistory.remove(text) },
+                                        contentDescription = stringResource(R.string.music_request_remove_entry),
+                                    ),
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.close),
+                                    contentDescription = null,
+                                    tint = AuraPalette.OnGroundFaint,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -371,14 +415,28 @@ private fun AuraMusicRequestSheetBody(
         // LAS SUGERENCIAS, que es lo que de verdad quita el "muy básico": un campo vacío en una
         // pantalla de música no dice qué se le puede pedir. Al tocar una, se pide directamente —
         // no rellena el campo para que él tenga que darle a otra cosa.
+        //
+        // 2026-10-18: ya no son cinco fijas. YouTube Music personaliza con lo que escuchas y lo que está
+        // sonando, y rota sus ejemplos. Aquí: hasta dos PERSONALES primero (el momento del día y «algo
+        // parecido a» lo que suena ahora) y luego seis tomadas al azar de un fondo de catorce, distintas
+        // cada vez que se abre la hoja. Las cinco de siempre siguen en el fondo.
+        val playerConnection = LocalPlayerConnection.current
+        val currentArtist = remember {
+            playerConnection?.mediaMetadata?.value?.artists?.firstOrNull()?.name?.takeIf { it.isNotBlank() }
+        }
+        val suggestions = remember(currentArtist) { musicRequestSuggestions(currentArtist) }
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
         ) {
-            musicRequestSuggestions().forEach { suggestionRes ->
-                val text = stringResource(suggestionRes)
+            suggestions.forEach { suggestion ->
+                val text = if (suggestion.arg != null) {
+                    stringResource(suggestion.res, suggestion.arg)
+                } else {
+                    stringResource(suggestion.res)
+                }
                 AuraChip(
                     text = text,
                     selected = false,
@@ -426,17 +484,43 @@ private fun AuraMusicRequestSheetBody(
     }
 }
 
+/** Una sugerencia: su texto y, si lo lleva, el dato que se mete en él (el artista que suena). */
+private class MusicRequestSuggestion(val res: Int, val arg: String? = null)
+
 /**
- * Las sugerencias de la hoja.
+ * Las sugerencias de la hoja: son descripciones de MOMENTO ("para estudiar", "para el gimnasio") en vez de
+ * géneros, porque es lo que esta función hace mejor que la búsqueda normal — un género ya se busca
+ * escribiéndolo.
  *
- * Cinco y no quince: son para arrancar, no un catálogo. Y son descripciones de MOMENTO ("para
- * estudiar", "para el gimnasio") en vez de géneros, porque es lo que esta función hace mejor que la
- * búsqueda normal — un género ya se busca escribiéndolo.
+ * Personales primero (el momento del día y, si suena algo, «algo parecido a <artista>»), y después seis del
+ * fondo, al azar. Se calcula UNA vez por apertura de la hoja (`remember`): las chips no cambian de sitio
+ * mientras se miran.
  */
-private fun musicRequestSuggestions(): List<Int> = listOf(
-    R.string.music_request_suggestion_study,
-    R.string.music_request_suggestion_gym,
-    R.string.music_request_suggestion_sleep,
-    R.string.music_request_suggestion_drive,
-    R.string.music_request_suggestion_party,
-)
+private fun musicRequestSuggestions(currentArtist: String?): List<MusicRequestSuggestion> {
+    val hour = java.time.LocalTime.now().hour
+    val timeOfDay = when (hour) {
+        in 5..11 -> R.string.music_request_suggestion_morning
+        in 12..18 -> R.string.music_request_suggestion_afternoon
+        else -> R.string.music_request_suggestion_night
+    }
+    val personal = buildList {
+        currentArtist?.let { add(MusicRequestSuggestion(R.string.music_request_suggestion_like_artist, it)) }
+        add(MusicRequestSuggestion(timeOfDay))
+    }
+    val pool = listOf(
+        R.string.music_request_suggestion_study,
+        R.string.music_request_suggestion_gym,
+        R.string.music_request_suggestion_sleep,
+        R.string.music_request_suggestion_drive,
+        R.string.music_request_suggestion_party,
+        R.string.music_request_suggestion_focus,
+        R.string.music_request_suggestion_rain,
+        R.string.music_request_suggestion_sunday,
+        R.string.music_request_suggestion_cleaning,
+        R.string.music_request_suggestion_throwback,
+        R.string.music_request_suggestion_deepcuts,
+        R.string.music_request_suggestion_worship,
+        R.string.music_request_suggestion_new,
+    ).shuffled().take(6).map { MusicRequestSuggestion(it) }
+    return personal + pool
+}

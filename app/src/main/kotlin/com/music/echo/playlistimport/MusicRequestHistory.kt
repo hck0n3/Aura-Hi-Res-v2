@@ -18,6 +18,13 @@ object MusicRequestHistory {
 
     private val recent = ArrayDeque<String>()
 
+    /**
+     * La misma lista, observable: la hoja se queda abierta mientras se quita una entrada, y con la lectura
+     * única de antes la entrada quitada seguía en pantalla hasta cerrar y volver a abrir.
+     */
+    private val _prompts = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
+    val prompts: kotlinx.coroutines.flow.StateFlow<List<String>> = _prompts
+
     /** Registra una petición que sí produjo resultado. Sin duplicados: repetir una mueve al frente. */
     @Synchronized
     fun record(prompt: String) {
@@ -26,6 +33,25 @@ object MusicRequestHistory {
         recent.removeAll { it.equals(trimmed, ignoreCase = true) }
         recent.addFirst(trimmed)
         while (recent.size > MAX_ENTRIES) recent.removeLast()
+        _prompts.value = recent.toList()
+    }
+
+    /**
+     * Quita UNA petición del historial (dueño, 2026-10-18: que se pueda eliminar del historial una petición ya
+     * completada, de manera independiente). No toca las demás ni lo que ya suena.
+     */
+    @Synchronized
+    fun remove(prompt: String) {
+        if (recent.removeAll { it.equals(prompt.trim(), ignoreCase = true) }) {
+            _prompts.value = recent.toList()
+        }
+    }
+
+    /** Borra todo el historial. */
+    @Synchronized
+    fun clear() {
+        recent.clear()
+        _prompts.value = emptyList()
     }
 
     /** Las peticiones recientes, más nueva primero. */
