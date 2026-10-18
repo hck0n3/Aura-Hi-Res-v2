@@ -790,11 +790,14 @@ fun AuraCoverCard(
             badge?.invoke(this)
         }
         Spacer(Modifier.height(10.dp))
-        // Fixed 2-line title + 1-line subtitle so every shelf card shares the same baseline
-        // (short titles used to collapse the stack and make double-row grids look uneven).
+        // The title takes the lines it NEEDS (one for a short name, two at most — all of them for [fullTitle])
+        // and the artist sits right under it. This used to reserve a fixed two-line block, so every
+        // one-line title left an empty line between it and its artist (owner screenshots 2026-10-18: the
+        // gap read as a layout bug). Cards in one shelf are top-aligned; only a name that really wraps
+        // moves its own subtitle down.
         val density = LocalDensity.current
         // +2.dp slack: a Box height equal to lineHeight alone clips glyph bottoms (album years).
-        val titleBlockHeight = with(density) { (AuraType.CoverTitle.lineHeight * 2).toDp() } + 2.dp
+        val titleMinHeight = with(density) { AuraType.CoverTitle.lineHeight.toDp() } + 2.dp
         val subtitleBlockHeight = with(density) { AuraType.RowSubtitle.lineHeight.toDp() } + 2.dp
         Text(
             text = title,
@@ -804,10 +807,7 @@ fun AuraCoverCard(
             overflow = AuraDefaultOverflow,
             modifier = Modifier
                 .fillMaxWidth()
-                .then(
-                    if (fullTitle) Modifier.heightIn(min = titleBlockHeight)
-                    else Modifier.height(titleBlockHeight),
-                ),
+                .heightIn(min = titleMinHeight),
         )
         Box(
             modifier = Modifier
