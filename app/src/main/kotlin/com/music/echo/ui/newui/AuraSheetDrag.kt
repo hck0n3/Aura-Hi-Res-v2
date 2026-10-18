@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -50,15 +51,21 @@ class AuraSheetDragState {
     /** Cuánto ha bajado la hoja respecto a su sitio, en píxeles (>= 0). */
     var offsetPx by mutableFloatStateOf(0f)
 
-    /** Para fijar el cálculo del umbral en un test sin Compose: ¿este arrastre cierra la hoja? */
     companion object {
         val DISMISS_DISTANCE: Dp = 96.dp
         const val DISMISS_VELOCITY_PX_PER_S = 1500f
 
+        /** ¿Este arrastre cierra la hoja? Separado para fijarlo en un test sin Compose. */
         fun shouldDismiss(offsetPx: Float, velocityPxPerS: Float, dismissDistancePx: Float): Boolean =
             offsetPx > dismissDistancePx || velocityPxPerS > DISMISS_VELOCITY_PX_PER_S
     }
 }
+
+/**
+ * true dentro del panel compacto de la búsqueda rápida ([BottomSheetPageState.spotlight]): el contenido se mide a sí
+ * mismo en vez de llenar la pantalla (sin título, resultados que solo ocupan lo que necesitan).
+ */
+val LocalAuraSpotlightSheet = compositionLocalOf { false }
 
 @Composable
 fun rememberAuraSheetDragState(): AuraSheetDragState = remember { AuraSheetDragState() }

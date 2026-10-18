@@ -1959,8 +1959,8 @@ private fun AuraPlayerShape(
                         icon = AuraIcons.Search,
                         contentDescription = stringResource(R.string.search),
                         onClick = {
-                            // Full screen (owner 2026-09-13): more room for results with the keyboard up.
-                            bottomSheetPageState.show(fullScreen = true) {
+                            // Compact Spotlight-style panel (owner 2026-10-18); it grows with the results and stays above the keyboard.
+                            bottomSheetPageState.show(spotlight = true) {
                                 AuraPlayerQuickSearchContent(
                                     navController = navController,
                                     onDismiss = bottomSheetPageState::dismiss,

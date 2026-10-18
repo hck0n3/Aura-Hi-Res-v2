@@ -92,6 +92,9 @@ fun AuraPlayerQuickSearchContent(
     val context = LocalContext.current
     val database = LocalDatabase.current
     val playerConnection = LocalPlayerConnection.current ?: return
+    // Panel compacto estilo Spotlight (dueño 2026-10-18): se mide a sí mismo, sin título, y los resultados ocupan
+    // solo lo que necesitan (`weight(fill = false)`), no todo el alto disponible.
+    val compact = LocalAuraSpotlightSheet.current
     val menuState = LocalMenuState.current
     val keyboardController = LocalSoftwareKeyboardController.current
     // Owner 2026-09-13: touching a suggestion or a result hides the keyboard so the content is visible.
@@ -247,15 +250,17 @@ fun AuraPlayerQuickSearchContent(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = if (compact) modifier.fillMaxWidth() else modifier.fillMaxSize()) {
         when (val page = browseTop) {
             is QuickSearchBrowse.Search -> {
-                Text(
-                    text = stringResource(R.string.search),
-                    style = AuraType.ScreenTitle,
-                    color = AuraPalette.OnGround,
-                    modifier = Modifier.padding(horizontal = AuraSpacing.Gutter, vertical = 4.dp),
-                )
+                if (!compact) {
+                    Text(
+                        text = stringResource(R.string.search),
+                        style = AuraType.ScreenTitle,
+                        color = AuraPalette.OnGround,
+                        modifier = Modifier.padding(horizontal = AuraSpacing.Gutter, vertical = 4.dp),
+                    )
+                }
 
                 AuraSearchInputBar(
                     value = query,
@@ -298,7 +303,7 @@ fun AuraPlayerQuickSearchContent(
                             onDismiss = onDismiss,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f)
+                                .weight(1f, fill = !compact)
                                 .then(hideKeyboardOnTouch),
                         )
                     }
@@ -331,7 +336,7 @@ fun AuraPlayerQuickSearchContent(
                                 onItemMenu = openYtMenu,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(1f)
+                                    .weight(1f, fill = !compact)
                                 .then(hideKeyboardOnTouch),
                             )
                         } else {
@@ -356,7 +361,7 @@ fun AuraPlayerQuickSearchContent(
                                 onItemMenu = openYtMenu,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(1f)
+                                    .weight(1f, fill = !compact)
                                 .then(hideKeyboardOnTouch),
                             )
                         }
@@ -390,7 +395,7 @@ fun AuraPlayerQuickSearchContent(
                     onItemMenu = openYtMenu,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
+                        .weight(1f, fill = !compact)
                                 .then(hideKeyboardOnTouch),
                 )
             }

@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.foundation.layout.widthIn
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
+import iad1tya.echo.music.ui.newui.LocalAuraSpotlightSheet
 import iad1tya.echo.music.ui.newui.LocalOverlayHazeState
 import iad1tya.echo.music.ui.newui.auraFloatingContainerColor
 import iad1tya.echo.music.ui.newui.auraFloatingContentColor
@@ -68,8 +70,16 @@ class BottomSheetPageState(
     /** Full-screen page (the player's quick search) instead of the 85 % floating sheet. */
     var fullScreen by mutableStateOf(false)
 
-    fun show(fullScreen: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    /**
+     * Panel compacto estilo Spotlight de macOS (la búsqueda rápida del reproductor, dueño 2026-10-18): flota arriba,
+     * centrado y con ancho máximo, mide su contenido y solo crece cuando hay resultados. Sustituye a [fullScreen] en
+     * quien lo pida; el contenido lo sabe por [LocalAuraSpotlightSheet].
+     */
+    var spotlight by mutableStateOf(false)
+
+    fun show(fullScreen: Boolean = false, spotlight: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
         this.fullScreen = fullScreen
+        this.spotlight = spotlight
         isVisible = true
         this.content = content
     }
@@ -120,6 +130,10 @@ fun BottomSheetPage(
             }
             backDispatcher?.addCallback(callback)
             onDispose { callback.remove() }
+        }
+        if (state.spotlight) {
+            AuraSpotlightHost(modifier = modifier, state = state, visible = visible, hazeState = shellHazeState)
+            return
         }
         androidx.compose.animation.AnimatedVisibility(
             visible = visible,
@@ -247,6 +261,90 @@ fun BottomSheetPage(
                     .padding(bottom = 16.dp),
             ) {
                 state.content(this)
+            }
+        }
+    }
+}
+
+/**
+ * El panel compacto de la búsqueda rápida (estilo Spotlight de macOS; dueño, 2026-10-18: *«no me gusta cómo sale la
+ * búsqueda, creo que la puedes hacer más compacta al estilo de la búsqueda en macOS»*). Antes era una hoja a pantalla
+ * completa que, con la ventana ancha de un plegable, dejaba medio metro de nada debajo del campo.
+ *
+ * Flota arriba y centrada (ancho máximo 640 dp), mide lo que mide su contenido (campo + sugerencias; crece con los
+ * resultados) y nunca pasa del 72 % de la pantalla ni se mete debajo del teclado. Sin barrita: se cierra tocando fuera,
+ * con atrás o con la flecha del campo. Mismo material que el resto de láminas flotantes (placa opaca + cristal + línea).
+ */
+@Composable
+private fun AuraSpotlightHost(
+    modifier: Modifier,
+    state: BottomSheetPageState,
+    visible: Boolean,
+    hazeState: dev.chrisbanes.haze.HazeState,
+) {
+    val focusManager = LocalFocusManager.current
+    val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(160)),
+        exit = fadeOut(animationSpec = tween(140)),
+    ) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(auraFloatingScrimColor())
+                .pointerInput(Unit) {
+                    detectTapGestures { focusManager.clearFocus(); state.dismiss() }
+                },
+        ) {
+            // El área ya descuenta barra de estado y teclado: la hoja nunca queda tapada por el teclado.
+            androidx.compose.foundation.layout.BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+            ) {
+                val cap = minOf(maxHeight, (screenHeightDp * 0.72f).dp)
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = visible,
+                    enter = slideInVertically(animationSpec = tween(200)) { -it / 4 } +
+                        fadeIn(animationSpec = tween(160)),
+                    exit = slideOutVertically(animationSpec = tween(160)) { -it / 4 } +
+                        fadeOut(animationSpec = tween(120)),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
+                        .widthIn(max = 640.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = cap),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            // Clip ANTES del cristal (un recorte interior deja esquinas cuadradas bajo el efecto).
+                            .clip(AuraShapes.Card)
+                            .background(AuraPalette.FloatingFill)
+                            .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
+                            .shellGlass(hazeState)
+                            // Un toque en el panel no debe llegar al cierre del fondo.
+                            .pointerInput(Unit) { detectTapGestures { } },
+                    ) {
+                        CompositionLocalProvider(
+                            LocalAuraFloatingChrome provides true,
+                            LocalAuraSpotlightSheet provides true,
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp)
+                                    .padding(top = 12.dp, bottom = 8.dp),
+                            ) {
+                                state.content(this)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
