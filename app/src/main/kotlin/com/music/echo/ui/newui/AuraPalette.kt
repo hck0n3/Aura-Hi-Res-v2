@@ -1000,10 +1000,10 @@ fun auraArtworkGround(seed: Color): Color = Color(AuraCoverMix.colouredGroundArg
 internal const val COVER_GLASS_ACCENT_ALPHA = 0.10f
 
 /** Brightness (HSV value) of the cover-coloured glass: deep enough that light labels stay AA on it. */
-internal const val COVER_GLASS_VALUE = 0.34f
+internal const val COVER_GLASS_VALUE = 0.30f
 
 /** How much of that deep shade replaces the plain raised ground. */
-internal const val COVER_GLASS_MIX = 0.66f
+internal const val COVER_GLASS_MIX = 0.84f
 
 /**
  * A cover with any colour at all gets at least this saturation in the glass: the accent is lightened to stay AA on the
@@ -1021,7 +1021,7 @@ internal const val COVER_GLASS_GREY_BELOW = 0.12f
 internal const val COVER_GLASS_MAX_LUMINANCE = 0.034f
 
 /** The secondary ink (58 % of the cover-tinted ink) keeps at least this contrast on the glass; WCAG AA is 4.5. */
-internal const val COVER_GLASS_MIN_MUTED_CONTRAST = 4.6f
+internal const val COVER_GLASS_MIN_MUTED_CONTRAST = 4.5f
 
 /**
  * The glass tint for a cover whose accent is [accent], over the chrome's plain [ground]: the accent's hue and
