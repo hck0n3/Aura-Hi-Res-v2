@@ -1,43 +1,29 @@
-# Aura Hi-Res v2.0.65-beta14 — Años y géneros que se respetan, segunda opción en Pedir música, sin conexión con álbumes y listas
+# Aura Hi-Res v2.0.65-beta15 — «Ir a la lista» en el reproductor, listas con diseño de álbum y carrusel más apretado
 
-Beta encima de la 2.0.65-beta13. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta14. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Pedir música
+## Reproductor y navegación
 
-- **Los años que pides se respetan:** «del 2004 a 2010», «años 70 y 80», «desde 2015», «antes de 2000»… Cada canción se comprueba con el
-  año de su álbum y las de fuera del rango no suenan. Si no se conoce el año de alguna, solo rellena y va al final. La cola que
-  continúa la petición también conserva los años (ya no se va a música reciente).
-- **Más géneros, y los nuevos se piden tal cual:** «corridos tumbados» ya no se convierte en corridos normales, y se reconocen
-  phonk, hyperpop, city pop, synthwave, shoegaze, emo, post-punk, grupera, tejano, plena, trova, MPB, trip hop, UK garage,
-  hardstyle, bandas sonoras, infantil y más. Un género que no conoce lo busca literal, sin cambiarlo por otro.
-- **Bossa nova y géneros vecinos:** un artista de bossa archivado como «Jazz» ya no se descarta.
-- **Segunda opción:** desliza la tarjeta del resultado hacia el lado y verás otra lista para la misma petición, sin las
-  canciones de la primera. Escúchala o guárdala como lista. Solo se busca cuando llegas a ella.
-- **Portadas en el listado,** y un apilado con las tres primeras en la cabecera; la tarjeta tiene un fondo con degradado del color del tema.
-- **El dictado espera a que te calles:** ya no busca a mitad de frase. Hay un botón «OK» para enviar ya.
+- **«Ir a la lista»:** toca el nombre del artista bajo el título; si la canción suena desde una lista (tuya o una que sigues), aparece
+  un tercer botón junto a «Ver álbum» y «Ver artista» que te lleva a esa lista. En un álbum o en una petición no aparece.
+- **Menos pasos para volver:** «Ver álbum», «Ver artista» e «Ir a la lista» ya no apilan otra copia de la página en la que ya estás;
+  el reproductor se pliega encima y un solo «atrás» te devuelve a donde estabas.
 
-## Reproducción y Cast
+## Diseño
 
-- **Una pausa tuya no la deshace nada:** conectar cascos, el reloj o el coche ya no arranca la música que pausaste a propósito.
-  (Si vuelve a pasar, Ajustes ▸ Registros dirá por qué puerta.)
-- **El botón de Cast tiene una zona táctil más grande** (64 dp): debe responder al primer toque.
+- **Listas en el móvil sin desplegar:** la cabecera de tus listas usa el diseño de los álbumes — la portada a pantalla completa que se
+  disuelve en la página (con el mosaico de cuatro portadas si la lista tiene varias) y el título y los botones centrados debajo.
+  El lápiz de cambiar portada sigue ahí.
+- **Carrusel de Inicio con el móvil desplegado:** las portadas se ajustan al ancho y caben unas seis y media, pegadas, con la
+  siguiente asomando por la derecha.
 
-## Sin conexión
+## Cola inteligente y cola guardada
 
-- **Álbumes y listas descargados, siempre a la vista:** el modo sin conexión (manual o automático) muestra primero «Álbumes
-  descargados» y «Listas descargadas», con cuántas canciones suenan sin red, y luego las canciones.
+- **Cola inteligente:** lo que ya se sabe de un artista pesa antes que el hecho de venir de una búsqueda, y una lista comunitaria de
+  relleno aporta un tramo seguido (hasta 24 canciones, en el orden de quien la hizo) en vez de cientos de canciones barajadas.
+- **La cola guardada sobrevive a las actualizaciones:** antes cada versión nueva la tiraba. Desde esta, las siguientes ya no la pierden
+  (la primera actualización a esta versión todavía la limpia una vez).
 
-## Plegable y ventanas
+## Almacenamiento
 
-- **Las ventanas flotantes toman el color de la portada** (menús, hojas, diálogos), siempre en cristal.
-- **«Añadir a lista»:** el nombre completo de cada lista y, en pantalla ancha, portadas más grandes.
-- **Tus listas, en plegable abierto,** con el diseño de los álbumes: portada a la izquierda, título y botones a su derecha.
-- **El carrusel de Inicio en plegable** empieza en el borde izquierdo y muestra más portadas a la vez.
-- **Las listas que sigues** (que no creaste tú) terminan con «También te puede gustar».
-
-## Inicio, Novedades y búsqueda
-
-- **Inicio más personal:** tu mix de género, «Porque escuchaste…» y tus favoritas olvidadas suben por encima de lo genérico.
-- **Novedades › «Lo más nuevo»** se filtra con todo tu gusto (suscripciones, lo más escuchado, tus me gusta y tu biblioteca).
-- **Historial de búsqueda:** botón «Borrar todo» en la búsqueda del reproductor y en la búsqueda general.
-- **Cola inteligente:** con dos canciones seguras del mismo estilo, las dudosas ya no se cuelan al final de cada tanda.
+- **«Borrar todas las descargas»** ahora te dice cuánto se va a borrar antes de confirmar.

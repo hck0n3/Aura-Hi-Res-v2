@@ -849,7 +849,7 @@ private fun AuraPlayerShape(
                                     artist.id
                                 }
                                 if (!browseId.isNullOrBlank()) {
-                                    navController.navigate("artist/$browseId")
+                                    navController.navigateOnce("artist/$browseId")
                                 } else {
                                     navController.navigate(
                                         "search/${URLEncoder.encode(artist.name, "UTF-8")}"
@@ -1312,6 +1312,13 @@ private fun AuraPlayerShape(
                     // the two navigations are hoisted above the row so the artist chips can open UNDER it.
                     val hasArtists = meta.artists.any { it.name.isNotBlank() }
                     var showArtistActions by remember(meta.id) { mutableStateOf(false) }
+                    // One door for every navigation that starts in the player (album, artist, playlist). Owner 2026-10-18:
+                    // «que la exploración sea lo más lógica posible». Going to the page you are ALREADY on used to push a
+                    // second copy of it, so Back needed two presses to leave; now the player just folds away over it.
+                    val navigateFromPlayer: (String) -> Unit = { route ->
+                        navController.navigateOnce(route)
+                        state.collapseAfterNavigate()
+                    }
                     val goToAlbumFromArtists: () -> Unit = {
                         resolvedAlbum?.let { album ->
                             coroutineScope.launch {
@@ -1328,8 +1335,7 @@ private fun AuraPlayerShape(
                                     album.id
                                 }
                                 if (!browseId.isNullOrBlank()) {
-                                    navController.navigate("album/$browseId")
-                                    state.collapseAfterNavigate()
+                                    navigateFromPlayer("album/$browseId")
                                 } else if (album.title.isNotBlank()) {
                                     navController.navigate(
                                         "search/${URLEncoder.encode(album.title, "UTF-8")}"
@@ -1354,8 +1360,7 @@ private fun AuraPlayerShape(
                                     artist.id
                                 }
                                 if (!browseId.isNullOrBlank()) {
-                                    navController.navigate("artist/$browseId")
-                                    state.collapseAfterNavigate()
+                                    navigateFromPlayer("artist/$browseId")
                                 } else {
                                     navController.navigate(
                                         "search/${URLEncoder.encode(artist.name, "UTF-8")}"
@@ -1525,6 +1530,20 @@ private fun AuraPlayerShape(
                                         goToArtist()
                                     },
                                 )
+                                // Owner 2026-10-18: while a song plays FROM A PLAYLIST, a third door leads back to that list.
+                                // Only for a real playlist context (`PL:` yours, `OL:` a followed one) — an album, a radio or
+                                // a request would be a chip that leads nowhere.
+                                val playlistRoute = PlayerPlaylistRoute.of(playerConnection.shuffleContextId)
+                                if (playlistRoute != null) {
+                                    AuraChip(
+                                        text = stringResource(R.string.go_to_playlist),
+                                        selected = false,
+                                        onClick = {
+                                            showArtistActions = false
+                                            navigateFromPlayer(playlistRoute)
+                                        },
+                                    )
+                                }
                             }
                         }
                     }

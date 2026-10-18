@@ -421,7 +421,7 @@ fun AuraPlayerMenu(
                                         only.id
                                     }
                                     if (!browseId.isNullOrBlank()) {
-                                        navController.navigate("artist/$browseId")
+                                        navController.navigateOnce("artist/$browseId")
                                     } else {
                                         navController.navigate(
                                             "search/${URLEncoder.encode(only.name, "UTF-8")}"
@@ -454,7 +454,7 @@ fun AuraPlayerMenu(
                                     album.id
                                 }
                                 if (!browseId.isNullOrBlank()) {
-                                    navController.navigate("album/$browseId")
+                                    navController.navigateOnce("album/$browseId")
                                 } else if (album.title.isNotBlank()) {
                                     navController.navigate(
                                         "search/${URLEncoder.encode(album.title, "UTF-8")}"

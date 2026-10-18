@@ -153,6 +153,7 @@
     <string name="do_not_recommend_album_desc">Hide this album from your recommendations</string>
     <string name="go_to_podcast">Go to podcast</string>
     <string name="view_artist">View artist</string>
+    <string name="go_to_playlist">Go to playlist</string>
     <string name="view_album">View album</string>
     <string name="refetch">Refetch</string>
     <string name="restore_previous_lyrics">Restore previous</string>

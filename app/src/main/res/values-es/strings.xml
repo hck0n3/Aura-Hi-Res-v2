@@ -109,6 +109,7 @@
     <string name="do_not_recommend_album_desc">Ocultar este álbum de tus recomendaciones</string>
     <string name="go_to_podcast">Ir al podcast</string>
     <string name="view_artist">Ver artista</string>
+    <string name="go_to_playlist">Ir a la lista</string>
     <string name="view_album">Ver álbum</string>
     <string name="refetch">Cargar de nuevo</string>
     <string name="restore_previous_lyrics">Restaurar anteriores</string>
