@@ -16,7 +16,7 @@ páginas de desarrolladores de Amazon, Deezer o Apple: esos datos son de resúme
 | Amazon Music / Alexa | Los intents `MusicCreativeWork` traen ranuras de género, artista y tipo; **no** de época ni ánimo. Épocas y ánimos se resuelven con estaciones/listas curadas, no filtrando por año de cada canción. | developer.amazon.com (resumen del buscador) |
 | Año de una canción | YouTube Music no da año por canción, **sí por álbum** (`AlbumItem.year`). Una recopilación publicada en 2015 con canciones de 2005 dice 2015. | código de Aura (`AlbumPage.getYear`) |
 | Proyectos abiertos | `beetbox/beets` (MIT): árbol de géneros + validación por etiquetas de Last.fm. `sigma67/ytmusicapi` (MIT): cadenas `params` de los filtros. Lista de «Every Noise at Once»: congelada desde dic-2023, sin licencia declarada. MusicBrainz: nombres de género CC0; asignaciones a obras CC BY-NC-SA. No se encontró ningún proyecto abierto que convierta una frase libre en lista de reproducción. | repos y licencias leídos en `raw.githubusercontent.com` |
-| Last.fm | Sus condiciones piden acuerdo previo para uso comercial; Aura es de pago y ya trae una clave. **Decisión del dueño pendiente**, no se amplía su uso. | last.fm/api/tos |
+| Last.fm | Sus condiciones piden acuerdo previo para uso comercial. Aura no cobra por la app: pide donaciones para su desarrollo (aclaración del dueño, 2026-10-18), así que probablemente no sea «uso comercial», pero esa lectura es de Last.fm, no mía. Ya trae una clave embebida y no se amplía su uso en esta beta. | last.fm/api/tos |
 
 ## Causas reales en Aura (leídas en el código, no supuestas)
 1. **«Corridos tumbados» era un alias de «corridos»** (`MusicStyle`): la búsqueda pedía «corridos» y la comprobación daba
