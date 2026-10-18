@@ -424,6 +424,16 @@ class AuraAppearanceTest {
     }
 
     @Test
+    fun `the glass tint never gets lighter than the legibility ceiling on any hue`() {
+        val ground = Color(0xFF0A0F19)
+        for (hue in 0 until 360 step 5) {
+            val accent = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue.toFloat(), 0.9f, 0.95f)
+            val glass = coverGlassTintOf(accent, ground)
+            assertTrue("hue $hue: glass luminance ${glass.luminance()}", glass.luminance() <= COVER_GLASS_MAX_LUMINANCE + 0.002f)
+        }
+    }
+
+    @Test
     fun `a grey cover keeps a neutral glass tint`() {
         val tint = coverGlassTintOf(Color(0xFF808080), Color(0xFF0A0F19))
         assertTrue(maxOf(tint.red, tint.green, tint.blue) - minOf(tint.red, tint.green, tint.blue) < 0.06f)

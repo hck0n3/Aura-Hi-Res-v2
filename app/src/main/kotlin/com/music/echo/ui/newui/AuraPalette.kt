@@ -1000,8 +1000,15 @@ internal const val COVER_GLASS_MIX = 0.66f
  * dark ground, and lightening washes the saturation out (a pale yellow accent is nearly grey), which left some covers'
  * glass indistinguishable from the plain one. A grey cover (saturation below [COVER_GLASS_GREY_BELOW]) stays grey.
  */
-internal const val COVER_GLASS_MIN_SATURATION = 0.65f
+internal const val COVER_GLASS_MIN_SATURATION = 0.75f
 internal const val COVER_GLASS_GREY_BELOW = 0.12f
+
+/**
+ * The glass is never lighter than this (relative luminance). HSV value is not lightness: at the same value a green or a
+ * yellow is several times brighter than a blue, and the nav labels ([AuraPalette.NavInactive]) keep ≥ 4.5:1 only while
+ * the glass under them stays this dark (AuraAppearanceTest walks every hue). Bright hues are darkened until they fit.
+ */
+internal const val COVER_GLASS_MAX_LUMINANCE = 0.026f
 
 /**
  * The glass tint for a cover whose accent is [accent], over the chrome's plain [ground]: the accent's hue and
@@ -1014,10 +1021,18 @@ internal fun coverGlassTintOf(accent: Color, ground: Color): Color {
     } else {
         maxOf(saturation * 1.15f, COVER_GLASS_MIN_SATURATION).coerceAtMost(1f)
     }
-    val deep = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(
-        hue, tintedSaturation, COVER_GLASS_VALUE,
-    )
-    return deep.copy(alpha = COVER_GLASS_MIX).compositeOver(ground)
+    fun glassAt(value: Float): Color =
+        iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue, tintedSaturation, value)
+            .copy(alpha = COVER_GLASS_MIX)
+            .compositeOver(ground)
+    var value = COVER_GLASS_VALUE
+    var glass = glassAt(value)
+    var steps = 0
+    while (glass.luminance() > COVER_GLASS_MAX_LUMINANCE && steps++ < 16) {
+        value *= 0.92f
+        glass = glassAt(value)
+    }
+    return glass
 }
 
 /**
