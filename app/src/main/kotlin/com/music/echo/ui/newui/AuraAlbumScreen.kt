@@ -720,7 +720,10 @@ private fun AuraAlbumHero(
                     alpha = (1f - scrolled / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
                 }
                 // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
-                .auraHeroDissolve(if (isWideHero) AURA_WIDE_HERO_DISSOLVE else HERO_DISSOLVE_FRACTION),
+                .then(
+                    // The wide hero dissolves over a shorter stretch so the whole cover stays above it.
+                    if (isWideHero) Modifier.auraHeroDissolve(AURA_WIDE_HERO_DISSOLVE) else Modifier.auraHeroDissolve(),
+                ),
         ) {
             // 🔴 EL MISMO CRISTAL QUE LA PORTADA DE ARTISTA (dueño, 2026-09-17, punto 8:
             // *"aplicar el mismo estilo y efecto de cristal borroso que tienen las portadas de los

@@ -748,7 +748,10 @@ private fun AuraOnlinePlaylistHeader(
                     .fillMaxWidth()
                     .then(if (isWideHero) Modifier.height(AURA_WIDE_HERO_HEIGHT) else Modifier.aspectRatio(1f))
                     // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
-                    .auraHeroDissolve(if (isWideHero) AURA_WIDE_HERO_DISSOLVE else HERO_DISSOLVE_FRACTION),
+                    .then(
+                        // The wide hero dissolves over a shorter stretch so the whole cover stays above it.
+                        if (isWideHero) Modifier.auraHeroDissolve(AURA_WIDE_HERO_DISSOLVE) else Modifier.auraHeroDissolve(),
+                    ),
             ) {
                 val heroHaze = remember { HazeState() }
                 // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
