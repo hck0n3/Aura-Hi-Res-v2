@@ -1398,4 +1398,8 @@
     <string name="style_follow_cd">Change the style the queue follows</string>
     <string name="header_actions_show">Show quick actions</string>
     <string name="header_actions_hide">Hide quick actions</string>
+    <!-- Offline body: downloaded albums / playlists (registry 425) -->
+    <string name="offline_downloaded_albums">Downloaded albums</string>
+    <string name="offline_downloaded_playlists">Downloaded playlists</string>
+    <string name="offline_collection_progress">%1$d of %2$d downloaded</string>
 </resources>

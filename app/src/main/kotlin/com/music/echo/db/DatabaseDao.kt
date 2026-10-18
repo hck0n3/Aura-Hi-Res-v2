@@ -1254,6 +1254,52 @@ interface DatabaseDao {
     }.map { it.reversed(descending) }
 
     @Transaction
+    /**
+     * Albums with at least one downloaded song, newest download first — the offline body's "Álbumes descargados".
+     * Counts come from the song rows themselves (`isDownloaded`), the same flag [downloadedSongs] lists.
+     */
+    @Query(
+        """
+        SELECT album.id AS id,
+               album.title AS title,
+               album.thumbnailUrl AS thumbnailUrl,
+               COUNT(DISTINCT song.id) AS downloaded,
+               MAX(album.songCount, COUNT(DISTINCT song.id)) AS total
+        FROM album
+        JOIN song_album_map ON song_album_map.albumId = album.id
+        JOIN song ON song.id = song_album_map.songId
+        WHERE song.isDownloaded = 1
+        GROUP BY album.id
+        ORDER BY MAX(song.dateDownload) DESC
+        """,
+    )
+    fun downloadedAlbums(): Flow<List<OfflineCollection>>
+
+    /**
+     * Library playlists (bookmarked, the ones Biblioteca lists) with at least one downloaded song. The cover is the
+     * playlist's own, or the first downloaded song's when it has none.
+     */
+    @Query(
+        """
+        SELECT playlist.id AS id,
+               playlist.name AS title,
+               COALESCE(
+                   playlist.thumbnailUrl,
+                   (SELECT s.thumbnailUrl FROM playlist_song_map m JOIN song s ON s.id = m.songId
+                    WHERE m.playlistId = playlist.id AND s.isDownloaded = 1 ORDER BY m.position LIMIT 1)
+               ) AS thumbnailUrl,
+               (SELECT COUNT(DISTINCT s.id) FROM playlist_song_map m JOIN song s ON s.id = m.songId
+                WHERE m.playlistId = playlist.id AND s.isDownloaded = 1) AS downloaded,
+               (SELECT COUNT(*) FROM playlist_song_map m WHERE m.playlistId = playlist.id) AS total
+        FROM playlist
+        WHERE playlist.bookmarkedAt IS NOT NULL
+          AND EXISTS (SELECT 1 FROM playlist_song_map m JOIN song s ON s.id = m.songId
+                      WHERE m.playlistId = playlist.id AND s.isDownloaded = 1)
+        ORDER BY playlist.name COLLATE NOCASE
+        """,
+    )
+    fun downloadedPlaylists(): Flow<List<OfflineCollection>>
+
     @Query("SELECT * FROM song WHERE isDownloaded = 1 ORDER BY dateDownload")
     fun downloadedSongsByCreateDateAsc(): Flow<List<Song>>
 

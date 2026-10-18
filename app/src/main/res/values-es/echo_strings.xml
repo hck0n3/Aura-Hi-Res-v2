@@ -1287,4 +1287,8 @@
     <string name="style_follow_cd">Cambiar el estilo que sigue la cola</string>
     <string name="header_actions_show">Mostrar accesos rápidos</string>
     <string name="header_actions_hide">Ocultar accesos rápidos</string>
+    <!-- Cuerpo sin conexión: álbumes / listas descargados (fila 425) -->
+    <string name="offline_downloaded_albums">Álbumes descargados</string>
+    <string name="offline_downloaded_playlists">Listas descargadas</string>
+    <string name="offline_collection_progress">%1$d de %2$d descargadas</string>
 </resources>

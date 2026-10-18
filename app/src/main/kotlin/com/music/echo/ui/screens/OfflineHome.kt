@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +45,7 @@ import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.constants.SongSortType
+import iad1tya.echo.music.db.OfflineCollection
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.playback.queues.ListQueue
@@ -50,6 +54,7 @@ import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.menu.SongMenu
 import iad1tya.echo.music.ui.newui.AuraAppleCoverDividerInset
 import iad1tya.echo.music.ui.newui.AuraAppleListRowFrame
+import iad1tya.echo.music.ui.newui.AuraCoverCard
 import iad1tya.echo.music.ui.newui.AuraSongRow
 import iad1tya.echo.music.ui.newui.auraAppleDurationLabel
 import iad1tya.echo.music.utils.rememberPreference
@@ -115,6 +120,11 @@ fun DownloadedOnlyView(
         exportedVideosRaw.map { song -> if (song.song.isVideo) song else song.copy(song = song.song.copy(isVideo = true)) }
     }
 
+    // Owner 2026-10-18: «en el modo sin conexión quiero que muestre SIEMPRE las listas y álbumes descargados». The body
+    // was a pure song list, so a downloaded album or playlist was only reachable song by song. These two rows come first.
+    val downloadedAlbums by database.downloadedAlbums().collectAsState(initial = emptyList())
+    val downloadedPlaylists by database.downloadedPlaylists().collectAsState(initial = emptyList())
+
     val downloadsTitle = stringResource(R.string.downloaded_songs)
     val cachedTitle = stringResource(R.string.cached_playlist)
     val exportedTitle = stringResource(R.string.action_exported)
@@ -133,6 +143,25 @@ fun DownloadedOnlyView(
                 automatic = automatic,
                 onDisable = { offlineMode = false },
             )
+        }
+
+        if (downloadedAlbums.isNotEmpty()) {
+            item(key = "offline_albums", contentType = "offline_collections") {
+                OfflineCollectionRow(
+                    title = stringResource(R.string.offline_downloaded_albums),
+                    collections = downloadedAlbums,
+                    onClick = { navController.navigate("album/${it.id}") },
+                )
+            }
+        }
+        if (downloadedPlaylists.isNotEmpty()) {
+            item(key = "offline_playlists", contentType = "offline_collections") {
+                OfflineCollectionRow(
+                    title = stringResource(R.string.offline_downloaded_playlists),
+                    collections = downloadedPlaylists,
+                    onClick = { navController.navigate("local_playlist/${it.id}") },
+                )
+            }
         }
 
         if (nothingOffline) {
@@ -269,6 +298,44 @@ private fun OfflineBanner(
                     Text(stringResource(R.string.offline_disable))
                 }
             }
+        }
+    }
+}
+
+/**
+ * A shelf of downloaded albums or playlists. A collection that is only partly downloaded says so ("3 de 12"): offline,
+ * promising twelve songs when three will play is worse than saying three.
+ */
+@Composable
+private fun OfflineCollectionRow(
+    title: String,
+    collections: List<OfflineCollection>,
+    onClick: (OfflineCollection) -> Unit,
+) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+    )
+    LazyRow(
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(collections, key = { it.id }) { collection ->
+            AuraCoverCard(
+                title = collection.title,
+                fullTitle = true,
+                subtitle = if (collection.downloaded >= collection.total) {
+                    pluralStringResource(R.plurals.n_song, collection.downloaded, collection.downloaded)
+                } else {
+                    stringResource(R.string.offline_collection_progress, collection.downloaded, collection.total)
+                },
+                thumbnailUrl = collection.thumbnailUrl,
+                seed = collection.id,
+                width = 140.dp,
+                onClick = { onClick(collection) },
+            )
         }
     }
 }
