@@ -576,6 +576,9 @@ object YTPlayerUtils {
         preferVideo: Boolean = false,
         videoMaxHeight: Int? = null,
         preferSmallestAudio: Boolean = false,
+        // Only a MUXED progressive stream (picture AND sound in one file: itag 22 / 18). The Cast receiver cannot merge
+        // two streams, so Cast asks for this; every other caller leaves it false and resolves exactly as before.
+        muxedOnly: Boolean = false,
         // Resolve this ONE song without the login cookie (stale-session recovery). Threaded down to every
         // YouTube.player call below rather than mutating the shared YouTube.cookie, which is not safe:
         // playback and the crossfade prefetch resolve concurrently.
@@ -921,6 +924,7 @@ object YTPlayerUtils {
                         preferVideo,
                         videoMaxHeight,
                         preferSmallestAudio,
+                        muxedOnly,
                     )
 
                 if (format == null) {
@@ -1201,6 +1205,24 @@ object YTPlayerUtils {
     ).getOrNull()?.streamUrl
 
     /**
+     * A MUXED progressive video URL (picture + sound in ONE file: itag 22 / 18) from the regular InnerTube clients.
+     * For the Cast receiver, which cannot merge a video-only stream with a separate audio track. NewPipe's extraction
+     * (the first source Cast tries) usually returns only adaptive streams, so this is the second source. null = none.
+     */
+    suspend fun muxedVideoStreamUrl(
+        videoId: String,
+        connectivityManager: ConnectivityManager,
+        videoMaxHeight: Int? = null,
+    ): String? = resolvePlaybackData(
+        videoId = videoId,
+        audioQuality = AudioQuality.OPUS,
+        connectivityManager = connectivityManager,
+        preferVideo = true,
+        videoMaxHeight = videoMaxHeight,
+        muxedOnly = true,
+    ).getOrNull()?.streamUrl
+
+    /**
      * Diagnostic variant of [videoStreamUrl]: returns the failure REASON instead of swallowing it, plus
      * a count of how many video adaptive formats the chosen client actually exposed — so the UI can show
      * exactly why video mode failed (no format vs network vs playability vs decipher).
@@ -1346,7 +1368,20 @@ object YTPlayerUtils {
         preferVideo: Boolean = false,
         videoMaxHeight: Int? = null,
         preferSmallestAudio: Boolean = false,
+        muxedOnly: Boolean = false,
     ): PlayerResponse.StreamingData.Format? {
+        if (preferVideo && muxedOnly) {
+            // The progressive list only (`formats`, never `adaptiveFormats`): itag 22 (720p) before 18 (360p), the
+            // best one that fits the cap, else the smallest. A progressive entry with no audio track would play as a
+            // silent picture, so it must carry one. null → the resolver tries the next client.
+            val cap = videoMaxHeight ?: if (connectivityManager.isActiveNetworkMetered) 360 else 720
+            val muxed = playerResponse.streamingData?.formats.orEmpty()
+                .filter { !it.url.isNullOrEmpty() || !it.signatureCipher.isNullOrEmpty() || !it.cipher.isNullOrEmpty() }
+                .filter { it.mimeType.startsWith("video/") }
+                .filter { it.itag in iad1tya.echo.music.playback.VideoFormatFallback.MUXED_ITAGS || it.audioChannels != null }
+            return muxed.filter { (it.height ?: 0) <= cap }.maxByOrNull { it.height ?: 0 }
+                ?: muxed.minByOrNull { it.height ?: Int.MAX_VALUE }
+        }
         if (preferVideo) {
             // Video mode resolves an ADAPTIVE VIDEO-ONLY stream (no audio) — MusicService MERGES it with the
             // track's normal audio source, giving real HD. Muxed (streamingData.formats) only reliably offers

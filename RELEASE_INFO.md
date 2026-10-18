@@ -32,3 +32,10 @@ Beta encima de la 2.0.65-beta12. Conserva tus datos, tu sesión y tus ajustes: m
 ## Barras de cristal
 
 - **El mini reproductor y la barra de Inicio, Novedades y Biblioteca toman el color de la portada** de forma clara, sin perder la lectura de sus textos.
+
+## Cast
+
+- **Al transmitir en modo Vídeo, el TV ahora busca el vídeo por una segunda vía** cuando la primera no lo encuentra, para que
+  muestre la imagen y no solo suene la canción. Si de verdad no existe un vídeo compatible con el TV, sigue sonando la canción y
+  la app vuelve a modo Canción con un aviso.
+

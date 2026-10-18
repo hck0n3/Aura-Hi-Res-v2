@@ -611,12 +611,23 @@ class CastConnectionHandler(
      */
     private suspend fun resolveCastVideoUrl(mediaId: String): String? =
         withContext(Dispatchers.IO) {
+            // Source 1: NewPipe's extraction — fast, but it usually lists only adaptive streams, so a muxed itag is
+            // often simply not in it (owner 2026-10-18: «transmite solo la canción, no lo pone a video»).
             YTPlayerUtils.adaptiveVideoStreamNewPipe(
                 mediaId,
                 musicService.connectivityManager,
                 maxHeight = 720,
                 forceMuxed = true,
-            ).getOrNull()?.url?.takeIf { it.isNotEmpty() }
+            ).getOrNull()?.url?.takeIf { it.isNotEmpty() }?.also {
+                Timber.i("Cast: video rendition from NewPipe (muxed)")
+            }
+                // Source 2: the regular InnerTube clients' progressive list (itag 22 / 18), cipher and n-transform
+                // applied like any other stream.
+                ?: runCatching {
+                    YTPlayerUtils.muxedVideoStreamUrl(mediaId, musicService.connectivityManager, videoMaxHeight = 720)
+                }.getOrNull()?.takeIf { it.isNotEmpty() }?.also {
+                    Timber.i("Cast: video rendition from InnerTube (muxed)")
+                }
         }
 
     /**
