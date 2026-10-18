@@ -5,6 +5,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -130,6 +133,7 @@ import iad1tya.echo.music.ui.utils.rememberIsWideLayout
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.makeTimeString
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberLeanMode
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.reportException
 import iad1tya.echo.music.viewmodels.LocalPlaylistViewModel
@@ -262,6 +266,14 @@ fun AuraLocalPlaylistScreen(
     }
 
     val editable: Boolean = playlist?.playlist?.isEditable == true
+
+    // Row 427: a playlist the user follows gets YouTube's related shelf as its footer (an owned one gets suggested songs).
+    val relatedItems by viewModel.relatedItems.collectAsState()
+    val followedBrowseId = if (!editable) playlist?.playlist?.browseId else null
+    val offlineNow = iad1tya.echo.music.utils.rememberOfflineState().offline
+    LaunchedEffect(followedBrowseId, offlineNow) {
+        if (followedBrowseId != null && !offlineNow) viewModel.loadRelated(followedBrowseId)
+    }
 
     LaunchedEffect(songs) {
         selection.toList().forEach { mapId ->
@@ -981,6 +993,17 @@ fun AuraLocalPlaylistScreen(
                 }
             }
 
+            // A playlist the user FOLLOWS (not one they own) cannot take suggested songs, so its footer is the related shelf.
+            if (!editable && !isSearching && !inSelectMode && relatedItems.isNotEmpty()) {
+                item(key = "aura_lp_related", contentType = "aura_lp_related") {
+                    AuraRelatedShelf(
+                        items = relatedItems,
+                        navController = navController,
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+            }
+
             item(key = "aura_lp_tail", contentType = "aura_lp_tail") { Spacer(Modifier.height(50.dp)) }
         }
         }
@@ -1101,28 +1124,10 @@ private fun AuraLocalPlaylistHeader(
         playlist.songCount
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.height(56.dp))
-
-        val coverSize: Dp = if (isWideLayout) 320.dp else 260.dp
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 48.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(coverSize)
-                    .aspectRatio(1f)
-                    .clip(AuraShapes.Artwork)
-                    .auraArtworkEdge(AuraShapes.Artwork),
-            ) {
+    // Wide pane (an unfolded foldable, a tablet): the cover on the LEFT and this information on its right — the album page's
+    // design (registry 426, owner 2026-10-18: «que las listas en modo plegable se vean como el nuevo diseño de los
+    // álbumes»); narrow: the centred column it always was.
+    val cover: @Composable BoxScope.(Dp) -> Unit = { coverSize ->
                 when (playlist.thumbnails.size) {
                     0 -> AuraCover(
                         thumbnailUrl = null,
@@ -1164,10 +1169,11 @@ private fun AuraLocalPlaylistHeader(
                         onClick = coverEditor.onEditCoverClick,
                     )
                 }
-            }
-        }
-
-        Spacer(Modifier.height(26.dp))
+    }
+    val info: @Composable ColumnScope.(Boolean) -> Unit = { wide ->
+        val sidePad = if (wide) 0.dp else AuraSpacing.Gutter
+        val textPad = if (wide) 0.dp else 32.dp
+        val rowArrangement = Arrangement.spacedBy(12.dp, if (wide) Alignment.Start else Alignment.CenterHorizontally)
 
         Text(
             text = playlist.playlist.name,
@@ -1175,7 +1181,7 @@ private fun AuraLocalPlaylistHeader(
             color = AuraPalette.OnGround,
             maxLines = 2,
             overflow = AuraDefaultOverflow,
-            modifier = Modifier.padding(horizontal = 32.dp),
+            modifier = Modifier.padding(horizontal = textPad),
         )
 
         Spacer(Modifier.height(6.dp))
@@ -1211,8 +1217,8 @@ private fun AuraLocalPlaylistHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = AuraSpacing.Gutter),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                .padding(horizontal = sidePad),
+            horizontalArrangement = rowArrangement,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val playedForStart = rememberPlayedShuffleSet(contextId)
@@ -1278,8 +1284,8 @@ private fun AuraLocalPlaylistHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = AuraSpacing.Gutter),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                .padding(horizontal = sidePad),
+            horizontalArrangement = rowArrangement,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AuraHeaderCircleButton(
@@ -1301,7 +1307,7 @@ private fun AuraLocalPlaylistHeader(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = AuraSpacing.Gutter),
+                .padding(horizontal = sidePad),
         ) {
             AuraSectionLabel(text = stringResource(R.string.about_playlist).uppercase(Locale.ROOT))
             Spacer(Modifier.height(6.dp))
@@ -1309,6 +1315,49 @@ private fun AuraLocalPlaylistHeader(
                 text = stringResource(R.string.aura_local_playlist_about, playlist.playlist.name),
                 collapsedMaxLines = 3,
             )
+        }
+    }
+
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        if (maxWidth >= AURA_WIDE_HERO_MIN_WIDTH) {
+            AuraWideTop(
+                thumbnailUrl = playlist.thumbnails.firstOrNull(),
+                seed = contextId,
+                lean = rememberLeanMode(),
+                modifier = Modifier.padding(bottom = 8.dp),
+                coverContent = { cover(AURA_WIDE_TOP_COVER) },
+                info = { info(true) },
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(56.dp))
+
+                val coverSize: Dp = if (isWideLayout) 320.dp else 260.dp
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(coverSize)
+                            .aspectRatio(1f)
+                            .clip(AuraShapes.Artwork)
+                            .auraArtworkEdge(AuraShapes.Artwork),
+                    ) {
+                        cover(coverSize)
+                    }
+                }
+
+                Spacer(Modifier.height(26.dp))
+                info(false)
+            }
         }
     }
 }

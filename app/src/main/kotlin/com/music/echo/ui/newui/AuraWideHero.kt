@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
@@ -52,6 +54,11 @@ internal fun AuraWideTop(
     coverModifier: Modifier = Modifier,
     /** Drawn over the cover square (the album's animated artwork / canvas video) — nothing is lost in the wide layout. */
     coverOverlay: (@Composable BoxScope.() -> Unit)? = null,
+    /**
+     * Replaces the single [AuraCover] with the caller's own square (a local playlist's 2×2 mosaic and its ✎ button).
+     * Drawn inside the same [AURA_WIDE_TOP_COVER] artwork frame; [thumbnailUrl] still feeds the soft backdrop.
+     */
+    coverContent: (@Composable BoxScope.() -> Unit)? = null,
     info: @Composable ColumnScope.() -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -88,16 +95,26 @@ internal fun AuraWideTop(
                 horizontalArrangement = Arrangement.spacedBy(28.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                AuraCover(
-                    thumbnailUrl = thumbnailUrl,
-                    size = AURA_WIDE_TOP_COVER,
-                    modifier = coverModifier,
-                    seed = seed,
-                    shape = AuraShapes.Artwork,
-                    decodeTo = if (lean) 640 else 900,
-                    ratio = 1f,
-                    overlay = coverOverlay,
-                )
+                if (coverContent != null) {
+                    Box(
+                        modifier = coverModifier
+                            .size(AURA_WIDE_TOP_COVER)
+                            .clip(AuraShapes.Artwork)
+                            .auraArtworkEdge(AuraShapes.Artwork),
+                        content = coverContent,
+                    )
+                } else {
+                    AuraCover(
+                        thumbnailUrl = thumbnailUrl,
+                        size = AURA_WIDE_TOP_COVER,
+                        modifier = coverModifier,
+                        seed = seed,
+                        shape = AuraShapes.Artwork,
+                        decodeTo = if (lean) 640 else 900,
+                        ratio = 1f,
+                        overlay = coverOverlay,
+                    )
+                }
                 Column(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.Start,

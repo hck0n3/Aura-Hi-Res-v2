@@ -432,8 +432,17 @@ object AuraPalette {
     // COVER TINT (owner 2026-09-14: "tienen que cambiar de color según la portada, así como lo hace la
     // app"): a whisper of the cover-driven accent ([Teal] follows the artwork via AuraPaletteSync), the
     // same warmth the pill picks up from the bloomed screen it blurs.
+    //
+    // COVER COLOUR, AT THE BARS' STRENGTH (owner 2026-10-18: «el color de las ventanas flotantes se parece en nada a la
+    // mezcla de colores que está haciendo la portada… siempre me interesan que sean de cristal semitransparente»). The
+    // sheets/menus paint this plate UNDER their glass, and where the glass cannot sample (a descendant of the haze
+    // source) the plate is all there is: 7 % of the accent over a near-black raised ground is invisible, which is the
+    // exact failure the bars had before row 417. While a cover plays the plate is now the bars' own tint
+    // ([CoverGlassTint], dark by construction so the ink keeps ≥ 4.5:1); with none, the old plate. The sheets' glass
+    // tint (`shellGlassStyle`) is that same colour, so plate and glass agree instead of fighting.
     val FloatingFill: Color
-        get() = Teal.copy(alpha = 0.07f).compositeOver(Color.White.copy(alpha = 0.025f).compositeOver(GroundRaised))
+        get() = CoverGlassTint
+            ?: Teal.copy(alpha = 0.07f).compositeOver(Color.White.copy(alpha = 0.025f).compositeOver(GroundRaised))
 
     /**
      * The tint of the chrome's GLASS — nav bar, mini pill, and the Liquid Glass of the player — while a

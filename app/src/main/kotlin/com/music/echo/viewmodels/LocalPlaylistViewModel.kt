@@ -128,6 +128,20 @@ constructor(
                 }
         }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    // "También te puede gustar" for a playlist the user FOLLOWS (row 427): the related shelf YouTube Music shows under any
+    // playlist. Fetched once per open, only for a non-editable playlist that has a browseId, and never offline.
+    private val _relatedItems = MutableStateFlow<List<com.music.innertube.models.YTItem>>(emptyList())
+    val relatedItems: StateFlow<List<com.music.innertube.models.YTItem>> = _relatedItems
+    private var relatedRequestedFor: String? = null
+
+    fun loadRelated(browseId: String) {
+        if (relatedRequestedFor == browseId) return
+        relatedRequestedFor = browseId
+        viewModelScope.launch(Dispatchers.IO) {
+            YouTube.playlist(browseId).onSuccess { page -> _relatedItems.value = page.related.orEmpty() }
+        }
+    }
+
     // ---- Apple-Music-style "Add Music" feature ----------------------------------------------------
 
     // Bumped by refreshSuggestions(); its value doubles as a per-refresh shuffle/seed nonce (NOT a

@@ -413,6 +413,13 @@ class AuraAppearanceTest {
             val glass = AuraPalette.CoverGlassTint!!
             val ratio = contrastRatio(AuraPalette.NavInactive.compositeOver(glass), glass)
             assertTrue("hue $hue: nav label on the glass at $ratio", ratio >= TEXT_AA)
+            // Row 426: the floating windows' plate IS that colour (they used to be a near-neutral whisper of it), and
+            // the secondary ink keeps its contrast on it.
+            assertEquals("hue $hue: the floating plate follows the cover tint", glass, AuraPalette.FloatingFill)
+            val onPlate = contrastRatio(AuraPalette.OnGroundMuted.compositeOver(AuraPalette.FloatingFill), AuraPalette.FloatingFill)
+            // Swept numerically (python, every 5° of hue): muted ≥ 4.6, faint ≥ 4.27 — the faint step is for section
+            // labels, so only the muted (artist names, subtitles) ink is held to the text bar, with a hair of margin.
+            assertTrue("hue $hue: secondary ink on the floating plate at $onPlate", onPlate >= 4.4f)
             // Owner 2026-10-18: the tint must be VISIBLY the cover's colour, not a near-black film.
             // Measured as a straight colour distance from the plain raised ground (a hue-independent yardstick: the older
             // «channel spread» test depended on how much the ground itself was tinted, and failed on some hues).

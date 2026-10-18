@@ -51,7 +51,7 @@ import iad1tya.echo.music.ui.component.CreatePlaylistDialog
 import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.ui.component.ListDialog
 import iad1tya.echo.music.ui.component.ListItem
-import iad1tya.echo.music.ui.component.PlaylistListItem
+import iad1tya.echo.music.ui.component.RoomyPlaylistListItem
 import iad1tya.echo.music.ui.component.SortHeader
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.auraFloatingTextFieldColors
@@ -266,7 +266,7 @@ fun AddToPlaylistDialog(
 
             itemsIndexed(filteredPlaylists) { index, playlist ->
                 val alreadyHasSong = playlist.id in playlistIdsWithSong
-                PlaylistListItem(
+                RoomyPlaylistListItem(
                     playlist = playlist,
                     shape = listItemShape(index = index + 1, count = totalItemsCount),
                     trailingContent = {

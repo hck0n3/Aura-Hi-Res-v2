@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -289,6 +290,7 @@ fun ListItem(
     // DEFAULT `RectangleShape` is upgraded: a caller that asked for a shape of its own (the grouped
     // playlist cards) chose it deliberately and keeps it. Off the new skin this IS `shape`.
     val rowShape = if (skin.enabled && shape == RectangleShape) AuraShapes.Highlight else shape
+    val sizing = LocalListItemSizing.current
     CompositionLocalProvider(LocalAuraItemSkin provides skin) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -298,7 +300,10 @@ fun ListItem(
                 .tvFocusableItem(iad1tya.echo.music.ui.utils.rememberIsTvOrCar())
                 .then(modifier)
                 .padding(vertical = 2.dp)
-                .height(ListItemHeight)
+                .then(
+                    if (sizing.fixedHeight) Modifier.height(sizing.minHeight)
+                    else Modifier.heightIn(min = sizing.minHeight)
+                )
                 .padding(horizontal = horizontalPadding)
                 .clip(rowShape)
                 .background(
@@ -358,7 +363,7 @@ fun ListItem(
                     style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.bodyMedium,
                     color = if (skin.enabled) skin.ink else Color.Unspecified,
                     fontWeight = if (skin.enabled) null else FontWeight.Bold,
-                    maxLines = 1,
+                    maxLines = sizing.titleLines,
                     overflow = TextOverflow.Ellipsis
                 )
 
@@ -1114,7 +1119,7 @@ fun PlaylistListItem(
         PlaylistThumbnail(
             thumbnails = playlist.thumbnails,
             fallbackThumbnails = playlist.songCovers,
-            size = ListThumbnailSize,
+            size = LocalListItemSizing.current.thumbnail,
             placeHolder = {
                 val painter = when (playlist.playlist.name) {
                     stringResource(R.string.liked) -> R.drawable.favorite_border
@@ -1128,7 +1133,7 @@ fun PlaylistListItem(
                     painter = painterResource(painter),
                     contentDescription = null,
                     tint = LocalContentColor.current.copy(alpha = 0.8f),
-                    modifier = Modifier.size(ListThumbnailSize / 2)
+                    modifier = Modifier.size(LocalListItemSizing.current.thumbnail / 2)
                 )
             },
             shape = RoundedCornerShape(ThumbnailCornerRadius)

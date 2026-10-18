@@ -1653,7 +1653,6 @@ private fun AuraQuickPicksCarousel(
         if (maxWidth >= AURA_WIDE_HERO_MIN_WIDTH && screenHeightDp >= 480) {
             AuraWideCarousel(
                 songs = songs,
-                viewportWidth = maxWidth,
                 activeId = activeId,
                 isPlaying = isPlaying,
                 isTvOrCar = isTvOrCar,
@@ -1703,25 +1702,28 @@ private fun AuraQuickPicksCarousel(
     }
 }
 
-/** Width and height of the CENTRED card of the wide carousel; its neighbours shrink from there. */
-private val AURA_WIDE_CAROUSEL_ITEM_WIDTH = 248.dp
-private val AURA_WIDE_CAROUSEL_ITEM_HEIGHT = 300.dp
-private val AURA_WIDE_CAROUSEL_SPACING = 14.dp
+/**
+ * Width and height of a card of the wide carousel. Owner 2026-10-18, second round (Fold unfolded): *«el carrusel empieza
+ * vacío y con menos carátulas… quiero que se vean más, como cuando no está plegado»*. 248 × 300 dp centred left half the
+ * row empty at the first card and showed ~2.5 covers; 200 × 264 dp starting at the left edge shows 3½–4.
+ */
+private val AURA_WIDE_CAROUSEL_ITEM_WIDTH = 200.dp
+private val AURA_WIDE_CAROUSEL_ITEM_HEIGHT = 264.dp
+private val AURA_WIDE_CAROUSEL_SPACING = 12.dp
 
 /**
  * The hero carousel of a wide window.
  *
  * Owner 2026-10-18 (Fold, unfolded): *«cuando está desplegado no parece carrusel»*. The Material hero carousel fills
  * a wide viewport with TWO big, low cards and two slivers — it reads as a banner, not as a carousel. Here the card in
- * the middle is the tall one (248 × 300 dp, as on the phone), the ones beside it are smaller and a little faded, and
- * both sides show more of them; it snaps to a card and the dots follow the centred one.
+ * on the left is the full-size one (200 × 264 dp), the ones after it a little smaller and faded, and 3½–4 of them show
+ * at once; it snaps to a card and the dots follow the first visible one.
  *
  * The scale/fade is a DRAW-phase read of the list's layout (`graphicsLayer`), so scrolling recomposes nothing.
  */
 @Composable
 private fun AuraWideCarousel(
     songs: List<Song>,
-    viewportWidth: androidx.compose.ui.unit.Dp,
     activeId: String?,
     isPlaying: Boolean,
     isTvOrCar: Boolean,
@@ -1731,15 +1733,16 @@ private fun AuraWideCarousel(
 ) {
     key(songs.size) {
         val listState = rememberLazyListState()
-        val sidePadding = ((viewportWidth - AURA_WIDE_CAROUSEL_ITEM_WIDTH) / 2).coerceAtLeast(AuraSpacing.Gutter)
-        val centered by remember(listState) { derivedStateOf { auraCenteredIndex(listState) } }
+        // The first card sits at the LEFT edge (like the phone's hero carousel) with the next ones peeking from the
+        // right — not centred, which left the first screen half empty. The cards fill the row from the gutter.
+        val first by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
         Column {
             LazyRow(
                 state = listState,
-                contentPadding = PaddingValues(horizontal = sidePadding),
+                contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
                 horizontalArrangement = Arrangement.spacedBy(AURA_WIDE_CAROUSEL_SPACING),
                 verticalAlignment = Alignment.CenterVertically,
-                flingBehavior = rememberSnapFlingBehavior(listState, SnapPosition.Center),
+                flingBehavior = rememberSnapFlingBehavior(listState, SnapPosition.Start),
                 modifier = modifier
                     .fillMaxWidth()
                     .padding(top = AuraSpacing.SectionGap)
@@ -1765,30 +1768,25 @@ private fun AuraWideCarousel(
                                 val distance = if (item == null) {
                                     1f
                                 } else {
-                                    val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2f
-                                    val itemCenter = item.offset + item.size / 2f
-                                    (kotlin.math.abs(itemCenter - viewportCenter) /
+                                    // Distance from the card that rests at the left edge: it is full size, the
+                                    // ones after it a little smaller and faded.
+                                    val anchor = info.viewportStartOffset + info.beforeContentPadding
+                                    (kotlin.math.abs(item.offset - anchor) /
                                         (item.size + AURA_WIDE_CAROUSEL_SPACING.toPx())).coerceIn(0f, 1f)
                                 }
-                                val scale = 1f - 0.16f * distance
+                                val scale = 1f - 0.08f * distance
                                 scaleX = scale
                                 scaleY = scale
-                                alpha = 1f - 0.35f * distance
+                                alpha = 1f - 0.22f * distance
                             },
                     )
                 }
             }
-            AuraCarouselDots(count = songs.size, current = centered)
+            AuraCarouselDots(count = songs.size, current = first)
         }
     }
 }
 
-/** The index of the card closest to the middle of the viewport (0 while nothing is laid out yet). */
-private fun auraCenteredIndex(state: androidx.compose.foundation.lazy.LazyListState): Int {
-    val info = state.layoutInfo
-    val center = (info.viewportStartOffset + info.viewportEndOffset) / 2
-    return info.visibleItemsInfo.minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - center) }?.index ?: 0
-}
 
 /**
  * One card of the hero carousel (phone and wide): the cover, the bottom scrim, the playing bars, the "⋯" and the
