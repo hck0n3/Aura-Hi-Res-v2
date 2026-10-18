@@ -23,7 +23,7 @@ class MusicRequestFocusTest {
     private val isFamiliar: (MediaMetadata) -> Boolean = { m -> m.artists.any { it.name in known } }
 
     private fun pick(focus: MusicRequestFocus, songs: List<MediaMetadata>, played: Set<String> = emptySet()) =
-        MusicRequestFocusFilter.select(focus, songs, isFamiliar, played)
+        MusicRequestFocusFilter.select(focus, songs, isFamiliar, { it.id in played })
 
     @Test
     fun `Todo no toca nada`() {
@@ -65,7 +65,7 @@ class MusicRequestFocusTest {
         val c = song("c", "fam")
         val weight = mapOf("a" to 1.0, "b" to 3.0, "c" to 1.0)
         val out = MusicRequestFocusFilter.select(
-            MusicRequestFocus.Familiar, listOf(a, b, c), isFamiliar, emptySet(),
+            MusicRequestFocus.Familiar, listOf(a, b, c), isFamiliar, { false },
         ) { weight.getValue(it.id) }
         assertEquals(listOf("b", "a", "c"), out.songs.map { it.id })
     }
@@ -99,5 +99,26 @@ class MusicRequestFocusTest {
         assertEquals(8, MusicRequestFocusFilter.candidatesFor(MusicRequestFocus.All, 8))
         assertEquals(24, MusicRequestFocusFilter.candidatesFor(MusicRequestFocus.Familiar, 8))
         assertEquals(16, MusicRequestFocusFilter.candidatesFor(MusicRequestFocus.Discover, 8))
+    }
+
+    @Test
+    fun `la misma cancion con otro id cuenta como ya reproducida`() {
+        val official = MediaMetadata(
+            id = "video-id", title = "Song (Official Video)",
+            artists = listOf(MediaMetadata.Artist(id = null, name = "Band - Topic")), duration = 200,
+        )
+        val heard = MediaMetadata(
+            id = "album-id", title = "Song",
+            artists = listOf(MediaMetadata.Artist(id = null, name = "Band")), duration = 200,
+        )
+        assertEquals(MusicRequestFocusFilter.songKey(heard), MusicRequestFocusFilter.songKey(official))
+    }
+
+    @Test
+    fun `un artista llega escrito de varias formas`() {
+        assertTrue("Whitecross" in MusicRequestFocusFilter.artistVariants("Whitecross - Topic"))
+        assertTrue("Whitecross" in MusicRequestFocusFilter.artistVariants("WhitecrossVEVO"))
+        assertEquals(listOf("Whitecross"), MusicRequestFocusFilter.artistVariants("  Whitecross "))
+        assertTrue(MusicRequestFocusFilter.artistVariants("   ").isEmpty())
     }
 }

@@ -1368,6 +1368,22 @@ interface DatabaseDao {
     @Query("SELECT songId FROM event GROUP BY songId ORDER BY MAX(id) DESC LIMIT :limit")
     suspend fun recentPlayedSongIds(limit: Int): List<String>
 
+    /**
+     * Title + first artist of every distinct song ever played (newest first). «Descubrir» compares by THIS, not by id
+     * alone: the same song reaches the app under several ids (album track, official video, lyric video), and a
+     * song heard as one of them is not «nueva» when YouTube offers it as another.
+     */
+    @Query(
+        """
+        SELECT song.title AS title,
+               (SELECT artist.name FROM song_artist_map JOIN artist ON artist.id = song_artist_map.artistId
+                WHERE song_artist_map.songId = song.id ORDER BY song_artist_map.position LIMIT 1) AS artist
+        FROM song
+        WHERE song.id IN (SELECT songId FROM event GROUP BY songId ORDER BY MAX(id) DESC LIMIT :limit)
+        """,
+    )
+    suspend fun recentPlayedTitleArtists(limit: Int): List<PlayedTitleArtist>
+
     @Transaction
     @Query("SELECT * FROM event ORDER BY rowId ASC LIMIT 1")
     fun firstEvent(): Flow<EventWithSong?>
@@ -2339,3 +2355,6 @@ interface DatabaseDao {
     @Query("DELETE FROM album_artist_map WHERE albumId IN (:albumIds)")
     fun deleteAlbumArtistMapsByAlbumIds(albumIds: List<String>)
 }
+
+/** One row of [DatabaseDao.recentPlayedTitleArtists]: what the song is called and who sings it (null = unknown). */
+data class PlayedTitleArtist(val title: String, val artist: String?)

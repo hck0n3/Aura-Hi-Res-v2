@@ -1,6 +1,7 @@
 package iad1tya.echo.music.playlistimport
 
 import iad1tya.echo.music.models.MediaMetadata
+import iad1tya.echo.music.playback.NoRepeatKey
 
 /**
  * El «Conocido / Descubrir» de «Pedir música» (YouTube Music lo ofrece en sus colas de radio como Familiar /
@@ -40,13 +41,14 @@ object MusicRequestFocusFilter {
 
     /**
      * @param isFamiliar el artista de la canción es uno que el usuario escucha con gusto (NO «le suena el género»).
+     * @param isPlayed ya la ha reproducido (por id O por título+artista: la misma canción llega con ids distintos).
      * @param familiarity cuánto: ordena lo conocido, lo más afín primero (orden estable ante empates).
      */
     fun select(
         focus: MusicRequestFocus,
         songs: List<MediaMetadata>,
         isFamiliar: (MediaMetadata) -> Boolean,
-        playedIds: Set<String>,
+        isPlayed: (MediaMetadata) -> Boolean,
         familiarity: (MediaMetadata) -> Double = { 0.0 },
     ): FocusResult = when (focus) {
         MusicRequestFocus.All -> FocusResult(songs, relaxed = false)
@@ -56,9 +58,31 @@ object MusicRequestFocusFilter {
             else FocusResult(known, relaxed = known.size < MIN_STRICT)
         }
         MusicRequestFocus.Discover -> {
-            val fresh = songs.filter { it.id !in playedIds && !isFamiliar(it) }
+            val fresh = songs.filter { !isPlayed(it) && !isFamiliar(it) }
             if (fresh.isEmpty()) FocusResult(songs, relaxed = true)
             else FocusResult(fresh, relaxed = fresh.size < MIN_STRICT)
         }
+    }
+
+    /**
+     * La misma canción llega con muchos ids; esta es su identidad para «¿ya la ha escuchado?» (la del resto de la app:
+     * [NoRepeatKey], que ignora remasters, «feat.», acentos y «- Topic», y NO funde en vivo / remix / acústica).
+     */
+    fun songKey(song: MediaMetadata): String = NoRepeatKey.of(song.title, song.artists.firstOrNull()?.name)
+
+    /**
+     * Las formas en que el mismo artista puede llegar escrito («Whitecross», «Whitecross - Topic», «WhitecrossVEVO»):
+     * el perfil de gusto guarda el nombre tal cual lo vio, y comparar solo el texto exacto dejaba fuera al mismo artista.
+     */
+    fun artistVariants(name: String): List<String> {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return emptyList()
+        val noTopic = trimmed.replace(Regex("""\s*-\s*topic$""", RegexOption.IGNORE_CASE), "").trim()
+        val noVevo = if (noTopic.length > 5 && noTopic.endsWith("vevo", ignoreCase = true)) {
+            noTopic.dropLast(4).trim()
+        } else {
+            noTopic
+        }
+        return listOf(trimmed, noTopic, noVevo).filter { it.isNotEmpty() }.distinct()
     }
 }

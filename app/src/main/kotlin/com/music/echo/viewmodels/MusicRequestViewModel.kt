@@ -194,11 +194,20 @@ constructor(
             val playedIds: Set<String> = if (focus == MusicRequestFocus.All) emptySet() else {
                 runCatching { database.recentPlayedSongIds(PLAYED_IDS_LIMIT).toHashSet() }.getOrDefault(emptySet())
             }
-            // «Conocido» = el ARTISTA es uno que escucha con gusto (peso positivo en su perfil). No es
-            // `scoreNames > 0`: esa puntuación suma bonos de género y de estilo, y dejaba pasar por «conocido»
-            // a artistas que nunca había oído (dueño, 2026-10-18: «no es lógico y no es preciso»).
+            // Y por título+artista: la misma canción llega con ids distintos (pista de álbum, vídeo oficial…).
+            val playedKeys: Set<String> = if (focus != MusicRequestFocus.Discover) emptySet() else {
+                runCatching {
+                    database.recentPlayedTitleArtists(PLAYED_IDS_LIMIT)
+                        .mapTo(HashSet()) { iad1tya.echo.music.playback.NoRepeatKey.of(it.title, it.artist) }
+                }.getOrDefault(emptySet())
+            }
+            val isPlayed: (MediaMetadata) -> Boolean = { m ->
+                m.id in playedIds || MusicRequestFocusFilter.songKey(m) in playedKeys
+            }
             val isFamiliar: (MediaMetadata) -> Boolean = { m ->
-                taste != null && m.artists.any { taste.isKnownArtist(it.name) }
+                taste != null && m.artists.any { a ->
+                    MusicRequestFocusFilter.artistVariants(a.name).any { taste.isKnownArtist(it) }
+                }
             }
             val familiarity: (MediaMetadata) -> Double = { m ->
                 taste?.scoreNames(m.artists.map { it.name }, m.title) ?: 0.0
@@ -226,7 +235,7 @@ constructor(
             }
             // Con filtro se pidieron el doble de candidatos: se aplica y se deja el primer lote del tamaño de
             // siempre (nunca vacío: ver MusicRequestFocusFilter).
-            val selected = MusicRequestFocusFilter.select(focus, produced.songs, isFamiliar, playedIds, familiarity)
+            val selected = MusicRequestFocusFilter.select(focus, produced.songs, isFamiliar, isPlayed, familiarity)
             val firstSongs = selected.songs.take(minOf(firstBatchCount, requestedTotal))
             MusicRequestHistory.record(prompt)
             // Un id propio de ESTE pedido: la cola no lleva contextId todavía (nunca lo necesitó,
@@ -265,7 +274,7 @@ constructor(
                     try {
                         fillInBackground(
                             contextId, prompt, requestedTotal, provider, apiKey, baseUrl, model, taste, firstSongs,
-                            focus, isFamiliar, playedIds, familiarity,
+                            focus, isFamiliar, isPlayed, familiarity,
                         )
                     } finally {
                         _last.update { current ->
@@ -295,7 +304,7 @@ constructor(
         alreadyPlaying: List<MediaMetadata>,
         focus: MusicRequestFocus,
         isFamiliar: (MediaMetadata) -> Boolean,
-        playedIds: Set<String>,
+        isPlayed: (MediaMetadata) -> Boolean,
         familiarity: (MediaMetadata) -> Double,
     ) {
         val fuller = runCatching {
@@ -316,7 +325,7 @@ constructor(
         if (fuller == null || fuller.songs.isEmpty()) return
         val already = alreadyPlaying.mapTo(HashSet()) { it.id }
         val extra = MusicRequestFocusFilter
-            .select(focus, fuller.songs.filter { it.id !in already }, isFamiliar, playedIds, familiarity)
+            .select(focus, fuller.songs.filter { it.id !in already }, isFamiliar, isPlayed, familiarity)
             .songs
             .take((target - alreadyPlaying.size).coerceAtLeast(1))
         if (extra.isNotEmpty()) {
