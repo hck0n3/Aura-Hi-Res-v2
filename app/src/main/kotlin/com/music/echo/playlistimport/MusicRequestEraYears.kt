@@ -63,7 +63,7 @@ object MusicRequestEraYears {
      * and stops at [budgetMs]. Whatever arrives is kept; the rest stays unknown (the caller treats that as "no year").
      */
     suspend fun prefetch(albumIds: Collection<String>, budgetMs: Long, maxAlbums: Int = MAX_ALBUMS) {
-        val todo = albumIds.distinct().filter { it !in albumYears }.take(maxAlbums)
+        val todo = albumIds.distinct().filter { !albumYears.containsKey(it) }.take(maxAlbums)
         if (todo.isEmpty()) return
         val gate = Semaphore(PARALLEL)
         withTimeoutOrNull(budgetMs) {
