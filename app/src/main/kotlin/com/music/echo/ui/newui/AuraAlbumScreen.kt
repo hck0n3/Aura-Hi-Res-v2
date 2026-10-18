@@ -687,7 +687,7 @@ fun AuraAlbumScreen(
  * the thermal budget.
  *
  * A pane ≥ 840 dp (the expanded breakpoint, measured on the CONTENT pane so a narrow split-screen
- * still behaves like a phone) caps the hero to a 320 dp banner instead of a full-width square — the
+ * still behaves like a phone) gets the wide hero (see AuraWideHero.kt) instead of a full-width square — the
  * same rule the classic header applies, for the same reason: a square hero on a TV eats the screen.
  */
 @Composable
@@ -709,7 +709,7 @@ private fun AuraAlbumHero(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (isWideHero) Modifier.height(320.dp) else Modifier.aspectRatio(1f))
+                .then(if (isWideHero) Modifier.height(AURA_WIDE_HERO_HEIGHT) else Modifier.aspectRatio(1f))
                 .graphicsLayer {
                     val scrolled = if (listState.firstVisibleItemIndex == 0) {
                         listState.firstVisibleItemScrollOffset.toFloat()
@@ -720,7 +720,7 @@ private fun AuraAlbumHero(
                     alpha = (1f - scrolled / size.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
                 }
                 // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
-                .auraHeroDissolve(),
+                .auraHeroDissolve(if (isWideHero) AURA_WIDE_HERO_DISSOLVE else HERO_DISSOLVE_FRACTION),
         ) {
             // 🔴 EL MISMO CRISTAL QUE LA PORTADA DE ARTISTA (dueño, 2026-09-17, punto 8:
             // *"aplicar el mismo estilo y efecto de cristal borroso que tienen las portadas de los
@@ -744,18 +744,32 @@ private fun AuraAlbumHero(
             // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
             val lean = rememberLeanMode()
             Box(modifier = Modifier.fillMaxSize().then(if (lean) Modifier else Modifier.hazeSource(heroHaze))) {
-                AuraCover(
-                    thumbnailUrl = thumbnailUrl,
-                    size = heroWidth,
-                    // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
-                    modifier = if (albumId != null) {
-                        Modifier.auraSharedAlbumCoverElement(albumId)
-                    } else Modifier,
-                    seed = thumbnailUrl,
-                    shape = androidx.compose.ui.graphics.RectangleShape,
-                    decodeTo = if (lean) 640 else 1200,
-                    ratio = if (isWideHero) heroWidth / 320.dp else 1f,
-                )
+                if (isWideHero) {
+                    // WIDE: the cover whole over a soft copy of itself — see [AuraWideHeroCover].
+                    AuraWideHeroCover(
+                        thumbnailUrl = thumbnailUrl,
+                        heroWidth = heroWidth,
+                        seed = thumbnailUrl,
+                        lean = lean,
+                        // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
+                        coverModifier = if (albumId != null) {
+                            Modifier.auraSharedAlbumCoverElement(albumId)
+                        } else Modifier,
+                    )
+                } else {
+                    AuraCover(
+                        thumbnailUrl = thumbnailUrl,
+                        size = heroWidth,
+                        // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
+                        modifier = if (albumId != null) {
+                            Modifier.auraSharedAlbumCoverElement(albumId)
+                        } else Modifier,
+                        seed = thumbnailUrl,
+                        shape = androidx.compose.ui.graphics.RectangleShape,
+                        decodeTo = if (lean) 640 else 1200,
+                        ratio = 1f,
+                    )
+                }
 
                 if (canvasEnabled && (canvasPrimaryUrl != null || canvasFallbackUrl != null)) {
                     CanvasArtworkPlayer(
@@ -795,7 +809,7 @@ private fun AuraAlbumHero(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((if (isWideHero) 320.dp else heroWidth) * 0.7f)
+                    .height((if (isWideHero) AURA_WIDE_HERO_HEIGHT else heroWidth) * 0.7f)
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(

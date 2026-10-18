@@ -746,22 +746,32 @@ private fun AuraOnlinePlaylistHeader(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (isWideHero) Modifier.height(320.dp) else Modifier.aspectRatio(1f))
+                    .then(if (isWideHero) Modifier.height(AURA_WIDE_HERO_HEIGHT) else Modifier.aspectRatio(1f))
                     // Fila 355: dissolves into the page instead of ending on a line (AuraHeroFade.kt).
-                    .auraHeroDissolve(),
+                    .auraHeroDissolve(if (isWideHero) AURA_WIDE_HERO_DISSOLVE else HERO_DISSOLVE_FRACTION),
             ) {
                 val heroHaze = remember { HazeState() }
                 // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
                 val lean = rememberLeanMode()
                 Box(modifier = Modifier.fillMaxSize().then(if (lean) Modifier else Modifier.hazeSource(heroHaze))) {
-                    AuraCover(
-                        thumbnailUrl = playlist.thumbnail,
-                        size = heroWidth,
-                        seed = playlist.id,
-                        shape = RectangleShape,
-                        decodeTo = if (lean) 640 else 1200,
-                        ratio = if (isWideHero) heroWidth / 320.dp else 1f,
-                    )
+                    if (isWideHero) {
+                        // WIDE: the cover whole over a soft copy of itself — see [AuraWideHeroCover].
+                        AuraWideHeroCover(
+                            thumbnailUrl = playlist.thumbnail,
+                            heroWidth = heroWidth,
+                            seed = playlist.id,
+                            lean = lean,
+                        )
+                    } else {
+                        AuraCover(
+                            thumbnailUrl = playlist.thumbnail,
+                            size = heroWidth,
+                            seed = playlist.id,
+                            shape = RectangleShape,
+                            decodeTo = if (lean) 640 else 1200,
+                            ratio = 1f,
+                        )
+                    }
                 }
 
                 // El desenfoque progresivo. 200 dp y radio 32 dp, los valores del original.
@@ -789,7 +799,7 @@ private fun AuraOnlinePlaylistHeader(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height((if (isWideHero) 320.dp else heroWidth) * 0.7f)
+                        .height((if (isWideHero) AURA_WIDE_HERO_HEIGHT else heroWidth) * 0.7f)
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
