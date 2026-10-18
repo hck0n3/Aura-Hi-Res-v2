@@ -332,9 +332,16 @@ fun AuraHomeScreen(
         )
     }
 
-    val heroCarouselSongs = remember(quickPicks, aiRecommendedSongs) {
+    // No picks yet (new account, offline, still loading) used to leave Inicio WITHOUT its hero, so the screen
+    // opened on a plain shelf — the "se siente básico" the owner reported (2026-10-18). With nothing better, the
+    // hero shows what was played recently; that same list is then NOT drawn a second time as a shelf below
+    // ([heroIsRecents]), so nothing is lost and nothing is shown twice.
+    val heroIsRecents = quickPicks.isNullOrEmpty() && aiRecommendedSongs.isNullOrEmpty() &&
+        !recentlyPlayed.isNullOrEmpty()
+    val heroCarouselSongs = remember(quickPicks, aiRecommendedSongs, recentlyPlayed) {
         quickPicks?.takeIf { it.isNotEmpty() }
             ?: aiRecommendedSongs?.takeIf { it.isNotEmpty() }
+            ?: recentlyPlayed?.takeIf { it.isNotEmpty() }
     }
 
     // ── Shared item actions (the SAME lambdas the classic Home installs) ──────────────────────────
@@ -662,7 +669,7 @@ fun AuraHomeScreen(
                 }
 
                 // Reproducido recientemente — pinned outside homeSections, exactly as in the classic Home.
-                recentlyPlayed?.takeIf { it.isNotEmpty() }?.let { recentSongs ->
+                recentlyPlayed?.takeIf { it.isNotEmpty() && !heroIsRecents }?.let { recentSongs ->
                     item(key = "aura_home_recent", contentType = "aura_home_recent") {
                         val recentTitle = stringResource(R.string.home_recently_played)
                         Column(Modifier.animateItem()) {
@@ -735,14 +742,16 @@ fun AuraHomeScreen(
                 // Apple Music style: Hero carousel "Para ti" at the very top.
                 if (!heroCarouselSongs.isNullOrEmpty()) {
                     item(key = "aura_quick_picks", contentType = "aura_quick_picks") {
-                        val forYouTitle = stringResource(R.string.home_for_you)
+                        val forYouTitle = stringResource(
+                            if (heroIsRecents) R.string.home_recently_played else R.string.home_for_you,
+                        )
                         val distinctQuickPicks = remember(heroCarouselSongs) { heroCarouselSongs.distinctBy { it.id } }
                         val carouselWidth = (LocalConfiguration.current.screenWidthDp.dp * 0.58f).coerceIn(220.dp, 340.dp)
                         Column(Modifier.animateItem()) {
                             Spacer(Modifier.height(AuraSpacing.SectionGap))
                             AuraSectionHeader(
                                 title = forYouTitle,
-                                label = stringResource(R.string.quick_picks),
+                                label = if (heroIsRecents) null else stringResource(R.string.quick_picks),
                                 accent = AuraPalette.Teal,
                                 onPlayAll = { playAllSongs(forYouTitle, heroCarouselSongs) },
                             )
@@ -1633,8 +1642,10 @@ private fun AuraQuickPicksCarousel(
     // and this keeps the per-item composable call count down (standing heat gate).
     val isTvOrCar = rememberIsTvOrCar()
     key(songs.size) {
+        val carouselState = rememberCarouselState { songs.size }
+        Column {
         HorizontalCenteredHeroCarousel(
-            state = rememberCarouselState { songs.size },
+            state = carouselState,
             maxItemWidth = itemWidth,
             itemSpacing = 8.dp,
             contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
@@ -1695,8 +1706,29 @@ private fun AuraQuickPicksCarousel(
                     if (isActive && isPlaying) {
                         AuraPlayingBars(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
+                                .align(Alignment.TopStart)
                                 .padding(10.dp),
+                        )
+                    }
+                    // "Los tres puntos": the song's menu one tap away, not only behind a long press.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(AuraPalette.Ground.copy(alpha = 0.55f))
+                            .combinedClickable(
+                                onClick = { onLongClick(current) },
+                                onClickLabel = stringResource(R.string.more_options),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        AuraIconGlyph(
+                            icon = AuraIcons.More,
+                            contentDescription = stringResource(R.string.more_options),
+                            size = 18.dp,
+                            tint = AuraPalette.OnGround,
                         )
                     }
                     Column(
@@ -1722,8 +1754,48 @@ private fun AuraQuickPicksCarousel(
                 }
             }
         }
+        AuraCarouselDots(count = songs.size, current = carouselState.currentItem)
+        }
     }
 }
+
+/**
+ * The page dots under the hero carousel: a sliding window of at most [AURA_DOTS_VISIBLE] dots (a 20-song
+ * carousel does not draw 20), the current one a wide teal pill, its neighbours small, the ends smaller still
+ * to say "there is more that way". Width animates with a spring; nothing here runs per frame.
+ */
+@Composable
+private fun AuraCarouselDots(count: Int, current: Int, modifier: Modifier = Modifier) {
+    if (count < 2) return
+    val visible = minOf(count, AURA_DOTS_VISIBLE)
+    val first = (current - visible / 2).coerceIn(0, count - visible)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        for (i in first until first + visible) {
+            val selected = i == current
+            val atEdge = count > visible && (i == first && first > 0 || i == first + visible - 1 && first + visible < count)
+            val width by androidx.compose.animation.core.animateDpAsState(
+                targetValue = if (selected) 18.dp else if (atEdge) 4.dp else 6.dp,
+                animationSpec = androidx.compose.animation.core.spring(),
+                label = "aura_hero_dot_width",
+            )
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 3.dp)
+                    .size(width = width, height = if (atEdge) 4.dp else 6.dp)
+                    .clip(CircleShape)
+                    .background(if (selected) AuraPalette.Teal else AuraPalette.OnGround.copy(alpha = 0.28f)),
+            )
+        }
+    }
+}
+
+private const val AURA_DOTS_VISIBLE = 5
 
 /** A local [Song] as a shelf card — videos use 16:9 (same language as artist shelves). */
 @Composable
