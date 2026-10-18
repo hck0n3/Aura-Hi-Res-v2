@@ -8512,12 +8512,31 @@ class MusicService :
         // The merged source needs the item's normal AUDIO uri to merge back in; without it we can't build.
         val origUri = item.localConfiguration?.uri?.toString() ?: return
 
+        prepareInstantPlayer(
+            item = item,
+            id = id,
+            url = url,
+            origUri = origUri,
+            isMuxed = exportedUri != null || id in videoCoordinator.newPipeMuxedVideoIds,
+        )
+    }
+
+    /**
+     * Builds the muted, paused pre-player for [id] around [url] and records it as THE instant player. Shared by the
+     * speculative pre-prepare ([maybePrepareInstantVideoSwap]) and the on-demand one ([beginSeamlessVideoSwap]).
+     * Returns false (everything released) when anything throws. Main thread only.
+     */
+    private fun prepareInstantPlayer(
+        item: androidx.media3.common.MediaItem,
+        id: String,
+        url: String,
+        origUri: String,
+        isMuxed: Boolean,
+    ): Boolean {
         // Register FIRST (separate map + URI-match guard in createMediaSource) so the pre-player's
         // setMediaItem builds the MergingMediaSource (video-only + normal audio), never audio-only.
         // NewPipe muxed fallback URLs carry audio themselves → register as muxed (no audio merge).
-        instantSwapItems[id] = VideoModeCoordinator.VideoTrackState(
-            url, origUri, exportedUri != null || id in videoCoordinator.newPipeMuxedVideoIds,
-        )
+        instantSwapItems[id] = VideoModeCoordinator.VideoTrackState(url, origUri, isMuxed)
         var pre: ExoPlayer? = null
         try {
             pre = createExoPlayer(isSecondary = true)
@@ -8564,6 +8583,7 @@ class MusicService :
             instantVideoPlayerUrl = url
             instantVideoPreparedAtPosMs = pos
             Timber.tag(TAG).d("Instant-video pre-player preparing for $id @ $pos ms")
+            return true
         } catch (e: Exception) {
             // Speculative only — never let a failed prepare leak a player or the factory registration.
             Timber.tag(TAG).w(e, "Instant-video pre-prepare failed (normal path unaffected)")
@@ -8579,6 +8599,7 @@ class MusicService :
                 playerEqProcessors.remove(p)?.let { eq -> equalizerService.removeAudioProcessor(eq) }
                 runCatching { p.release() }
             }
+            return false
         }
     }
 
@@ -8741,7 +8762,67 @@ class MusicService :
     internal fun teardownInstantVideoSwap(reason: String) {
         instantVideoPrepareJob?.cancel()
         instantVideoPrepareJob = null
+        // An on-demand entry that is still waiting for its player must not publish (nor fall back) after this.
+        seamlessEntryJob?.cancel()
+        seamlessEntryJob = null
         releaseInstantVideoPlayer(reason)
+    }
+
+    // ── SEAMLESS FIRST ENTRY INTO VIDEO ───────────────────────────────────────────────────────────────
+    // Owner 2026-10-18: «el primer cambio de música a modo vídeo hay un corte… después cambio entre vídeo y canción y ya
+    // no hay cortes (online)». Every later toggle is soft (video renderer on/off, no rebuild) — only the FIRST entry rebuilt
+    // the playing item (replaceMediaItem + prepare(): the audio halts while the merged video+audio source refills) whenever
+    // the speculative pre-player was not ready, which depends on a chain of gates (a video song, URL already resolved,
+    // unmetered, capable tier, no battery saver, sheet open long enough…). This is the same publish, but ON DEMAND: the
+    // audio keeps playing from the running player while a muted pre-player buffers the merged source; the moment it holds
+    // enough audio AND video it is published exactly like the instant swap. Any doubt (not ready in time, shuffle, crossfade,
+    // casting, a paused player…) falls back to the rebuild, byte-identical to before.
+    private var seamlessEntryJob: Job? = null
+
+    /**
+     * Returns true when this took over (the caller must NOT rebuild now: [onFallback] runs the rebuild later if the
+     * pre-player never becomes publishable); false = not eligible, the caller rebuilds synchronously as it always did.
+     */
+    internal fun beginSeamlessVideoSwap(id: String, url: String, isMuxed: Boolean, onFallback: () -> Unit): Boolean {
+        if (!INSTANT_VIDEO_SWAP_ENABLED || !SEAMLESS_VIDEO_ENTRY_ENABLED) return false
+        val old = player
+        val item = old.currentMediaItem ?: return false
+        if (item.mediaId != id || id.isEmpty() || id.isLocalMediaId() || id.startsWith("http", ignoreCase = true)) return false
+        if (castConnectionHandler?.isCasting?.value == true) return false
+        if (isCrossfading || fadingPlayer != null || secondaryPlayer != null) return false
+        // The instant publish rebuilds the queue in timeline order and does not carry a shuffle order.
+        if (old.shuffleModeEnabled) return false
+        // A buffering / idle / paused player is exactly when the plain rebuild is inaudible or the safe one.
+        if (old.playbackState != Player.STATE_READY || !old.playWhenReady) return false
+        // The merged source needs the item's normal AUDIO uri to merge back in.
+        val origUri = item.localConfiguration?.uri?.toString() ?: return false
+        seamlessEntryJob?.cancel()
+        releaseInstantVideoPlayer("seamless entry replaces the speculative pre-player")
+        if (!prepareInstantPlayer(item, id, url, origUri, isMuxed)) return false
+        swapLogPath("seamless")
+        seamlessEntryJob = scope.launch {
+            val deadline = android.os.SystemClock.elapsedRealtime() + SEAMLESS_VIDEO_READY_TIMEOUT_MS
+            var published = false
+            while (isActive && android.os.SystemClock.elapsedRealtime() < deadline) {
+                val pre = instantVideoPlayer
+                if (pre == null || player.currentMediaItem?.mediaId != id) break
+                val livePos = player.currentPosition
+                // Same window tryInstantVideoSwap demands, so its gate passes the moment we try it.
+                val ready = pre.playbackState == Player.STATE_READY &&
+                    runCatching { pre.bufferedPosition }.getOrDefault(0L) >= livePos + INSTANT_VIDEO_MIN_BUFFER_AHEAD_MS + 500L
+                if (ready) {
+                    published = tryInstantVideoSwap()
+                    break
+                }
+                delay(60)
+            }
+            if (!published && isActive) {
+                releaseInstantVideoPlayer("seamless entry not ready in time")
+                Timber.tag("VideoSwap").i("audio -> video: seamless entry fell back to the rebuild")
+                onFallback()
+            }
+        }
+        return true
     }
 
     // ── SOFT VIDEO EXIT ───────────────────────────────────────────────────────────────────────────────
@@ -10465,6 +10546,12 @@ class MusicService :
         private const val SOFT_VIDEO_PAUSE_RESTORE_DELAY_MS = 3_000L
 
         var INSTANT_VIDEO_SWAP_ENABLED = true
+
+        /** Kill switch of the on-demand seamless first entry into video ([beginSeamlessVideoSwap]); off = the rebuild. */
+        var SEAMLESS_VIDEO_ENTRY_ENABLED = true
+
+        /** How long the on-demand pre-player gets to buffer picture and sound before the rebuild takes over. */
+        private const val SEAMLESS_VIDEO_READY_TIMEOUT_MS = 6_000L
         // Delay before pre-preparing after a track transition / video exit, so the speculative player never
         // competes with the running track's own startup buffering. 1200 ms is enough once the URL is warm
         // without waiting a full 2.5 s of dead air before the speculative path can help.

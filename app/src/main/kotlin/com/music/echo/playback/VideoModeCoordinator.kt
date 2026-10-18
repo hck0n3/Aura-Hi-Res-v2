@@ -733,6 +733,26 @@ class VideoModeCoordinator(private val service: MusicService) {
      * rendered on the main player. Keeps position + play state. */
     private fun swapToVideo(id: String, url: String, isMuxed: Boolean = false) {
         videoFallbackInFlight.remove(id)
+        // The FIRST entry (the item still plays plain audio): keep the audio running while a pre-player buffers the video,
+        // and publish it when ready — no halt. A retry / re-swap of an item that already is a video item rebuilds, as before.
+        if (!videoModeItems.containsKey(id)) {
+            val gen = videoSwapGeneration.get()
+            val tookOver = service.beginSeamlessVideoSwap(id, url, isMuxed) {
+                if (videoSwapGeneration.get() == gen &&
+                    service._videoMode.value &&
+                    service.player.currentMediaItem?.mediaId == id
+                ) {
+                    swapToVideoRebuild(id, url, isMuxed)
+                }
+            }
+            if (tookOver) return
+        }
+        swapToVideoRebuild(id, url, isMuxed)
+    }
+
+    /** The rebuild: replace the item's source in place and prepare — the audio refills its start gate (a short cut). */
+    private fun swapToVideoRebuild(id: String, url: String, isMuxed: Boolean) {
+        videoFallbackInFlight.remove(id)
         service.videoSwapMark("swapToVideo entry")
         val idx = service.player.currentMediaItemIndex
         val item = service.player.currentMediaItem ?: return

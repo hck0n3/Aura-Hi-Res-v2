@@ -49,3 +49,8 @@ Beta encima de la 2.0.65-beta12. Conserva tus datos, tu sesión y tus ajustes: m
 - **Exporta un álbum, EP o sencillo entero a MP3** desde su menú ⋮ («Exportar todo a MP3»): eliges la carpeta una vez y se guardan
   todas las canciones con etiquetas y portada. Las listas ya lo tenían en su menú ⋮ («Exportar a MP3»: todas o las que elijas).
 
+## Cambio a Vídeo
+
+- **El primer cambio de Canción a Vídeo ya no corta el sonido** (en línea): la imagen se prepara mientras la música sigue sonando y aparece
+  cuando está lista. Con el modo aleatorio activado sigue el cambio de antes.
+
