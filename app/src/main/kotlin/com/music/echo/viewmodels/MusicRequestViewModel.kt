@@ -6,8 +6,12 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import iad1tya.echo.music.db.MusicDatabase
+import iad1tya.echo.music.db.entities.PlaylistEntity
+import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.playlistimport.AiPlaylistGenerator
+import iad1tya.echo.music.playlistimport.MusicRequestFocus
+import iad1tya.echo.music.playlistimport.MusicRequestFocusFilter
 import iad1tya.echo.music.playlistimport.MusicRequestHistory
 import iad1tya.echo.music.reco.AffinityEngine
 import iad1tya.echo.music.reco.GenreCache
@@ -21,7 +25,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
 
@@ -66,6 +72,46 @@ constructor(
     private var job: Job? = null
 
     /**
+     * La última petición que sonó, para poder VERLA y GUARDARLA después (YouTube Music muestra la estación con
+     * sus primeras canciones y la deja añadir a la biblioteca; dueño, 2026-10-18). `songs` crece cuando llega el
+     * relleno en segundo plano; [LastMusicRequest.fillRunning] dice si todavía puede crecer.
+     */
+    private val _last = MutableStateFlow<LastMusicRequest?>(null)
+    val last: StateFlow<LastMusicRequest?> = _last.asStateFlow()
+
+    /** Quita la tarjeta de resultado (no toca lo que suena ni lo que ya se guardó). */
+    fun dismissLast() {
+        _last.value = null
+    }
+
+    /**
+     * Guarda la última petición como lista local con TODAS las canciones que se conocen ahora. Lo llama la hoja
+     * solo cuando el relleno ya terminó, para no guardar un ocho de veinticinco.
+     */
+    fun saveLastAsPlaylist() {
+        val snapshot = _last.value ?: return
+        if (snapshot.saved || snapshot.songs.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = runCatching {
+                val playlist = PlaylistEntity(
+                    name = snapshot.title.trim().ifBlank { "Pedir música" }.take(MAX_SAVED_NAME),
+                    bookmarkedAt = LocalDateTime.now(),
+                    isEditable = true,
+                    isLocal = true,
+                )
+                database.transaction {
+                    insert(playlist)
+                    snapshot.songs.forEachIndexed { index, metadata ->
+                        insert(metadata)
+                        insert(PlaylistSongMap(playlistId = playlist.id, songId = metadata.id, position = index))
+                    }
+                }
+            }.isSuccess
+            if (ok) _last.update { current -> current?.takeIf { it.contextId == snapshot.contextId }?.copy(saved = true) ?: current }
+        }
+    }
+
+    /**
      * Cuántas canciones esperar antes de arrancar a sonar.
      *
      * 🔴 Diez, por orden del dueño (2026-09-17): *"que el máximo de canciones que busque sean 10 para
@@ -87,12 +133,19 @@ constructor(
      */
     private val TASTE_EVENTS = 600
 
+    /** Ids de canciones ya reproducidas que lee «Descubrir» (solo ids; una consulta). */
+    private val PLAYED_IDS_LIMIT = 5000
+
+    /** Largo máximo del nombre de la lista que se guarda. */
+    private val MAX_SAVED_NAME = 60
+
     fun request(
         prompt: String,
         provider: String,
         apiKey: String,
         baseUrl: String,
         model: String,
+        focus: MusicRequestFocus = MusicRequestFocus.All,
     ) {
         if (job?.isActive == true) return
         if (prompt.isBlank()) return
@@ -126,13 +179,21 @@ constructor(
                 }.getOrNull()
             }
             val taste = tasteJob.await()
+            // «Conocido / Descubrir»: lo ya reproducido (solo ids, una consulta) y «¿le suena este artista?»
+            // según el MISMO perfil de gusto. Solo se lee si hay filtro.
+            val playedIds: Set<String> = if (focus == MusicRequestFocus.All) emptySet() else {
+                runCatching { database.recentPlayedSongIds(PLAYED_IDS_LIMIT).toHashSet() }.getOrDefault(emptySet())
+            }
+            val isFamiliar: (MediaMetadata) -> Boolean = { m ->
+                taste != null && taste.scoreNames(m.artists.map { it.name }, m.title) > 0.0
+            }
             // Fila 361: "pon 50 canciones de salsa" — the count he asked for (5..100), else the usual 25.
             val intent = iad1tya.echo.music.playlistimport.MusicRequestIntent.parse(prompt)
             val requestedTotal = intent.count?.coerceIn(5, 100) ?: targetCount
             val produced = AiPlaylistGenerator.produce(
                 database = database,
                 prompt = prompt,
-                count = minOf(firstBatchCount, requestedTotal),
+                count = MusicRequestFocusFilter.candidatesFor(focus, minOf(firstBatchCount, requestedTotal)),
                 context = context,
                 provider = provider,
                 apiKey = apiKey,
@@ -147,6 +208,11 @@ constructor(
                 _state.value = MusicRequestUiState.Empty
                 return@launch
             }
+            // Con filtro se pidieron el doble de candidatos: se aplica y se deja el primer lote del tamaño de
+            // siempre (nunca vacío: ver MusicRequestFocusFilter).
+            val firstSongs = MusicRequestFocusFilter
+                .apply(focus, produced.songs, isFamiliar, playedIds)
+                .take(minOf(firstBatchCount, requestedTotal))
             MusicRequestHistory.record(prompt)
             // Un id propio de ESTE pedido: la cola no lleva contextId todavía (nunca lo necesitó,
             // era una lista suelta), y ahora hace falta para que el relleno de abajo sepa que sigue
@@ -164,7 +230,9 @@ constructor(
                     ),
                 )
             }
-            _state.value = MusicRequestUiState.Ready(produced.name, produced.songs, contextId)
+            val fillWillRun = firstSongs.size < requestedTotal
+            _last.value = LastMusicRequest(produced.name, firstSongs, contextId, fillRunning = fillWillRun)
+            _state.value = MusicRequestUiState.Ready(produced.name, firstSongs, contextId)
 
             // EL RELLENO EN SEGUNDO PLANO (dueño, 2026-09-22: "que siempre reproduzca de inmediato y
             // en segundo plano agregue 25 canciones"). Lanzado APARTE de `job`, a propósito: `job` es
@@ -174,9 +242,18 @@ constructor(
             // guard de `request()` solo mira `job`, así que pedir otra cosa mientras esto sigue en
             // marcha no espera a que termine (y su resultado, si llega tarde, trae un contextId viejo
             // que `extendQueueForContext` ya no reconoce si el usuario cambió de cola mientras tanto).
-            if (produced.songs.size < requestedTotal) {
+            if (fillWillRun) {
                 viewModelScope.launch(Dispatchers.IO) {
-                    fillInBackground(contextId, prompt, requestedTotal, provider, apiKey, baseUrl, model, taste, produced.songs)
+                    try {
+                        fillInBackground(
+                            contextId, prompt, requestedTotal, provider, apiKey, baseUrl, model, taste, firstSongs,
+                            focus, isFamiliar, playedIds,
+                        )
+                    } finally {
+                        _last.update { current ->
+                            current?.takeIf { it.contextId == contextId }?.copy(fillRunning = false) ?: current
+                        }
+                    }
                 }
             }
         }
@@ -198,6 +275,9 @@ constructor(
         model: String,
         taste: iad1tya.echo.music.reco.TasteProfile?,
         alreadyPlaying: List<MediaMetadata>,
+        focus: MusicRequestFocus,
+        isFamiliar: (MediaMetadata) -> Boolean,
+        playedIds: Set<String>,
     ) {
         val fuller = runCatching {
             AiPlaylistGenerator.produce(
@@ -205,7 +285,7 @@ constructor(
                 prompt = prompt,
                 // Fila 361: only what is MISSING — the first batch is already marked recent, so a full
                 // count here used to bring 25 new songs on top of the first 8 (a 33-song queue).
-                count = (target - alreadyPlaying.size).coerceAtLeast(1),
+                count = MusicRequestFocusFilter.candidatesFor(focus, (target - alreadyPlaying.size).coerceAtLeast(1)),
                 provider = provider,
                 apiKey = apiKey,
                 baseUrl = baseUrl,
@@ -216,8 +296,12 @@ constructor(
         }.getOrNull()
         if (fuller == null || fuller.songs.isEmpty()) return
         val already = alreadyPlaying.mapTo(HashSet()) { it.id }
-        val extra = fuller.songs.filter { it.id !in already }
+        val extra = MusicRequestFocusFilter.apply(focus, fuller.songs.filter { it.id !in already }, isFamiliar, playedIds)
+            .take((target - alreadyPlaying.size).coerceAtLeast(1))
         if (extra.isNotEmpty()) {
+            _last.update { current ->
+                current?.takeIf { it.contextId == contextId }?.copy(songs = current.songs + extra) ?: current
+            }
             // Fila 361: straight to the service — the Home card may be gone by now (see MusicRequestFill).
             iad1tya.echo.music.playback.MusicRequestFill.post(contextId, extra)
         }
@@ -230,6 +314,19 @@ constructor(
         _state.value = MusicRequestUiState.Idle
     }
 }
+
+/**
+ * La última petición que sonó. [songs] son las que se conocen ahora (el primer lote + lo que ya llegó del relleno);
+ * [fillRunning] = el relleno aún puede añadir más, así que guardar ya daría una lista corta; [saved] = ya está en
+ * la biblioteca.
+ */
+data class LastMusicRequest(
+    val title: String,
+    val songs: List<MediaMetadata>,
+    val contextId: String,
+    val fillRunning: Boolean,
+    val saved: Boolean = false,
+)
 
 /** Canciones del relleno en segundo plano para sumar a la cola de [contextId]. Ver [MusicRequestViewModel.extend]. */
 data class ExtendQueue(val contextId: String, val songs: List<MediaMetadata>)

@@ -1354,6 +1354,14 @@
     <string name="music_request_recent_label">Ask again</string>
     <string name="music_request_clear_history">Clear all</string>
     <string name="music_request_remove_entry">Remove from history</string>
+    <string name="music_request_playing_title">Playing: %1$s</string>
+    <string name="music_request_more_songs">+%1$d more</string>
+    <string name="music_request_save">Save as playlist</string>
+    <string name="music_request_filling">Completing the list…</string>
+    <string name="music_request_saved">Saved to your library</string>
+    <string name="music_request_focus_all">All</string>
+    <string name="music_request_focus_familiar">Familiar</string>
+    <string name="music_request_focus_discover">Discover</string>
     <string name="music_request_suggestion_like_artist">Something like %1$s</string>
     <string name="music_request_suggestion_morning">To start the morning</string>
     <string name="music_request_suggestion_afternoon">For the afternoon</string>
