@@ -33,11 +33,12 @@ import iad1tya.echo.music.utils.filterToSubscribedArtists
 import iad1tya.echo.music.utils.filterToTasteArtists
 import iad1tya.echo.music.utils.get
 import iad1tya.echo.music.utils.SubscribedArtistKeys
-import iad1tya.echo.music.utils.subscribedArtistKeys
+import iad1tya.echo.music.utils.tasteArtistKeys
 import java.time.LocalDate
 import java.time.ZoneOffset
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import timber.log.Timber
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -179,9 +180,16 @@ constructor(
             }
 
             val albums = albumsJob.await()
-            val keys = database.subscribedArtistKeys()
+            // Row 431 (owner 2026-10-18: «"Lo más nuevo" no tiene nada que ver con mi biblioteca ni con lo que sigo»):
+            // the artists a release must belong to are the user's WHOLE library — subscribed, most played, liked and
+            // library songs ([tasteArtistKeys], which is what its own doc says Novedades must use) — not only the
+            // artists flagged "followed", which is empty or tiny on many accounts and left the global shelf with
+            // almost nothing of the user's.
+            val keys = database.tasteArtistKeys()
             val taste = tasteJob.await()
             val filteredAlbums = albums.filterToSubscribedArtists(keys)
+            // Counts only (AGENTS.md rule 4): how many of YouTube's new albums are by artists of the user's library.
+            Timber.tag("Novedades").i("NOVEDADES_NEW albums=%d fromLibrary=%d artists=%d", albums.size, filteredAlbums.size, keys.namesLower.size)
             _newAlbums.value = MusicRequestRanking.pick(
                 candidates = filteredAlbums,
                 target = 20,

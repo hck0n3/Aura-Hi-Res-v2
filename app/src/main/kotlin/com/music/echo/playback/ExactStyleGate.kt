@@ -295,7 +295,7 @@ internal suspend fun MusicService.exactStyleFilter(
             }
         }
     }
-    val kept = StyleContinuity.select(all, verdicts, minMatches)
+    val kept = StyleContinuity.select(all, verdicts, minMatches, StyleContinuity.ENOUGH_TO_DROP_UNKNOWN)
     if (st.gatedIds.size > GATED_IDS_CAP) st.gatedIds.clear()
     kept.forEach { st.gatedIds.add(it.mediaId) }
     // Counts and style ids only — never a title, artist or id (AGENTS.md rule 4).

@@ -1402,4 +1402,5 @@
     <string name="offline_downloaded_albums">Downloaded albums</string>
     <string name="offline_downloaded_playlists">Downloaded playlists</string>
     <string name="offline_collection_progress">%1$d of %2$d downloaded</string>
+    <string name="search_history_clear_all">Clear all</string>
 </resources>

@@ -353,6 +353,7 @@ fun AuraPlayerQuickSearchContent(
                                 onFillQuery = { filled ->
                                     query = TextFieldValue(filled, TextRange(filled.length))
                                 },
+                                onClearHistory = { database.query { clearSearchHistory() } },
                                 onDeleteHistory = { history ->
                                     database.query { delete(history) }
                                 },
@@ -559,6 +560,7 @@ private fun PlayerOnlineSuggestionPanel(
     onRunSearch: (String) -> Unit,
     onFillQuery: (String) -> Unit,
     onDeleteHistory: (SearchHistory) -> Unit,
+    onClearHistory: () -> Unit,
     onSongClick: (SongItem) -> Unit,
     onItemClick: (YTItem) -> Unit,
     onItemMenu: (YTItem) -> Unit,
@@ -580,7 +582,7 @@ private fun PlayerOnlineSuggestionPanel(
     LazyColumn(state = lazyListState, modifier = modifier) {
         if (viewState.history.isNotEmpty()) {
             item(key = "pq_history_header", contentType = "pq_history_header") {
-                AuraSectionHeader(title = stringResource(R.string.search_history))
+                AuraSearchHistoryHeader(onClearAll = onClearHistory)
             }
             items(viewState.history, key = { "pq_hist_${it.query}" }) { history ->
                 AuraPlayerQueryRow(

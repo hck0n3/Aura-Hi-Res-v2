@@ -353,19 +353,25 @@ internal fun computeHomeSections(
             HomeSection.KeepListening to 880,
             HomeSection.AiRecommended to 860,
             HomeSection.TimeOfDayMix to 850,
+            // Row 432 (owner 2026-10-18: «que Inicio sea más personal que nunca, que sienta que me conoce»): everything
+            // that is BUILT FROM THE USER now sits above everything that is the same for anybody. "Tu mix de [género]",
+            // "Porque escuchaste…" and "Favoritas olvidadas" used to sit BELOW the generic new-releases and community
+            // shelves (480 / 400 / 500 against 620 / 450), i.e. the most personal rows were the last ones anyone
+            // scrolled to. Order now: quick access → made for you → daily mixes → genre mix → "similar to" → forgotten
+            // favourites → new from your artists → your playlists → then the shared, generic shelves.
+            HomeSection.GenreMix to 690,
+            HomeSection.ForgottenFavorites to 670,
             HomeSection.NewFromArtists to 650,
-            HomeSection.NewReleases to 620,
             HomeSection.AccountPlaylists to 600,
-            HomeSection.ForgottenFavorites to 500,
-            HomeSection.GenreMix to 480,
-            HomeSection.FromTheCommunity to 450,
+            HomeSection.NewReleases to 420,
+            HomeSection.FromTheCommunity to 300,
             HomeSection.MoodAndGenres to 10
         )
 
         list.sortedByDescending { section ->
             when (section) {
                 is HomeSection.DailyMix -> 700 - section.index
-                is HomeSection.SimilarRecommendation -> 400 - section.index
+                is HomeSection.SimilarRecommendation -> 680 - section.index
                 is HomeSection.HomePageSection -> 200 - section.index
                 else -> defaultOrder[section] ?: 0
             }

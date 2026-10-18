@@ -149,6 +149,14 @@ class StyleContinuityTest {
         assertEquals(listOf("m1", "m2", "m3"), StyleContinuity.select(items, v, minMatches = 3))
         assertEquals(listOf("m1", "m2", "m3", "u1", "u2"), StyleContinuity.select(items, v, minMatches = 4))
         assertEquals(emptyList<String>(), StyleContinuity.select(listOf("o"), listOf(OFF), minMatches = 3))
+
+        // Row 430: with `enoughToDropUnknown` = 2, two sure matches already keep the unknowns out of the batch.
+        val two = listOf("m1", "m2", "u1")
+        val twoV = listOf(MATCH, MATCH, UNKNOWN)
+        assertEquals(listOf("m1", "m2"), StyleContinuity.select(two, twoV, minMatches = 3, enoughToDropUnknown = StyleContinuity.ENOUGH_TO_DROP_UNKNOWN))
+        // …but with a single match the unknown still fills (the queue never dead-ends), and the default is unchanged.
+        assertEquals(listOf("m1", "u1"), StyleContinuity.select(listOf("m1", "u1"), listOf(MATCH, UNKNOWN), 3, StyleContinuity.ENOUGH_TO_DROP_UNKNOWN))
+        assertEquals(listOf("m1", "m2", "u1"), StyleContinuity.select(two, twoV, minMatches = 3))
     }
 
     @Test

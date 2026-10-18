@@ -1291,4 +1291,5 @@
     <string name="offline_downloaded_albums">Álbumes descargados</string>
     <string name="offline_downloaded_playlists">Listas descargadas</string>
     <string name="offline_collection_progress">%1$d de %2$d descargadas</string>
+    <string name="search_history_clear_all">Borrar todo</string>
 </resources>

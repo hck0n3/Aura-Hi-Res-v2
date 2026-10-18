@@ -79,12 +79,27 @@ object StyleContinuity {
      * What plays, in the caller's order: MATCH only when there are at least [minMatches]; otherwise MATCH then
      * UNKNOWN. OFF never. Empty when nothing fits — the caller then tries its next source.
      */
-    fun <T> select(items: List<T>, verdicts: List<Verdict>, minMatches: Int = MIN_MATCHES): List<T> {
+    fun <T> select(
+        items: List<T>,
+        verdicts: List<Verdict>,
+        minMatches: Int = MIN_MATCHES,
+        /**
+         * The number of MATCH that is enough to leave the UNKNOWN out (never more than [minMatches]). Row 430 (owner
+         * 2026-10-18: *«escuchaba rock clásico de los 70 y 80… me puso otra canción, siguió con el género, la volvió a
+         * cambiar»*): a batch with 1–2 matches took its UNKNOWN along, and they land at the END of the batch, so the
+         * queue read "rock, rock, ajena, rock, rock, ajena". Two sure matches are a batch; the unknowns only fill when
+         * there are fewer than that.
+         */
+        enoughToDropUnknown: Int = minMatches,
+    ): List<T> {
         require(items.size == verdicts.size)
         val matches = items.filterIndexed { i, _ -> verdicts[i] == Verdict.MATCH }
-        if (matches.size >= minMatches) return matches
+        if (matches.size >= minOf(minMatches, enoughToDropUnknown)) return matches
         return matches + items.filterIndexed { i, _ -> verdicts[i] == Verdict.UNKNOWN }
     }
+
+    /** What the live gate passes as `enoughToDropUnknown`. */
+    const val ENOUGH_TO_DROP_UNKNOWN = 2
 
     /**
      * The style of one track for building a target: its own words, else its artist's learned style, else a

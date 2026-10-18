@@ -172,10 +172,7 @@ fun AuraOnlineSearchSuggestions(
     ) {
         if (viewState.history.isNotEmpty()) {
             item(key = "aura_history_header", contentType = "aura_history_header") {
-                AuraSectionHeader(
-                    title = stringResource(R.string.search_history),
-                    modifier = Modifier,
-                )
+                AuraSearchHistoryHeader(onClearAll = { database.query { clearSearchHistory() } })
             }
         }
 
@@ -664,4 +661,54 @@ private fun auraLocalFilterLabel(filter: LocalFilter): Int = when (filter) {
     LocalFilter.ARTIST -> R.string.filter_artists
     LocalFilter.PLAYLIST -> R.string.filter_playlists
     LocalFilter.ALL -> R.string.filter_all
+}
+
+/**
+ * The «Historial de búsquedas» header with a «Borrar todo» on its right (owner 2026-10-18: *«el historial de la búsqueda
+ * quiero que también se pueda borrar, tanto del reproductor como de la búsqueda en general»*). Each row already had its ✕;
+ * the whole list had no way out short of Ajustes ▸ Privacidad. Asks first, with the same words the Privacidad screen uses.
+ */
+@Composable
+internal fun AuraSearchHistoryHeader(onClearAll: () -> Unit, modifier: Modifier = Modifier) {
+    var confirm by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (confirm) {
+        iad1tya.echo.music.ui.component.DefaultDialog(
+            forceWindow = true,
+            onDismiss = { confirm = false },
+            content = {
+                androidx.compose.material3.Text(
+                    text = stringResource(R.string.clear_search_history_confirm),
+                    style = AuraType.RowSubtitle,
+                    color = AuraPalette.OnGroundMuted,
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                )
+            },
+            buttons = {
+                androidx.compose.material3.TextButton(onClick = { confirm = false }) {
+                    androidx.compose.material3.Text(text = stringResource(android.R.string.cancel))
+                }
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        confirm = false
+                        onClearAll()
+                    },
+                ) {
+                    androidx.compose.material3.Text(text = stringResource(android.R.string.ok))
+                }
+            },
+        )
+    }
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        AuraSectionHeader(title = stringResource(R.string.search_history), modifier = Modifier.weight(1f))
+        androidx.compose.material3.TextButton(onClick = { confirm = true }) {
+            androidx.compose.material3.Text(
+                text = stringResource(R.string.search_history_clear_all),
+                style = AuraType.RowSubtitle,
+                color = AuraPalette.Teal,
+            )
+        }
+    }
 }
