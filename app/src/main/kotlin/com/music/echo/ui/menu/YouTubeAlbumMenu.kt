@@ -78,6 +78,7 @@ import iad1tya.echo.music.ui.component.NewActionGrid
 import iad1tya.echo.music.ui.component.SongListItem
 import iad1tya.echo.music.ui.component.YouTubeListItem
 import iad1tya.echo.music.utils.reportException
+import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -99,6 +100,8 @@ fun YouTubeAlbumMenu(
     val album by database.albumWithSongs(albumItem.id).collectAsState(initial = null)
     val isPinned by database.speedDialDao.isPinned(albumItem.id).collectAsState(initial = false)
     val coroutineScope = rememberCoroutineScope()
+    val (enableExportAsMp3) = rememberPreference(key = iad1tya.echo.music.constants.EnableExportAsMp3Key, defaultValue = true)
+    val exportAlbumMp3 = rememberMp3BatchExport(onStarted = onDismiss)
 
     LaunchedEffect(Unit) {
         database.album(albumItem.id).collect { album ->
@@ -568,6 +571,29 @@ fun YouTubeAlbumMenu(
                     }
                 )
             )
+        }
+
+
+        // «Exportar todo a MP3» (dueño, 2026-10-18): el álbum / EP / sencillo entero a una carpeta, con etiquetas y portada.
+        if (enableExportAsMp3) {
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+            item {
+                Material3MenuGroup(
+                    items = listOf(
+                        Material3MenuItemData(
+                            title = { Text(text = stringResource(R.string.export_all_mp3_title)) },
+                            description = { Text(text = stringResource(R.string.export_all_mp3_desc)) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.file_export),
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = { exportAlbumMp3((album?.songs.orEmpty()).map { it.toMp3ExportTrack() }) },
+                        ),
+                    ),
+                )
+            }
         }
 
         item { Spacer(modifier = Modifier.height(12.dp)) }

@@ -1359,6 +1359,13 @@
     <string name="music_request_save">Save as playlist</string>
     <string name="music_request_filling">Completing the list…</string>
     <string name="music_request_saved">Saved to your library</string>
+    <plurals name="export_batch_started">
+        <item quantity="one">Exporting %1$d song to MP3…</item>
+        <item quantity="other">Exporting %1$d songs to MP3…</item>
+    </plurals>
+    <string name="export_batch_nothing">There are no songs to export</string>
+    <string name="export_all_mp3_title">Export all to MP3</string>
+    <string name="export_all_mp3_desc">Every song, with tags and cover, into a folder you choose</string>
     <string name="music_request_send">Start</string>
     <string name="music_request_show_all">Show all %1$d</string>
     <string name="music_request_show_less">Show less</string>

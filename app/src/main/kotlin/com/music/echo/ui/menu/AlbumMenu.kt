@@ -3,6 +3,7 @@
 package iad1tya.echo.music.ui.menu
 
 import iad1tya.echo.music.utils.ShareLinks
+import iad1tya.echo.music.utils.rememberPreference
 
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -122,6 +123,8 @@ fun AlbumMenu(
     }
 
     val coroutineScope = rememberCoroutineScope()
+    val (enableExportAsMp3) = rememberPreference(key = iad1tya.echo.music.constants.EnableExportAsMp3Key, defaultValue = true)
+    val exportAlbumMp3 = rememberMp3BatchExport(onStarted = onDismiss)
 
     // Hoisted out of the action list on purpose: the actions are built conditionally, and a
     // remember/rememberSaveable inside a conditional branch would lose its slot when the condition
@@ -578,6 +581,29 @@ fun AlbumMenu(
                     }
                 )
             )
+        }
+
+
+        // «Exportar todo a MP3» (dueño, 2026-10-18): el álbum / EP / sencillo entero a una carpeta, con etiquetas y portada.
+        if (enableExportAsMp3) {
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+            item {
+                Material3MenuGroup(
+                    items = listOf(
+                        Material3MenuItemData(
+                            title = { Text(text = stringResource(R.string.export_all_mp3_title)) },
+                            description = { Text(text = stringResource(R.string.export_all_mp3_desc)) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.file_export),
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = { exportAlbumMp3(songs.map { it.toMp3ExportTrack() }) },
+                        ),
+                    ),
+                )
+            }
         }
 
         item { Spacer(modifier = Modifier.height(12.dp)) }

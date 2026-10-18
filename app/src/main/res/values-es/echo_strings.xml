@@ -1248,6 +1248,13 @@
     <string name="music_request_save">Guardar como lista</string>
     <string name="music_request_filling">Completando la lista…</string>
     <string name="music_request_saved">Guardada en tu biblioteca</string>
+    <plurals name="export_batch_started">
+        <item quantity="one">Exportando %1$d canción a MP3…</item>
+        <item quantity="other">Exportando %1$d canciones a MP3…</item>
+    </plurals>
+    <string name="export_batch_nothing">No hay canciones para exportar</string>
+    <string name="export_all_mp3_title">Exportar todo a MP3</string>
+    <string name="export_all_mp3_desc">Todas las canciones, con etiquetas y portada, en la carpeta que elijas</string>
     <string name="music_request_send">Empezar</string>
     <string name="music_request_show_all">Ver las %1$d</string>
     <string name="music_request_show_less">Ver menos</string>

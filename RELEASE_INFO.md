@@ -44,3 +44,8 @@ Beta encima de la 2.0.65-beta12. Conserva tus datos, tu sesión y tus ajustes: m
 - **Cambiar entre Canción y Vídeo en un vídeo exportado ya no corta el sonido,** tampoco sin conexión: al salir de Vídeo solo se apaga la
   imagen, y al entrar se prepara con unos segundos de antelación mientras tienes abierto el reproductor.
 
+## Exportar a MP3
+
+- **Exporta un álbum, EP o sencillo entero a MP3** desde su menú ⋮ («Exportar todo a MP3»): eliges la carpeta una vez y se guardan
+  todas las canciones con etiquetas y portada. Las listas ya lo tenían en su menú ⋮ («Exportar a MP3»: todas o las que elijas).
+
