@@ -366,7 +366,10 @@ private suspend fun MusicService.styleFillPage(query: String): List<MediaItem> {
             Timber.tag(TAG).w("STYLE_GATE playlist load failed: %s", privacySafeSummary(e))
             emptyList()
         }
-        if (songs.isNotEmpty()) return songs.shuffled(randomSeedSource).map { it.toMediaItem() }
+        if (songs.isNotEmpty()) {
+            return StyleContinuity.contiguousRun(songs, StyleContinuity.FILL_RUN, randomSeedSource.nextInt())
+                .map { it.toMediaItem() }
+        }
     }
     return styleSearchPage(query)
 }

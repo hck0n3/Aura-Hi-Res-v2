@@ -120,6 +120,28 @@ class StyleContinuityTest {
     }
 
     @Test
+    fun `a search or a community playlist no longer vouches for an artist known to be another style`() {
+        // Row 440: «match=100 kept=100» — the whole playlist was trusted. Known contradiction first; no knowledge still passes.
+        assertEquals(OFF, StyleContinuity.verdict(cumbia, cand("Tu amor", learned = "salsa", search = true)))
+        assertEquals(OFF, StyleContinuity.verdict(cumbia, cand("Tu amor", genre = "Bachata", search = true)))
+        assertEquals(MATCH, StyleContinuity.verdict(cumbia, cand("Tu amor", learned = "cumbia", search = true)))
+        assertEquals(MATCH, StyleContinuity.verdict(cumbia, cand("Tu amor", search = true)))
+        assertEquals(MATCH, StyleContinuity.verdict(cumbia, cand("Tu amor", learned = "salsa", own = true)))
+    }
+
+    @Test
+    fun `a filler playlist adds a bounded run in its own order`() {
+        val list = (1..100).toList()
+        val run = StyleContinuity.contiguousRun(list, StyleContinuity.FILL_RUN, startSeed = 10)
+        assertEquals(StyleContinuity.FILL_RUN, run.size)
+        assertEquals((11..34).toList(), run) // consecutive, the author's order
+        assertEquals(listOf(99, 100, 1), StyleContinuity.contiguousRun(list, 3, startSeed = 98)) // wraps
+        assertEquals(list.take(5), StyleContinuity.contiguousRun(list.take(5), 24, startSeed = 3)) // short list: all
+        assertEquals(emptyList<Int>(), StyleContinuity.contiguousRun(list, 0, startSeed = 3))
+        assertEquals(24, StyleContinuity.contiguousRun(list, 24, startSeed = -7).size) // a negative seed is safe
+    }
+
+    @Test
     fun `umbrella genres never condemn, another family does`() {
         assertEquals(UNKNOWN, StyleContinuity.verdict(cumbia, cand("Tu amor", genre = "Christian & Gospel")))
         assertEquals(UNKNOWN, StyleContinuity.verdict(cumbia, cand("Tu amor", genre = "Salsa y Tropical")))

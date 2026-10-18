@@ -88,8 +88,14 @@ object StyleContinuity {
             // Language-only target: a known same language is a match, unknown stays unknown.
             return if (c.language != null) Verdict.MATCH else Verdict.UNKNOWN
         }
-        if (c.ownArtist || c.fromSearch) return Verdict.MATCH
+        if (c.ownArtist) return Verdict.MATCH
         val known = c.learnedStyle ?: c.genre.style
+        // Row 440 (owner 2026-10-18, smart queue): a song that arrives from a search or a community playlist of the style
+        // was trusted whole — a "drum and bass" playlist added its 100 songs, intruders included. What we KNOW about its
+        // artist now counts first when it plainly says another style; a parent/related style or no knowledge stays a match.
+        if (c.fromSearch) {
+            return if (known != null && known !in styles && !isParentOf(known, styles)) Verdict.OFF else Verdict.MATCH
+        }
         if (known != null) {
             return when {
                 known in styles -> Verdict.MATCH
@@ -124,6 +130,21 @@ object StyleContinuity {
         if (matches.size >= minOf(minMatches, enoughToDropUnknown)) return matches
         return matches + items.filterIndexed { i, _ -> verdicts[i] == Verdict.UNKNOWN }
     }
+
+    /**
+     * A run of at most [count] consecutive items of [items] starting at [startSeed] (wrapping). Row 440: a community
+     * playlist was shuffled and added whole; its author's ORDER is a flow worth keeping, and a random start still gives
+     * variety between rounds.
+     */
+    fun <T> contiguousRun(items: List<T>, count: Int, startSeed: Int): List<T> {
+        if (count <= 0) return emptyList()
+        if (items.size <= count) return items
+        val start = Math.floorMod(startSeed, items.size)
+        return List(count) { items[(start + it) % items.size] }
+    }
+
+    /** The most songs one filler playlist adds to a queue in a round. */
+    const val FILL_RUN = 24
 
     /** What the live gate passes as `enoughToDropUnknown`. */
     const val ENOUGH_TO_DROP_UNKNOWN = 2

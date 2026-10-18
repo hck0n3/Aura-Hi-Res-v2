@@ -71,6 +71,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -1707,9 +1708,25 @@ private fun AuraQuickPicksCarousel(
  * vacío y con menos carátulas… quiero que se vean más, como cuando no está plegado»*. 248 × 300 dp centred left half the
  * row empty at the first card and showed ~2.5 covers; 200 × 264 dp starting at the left edge shows 3½–4.
  */
-private val AURA_WIDE_CAROUSEL_ITEM_WIDTH = 200.dp
-private val AURA_WIDE_CAROUSEL_ITEM_HEIGHT = 264.dp
-private val AURA_WIDE_CAROUSEL_SPACING = 12.dp
+private val AURA_WIDE_CAROUSEL_SPACING = 8.dp
+
+/**
+ * How many cards show at once in a wide window. Owner 2026-10-18, third round (Fold unfolded): *«las portadas están muy
+ * separadas… requiere unas seis o siete portadas para que se vean pegadas, como cuando el plegable no está desplegado»*.
+ * 200 dp cards showed ~4 with the row mostly air; the card width now FOLLOWS the window so 6½ of them fit, tight, and the
+ * last one peeks from the right edge (a sign the row scrolls). Portrait cards, as on the phone (height = 1.32 × width).
+ */
+private const val AURA_WIDE_CAROUSEL_VISIBLE = 6.5f
+private val AURA_WIDE_CAROUSEL_MIN_WIDTH = 120.dp
+private val AURA_WIDE_CAROUSEL_MAX_WIDTH = 220.dp
+private const val AURA_WIDE_CAROUSEL_ASPECT = 1.32f
+
+/** The width of one wide-carousel card in a window [windowWidth] wide, gutter on the left and spacing between the cards. */
+internal fun auraWideCarouselItemWidth(windowWidth: Dp, gutter: Dp = AuraSpacing.Gutter, spacing: Dp = AURA_WIDE_CAROUSEL_SPACING): Dp {
+    val usable = windowWidth - gutter
+    val spacings = spacing * (AURA_WIDE_CAROUSEL_VISIBLE.toInt())
+    return ((usable - spacings) / AURA_WIDE_CAROUSEL_VISIBLE).coerceIn(AURA_WIDE_CAROUSEL_MIN_WIDTH, AURA_WIDE_CAROUSEL_MAX_WIDTH)
+}
 
 /**
  * The hero carousel of a wide window.
@@ -1731,7 +1748,10 @@ private fun AuraWideCarousel(
     onLongClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    key(songs.size) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+      val itemWidth = auraWideCarouselItemWidth(maxWidth)
+      val itemHeight = itemWidth * AURA_WIDE_CAROUSEL_ASPECT
+      key(songs.size) {
         val listState = rememberLazyListState()
         // The first card sits at the LEFT edge (like the phone's hero carousel) with the next ones peeking from the
         // right — not centred, which left the first screen half empty. The cards fill the row from the gutter.
@@ -1746,7 +1766,7 @@ private fun AuraWideCarousel(
                 modifier = modifier
                     .fillMaxWidth()
                     .padding(top = AuraSpacing.SectionGap)
-                    .height(AURA_WIDE_CAROUSEL_ITEM_HEIGHT + 24.dp),
+                    .height(itemHeight + 24.dp),
             ) {
                 itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
                     AuraHeroCarouselCard(
@@ -1760,8 +1780,8 @@ private fun AuraWideCarousel(
                         onClick = onClick,
                         onLongClick = onLongClick,
                         modifier = Modifier
-                            .width(AURA_WIDE_CAROUSEL_ITEM_WIDTH)
-                            .height(AURA_WIDE_CAROUSEL_ITEM_HEIGHT)
+                            .width(itemWidth)
+                            .height(itemHeight)
                             .graphicsLayer {
                                 val info = listState.layoutInfo
                                 val item = info.visibleItemsInfo.firstOrNull { it.index == index }
@@ -1784,6 +1804,7 @@ private fun AuraWideCarousel(
             }
             AuraCarouselDots(count = songs.size, current = first)
         }
+      }
     }
 }
 

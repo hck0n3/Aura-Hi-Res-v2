@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Checkbox
@@ -621,6 +622,14 @@ fun AuraLocalPlaylistScreen(
                     .union(WindowInsets.ime)
                     .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
                     .asPaddingValues()
+            } else if (playlist?.let { it.songCount > 0 || it.playlist.remoteSongCount != 0 } == true) {
+                // Top = 0: the hero is full-bleed and scrolls under the status bar, like the album page
+                // (AuraDetailChrome never consumes the 64 dp app-bar reserve on the redesigned pushed screens).
+                // The empty-playlist message keeps the inset (it has no hero to hold the top).
+                LocalPlayerAwareWindowInsets.current
+                    .union(WindowInsets.ime)
+                    .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                    .asPaddingValues()
             } else {
                 LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime).asPaddingValues()
             },
@@ -646,6 +655,7 @@ fun AuraLocalPlaylistScreen(
                                 contextId = contextId,
                                 snackbarHostState = snackbarHostState,
                                 onSearch = { isSearching = true },
+                                listState = lazyListState,
                                 onMenu = {
                                     menuState.show {
                                         AuraLocalPlaylistMenuHost(
@@ -1109,11 +1119,11 @@ private fun AuraLocalPlaylistHeader(
     snackbarHostState: SnackbarHostState,
     onSearch: () -> Unit,
     onMenu: () -> Unit,
+    listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val isTvOrCar = rememberIsTvOrCar()
-    val isWideLayout = rememberIsWideLayout()
     val editable = playlist.playlist.isEditable
     val coverEditor = rememberPlaylistCoverEditor(playlist, snackbarHostState)
 
@@ -1329,33 +1339,36 @@ private fun AuraLocalPlaylistHeader(
                 info = { info(true) },
             )
         } else {
+            // The album page's phone design (owner 2026-10-18: «las portadas de las listas en la parte de arriba cuando el
+            // celular no está desplegado no me gusta, las quiero como se muestran las de los álbumes»): the cover is the
+            // full-bleed hero that dissolves into the page, the title and the buttons centred right under it.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(Modifier.height(56.dp))
+                AuraAlbumHero(
+                    thumbnailUrl = if (playlist.thumbnails.size == 1) coverEditor.displayThumbnail else null,
+                    albumId = null,
+                    canvasPrimaryUrl = null,
+                    canvasFallbackUrl = null,
+                    canvasEnabled = false,
+                    isPlaying = false,
+                    listState = listState,
+                    seed = contextId,
+                    mosaic = if (playlist.thumbnails.size >= 2) playlist.thumbnails else null,
+                    overlay = if (editable) {
+                        {
+                            OverlayEditButton(
+                                visible = true,
+                                alignment = Alignment.BottomEnd,
+                                onClick = coverEditor.onEditCoverClick,
+                            )
+                        }
+                    } else null,
+                )
 
-                val coverSize: Dp = if (isWideLayout) 320.dp else 260.dp
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 48.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(coverSize)
-                            .aspectRatio(1f)
-                            .clip(AuraShapes.Artwork)
-                            .auraArtworkEdge(AuraShapes.Artwork),
-                    ) {
-                        cover(coverSize)
-                    }
-                }
-
-                Spacer(Modifier.height(26.dp))
                 info(false)
             }
         }

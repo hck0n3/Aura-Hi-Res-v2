@@ -292,7 +292,9 @@ fun StorageSettings(
             },
             onCancel = { clearDownloads = false },
             content = {
-                Text(text = stringResource(R.string.clear_downloads_dialog))
+                // Owner 2026-10-18: every downloaded song vanished at once from this button. The dialog now says HOW MUCH
+                // is about to be erased, so a mis-tap in a row of "clear" options is not read as routine housekeeping.
+                Text(text = stringResource(R.string.clear_downloads_dialog) + "\n\n" + formatFileSize(downloadCacheSize))
             }
         )
     }

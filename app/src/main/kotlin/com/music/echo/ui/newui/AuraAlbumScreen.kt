@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -724,7 +725,7 @@ fun AuraAlbumScreen(
  * left, title and actions on its right — because a full-width square hero on a foldable or a TV eats the screen.
  */
 @Composable
-private fun AuraAlbumHero(
+internal fun AuraAlbumHero(
     thumbnailUrl: String?,
     albumId: String?,
     canvasPrimaryUrl: String?,
@@ -733,6 +734,15 @@ private fun AuraAlbumHero(
     isPlaying: Boolean,
     listState: LazyListState,
     modifier: Modifier = Modifier,
+    /** Seed of the placeholder gradient when there is no image (the album uses its own thumbnail url). */
+    seed: String? = thumbnailUrl,
+    /**
+     * A local playlist's first four covers: drawn as a full-bleed 2×2 mosaic instead of one image, so a playlist wears the
+     * album page's hero (owner 2026-10-18: «las portadas de las listas… las quiero como se muestran las de los álbumes»).
+     */
+    mosaic: List<String?>? = null,
+    /** Drawn over the finished hero (a playlist's ✎ button). */
+    overlay: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         // Hoisted: inside the inner Box the closest implicit receiver is BoxScope, not
@@ -776,18 +786,37 @@ private fun AuraAlbumHero(
             // Lean mode (registry 395): no blur sampling, a smaller decode — the hero keeps its scrim and its dissolve.
             val lean = rememberLeanMode()
             Box(modifier = Modifier.fillMaxSize().then(if (lean) Modifier else Modifier.hazeSource(heroHaze))) {
-                AuraCover(
-                    thumbnailUrl = thumbnailUrl,
-                    size = heroWidth,
-                    // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
-                    modifier = if (albumId != null) {
-                        Modifier.auraSharedAlbumCoverElement(albumId)
-                    } else Modifier,
-                    seed = thumbnailUrl,
-                    shape = androidx.compose.ui.graphics.RectangleShape,
-                    decodeTo = if (lean) 640 else 1200,
-                    ratio = 1f,
-                )
+                if (mosaic != null && mosaic.size >= 2) {
+                    Column(Modifier.fillMaxSize()) {
+                        repeat(2) { rowIndex ->
+                            Row(Modifier.weight(1f)) {
+                                repeat(2) { columnIndex ->
+                                    val index = rowIndex * 2 + columnIndex
+                                    AuraCover(
+                                        thumbnailUrl = mosaic.getOrNull(index),
+                                        size = heroWidth / 2,
+                                        seed = "$seed#$index",
+                                        shape = androidx.compose.ui.graphics.RectangleShape,
+                                        decodeTo = if (lean) 256 else 512,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    AuraCover(
+                        thumbnailUrl = thumbnailUrl,
+                        size = heroWidth,
+                        // Ronda 5: destino de la transición hero — ver AuraSharedTransition.kt.
+                        modifier = if (albumId != null) {
+                            Modifier.auraSharedAlbumCoverElement(albumId)
+                        } else Modifier,
+                        seed = seed,
+                        shape = androidx.compose.ui.graphics.RectangleShape,
+                        decodeTo = if (lean) 640 else 1200,
+                        ratio = 1f,
+                    )
+                }
 
                 if (canvasEnabled && (canvasPrimaryUrl != null || canvasFallbackUrl != null)) {
                     CanvasArtworkPlayer(
@@ -835,6 +864,8 @@ private fun AuraAlbumHero(
                         ),
                     ),
             )
+
+            overlay?.invoke(this)
         }
     }
 }

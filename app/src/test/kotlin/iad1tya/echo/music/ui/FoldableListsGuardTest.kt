@@ -1,5 +1,6 @@
 package iad1tya.echo.music.ui
 
+import androidx.compose.ui.unit.dp
 import java.io.File
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -38,7 +39,9 @@ class FoldableListsGuardTest {
         val wide = src.substringAfter("private fun AuraWideCarousel(").substringBefore("private fun AuraHeroCarouselCard(")
         assertTrue(wide.contains("SnapPosition.Start"))
         assertFalse("centrado dejaba media fila vacía", wide.contains("SnapPosition.Center"))
-        assertTrue(src.contains("AURA_WIDE_CAROUSEL_ITEM_WIDTH = 200.dp"))
+        assertTrue("la fila enseña seis o siete portadas pegadas", src.contains("AURA_WIDE_CAROUSEL_VISIBLE = 6.5f"))
+        assertTrue(wide.contains("auraWideCarouselItemWidth(maxWidth)"))
+        assertFalse("ya no hay tarjetas fijas de 200 dp", src.contains("AURA_WIDE_CAROUSEL_ITEM_WIDTH"))
     }
 
     @Test
@@ -65,5 +68,18 @@ class FoldableListsGuardTest {
         assertTrue("las propias conservan las canciones sugeridas", src.contains("SuggestedSongsSection("))
         assertTrue("sin red no se pide", src.contains("if (followedBrowseId != null && !offlineNow) viewModel.loadRelated(followedBrowseId)"))
         assertTrue(main("viewmodels/LocalPlaylistViewModel.kt").contains("fun loadRelated(browseId: String)"))
+    }
+}
+
+class WideCarouselSizingTest {
+    @Test
+    fun `an unfolded window shows six and a half tight cards, never fewer than six`() {
+        for (width in listOf(840, 904, 960, 1100)) {
+            val window = width.dp
+            val item = iad1tya.echo.music.ui.newui.auraWideCarouselItemWidth(window)
+            val visible = (window.value - 16f) / (item.value + 8f)
+            assertTrue("at $width dp: $visible cards in view", visible >= 6f)
+            assertTrue("at $width dp the card is $item", item.value in 120f..220f)
+        }
     }
 }
