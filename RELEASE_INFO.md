@@ -1,4 +1,4 @@
-# Aura Hi-Res v2.0.65-beta12 — Plegable más cuidado, Inicio con carrusel y portadas con borde más brillante
+# Aura Hi-Res v2.0.65-beta12 — Plegable más cuidado, Inicio con carrusel, portadas con borde más brillante y Pedir música mejorado
 
 Beta encima de la 2.0.65-beta11. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
@@ -25,3 +25,16 @@ Beta encima de la 2.0.65-beta11. Conserva tus datos, tu sesión y tus ajustes: m
 ## Portadas
 
 - **El borde de todas las portadas (álbum, vídeo, lista, sencillo…) es más brillante,** como en Apple Music.
+
+## Pedir música
+
+- **Borra el historial de peticiones:** una por una con la ✕ o todas de golpe.
+- **Sugerencias personales que rotan,** a partir de lo que escuchas, en vez de una lista fija.
+- **Vista previa del resultado:** al terminar ves las primeras canciones antes de reproducir.
+- **«Guardar como lista»:** crea una lista con todas las canciones de la petición, cuando termina de completarse.
+- **Filtro Todo / Conocido / Descubrir,** como Familiar y Descubrir de YouTube Music: «Conocido» usa artistas que ya
+  escuchas y «Descubrir» solo canciones y artistas nuevos para ti. «Todo» funciona igual que antes.
+
+## Actualizaciones
+
+- **La pantalla de actualizaciones ya está en español.**
