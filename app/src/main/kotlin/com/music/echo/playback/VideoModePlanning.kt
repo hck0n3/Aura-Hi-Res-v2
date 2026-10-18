@@ -86,6 +86,10 @@ object VideoModePlanning {
      *  · [enabled] — the kill switch;
      *  · the audio sub-source is the app's OWN ([hasSeparateAudioSource], not a muxed podcast, not a muxed stream):
      *    a muxed file carries LOWER-quality audio than the normal stream, and Song must restore the real one;
+     *  · EXCEPTION [isLocalExportedFile] (owner 2026-10-18: «descargo un vídeo, voy a Vídeos exportados y lo reproduzco
+     *    con el wifi apagado: al cambiar entre canción y vídeo hay un leve corte»): an EXPORTED video is a local MP4 whose
+     *    audio IS the best audio (the export mux keeps the separate higher-quality track), so there is no worse audio to
+     *    swap back to — switching the picture off is enough and nothing needs rebuilding;
      *  · [onlyCurrentItemTracked] — the playing item is the single tracked video item (nothing pre-built);
      *  · no crossfade machinery is live ([crossfadeLive]) — two players, one of them about to be released;
      *  · not casting ([casting]) — the receiver is fed from the item;
@@ -100,10 +104,10 @@ object VideoModePlanning {
         crossfadeLive: Boolean,
         casting: Boolean,
         playerReady: Boolean,
+        isLocalExportedFile: Boolean = false,
     ): Boolean = enabled &&
-        !isMuxedPodcast &&
+        (isLocalExportedFile || (!isMuxedPodcast && !isMuxedStream)) &&
         hasSeparateAudioSource &&
-        !isMuxedStream &&
         onlyCurrentItemTracked &&
         !crossfadeLive &&
         !casting &&

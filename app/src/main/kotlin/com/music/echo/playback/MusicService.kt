@@ -8485,9 +8485,15 @@ class MusicService :
         val item = player.currentMediaItem ?: return
         val id = item.mediaId
         if (id.isEmpty() || id.isLocalMediaId() || id.startsWith("http", ignoreCase = true)) return
-        if (player.currentMetadata?.isVideoSong != true) return
-        val url = videoUrlCache[id]?.takeIf { it.second > System.currentTimeMillis() }?.first ?: return
-        if (runCatching { connectivityManager.isActiveNetworkMetered }.getOrDefault(true)) return
+        // An EXPORTED video (Vídeos exportados) is a local MP4 with picture and sound: nothing to resolve and nothing to
+        // download, so no URL cache, no «is a video song» and no metered-network gate (owner 2026-10-18: a cut when
+        // switching Song ↔ Video offline). The heat gates below still apply.
+        val exportedUri = videoCoordinator.exportedMuxedVideoUri(id)
+        if (exportedUri == null && player.currentMetadata?.isVideoSong != true) return
+        val url = exportedUri
+            ?: videoUrlCache[id]?.takeIf { it.second > System.currentTimeMillis() }?.first
+            ?: return
+        if (exportedUri == null && runCatching { connectivityManager.isActiveNetworkMetered }.getOrDefault(true)) return
         val perfMode = iad1tya.echo.music.utils.PerformanceMode.isOn(this)
         val tier = iad1tya.echo.music.utils.PerformanceMode.effectiveTier(this)
         if (perfMode ||
@@ -8509,7 +8515,9 @@ class MusicService :
         // Register FIRST (separate map + URI-match guard in createMediaSource) so the pre-player's
         // setMediaItem builds the MergingMediaSource (video-only + normal audio), never audio-only.
         // NewPipe muxed fallback URLs carry audio themselves → register as muxed (no audio merge).
-        instantSwapItems[id] = VideoModeCoordinator.VideoTrackState(url, origUri, id in videoCoordinator.newPipeMuxedVideoIds)
+        instantSwapItems[id] = VideoModeCoordinator.VideoTrackState(
+            url, origUri, exportedUri != null || id in videoCoordinator.newPipeMuxedVideoIds,
+        )
         var pre: ExoPlayer? = null
         try {
             pre = createExoPlayer(isSecondary = true)
@@ -8774,6 +8782,8 @@ class MusicService :
                 isMuxedPodcast = state.isMuxedPodcast,
                 hasSeparateAudioSource = state.originalAudioUri != null,
                 isMuxedStream = id in videoCoordinator.newPipeMuxedVideoIds,
+                // An exported video (local MP4, offline): its audio is the best one, so no rebuild is needed to leave it.
+                isLocalExportedFile = videoCoordinator.exportedMuxedVideoUri(id)?.let { it == state.videoUrl } == true,
                 // The playing item is THE tracked video item, nothing else is pre-built.
                 onlyCurrentItemTracked = videoModeMediaId == id && videoCoordinator.videoModeItems.size == 1,
                 crossfadeLive = isCrossfading || fadingPlayer != null || secondaryPlayer != null,

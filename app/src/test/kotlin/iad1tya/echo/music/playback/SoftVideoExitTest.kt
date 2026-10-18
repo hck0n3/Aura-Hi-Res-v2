@@ -23,9 +23,10 @@ class SoftVideoExitTest {
         crossfadeLive: Boolean = false,
         casting: Boolean = false,
         playerReady: Boolean = true,
+        isLocalExportedFile: Boolean = false,
     ) = VideoModePlanning.softExitAllowed(
         enabled, isMuxedPodcast, hasSeparateAudioSource, isMuxedStream,
-        onlyCurrentItemTracked, crossfadeLive, casting, playerReady,
+        onlyCurrentItemTracked, crossfadeLive, casting, playerReady, isLocalExportedFile,
     )
 
     @Test
@@ -38,6 +39,22 @@ class SoftVideoExitTest {
         assertFalse(allowed(isMuxedStream = true))
         assertFalse(allowed(isMuxedPodcast = true))
         assertFalse(allowed(hasSeparateAudioSource = false))
+    }
+
+    @Test
+    fun `an exported local video goes soft too — its audio is the best one, so there is nothing to rebuild`() {
+        // Owner 2026-10-18: a cut when switching Song <-> Video on an exported video, offline.
+        assertTrue(allowed(isMuxedPodcast = true, isLocalExportedFile = true))
+        assertTrue(allowed(isMuxedStream = true, isLocalExportedFile = true))
+    }
+
+    @Test
+    fun `an exported video still keeps the rebuild whenever any other doubt holds`() {
+        assertFalse(allowed(isLocalExportedFile = true, enabled = false))
+        assertFalse(allowed(isLocalExportedFile = true, onlyCurrentItemTracked = false))
+        assertFalse(allowed(isLocalExportedFile = true, crossfadeLive = true))
+        assertFalse(allowed(isLocalExportedFile = true, casting = true))
+        assertFalse(allowed(isLocalExportedFile = true, playerReady = false))
     }
 
     @Test

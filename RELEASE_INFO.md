@@ -39,3 +39,8 @@ Beta encima de la 2.0.65-beta12. Conserva tus datos, tu sesión y tus ajustes: m
   muestre la imagen y no solo suene la canción. Si de verdad no existe un vídeo compatible con el TV, sigue sonando la canción y
   la app vuelve a modo Canción con un aviso.
 
+## Vídeos exportados
+
+- **Cambiar entre Canción y Vídeo en un vídeo exportado ya no corta el sonido,** tampoco sin conexión: al salir de Vídeo solo se apaga la
+  imagen, y al entrar se prepara con unos segundos de antelación mientras tienes abierto el reproductor.
+
