@@ -395,9 +395,8 @@ class AuraAppearanceTest {
         assertEquals(AuraAccent.from(seed, ground), AuraAccent.fromCover(seed, null, null, ground))
     }
 
-    /** Row 341: the glass carries the cover's colour and the nav bar stays legible on it. */
-    @Test
-    fun `the cover glass tint keeps the nav labels legible on every hue`() {
+    /** Runs [check] with the palette applied for a cover of every 10th hue; the glass is that cover's tint. */
+    private fun forEveryCoverHue(check: (hue: Int, glass: Color) -> Unit) {
         assertEquals(null, AuraPalette.CoverGlassTint)
         for (hue in 0 until 360 step 10) {
             val seed = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue.toFloat(), 0.95f, 0.95f)
@@ -410,32 +409,44 @@ class AuraAppearanceTest {
                 artworkInk = ink,
                 artworkGround = ground,
             )
-            val glass = AuraPalette.CoverGlassTint!!
-            val ratio = contrastRatio(AuraPalette.NavInactive.compositeOver(glass), glass)
-            assertTrue("hue $hue: nav label on the glass at $ratio", ratio >= TEXT_AA)
-            // Row 426: the floating windows' plate IS that colour (they used to be a near-neutral whisper of it), and
-            // the secondary ink keeps its contrast on it.
-            assertEquals("hue $hue: the floating plate follows the cover tint", glass, AuraPalette.FloatingFill)
-            val onPlate = contrastRatio(AuraPalette.OnGroundMuted.compositeOver(AuraPalette.FloatingFill), AuraPalette.FloatingFill)
-            // Swept numerically (python, every 5° of hue): muted ≥ 4.6, faint ≥ 4.27 — the faint step is for section
-            // labels, so only the muted (artist names, subtitles) ink is held to the text bar, with a hair of margin.
-            assertTrue("hue $hue: secondary ink on the floating plate at $onPlate", onPlate >= 4.4f)
-            // Owner 2026-10-18: the tint must be VISIBLY the cover's colour, not a near-black film.
-            // Measured as a straight colour distance from the plain raised ground (a hue-independent yardstick: the older
-            // «channel spread» test depended on how much the ground itself was tinted, and failed on some hues).
-            val plain = AuraPalette.GroundRaised
-            val distance = kotlin.math.sqrt(
-                (glass.red - plain.red).let { it * it } +
-                    (glass.green - plain.green).let { it * it } +
-                    (glass.blue - plain.blue).let { it * it },
-            )
-            assertTrue(
-                "hue $hue: glass tint is only $distance from the plain ground (needs 0.06)",
-                distance >= 0.06f,
-            )
+            check(hue, AuraPalette.CoverGlassTint!!)
         }
         AuraPalette.reset()
         assertEquals(null, AuraPalette.CoverGlassTint)
+    }
+
+    /** Row 341: the glass carries the cover's colour and the nav bar stays legible on it. */
+    @Test
+    fun `the cover glass tint keeps the nav labels legible on every hue`() = forEveryCoverHue { hue, glass ->
+        val ratio = contrastRatio(AuraPalette.NavInactive.compositeOver(glass), glass)
+        assertTrue("hue $hue: nav label on the glass at $ratio", ratio >= TEXT_AA)
+    }
+
+    /**
+     * Row 426: the floating windows' plate IS that colour (they used to be a near-neutral whisper of it), and the
+     * secondary ink (artist names, subtitles) keeps the text bar on it. [coverGlassTintOf] enforces it on the real ink.
+     */
+    @Test
+    fun `the floating plate follows the cover tint and keeps the secondary ink legible`() = forEveryCoverHue { hue, glass ->
+        assertEquals("hue $hue: the floating plate follows the cover tint", glass, AuraPalette.FloatingFill)
+        val onPlate = contrastRatio(AuraPalette.OnGroundMuted.compositeOver(AuraPalette.FloatingFill), AuraPalette.FloatingFill)
+        assertTrue("hue $hue: secondary ink on the floating plate at $onPlate", onPlate >= 4.4f)
+    }
+
+    /**
+     * Owner 2026-10-18: the tint must be VISIBLY the cover's colour, not a near-black film. Measured as a straight colour
+     * distance from the plain raised ground (a hue-independent yardstick: the older «channel spread» test depended on
+     * how much the ground itself was tinted, and failed on some hues).
+     */
+    @Test
+    fun `the cover glass tint is visibly the covers colour on every hue`() = forEveryCoverHue { hue, glass ->
+        val plain = AuraPalette.GroundRaised
+        val distance = kotlin.math.sqrt(
+            (glass.red - plain.red).let { it * it } +
+                (glass.green - plain.green).let { it * it } +
+                (glass.blue - plain.blue).let { it * it },
+        )
+        assertTrue("hue $hue: glass tint is only $distance from the plain ground (needs 0.06)", distance >= 0.06f)
     }
 
     @Test

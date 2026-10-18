@@ -42,6 +42,7 @@ import iad1tya.echo.music.ui.component.LocalLyricsInk
 import iad1tya.echo.music.ui.theme.CustomThemeRoles
 import iad1tya.echo.music.ui.theme.DefaultThemeColor
 import iad1tya.echo.music.ui.theme.ThemePreset
+import iad1tya.echo.music.ui.theme.contrastRatio
 import iad1tya.echo.music.ui.theme.effectiveAuraGround
 import iad1tya.echo.music.ui.theme.ensureLegibleOn
 import iad1tya.echo.music.ui.theme.rememberCustomThemeRoles
@@ -462,7 +463,7 @@ object AuraPalette {
      */
     val CoverGlassTint: Color?
         get() = if (artworkInk == null || roleOverrides.surface != null) null
-        else coverGlassTintOf(Teal, GroundRaised)
+        else coverGlassTintOf(Teal, GroundRaised, mutedInk = OnGroundMuted)
 
     /**
      * Frosted overlay plate (dialogs / sheets / menus).
@@ -1019,11 +1020,14 @@ internal const val COVER_GLASS_GREY_BELOW = 0.12f
  */
 internal const val COVER_GLASS_MAX_LUMINANCE = 0.034f
 
+/** The secondary ink (58 % of the cover-tinted ink) keeps at least this contrast on the glass; WCAG AA is 4.5. */
+internal const val COVER_GLASS_MIN_MUTED_CONTRAST = 4.6f
+
 /**
  * The glass tint for a cover whose accent is [accent], over the chrome's plain [ground]: the accent's hue and
  * saturation (a little boosted) at a fixed dark value, blended with the ground. Pure, so a test can walk every hue.
  */
-internal fun coverGlassTintOf(accent: Color, ground: Color): Color {
+internal fun coverGlassTintOf(accent: Color, ground: Color, mutedInk: Color? = null): Color {
     val (hue, saturation, _) = iad1tya.echo.music.ui.component.ColorPickerConversions.colorToHsv(accent)
     val tintedSaturation = if (saturation < COVER_GLASS_GREY_BELOW) {
         saturation
@@ -1037,7 +1041,13 @@ internal fun coverGlassTintOf(accent: Color, ground: Color): Color {
     var value = COVER_GLASS_VALUE
     var glass = glassAt(value)
     var steps = 0
-    while (glass.luminance() > COVER_GLASS_MAX_LUMINANCE && steps++ < 16) {
+    // The floating windows paint THIS colour as their plate, so the secondary ink (artist names, subtitles) must clear
+    // the text bar on it too — enforced here, on the real ink, instead of hoping a hue sweep covers every cover ground.
+    fun inkTooFaint(): Boolean =
+        // Darkening only helps LIGHT ink; a dark custom ink on a dark glass is the theme's call, not ours.
+        mutedInk != null && mutedInk.luminance() > glass.luminance() &&
+            contrastRatio(mutedInk.compositeOver(glass), glass) < COVER_GLASS_MIN_MUTED_CONTRAST
+    while ((glass.luminance() > COVER_GLASS_MAX_LUMINANCE || inkTooFaint()) && steps++ < 24) {
         value *= 0.92f
         glass = glassAt(value)
     }
