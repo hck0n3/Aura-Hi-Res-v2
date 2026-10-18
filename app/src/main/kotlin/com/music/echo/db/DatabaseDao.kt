@@ -1253,7 +1253,6 @@ interface DatabaseDao {
         SongSortType.PLAY_TIME -> downloadedSongsByPlayTimeAsc()
     }.map { it.reversed(descending) }
 
-    @Transaction
     /**
      * Albums with at least one downloaded song, newest download first — the offline body's "Álbumes descargados".
      * Counts come from the song rows themselves (`isDownloaded`), the same flag [downloadedSongs] lists.
@@ -1300,6 +1299,7 @@ interface DatabaseDao {
     )
     fun downloadedPlaylists(): Flow<List<OfflineCollection>>
 
+    @Transaction
     @Query("SELECT * FROM song WHERE isDownloaded = 1 ORDER BY dateDownload")
     fun downloadedSongsByCreateDateAsc(): Flow<List<Song>>
 

@@ -543,6 +543,9 @@ internal fun AuraSearchInputBar(
     }
 }
 
+/** Row 423: the pause before the recognizer is restarted for the next phrase of a settled dictation. */
+private const val DICTATION_RESTART_DELAY_MS = 150L
+
 // ── Voice search ──────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -552,9 +555,6 @@ internal fun AuraSearchInputBar(
  *
  * The dialog is emitted from here so both the Buscar bar and the results bar get it from one place.
  */
-/** Row 423: the pause before the recognizer is restarted for the next phrase of a settled dictation. */
-private const val DICTATION_RESTART_DELAY_MS = 150L
-
 /** What a search bar needs from voice search: the tap action and whether it is live right now. */
 internal class AuraVoiceSearch(val launch: () -> Unit, val active: Boolean)
 
@@ -575,6 +575,7 @@ internal fun rememberAuraVoiceSearch(
     val dictationScope = rememberCoroutineScope()
     val committed = remember { StringBuilder() }
     var settleJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var restartJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     val intentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -625,6 +626,8 @@ internal fun rememberAuraVoiceSearch(
     val finishDictation = {
         settleJob?.cancel()
         settleJob = null
+        restartJob?.cancel()
+        restartJob = null
         listening = false
         opening = false
         liveText = ""
@@ -636,6 +639,8 @@ internal fun rememberAuraVoiceSearch(
     val cancelDictation = {
         settleJob?.cancel()
         settleJob = null
+        restartJob?.cancel()
+        restartJob = null
         committed.clear()
         listening = false
         opening = false
@@ -726,7 +731,8 @@ internal fun rememberAuraVoiceSearch(
                     // A beat after the final result, not inside its callback: restarting the recognizer while it is still
                     // closing the previous session answers ERROR_RECOGNIZER_BUSY on several devices (which would send the
                     // request right away, the very thing this avoids).
-                    dictationScope.launch {
+                    restartJob?.cancel()
+                    restartJob = dictationScope.launch {
                         kotlinx.coroutines.delay(DICTATION_RESTART_DELAY_MS)
                         try {
                             speech.startListening(recognitionIntent())

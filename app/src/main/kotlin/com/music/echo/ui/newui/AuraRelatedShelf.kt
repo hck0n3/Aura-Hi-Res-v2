@@ -39,7 +39,7 @@ internal fun AuraRelatedShelf(
     if (items.isEmpty()) return
     val playerConnection = LocalPlayerConnection.current ?: return
     AuraSectionLabel(
-        text = stringResource(R.string.you_might_also_like).uppercase(Locale.ROOT),
+        text = stringResource(R.string.album_you_might_also_like).uppercase(Locale.ROOT),
         modifier = modifier.padding(
             start = AuraSpacing.Gutter,
             end = AuraSpacing.Gutter,

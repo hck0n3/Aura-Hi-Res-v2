@@ -1372,11 +1372,13 @@ class MusicService :
     // callback entirely and are UNAFFECTED. Read by the callback; only mutated inside MusicService.
     @Volatile
     internal var awaitingFirstUserPlay: Boolean = false
+        private set
 
     // Registry 422 (owner 2026-10-18, second report of 241): the last pause was the USER's own, so nothing but the user
     // may resume it. Set in onPlayWhenReadyChanged; cleared the moment playback starts. Read by the session callback.
     @Volatile
     internal var deliberatePause: Boolean = false
+        private set
 
     /** When a playback route (Bluetooth / car / dock) last appeared — the window in which a foreign PLAY is an echo. */
     @Volatile
