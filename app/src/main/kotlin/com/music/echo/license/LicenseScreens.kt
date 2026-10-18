@@ -257,9 +257,9 @@ fun ActivationPromptScreen(
     LicenseScaffold(
         subtitle = if (demoExpired) "Tu prueba terminó" else "Bienvenido",
         hint = if (demoExpired) {
-            "Tu demo de 3 días terminó. Activa tu donación por suscripción para seguir con todas las funciones."
+            "Tu demo de 3 días terminó. Suscríbete para seguir disfrutando de toda la música."
         } else {
-            "Prueba gratis 3 días o activa tu donación por suscripción."
+            "Prueba gratis 3 días o activa tu suscripción."
         },
     ) {
         PrimaryButton("Ya me suscribí", onClick = onHaveSubscription)
@@ -333,8 +333,8 @@ fun SubscriptionEntryScreen(
     }
 
     LicenseScaffold(
-        subtitle = "Donación por suscripción",
-        hint = "Toca \"Donación por suscripción\", paga sin salir de la app y la licencia se activa sola. O pega tu clave.",
+        subtitle = "Activar suscripción",
+        hint = "Toca \"Suscribirme\", paga sin salir de la app y la licencia se activa sola. O pega tu clave.",
     ) {
         OutlinedTextField(
             value = key,
@@ -370,14 +370,14 @@ fun SubscriptionEntryScreen(
         }
         Spacer(Modifier.height(12.dp))
         SecondaryOutlinedButton(
-            text = "Donación por suscripción",
+            text = "Suscribirme por $SUBSCRIPTION_PRICE/mes",
             height = 48.dp,
             semiBold = true,
             onClick = { openGumroad(context) },
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Aporte mensual de $SUBSCRIPTION_PRICE para el desarrollo de Aura. Se renueva solo cada mes hasta que lo canceles en Gumroad (desde tu recibo o tu biblioteca). A cambio recibes tu licencia con las funciones completas, activa al instante. No es deducible de impuestos. Más detalles en Términos y condiciones, cláusula 10.",
+            text = "Al suscribirte recibes tu licencia para seguir disfrutando de la experiencia.",
             color = AuraPalette.OnGroundMuted,
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
@@ -397,7 +397,7 @@ fun RenewScreen(onActivated: () -> Unit) {
 
     LicenseScaffold(
         subtitle = "Suscripción vencida",
-        hint = "Tu donación por suscripción mensual no está activa. Renuévala para seguir con todas las funciones.",
+        hint = "Tu suscripción mensual no está activa. Renueva el pago para seguir escuchando.",
     ) {
         status?.let {
             StatusCard(it, Color(0xFFFFB74D))
@@ -436,14 +436,14 @@ fun NeedsConnectionScreen(onRetry: () -> Unit) {
 fun DeviceBlockedScreen(onRetry: () -> Unit) {
     val context = LocalContext.current
     LicenseScaffold(
-        subtitle = "Donación activa en otro equipo",
+        subtitle = "Suscripción en otro equipo",
         hint = "Esta suscripción ya está activa en otro equipo. Cada suscripción funciona en un solo " +
-            "equipo a la vez. Activa una donación por suscripción ($SUBSCRIPTION_PRICE/mes, se renueva cada mes hasta que cancelas) para este equipo, o espera unos días si dejaste de usar el otro.",
+            "equipo a la vez. Suscríbete para este equipo, o espera unos días si dejaste de usar el otro.",
     ) {
         PrimaryButton("Reintentar", onClick = onRetry)
         Spacer(Modifier.height(12.dp))
         SecondaryOutlinedButton(
-            text = "Donación por suscripción",
+            text = "Suscribirme ($SUBSCRIPTION_PRICE/mes)",
             height = 48.dp,
             semiBold = true,
             onClick = { openGumroad(context) },
