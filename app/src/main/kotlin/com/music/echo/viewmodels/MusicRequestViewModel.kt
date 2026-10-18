@@ -71,6 +71,24 @@ constructor(
 
     private var job: Job? = null
 
+    /** Lo que hace falta para pedir la segunda opción de la última petición (fila 436). */
+    private class AlternateArgs(
+        val contextId: String,
+        val prompt: String,
+        val provider: String,
+        val apiKey: String,
+        val baseUrl: String,
+        val model: String,
+        val focus: MusicRequestFocus,
+        val taste: iad1tya.echo.music.reco.TasteProfile?,
+        val isFamiliar: (MediaMetadata) -> Boolean,
+        val isPlayed: (MediaMetadata) -> Boolean,
+        val familiarity: (MediaMetadata) -> Double,
+        val total: Int,
+    )
+
+    private var alternateArgs: AlternateArgs? = null
+
     /**
      * La última petición que sonó, para poder VERLA y GUARDARLA después (YouTube Music muestra la estación con
      * sus primeras canciones y la deja añadir a la biblioteca; dueño, 2026-10-18). `songs` crece cuando llega el
@@ -86,6 +104,86 @@ constructor(
     fun removeFromLast(songId: String) {
         _last.update { current ->
             current?.takeIf { !it.saved }?.copy(songs = current.songs.filterNot { it.id == songId }) ?: current
+        }
+    }
+
+    /**
+     * Busca la segunda opción de la última petición (fila 436). Una sola vez por petición: si ya se pidió, no hace nada.
+     * Es otra pasada completa de [AiPlaylistGenerator.produce] — la primera lista ya está marcada como servida
+     * (MusicRequestRecents), así que esta sale distinta — y además se le quitan por id las canciones de la primera.
+     */
+    fun loadAlternate() {
+        val args = alternateArgs ?: return
+        val current = _last.value ?: return
+        if (current.contextId != args.contextId || current.alternate != AlternateOption.NotAsked) return
+        _last.update { it?.takeIf { l -> l.contextId == args.contextId }?.copy(alternate = AlternateOption.Loading) ?: it }
+        viewModelScope.launch(Dispatchers.IO) {
+            val wanted = minOf(args.total, ALTERNATE_COUNT)
+            val produced = runCatching {
+                AiPlaylistGenerator.produce(
+                    database = database,
+                    prompt = args.prompt,
+                    count = MusicRequestFocusFilter.candidatesFor(args.focus, wanted),
+                    context = context,
+                    provider = args.provider,
+                    apiKey = args.apiKey,
+                    baseUrl = args.baseUrl,
+                    model = args.model,
+                    taste = args.taste,
+                )
+            }.getOrNull()
+            val firstIds = _last.value?.takeIf { it.contextId == args.contextId }?.songs?.mapTo(HashSet()) { it.id }.orEmpty()
+            val songs = produced?.songs.orEmpty()
+                .filter { it.id !in firstIds }
+                .let { MusicRequestFocusFilter.select(args.focus, it, args.isFamiliar, args.isPlayed, args.familiarity).songs }
+                .take(wanted)
+            _last.update { l ->
+                l?.takeIf { it.contextId == args.contextId }?.copy(
+                    alternate = if (songs.isEmpty()) AlternateOption.Empty else AlternateOption.Ready(songs),
+                ) ?: l
+            }
+        }
+    }
+
+    /**
+     * El contexto con el que suena la segunda opción: el mismo objetivo (estilos, idioma, años) que la petición, para
+     * que la cola inteligente que la continúe lo conserve. Devuelve el id nuevo.
+     */
+    fun contextForAlternate(): String? {
+        val current = _last.value ?: return null
+        val altId = current.contextId + ":alt"
+        iad1tya.echo.music.reco.RequestStyleTargets.get(current.contextId)?.let {
+            iad1tya.echo.music.reco.RequestStyleTargets.put(altId, it)
+        }
+        return altId
+    }
+
+    /** Guarda la segunda opción como lista local (fila 436). */
+    fun saveAlternateAsPlaylist() {
+        val snapshot = _last.value ?: return
+        val alt = snapshot.alternate as? AlternateOption.Ready ?: return
+        if (alt.saved || alt.songs.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = runCatching {
+                val playlist = PlaylistEntity(
+                    name = (snapshot.title.trim().ifBlank { "Pedir música" } + " · 2").take(MAX_SAVED_NAME),
+                    bookmarkedAt = LocalDateTime.now(),
+                    isEditable = true,
+                    isLocal = true,
+                )
+                database.transaction {
+                    insert(playlist)
+                    alt.songs.forEachIndexed { index, metadata ->
+                        insert(metadata)
+                        insert(PlaylistSongMap(playlistId = playlist.id, songId = metadata.id, position = index))
+                    }
+                }
+            }.isSuccess
+            if (ok) {
+                _last.update { l ->
+                    l?.takeIf { it.contextId == snapshot.contextId }?.copy(alternate = alt.copy(saved = true)) ?: l
+                }
+            }
         }
     }
 
@@ -148,6 +246,9 @@ constructor(
 
     /** Largo máximo del nombre de la lista que se guarda. */
     private val MAX_SAVED_NAME = 60
+
+    /** Cuántas canciones trae la segunda opción (la primera suena con el lote de siempre y se completa aparte). */
+    private val ALTERNATE_COUNT = 15
 
     fun request(
         prompt: String,
@@ -257,6 +358,10 @@ constructor(
                 )
             }
             val fillWillRun = firstSongs.size < requestedTotal
+            alternateArgs = AlternateArgs(
+                contextId, prompt, provider, apiKey, baseUrl, model, focus, taste,
+                isFamiliar, isPlayed, familiarity, requestedTotal,
+            )
             _last.value = LastMusicRequest(
                 produced.name, firstSongs, contextId, fillRunning = fillWillRun,
                 focus = focus, focusRelaxed = selected.relaxed,
@@ -361,7 +466,21 @@ data class LastMusicRequest(
     /** El filtro con el que se pidió, y si no pudo cumplirse del todo (la tarjeta lo dice). */
     val focus: MusicRequestFocus = MusicRequestFocus.All,
     val focusRelaxed: Boolean = false,
+    /** Fila 436: la SEGUNDA opción (se desliza la tarjeta); se busca solo cuando se llega a ella. */
+    val alternate: AlternateOption = AlternateOption.NotAsked,
 )
+
+/**
+ * Fila 436 (dueño, 2026-10-18: *«que así como muestra el primer resultado, en esas mismas tarjetas pueda deslizar a
+ * ver la segunda opción para ver cuál me parece mejor»*). Otra lista para la MISMA petición, sin las canciones de la
+ * primera. No se busca hasta que se desliza a ella (red y batería: la mayoría nunca la pide).
+ */
+sealed interface AlternateOption {
+    data object NotAsked : AlternateOption
+    data object Loading : AlternateOption
+    data object Empty : AlternateOption
+    data class Ready(val songs: List<MediaMetadata>, val saved: Boolean = false) : AlternateOption
+}
 
 /** Canciones del relleno en segundo plano para sumar a la cola de [contextId]. Ver [MusicRequestViewModel.extend]. */
 data class ExtendQueue(val contextId: String, val songs: List<MediaMetadata>)

@@ -28,7 +28,7 @@ páginas de desarrolladores de Amazon, Deezer o Apple: esos datos son de resúme
 3. **El vocabulario de géneros era corto** (~56) y los tres léxicos del código (`MusicStyle`, `GENRE_HINTS`,
    `GENRE_FAMILIES`) no coincidían: un género que solo estaba en uno no activaba las listas ni las categorías.
 
-## Qué se aplicó (fila 434-436 del registro)
+## Qué se aplicó (filas 434-435 del registro)
 - `corridos tumbados` es un estilo propio (hijo de `corridos`); un artista conocido solo como el padre es DUDOSO, no
   fuera ni acierto. Estilos vecinos (`related`): bossa ↔ jazz/mpb/samba. ~25 géneros nuevos (phonk, hyperpop, city pop,
   synthwave, shoegaze, emo, post-punk, grupera, tejano, plena, trova, MPB, trip hop, UK garage, hardstyle, bandas sonoras,

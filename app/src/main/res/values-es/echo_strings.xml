@@ -1292,4 +1292,11 @@
     <string name="offline_downloaded_playlists">Listas descargadas</string>
     <string name="offline_collection_progress">%1$d de %2$d descargadas</string>
     <string name="search_history_clear_all">Borrar todo</string>
+    <!-- Pedir música: segunda opción (fila 436) -->
+    <string name="music_request_swipe_hint">Desliza para ver otra opción</string>
+    <string name="music_request_other_option_title">Otra opción: %1$s</string>
+    <string name="music_request_other_option_more">+%1$d más en esta opción</string>
+    <string name="music_request_other_option_empty">No encontré una opción distinta para esta petición</string>
+    <string name="music_request_other_option_loading">Buscando otra opción…</string>
+    <string name="music_request_play_option">Escuchar esta opción</string>
 </resources>

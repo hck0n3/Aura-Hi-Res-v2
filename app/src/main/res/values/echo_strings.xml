@@ -1403,4 +1403,11 @@
     <string name="offline_downloaded_playlists">Downloaded playlists</string>
     <string name="offline_collection_progress">%1$d of %2$d downloaded</string>
     <string name="search_history_clear_all">Clear all</string>
+    <!-- Pedir música: second option (registry 436) -->
+    <string name="music_request_swipe_hint">Swipe for another option</string>
+    <string name="music_request_other_option_title">Another option: %1$s</string>
+    <string name="music_request_other_option_more">+%1$d more in this option</string>
+    <string name="music_request_other_option_empty">I could not find a different option for this request</string>
+    <string name="music_request_other_option_loading">Looking for another option…</string>
+    <string name="music_request_play_option">Play this option</string>
 </resources>
