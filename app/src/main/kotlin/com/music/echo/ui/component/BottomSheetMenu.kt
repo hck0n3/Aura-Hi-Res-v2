@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
+import iad1tya.echo.music.ui.newui.AuraSheetHandle
+import iad1tya.echo.music.ui.newui.auraSheetDragOffset
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.LocalAuraFloatingChrome
@@ -150,6 +152,9 @@ fun BottomSheetMenu(
                     },
             ) {
                 val sheetMaxHeight = rememberAuraSheetMaxHeight()
+                // Cerrar arrastrando la barrita (dueño, 2026-10-18). Estado propio de ESTA apertura.
+                val drag = iad1tya.echo.music.ui.newui.rememberAuraSheetDragState()
+                androidx.compose.runtime.LaunchedEffect(visible) { if (visible) drag.offsetPx = 0f }
                 androidx.compose.animation.AnimatedVisibility(
                     visible = visible,
                     enter = slideInVertically(animationSpec = tween(220)) { it } +
@@ -158,6 +163,7 @@ fun BottomSheetMenu(
                         fadeOut(animationSpec = tween(160)),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
+                        .auraSheetDragOffset(drag)
                         // Plegable abierto / tableta: hoja centrada con ancho máximo, no de borde a borde.
                         // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
                         .widthIn(max = iad1tya.echo.music.ui.newui.AuraSheetMaxWidthDp.dp)
@@ -187,19 +193,12 @@ fun BottomSheetMenu(
                         // tiene que estar en la parte de arriba centrado"): a Column child wraps
                         // its width to the content, so the handle sat at the start (right-edge
                         // feel in RTL-free layouts was the Row below). fillMaxWidth centers it.
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(width = 40.dp, height = 4.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(AuraPalette.OnGround.copy(alpha = 0.28f)),
-                            )
-                        }
+                        // Draggable down to close (owner 2026-10-18).
+                        AuraSheetHandle(
+                            state = drag,
+                            onDismiss = { focusManager.clearFocus(); state.dismiss() },
+                            barWidth = 40.dp,
+                        )
                         CompositionLocalProvider(LocalAuraFloatingChrome provides true) {
                             Column(
                                 modifier = Modifier

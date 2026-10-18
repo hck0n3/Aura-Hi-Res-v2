@@ -53,6 +53,8 @@ import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.ui.newui.shellGlass
 import iad1tya.echo.music.ui.newui.rememberAuraSheetMaxHeight
+import iad1tya.echo.music.ui.newui.AuraSheetHandle
+import iad1tya.echo.music.ui.newui.auraSheetDragOffset
 
 val LocalBottomSheetPageState = compositionLocalOf { BottomSheetPageState() }
 
@@ -133,6 +135,9 @@ fun BottomSheetPage(
                     },
             ) {
                 val sheetMaxHeight = rememberAuraSheetMaxHeight()
+                // Cerrar arrastrando la barrita (dueño, 2026-10-18). Estado propio de ESTA apertura.
+                val drag = iad1tya.echo.music.ui.newui.rememberAuraSheetDragState()
+                androidx.compose.runtime.LaunchedEffect(visible) { if (visible) drag.offsetPx = 0f }
                 androidx.compose.animation.AnimatedVisibility(
                     visible = visible,
                     enter = slideInVertically(animationSpec = tween(220)) { it } +
@@ -141,6 +146,7 @@ fun BottomSheetPage(
                         fadeOut(animationSpec = tween(160)),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
+                        .auraSheetDragOffset(drag)
                         // Plegable abierto / tableta: centrada con ancho máximo (ver AuraSheetMaxWidthDp).
                         // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
                         .widthIn(
@@ -177,20 +183,12 @@ fun BottomSheetPage(
                             .imePadding()
                             .navigationBarsPadding(),
                     ) {
-                        // Drag handle — TOP CENTER (owner 2026-08-31): same fix as the menu.
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(width = 32.dp, height = 4.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(AuraPalette.OnGround.copy(alpha = 0.28f)),
-                            )
-                        }
+                        // Drag handle — TOP CENTER (owner 2026-08-31): same fix as the menu. Draggable down to close
+                        // (owner 2026-10-18).
+                        AuraSheetHandle(
+                            state = drag,
+                            onDismiss = { focusManager.clearFocus(); state.dismiss() },
+                        )
                         CompositionLocalProvider(LocalAuraFloatingChrome provides true) {
                             Column(
                                 modifier = Modifier

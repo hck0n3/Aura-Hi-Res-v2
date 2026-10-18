@@ -135,6 +135,9 @@ private fun AuraInWindowDialogPanel(
     }
 
     val shape = if (center) AuraShapes.Card else AuraShapes.Sheet
+    // Cerrar arrastrando la barrita (dueño, 2026-10-18); solo las hojas inferiores la tienen.
+    val drag = rememberAuraSheetDragState()
+    LaunchedEffect(visible) { if (visible) drag.offsetPx = 0f }
 
     AnimatedVisibility(
         visible = visible,
@@ -181,6 +184,7 @@ private fun AuraInWindowDialogPanel(
                 } else {
                     Modifier
                         .align(Alignment.BottomCenter)
+                        .auraSheetDragOffset(drag)
                         // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
                         .widthIn(max = AuraSheetMaxWidthDp.dp)
                         .fillMaxWidth()
@@ -223,20 +227,11 @@ private fun AuraInWindowDialogPanel(
                         .then(if (center) Modifier else Modifier.navigationBarsPadding()),
                 ) {
                     if (!center) {
-                        // Drag handle — TOP CENTER (the owner's centered-handle directive).
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(width = 32.dp, height = 4.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(AuraPalette.OnGround.copy(alpha = 0.28f)),
-                            )
-                        }
+                        // Drag handle — TOP CENTER (the owner's centered-handle directive); draggable down to close.
+                        AuraSheetHandle(
+                            state = drag,
+                            onDismiss = { focusManager.clearFocus(); currentOnDismiss() },
+                        )
                     }
                     content()
                 }
