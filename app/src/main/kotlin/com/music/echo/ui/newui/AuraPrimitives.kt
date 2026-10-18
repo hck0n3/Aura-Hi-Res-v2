@@ -618,7 +618,7 @@ fun Modifier.auraArtworkEdge(
     .drawWithContent {
         drawContent()
         // ~1.7 px at 2.6x, never thinner than 1.5 px: Apple Music's measured line (see [AuraPalette.ArtworkRing]).
-        val hairline = 0.6.dp.toPx().coerceAtLeast(1.5f)
+        val hairline = 0.75.dp.toPx().coerceAtLeast(1.7f)
         drawOutline(
             outline = shape.createOutline(size, layoutDirection, this),
             color = color,

@@ -695,7 +695,7 @@ fun AuraLibrarySongsTab(
     // Row 349 (C2 decision 2): list/grid switch, same key and default as the classic Canciones tab.
     var viewType by rememberEnumPreference(SongViewTypeKey, LibraryViewType.LIST)
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
-    val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    val gridCellSize = auraLibraryCellSize(gridItemSize == GridItemSize.BIG)
     val isGrid = viewType == LibraryViewType.GRID
     val listState = rememberLazyGridState()
     AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
@@ -973,7 +973,7 @@ fun AuraLibraryAlbumsTab(
     }
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
-    val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    val gridCellSize = auraLibraryCellSize(gridItemSize == GridItemSize.BIG)
     // Row 349: list/grid switch, same key as the classic tab.
     var viewType by rememberEnumPreference(iad1tya.echo.music.constants.AlbumViewTypeKey, iad1tya.echo.music.constants.LibraryViewType.GRID)
     val albumPlayScope = rememberCoroutineScope()
@@ -1101,7 +1101,7 @@ fun AuraLibraryArtistsTab(
     }
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
-    val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    val gridCellSize = auraLibraryCellSize(gridItemSize == GridItemSize.BIG)
     // Row 349: list/grid switch, same key as the classic tab.
     var viewType by rememberEnumPreference(iad1tya.echo.music.constants.ArtistViewTypeKey, iad1tya.echo.music.constants.LibraryViewType.GRID)
     val artistVisual = auraTypeVisual(AuraContentKind.Artist)
@@ -1250,7 +1250,7 @@ fun AuraLibraryPlaylistsTab(
     // `GridThumbnailHeight ± 24.dp` = 152 / 104 (LibraryAlbumsScreen.kt:259 and the twelve grids beside
     // it), rounded to the 150 this grid already drew so "Grande" is unchanged from what shipped.
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
-    val gridCellSize = if (gridItemSize == GridItemSize.BIG) 150.dp else 104.dp
+    val gridCellSize = auraLibraryCellSize(gridItemSize == GridItemSize.BIG)
     // Row 349: list/grid switch, same key as the classic tab.
     var viewType by rememberEnumPreference(iad1tya.echo.music.constants.PlaylistViewTypeKey, iad1tya.echo.music.constants.LibraryViewType.GRID)
 

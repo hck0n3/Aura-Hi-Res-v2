@@ -513,7 +513,9 @@ object AuraPalette {
      * opaque one reads on any art, light or dark. A user outline colour, when set, replaces the ink.
      */
     val ArtworkRing: Color
-        get() = (roleOverrides.outline?.copy(alpha = 0.32f) ?: OnGround.copy(alpha = 0.28f)).compositeOver(Ground)
+        // 0.28 → 0.46 / 0.32 → 0.5 (owner 2026-10-18: «la línea de la orilla la quiero un poco más brillante, como
+        // Apple Music, que se nota más»): the same opaque neutral, brighter, so the frame reads on dark AND mid-tone art.
+        get() = (roleOverrides.outline?.copy(alpha = 0.5f) ?: OnGround.copy(alpha = 0.46f)).compositeOver(Ground)
 
     /**
      * Hairline on album / playlist / video / artist artwork — Apple Music's thin cover edge.

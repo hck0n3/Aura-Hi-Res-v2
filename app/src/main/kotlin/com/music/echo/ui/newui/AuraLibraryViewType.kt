@@ -46,6 +46,24 @@ internal fun AuraViewTypeToggle(viewType: LibraryViewType, onChange: (LibraryVie
     }
 }
 
+/**
+ * Minimum cell width of the Biblioteca grids (Listas, Canciones, Álbumes, Artistas). 150 / 104 dp on a phone, as
+ * always. On a window of 600 dp or more (an unfolded foldable, a tablet) the same cells came out as six tiny
+ * thumbnails per row (owner screenshot 2026-10-18: «en modo plegable están muy pequeñas las miniaturas»), so there
+ * they grow to 176 / 132 dp — about four per row on a Fold, still adaptive. [GridItemsSizeKey] still decides
+ * Grande vs Pequeño on both.
+ */
+@Composable
+internal fun auraLibraryCellSize(big: Boolean): Dp {
+    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
+    return when {
+        big && wide -> 176.dp
+        big -> 150.dp
+        wide -> 132.dp
+        else -> 104.dp
+    }
+}
+
 /** One column of full-width rows in list view; the adaptive grid otherwise. */
 internal fun auraLibraryColumns(viewType: LibraryViewType, gridCellSize: Dp): GridCells =
     if (viewType == LibraryViewType.LIST) GridCells.Fixed(1) else GridCells.Adaptive(minSize = gridCellSize)
