@@ -558,9 +558,20 @@ internal class AuraVoiceSearch(val launch: () -> Unit, val active: Boolean)
 @Composable
 internal fun rememberAuraVoiceSearch(
     onPartial: ((String) -> Unit)? = null,
+    /**
+     * Owner 2026-10-18 (Pedir música): *«le estaba dictando y se cortó el dictado y empezó a buscar; que espere a que
+     * me quede callado»*. Google's recognizer ends a phrase on its own short pause and ignores the silence extras, so
+     * its FINAL result is not "the user stopped talking". With [settleMs] > 0 each final result is kept, the recognizer
+     * is restarted, and the request is only sent after [settleMs] with no new speech (or when the user taps «Listo»).
+     * 0 keeps the old behaviour (a search bar wants the first final result).
+     */
+    settleMs: Long = 0L,
     onResult: (String) -> Unit,
 ): AuraVoiceSearch {
     val context = LocalContext.current
+    val dictationScope = rememberCoroutineScope()
+    val committed = remember { StringBuilder() }
+    var settleJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     val intentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -594,6 +605,41 @@ internal fun rememberAuraVoiceSearch(
     }
     DisposableEffect(recognizer) { onDispose { recognizer?.destroy() } }
 
+    val recognitionIntent = {
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            // Optional by contract (RecognizerIntent docs): a recognizer that ignores them keeps its own default.
+            // The real wait for a long request is [settleMs] above, not these.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
+        }
+    }
+
+    // Ends a settled dictation: stop the mic, hand over everything said so far.
+    val finishDictation = {
+        settleJob?.cancel()
+        settleJob = null
+        listening = false
+        opening = false
+        liveText = ""
+        recognizer?.cancel()
+        val text = committed.toString().trim()
+        committed.clear()
+        if (text.isNotEmpty()) onResult(text)
+    }
+    val cancelDictation = {
+        settleJob?.cancel()
+        settleJob = null
+        committed.clear()
+        listening = false
+        opening = false
+        liveText = ""
+        recognizer?.cancel()
+    }
+
     val startDirect = {
         val speech = recognizer
         if (speech == null) {
@@ -609,7 +655,11 @@ internal fun rememberAuraVoiceSearch(
                     listening = true
                 }
 
-                override fun onBeginningOfSpeech() = Unit
+                override fun onBeginningOfSpeech() {
+                    // More speech: the pause was only a pause.
+                    settleJob?.cancel()
+                    settleJob = null
+                }
                 override fun onRmsChanged(rmsdB: Float) {
                     // Feed the pulsing bars: recognizer RMS arrives in dBFS (typically -2..-12
                     // while speaking, near -40 in silence). Map to 0..1 with a floor so silence
@@ -620,6 +670,12 @@ internal fun rememberAuraVoiceSearch(
                 override fun onEndOfSpeech() = Unit
 
                 override fun onError(error: Int) {
+                    if (settleMs > 0 && committed.isNotEmpty()) {
+                        // Already heard something: a timeout / no-match after it just means "done talking".
+                        Timber.w("VoiceSearch: recognizer error %d after speech, settling", error)
+                        finishDictation()
+                        return
+                    }
                     listening = false
                     opening = false
                     liveText = ""
@@ -637,13 +693,39 @@ internal fun rememberAuraVoiceSearch(
                 }
 
                 override fun onResults(results: android.os.Bundle) {
-                    listening = false
-                    liveText = ""
                     val spoken = results
                         .getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()
                         ?.trim()
-                    if (!spoken.isNullOrEmpty()) onResult(spoken)
+                    if (settleMs <= 0L) {
+                        listening = false
+                        liveText = ""
+                        if (!spoken.isNullOrEmpty()) onResult(spoken)
+                        return
+                    }
+                    // Settled dictation: keep this phrase, keep listening, search only after a real silence.
+                    if (!spoken.isNullOrEmpty()) {
+                        if (committed.isNotEmpty()) committed.append(' ')
+                        committed.append(spoken)
+                        liveText = committed.toString()
+                        onPartial?.invoke(liveText)
+                    }
+                    if (committed.isEmpty()) {
+                        listening = false
+                        liveText = ""
+                        return
+                    }
+                    settleJob?.cancel()
+                    settleJob = dictationScope.launch {
+                        kotlinx.coroutines.delay(settleMs)
+                        finishDictation()
+                    }
+                    try {
+                        speech.startListening(recognitionIntent())
+                    } catch (e: Exception) {
+                        Timber.w(e, "VoiceSearch: restart for settled dictation failed")
+                        finishDictation()
+                    }
                 }
 
                 override fun onPartialResults(partialResults: android.os.Bundle?) {
@@ -653,8 +735,11 @@ internal fun rememberAuraVoiceSearch(
                         ?.trim()
                         .orEmpty()
                     if (spoken.isEmpty()) return
-                    liveText = spoken
-                    onPartial?.invoke(spoken)
+                    settleJob?.cancel()
+                    settleJob = null
+                    val shown = if (settleMs > 0L && committed.isNotEmpty()) "$committed $spoken" else spoken
+                    liveText = shown
+                    onPartial?.invoke(shown)
                 }
 
                 override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
@@ -665,34 +750,9 @@ internal fun rememberAuraVoiceSearch(
             // service), fall to the OS dialog instead of a dead silent button.
             listening = true
             try {
-                speech.startListening(
-                    Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(
-                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                        )
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                        // Owner report: dictation (both the search bar and "pedir música") cuts off
-                        // mid-sentence. The OS defaults to a short silence timeout tuned for a single
-                        // word/short phrase; a request like "reggae de los 90 para hacer ejercicio" has
-                        // natural pauses that were reading as "done talking". These extras are optional
-                        // by contract (RecognizerIntent docs) — a recognizer that ignores them just keeps
-                        // its own default, so this never breaks a device that doesn't support it.
-                        putExtra(
-                            RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
-                            3000L,
-                        )
-                        putExtra(
-                            RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
-                            1500L,
-                        )
-                        putExtra(
-                            RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,
-                            15000L,
-                        )
-                    },
-                )
+                committed.clear()
+                settleJob?.cancel()
+                speech.startListening(recognitionIntent())
             } catch (e: Exception) {
                 Timber.w(e, "VoiceSearch: startListening threw, falling back to OS dialog")
                 // AUDIT FIX (2026-09-04): reset opening too — leaving it true kept our dialog
@@ -832,12 +892,7 @@ internal fun rememberAuraVoiceSearch(
             // own opaque screen Box — so the listening card composed UNDER the screen and was never
             // seen. A real dialog window always layers above the screen (and the player sheet).
             forceWindow = true,
-            onDismiss = {
-                listening = false
-                opening = false
-                liveText = ""
-                recognizer?.cancel()
-            },
+            onDismiss = { cancelDictation() },
             title = {
                 Text(
                     text = stringResource(R.string.voice_search),
@@ -846,13 +901,18 @@ internal fun rememberAuraVoiceSearch(
                 )
             },
             buttons = {
-                TextButton(onClick = {
-                    listening = false
-                    opening = false
-                    liveText = ""
-                    recognizer?.cancel()
-                }) {
+                TextButton(onClick = { cancelDictation() }) {
                     Text(text = stringResource(android.R.string.cancel))
+                }
+                // Settled dictation waits for a silence; this sends what was said right now.
+                if (settleMs > 0L && liveText.isNotEmpty()) {
+                    TextButton(onClick = {
+                        // A phrase still in flight (partial only) counts as said.
+                        if (committed.isEmpty()) committed.append(liveText)
+                        finishDictation()
+                    }) {
+                        Text(text = stringResource(android.R.string.ok))
+                    }
                 }
             },
             horizontalAlignment = Alignment.Start,

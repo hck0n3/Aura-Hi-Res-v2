@@ -294,6 +294,8 @@ private fun AuraMusicRequestSheetBody(
     // busca sola, sin un toque extra.
     val voice = rememberAuraVoiceSearch(
         onPartial = { spoken -> prompt = spoken },
+        // Registry 423: a long request has natural pauses; wait for a real silence before searching.
+        settleMs = MUSIC_REQUEST_DICTATION_SETTLE_MS,
         onResult = { spoken ->
             prompt = spoken
             send(spoken)
@@ -803,3 +805,6 @@ private fun musicRequestSuggestions(currentArtist: String?): List<MusicRequestSu
     ).shuffled().take(6).map { MusicRequestSuggestion(it) }
     return personal + pool
 }
+
+/** Silence after the last recognised phrase before a dictated request is sent (the dialog also has «OK»). */
+internal const val MUSIC_REQUEST_DICTATION_SETTLE_MS = 2_500L

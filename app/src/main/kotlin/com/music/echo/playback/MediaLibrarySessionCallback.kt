@@ -123,6 +123,25 @@ constructor(
             recordExternalPlayAttempt(controller, vetoed = true)
             return SessionResult.RESULT_ERROR_PERMISSION_DENIED
         }
+        // Registry 422: the Bluetooth stack replays PLAY when a headset reconnects. After a pause the USER chose, a PLAY
+        // from another app arriving within seconds of a route connecting is that echo, not a person. Our own
+        // notification and in-app buttons are never affected; a headset press 10 s later still works.
+        if (playerCommand == androidx.media3.common.Player.COMMAND_PLAY_PAUSE &&
+            this::service.isInitialized &&
+            DeliberatePausePolicy.shouldRejectExternalPlay(
+                deliberatePause = service.deliberatePause,
+                playerIsPlaying = service.player.isPlaying,
+                fromOwnPackage = controller.packageName == service.packageName,
+                sinceRouteConnectedMs = System.currentTimeMillis() - service.lastRouteConnectedAtMs,
+            )
+        ) {
+            PlaybackLogManager.log(
+                PlaybackLogLevel.INFO,
+                "External PLAY rejected (deliberate pause, route just connected)",
+                "from=${controller.packageName}",
+            )
+            return SessionResult.RESULT_ERROR_PERMISSION_DENIED
+        }
         recordExternalPlayAttempt(controller, vetoed = false)
         return super.onPlayerCommandRequest(session, controller, playerCommand)
     }

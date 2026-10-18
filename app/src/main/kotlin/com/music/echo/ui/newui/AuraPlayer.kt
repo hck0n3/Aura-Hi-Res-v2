@@ -168,6 +168,7 @@ import iad1tya.echo.music.playback.removeSongDownloads
 import iad1tya.echo.music.playback.videoDownloadMediaId
 import iad1tya.echo.music.ui.component.BottomSheet
 import iad1tya.echo.music.ui.component.BottomSheetState
+import iad1tya.echo.music.ui.component.CAST_TOUCH_TARGET
 import iad1tya.echo.music.ui.component.CastButton
 import iad1tya.echo.music.ui.component.ListDialog
 import iad1tya.echo.music.ui.component.LocalBottomSheetPageState
@@ -1060,7 +1061,7 @@ private fun AuraPlayerShape(
                     // hidden with inline lyrics so this spacer only matters when Cast can show.
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 4.dp, end = if (showInlineLyrics) 4.dp else 48.dp),
+                        .padding(start = 4.dp, end = if (showInlineLyrics) 4.dp else CAST_TOUCH_TARGET),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (techInfo.isHiRes) {
@@ -2275,8 +2276,12 @@ private fun AuraPlayerShape(
                     // reservation (see the title Column's padding, kept in step with this) still clears
                     // exactly; 0 dp vertical keeps the 48 dp box inside the 48 dp header so it never spills
                     // onto the artwork's swipe-to-skip.
-                    .padding(start = 8.dp, end = 8.dp, top = 0.dp, bottom = 0.dp)
-                    .size(48.dp)
+                    // Registry 424: 64 dp now (was 48 — fifth report). It grows 8 dp UP (into the status-bar inset,
+                    // which nothing else answers in) and 8 dp down, so the icon stays exactly where it was and the
+                    // 48 dp header does not spill further onto the artwork's swipe-to-skip.
+                    .offset(y = (-8).dp)
+                    .padding(start = 0.dp, end = 0.dp, top = 0.dp, bottom = 0.dp)
+                    .size(CAST_TOUCH_TARGET)
                     // Owner 2026-10-15 (third report): the button sits INSIDE the sheet's vertical drag
                     // detector, which claims any touch whose finger rolls past the touch slop and cancels
                     // the click. The shield (see [shieldTapsFromAncestorDrags]) is an ancestor of the

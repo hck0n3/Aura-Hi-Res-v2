@@ -39,6 +39,9 @@ import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.rememberPreference
 import timber.log.Timber
 
+/** Side of the Cast button's real touch target. The Aura and classic players size their outer box to this. */
+val CAST_TOUCH_TARGET = 64.dp
+
 /**
  * A Composable Cast button that shows available Cast devices.
  * Uses the app's MenuState to show a styled bottom sheet.
@@ -233,12 +236,17 @@ fun CastButton(
                     // 48dp: Android's minimum recommended touch target (was 40dp — still under it, so
                     // taps near the edge kept missing and leaking to gestures underneath, per owner
                     // report). The drawn icon stays 24dp, centred the same way; only the hit area grows.
-                    .size(48.dp)
+                    //
+                    // Registry 424 (owner 2026-10-18, FIFTH report: «hay que darle varias veces… haz más grande el
+                    // área del touch»): 48 dp is the MINIMUM, and a thumb on a pinned top-corner button lands off-centre.
+                    // The hit area is now 64 dp ([CAST_TOUCH_TARGET]); the drawn icon is still 24 dp. Both callers size
+                    // their outer box to the same value or Compose clips hit-testing to the smaller one.
+                    .size(CAST_TOUCH_TARGET)
                     .align(Alignment.Center)
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(CAST_TOUCH_TARGET / 2))
                     // TV/car: visible D-pad focus ring observing the .clickable below (same pattern as the
                     // player's transport buttons) — the button is pinned top-right of the expanded player.
-                    .tvFocusable(iad1tya.echo.music.ui.utils.rememberIsTvOrCar(), RoundedCornerShape(24.dp))
+                    .tvFocusable(iad1tya.echo.music.ui.utils.rememberIsTvOrCar(), RoundedCornerShape(CAST_TOUCH_TARGET / 2))
                     .unstealableClick(onCastClick)
                     .clickable(onClick = onCastClick)
             ) {

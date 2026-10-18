@@ -65,6 +65,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -212,6 +213,7 @@ import iad1tya.echo.music.echomusic.AudioDeviceBottomSheet
 import iad1tya.echo.music.ui.component.BottomSheet
 import iad1tya.echo.music.ui.component.BottomSheetState
 import iad1tya.echo.music.ui.component.BottomSheetVisuals
+import iad1tya.echo.music.ui.component.CAST_TOUCH_TARGET
 import iad1tya.echo.music.ui.component.CastButton
 import iad1tya.echo.music.ui.component.LocalBottomSheetPageState
 import iad1tya.echo.music.ui.component.LocalMenuState
@@ -3170,8 +3172,8 @@ fun BottomSheetPlayer(
                     // node's bounds, so barely a quarter of the circle ever answered a tap. Matching the
                     // outer box to 48 dp fixes that; padding trimmed so it doesn't sit further from the
                     // edge than before.
-                    .padding(horizontal = 8.dp, vertical = 0.dp)
-                    .size(48.dp),
+                    .offset(y = (-8).dp)
+                    .size(CAST_TOUCH_TARGET), // registry 424: 64 dp, same as the button inside it
                 tintColor = TextBackgroundColor,
             )
         }

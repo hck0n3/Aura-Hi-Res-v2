@@ -1372,6 +1372,15 @@ class MusicService :
     // callback entirely and are UNAFFECTED. Read by the callback; only mutated inside MusicService.
     @Volatile
     internal var awaitingFirstUserPlay: Boolean = false
+
+    // Registry 422 (owner 2026-10-18, second report of 241): the last pause was the USER's own, so nothing but the user
+    // may resume it. Set in onPlayWhenReadyChanged; cleared the moment playback starts. Read by the session callback.
+    @Volatile
+    internal var deliberatePause: Boolean = false
+
+    /** When a playback route (Bluetooth / car / dock) last appeared — the window in which a foreign PLAY is an echo. */
+    @Volatile
+    internal var lastRouteConnectedAtMs: Long = 0L
         private set
     // #27: once the user has foregrounded the app this process, a LATE async restore must NOT re-arm the veto
     // (that race could leave the notification/BT play inert while the app is open). Monotonic; never reset.
@@ -1763,10 +1772,12 @@ class MusicService :
             } == true
 
             if (hasPlaybackRoute) {
+                lastRouteConnectedAtMs = System.currentTimeMillis()
                 val settingResume = dataStore.get(ResumeOnBluetoothConnectKey, false)
                 val autoNoisyResume = autoSession && pausedByNoisy &&
                     System.currentTimeMillis() - pausedByNoisyAtMs <= 45_000L
-                if ((settingResume || autoNoisyResume) &&
+                // A pause the user chose is never undone by a device connecting (registry 422).
+                if (DeliberatePausePolicy.mayResumeOnRouteConnect(settingResume, autoNoisyResume, deliberatePause) &&
                     player.playbackState == Player.STATE_READY &&
                     !player.isPlaying
                 ) {
@@ -6871,6 +6882,13 @@ class MusicService :
         // auto-resumed — this is what makes "a manual pause is never auto-resumed" actually hold. Any resume
         // invalidates a pending expectation so a later real pause can't be misattributed as ours.
         if (!playWhenReady) {
+            // Computed BEFORE the own-pause flags below are consumed (registry 422).
+            deliberatePause = DeliberatePausePolicy.isDeliberate(
+                reason = reason,
+                ownFocusPause = expectingOwnFocusPause,
+                ownStopPause = expectingOwnStopPause,
+                pausedByVolumeMute = isPausedByVolumeMute,
+            )
             if (expectingOwnStopPause) {
                 expectingOwnStopPause = false
             } else {
@@ -6889,6 +6907,7 @@ class MusicService :
         } else {
             expectingOwnStopPause = false
             pausedByNoisy = false
+            deliberatePause = false
         }
 
         if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {

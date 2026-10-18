@@ -4,6 +4,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+
+/** Same value as the GMS flavor's (the callers size their outer box with it). */
+val CAST_TOUCH_TARGET = 64.dp
 
 /**
  * Stub CastButton for F-Droid builds.
