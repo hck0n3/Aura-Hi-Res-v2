@@ -34,14 +34,14 @@ class FoldableListsGuardTest {
     }
 
     @Test
-    fun `the wide Inicio carousel rests its first card at the left edge and shows more, smaller cards`() {
+    fun `the wide Inicio carousel is the phone carousel with the same cards, only arranged for the width`() {
         val src = main("ui/newui/AuraHomeScreen.kt")
-        val wide = src.substringAfter("private fun AuraWideCarousel(").substringBefore("private fun AuraHeroCarouselCard(")
-        assertTrue(wide.contains("SnapPosition.Start"))
-        assertFalse("centrado dejaba media fila vacía", wide.contains("SnapPosition.Center"))
-        assertTrue("la fila enseña seis o siete portadas pegadas", src.contains("AURA_WIDE_CAROUSEL_VISIBLE = 6.5f"))
-        assertTrue(wide.contains("auraWideCarouselItemWidth(maxWidth)"))
-        assertFalse("ya no hay tarjetas fijas de 200 dp", src.contains("AURA_WIDE_CAROUSEL_ITEM_WIDTH"))
+        val carousel = src.substringAfter("private fun AuraQuickPicksCarousel(").substringBefore("private fun AuraHeroCarouselCard(")
+        assertTrue("la ventana ancha usa el carrusel multi-browse de Material", carousel.contains("HorizontalMultiBrowseCarousel("))
+        assertTrue("el móvil conserva el carrusel hero centrado", carousel.contains("HorizontalCenteredHeroCarousel("))
+        assertTrue("ambos pintan la misma tarjeta", carousel.contains("AuraHeroCarouselCard(") && !carousel.contains("LazyRow"))
+        assertTrue("ambos comparten tamaño de tarjeta y puntos", carousel.contains("preferredItemWidth = itemWidth") && carousel.contains("AuraCarouselDots("))
+        assertFalse("el carrusel propio de 6,5 tarjetas desapareció", src.contains("AuraWideCarousel") || src.contains("AURA_WIDE_CAROUSEL"))
     }
 
     @Test
@@ -68,18 +68,5 @@ class FoldableListsGuardTest {
         assertTrue("las propias conservan las canciones sugeridas", src.contains("SuggestedSongsSection("))
         assertTrue("sin red no se pide", src.contains("if (followedBrowseId != null && !offlineNow) viewModel.loadRelated(followedBrowseId)"))
         assertTrue(main("viewmodels/LocalPlaylistViewModel.kt").contains("fun loadRelated(browseId: String)"))
-    }
-}
-
-class WideCarouselSizingTest {
-    @Test
-    fun `an unfolded window shows six and a half tight cards, never fewer than six`() {
-        for (width in listOf(840, 904, 960, 1100)) {
-            val window = width.dp
-            val item = iad1tya.echo.music.ui.newui.auraWideCarouselItemWidth(window)
-            val visible = (window.value - 16f) / (item.value + 8f)
-            assertTrue("at $width dp: $visible cards in view", visible >= 6f)
-            assertTrue("at $width dp the card is $item", item.value in 120f..220f)
-        }
     }
 }
