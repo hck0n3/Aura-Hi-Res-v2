@@ -1248,6 +1248,13 @@
     <string name="music_request_save">Guardar como lista</string>
     <string name="music_request_filling">Completando la lista…</string>
     <string name="music_request_saved">Guardada en tu biblioteca</string>
+    <string name="music_request_send">Empezar</string>
+    <string name="music_request_show_all">Ver las %1$d</string>
+    <string name="music_request_show_less">Ver menos</string>
+    <string name="music_request_remove_from_save">Dejar fuera de la lista que guardes</string>
+    <string name="music_request_edit_hint">Toca una canción para escuchar desde ahí. La ✕ la deja fuera de la lista que guardes.</string>
+    <string name="music_request_relaxed_familiar">Solo unas pocas canciones de artistas que ya escuchas encajan con esto.</string>
+    <string name="music_request_relaxed_discover">Solo unas pocas canciones y artistas nuevos para ti encajan con esto.</string>
     <string name="music_request_focus_all">Todo</string>
     <string name="music_request_focus_familiar">Conocido</string>
     <string name="music_request_focus_discover">Descubrir</string>

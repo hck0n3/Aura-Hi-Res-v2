@@ -79,6 +79,16 @@ constructor(
     private val _last = MutableStateFlow<LastMusicRequest?>(null)
     val last: StateFlow<LastMusicRequest?> = _last.asStateFlow()
 
+    /**
+     * Deja una canción FUERA de la lista que se va a guardar (dueño, 2026-10-18: que lo que muestra la tarjeta sea
+     * interactuable). No toca la cola que ya suena: es la lista a guardar la que cambia.
+     */
+    fun removeFromLast(songId: String) {
+        _last.update { current ->
+            current?.takeIf { !it.saved }?.copy(songs = current.songs.filterNot { it.id == songId }) ?: current
+        }
+    }
+
     /** Quita la tarjeta de resultado (no toca lo que suena ni lo que ya se guardó). */
     fun dismissLast() {
         _last.value = null
@@ -184,8 +194,14 @@ constructor(
             val playedIds: Set<String> = if (focus == MusicRequestFocus.All) emptySet() else {
                 runCatching { database.recentPlayedSongIds(PLAYED_IDS_LIMIT).toHashSet() }.getOrDefault(emptySet())
             }
+            // «Conocido» = el ARTISTA es uno que escucha con gusto (peso positivo en su perfil). No es
+            // `scoreNames > 0`: esa puntuación suma bonos de género y de estilo, y dejaba pasar por «conocido»
+            // a artistas que nunca había oído (dueño, 2026-10-18: «no es lógico y no es preciso»).
             val isFamiliar: (MediaMetadata) -> Boolean = { m ->
-                taste != null && taste.scoreNames(m.artists.map { it.name }, m.title) > 0.0
+                taste != null && m.artists.any { taste.isKnownArtist(it.name) }
+            }
+            val familiarity: (MediaMetadata) -> Double = { m ->
+                taste?.scoreNames(m.artists.map { it.name }, m.title) ?: 0.0
             }
             // Fila 361: "pon 50 canciones de salsa" — the count he asked for (5..100), else the usual 25.
             val intent = iad1tya.echo.music.playlistimport.MusicRequestIntent.parse(prompt)
@@ -210,9 +226,8 @@ constructor(
             }
             // Con filtro se pidieron el doble de candidatos: se aplica y se deja el primer lote del tamaño de
             // siempre (nunca vacío: ver MusicRequestFocusFilter).
-            val firstSongs = MusicRequestFocusFilter
-                .apply(focus, produced.songs, isFamiliar, playedIds)
-                .take(minOf(firstBatchCount, requestedTotal))
+            val selected = MusicRequestFocusFilter.select(focus, produced.songs, isFamiliar, playedIds, familiarity)
+            val firstSongs = selected.songs.take(minOf(firstBatchCount, requestedTotal))
             MusicRequestHistory.record(prompt)
             // Un id propio de ESTE pedido: la cola no lleva contextId todavía (nunca lo necesitó,
             // era una lista suelta), y ahora hace falta para que el relleno de abajo sepa que sigue
@@ -231,7 +246,10 @@ constructor(
                 )
             }
             val fillWillRun = firstSongs.size < requestedTotal
-            _last.value = LastMusicRequest(produced.name, firstSongs, contextId, fillRunning = fillWillRun)
+            _last.value = LastMusicRequest(
+                produced.name, firstSongs, contextId, fillRunning = fillWillRun,
+                focus = focus, focusRelaxed = selected.relaxed,
+            )
             _state.value = MusicRequestUiState.Ready(produced.name, firstSongs, contextId)
 
             // EL RELLENO EN SEGUNDO PLANO (dueño, 2026-09-22: "que siempre reproduzca de inmediato y
@@ -247,7 +265,7 @@ constructor(
                     try {
                         fillInBackground(
                             contextId, prompt, requestedTotal, provider, apiKey, baseUrl, model, taste, firstSongs,
-                            focus, isFamiliar, playedIds,
+                            focus, isFamiliar, playedIds, familiarity,
                         )
                     } finally {
                         _last.update { current ->
@@ -278,6 +296,7 @@ constructor(
         focus: MusicRequestFocus,
         isFamiliar: (MediaMetadata) -> Boolean,
         playedIds: Set<String>,
+        familiarity: (MediaMetadata) -> Double,
     ) {
         val fuller = runCatching {
             AiPlaylistGenerator.produce(
@@ -296,7 +315,9 @@ constructor(
         }.getOrNull()
         if (fuller == null || fuller.songs.isEmpty()) return
         val already = alreadyPlaying.mapTo(HashSet()) { it.id }
-        val extra = MusicRequestFocusFilter.apply(focus, fuller.songs.filter { it.id !in already }, isFamiliar, playedIds)
+        val extra = MusicRequestFocusFilter
+            .select(focus, fuller.songs.filter { it.id !in already }, isFamiliar, playedIds, familiarity)
+            .songs
             .take((target - alreadyPlaying.size).coerceAtLeast(1))
         if (extra.isNotEmpty()) {
             _last.update { current ->
@@ -326,6 +347,9 @@ data class LastMusicRequest(
     val contextId: String,
     val fillRunning: Boolean,
     val saved: Boolean = false,
+    /** El filtro con el que se pidió, y si no pudo cumplirse del todo (la tarjeta lo dice). */
+    val focus: MusicRequestFocus = MusicRequestFocus.All,
+    val focusRelaxed: Boolean = false,
 )
 
 /** Canciones del relleno en segundo plano para sumar a la cola de [contextId]. Ver [MusicRequestViewModel.extend]. */
