@@ -148,7 +148,7 @@ fun AuraSettingsScreen(
     val logsText = stringResource(R.string.logs)
     val logsDescText = stringResource(R.string.logs_desc)
     val aboutText = stringResource(R.string.about)
-    val subscribeText = "Suscripción Pro"
+    val subscribeText = "Donación por suscripción"
     val settingsWordText = stringResource(R.string.settings)
 
     // Group headers. "Reproductor y sonido", "Almacenamiento", "Escuchar juntos" and "Privacidad"

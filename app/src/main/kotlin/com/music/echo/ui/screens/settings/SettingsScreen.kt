@@ -105,7 +105,7 @@ fun SettingsScreen(
     val statsText = stringResource(R.string.stats)
     val logsText = stringResource(R.string.logs)
     val aboutText = stringResource(R.string.about)
-    val subscribeText = "Suscripción Pro"
+    val subscribeText = "Donación por suscripción"
     // Wording taken verbatim from the reference render — do not paraphrase.
     val newUiText = "Interfaz nueva"
     val newUiSubtitle = "Apágala y vuelve a la clásica"
