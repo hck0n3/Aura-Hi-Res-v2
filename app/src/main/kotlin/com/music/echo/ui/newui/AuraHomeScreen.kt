@@ -13,9 +13,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.snapping.SnapPosition
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -29,6 +32,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.items as lazyGridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -45,6 +49,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
@@ -59,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -1637,124 +1643,255 @@ private fun AuraQuickPicksCarousel(
     onLongClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val database = LocalDatabase.current
     // Read once for the whole carousel instead of once per item: the value is identical for every item
     // and this keeps the per-item composable call count down (standing heat gate).
     val isTvOrCar = rememberIsTvOrCar()
-    key(songs.size) {
-        val carouselState = rememberCarouselState { songs.size }
-        Column {
-        HorizontalCenteredHeroCarousel(
-            state = carouselState,
-            maxItemWidth = itemWidth,
-            itemSpacing = 8.dp,
-            contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(top = AuraSpacing.SectionGap)
-                .height(260.dp)
-                // TV/car: hand focus back to the hero the D-pad last stood on when it re-enters, so the
-                // ring does not drop to the container root while the carousel scrolls. No-op on touch.
-                .tvFocusRestorer(),
-        ) { index ->
-            // The item count and the list are read from the same composition, but a carousel that is
-            // mid-recomposition can still ask for an index the new list no longer has.
-            val originalSong = songs.getOrNull(index)
-            if (originalSong != null) {
-                val song by database.song(originalSong.id).collectAsState(initial = originalSong)
-                val current = song ?: originalSong
-                val isActive = current.id == activeId
-                val placeholder = remember(current.id) { AuraPalette.coverPlaceholder(current.id) }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        // TV/car: the ring goes BEFORE maskClip so it draws OUTSIDE the carousel's clip —
-                        // placed after it, the stroke is cut down to a sliver. It observes the
-                        // `.focusable()` below. Same order and reason as the classic hero
-                        // (`HomeScreen.kt:1552-1558`).
-                        .tvFocusable(isTvOrCar, AuraShapes.Card, scaleFocused = 1f)
-                        .maskClip(AuraShapes.Card)
-                        .maskBorder(BorderStroke(1.dp, AuraPalette.SurfaceLine), AuraShapes.Card)
-                        .background(placeholder)
-                        .focusable()
-                        .combinedClickable(
-                            onClick = { onClick(current) },
-                            // What tapping does, spoken by TalkBack. `AuraCoverCard` — the card every
-                            // other Home shelf uses — passes `contentDescription` here, which defaults
-                            // to the title (`AuraContent.kt:355, 368`); the hero now says the same.
-                            onClickLabel = current.song.title,
-                            onLongClick = { onLongClick(current) },
-                        ),
-                ) {
-                    current.song.thumbnailUrl?.let { url ->
-                        AsyncImage(
-                            // Decode for the larger hero frame (~208 dp); 640 keeps edges sharp without
-                            // the full-res heat of a 1280 source on every carousel item.
-                            // Lean mode (registry 395): the carousel is the heaviest thing on Inicio (a masked clip per
-                            // item, redrawn while it scrolls) — 320 px is plenty for a 1-2 GB phone.
-                            model = if (iad1tya.echo.music.utils.LeanMode.isOn()) url.resize(320, 320) else url.resize(640, 640),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        // Wide pane (an unfolded foldable, a tablet) and not a phone turned on its side (needs height too — the
+        // same rule as the rest of the wide chrome): a carousel of its own, see [AuraWideCarousel].
+        if (maxWidth >= AURA_WIDE_HERO_MIN_WIDTH && screenHeightDp >= 480) {
+            AuraWideCarousel(
+                songs = songs,
+                viewportWidth = maxWidth,
+                activeId = activeId,
+                isPlaying = isPlaying,
+                isTvOrCar = isTvOrCar,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                modifier = modifier,
+            )
+        } else {
+            key(songs.size) {
+                val carouselState = rememberCarouselState { songs.size }
+                Column {
+                    HorizontalCenteredHeroCarousel(
+                        state = carouselState,
+                        maxItemWidth = itemWidth,
+                        itemSpacing = 8.dp,
+                        contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
+                        modifier = modifier
+                            .fillMaxWidth()
+                            .padding(top = AuraSpacing.SectionGap)
+                            .height(260.dp)
+                            // TV/car: hand focus back to the hero the D-pad last stood on when it re-enters, so the
+                            // ring does not drop to the container root while the carousel scrolls. No-op on touch.
+                            .tvFocusRestorer(),
+                    ) { index ->
+                        // The item count and the list are read from the same composition, but a carousel that is
+                        // mid-recomposition can still ask for an index the new list no longer has.
+                        val originalSong = songs.getOrNull(index)
+                        if (originalSong != null) {
+                            AuraHeroCarouselCard(
+                                originalSong = originalSong,
+                                activeId = activeId,
+                                isPlaying = isPlaying,
+                                isTvOrCar = isTvOrCar,
+                                // The ring goes BEFORE maskClip so it draws OUTSIDE the carousel's clip.
+                                shapeModifier = Modifier
+                                    .maskClip(AuraShapes.Card)
+                                    .maskBorder(BorderStroke(1.dp, AuraPalette.SurfaceLine), AuraShapes.Card),
+                                onClick = onClick,
+                                onLongClick = onLongClick,
+                            )
+                        }
                     }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(AuraHeroScrim),
-                    )
-                    if (isActive && isPlaying) {
-                        AuraPlayingBars(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(10.dp),
-                        )
-                    }
-                    // "Los tres puntos": the song's menu one tap away, not only behind a long press.
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(AuraPalette.Ground.copy(alpha = 0.55f))
-                            .combinedClickable(
-                                onClick = { onLongClick(current) },
-                                onClickLabel = stringResource(R.string.more_options),
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        AuraIconGlyph(
-                            icon = AuraIcons.More,
-                            contentDescription = stringResource(R.string.more_options),
-                            size = 18.dp,
-                            tint = AuraPalette.OnGround,
-                        )
-                    }
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(12.dp),
-                    ) {
-                        Text(
-                            text = current.song.title,
-                            style = AuraType.RowTitle,
-                            color = AuraPalette.OnGround,
-                            maxLines = 1,
-                            overflow = AuraDefaultOverflow,
-                        )
-                        Text(
-                            text = current.artists.joinToString { it.name },
-                            style = AuraType.RowSubtitle,
-                            color = AuraPalette.OnGroundMuted,
-                            maxLines = 1,
-                            overflow = AuraDefaultOverflow,
-                        )
-                    }
+                    AuraCarouselDots(count = songs.size, current = carouselState.currentItem)
                 }
             }
         }
-        AuraCarouselDots(count = songs.size, current = carouselState.currentItem)
+    }
+}
+
+/** Width and height of the CENTRED card of the wide carousel; its neighbours shrink from there. */
+private val AURA_WIDE_CAROUSEL_ITEM_WIDTH = 248.dp
+private val AURA_WIDE_CAROUSEL_ITEM_HEIGHT = 300.dp
+private val AURA_WIDE_CAROUSEL_SPACING = 14.dp
+
+/**
+ * The hero carousel of a wide window.
+ *
+ * Owner 2026-10-18 (Fold, unfolded): *«cuando está desplegado no parece carrusel»*. The Material hero carousel fills
+ * a wide viewport with TWO big, low cards and two slivers — it reads as a banner, not as a carousel. Here the card in
+ * the middle is the tall one (248 × 300 dp, as on the phone), the ones beside it are smaller and a little faded, and
+ * both sides show more of them; it snaps to a card and the dots follow the centred one.
+ *
+ * The scale/fade is a DRAW-phase read of the list's layout (`graphicsLayer`), so scrolling recomposes nothing.
+ */
+@Composable
+private fun AuraWideCarousel(
+    songs: List<Song>,
+    viewportWidth: androidx.compose.ui.unit.Dp,
+    activeId: String?,
+    isPlaying: Boolean,
+    isTvOrCar: Boolean,
+    onClick: (Song) -> Unit,
+    onLongClick: (Song) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    key(songs.size) {
+        val listState = rememberLazyListState()
+        val sidePadding = ((viewportWidth - AURA_WIDE_CAROUSEL_ITEM_WIDTH) / 2).coerceAtLeast(AuraSpacing.Gutter)
+        val centered by remember(listState) { derivedStateOf { auraCenteredIndex(listState) } }
+        Column {
+            LazyRow(
+                state = listState,
+                contentPadding = PaddingValues(horizontal = sidePadding),
+                horizontalArrangement = Arrangement.spacedBy(AURA_WIDE_CAROUSEL_SPACING),
+                verticalAlignment = Alignment.CenterVertically,
+                flingBehavior = rememberSnapFlingBehavior(listState, SnapPosition.Center),
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(top = AuraSpacing.SectionGap)
+                    .height(AURA_WIDE_CAROUSEL_ITEM_HEIGHT + 24.dp),
+            ) {
+                itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                    AuraHeroCarouselCard(
+                        originalSong = song,
+                        activeId = activeId,
+                        isPlaying = isPlaying,
+                        isTvOrCar = isTvOrCar,
+                        shapeModifier = Modifier
+                            .clip(AuraShapes.Card)
+                            .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card),
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                        modifier = Modifier
+                            .width(AURA_WIDE_CAROUSEL_ITEM_WIDTH)
+                            .height(AURA_WIDE_CAROUSEL_ITEM_HEIGHT)
+                            .graphicsLayer {
+                                val info = listState.layoutInfo
+                                val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+                                val distance = if (item == null) {
+                                    1f
+                                } else {
+                                    val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+                                    val itemCenter = item.offset + item.size / 2f
+                                    (kotlin.math.abs(itemCenter - viewportCenter) /
+                                        (item.size + AURA_WIDE_CAROUSEL_SPACING.toPx())).coerceIn(0f, 1f)
+                                }
+                                val scale = 1f - 0.16f * distance
+                                scaleX = scale
+                                scaleY = scale
+                                alpha = 1f - 0.35f * distance
+                            },
+                    )
+                }
+            }
+            AuraCarouselDots(count = songs.size, current = centered)
+        }
+    }
+}
+
+/** The index of the card closest to the middle of the viewport (0 while nothing is laid out yet). */
+private fun auraCenteredIndex(state: androidx.compose.foundation.lazy.LazyListState): Int {
+    val info = state.layoutInfo
+    val center = (info.viewportStartOffset + info.viewportEndOffset) / 2
+    return info.visibleItemsInfo.minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - center) }?.index ?: 0
+}
+
+/**
+ * One card of the hero carousel (phone and wide): the cover, the bottom scrim, the playing bars, the "⋯" and the
+ * title and artist drawn over the image. Owner 2026-10-18: the title and the artist show IN FULL (two lines each) — one
+ * line cut «Como Quiero (Remix)» and «Christian Ponce, Lizzy Parra, Ander Bock» with an ellipsis.
+ *
+ * [shapeModifier] carries what differs between the two carousels (the Material mask clip + border, or a plain clip +
+ * border) and sits where the original put them: after the TV focus ring, before the background.
+ */
+@Composable
+private fun AuraHeroCarouselCard(
+    originalSong: Song,
+    activeId: String?,
+    isPlaying: Boolean,
+    isTvOrCar: Boolean,
+    shapeModifier: Modifier,
+    onClick: (Song) -> Unit,
+    onLongClick: (Song) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val database = LocalDatabase.current
+    val song by database.song(originalSong.id).collectAsState(initial = originalSong)
+    val current = song ?: originalSong
+    val isActive = current.id == activeId
+    val placeholder = remember(current.id) { AuraPalette.coverPlaceholder(current.id) }
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            // TV/car: the ring goes BEFORE the clip so it draws OUTSIDE it — placed after, the stroke is cut down to
+            // a sliver. It observes the `.focusable()` below. Same order and reason as the classic hero.
+            .tvFocusable(isTvOrCar, AuraShapes.Card, scaleFocused = 1f)
+            .then(shapeModifier)
+            .background(placeholder)
+            .focusable()
+            .combinedClickable(
+                onClick = { onClick(current) },
+                // What tapping does, spoken by TalkBack (the title, as every other Home card).
+                onClickLabel = current.song.title,
+                onLongClick = { onLongClick(current) },
+            ),
+    ) {
+        current.song.thumbnailUrl?.let { url ->
+            AsyncImage(
+                // Decode for the larger hero frame (~208 dp); 640 keeps edges sharp without the full-res heat of a
+                // 1280 source on every carousel item. Lean mode (registry 395): 320 px is plenty for a 1-2 GB phone.
+                model = if (iad1tya.echo.music.utils.LeanMode.isOn()) url.resize(320, 320) else url.resize(640, 640),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(AuraHeroScrim),
+        )
+        if (isActive && isPlaying) {
+            AuraPlayingBars(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(10.dp),
+            )
+        }
+        // "Los tres puntos": the song's menu one tap away, not only behind a long press.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp)
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(AuraPalette.Ground.copy(alpha = 0.55f))
+                .combinedClickable(
+                    onClick = { onLongClick(current) },
+                    onClickLabel = stringResource(R.string.more_options),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            AuraIconGlyph(
+                icon = AuraIcons.More,
+                contentDescription = stringResource(R.string.more_options),
+                size = 18.dp,
+                tint = AuraPalette.OnGround,
+            )
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(12.dp),
+        ) {
+            Text(
+                text = current.song.title,
+                style = AuraType.RowTitle,
+                color = AuraPalette.OnGround,
+                maxLines = 2,
+                overflow = AuraDefaultOverflow,
+            )
+            Text(
+                text = current.artists.joinToString { it.name },
+                style = AuraType.RowSubtitle,
+                color = AuraPalette.OnGroundMuted,
+                maxLines = 2,
+                overflow = AuraDefaultOverflow,
+            )
         }
     }
 }
