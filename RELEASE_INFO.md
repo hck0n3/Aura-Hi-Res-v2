@@ -1,40 +1,34 @@
-# Aura Hi-Res v2.0.65-beta12 — Plegable más cuidado, Inicio con carrusel, portadas con borde más brillante y Pedir música mejorado
+# Aura Hi-Res v2.0.65-beta13 — Búsqueda compacta, portadas anchas, Pedir música más preciso y barras con color
 
-Beta encima de la 2.0.65-beta11. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
-
-## Plegable y pantallas anchas
-
-- **Las ventanas que se abren desde abajo (añadir a lista, menú del reproductor, Cast, menú de canción, menú de
-  cuenta), la búsqueda rápida y los diálogos ya no se estiran de borde a borde:** quedan centradas, con un ancho
-  máximo. En un móvil normal no cambia nada.
-- **Álbumes, EP, sencillos y listas de YouTube: la portada se ve entera** en un cuadrado con borde, sobre una
-  copia suave de sí misma, en vez de un banner estirado que recortaba la imagen.
-- **Biblioteca (Listas, Canciones, Álbumes y Artistas): miniaturas más grandes** en el plegable abierto y en
-  tabletas, unas cuatro por fila en lugar de seis.
-
-## Inicio
-
-- **El carrusel de arriba siempre aparece:** si aún no hay recomendaciones, muestra lo que reprodujiste
-  recientemente (esa lista ya no se repite más abajo).
-- **Puntos de página bajo el carrusel y un botón «⋯» en cada tarjeta** que abre el menú de la canción con un solo
-  toque.
-- **El avatar de tu cuenta siempre se ve** junto al botón de mostrar u ocultar; el resto de botones de arriba
-  siguen escondidos tras ese botón. Lo mismo en Buscar y Novedades.
-- **Las tarjetas ya no dejan un hueco entre el título y el artista.**
-
-## Portadas
-
-- **El borde de todas las portadas (álbum, vídeo, lista, sencillo…) es más brillante,** como en Apple Music.
+Beta encima de la 2.0.65-beta12. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
 ## Pedir música
 
-- **Borra el historial de peticiones:** una por una con la ✕ o todas de golpe.
-- **Sugerencias personales que rotan,** a partir de lo que escuchas, en vez de una lista fija.
-- **Vista previa del resultado:** al terminar ves las primeras canciones antes de reproducir.
-- **«Guardar como lista»:** crea una lista con todas las canciones de la petición, cuando termina de completarse.
-- **Filtro Todo / Conocido / Descubrir,** como Familiar y Descubrir de YouTube Music: «Conocido» usa artistas que ya
-  escuchas y «Descubrir» solo canciones y artistas nuevos para ti. «Todo» funciona igual que antes.
+- **El filtro «Conocido» ahora es exacto:** solo canciones de artistas que ya escuchas con gusto, las más afines primero. Antes
+  se colaban artistas que nunca habías oído por ser del mismo género. Si hay pocas, la tarjeta te lo dice en vez de mezclar.
+- **«Descubrir» compara también por título y artista,** no solo por identificador: una canción que ya oíste con otra versión
+  ya no cuenta como nueva.
+- **Botón «Empezar»** junto al campo: lanza la búsqueda sin tocar el Enter del teclado.
+- **La lista del resultado se abre entera** («Ver las 24»): toca una canción para escuchar desde ahí y quita con la ✕ las que no
+  quieras en la lista que guardes.
+- **Las sugerencias ya no repiten** lo que sale en «Pedir de nuevo».
 
-## Actualizaciones
+## Ventanas y búsqueda
 
-- **La pantalla de actualizaciones ya está en español.**
+- **Cierra cualquier ventana inferior arrastrando su barrita hacia abajo** (menús, hojas, Pedir música, Cast…).
+- **La búsqueda del reproductor es un panel compacto,** flotando arriba y centrado, que crece solo cuando hay resultados y no se
+  mete bajo el teclado.
+
+## Plegable y pantallas anchas
+
+- **Álbumes, EP, sencillos y listas de YouTube:** la portada va a la izquierda y el título, el artista y los botones a su derecha;
+  las canciones se ven enseguida. La línea blanca alrededor de las portadas grandes es más suave.
+- **El carrusel de Inicio parece carrusel también en el plegable abierto:** tarjeta central grande y las vecinas más pequeñas a cada lado.
+
+## Inicio
+
+- **El título y el artista del carrusel se ven completos** (dos líneas), también en el móvil normal.
+
+## Barras de cristal
+
+- **El mini reproductor y la barra de Inicio, Novedades y Biblioteca toman el color de la portada** de forma clara, sin perder la lectura de sus textos.
