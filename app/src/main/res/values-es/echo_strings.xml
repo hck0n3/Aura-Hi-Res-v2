@@ -1245,6 +1245,8 @@
     <string name="music_request_remove_entry">Quitar del historial</string>
     <string name="music_request_playing_title">Sonando: %1$s</string>
     <string name="music_request_more_songs">+%1$d más</string>
+    <string name="music_request_size_small">Pequeña</string>
+    <string name="music_request_size_big">Grande</string>
     <string name="music_request_save">Guardar como lista</string>
     <string name="music_request_filling">Completando la lista…</string>
     <string name="music_request_saved">Guardada en tu biblioteca</string>

@@ -2,6 +2,10 @@ package iad1tya.echo.music.ui.newui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -625,7 +630,22 @@ private fun AuraMusicRequestResultCard(
     LaunchedEffect(pagerState.currentPage, last.contextId) {
         if (pagerState.currentPage == 1) onNeedAlternate()
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Dueño (2026-10-18, cuarta ronda): *«me enseñas las playlist que creo grandes o pequeñas… que las animaciones
+    // sean fluidas»*. Grande = portadas y filas amplias; pequeña = la lista compacta de siempre. El cambio ANIMA
+    // (tamaño de portadas con un muelle y la altura de la tarjeta con animateContentSize), no salta.
+    var big by rememberSaveable { mutableStateOf(false) }
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.animateContentSize(animationSpec = REQUEST_CARD_SPRING),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            AuraChip(text = stringResource(R.string.music_request_size_small), selected = !big, onClick = { big = false })
+            AuraChip(text = stringResource(R.string.music_request_size_big), selected = big, onClick = { big = true })
+        }
         androidx.compose.foundation.pager.HorizontalPager(
             state = pagerState,
             pageSpacing = 12.dp,
@@ -633,9 +653,9 @@ private fun AuraMusicRequestResultCard(
             modifier = Modifier.fillMaxWidth(),
         ) { page ->
             if (page == 0) {
-                AuraMusicRequestOptionOne(last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismiss = onDismiss)
+                AuraMusicRequestOptionOne(last = last, big = big, onSave = onSave, onRemoveSong = onRemoveSong, onDismiss = onDismiss)
             } else {
-                AuraMusicRequestOptionTwo(last = last, onSave = onSaveAlternate, contextForAlternate = contextForAlternate)
+                AuraMusicRequestOptionTwo(last = last, big = big, onSave = onSaveAlternate, contextForAlternate = contextForAlternate)
             }
         }
         Row(
@@ -671,11 +691,12 @@ private fun AuraMusicRequestResultCard(
 private fun AuraMusicRequestOptionHeader(
     title: String,
     songs: List<MediaMetadata>,
+    big: Boolean,
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier) {
-        AuraRequestCoverStack(songs)
+        AuraRequestCoverStack(songs, big)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -696,19 +717,21 @@ private fun AuraMusicRequestOptionHeader(
 
 /** Las tres primeras portadas, apiladas y un poco solapadas (la 1.ª encima). */
 @Composable
-private fun AuraRequestCoverStack(songs: List<MediaMetadata>) {
+private fun AuraRequestCoverStack(songs: List<MediaMetadata>, big: Boolean) {
     val covers = songs.take(3)
     if (covers.isEmpty()) return
-    val step = 16.dp
-    Box(modifier = Modifier.size(width = 44.dp + step * (covers.size - 1), height = 44.dp)) {
+    // Springs on the size only while the toggle moves; at rest nothing animates (no per-frame work).
+    val cover by animateDpAsState(if (big) 84.dp else 44.dp, REQUEST_SIZE_SPRING, label = "request-cover-stack")
+    val step = cover * (16f / 44f)
+    Box(modifier = Modifier.size(width = cover + step * (covers.size - 1), height = cover)) {
         covers.indices.reversed().forEach { i ->
             val song = covers[i]
             AuraCover(
                 thumbnailUrl = song.thumbnailUrl,
-                size = 44.dp,
+                size = cover,
                 seed = song.id,
                 shape = RoundedCornerShape(10.dp),
-                decodeTo = 128,
+                decodeTo = 256,
                 modifier = Modifier
                     .offset(x = step * i)
                     .border(2.dp, AuraPalette.SurfaceFill, RoundedCornerShape(10.dp)),
@@ -721,6 +744,7 @@ private fun AuraRequestCoverStack(songs: List<MediaMetadata>) {
 @Composable
 private fun AuraRequestSongRow(
     song: MediaMetadata,
+    big: Boolean,
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null,
 ) {
@@ -733,19 +757,20 @@ private fun AuraRequestSongRow(
             .auraClickableInternal(onClick = onClick, contentDescription = song.title)
             .padding(vertical = 4.dp),
     ) {
+        val cover by animateDpAsState(if (big) 64.dp else 44.dp, REQUEST_SIZE_SPRING, label = "request-row-cover")
         AuraCover(
             thumbnailUrl = song.thumbnailUrl,
-            size = 44.dp,
+            size = cover,
             seed = song.id,
             shape = RoundedCornerShape(8.dp),
-            decodeTo = 128,
+            decodeTo = 192,
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
                 style = AuraType.RowSubtitle,
                 color = AuraPalette.OnGround,
-                maxLines = 1,
+                maxLines = if (big) 2 else 1,
                 overflow = AuraDefaultOverflow,
             )
             Text(
@@ -764,6 +789,8 @@ private fun AuraRequestSongRow(
 private fun Modifier.auraRequestOptionSurface(): Modifier =
     this
         .fillMaxWidth()
+        // Antes del fondo: la tarjeta crece/encoge con su contenido (grande/pequeña, «+N más») sin saltos.
+        .animateContentSize(animationSpec = REQUEST_CARD_SPRING)
         .clip(AuraShapes.Card)
         .background(Brush.verticalGradient(listOf(AuraPalette.Teal.copy(alpha = 0.10f), AuraPalette.SurfaceFill)))
         .padding(horizontal = 14.dp, vertical = 12.dp)
@@ -771,6 +798,7 @@ private fun Modifier.auraRequestOptionSurface(): Modifier =
 @Composable
 private fun AuraMusicRequestOptionOne(
     last: LastMusicRequest,
+    big: Boolean,
     onSave: () -> Unit,
     onRemoveSong: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -784,6 +812,7 @@ private fun AuraMusicRequestOptionOne(
         AuraMusicRequestOptionHeader(
             title = stringResource(R.string.music_request_playing_title, last.title),
             songs = last.songs,
+            big = big,
             trailing = {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -828,6 +857,7 @@ private fun AuraMusicRequestOptionOne(
             shown.forEachIndexed { index, song ->
                 AuraRequestSongRow(
                     song = song,
+                    big = big,
                     onClick = {
                         // Desde esta canción, con la misma cola y el mismo contexto de la petición.
                         playerConnection?.playQueue(
@@ -921,6 +951,7 @@ private fun AuraMusicRequestOptionOne(
 @Composable
 private fun AuraMusicRequestOptionTwo(
     last: LastMusicRequest,
+    big: Boolean,
     onSave: () -> Unit,
     contextForAlternate: () -> String?,
 ) {
@@ -934,10 +965,12 @@ private fun AuraMusicRequestOptionTwo(
                 AuraMusicRequestOptionHeader(
                     title = stringResource(R.string.music_request_other_option_title, last.title),
                     songs = alt.songs,
+                    big = big,
                 )
                 alt.songs.take(8).forEachIndexed { index, song ->
                     AuraRequestSongRow(
                         song = song,
+                        big = big,
                         onClick = {
                             val contextId = contextForAlternate() ?: return@AuraRequestSongRow
                             playerConnection?.playQueue(
@@ -1009,6 +1042,15 @@ private fun AuraMusicRequestOptionTwo(
         }
     }
 }
+
+/** Muelle de los tamaños (portadas): rápido pero sin rebote, para que grande ↔ pequeña se sienta fluido. */
+private val REQUEST_SIZE_SPRING = spring<Dp>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+
+/** Muelle del alto de las tarjetas: el mismo carácter, sobre `IntSize`. */
+private val REQUEST_CARD_SPRING = spring<androidx.compose.ui.unit.IntSize>(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessMediumLow,
+)
 
 /** Una sugerencia: su texto y, si lo lleva, el dato que se mete en él (el artista que suena). */
 private class MusicRequestSuggestion(val res: Int, val arg: String? = null)

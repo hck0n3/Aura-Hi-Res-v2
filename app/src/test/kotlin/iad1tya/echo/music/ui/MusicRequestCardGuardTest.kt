@@ -41,6 +41,18 @@ class MusicRequestCardGuardTest {
     }
 
     @Test
+    fun `the lists can be shown big or small and the change animates instead of jumping`() {
+        val ui = main("ui/newui/AuraMusicRequest.kt")
+        val card = ui.substringAfter("private fun AuraMusicRequestResultCard(").substringBefore("private fun AuraMusicRequestOptionHeader(")
+        assertTrue("hay un interruptor grande/pequeña", card.contains("music_request_size_small") && card.contains("music_request_size_big"))
+        assertTrue("las dos opciones reciben el tamaño", card.contains("AuraMusicRequestOptionOne(last = last, big = big") && card.contains("AuraMusicRequestOptionTwo(last = last, big = big"))
+        assertTrue("la tarjeta anima su alto", card.contains("animateContentSize("))
+        assertTrue("las portadas de las filas animan su tamaño", ui.substringAfter("private fun AuraRequestSongRow(").substringBefore("private fun Modifier.auraRequestOptionSurface()").contains("animateDpAsState("))
+        assertTrue("el apilado de portadas anima su tamaño", ui.substringAfter("private fun AuraRequestCoverStack(").substringBefore("private fun AuraRequestSongRow(").contains("animateDpAsState("))
+        assertTrue("la superficie de cada opción anima su alto", ui.substringAfter("private fun Modifier.auraRequestOptionSurface()").substringBefore("@Composable").contains("animateContentSize("))
+    }
+
+    @Test
     fun `the alternative is another list, one search per request, without the first list's songs, in the same target`() {
         val vm = main("viewmodels/MusicRequestViewModel.kt")
         val load = vm.substringAfter("fun loadAlternate()").substringBefore("fun contextForAlternate()")
