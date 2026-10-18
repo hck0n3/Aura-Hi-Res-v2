@@ -1,56 +1,43 @@
-# Aura Hi-Res v2.0.65-beta13 — Búsqueda compacta, portadas anchas, Pedir música más preciso y barras con color
+# Aura Hi-Res v2.0.65-beta14 — Años y géneros que se respetan, segunda opción en Pedir música, sin conexión con álbumes y listas
 
-Beta encima de la 2.0.65-beta12. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.65-beta13. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
 ## Pedir música
 
-- **El filtro «Conocido» ahora es exacto:** solo canciones de artistas que ya escuchas con gusto, las más afines primero. Antes
-  se colaban artistas que nunca habías oído por ser del mismo género. Si hay pocas, la tarjeta te lo dice en vez de mezclar.
-- **«Descubrir» compara también por título y artista,** no solo por identificador: una canción que ya oíste con otra versión
-  ya no cuenta como nueva.
-- **Botón «Empezar»** junto al campo: lanza la búsqueda sin tocar el Enter del teclado.
-- **La lista del resultado se abre entera** («Ver las 24»): toca una canción para escuchar desde ahí y quita con la ✕ las que no
-  quieras en la lista que guardes.
-- **Las sugerencias ya no repiten** lo que sale en «Pedir de nuevo».
+- **Los años que pides se respetan:** «del 2004 a 2010», «años 70 y 80», «desde 2015», «antes de 2000»… Cada canción se comprueba con el
+  año de su álbum y las de fuera del rango no suenan. Si no se conoce el año de alguna, solo rellena y va al final. La cola que
+  continúa la petición también conserva los años (ya no se va a música reciente).
+- **Más géneros, y los nuevos se piden tal cual:** «corridos tumbados» ya no se convierte en corridos normales, y se reconocen
+  phonk, hyperpop, city pop, synthwave, shoegaze, emo, post-punk, grupera, tejano, plena, trova, MPB, trip hop, UK garage,
+  hardstyle, bandas sonoras, infantil y más. Un género que no conoce lo busca literal, sin cambiarlo por otro.
+- **Bossa nova y géneros vecinos:** un artista de bossa archivado como «Jazz» ya no se descarta.
+- **Segunda opción:** desliza la tarjeta del resultado hacia el lado y verás otra lista para la misma petición, sin las
+  canciones de la primera. Escúchala o guárdala como lista. Solo se busca cuando llegas a ella.
+- **Portadas en el listado,** y un apilado con las tres primeras en la cabecera; la tarjeta tiene un fondo con degradado del color del tema.
+- **El dictado espera a que te calles:** ya no busca a mitad de frase. Hay un botón «OK» para enviar ya.
 
-## Ventanas y búsqueda
+## Reproducción y Cast
 
-- **Cierra cualquier ventana inferior arrastrando su barrita hacia abajo** (menús, hojas, Pedir música, Cast…).
-- **La búsqueda del reproductor es un panel compacto,** flotando arriba y centrado, que crece solo cuando hay resultados y no se
-  mete bajo el teclado.
+- **Una pausa tuya no la deshace nada:** conectar cascos, el reloj o el coche ya no arranca la música que pausaste a propósito.
+  (Si vuelve a pasar, Ajustes ▸ Registros dirá por qué puerta.)
+- **El botón de Cast tiene una zona táctil más grande** (64 dp): debe responder al primer toque.
 
-## Plegable y pantallas anchas
+## Sin conexión
 
-- **Álbumes, EP, sencillos y listas de YouTube:** la portada va a la izquierda y el título, el artista y los botones a su derecha;
-  las canciones se ven enseguida. La línea blanca alrededor de las portadas grandes es más suave.
-- **El carrusel de Inicio parece carrusel también en el plegable abierto:** tarjeta central grande y las vecinas más pequeñas a cada lado.
+- **Álbumes y listas descargados, siempre a la vista:** el modo sin conexión (manual o automático) muestra primero «Álbumes
+  descargados» y «Listas descargadas», con cuántas canciones suenan sin red, y luego las canciones.
 
-## Inicio
+## Plegable y ventanas
 
-- **El título y el artista del carrusel se ven completos** (dos líneas), también en el móvil normal.
+- **Las ventanas flotantes toman el color de la portada** (menús, hojas, diálogos), siempre en cristal.
+- **«Añadir a lista»:** el nombre completo de cada lista y, en pantalla ancha, portadas más grandes.
+- **Tus listas, en plegable abierto,** con el diseño de los álbumes: portada a la izquierda, título y botones a su derecha.
+- **El carrusel de Inicio en plegable** empieza en el borde izquierdo y muestra más portadas a la vez.
+- **Las listas que sigues** (que no creaste tú) terminan con «También te puede gustar».
 
-## Barras de cristal
+## Inicio, Novedades y búsqueda
 
-- **El mini reproductor y la barra de Inicio, Novedades y Biblioteca toman el color de la portada** de forma clara, sin perder la lectura de sus textos.
-
-## Cast
-
-- **Al transmitir en modo Vídeo, el TV ahora busca el vídeo por una segunda vía** cuando la primera no lo encuentra, para que
-  muestre la imagen y no solo suene la canción. Si de verdad no existe un vídeo compatible con el TV, sigue sonando la canción y
-  la app vuelve a modo Canción con un aviso.
-
-## Vídeos exportados
-
-- **Cambiar entre Canción y Vídeo en un vídeo exportado ya no corta el sonido,** tampoco sin conexión: al salir de Vídeo solo se apaga la
-  imagen, y al entrar se prepara con unos segundos de antelación mientras tienes abierto el reproductor.
-
-## Exportar a MP3
-
-- **Exporta un álbum, EP o sencillo entero a MP3** desde su menú ⋮ («Exportar todo a MP3»): eliges la carpeta una vez y se guardan
-  todas las canciones con etiquetas y portada. Las listas ya lo tenían en su menú ⋮ («Exportar a MP3»: todas o las que elijas).
-
-## Cambio a Vídeo
-
-- **El primer cambio de Canción a Vídeo ya no corta el sonido** (en línea): la imagen se prepara mientras la música sigue sonando y aparece
-  cuando está lista. Con el modo aleatorio activado sigue el cambio de antes.
-
+- **Inicio más personal:** tu mix de género, «Porque escuchaste…» y tus favoritas olvidadas suben por encima de lo genérico.
+- **Novedades › «Lo más nuevo»** se filtra con todo tu gusto (suscripciones, lo más escuchado, tus me gusta y tu biblioteca).
+- **Historial de búsqueda:** botón «Borrar todo» en la búsqueda del reproductor y en la búsqueda general.
+- **Cola inteligente:** con dos canciones seguras del mismo estilo, las dudosas ya no se cuelan al final de cada tanda.

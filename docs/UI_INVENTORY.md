@@ -4160,3 +4160,19 @@ anteponen **Canciones que me gustan** y **Canciones descargadas**, y cada carpet
 *Documento generado leyendo el código fuente de la rama `feature/migration`. Todas las referencias
 `archivo:línea` están verificadas contra el código en ese momento; si el código se mueve, las líneas
 cambian pero los nombres de composable siguen siendo válidos.*
+
+---
+
+## Anexo — beta14 (2026-10-18): lo que SE AÑADIÓ (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Sin conexión (Inicio, Biblioteca, Listas — `DownloadedOnlyView`) | Estantes «Álbumes descargados» y «Listas descargadas» antes de las canciones; una colección a medias dice «3 de 12 descargadas» | 425 |
+| Búsqueda general (`AuraOnlineSearchSuggestions`) y búsqueda del reproductor (`AuraPlayerQuickSearch`) | «Borrar todo» junto a «Historial de búsquedas» (con confirmación); la ✕ de cada fila sigue | 433 |
+| Lista local que NO es tuya (`AuraLocalPlaylistScreen`) | Pie «También te puede gustar» (`AuraRelatedShelf`); en lista propia siguen las canciones sugeridas | 427 |
+| Lista local, panel ancho | Cabecera con portada a la izquierda (`AuraWideTop` con `coverContent`) | 428 |
+| Inicio, panel ancho | Carrusel pegado al borde izquierdo, tarjetas de 200×264 dp | 429 |
+| «Añadir a lista» (`AddToPlaylistDialog*`) | Fila amplia (`RoomyPlaylistListItem`): nombre completo y, en ≥ 560 dp, portada de 72 dp | 429 |
+| Botón Cast (`CastButton`) | Zona táctil de 64 dp (`CAST_TOUCH_TARGET`) | 424 |
+| Pedir música — diálogo de voz | Botón «OK» (envía lo dictado ya) además de «Cancelar» | 423 |
+| Pedir música — tarjeta de resultado | Carrusel de dos páginas (esta lista / otra opción), puntos de página, portada en cada fila, apilado de portadas, «Escuchar esta opción», «Guardar como lista» de la 2.ª opción | 436-438 |
