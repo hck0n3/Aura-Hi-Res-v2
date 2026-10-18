@@ -414,10 +414,18 @@ class AuraAppearanceTest {
             val ratio = contrastRatio(AuraPalette.NavInactive.compositeOver(glass), glass)
             assertTrue("hue $hue: nav label on the glass at $ratio", ratio >= TEXT_AA)
             // Owner 2026-10-18: the tint must be VISIBLY the cover's colour, not a near-black film.
+            // Measured as a straight colour distance from the plain raised ground (a hue-independent yardstick: the older
+            // «channel spread» test depended on how much the ground itself was tinted, and failed on some hues).
             val plain = AuraPalette.GroundRaised
-            val spread = maxOf(glass.red, glass.green, glass.blue) - minOf(glass.red, glass.green, glass.blue)
-            val plainSpread = maxOf(plain.red, plain.green, plain.blue) - minOf(plain.red, plain.green, plain.blue)
-            assertTrue("hue $hue: glass tint is not distinguishable from the plain ground", spread > plainSpread + 0.04f)
+            val distance = kotlin.math.sqrt(
+                (glass.red - plain.red).let { it * it } +
+                    (glass.green - plain.green).let { it * it } +
+                    (glass.blue - plain.blue).let { it * it },
+            )
+            assertTrue(
+                "hue $hue: glass tint is only $distance from the plain ground (needs 0.06)",
+                distance >= 0.06f,
+            )
         }
         AuraPalette.reset()
         assertEquals(null, AuraPalette.CoverGlassTint)
