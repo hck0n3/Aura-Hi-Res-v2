@@ -24,6 +24,8 @@ class PersistedQueueR8Test {
             "-keep class iad1tya.echo.music.models.MediaMetadata\$*",
             "-keep class iad1tya.echo.music.models.QueueData",
             "-keep class iad1tya.echo.music.models.QueueType",
+            "-keep class iad1tya.echo.music.models.QueueType\$*",
+            "-keep class iad1tya.echo.music.models.QueueData\$*",
         ).forEach { assertTrue("missing R8 rule: $it", rules.contains(it)) }
     }
 
@@ -32,6 +34,32 @@ class PersistedQueueR8Test {
         // If MediaMetadata or the persisted queue classes move, the keep rules above silently stop applying.
         listOf(PersistQueue::class, PersistPlayerState::class, MediaMetadata::class).forEach {
             assertTrue(it.java.name.startsWith("iad1tya.echo.music.models."))
+        }
+    }
+
+    /**
+     * Row 444: the queue type and data had no pinned serialVersionUID, so Java derived one from each class's structure,
+     * and a release build's structure changes with every version — the device log shows «InvalidClassException:
+     * QueueType / QueueData local class incompatible» on the first launch of beta13 and beta14, i.e. every update threw
+     * the saved queue away. Every class that goes into the file now declares its own.
+     */
+    @Test
+    fun everyClassInTheSavedQueueDeclaresItsOwnSerialVersionUid() {
+        val classes = listOf<Class<*>>(
+            PersistQueue::class.java,
+            QueueType::class.java,
+            QueueType.LIST::class.java,
+            QueueType.YOUTUBE::class.java,
+            QueueType.YOUTUBE_ALBUM_RADIO::class.java,
+            QueueType.LOCAL_ALBUM_RADIO::class.java,
+            QueueData::class.java,
+            QueueData.YouTubeData::class.java,
+            QueueData.YouTubeAlbumRadioData::class.java,
+            QueueData.LocalAlbumRadioData::class.java,
+        )
+        classes.forEach { c ->
+            val declared = runCatching { c.getDeclaredField("serialVersionUID") }.getOrNull()
+            assertTrue("${c.name} has no declared serialVersionUID", declared != null)
         }
     }
 }

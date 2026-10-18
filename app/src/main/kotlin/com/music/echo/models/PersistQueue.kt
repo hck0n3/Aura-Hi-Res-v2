@@ -23,31 +23,68 @@ data class PersistQueue(
     }
 }
 
+// The saved queue's type and data used to carry NO pinned serialVersionUID (only PersistQueue did), so Java computed
+// one from each class's structure — and a release build's structure (R8, Kotlin synthetics) is not stable from one
+// version to the next. The device log of 2026-10-18 shows it: «Failed to read persisted queue, clearing data —
+// InvalidClassException: QueueType … local class incompatible» on the first launch of beta13, and the same for
+// QueueData on beta14. Every update therefore threw the saved queue away. Pinned now, with the nested classes kept by
+// name in proguard-rules.pro (row 444). The first launch after THIS update still cannot read the old file once.
 sealed class QueueType : Serializable {
-    object LIST : QueueType()
-    object YOUTUBE : QueueType()
-    object YOUTUBE_ALBUM_RADIO : QueueType()
-    object LOCAL_ALBUM_RADIO : QueueType()
+    companion object {
+        private const val serialVersionUID: Long = 1L
+    }
+
+    object LIST : QueueType() {
+        private const val serialVersionUID: Long = 1L
+    }
+
+    object YOUTUBE : QueueType() {
+        private const val serialVersionUID: Long = 1L
+    }
+
+    object YOUTUBE_ALBUM_RADIO : QueueType() {
+        private const val serialVersionUID: Long = 1L
+    }
+
+    object LOCAL_ALBUM_RADIO : QueueType() {
+        private const val serialVersionUID: Long = 1L
+    }
 }
 
 sealed class QueueData : Serializable {
+    companion object {
+        private const val serialVersionUID: Long = 1L
+    }
+
     data class YouTubeData(
         val endpoint: String,
         val continuation: String? = null
-    ) : QueueData()
-    
+    ) : QueueData() {
+        companion object {
+            private const val serialVersionUID: Long = 1L
+        }
+    }
+
     data class YouTubeAlbumRadioData(
         val playlistId: String,
         val albumSongCount: Int = 0,
         val continuation: String? = null,
         val firstTimeLoaded: Boolean = false
-    ) : QueueData()
-    
+    ) : QueueData() {
+        companion object {
+            private const val serialVersionUID: Long = 1L
+        }
+    }
+
     data class LocalAlbumRadioData(
         val albumId: String,
         val startIndex: Int = 0,
         val playlistId: String? = null,
         val continuation: String? = null,
         val firstTimeLoaded: Boolean = false
-    ) : QueueData()
+    ) : QueueData() {
+        companion object {
+            private const val serialVersionUID: Long = 1L
+        }
+    }
 }

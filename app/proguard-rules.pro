@@ -124,6 +124,8 @@
 -keep class iad1tya.echo.music.models.PersistPlayerState { *; }
 -keep class iad1tya.echo.music.models.QueueData { *; }
 -keep class iad1tya.echo.music.models.QueueType { *; }
+-keep class iad1tya.echo.music.models.QueueType$* { *; }
+-keep class iad1tya.echo.music.models.QueueData$* { *; }
 -keep class iad1tya.echo.music.playback.queues.** { *; }
 # Row 345: the SONGS inside the saved queue. Java serialization writes the CLASS NAME into
 # persistent_queue.data; without this R8 renamed MediaMetadata (and Artist/Album) differently in every
