@@ -990,17 +990,17 @@ fun auraArtworkGround(seed: Color): Color = Color(AuraCoverMix.colouredGroundArg
 internal const val COVER_GLASS_ACCENT_ALPHA = 0.10f
 
 /** Brightness (HSV value) of the cover-coloured glass: deep enough that light labels stay AA on it. */
-internal const val COVER_GLASS_VALUE = 0.34f
+internal const val COVER_GLASS_VALUE = 0.40f
 
 /** How much of that deep shade replaces the plain raised ground. */
-internal const val COVER_GLASS_MIX = 0.66f
+internal const val COVER_GLASS_MIX = 0.70f
 
 /**
  * A cover with any colour at all gets at least this saturation in the glass: the accent is lightened to stay AA on the
  * dark ground, and lightening washes the saturation out (a pale yellow accent is nearly grey), which left some covers'
  * glass indistinguishable from the plain one. A grey cover (saturation below [COVER_GLASS_GREY_BELOW]) stays grey.
  */
-internal const val COVER_GLASS_MIN_SATURATION = 0.75f
+internal const val COVER_GLASS_MIN_SATURATION = 0.80f
 internal const val COVER_GLASS_GREY_BELOW = 0.12f
 
 /**
@@ -1008,7 +1008,7 @@ internal const val COVER_GLASS_GREY_BELOW = 0.12f
  * yellow is several times brighter than a blue, and the nav labels ([AuraPalette.NavInactive]) keep ≥ 4.5:1 only while
  * the glass under them stays this dark (AuraAppearanceTest walks every hue). Bright hues are darkened until they fit.
  */
-internal const val COVER_GLASS_MAX_LUMINANCE = 0.026f
+internal const val COVER_GLASS_MAX_LUMINANCE = 0.034f
 
 /**
  * The glass tint for a cover whose accent is [accent], over the chrome's plain [ground]: the accent's hue and
