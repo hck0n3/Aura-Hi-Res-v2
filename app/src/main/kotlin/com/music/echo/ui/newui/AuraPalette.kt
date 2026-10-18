@@ -444,12 +444,16 @@ object AuraPalette {
      * ground (shell glass), i.e. a grey-black film over every song. Now it is the cover's own dark
      * ground plus a tenth of its accent: the same colour family as the screen it floats over.
      *
-     * 0.10 and not more: measured over every hue and the brightest accents, the nav bar's unselected
-     * labels ([NavInactive]) keep ≥ 4.5:1 on it (AuraAppearanceTest pins it); 0.14 would drop below.
+     * Owner 2026-10-18: *"las barras de cristal líquido donde tenemos el mini reproductor y la exploración no
+     * cambian de color según la portada"*. The first cut mixed 10 % of the (bright, AA-on-dark) accent into the
+     * ground: a near-black film that no eye could tell from the plain one. Now the tint is the accent's HUE
+     * darkened to a deep, saturated shade ([COVER_GLASS_VALUE]) mixed in at [COVER_GLASS_MIX]: clearly the cover's
+     * colour, yet dark — so the nav labels keep their ≥ 4.5:1 (AuraAppearanceTest pins it over every hue). A grey
+     * cover stays grey: saturation is never invented.
      */
     val CoverGlassTint: Color?
         get() = if (artworkInk == null || roleOverrides.surface != null) null
-        else Teal.copy(alpha = COVER_GLASS_ACCENT_ALPHA).compositeOver(GroundRaised)
+        else coverGlassTintOf(Teal, GroundRaised)
 
     /**
      * Frosted overlay plate (dialogs / sheets / menus).
@@ -984,6 +988,24 @@ fun auraArtworkGround(seed: Color): Color = Color(AuraCoverMix.colouredGroundArg
 // History: 2026-10-07 HSV value 0.18 / saturation 0.50 (rows 341/342); 2026-10-09 Oklab L 0.22, chroma
 // ≤ 0.05 in the cover's hue (AuraCoverMix), measured to keep the same text contrast on every hue.
 internal const val COVER_GLASS_ACCENT_ALPHA = 0.10f
+
+/** Brightness (HSV value) of the cover-coloured glass: deep enough that light labels stay AA on it. */
+internal const val COVER_GLASS_VALUE = 0.36f
+
+/** How much of that deep shade replaces the plain raised ground. */
+internal const val COVER_GLASS_MIX = 0.62f
+
+/**
+ * The glass tint for a cover whose accent is [accent], over the chrome's plain [ground]: the accent's hue and
+ * saturation (a little boosted) at a fixed dark value, blended with the ground. Pure, so a test can walk every hue.
+ */
+internal fun coverGlassTintOf(accent: Color, ground: Color): Color {
+    val (hue, saturation, _) = iad1tya.echo.music.ui.component.ColorPickerConversions.colorToHsv(accent)
+    val deep = iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(
+        hue, (saturation * 1.15f).coerceIn(0f, 1f), COVER_GLASS_VALUE,
+    )
+    return deep.copy(alpha = COVER_GLASS_MIX).compositeOver(ground)
+}
 
 /**
  * The three blurred radial gradients that sit behind every new screen. Held as data (not as a [Brush])

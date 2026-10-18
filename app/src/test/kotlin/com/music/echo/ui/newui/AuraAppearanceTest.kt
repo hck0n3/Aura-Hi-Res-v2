@@ -413,9 +413,20 @@ class AuraAppearanceTest {
             val glass = AuraPalette.CoverGlassTint!!
             val ratio = contrastRatio(AuraPalette.NavInactive.compositeOver(glass), glass)
             assertTrue("hue $hue: nav label on the glass at $ratio", ratio >= TEXT_AA)
+            // Owner 2026-10-18: the tint must be VISIBLY the cover's colour, not a near-black film.
+            val plain = AuraPalette.GroundRaised
+            val spread = maxOf(glass.red, glass.green, glass.blue) - minOf(glass.red, glass.green, glass.blue)
+            val plainSpread = maxOf(plain.red, plain.green, plain.blue) - minOf(plain.red, plain.green, plain.blue)
+            assertTrue("hue $hue: glass tint is not distinguishable from the plain ground", spread > plainSpread + 0.12f)
         }
         AuraPalette.reset()
         assertEquals(null, AuraPalette.CoverGlassTint)
+    }
+
+    @Test
+    fun `a grey cover keeps a neutral glass tint`() {
+        val tint = coverGlassTintOf(Color(0xFF808080), Color(0xFF0A0F19))
+        assertTrue(maxOf(tint.red, tint.green, tint.blue) - minOf(tint.red, tint.green, tint.blue) < 0.06f)
     }
 
     @Test
