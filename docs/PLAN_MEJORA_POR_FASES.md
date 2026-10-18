@@ -19,9 +19,10 @@
  │
  ├─ 4. PEDIR PERMISO al dueño para lanzar la beta (orden permanente 2026-09-15: nada sale sin que lo pida)
  │
- ├─ 5. BETA PRIVADA (prerelease `-betaN`: solo la ve el dueño en la página de releases) + verificación del certificado
+ ├─ 5. BETA (prerelease `-betaN`) + verificación del certificado. Aura la DETECTA y la descarga desde el actualizador
+ │     si el interruptor «Actualizaciones beta» está encendido; con él apagado solo ve la estable
  │
- ├─ 6. PRUEBA DEL DUEÑO con la lista de prueba de la fase (puerta B)
+ ├─ 6. PRUEBA DEL DUEÑO: actualiza desde Aura (sin bajar el APK a mano) y pasa la lista de la fase (puerta B)
  │
  ├─ 7. El dueño reporta ► se corrige TODO lo reportado ► nueva beta (betaN+1) ► vuelta al paso 6
  │
@@ -53,12 +54,24 @@ Cada fase trae su **lista de prueba** (abajo): pasos cortos, en tu móvil, con r
 coincida. Una fila del registro solo pasa de «⚠️ pendiente dispositivo» a «✅ verificado» cuando tú confirmas esa
 lista; si no la probaste, sigue pendiente (no se da por buena).
 
+### Cómo llega cada beta a tu móvil (el actualizador de Aura)
+- Se publica como **prerelease** (`-beta`). El actualizador ya la ofrece cuando **Ajustes ▸ Actualizaciones ▸
+  Actualizaciones beta** está **encendido**; el aviso de segundo plano (`UpdateCheckWorker`) usa la misma comprobación.
+- Con el interruptor **apagado** (lo normal para cualquier usuario) la app solo ve la estable. Así tú pruebas rápido y
+  nadie recibe una beta sin haberla pedido. Tú lo dejas encendido siempre.
+- Orden de versiones: una beta nueva se compara por número (`beta10` > `beta9`) y una estable supera a sus propias
+  betas (arreglado en la fila 315).
+- **Aviso:** el interruptor es visible en Ajustes para cualquiera. Quien lo encienda recibe las betas; es una decisión
+  suya, pero no es «privado» en sentido estricto. Si algún día quieres que las betas no se vean ni siquiera así,
+  habría que esconder el interruptor (decisión tuya, no la tomo yo).
+- Mismo paquete y misma firma, así que se instala encima conservando datos.
+
 ### Numeración de betas
 Se parte de `2.0.65-beta12`. Fase N → `2.0.(65+N)-beta1`; cada ronda de correcciones sube el número
 (`-beta2`, `-beta3`…). `versionCode` siempre creciente, nunca por debajo de 955.
 
 ### Lo que este plan NO hace
-- No publica versión estable. La estable es una decisión aparte, con la lista del `AGENTS.md`
+- No publica versión estable (las betas sí salen como prerelease al pedirlo, ver arriba). La estable es una decisión aparte, con la lista del `AGENTS.md`
   (incluida la confirmación del dueño de que el certificado resuelve streams).
 - No toca el ecualizador, Superpowered ni `license/` salvo petición explícita.
 - No abre pull requests ni hace merge a `main` sin orden expresa.
