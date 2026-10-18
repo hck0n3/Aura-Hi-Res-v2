@@ -79,7 +79,7 @@ Se parte de `2.0.65-beta12`. Fase N → `2.0.(65+N)-beta1`; cada ronda de correc
 
 ---
 
-## 2. Las siete fases (en este orden, porque cada una apoya a la siguiente)
+## 2. Las seis fases (en este orden, porque cada una apoya a la siguiente)
 
 | Fase | Tema | Por qué en este lugar | Beta |
 |---|---|---|---|
@@ -87,9 +87,8 @@ Se parte de `2.0.65-beta12`. Fase N → `2.0.(65+N)-beta1`; cada ronda de correc
 | **F2** | Streaming que no falle | Es lo que más daña a una app de pago; ya con F1 se puede medir | 2.0.67-beta1 |
 | **F3** | Quitar o conectar lo que no hace nada | Limpiar antes de construir encima | 2.0.68-beta1 |
 | **F4** | Confianza y vida diaria (copia de seguridad, reportar problema, español, descarga inteligente) | Protege los datos del dueño antes de cambios grandes de interfaz | 2.0.69-beta1 |
-| **F5** | Calidad Hi-Res real | Necesita el streaming estable (F2) para medir fuentes | 2.0.70-beta1 |
-| **F6** | Plegable y tableta como producto | Cambio visual grande: va con las capturas automáticas de F1 | 2.0.71-beta1 |
-| **F7** | Descubrimiento y cola | Necesita datos y medición del dispositivo; es la más subjetiva | 2.0.72-beta1 |
+| **F5** | Plegable y tableta como producto | Cambio visual grande: va con las capturas automáticas de F1 | 2.0.70-beta1 |
+| **F6** | Descubrimiento y cola | Necesita datos y medición del dispositivo; es la más subjetiva | 2.0.71-beta1 |
 
 ---
 
@@ -145,23 +144,14 @@ descarga inteligente no corre en segundo plano sin wifi/carga cuando el usuario 
 **Lista de prueba:** copiar → borrar datos → restaurar; reportar un problema y leer el archivo; ajustes en español.
 **Se cierra cuando:** una restauración completa deja la app idéntica y el reporte no contiene datos personales.
 
-### F5 — Calidad Hi-Res real
-**Alcance**
-- **Primero una auditoría** (sin cambiar nada): qué tan completas están las integraciones de Qobuz y Tidal y qué
-  calidad entrega cada fuente hoy. El resto de la fase depende de lo que salga; si falta mucho, se replantea con el dueño.
-- Insignia por canción con códec, tasa de bits y fuente reales (nunca una etiqueta inventada).
-- Salida limpia a DAC USB; normalización de volumen coherente entre fuentes.
-**Fuera de alcance:** el motor del ecualizador (zona protegida).
-**Se cierra cuando:** la insignia coincide con lo que de verdad suena, comprobado con al menos tres fuentes distintas.
-
-### F6 — Plegable y tableta como producto
+### F5 — Plegable y tableta como producto
 **Alcance:** dos paneles (lista y detalle) en Biblioteca y búsqueda; modo mesa del reproductor al doblar a medias;
 arrastrar y soltar canciones a una lista; pasar por el catálogo de pantallas con las capturas de F1.
 **Auditoría específica:** nada cambia en móvil normal; rendimiento medido con las cifras de F1 (sin empeorar).
 **Lista de prueba:** abrir y cerrar el plegable con música sonando en cada pantalla principal.
 **Se cierra cuando:** ninguna pantalla se corta, se estira ni pierde estado al plegar y desplegar.
 
-### F7 — Descubrimiento y cola
+### F6 — Descubrimiento y cola
 **Alcance:** memoria de gusto con recencia y frecuencia, diversidad formal (MMR), ánimo por hora; resumen anual
 (Wrapped) y recibo de escucha compartible.
 **Auditoría específica:** cada cambio de ordenación con prueba unitaria; cola sin repeticiones intacta (filas 397-401);
@@ -170,6 +160,11 @@ sin cálculo por fotograma.
 **Se cierra cuando:** el dueño la prefiere a la anterior; si no, se deja apagada y documentada.
 
 ---
+
+### Fuera del plan (decisión del dueño, 2026-10-18)
+- **Calidad Hi-Res real** (insignia con códec/tasa de bits/fuente reales, salida limpia a DAC USB, normalización de
+  volumen entre fuentes, auditoría de Qobuz y Tidal): **el dueño la descartó.** No se hace; si algún día se retoma,
+  empieza por la auditoría de las integraciones.
 
 ## 3. Seguimiento
 
@@ -183,7 +178,6 @@ Cada fase tiene su cabecera en este archivo con su estado:
 | F4 | ⏳ sin empezar | — | — |
 | F5 | ⏳ sin empezar | — | — |
 | F6 | ⏳ sin empezar | — | — |
-| F7 | ⏳ sin empezar | — | — |
 
 Estados posibles: ⏳ sin empezar · 🔨 implementando · 🔍 en auditoría · 🧪 beta en prueba del dueño · 🔧 corrigiendo
 reportes · ✅ cerrada por el dueño.
