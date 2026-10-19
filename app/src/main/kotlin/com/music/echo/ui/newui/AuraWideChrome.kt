@@ -167,7 +167,7 @@ fun AuraSplitCardsFrame(
     Box(
         modifier = modifier
             .fillMaxSize()
-            // No `graphicsLayer { alpha }` here: a window-sized alpha layer is an OFFSCREEN buffer (≈16 MB on an
+            // No alpha layer here: a window-sized alpha layer is an OFFSCREEN buffer (≈16 MB on an
             // unfolded Fold) re-composited on every frame of the flip. The path is ONE draw op, so its alpha goes
             // straight into the paint, read in the draw phase — identical pixels, no buffer, no recomposition.
             .drawWithCache {

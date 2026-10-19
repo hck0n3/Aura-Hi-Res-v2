@@ -1314,6 +1314,19 @@ interface DatabaseDao {
     @Query("UPDATE song SET isDownloaded = :downloaded, dateDownload = :date WHERE id = :songId")
     fun updateDownloadedInfo(songId: String, downloaded: Boolean, date: LocalDateTime?)
 
+    /**
+     * Marks a song downloaded WITHOUT touching an existing [dateDownload]. [updateDownloadedInfo] stamps "now", which is
+     * right for a first download but wrong when a COMPLETED download is merely re-confirmed (a re-add that finds every
+     * byte on disk, or the startup reconcile): the "Descargadas" list is ordered by that date and every song would jump
+     * to the top.
+     */
+    @Query("UPDATE song SET isDownloaded = 1, dateDownload = COALESCE(dateDownload, :date) WHERE id = :songId")
+    fun markDownloadedKeepingDate(songId: String, date: LocalDateTime)
+
+    /** Ids of the songs the library lists as downloaded — one cheap read for the startup reconcile. */
+    @Query("SELECT id FROM song WHERE isDownloaded = 1")
+    fun downloadedSongIdsOnce(): List<String>
+
     @Transaction
     @Query("SELECT * FROM song WHERE isUploaded = 1 ORDER BY dateDownload")
     fun uploadedSongsByCreateDateAsc(): Flow<List<Song>>
