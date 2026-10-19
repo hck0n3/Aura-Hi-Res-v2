@@ -62,4 +62,15 @@ class MusicRequestCardGuardTest {
         assertTrue(vm.substringAfter("fun contextForAlternate()").substringBefore("fun saveAlternateAsPlaylist()").contains("RequestStyleTargets.put(altId"))
         assertTrue(vm.contains("sealed interface AlternateOption"))
     }
+
+    @Test
+    fun `asking for music pauses what plays until the requested song starts, and only a search that ends without music gives it back`() {
+        val ui = main("ui/newui/AuraMusicRequest.kt")
+        val card = ui.substringAfter("fun AuraMusicRequestCard(").substringBefore("private fun AuraMusicRequestSheet(")
+        assertTrue("pausa al empezar a buscar", card.contains("playerConnection.player.pause()") && card.contains("pausedForRequest = true"))
+        assertTrue("solo se devuelve si NO hay música pedida", card.contains("if (state !is MusicRequestUiState.Ready) playerConnection.player.play()"))
+        assertTrue("la música pedida entra con playQueue", card.contains("playerConnection.playQueue("))
+        val body = ui.substringAfter("private fun AuraMusicRequestSheetBody(").substringBefore("private fun AuraMusicRequestResultCard(")
+        assertTrue("hay un botón para cancelar la búsqueda", body.contains("onClick = onCancel") && card.contains("onCancel = viewModel::reset"))
+    }
 }

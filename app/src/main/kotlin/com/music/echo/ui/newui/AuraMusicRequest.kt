@@ -99,6 +99,25 @@ fun AuraMusicRequestCard(
     // EL RELEVO. En un `LaunchedEffect` y NO en el cuerpo del composable: poner una cola es un efecto,
     // y hacerlo durante la composición se volvería a ejecutar en cada recomposición antes de que
     // `reset()` cambie el estado — sonaría la misma cola dos o tres veces.
+    // PAUSA MIENTRAS SE BUSCA (dueño, 2026-10-19: «cuando pida algo y se esté reproduciendo algo, que se pause hasta que
+    // suene la canción que pedí, y que no se reanude a menos que la búsqueda se cancele»). Se pausa al empezar a buscar
+    // y la música pedida entra con `playQueue` (abajo); solo si la búsqueda termina SIN música (cancelada, sin resultado,
+    // fallida) se devuelve lo que sonaba. Es una pausa del usuario (USER_REQUEST): nada la reanuda por su cuenta.
+    var pausedForRequest by remember { mutableStateOf(false) }
+    val searching = state is MusicRequestUiState.Working
+    LaunchedEffect(searching) {
+        if (searching) {
+            if (playerConnection.isPlaying.value) {
+                playerConnection.player.pause()
+                pausedForRequest = true
+            }
+        } else if (pausedForRequest) {
+            pausedForRequest = false
+            // `Ready` lo maneja el relevo de abajo (playQueue arranca la música pedida).
+            if (state !is MusicRequestUiState.Ready) playerConnection.player.play()
+        }
+    }
+
     val ready = state as? MusicRequestUiState.Ready
     LaunchedEffect(ready) {
         val result = ready ?: return@LaunchedEffect
@@ -149,6 +168,7 @@ fun AuraMusicRequestCard(
             onSave = viewModel::saveLastAsPlaylist,
             onRemoveSong = viewModel::removeFromLast,
             onDismissLast = viewModel::dismissLast,
+            onCancel = viewModel::reset,
             onNeedAlternate = viewModel::loadAlternate,
             onSaveAlternate = viewModel::saveAlternateAsPlaylist,
             contextForAlternate = viewModel::contextForAlternate,
@@ -171,6 +191,7 @@ private fun AuraMusicRequestSheet(
     onSave: () -> Unit,
     onRemoveSong: (String) -> Unit,
     onDismissLast: () -> Unit,
+    onCancel: () -> Unit,
     onNeedAlternate: () -> Unit,
     onSaveAlternate: () -> Unit,
     contextForAlternate: () -> String?,
@@ -197,7 +218,7 @@ private fun AuraMusicRequestSheet(
             // mide su contenido".
             fullHeight = false,
         ) {
-            AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
+            AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onCancel = onCancel, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
         }
         return
     }
@@ -219,7 +240,7 @@ private fun AuraMusicRequestSheet(
             )
         },
     ) {
-        AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
+        AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onCancel = onCancel, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
     }
 }
 
@@ -230,6 +251,7 @@ private fun AuraMusicRequestSheetBody(
     onSave: () -> Unit,
     onRemoveSong: (String) -> Unit,
     onDismissLast: () -> Unit,
+    onCancel: () -> Unit,
     onNeedAlternate: () -> Unit,
     onSaveAlternate: () -> Unit,
     contextForAlternate: () -> String?,
@@ -541,6 +563,12 @@ private fun AuraMusicRequestSheetBody(
                     },
                     style = AuraType.MiniArtist,
                     color = AuraPalette.OnGroundMuted,
+                )
+                // Cancelar la búsqueda: devuelve la música que se pausó al pedir (dueño, 2026-10-19).
+                AuraChip(
+                    text = stringResource(R.string.cancel),
+                    selected = false,
+                    onClick = onCancel,
                 )
             }
 
