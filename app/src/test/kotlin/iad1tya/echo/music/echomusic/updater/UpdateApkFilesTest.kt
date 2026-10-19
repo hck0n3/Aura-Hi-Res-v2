@@ -286,4 +286,46 @@ class UpdateApkFilesTest {
         assertEquals(UpdateApkFiles.versionTag("0.6.145"), UpdateApkFiles.versionTag("v0.6.145"))
         assertFalse(UpdateApkFiles.versionTag("0.6.145") == UpdateApkFiles.versionTag("0.6.146"))
     }
+
+    // ---- installed updates are freed, the pending one is kept (owner 2026-10-19) --------------------
+
+    @Test
+    fun `a file name gives back the version it stands for`() {
+        assertEquals("2.0.65-beta16", UpdateApkFiles.versionOfFileName(UpdateApkFiles.apkFileName("v2.0.65-beta16")))
+        assertEquals("2.0.66", UpdateApkFiles.versionOfFileName(UpdateApkFiles.partFileName("2.0.66")))
+        assertEquals("2.0.66", UpdateApkFiles.versionOfFileName(UpdateApkFiles.zipPartFileName("2.0.66")))
+        assertEquals(null, UpdateApkFiles.versionOfFileName("echomusic.apk"))
+        assertEquals(null, UpdateApkFiles.versionOfFileName("holiday.apk"))
+    }
+
+    @Test
+    fun `the installed version and older ones are freed, a newer pending update and its partial download are kept`() {
+        val names = listOf(
+            UpdateApkFiles.apkFileName("2.0.65-beta15"),
+            UpdateApkFiles.apkFileName("2.0.65-beta16"), // the one running now
+            UpdateApkFiles.apkFileName("2.0.65"), // newer than the running beta: the pending update
+            UpdateApkFiles.partFileName("2.0.65"),
+            UpdateApkFiles.LEGACY_APK_NAME,
+            "holiday.apk",
+            "Aura-Hi-Res-v2-nightly-r12.apk",
+        )
+        val doomed = UpdateApkFiles.installedUpdateNames(names, "2.0.65-beta16")
+        assertTrue(UpdateApkFiles.apkFileName("2.0.65-beta15") in doomed)
+        assertTrue(UpdateApkFiles.apkFileName("2.0.65-beta16") in doomed)
+        assertTrue(UpdateApkFiles.LEGACY_APK_NAME in doomed)
+        assertFalse(UpdateApkFiles.apkFileName("2.0.65") in doomed)
+        assertFalse(UpdateApkFiles.partFileName("2.0.65") in doomed)
+        assertFalse("never a file this app did not write", "holiday.apk" in doomed)
+        assertFalse("nightlies have no ordering", "Aura-Hi-Res-v2-nightly-r12.apk" in doomed)
+    }
+
+    @Test
+    fun `a stored update flag is only true while its release is newer than the running build`() {
+        assertTrue(UpdateApkFiles.isStoredOfferStillNew("v2.0.65-beta17", "2.0.65-beta16"))
+        assertTrue(UpdateApkFiles.isStoredOfferStillNew("v2.0.65", "2.0.65-beta16"))
+        assertFalse("just installed it", UpdateApkFiles.isStoredOfferStillNew("v2.0.65-beta16", "2.0.65-beta16"))
+        assertFalse("installed something newer", UpdateApkFiles.isStoredOfferStillNew("v2.0.65-beta16", "2.0.65"))
+        assertFalse("a flag with no tag (older build) is not trusted", UpdateApkFiles.isStoredOfferStillNew(null, "2.0.65-beta16"))
+        assertFalse(UpdateApkFiles.isStoredOfferStillNew("", "2.0.65-beta16"))
+    }
 }

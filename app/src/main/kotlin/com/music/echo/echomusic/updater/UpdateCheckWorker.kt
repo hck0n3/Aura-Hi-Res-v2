@@ -57,14 +57,21 @@ class UpdateCheckWorker(
             }
 
             val deferred = CompletableDeferred<Pair<Boolean, String>>()
+            var checkFailed = false
             checkForUpdate(
                 applicationContext,
                 onSuccess = { tag, isAvailable, _, _, _, _, _, _, _ ->
                     deferred.complete(isAvailable to tag)
                 },
-                onError = { deferred.complete(false to "") },
+                onError = { checkFailed = true; deferred.complete(false to "") },
             )
             val (available, tag) = deferred.await()
+            // A check that completed and found nothing newer clears the flag and the notification an earlier run left.
+            if (!available && !checkFailed) {
+                saveUpdateAvailableState(applicationContext, false)
+                runCatching { NotificationManagerCompat.from(applicationContext).cancel(NOTIFICATION_ID) }
+            }
+            if (available && tag.isNotBlank()) saveUpdateAvailableState(applicationContext, true, tag)
 
             if (available && tag.isNotBlank()) {
                 val last = applicationContext.dataStore.get(LastUpdateNotifiedTagKey, "")

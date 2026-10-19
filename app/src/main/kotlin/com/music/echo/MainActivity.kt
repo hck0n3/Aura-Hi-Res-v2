@@ -1581,20 +1581,38 @@ class MainActivity : ComponentActivity() {
                 // When a newer release is on GitHub: notify (once per tag) and open the update screen
                 // so the user never has to dig for it. Skipped while welcome/changelog is due this launch.
                 LaunchedEffect(Unit) {
+                    // Offline and first: an update flag / notification left from a release that is now INSTALLED must not
+                    // keep announcing it (owner 2026-10-19: «de la nada dice que tiene actualizaciones disponibles»).
+                    kotlinx.coroutines.withContext(Dispatchers.IO) {
+                        runCatching { iad1tya.echo.music.echomusic.updater.reconcileStaleUpdateOffer(this@MainActivity) }
+                        // The installer's job is done: free the APK just installed (and older ones) from the phone.
+                        runCatching { iad1tya.echo.music.echomusic.updater.cleanInstalledUpdates(this@MainActivity) }
+                    }
                     if (welcomeWillShow || showWelcomeDialog) return@LaunchedEffect
                     if (!getAutoUpdateCheckSetting(this@MainActivity)) return@LaunchedEffect
                     kotlinx.coroutines.delay(2200)
                     val deferred = kotlinx.coroutines.CompletableDeferred<Pair<Boolean, String>>()
+                    var checkFailed = false
                     checkForUpdate(
                         context = this@MainActivity,
                         onSuccess = { tag, isAvailable, _, _, _, _, _, _, _ ->
                             deferred.complete(isAvailable to tag)
                         },
-                        onError = { deferred.complete(false to "") },
+                        onError = { checkFailed = true; deferred.complete(false to "") },
                     )
                     val (available, tag) = deferred.await()
-                    if (!available || tag.isBlank()) return@LaunchedEffect
-                    saveUpdateAvailableState(this@MainActivity, true)
+                    if (!available || tag.isBlank()) {
+                        // A completed check that found NOTHING newer is the truth: clear what an earlier check left.
+                        if (!checkFailed) {
+                            saveUpdateAvailableState(this@MainActivity, false)
+                            runCatching {
+                                getSystemService(android.app.NotificationManager::class.java)
+                                    .cancel(iad1tya.echo.music.echomusic.updater.UPDATE_NOTIFICATION_ID)
+                            }
+                        }
+                        return@LaunchedEffect
+                    }
+                    saveUpdateAvailableState(this@MainActivity, true, tag)
                     if (getUpdateNotificationsSetting(this@MainActivity)) {
                         val last = context.dataStore
                             .get(iad1tya.echo.music.constants.LastUpdateNotifiedTagKey, "")

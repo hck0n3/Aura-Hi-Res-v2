@@ -168,6 +168,30 @@ fun shellGlassStyle(): HazeStyle {
 }
 
 /**
+ * The glass of the floating WINDOWS (sheets, menus, dialogs): [shellGlassStyle]'s recipe, but with the window plate
+ * ([AuraPalette.CoverWindowTint]) at [FLOATING_WINDOW_GLASS_ALPHA] instead of 0.85, so the screen behind — the cover's
+ * bloom — reads through them. The bars keep [shellGlassStyle] untouched.
+ */
+@Composable
+fun floatingWindowGlassStyle(): HazeStyle {
+    val tint = AuraPalette.CoverWindowTint ?: AuraPalette.GroundRaised
+    return HazeStyle(
+        backgroundColor = tint,
+        blurRadius = 18.dp,
+        noiseFactor = 0.12f,
+        tints = listOf(HazeTint(tint.copy(alpha = if (AuraPalette.CoverWindowTint != null) FLOATING_WINDOW_GLASS_ALPHA else 0.85f))),
+        fallbackTint = HazeTint(tint),
+    )
+}
+
+/** [shellGlass] for the floating windows: same node, the window style. */
+@Composable
+fun Modifier.floatingWindowGlass(state: HazeState?): Modifier {
+    if (state == null) return this
+    return hazeChild(state = state, style = floatingWindowGlassStyle())
+}
+
+/**
  * Marks the CONTENT that the shell chrome samples. Put it on the Box that hosts the scaffold body —
  * NOT on the nav bar. Null-safe: when no source is provided (e.g. a preview) this is a no-op.
  */

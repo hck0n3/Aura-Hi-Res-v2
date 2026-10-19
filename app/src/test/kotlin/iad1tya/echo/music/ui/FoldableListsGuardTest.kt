@@ -40,7 +40,10 @@ class FoldableListsGuardTest {
         assertTrue("la ventana ancha usa el carrusel multi-browse de Material", carousel.contains("HorizontalMultiBrowseCarousel("))
         assertTrue("el móvil conserva el carrusel hero centrado", carousel.contains("HorizontalCenteredHeroCarousel("))
         assertTrue("ambos pintan la misma tarjeta", carousel.contains("AuraHeroCarouselCard(") && !carousel.contains("LazyRow"))
-        assertTrue("ambos comparten tamaño de tarjeta y puntos", carousel.contains("preferredItemWidth = itemWidth") && carousel.contains("AuraCarouselDots("))
+        assertTrue("ambos pintan los mismos puntos", carousel.contains("AuraCarouselDots("))
+        assertTrue("el móvil conserva su tarjeta de siempre", carousel.contains("maxItemWidth = itemWidth") && carousel.contains(".height(wideSize?.height ?: 260.dp)"))
+        assertTrue("en ancho la tarjeta grande sigue a la ventana (quinta ronda: «muy pequeño en modo plegable»)",
+            carousel.contains("auraWideHeroCardSize(maxWidth, screenHeightDp)") && carousel.contains("preferredItemWidth = wideSize?.width ?: itemWidth"))
         assertFalse("el carrusel propio de 6,5 tarjetas desapareció", src.contains("AuraWideCarousel") || src.contains("AURA_WIDE_CAROUSEL"))
     }
 

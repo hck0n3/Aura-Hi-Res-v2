@@ -538,11 +538,11 @@ private fun AuraStatsShuffleButton(
                     // AUDIT P3: plate under the glass — descendants of the source are a silent
                     // no-op in haze 1.7.2; the plate guarantees the button always has a surface.
                     Modifier
-                        .background(AuraPalette.FloatingFill)
-                        .shellGlass(shellHazeState)
+                        .background(AuraPalette.FloatingWindowFill)
+                        .floatingWindowGlass(shellHazeState)
                 } else {
                     Modifier
-                        .background(AuraPalette.FloatingFill)
+                        .background(AuraPalette.FloatingWindowFill)
                         .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
                 },
             )

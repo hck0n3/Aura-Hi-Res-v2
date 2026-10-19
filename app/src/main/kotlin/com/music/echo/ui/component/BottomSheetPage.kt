@@ -53,7 +53,7 @@ import iad1tya.echo.music.ui.newui.auraFloatingContainerColor
 import iad1tya.echo.music.ui.newui.auraFloatingContentColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
-import iad1tya.echo.music.ui.newui.shellGlass
+import iad1tya.echo.music.ui.newui.floatingWindowGlass
 import iad1tya.echo.music.ui.newui.rememberAuraSheetMaxHeight
 import iad1tya.echo.music.ui.newui.AuraSheetHandle
 import iad1tya.echo.music.ui.newui.auraSheetDragOffset
@@ -191,8 +191,8 @@ fun BottomSheetPage(
                             // effect drawing with square corners over a rounded-content panel).
                             .clip(if (state.fullScreen) RectangleShape else AuraShapes.Sheet)
                             // Same opaque floating plate as menus and dialogs (one material everywhere).
-                            .background(AuraPalette.FloatingFill)
-                            .shellGlass(shellHazeState)
+                            .background(AuraPalette.FloatingWindowFill)
+                            .floatingWindowGlass(shellHazeState)
                             .then(if (state.fullScreen) Modifier.statusBarsPadding() else Modifier)
                             .imePadding()
                             .navigationBarsPadding(),
@@ -324,9 +324,9 @@ private fun AuraSpotlightHost(
                             .fillMaxWidth()
                             // Clip ANTES del cristal (un recorte interior deja esquinas cuadradas bajo el efecto).
                             .clip(AuraShapes.Card)
-                            .background(AuraPalette.FloatingFill)
+                            .background(AuraPalette.FloatingWindowFill)
                             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
-                            .shellGlass(hazeState)
+                            .floatingWindowGlass(hazeState)
                             // Un toque en el panel no debe llegar al cierre del fondo.
                             .pointerInput(Unit) { detectTapGestures { } },
                     ) {

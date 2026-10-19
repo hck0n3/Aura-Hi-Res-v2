@@ -505,7 +505,27 @@ object AuraPalette {
     // bottom sheets, menus, dropdowns) now returns that same plate, so no floating surface can
     // read as a see-through hole on a no-blur OEM, glass switch or not.
     val FrostFill: Color
-        get() = FloatingFill
+        get() = FloatingWindowFill
+
+    /**
+     * The plate of the floating WINDOWS (bottom sheets, menus, dialogs, the account flyout) — owner 2026-10-19: *«la
+     * transparencia de todas las ventanas flotantes está muy oscura y no coincide con los colores de la portada de la
+     * app en reproducción»*. Same cover colour as [CoverGlassTint], but chosen for a glass that lets
+     * [FLOATING_WINDOW_GLASS_ALPHA] of the screen through (the screen IS the cover's bloom, which is the colour match he
+     * asked for): the secondary ink is checked on the plate AS SEEN over a mid bloom ([FLOATING_WINDOW_BEHIND]), not on
+     * the plate alone. The pills and bars keep [FloatingFill]/[CoverGlassTint] untouched.
+     */
+    val FloatingWindowFill: Color
+        get() = CoverWindowTint ?: FloatingFill
+
+    /** [CoverGlassTint]'s sibling for the floating windows; null with no cover resolved (the old plate then). */
+    val CoverWindowTint: Color?
+        get() = if (artworkInk == null || roleOverrides.surface != null) null
+        else coverGlassTintOf(
+            Teal, GroundRaised, mutedInk = OnGroundMuted,
+            translucency = FLOATING_WINDOW_GLASS_ALPHA, behind = FLOATING_WINDOW_BEHIND,
+            minSaturation = FLOATING_WINDOW_MIN_SATURATION,
+        )
 
     /**
      * Card / chip hairline: `rgba(255,255,255,.10)`, or the user's Bordes colour.
@@ -1020,6 +1040,18 @@ internal const val COVER_GLASS_GREY_BELOW = 0.12f
  */
 internal const val COVER_GLASS_MAX_LUMINANCE = 0.034f
 
+/**
+ * How much of the plate the floating windows' glass paints (the rest is the blurred screen behind it): 0.85 left 15 %
+ * of the screen, i.e. a near-black slab; 0.72 lets the cover's bloom behind show through.
+ */
+internal const val FLOATING_WINDOW_GLASS_ALPHA = 0.72f
+
+/** A mid bloom under a window (a cover-coloured lobe, luminance ≈ 0.04): what the plate's ink is checked against. */
+internal val FLOATING_WINDOW_BEHIND = Color(0xFF3A3A3A)
+
+/** The windows' tint is a little more saturated than the bars': it is seen mixed with the screen, which greys it. */
+internal const val FLOATING_WINDOW_MIN_SATURATION = 0.90f
+
 /** The secondary ink (58 % of the cover-tinted ink) keeps at least this contrast on the glass; WCAG AA is 4.5. */
 internal const val COVER_GLASS_MIN_MUTED_CONTRAST = 4.5f
 
@@ -1027,12 +1059,21 @@ internal const val COVER_GLASS_MIN_MUTED_CONTRAST = 4.5f
  * The glass tint for a cover whose accent is [accent], over the chrome's plain [ground]: the accent's hue and
  * saturation (a little boosted) at a fixed dark value, blended with the ground. Pure, so a test can walk every hue.
  */
-internal fun coverGlassTintOf(accent: Color, ground: Color, mutedInk: Color? = null): Color {
+internal fun coverGlassTintOf(
+    accent: Color,
+    ground: Color,
+    mutedInk: Color? = null,
+    // The floating windows are painted at [translucency] over a screen, so their ink is judged on the plate AS SEEN: the
+    // tint at that alpha over [behind]. The default (opaque, nothing behind) is the bars' original rule.
+    translucency: Float = 1f,
+    behind: Color? = null,
+    minSaturation: Float = COVER_GLASS_MIN_SATURATION,
+): Color {
     val (hue, saturation, _) = iad1tya.echo.music.ui.component.ColorPickerConversions.colorToHsv(accent)
     val tintedSaturation = if (saturation < COVER_GLASS_GREY_BELOW) {
         saturation
     } else {
-        maxOf(saturation * 1.15f, COVER_GLASS_MIN_SATURATION).coerceAtMost(1f)
+        maxOf(saturation * 1.15f, minSaturation).coerceAtMost(1f)
     }
     fun glassAt(value: Float): Color =
         iad1tya.echo.music.ui.component.ColorPickerConversions.hsvToColor(hue, tintedSaturation, value)
@@ -1043,10 +1084,11 @@ internal fun coverGlassTintOf(accent: Color, ground: Color, mutedInk: Color? = n
     var steps = 0
     // The floating windows paint THIS colour as their plate, so the secondary ink (artist names, subtitles) must clear
     // the text bar on it too — enforced here, on the real ink, instead of hoping a hue sweep covers every cover ground.
+    fun seen(): Color = if (behind == null) glass else glass.copy(alpha = translucency).compositeOver(behind)
     fun inkTooFaint(): Boolean =
         // Darkening only helps LIGHT ink; a dark custom ink on a dark glass is the theme's call, not ours.
-        mutedInk != null && mutedInk.luminance() > glass.luminance() &&
-            contrastRatio(mutedInk.compositeOver(glass), glass) < COVER_GLASS_MIN_MUTED_CONTRAST
+        mutedInk != null && mutedInk.luminance() > seen().luminance() &&
+            contrastRatio(mutedInk.compositeOver(seen()), seen()) < COVER_GLASS_MIN_MUTED_CONTRAST
     while ((glass.luminance() > COVER_GLASS_MAX_LUMINANCE || inkTooFaint()) && steps++ < 24) {
         value *= 0.92f
         glass = glassAt(value)

@@ -107,6 +107,41 @@ object UpdateApkFiles {
     }
 
     /**
+     * The version a file name written by [apkFileName] / [partFileName] / [zipPartFileName] stands for, or null for a name
+     * that is not one of those (the legacy fixed names carry no version).
+     */
+    fun versionOfFileName(name: String): String? {
+        if (!name.startsWith(FILE_PREFIX)) return null
+        val body = name.removePrefix(FILE_PREFIX)
+        val suffix = listOf(PART_SUFFIX, ".zip.part", APK_SUFFIX).firstOrNull { body.endsWith(it, ignoreCase = true) }
+            ?: return null
+        return body.dropLast(suffix.length).ifBlank { null }
+    }
+
+    /**
+     * Update files that have already done their job: the version they hold is the one installed or an OLDER one (the
+     * legacy fixed names always qualify). A file for a NEWER release is the pending update — it, and any partial download
+     * of it that can still be resumed, stays. This is what keeps the ~46–87 MB of the update just installed from sitting
+     * on the phone forever (owner 2026-10-19: *«que de verdad pueda eliminar las actualizaciones descargadas para no
+     * llenar el espacio en el cel»*). Nightly names (`nightly-r…`) are never touched here: they have no ordering.
+     */
+    fun installedUpdateNames(names: List<String>, currentVersion: String): List<String> =
+        names.filter { name ->
+            if (!isOwnUpdateFile(name)) return@filter false
+            if (name == LEGACY_APK_NAME || name == LEGACY_ZIP_NAME) return@filter true
+            val version = versionOfFileName(name) ?: return@filter false
+            !version.startsWith("nightly", ignoreCase = true) && !isNewerRelease(version, currentVersion)
+        }
+
+    /**
+     * Is an "update available" flag stored for [storedTag] still true for the app running as [currentVersion]? A flag with
+     * no tag (written by an older build) is not trusted. Owner 2026-10-19: *«de la nada dice que tiene actualizaciones
+     * disponibles cuando no es así»* — the flag was written once and never cleared when the user installed that release.
+     */
+    fun isStoredOfferStillNew(storedTag: String?, currentVersion: String): Boolean =
+        !storedTag.isNullOrBlank() && isNewerRelease(storedTag, currentVersion)
+
+    /**
      * Which copies in the user's public Downloads folder are ours to remove. Stricter than
      * [isOwnUpdateFile] on purpose — that folder holds the user's own files:
      *  - the name must be one this app could have produced (`Aura-Hi-Res-v2-<version>.apk`);

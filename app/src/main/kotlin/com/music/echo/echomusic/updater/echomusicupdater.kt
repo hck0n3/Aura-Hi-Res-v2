@@ -59,6 +59,8 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import iad1tya.echo.music.BuildConfig
+import iad1tya.echo.music.utils.get
+import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.R
 import coil3.compose.AsyncImage
 import androidx.compose.ui.draw.clip
@@ -259,7 +261,7 @@ fun UpdateScreen(navController: NavHostController) {
                 context = context,
                 onSuccess = { tag, isAvailable, changelog, size, sizeBytes, date, description, imageUrl, apkUrl ->
                     saveLastCheckedTime(context, LocalDateTime.now().format(DateTimeFormatter.ofPattern("d MMMM yyyy, h:mm a")))
-                    saveUpdateAvailableState(context, isAvailable)
+                    saveUpdateAvailableState(context, isAvailable, tag)
                     // Re-key the download state on whatever release the server is offering NOW. If it
                     // is not the one the screen was showing, the old download state is meaningless.
                     val newVersion = tag.takeIf { isAvailable }
@@ -706,14 +708,53 @@ const val KEY_LAST_CHECKED_TIME = "last_checked_time"
 const val KEY_BETA_UPDATES = "beta_updates"
 const val KEY_UPDATE_AVAILABLE = "update_available"
 
+const val KEY_UPDATE_AVAILABLE_TAG = "update_available_tag"
+
+/**
+ * Is an update on offer? The flag is only trusted while the release it was stored for is STILL newer than the build that
+ * is running: it used to be written once and cleared only by a manual check, so after installing the update the settings
+ * kept saying "Update" (owner 2026-10-19). Comparing against the running version heals it with no network.
+ */
 fun getUpdateAvailableState(context: Context): Boolean {
     val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    return sharedPrefs.getBoolean(KEY_UPDATE_AVAILABLE, false)
+    if (!sharedPrefs.getBoolean(KEY_UPDATE_AVAILABLE, false)) return false
+    return UpdateApkFiles.isStoredOfferStillNew(
+        sharedPrefs.getString(KEY_UPDATE_AVAILABLE_TAG, null),
+        BuildConfig.VERSION_NAME,
+    )
 }
 
-fun saveUpdateAvailableState(context: Context, available: Boolean) {
+/** [tag] is the release the flag is stored for; a "true" with no tag is read back as false. */
+fun saveUpdateAvailableState(context: Context, available: Boolean, tag: String? = null) {
     val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    sharedPrefs.edit().putBoolean(KEY_UPDATE_AVAILABLE, available).apply()
+    sharedPrefs.edit().apply {
+        putBoolean(KEY_UPDATE_AVAILABLE, available)
+        if (available && !tag.isNullOrBlank()) putString(KEY_UPDATE_AVAILABLE_TAG, tag) else remove(KEY_UPDATE_AVAILABLE_TAG)
+    }.apply()
+}
+
+/** Id of the "update available" notification ([UpdateCheckWorker] and the startup check post it with this id). */
+const val UPDATE_NOTIFICATION_ID = 2003
+
+/**
+ * Offline housekeeping at startup: if the release the stored flag / the last notification announced is no longer newer
+ * than the running build (the user just installed it), drop the flag and take the notification out of the shade, so
+ * neither keeps announcing an update that is already installed.
+ */
+suspend fun reconcileStaleUpdateOffer(context: Context) {
+    val current = BuildConfig.VERSION_NAME
+    val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    if (sharedPrefs.getBoolean(KEY_UPDATE_AVAILABLE, false) && !getUpdateAvailableState(context)) {
+        saveUpdateAvailableState(context, false)
+    }
+    val lastNotified = runCatching {
+        context.dataStore.get(iad1tya.echo.music.constants.LastUpdateNotifiedTagKey, "")
+    }.getOrDefault("")
+    if (lastNotified.isNotBlank() && !UpdateApkFiles.isNewerRelease(lastNotified, current)) {
+        runCatching {
+            context.getSystemService(android.app.NotificationManager::class.java).cancel(UPDATE_NOTIFICATION_ID)
+        }
+    }
 }
 
 fun getAutoUpdateCheckSetting(context: Context): Boolean {

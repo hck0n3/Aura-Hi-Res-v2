@@ -63,7 +63,7 @@ import iad1tya.echo.music.ui.newui.auraFloatingContainerColor
 import iad1tya.echo.music.ui.newui.auraFloatingContentColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
-import iad1tya.echo.music.ui.newui.shellGlass
+import iad1tya.echo.music.ui.newui.floatingWindowGlass
 import iad1tya.echo.music.ui.newui.shellGlassStyle
 import iad1tya.echo.music.ui.newui.rememberAuraSheetMaxHeight
 
@@ -183,9 +183,9 @@ fun BottomSheetMenu(
                             .clip(AuraShapes.Sheet)
                             // ONE FLOATING MATERIAL (owner 2026-09-13: "unas transparentes, otras sólidas"):
                             // the same opaque account-menu plate + hairline the dialogs use, glass on top.
-                            .background(iad1tya.echo.music.ui.newui.AuraPalette.FloatingFill)
+                            .background(iad1tya.echo.music.ui.newui.AuraPalette.FloatingWindowFill)
                             .border(1.dp, iad1tya.echo.music.ui.newui.AuraPalette.SurfaceLine, AuraShapes.Sheet)
-                            .shellGlass(shellHazeState)
+                            .floatingWindowGlass(shellHazeState)
                             .imePadding()
                             .navigationBarsPadding(),
                     ) {

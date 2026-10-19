@@ -434,6 +434,20 @@ class AuraAppearanceTest {
     }
 
     /**
+     * Owner 2026-10-19: the floating windows' glass was a near-black slab. Their plate is painted at
+     * [FLOATING_WINDOW_GLASS_ALPHA] over the screen, so the secondary ink must clear the text bar on the plate AS SEEN over
+     * a mid bloom, on every hue — and the window plate must still be the cover's colour, not grey.
+     */
+    @Test
+    fun `the floating window plate keeps the secondary ink legible as seen over a mid bloom`() = forEveryCoverHue { hue, _ ->
+        val plate = AuraPalette.FloatingWindowFill
+        val seen = plate.copy(alpha = FLOATING_WINDOW_GLASS_ALPHA).compositeOver(FLOATING_WINDOW_BEHIND)
+        val onSeen = contrastRatio(AuraPalette.OnGroundMuted.compositeOver(seen), seen)
+        assertTrue("hue $hue: secondary ink on the window glass as seen at $onSeen", onSeen >= 4.4f)
+        assertTrue("hue $hue: the window glass is more translucent than the bars'", FLOATING_WINDOW_GLASS_ALPHA < 0.85f)
+    }
+
+    /**
      * Owner 2026-10-18: the tint must be VISIBLY the cover's colour, not a near-black film. Measured as a straight colour
      * distance from the plain raised ground (a hue-independent yardstick: the older «channel spread» test depended on
      * how much the ground itself was tinted, and failed on some hues).

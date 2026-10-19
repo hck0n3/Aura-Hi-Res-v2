@@ -64,4 +64,8 @@
     <string name="new_update">Actualización nueva</string>
     <string name="release_date_v">Publicada el: %1$s</string>
     <string name="update_size_v">Tamaño: %1$s MB</string>
+    <string name="update_files_found">%1$s · %2$s</string>
+    <string name="update_files_freed">Se liberaron %s</string>
+    <string name="update_files_need_consent">Hay archivos en Descargas de otra app: Android te pedirá permiso para borrarlos</string>
+    <string name="update_files_left_behind">Algunos archivos no se pudieron borrar. Quítalos desde la app Archivos (Descargas)</string>
 </resources>

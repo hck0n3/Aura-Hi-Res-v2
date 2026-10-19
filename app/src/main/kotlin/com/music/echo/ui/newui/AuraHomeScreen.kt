@@ -410,6 +410,19 @@ fun AuraHomeScreen(
         val items = songs.distinctBy { it.id }.map { it.toMediaItem() }
         if (items.isNotEmpty()) playerConnection.playQueue(ListQueue(title = title, items = items))
     }
+    // «Aleatorio» of the quick-access block (UI_INVENTORY §10, the five-dot button): picks something from the user's taste and
+    // opens it. Tapping it WHILE it is picking cancels the pending pick — the contract the inventory records. The view model
+    // clears `isRandomizing` in a `finally`, so a cancelled pick cannot leave the tile spinning.
+    val isRandomizing by viewModel.isRandomizing.collectAsState()
+    var surpriseJob by remember { mutableStateOf<Job?>(null) }
+    val onSurprise: () -> Unit = {
+        val running = surpriseJob
+        if (running != null && running.isActive) {
+            running.cancel()
+        } else {
+            surpriseJob = scope.launch { viewModel.getRandomItem()?.let { openYtItem(it) } }
+        }
+    }
 
     if (offlineMode) {
         // Offline mode ON: the downloaded-only home replaces the whole body, exactly as in the classic
@@ -469,7 +482,7 @@ fun AuraHomeScreen(
                     }
                     AuraScreenHeader(
                         modifier = Modifier.animateItem(),
-                        label = auraGreeting(),
+                        label = auraGreetingFor(accountName),
                         title = "$wordmarkAura $wordmarkHiRes",
                         styledTitle = wordmark,
                         // The global top bar is no longer drawn on this route (it was a second, opaque
@@ -594,37 +607,34 @@ fun AuraHomeScreen(
                                     } else null,
                                 )
                                 if (isSongsOnly && !preferVideoShelf) {
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                                        modifier = Modifier.padding(
-                                            horizontal = AuraSpacing.Gutter,
-                                            vertical = AuraSpacing.SectionGap,
-                                        ),
-                                    ) {
-                                        sectionSongs.distinctBy { it.id }.take(8).forEach { song ->
-                                            val dbSong by database.song(song.id).collectAsState(initial = null)
-                                            AuraSongRow(
-                                                title = song.title,
-                                                subtitle = song.artists.joinToString { it.name },
-                                                thumbnailUrl = song.thumbnail,
-                                                seed = song.id,
-                                                isActive = song.id == mediaMetadata?.id,
-                                                isPlaying = isPlaying,
-                                                explicit = song.explicit,
-                                                playedInShuffle = (dbSong?.song?.totalPlayTime ?: 0L) > 0L,
-                                                onClick = {
-                                                    if (song.id == mediaMetadata?.id) {
-                                                        playerConnection.togglePlayPause()
-                                                    } else {
-                                                        playerConnection.playQueue(
-                                                            YouTubeQueue.radio(song.toMediaMetadata()),
-                                                        )
-                                                    }
-                                                },
-                                                onLongClick = { ytItemMenu(song) },
-                                                onMenuClick = { ytItemMenu(song) },
-                                            )
-                                        }
+                                    val songRows = sectionSongs.distinctBy { it.id }.take(8)
+                                    AuraRowsInColumns(
+                                        count = songRows.size,
+                                        modifier = Modifier.padding(horizontal = AuraSpacing.Gutter, vertical = AuraSpacing.SectionGap),
+                                    ) { index ->
+                                        val song = songRows[index]
+                                        val dbSong by database.song(song.id).collectAsState(initial = null)
+                                        AuraSongRow(
+                                            title = song.title,
+                                            subtitle = song.artists.joinToString { it.name },
+                                            thumbnailUrl = song.thumbnail,
+                                            seed = song.id,
+                                            isActive = song.id == mediaMetadata?.id,
+                                            isPlaying = isPlaying,
+                                            explicit = song.explicit,
+                                            playedInShuffle = (dbSong?.song?.totalPlayTime ?: 0L) > 0L,
+                                            onClick = {
+                                                if (song.id == mediaMetadata?.id) {
+                                                    playerConnection.togglePlayPause()
+                                                } else {
+                                                    playerConnection.playQueue(
+                                                        YouTubeQueue.radio(song.toMediaMetadata()),
+                                                    )
+                                                }
+                                            },
+                                            onLongClick = { ytItemMenu(song) },
+                                            onMenuClick = { ytItemMenu(song) },
+                                        )
                                     }
                                 } else {
                                     AuraGroupedYtItemShelves(
@@ -641,6 +651,48 @@ fun AuraHomeScreen(
                         }
                     }
                 } else {
+
+                // ACCESO RÁPIDO (owner 2026-10-19: «el diseño de Inicio lo sigo viendo muy básico»): the four places the user goes
+                // back to, one tap from the greeting, like Spotify and YouTube Music open. See [AuraQuickAccess].
+                item(key = "aura_home_quick_access", contentType = "aura_home_quick_access") {
+                    AuraQuickAccess(
+                        navController = navController,
+                        surprising = isRandomizing,
+                        onSurprise = onSurprise,
+                        modifier = Modifier
+                            .animateItem()
+                            .padding(top = 14.dp),
+                    )
+                }
+
+                // Apple Music style: Hero carousel "Para ti" — right under the quick access, before the podcasts and the recents shelf (it was
+                // drawn after them, so Inicio opened on a plain shelf instead of on its hero).
+                if (!heroCarouselSongs.isNullOrEmpty()) {
+                    item(key = "aura_quick_picks", contentType = "aura_quick_picks") {
+                        val forYouTitle = stringResource(
+                            if (heroIsRecents) R.string.home_recently_played else R.string.home_for_you,
+                        )
+                        val distinctQuickPicks = remember(heroCarouselSongs) { heroCarouselSongs.distinctBy { it.id } }
+                        val carouselWidth = (LocalConfiguration.current.screenWidthDp.dp * 0.58f).coerceIn(220.dp, 340.dp)
+                        Column(Modifier.animateItem()) {
+                            Spacer(Modifier.height(AuraSpacing.SectionGap))
+                            AuraSectionHeader(
+                                title = forYouTitle,
+                                label = if (heroIsRecents) null else stringResource(R.string.quick_picks),
+                                accent = AuraPalette.Teal,
+                                onPlayAll = { playAllSongs(forYouTitle, heroCarouselSongs) },
+                            )
+                            AuraQuickPicksCarousel(
+                                songs = distinctQuickPicks,
+                                itemWidth = carouselWidth,
+                                activeId = mediaMetadata?.id,
+                                isPlaying = isPlaying,
+                                onClick = playSong,
+                                onLongClick = songMenu,
+                            )
+                        }
+                    }
+                }
 
                 // Tus podcasts (fijados)
                 if (pinnedPodcasts.isNotEmpty()) {
@@ -736,34 +788,6 @@ fun AuraHomeScreen(
                                 text = stringResource(R.string.home_cold_empty_hint),
                                 style = AuraType.RowSubtitle,
                                 color = AuraPalette.OnGroundMuted,
-                            )
-                        }
-                    }
-                }
-
-                // Apple Music style: Hero carousel "Para ti" at the very top.
-                if (!heroCarouselSongs.isNullOrEmpty()) {
-                    item(key = "aura_quick_picks", contentType = "aura_quick_picks") {
-                        val forYouTitle = stringResource(
-                            if (heroIsRecents) R.string.home_recently_played else R.string.home_for_you,
-                        )
-                        val distinctQuickPicks = remember(heroCarouselSongs) { heroCarouselSongs.distinctBy { it.id } }
-                        val carouselWidth = (LocalConfiguration.current.screenWidthDp.dp * 0.58f).coerceIn(220.dp, 340.dp)
-                        Column(Modifier.animateItem()) {
-                            Spacer(Modifier.height(AuraSpacing.SectionGap))
-                            AuraSectionHeader(
-                                title = forYouTitle,
-                                label = if (heroIsRecents) null else stringResource(R.string.quick_picks),
-                                accent = AuraPalette.Teal,
-                                onPlayAll = { playAllSongs(forYouTitle, heroCarouselSongs) },
-                            )
-                            AuraQuickPicksCarousel(
-                                songs = distinctQuickPicks,
-                                itemWidth = carouselWidth,
-                                activeId = mediaMetadata?.id,
-                                isPlaying = isPlaying,
-                                onClick = playSong,
-                                onLongClick = songMenu,
                             )
                         }
                     }
@@ -1101,32 +1125,29 @@ fun AuraHomeScreen(
                                             onPlayAll = { playAllSongs(recTitle, recommended) },
                                         )
                                         // The render draws THIS section as rows, not as a shelf.
-                                        Column(
-                                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                                            modifier = Modifier.padding(
-                                                horizontal = AuraSpacing.Gutter,
-                                                vertical = AuraSpacing.SectionGap,
-                                            ),
-                                        ) {
-                                            recommended.distinctBy { it.id }.take(6).forEach { song ->
-                                                AuraSongRow(
-                                                    title = song.song.title,
-                                                    subtitle = song.artists.joinToString { it.name },
-                                                    thumbnailUrl = song.song.thumbnailUrl,
-                                                    seed = song.id,
-                                                    isActive = song.id == mediaMetadata?.id,
-                                                    isPlaying = isPlaying,
-                                                    liked = song.song.liked,
-                                                    explicit = song.song.explicit,
-                                                    downloadId = song.id,
-                                                    format = song.format,
-                                                    playedInShuffle = song.song.totalPlayTime > 0L,
-                                                    swipeMediaItem = song.toMediaItem(),
-                                                    onClick = { playSong(song) },
-                                                    onLongClick = { songMenu(song) },
-                                                    onMenuClick = { songMenu(song) },
-                                                )
-                                            }
+                                        val songRows = recommended.distinctBy { it.id }.take(6)
+                                        AuraRowsInColumns(
+                                            count = songRows.size,
+                                            modifier = Modifier.padding(horizontal = AuraSpacing.Gutter, vertical = AuraSpacing.SectionGap),
+                                        ) { index ->
+                                            val song = songRows[index]
+                                            AuraSongRow(
+                                                title = song.song.title,
+                                                subtitle = song.artists.joinToString { it.name },
+                                                thumbnailUrl = song.song.thumbnailUrl,
+                                                seed = song.id,
+                                                isActive = song.id == mediaMetadata?.id,
+                                                isPlaying = isPlaying,
+                                                liked = song.song.liked,
+                                                explicit = song.song.explicit,
+                                                downloadId = song.id,
+                                                format = song.format,
+                                                playedInShuffle = song.song.totalPlayTime > 0L,
+                                                swipeMediaItem = song.toMediaItem(),
+                                                onClick = { playSong(song) },
+                                                onLongClick = { songMenu(song) },
+                                                onMenuClick = { songMenu(song) },
+                                            )
                                         }
                                     }
                                 }
@@ -1179,36 +1200,33 @@ fun AuraHomeScreen(
                                             },
                                             onPlayAll = { playAllSongs(title, favorites) },
                                         )
-                                        Column(
-                                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                                            modifier = Modifier.padding(
-                                                horizontal = AuraSpacing.Gutter,
-                                                vertical = AuraSpacing.SectionGap,
-                                            ),
-                                        ) {
-                                            visibleFavorites.forEach { originalSong ->
-                                                val song by database.song(originalSong.id)
-                                                    .collectAsState(initial = originalSong)
-                                                val current = song ?: originalSong
-                                                AuraSongRow(
-                                                    title = current.song.title,
-                                                    subtitle = current.artists.joinToString { it.name },
-                                                    thumbnailUrl = current.song.thumbnailUrl,
-                                                    seed = current.id,
-                                                    isActive = current.id == mediaMetadata?.id,
-                                                    isPlaying = isPlaying,
-                                                    liked = current.song.liked,
-                                                    explicit = current.song.explicit,
-                                                    inLibrary = current.song.inLibrary != null,
-                                                    downloadId = current.id,
-                                                    format = current.format,
-                                                    playedInShuffle = current.song.totalPlayTime > 0L,
-                                                    swipeMediaItem = current.toMediaItem(),
-                                                    onClick = { playSong(current) },
-                                                    onLongClick = { songMenu(current) },
-                                                    onMenuClick = { songMenu(current) },
-                                                )
-                                            }
+                                        val songRows = visibleFavorites
+                                        AuraRowsInColumns(
+                                            count = songRows.size,
+                                            modifier = Modifier.padding(horizontal = AuraSpacing.Gutter, vertical = AuraSpacing.SectionGap),
+                                        ) { index ->
+                                            val originalSong = songRows[index]
+                                            val song by database.song(originalSong.id)
+                                                .collectAsState(initial = originalSong)
+                                            val current = song ?: originalSong
+                                            AuraSongRow(
+                                                title = current.song.title,
+                                                subtitle = current.artists.joinToString { it.name },
+                                                thumbnailUrl = current.song.thumbnailUrl,
+                                                seed = current.id,
+                                                isActive = current.id == mediaMetadata?.id,
+                                                isPlaying = isPlaying,
+                                                liked = current.song.liked,
+                                                explicit = current.song.explicit,
+                                                inLibrary = current.song.inLibrary != null,
+                                                downloadId = current.id,
+                                                format = current.format,
+                                                playedInShuffle = current.song.totalPlayTime > 0L,
+                                                swipeMediaItem = current.toMediaItem(),
+                                                onClick = { playSong(current) },
+                                                onLongClick = { songMenu(current) },
+                                                onMenuClick = { songMenu(current) },
+                                            )
                                         }
                                     }
                                 }
@@ -1312,37 +1330,34 @@ fun AuraHomeScreen(
                                             } else null,
                                         )
                                         if (isSongsOnly && !preferVideoShelf) {
-                                            Column(
-                                                verticalArrangement = Arrangement.spacedBy(2.dp),
-                                                modifier = Modifier.padding(
-                                                    horizontal = AuraSpacing.Gutter,
-                                                    vertical = AuraSpacing.SectionGap,
-                                                ),
-                                            ) {
-                                                sectionSongs.distinctBy { it.id }.take(8).forEach { song ->
-                                                    val dbSong by database.song(song.id).collectAsState(initial = null)
-                                                    AuraSongRow(
-                                                        title = song.title,
-                                                        subtitle = song.artists.joinToString { it.name },
-                                                        thumbnailUrl = song.thumbnail,
-                                                        seed = song.id,
-                                                        isActive = song.id == mediaMetadata?.id,
-                                                        isPlaying = isPlaying,
-                                                        explicit = song.explicit,
-                                                        playedInShuffle = (dbSong?.song?.totalPlayTime ?: 0L) > 0L,
-                                                        onClick = {
-                                                            if (song.id == mediaMetadata?.id) {
-                                                                playerConnection.togglePlayPause()
-                                                            } else {
-                                                                playerConnection.playQueue(
-                                                                    YouTubeQueue.radio(song.toMediaMetadata()),
-                                                                )
-                                                            }
-                                                        },
-                                                        onLongClick = { ytItemMenu(song) },
-                                                        onMenuClick = { ytItemMenu(song) },
-                                                    )
-                                                }
+                                            val songRows = sectionSongs.distinctBy { it.id }.take(8)
+                                            AuraRowsInColumns(
+                                                count = songRows.size,
+                                                modifier = Modifier.padding(horizontal = AuraSpacing.Gutter, vertical = AuraSpacing.SectionGap),
+                                            ) { index ->
+                                                val song = songRows[index]
+                                                val dbSong by database.song(song.id).collectAsState(initial = null)
+                                                AuraSongRow(
+                                                    title = song.title,
+                                                    subtitle = song.artists.joinToString { it.name },
+                                                    thumbnailUrl = song.thumbnail,
+                                                    seed = song.id,
+                                                    isActive = song.id == mediaMetadata?.id,
+                                                    isPlaying = isPlaying,
+                                                    explicit = song.explicit,
+                                                    playedInShuffle = (dbSong?.song?.totalPlayTime ?: 0L) > 0L,
+                                                    onClick = {
+                                                        if (song.id == mediaMetadata?.id) {
+                                                            playerConnection.togglePlayPause()
+                                                        } else {
+                                                            playerConnection.playQueue(
+                                                                YouTubeQueue.radio(song.toMediaMetadata()),
+                                                            )
+                                                        }
+                                                    },
+                                                    onLongClick = { ytItemMenu(song) },
+                                                    onMenuClick = { ytItemMenu(song) },
+                                                )
                                             }
                                         } else {
                                             // Mixed artists / videos / albums / songs: group by kind so
@@ -1650,7 +1665,12 @@ private fun AuraQuickPicksCarousel(
         // carousel — the same masked, rounded cards of the same size, the same dots — and only the arrangement adapts:
         // on a wide pane the multi-browse strategy lays several of those cards across the width (the large ones first,
         // the next ones peeking smaller), where the phone's hero strategy centres ONE large card.
+        //
+        // Fifth round, 2026-10-19: *«el carrusel está muy pequeño en modo plegable»*. The large card used to be the phone's
+        // 340 × 260 dp inside a 700–900 dp window. [auraWideHeroCardSize] makes it follow the pane (about 46 % of its width
+        // and a taller card, capped by the window's height) so two large cards and the smaller ones peeking fill the row.
         val wide = maxWidth >= AURA_WIDE_HERO_MIN_WIDTH && screenHeightDp >= 480
+        val wideSize = if (wide) auraWideHeroCardSize(maxWidth, screenHeightDp) else null
         key(songs.size) {
             val carouselState = rememberCarouselState { songs.size }
             val card: @Composable androidx.compose.material3.carousel.CarouselItemScope.(Int) -> Unit = { index ->
@@ -1675,7 +1695,7 @@ private fun AuraQuickPicksCarousel(
             val carouselModifier = modifier
                 .fillMaxWidth()
                 .padding(top = AuraSpacing.SectionGap)
-                .height(260.dp)
+                .height(wideSize?.height ?: 260.dp)
                 // TV/car: hand focus back to the hero the D-pad last stood on when it re-enters, so the
                 // ring does not drop to the container root while the carousel scrolls. No-op on touch.
                 .tvFocusRestorer()
@@ -1683,7 +1703,7 @@ private fun AuraQuickPicksCarousel(
                 if (wide) {
                     HorizontalMultiBrowseCarousel(
                         state = carouselState,
-                        preferredItemWidth = itemWidth,
+                        preferredItemWidth = wideSize?.width ?: itemWidth,
                         itemSpacing = 8.dp,
                         contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
                         modifier = carouselModifier,
@@ -1953,6 +1973,25 @@ private fun auraGreeting(): String = remember(LocalTime.now().hour) {
         in 12..19 -> "BUENAS TARDES"
         else -> "BUENAS NOCHES"
     }
+}
+
+/**
+ * The greeting with the account's first name after it («BUENAS TARDES, ROBERTO») when there is one. Owner 2026-10-19: Inicio
+ * "se siente básico" — a screen that greets by name is the cheapest way to make it feel like THEIRS. It never invents one:
+ * a guest, an empty name or an e-mail address keep the plain greeting. Drawn only; nothing here reaches a log.
+ */
+@Composable
+private fun auraGreetingFor(accountName: String?): String {
+    val greeting = auraGreeting()
+    val first = remember(accountName) { auraFirstName(accountName) }
+    return if (first != null) "$greeting, ${first.uppercase()}" else greeting
+}
+
+/** The first word of the account name, or null when there is no real name to use. */
+internal fun auraFirstName(accountName: String?): String? {
+    val first = accountName?.trim()?.substringBefore(' ')?.trim().orEmpty()
+    if (first.isEmpty() || first.contains('@') || first.equals("Guest", ignoreCase = true)) return null
+    return first
 }
 
 @Composable

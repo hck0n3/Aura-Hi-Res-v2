@@ -80,4 +80,8 @@
     <string name="new_update">New update</string>
     <string name="release_date_v">Released on: %1$s</string>
     <string name="update_size_v">Size: %1$s MB</string>
+    <string name="update_files_found">%1$s · %2$s</string>
+    <string name="update_files_freed">Freed %s</string>
+    <string name="update_files_need_consent">Some files are in Downloads from another app — Android will ask you to allow deleting them</string>
+    <string name="update_files_left_behind">Some files could not be deleted. Remove them from the Files app (Downloads)</string>
 </resources>

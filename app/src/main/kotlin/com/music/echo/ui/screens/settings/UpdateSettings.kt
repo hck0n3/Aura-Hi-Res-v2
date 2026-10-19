@@ -48,7 +48,12 @@ import iad1tya.echo.music.echomusic.updater.saveUpdateNotificationsSetting
 import android.widget.Toast
 import androidx.compose.ui.res.pluralStringResource
 import iad1tya.echo.music.echomusic.updater.getDownloadedApkCount
-import iad1tya.echo.music.echomusic.updater.clearDownloadedApks
+import iad1tya.echo.music.echomusic.updater.clearDownloadedApksDetailed
+import iad1tya.echo.music.echomusic.updater.getDownloadedApkBytes
+import iad1tya.echo.music.ui.utils.formatFileSize
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import iad1tya.echo.music.echomusic.updater.getBetaUpdatesSetting
 import iad1tya.echo.music.echomusic.updater.saveBetaUpdatesSetting
 import iad1tya.echo.music.echomusic.updater.autoClearOldApks
@@ -75,15 +80,27 @@ fun UpdateSettings(
     var betaUpdatesEnabled by remember { mutableStateOf(getBetaUpdatesSetting(context)) }
     val isUpdateAvailable = getUpdateAvailableState(context) && autoUpdateEnabled
     var apkCount by remember { mutableStateOf(0) }
+    var apkBytes by remember { mutableStateOf(0L) }
     var showInfoDialog by remember { mutableStateOf(false) }
 
     // Counting now includes the copies in the user's Downloads folder (a MediaStore query), so it is
     // done off the main thread rather than inline in composition.
-    LaunchedEffect(Unit) {
-        apkCount = withContext(Dispatchers.IO) {
-            autoClearOldApks(context)
-            getDownloadedApkCount(context)
+    suspend fun refreshApkStats() {
+        withContext(Dispatchers.IO) {
+            apkCount = getDownloadedApkCount(context)
+            apkBytes = getDownloadedApkBytes(context)
         }
+    }
+
+    // The copies in Downloads that another app owns need the system's own consent dialog to be deleted (API 30+); when it
+    // comes back, count again so the screen shows what is really left.
+    val consentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+        scope.launch { refreshApkStats() }
+    }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) { autoClearOldApks(context) }
+        refreshApkStats()
     }
 
     if (showInfoDialog) {
@@ -229,7 +246,11 @@ fun UpdateSettings(
                             )
                         } else {
                             Text(
-                                text = pluralStringResource(R.plurals.n_apk_found, apkCount, apkCount),
+                                text = stringResource(
+                                    R.string.update_files_found,
+                                    pluralStringResource(R.plurals.n_apk_found, apkCount, apkCount),
+                                    formatFileSize(apkBytes),
+                                ),
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
@@ -249,13 +270,23 @@ fun UpdateSettings(
                     onClick = {
                         if (apkCount > 0) {
                             scope.launch {
-                                val ok = withContext(Dispatchers.IO) { clearDownloadedApks(context) }
-                                apkCount = withContext(Dispatchers.IO) { getDownloadedApkCount(context) }
-                                Toast.makeText(
-                                    context,
-                                    if (ok) "Eliminado correctamente" else "No se pudieron eliminar algunos archivos",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
+                                val result = withContext(Dispatchers.IO) { clearDownloadedApksDetailed(context) }
+                                refreshApkStats()
+                                val consent = result.consent
+                                if (consent != null) {
+                                    // Files another app put in Downloads: the system asks the user, then we recount.
+                                    Toast.makeText(context, context.getString(R.string.update_files_need_consent), Toast.LENGTH_LONG).show()
+                                    consentLauncher.launch(IntentSenderRequest.Builder(consent).build())
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        when {
+                                            result.allDeleted -> context.getString(R.string.update_files_freed, formatFileSize(result.removedBytes))
+                                            else -> context.getString(R.string.update_files_left_behind)
+                                        },
+                                        Toast.LENGTH_LONG,
+                                    ).show()
+                                }
                             }
                         }
                     }
