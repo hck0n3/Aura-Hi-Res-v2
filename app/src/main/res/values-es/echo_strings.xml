@@ -237,6 +237,7 @@
     <string name="home_offline_no_internet">Parece que no tienes conexión a internet.</string>
     <string name="home_offline_downloads_hint">Puedes seguir escuchando tu música descargada sin conexión.</string>
     <string name="home_offline_continue">Continuar sin conexión</string>
+    <string name="home_quick_surprise_hint">Algo de tu gusto</string>
     <string name="home_cold_empty_title">Reproduce algo para personalizar Inicio</string>
     <string name="home_cold_empty_hint">Busca una canción, álbum o artista — Inicio aprende de lo que reproduces.</string>
     <string name="tab_novedades">Novedades</string>
@@ -1255,6 +1256,12 @@
         <item quantity="other">Exportando %1$d canciones a MP3…</item>
     </plurals>
     <string name="export_batch_nothing">No hay canciones para exportar</string>
+    <string name="export_notification_batch_title">Exportando %1$d de %2$d</string>
+    <plurals name="export_batch_finished">
+        <item quantity="one">%1$d canción exportada</item>
+        <item quantity="other">%1$d canciones exportadas</item>
+    </plurals>
+    <string name="export_batch_finished_failed">%1$d exportadas, %2$d no se pudieron exportar</string>
     <string name="export_all_mp3_title">Exportar todo a MP3</string>
     <string name="export_all_mp3_desc">Todas las canciones, con etiquetas y portada, en la carpeta que elijas</string>
     <string name="music_request_send">Empezar</string>

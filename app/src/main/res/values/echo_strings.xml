@@ -371,6 +371,7 @@
     <string name="home_offline_no_internet">Looks like you don\'t have an internet connection.</string>
     <string name="home_offline_downloads_hint">You can keep listening to your downloaded music offline.</string>
     <string name="home_offline_continue">Continue offline</string>
+    <string name="home_quick_surprise_hint">Something from your taste</string>
     <string name="home_cold_empty_title">Play something to personalize Home</string>
     <string name="home_cold_empty_hint">Search for a song, album, or artist — Home learns from what you play.</string>
     <string name="tab_novedades">New</string>
@@ -1366,6 +1367,12 @@
         <item quantity="other">Exporting %1$d songs to MP3…</item>
     </plurals>
     <string name="export_batch_nothing">There are no songs to export</string>
+    <string name="export_notification_batch_title">Exporting %1$d of %2$d</string>
+    <plurals name="export_batch_finished">
+        <item quantity="one">%1$d song exported</item>
+        <item quantity="other">%1$d songs exported</item>
+    </plurals>
+    <string name="export_batch_finished_failed">%1$d exported, %2$d could not be exported</string>
     <string name="export_all_mp3_title">Export all to MP3</string>
     <string name="export_all_mp3_desc">Every song, with tags and cover, into a folder you choose</string>
     <string name="music_request_send">Start</string>
