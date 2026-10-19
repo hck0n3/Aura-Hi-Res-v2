@@ -22,6 +22,11 @@ data class YouTubeClient(
     val useSignatureTimestamp: Boolean = false,
     val isEmbedded: Boolean = false,
     val useWebPoTokens: Boolean = false,
+    // Send /player to www.youtube.com (with the www origin for SAPISIDHASH) instead of music.youtube.com: the clients yt-dlp
+    // uses for age-gated videos (web_embedded, tv) are served by the www host.
+    val useWwwHost: Boolean = false,
+    // The page the embedded player claims to sit in (thirdParty.embedUrl). null = the video's own watch URL.
+    val embedUrl: String? = null,
 ) {
     fun toContext(locale: YouTubeLocale, visitorData: String?, dataSyncId: String?) = Context(
         client = Context.Client(
@@ -47,6 +52,10 @@ data class YouTubeClient(
         const val ORIGIN_YOUTUBE_MUSIC = "https://music.youtube.com"
         const val REFERER_YOUTUBE_MUSIC = "$ORIGIN_YOUTUBE_MUSIC/"
         const val API_URL_YOUTUBE_MUSIC = "$ORIGIN_YOUTUBE_MUSIC/youtubei/v1/"
+
+        const val ORIGIN_YOUTUBE_WWW = "https://www.youtube.com"
+        const val REFERER_YOUTUBE_WWW = "$ORIGIN_YOUTUBE_WWW/"
+        const val API_URL_YOUTUBE_WWW = "$ORIGIN_YOUTUBE_WWW/youtubei/v1/"
 
         val WEB = YouTubeClient(
             clientName = "WEB",
@@ -99,6 +108,45 @@ data class YouTubeClient(
             loginRequired = false,
             useSignatureTimestamp = true,
             isEmbedded = true,
+        )
+
+        /**
+         * The embedded web player — the client yt-dlp (master, 2026) appends first for an age-gated video and lists among
+         * its default clients for a signed-in session (`web_embedded`: WEB_EMBEDDED_PLAYER, id 56, supports cookies, no
+         * GVS PO token policy of its own). The embed page may be ANY non-YouTube URL (yt-dlp: "Can be any valid non-YouTube
+         * URL"). User agent = [USER_AGENT_WEB] on purpose: the byte fetch picks its User-Agent from the `c=` of the URL
+         * (c=WEB_EMBEDDED_PLAYER → USER_AGENT_WEB in MusicService / RingtoneHelper), so mint and fetch must agree.
+         */
+        val WEB_EMBEDDED_PLAYER = YouTubeClient(
+            clientName = "WEB_EMBEDDED_PLAYER",
+            clientVersion = "2.20260708.00.00",
+            clientId = "56",
+            userAgent = USER_AGENT_WEB,
+            loginSupported = true,
+            useSignatureTimestamp = true,
+            isEmbedded = true,
+            useWwwHost = true,
+            embedUrl = "https://www.reddit.com/",
+        )
+
+        /**
+         * yt-dlp's `tv_samsung` (TVHTML5 5.2026…, Samsung Tizen): in its default list for a signed-in session, supports
+         * cookies, no PO token needed for the stream. Same User-Agent as [TVHTML5] because the byte fetch maps c=TVHTML5 to
+         * that one agent (MusicService); only the request context differs.
+         */
+        val TVHTML5_SAMSUNG = YouTubeClient(
+            clientName = "TVHTML5",
+            clientVersion = "5.20260707",
+            clientId = "7",
+            userAgent = "Mozilla/5.0(SMART-TV; Linux; Tizen 4.0.0.2) AppleWebkit/605.1.15 (KHTML, like Gecko) SamsungBrowser/9.2 TV Safari/605.1.15",
+            osName = "Tizen",
+            osVersion = "2.4.0",
+            deviceMake = "Samsung",
+            deviceModel = "UKS9800",
+            friendlyName = "TV Samsung",
+            loginSupported = true,
+            useSignatureTimestamp = true,
+            useWwwHost = true,
         )
 
         /**

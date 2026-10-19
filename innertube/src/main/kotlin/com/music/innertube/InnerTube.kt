@@ -183,15 +183,21 @@ class InnerTube {
             append("X-Goog-Api-Format-Version", "1")
             append("X-YouTube-Client-Name", client.clientId /* Not a typo. The Client-Name header does contain the client id. */)
             append("X-YouTube-Client-Version", client.clientVersion)
-            append("X-Origin", YouTubeClient.ORIGIN_YOUTUBE_MUSIC)
-            append("Referer", YouTubeClient.REFERER_YOUTUBE_MUSIC)
+            // The age-gate clients live on the www host: the origin the hash is computed for must be the one the request names.
+            val origin = if (client.useWwwHost) YouTubeClient.ORIGIN_YOUTUBE_WWW else YouTubeClient.ORIGIN_YOUTUBE_MUSIC
+            append("X-Origin", origin)
+            append("Referer", if (client.useWwwHost) YouTubeClient.REFERER_YOUTUBE_WWW else YouTubeClient.REFERER_YOUTUBE_MUSIC)
             visitorData?.let { append("X-Goog-Visitor-Id", it) }
             if (setLogin && client.loginSupported) {
                 cookie?.let { cookie ->
                     append("cookie", cookie)
+                    if (client.useWwwHost) {
+                        append("X-Goog-AuthUser", "0")
+                        append("X-Youtube-Bootstrap-Logged-In", "true")
+                    }
                     if ("SAPISID" !in cookieMap) return@let
                     val currentTime = System.currentTimeMillis() / 1000
-                    val sapisidHash = sha1("$currentTime ${cookieMap["SAPISID"]} ${YouTubeClient.ORIGIN_YOUTUBE_MUSIC}")
+                    val sapisidHash = sha1("$currentTime ${cookieMap["SAPISID"]} $origin")
                     append("Authorization", "SAPISIDHASH ${currentTime}_${sapisidHash}")
                 }
             }
@@ -269,7 +275,9 @@ class InnerTube {
         // logged-out sessions too.
         noLogin: Boolean = false,
     ) = withRetry {
-        httpClient.post("player") {
+        // The age-gate clients (web_embedded, tv_samsung) are served by www.youtube.com, as yt-dlp does; every other client
+        // keeps the music host it always used (an absolute URL overrides the client's default one).
+        httpClient.post(if (client.useWwwHost) YouTubeClient.API_URL_YOUTUBE_WWW + "player" else "player") {
             ytClient(client, setLogin = !noLogin)
             setBody(
                 PlayerBody(
@@ -283,7 +291,7 @@ class InnerTube {
                         if (client.isEmbedded) {
                             it.copy(
                                 thirdParty = Context.ThirdParty(
-                                    embedUrl = "https://www.youtube.com/watch?v=${videoId}"
+                                    embedUrl = client.embedUrl ?: "https://www.youtube.com/watch?v=${videoId}"
                                 )
                             )
                         } else it
