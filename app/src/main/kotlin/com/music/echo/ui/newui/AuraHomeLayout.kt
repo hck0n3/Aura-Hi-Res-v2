@@ -41,7 +41,9 @@ import iad1tya.echo.music.ui.utils.tvFocusable
 /**
  * The large card of the Inicio carousel in a wide window (an unfolded foldable, a tablet).
  *
- * Owner 2026-10-19: *«el carrusel está muy pequeño en modo plegable»*. The card used to be the phone's 340 × 260 dp in a
+ * Owner 2026-10-19: *«el carrusel está muy pequeño en modo plegable»*, and then — liking the style — *«solo se ven tres; que se vean 4
+ * portadas para que mantenga la misma visualización»*: the cards are narrower now (about a quarter of the pane), so three large ones
+ * plus the medium and small strips of the multi-browse layout make four to five covers visible. The card used to be the phone's 340 × 260 dp in a
  * 700–900 dp window, a postage stamp in a sea of Ground. Now the large card FOLLOWS the pane: [AURA_WIDE_HERO_CARD_FRACTION]
  * of its width (so two large cards plus the medium and small ones peeking fit the row), between
  * [AURA_WIDE_HERO_CARD_MIN_WIDTH] and [AURA_WIDE_HERO_CARD_MAX_WIDTH], and a height that keeps the phone card's landscape
@@ -60,14 +62,14 @@ internal fun auraWideHeroCardSize(paneWidth: Dp, windowHeightDp: Int): AuraHeroC
     return AuraHeroCardSize(width = width, height = minOf(byWidth, byWindow))
 }
 
-internal const val AURA_WIDE_HERO_CARD_FRACTION = 0.46f
-internal val AURA_WIDE_HERO_CARD_MIN_WIDTH = 320.dp
-internal val AURA_WIDE_HERO_CARD_MAX_WIDTH = 520.dp
-internal const val AURA_WIDE_HERO_CARD_ASPECT = 0.8f
-internal val AURA_WIDE_HERO_MIN_HEIGHT = 280.dp
-internal val AURA_WIDE_HERO_MAX_HEIGHT = 400.dp
+internal const val AURA_WIDE_HERO_CARD_FRACTION = 0.26f
+internal val AURA_WIDE_HERO_CARD_MIN_WIDTH = 200.dp
+internal val AURA_WIDE_HERO_CARD_MAX_WIDTH = 300.dp
+internal const val AURA_WIDE_HERO_CARD_ASPECT = 1.1f
+internal val AURA_WIDE_HERO_MIN_HEIGHT = 220.dp
+internal val AURA_WIDE_HERO_MAX_HEIGHT = 330.dp
 internal const val AURA_WIDE_HERO_MAX_HEIGHT_FRACTION = 0.55f
-internal val AURA_WIDE_HERO_FLOOR_HEIGHT = 240.dp
+internal val AURA_WIDE_HERO_FLOOR_HEIGHT = 220.dp
 
 // ── Song rows in one or two columns ───────────────────────────────────────────────────────────────────────────────
 

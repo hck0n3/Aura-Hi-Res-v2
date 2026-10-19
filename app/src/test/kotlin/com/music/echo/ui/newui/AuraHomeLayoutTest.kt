@@ -16,17 +16,17 @@ import org.junit.Test
 class AuraHomeLayoutTest {
 
     @Test
-    fun `the unfolded carousel card is bigger than the phone card and follows the pane`() {
-        val phoneWidth = 340f
-        val phoneHeight = 260f
-        for ((pane, window) in listOf(841 to 700, 904 to 760, 1100 to 800)) {
+    fun `the unfolded carousel shows at least four covers and follows the pane`() {
+        for ((pane, window) in listOf(700 to 700, 841 to 700, 904 to 760, 1100 to 800, 1280 to 800)) {
             val size = auraWideHeroCardSize(pane.dp, window)
-            assertTrue("at $pane dp the card is ${size.width.value} wide", size.width.value > phoneWidth)
-            assertTrue("at $pane dp the card is ${size.height.value} high", size.height.value > phoneHeight)
+            // Large cards that fit the row; the medium and small strips of the multi-browse layout add the 4th cover.
+            val large = (pane - 32f) / size.width.value
+            assertTrue("at $pane dp only ${large} large cards fit", large >= 3.0f)
+            assertTrue("at $pane dp the card ${size.width.value} is too small to be a cover", size.width.value >= 200f)
         }
-        val narrow = auraWideHeroCardSize(840.dp, 700)
-        val wider = auraWideHeroCardSize(1000.dp, 700)
-        assertTrue("the card grows with the pane", wider.width.value > narrow.width.value)
+        val narrow = auraWideHeroCardSize(841.dp, 700)
+        val wider = auraWideHeroCardSize(1100.dp, 700)
+        assertTrue("the card grows with the pane (until its cap)", wider.width.value >= narrow.width.value)
     }
 
     @Test
@@ -34,9 +34,9 @@ class AuraHomeLayoutTest {
         for (pane in listOf(560, 645, 700, 841, 1000, 1280, 1600)) {
             for (window in listOf(480, 600, 700, 900)) {
                 val size = auraWideHeroCardSize(pane.dp, window)
-                assertTrue("width $pane/$window", size.width.value in 320f..520f)
-                assertTrue("height $pane/$window = ${size.height.value}", size.height.value in 240f..400f)
-                val cap = maxOf(window * AURA_WIDE_HERO_MAX_HEIGHT_FRACTION, 240f)
+                assertTrue("width $pane/$window", size.width.value in 200f..300f)
+                assertTrue("height $pane/$window = ${size.height.value}", size.height.value in 220f..330f)
+                val cap = maxOf(window * AURA_WIDE_HERO_MAX_HEIGHT_FRACTION, 220f)
                 assertTrue("a short window never gets a card taller than ${cap}: ${size.height.value}", size.height.value <= cap + 0.01f)
             }
         }

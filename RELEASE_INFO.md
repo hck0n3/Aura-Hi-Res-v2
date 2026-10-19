@@ -10,7 +10,7 @@ Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Reún
   derecha el reproductor y a la izquierda la pantalla en la que estabas. No se minimiza hasta que tú lo hagas, y «Atrás» primero
   cierra lo de la izquierda. El botón de arriba a la izquierda alterna entre dividido y pantalla completa y recuerda tu elección.
 - **El minirreproductor ancho trae «salida de audio» y «me gusta».** Con la letra abierta se ve también la portada.
-- **El carrusel de Inicio es el mismo que en el móvil, en grande**, adaptado al ancho del plegable abierto: las mismas tarjetas, con varias
+- **El carrusel de Inicio es el mismo que en el móvil**, adaptado al ancho del plegable abierto: las mismas tarjetas, con cuatro o más portadas
   a la vista y las siguientes asomando.
 - **Nada se ve gigante:** las portadas grandes de álbum, artista y playlist pasan a una banda en pantallas anchas, las cuadrículas
   usan más columnas y la Biblioteca enseña unas cuatro miniaturas por fila.
