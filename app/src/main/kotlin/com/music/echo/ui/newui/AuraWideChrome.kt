@@ -12,7 +12,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -168,7 +167,9 @@ fun AuraSplitCardsFrame(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .graphicsLayer { alpha = ((progress() - 0.15f) / 0.6f).coerceIn(0f, 1f) }
+            // No `graphicsLayer { alpha }` here: a window-sized alpha layer is an OFFSCREEN buffer (≈16 MB on an
+            // unfolded Fold) re-composited on every frame of the flip. The path is ONE draw op, so its alpha goes
+            // straight into the paint, read in the draw phase — identical pixels, no buffer, no recomposition.
             .drawWithCache {
                 val (left, right) = auraSplitCardRects(
                     width = size.width,
@@ -185,7 +186,10 @@ fun AuraSplitCardsFrame(
                     addRoundRect(RoundRect(left, corner))
                     addRoundRect(RoundRect(right, corner))
                 }
-                onDrawBehind { drawPath(frame, ground) }
+                onDrawBehind {
+                    val a = ((progress() - 0.15f) / 0.6f).coerceIn(0f, 1f)
+                    if (a > 0f) drawPath(frame, ground, alpha = a)
+                }
             },
     )
 }
