@@ -90,7 +90,7 @@ class AuraHomeLayoutTest {
     @Test
     fun `quick access reaches the user's own places and the shuffle button cancels while it loads`() {
         val layout = main("ui/newui/AuraHomeLayout.kt")
-        for (route in listOf("auto_playlist/liked", "auto_playlist/downloaded", "\"history\"")) {
+        for (route in listOf("auto_playlist/liked", "auto_playlist/downloaded", "top_playlist/")) {
             assertTrue("falta $route", layout.contains(route))
         }
         assertTrue(layout.contains("AuraIcons.Shuffle"))
@@ -114,5 +114,23 @@ class AuraHomeLayoutTest {
     fun `the new strings exist in English and Spanish`() {
         assertTrue(res("values/echo_strings.xml").contains("name=\"home_quick_surprise_hint\""))
         assertTrue(res("values-es/echo_strings.xml").contains("name=\"home_quick_surprise_hint\""))
+    }
+
+    @Test
+    fun `Historial is not repeated in the quick access and the shelves do not repeat what the hero shows`() {
+        val layout = main("ui/newui/AuraHomeLayout.kt")
+        assertFalse("el historial ya está en las acciones de la cabecera", layout.contains("navigate(\"history\")"))
+        val home = main("ui/newui/AuraHomeScreen.kt")
+        assertTrue(home.contains("val heroIds"))
+        assertTrue("recientes sin lo que ya muestra el héroe", home.contains("filterNot { it.id in heroIds }"))
+        assertTrue(home.contains("auraDedupedAgainst(heroIds)"))
+        assertTrue("la lista IA no sale dos veces", home.contains("if (!aiRecsEnabled || heroIsAi) return@forEach"))
+    }
+
+    @Test
+    fun `a deduped shelf is shorter but never empty`() {
+        assertEquals(listOf("c"), listOf("a", "b", "c").auraDedupedAgainst(setOf("a", "b")) { it })
+        assertEquals("all shown above: the shelf keeps its list", listOf("a", "b"), listOf("a", "b").auraDedupedAgainst(setOf("a", "b")) { it })
+        assertEquals(listOf("a"), listOf("a").auraDedupedAgainst(emptySet()) { it })
     }
 }

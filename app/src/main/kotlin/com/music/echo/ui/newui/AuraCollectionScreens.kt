@@ -5,7 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -69,6 +72,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -104,6 +109,7 @@ import iad1tya.echo.music.ui.utils.rememberIsWideLayout
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.makeTimeString
 import iad1tya.echo.music.utils.rememberEnumPreference
+import iad1tya.echo.music.utils.rememberLeanMode
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.CachePlaylistViewModel
 import iad1tya.echo.music.viewmodels.TopPlaylistViewModel
@@ -273,6 +279,13 @@ internal fun AuraSongCollectionScaffold(
                 LocalPlayerAwareWindowInsets.current
                     .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
                     .asPaddingValues()
+            } else if (songs?.isNotEmpty() == true) {
+                // Top = 0: the header wears the album/playlist hero, which is full-bleed and scrolls under the status bar
+                // (owner 2026-10-19: «las portadas de me gusta, mp3 exportados, mi top, descargados y en caché sean como las
+                // de las listas»). The empty state keeps the inset: it has no hero to hold the top.
+                LocalPlayerAwareWindowInsets.current
+                    .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                    .asPaddingValues()
             } else {
                 LocalPlayerAwareWindowInsets.current.asPaddingValues()
             },
@@ -308,6 +321,7 @@ internal fun AuraSongCollectionScaffold(
                         onSearch = { isSearching = true },
                         useVideoCount = useVideoCount,
                         videoPosterLayout = videoPosterLayout,
+                        listState = listState,
                         modifier = Modifier.animateItem(),
                     )
                 }
@@ -541,6 +555,12 @@ internal fun AuraSongCollectionScaffold(
  * Cover, title, Aleatorio / Reproducir / ⋯, the count line, the "Aleatorio mejorado" pill and the
  * "Acerca de" block — the classic headers' contents, in the new language.
  *
+ * The cover is the OWN LISTS' and the albums' design (owner 2026-10-19: *«las portadas de las canciones que me gustan, mp3
+ * exportados, mi top, descargados, en caché sean como las de las listas, plegado y desplegado»*): on a phone the full-bleed
+ * [AuraAlbumHero] that dissolves into the page, with the 2×2 mosaic of the first covers of the collection's songs; on a wide
+ * pane ([AURA_WIDE_HERO_MIN_WIDTH]) [AuraWideTop], the cover on the left and the title and buttons on its right. Both are the
+ * composables the local playlist screen uses, not copies.
+ *
  * The shuffle button is the SAME [rememberShuffleMemoryPrompt] + unplayed-first ordering the classic
  * headers use; re-deriving it would have given these screens a shuffle that behaves differently from
  * the identical button one tab away.
@@ -556,6 +576,7 @@ internal fun AuraCollectionHeader(
     aboutText: String,
     onMenu: () -> Unit,
     onSearch: () -> Unit,
+    listState: LazyListState,
     modifier: Modifier = Modifier,
     queueTitle: String = name,
     useVideoCount: Boolean = false,
@@ -563,40 +584,53 @@ internal fun AuraCollectionHeader(
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val isTvOrCar = rememberIsTvOrCar()
-    val isWideLayout = rememberIsWideLayout()
     val countPlural = if (useVideoCount) R.plurals.n_video else R.plurals.n_song
+    val seed = contextId ?: name
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(modifier.height(56.dp))
+    // The first four DISTINCT covers of the collection (a song's thumbnail may repeat across an album); the caller's
+    // [coverUrl] leads when it is set. Fewer than two → a single cover; none → the brand placeholder gradient (AuraCover
+    // draws it from the seed), never an empty square.
+    val covers = remember(songs, coverUrl) {
+        buildList {
+            coverUrl?.let { add(it) }
+            songs.forEach { song -> song.song.thumbnailUrl?.let { add(it) } }
+        }.distinct().take(4)
+    }
 
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = if (videoPosterLayout) 20.dp else 48.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            val coverWidth = when {
-                videoPosterLayout -> maxWidth
-                isWideLayout -> 320.dp
-                else -> 260.dp
-            }
-            AuraCover(
-                thumbnailUrl = coverUrl,
-                size = coverWidth,
-                seed = contextId ?: name,
+    val cover: @Composable BoxScope.(Dp) -> Unit = { coverSize ->
+        when (covers.size) {
+            0 -> AuraCover(thumbnailUrl = null, size = coverSize, seed = seed, shape = AuraShapes.Artwork)
+            1 -> AuraCover(
+                thumbnailUrl = covers[0],
+                size = coverSize,
+                seed = seed,
                 shape = AuraShapes.Artwork,
                 decodeTo = 512,
-                ratio = if (videoPosterLayout) 16f / 9f else 1f,
-                fillBleed = videoPosterLayout,
             )
+            // The 2×2 mosaic of the first covers, as in the own lists.
+            else -> Column(Modifier.fillMaxSize()) {
+                repeat(2) { rowIndex ->
+                    Row(Modifier.weight(1f)) {
+                        repeat(2) { columnIndex ->
+                            val index = rowIndex * 2 + columnIndex
+                            AuraCover(
+                                thumbnailUrl = covers.getOrNull(index) ?: covers[index % covers.size],
+                                size = coverSize / 2,
+                                seed = "$seed#$index",
+                                shape = RectangleShape,
+                                decodeTo = 256,
+                            )
+                        }
+                    }
+                }
+            }
         }
+    }
 
-        Spacer(modifier.height(26.dp))
+    val info: @Composable ColumnScope.(Boolean) -> Unit = { wide ->
+        val sidePad = if (wide) 0.dp else AuraSpacing.Gutter
+        val textPad = if (wide) 0.dp else 32.dp
+        val rowArrangement = Arrangement.spacedBy(12.dp, if (wide) Alignment.Start else Alignment.CenterHorizontally)
 
         Text(
             text = name,
@@ -604,10 +638,10 @@ internal fun AuraCollectionHeader(
             color = AuraPalette.OnGround,
             maxLines = 2,
             overflow = AuraDefaultOverflow,
-            modifier = Modifier.padding(horizontal = 32.dp),
+            modifier = Modifier.padding(horizontal = textPad),
         )
 
-        Spacer(modifier.height(6.dp))
+        Spacer(Modifier.height(6.dp))
 
         Text(
             text = buildString {
@@ -642,8 +676,8 @@ internal fun AuraCollectionHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = AuraSpacing.Gutter),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                .padding(horizontal = sidePad),
+            horizontalArrangement = rowArrangement,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val playedForStart = rememberPlayedShuffleSet(contextId)
@@ -652,7 +686,7 @@ internal fun AuraCollectionHeader(
                 playedCount = songs.count { it.id in playedForStart || it.song.totalPlayTime > 0L },
                 totalCount = songs.size,
             ) { resetMemory ->
-                val seed = ShuffleContexts.seedPlayedIds(
+                val seedIds = ShuffleContexts.seedPlayedIds(
                     resetMemory = resetMemory,
                     songIds = songs.map { it.id },
                     shufflePlayed = playedForStart,
@@ -661,7 +695,7 @@ internal fun AuraCollectionHeader(
                 val ordered = if (resetMemory) {
                     songs.shuffled()
                 } else {
-                    val (unheard, heard) = songs.partition { it.id !in seed }
+                    val (unheard, heard) = songs.partition { it.id !in seedIds }
                     unheard.shuffled() + heard.shuffled()
                 }
                 playerConnection.playQueue(
@@ -670,7 +704,7 @@ internal fun AuraCollectionHeader(
                         items = ordered.map { it.toMediaItem() },
                         contextId = contextId,
                         startShuffled = true,
-                        seedPlayedIds = seed,
+                        seedPlayedIds = seedIds,
                     ),
                 )
             }
@@ -705,8 +739,8 @@ internal fun AuraCollectionHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = AuraSpacing.Gutter),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                .padding(horizontal = sidePad),
+            horizontalArrangement = rowArrangement,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AuraHeaderCircleButton(
@@ -728,11 +762,46 @@ internal fun AuraCollectionHeader(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = AuraSpacing.Gutter),
+                .padding(horizontal = sidePad),
         ) {
             AuraSectionLabel(text = stringResource(aboutTitleRes).uppercase(Locale.ROOT))
             Spacer(Modifier.height(6.dp))
             AuraExpandableText(text = aboutText, collapsedMaxLines = 3)
+        }
+    }
+
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        if (maxWidth >= AURA_WIDE_HERO_MIN_WIDTH) {
+            AuraWideTop(
+                thumbnailUrl = covers.firstOrNull(),
+                seed = seed,
+                lean = rememberLeanMode(),
+                modifier = Modifier.padding(bottom = 8.dp),
+                coverContent = { cover(AURA_WIDE_TOP_COVER) },
+                info = { info(true) },
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                AuraAlbumHero(
+                    thumbnailUrl = covers.firstOrNull().takeIf { covers.size == 1 },
+                    albumId = null,
+                    canvasPrimaryUrl = null,
+                    canvasFallbackUrl = null,
+                    canvasEnabled = false,
+                    isPlaying = false,
+                    listState = listState,
+                    seed = seed,
+                    // Cycled to four so 2–3 covers never leave an empty cell in the 2×2.
+                    mosaic = if (covers.size >= 2) List(4) { covers[it % covers.size] } else null,
+                )
+
+                info(false)
+            }
         }
     }
 }

@@ -345,6 +345,12 @@ fun AuraHomeScreen(
             ?: aiRecommendedSongs?.takeIf { it.isNotEmpty() }
             ?: recentlyPlayed?.takeIf { it.isNotEmpty() }
     }
+    // The same rule for the AI list: with no picks the hero shows it, so its own shelf below would be the same list twice.
+    val heroIsAi = quickPicks.isNullOrEmpty() && !aiRecommendedSongs.isNullOrEmpty()
+    // Owner 2026-10-19 («verifica que no haya cosas redundantes en el inicio»): what the hero shows is not repeated as a
+    // card in the shelves under it. Each shelf drops those ids but, like the view model's own dedupe, never empties itself
+    // for it: a shelf that would lose EVERYTHING keeps its list (see [auraDedupedAgainst]).
+    val heroIds = remember(heroCarouselSongs) { heroCarouselSongs.orEmpty().mapTo(HashSet()) { it.id } }
 
     // ── Shared item actions (the SAME lambdas the classic Home installs) ──────────────────────────
 
@@ -723,7 +729,10 @@ fun AuraHomeScreen(
                 }
 
                 // Reproducido recientemente — pinned outside homeSections, exactly as in the classic Home.
-                recentlyPlayed?.takeIf { it.isNotEmpty() && !heroIsRecents }?.let { recentSongs ->
+                recentlyPlayed?.takeIf { it.isNotEmpty() && !heroIsRecents }
+                    ?.let { all -> all.filterNot { it.id in heroIds } }
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { recentSongs ->
                     item(key = "aura_home_recent", contentType = "aura_home_recent") {
                         val recentTitle = stringResource(R.string.home_recently_played)
                         Column(Modifier.animateItem()) {
@@ -1099,7 +1108,7 @@ fun AuraHomeScreen(
                         }
 
                         HomeSection.AiRecommended -> {
-                            if (!aiRecsEnabled) return@forEach
+                            if (!aiRecsEnabled || heroIsAi) return@forEach
                             aiRecommendedSongs?.takeIf { it.isNotEmpty() }?.let { recommended ->
                                 item(key = "aura_ai_recommended", contentType = "aura_ai_recommended") {
                                     val recEntity = aiRecommendedPlaylist?.playlist
@@ -1155,7 +1164,9 @@ fun AuraHomeScreen(
                         }
 
                         HomeSection.GenreMix -> {
-                            genreMix?.takeIf { it.songs.isNotEmpty() }?.let { mix ->
+                            genreMix?.takeIf { it.songs.isNotEmpty() }
+                                ?.let { gm -> gm.copy(songs = gm.songs.auraDedupedAgainst(heroIds)) }
+                                ?.let { mix ->
                                 item(key = "aura_genre_mix", contentType = "aura_genre_mix") {
                                     val mixTitle = stringResource(R.string.home_genre_mix, mix.genre)
                                     Column(Modifier.animateItem()) {
@@ -1181,7 +1192,9 @@ fun AuraHomeScreen(
                         }
 
                         HomeSection.ForgottenFavorites -> {
-                            forgottenFavorites?.takeIf { it.isNotEmpty() }?.let { favorites ->
+                            forgottenFavorites?.takeIf { it.isNotEmpty() }
+                                ?.let { all -> all.auraDedupedAgainst(heroIds) }
+                                ?.let { favorites ->
                                 item(key = "aura_forgotten_favorites", contentType = "aura_forgotten_favorites") {
                                     val title = stringResource(R.string.forgotten_favorites)
                                     val distinctFavorites = remember(favorites) { favorites.distinctBy { it.id } }

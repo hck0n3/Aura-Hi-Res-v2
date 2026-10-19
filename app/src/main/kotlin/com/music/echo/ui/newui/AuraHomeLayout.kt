@@ -31,6 +31,8 @@ import androidx.navigation.NavController
 import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.TopSize
+import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
 
@@ -109,6 +111,19 @@ internal fun AuraRowsInColumns(
 internal val AURA_ROWS_TWO_COLUMNS_MIN_WIDTH = 600.dp
 private val AURA_ROWS_COLUMN_GAP = 20.dp
 
+// ── Cross-shelf dedupe ────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * This shelf's songs without the ones already shown above it ([shownAbove]). A shelf that would lose EVERYTHING keeps its
+ * original list — the same guard the view model's own cross-section dedupe uses — so a dedupe can make a shelf shorter, never
+ * empty or missing.
+ */
+internal fun <T> List<T>.auraDedupedAgainst(shownAbove: Set<String>, idOf: (T) -> String): List<T> =
+    if (shownAbove.isEmpty()) this else filterNot { idOf(it) in shownAbove }.ifEmpty { this }
+
+internal fun List<iad1tya.echo.music.db.entities.Song>.auraDedupedAgainst(shownAbove: Set<String>) =
+    auraDedupedAgainst(shownAbove) { it.id }
+
 // ── Acceso rápido ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** How many tiles a row of the quick-access block holds: 2 on a phone, 4 once the pane is wide. */
@@ -156,14 +171,19 @@ internal fun AuraQuickAccess(
     val likedSubtitle = pluralStringResource(R.plurals.n_song, likedCount, likedCount)
     val downloadedTitle = stringResource(R.string.offline)
     val downloadedSubtitle = pluralStringResource(R.plurals.n_song, downloadedCount, downloadedCount)
-    val historyTitle = stringResource(R.string.history)
+    // «Historial» is already in the header's actions (the same on Inicio, Buscar and Novedades): not repeated here. Mi top is
+    // in Biblioteca only, two taps away.
+    val topSize by rememberPreference(TopSize, "50")
+    val topTitle = stringResource(R.string.my_top)
+    val topCount = topSize.toIntOrNull() ?: 50
+    val topSubtitle = pluralStringResource(R.plurals.n_song, topCount, topCount)
     val shuffleTitle = stringResource(R.string.shuffle)
     val shuffleSubtitle = stringResource(R.string.home_quick_surprise_hint)
 
     val tiles = listOf(
         AuraQuickTile(AuraIcons.HeartFilled, likedTitle, likedSubtitle, onClick = { navController.navigate("auto_playlist/liked") }),
         AuraQuickTile(AuraIcons.Downloaded, downloadedTitle, downloadedSubtitle, onClick = { navController.navigate("auto_playlist/downloaded") }),
-        AuraQuickTile(AuraIcons.History, historyTitle, null, onClick = { navController.navigate("history") }),
+        AuraQuickTile(AuraIcons.Music, topTitle, topSubtitle, onClick = { navController.navigate("top_playlist/$topSize") }),
         AuraQuickTile(AuraIcons.Shuffle, shuffleTitle, shuffleSubtitle, loading = surprising, onClick = onSurprise),
     )
 
