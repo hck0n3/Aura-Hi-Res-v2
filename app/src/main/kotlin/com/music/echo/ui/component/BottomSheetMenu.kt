@@ -183,7 +183,7 @@ fun BottomSheetMenu(
                             .clip(AuraShapes.Sheet)
                             // ONE FLOATING MATERIAL (owner 2026-09-13: "unas transparentes, otras sólidas"):
                             // the same opaque account-menu plate + hairline the dialogs use, glass on top.
-                            .background(iad1tya.echo.music.ui.newui.AuraPalette.FloatingWindowFill)
+                            .background(iad1tya.echo.music.ui.newui.AuraPalette.FloatingWindowPlate)
                             .border(1.dp, iad1tya.echo.music.ui.newui.AuraPalette.SurfaceLine, AuraShapes.Sheet)
                             .floatingWindowGlass(shellHazeState)
                             .imePadding()

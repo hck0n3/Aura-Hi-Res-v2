@@ -518,6 +518,15 @@ object AuraPalette {
     val FloatingWindowFill: Color
         get() = CoverWindowTint ?: FloatingFill
 
+    /**
+     * The plate UNDER a floating window's glass, translucent. Owner 2026-10-19 (One UI 9): *«las ventanas flotantes dejaron
+     * de ser transparentes»*. Where the glass cannot sample (a descendant of the haze source, or a system whose blur is off)
+     * this plate is ALL the window is, and an opaque one reads as a solid slab. At [FLOATING_WINDOW_PLATE_ALPHA] the screen
+     * behind stays visible there too; the ink was checked at a lower alpha than this, so legibility only gets better.
+     */
+    val FloatingWindowPlate: Color
+        get() = FloatingWindowFill.copy(alpha = FLOATING_WINDOW_PLATE_ALPHA)
+
     /** [CoverGlassTint]'s sibling for the floating windows; null with no cover resolved (the old plate then). */
     val CoverWindowTint: Color?
         get() = if (artworkInk == null || roleOverrides.surface != null) null
@@ -1044,7 +1053,10 @@ internal const val COVER_GLASS_MAX_LUMINANCE = 0.034f
  * How much of the plate the floating windows' glass paints (the rest is the blurred screen behind it): 0.85 left 15 %
  * of the screen, i.e. a near-black slab; 0.72 lets the cover's bloom behind show through.
  */
-internal const val FLOATING_WINDOW_GLASS_ALPHA = 0.72f
+internal const val FLOATING_WINDOW_GLASS_ALPHA = 0.58f
+
+/** The plate under the glass (and the glass' own no-blur fallback) is this opaque: never a solid slab. */
+internal const val FLOATING_WINDOW_PLATE_ALPHA = 0.66f
 
 /** A mid bloom under a window (a cover-coloured lobe, luminance ≈ 0.04): what the plate's ink is checked against. */
 internal val FLOATING_WINDOW_BEHIND = Color(0xFF3A3A3A)

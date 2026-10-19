@@ -191,7 +191,7 @@ fun BottomSheetPage(
                             // effect drawing with square corners over a rounded-content panel).
                             .clip(if (state.fullScreen) RectangleShape else AuraShapes.Sheet)
                             // Same opaque floating plate as menus and dialogs (one material everywhere).
-                            .background(AuraPalette.FloatingWindowFill)
+                            .background(AuraPalette.FloatingWindowPlate)
                             .floatingWindowGlass(shellHazeState)
                             .then(if (state.fullScreen) Modifier.statusBarsPadding() else Modifier)
                             .imePadding()
@@ -324,7 +324,7 @@ private fun AuraSpotlightHost(
                             .fillMaxWidth()
                             // Clip ANTES del cristal (un recorte interior deja esquinas cuadradas bajo el efecto).
                             .clip(AuraShapes.Card)
-                            .background(AuraPalette.FloatingWindowFill)
+                            .background(AuraPalette.FloatingWindowPlate)
                             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
                             .floatingWindowGlass(hazeState)
                             // Un toque en el panel no debe llegar al cierre del fondo.

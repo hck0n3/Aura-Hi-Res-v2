@@ -210,14 +210,13 @@ private fun AuraInWindowDialogPanel(
                                 // the mini pill's exact material (shellGlass film + hairline). The one
                                 // plate underneath only shows during the first frame before sampling.
                                 overlayHazeState != null && ported -> Modifier
-                                    .background(AuraPalette.FloatingWindowFill)
+                                    .background(AuraPalette.FloatingWindowPlate)
                                     .floatingWindowGlass(overlayHazeState)
                                 // IN PLACE (no host): descendant of the source, glass is a no-op —
                                 // PLATE UNDER THE GLASS, double-composited for contrast (row 197/204,
                                 // the 2026-09-04 "phantom dialog" report).
                                 overlayHazeState != null -> Modifier
-                                    .background(AuraPalette.FloatingWindowFill)
-                                    .background(AuraPalette.FloatingWindowFill)
+                                    .background(AuraPalette.FloatingWindowPlate)
                                     .floatingWindowGlass(overlayHazeState)
                                 // No source: the premium frost family — translucent, never hard.
                                 else -> Modifier.background(auraFloatingContainerColor())

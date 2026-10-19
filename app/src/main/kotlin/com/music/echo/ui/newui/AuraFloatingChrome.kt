@@ -238,7 +238,9 @@ fun AuraFloatingSurface(
 @Composable
 fun auraFloatingContainerColor(): Color {
     val skin = rememberAuraPanelSkin()
-    return if (skin.enabled && skin.darkGround) AuraPalette.FrostFill
+    // Owner 2026-10-19: the player's download sheet (a Material sheet, painted with THIS colour) stopped being transparent,
+    // and every window must stay see-through: the translucent window plate, not the opaque FrostFill.
+    return if (skin.enabled && skin.darkGround) AuraPalette.FloatingWindowPlate
     else MaterialTheme.colorScheme.surfaceContainerHigh
 }
 

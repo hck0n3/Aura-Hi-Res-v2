@@ -250,7 +250,7 @@ private fun AuraMusicRequestSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = AuraShapes.Sheet,
-        containerColor = AuraPalette.FloatingWindowFill,
+        containerColor = AuraPalette.FloatingWindowPlate,
         contentColor = AuraPalette.OnGround,
         dragHandle = {
             Box(

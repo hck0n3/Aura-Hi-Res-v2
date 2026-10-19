@@ -180,7 +180,8 @@ fun floatingWindowGlassStyle(): HazeStyle {
         blurRadius = 18.dp,
         noiseFactor = 0.12f,
         tints = listOf(HazeTint(tint.copy(alpha = if (AuraPalette.CoverWindowTint != null) FLOATING_WINDOW_GLASS_ALPHA else 0.85f))),
-        fallbackTint = HazeTint(tint),
+        // No blur available (some One UI builds): still translucent, the screen shows through a sharp window.
+        fallbackTint = HazeTint(tint.copy(alpha = FLOATING_WINDOW_PLATE_ALPHA)),
     )
 }
 
