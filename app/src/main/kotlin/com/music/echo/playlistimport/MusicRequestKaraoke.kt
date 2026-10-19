@@ -104,12 +104,18 @@ object MusicRequestKaraoke {
         "de la cancion", "la cancion", "una cancion", "el tema", "un tema", "la version",
     ).map { it.split(' ') }.sortedByDescending { it.size }
 
+    private val NOUN_LEADS = setOf("la", "una", "el", "un", "de")
+
     /** «quiero / necesito / busco» open a request only when followed by one of these (else «Quiero Bailar» is a title). */
     private val DESIRE = setOf("quiero", "necesito", "busco", "queria", "quisiera")
     private val DESIRE_NEXT = setOf(
         "cantar", "el", "la", "un", "una", "unos", "unas", "los", "las", "karaoke", "karaokes", "pista", "pistas",
         "instrumental", "escuchar", "oir", "tener", "ver", "que", "algo", "poner", "ponerme",
     )
+
+    private val TAIL_COURTESY: List<List<String>> = listOf(
+        "por favor", "porfa", "please", "gracias", "thanks", "ahora", "ya",
+    ).map { it.split(' ') }
 
     /** Connectors that cannot open or close the subject. */
     private val EDGE = setOf("de", "del", "y", "e", "o", "en", "con", "para", "por", "pero", "que", "a", "al", "ni")
@@ -161,7 +167,10 @@ object MusicRequestKaraoke {
                         continue
                     }
                     val lead = LEADS.firstOrNull { p -> i + p.size <= work.size && p.indices.all { work[i + it] == p[it] } }
-                    if (lead != null) {
+                    // «la canción / el tema» opens a request, but «La Canción del Mariachi» is a title: with «de»/«del» after
+                    // it, it stays.
+                    val nounLead = lead != null && lead[0] in NOUN_LEADS
+                    if (lead != null && !(nounLead && work.getOrNull(i + lead.size) in setOf("de", "del"))) {
                         i += lead.size
                         continue
                     }
@@ -176,6 +185,11 @@ object MusicRequestKaraoke {
         var to = kept.size
         while (from < to && kept[from] in EDGE) from++
         while (to > from && kept[to - 1] in EDGE) to--
+        // «… por favor», «… please»: courtesy at the end of the request is not part of the song.
+        for (tail in TAIL_COURTESY) {
+            if (to - from > tail.size && tail.indices.all { kept[to - tail.size + it] == tail[it] }) to -= tail.size
+        }
+        while (to > from && kept[to - 1] in EDGE) to--
         val subject = kept.subList(from, to)
         if (subject.isEmpty()) return null
         // A request that only SAYS «para cantar» (no karaoke word) needs a real subject: «canciones para cantar en el
@@ -184,7 +198,12 @@ object MusicRequestKaraoke {
         val subjectText = subject.joinToString(" ")
         // «música instrumental / karaoke» with nothing else left is the old generic route.
         if (subject.all { it in FRAMING }) return null
-        val themeOnly = MusicRequestQuery.isThemeOnly(subjectText)
+        // «karaoke de salsa» / «de rock en español» / «romántico»: only when the subject really NAMES a style, a mood, a faith, a
+        // language or an era. «Te Quiero» is made of filler words too, and it is a song.
+        val intent = MusicRequestIntent.parse(subjectText)
+        val namesATheme = intent.styles.isNotEmpty() || intent.christian || intent.language != null ||
+            intent.era != null || intent.eraRange != null || MusicRequestMoods.hasMoment(subjectText)
+        val themeOnly = namesATheme && MusicRequestQuery.isThemeOnly(subjectText)
         return Ask(
             subject = subjectText,
             words = subject,
@@ -320,24 +339,28 @@ object MusicRequestKaraoke {
      */
     internal fun songTier(askWords: List<String>, parts: Parts): Int {
         val s = sig(askWords)
-        val b = sig(parts.song.distinct())
+        val b = sig(parts.song)
         if (s.isEmpty() || b.isEmpty()) return 0
-        val sSet = s.toSet()
-        val bSet = b.toSet()
-        if (bSet == sSet) return 1
-        if (sSet.containsAll(bSet)) {
-            val rest = sSet - bSet
+        if (b == s) return 1
+        if (isSublist(b, s)) {
+            // The track's title is inside the request: the words around it should be the artist.
+            val at = indexOfSublist(b, s)
+            val rest = s.take(at) + s.drop(at + b.size)
             if (rest.all { it in parts.credit }) return 2
-            val covers = bSet.size.toDouble() / sSet.size
-            return if (bSet.size >= 2 || covers >= 0.6) 3 else 0
+            return if (b.size >= 2 || b.size.toDouble() / s.size >= 0.6) 3 else 0
         }
-        if (bSet.containsAll(sSet)) {
+        if (isSublist(s, b)) {
             // The track's title carries the artist too («Queen - Bohemian Rhapsody»): the extra words are credit.
-            val extra = bSet - sSet
-            return if (extra.size <= 3) 2 else 0
+            return if (b.size - s.size <= 3) 2 else 0
         }
         return 0
     }
+
+    private fun indexOfSublist(small: List<String>, big: List<String>): Int =
+        (0..big.size - small.size).firstOrNull { s -> small.indices.all { big[s + it] == small[it] } } ?: -1
+
+    private fun isSublist(small: List<String>, big: List<String>): Boolean =
+        small.size <= big.size && indexOfSublist(small, big) >= 0
 
     /** All the request's significant words are in the track's credit (artist, album, «in the style of …»). */
     internal fun creditsAll(askWords: List<String>, parts: Parts): Boolean {
@@ -402,11 +425,9 @@ object MusicRequestKaraoke {
 
         val accepted: List<Scored<T>> = when (kind) {
             Kind.SONG -> {
-                val strong = songMatches.filter { it.songTier <= 2 }
-                val pool = strong.ifEmpty { songMatches }
-                val real = pool.filter { it.tier != Tier.OTHER }
+                val real = songMatches.filter { it.tier != Tier.OTHER }
                 // Piano / lullaby / 8-bit versions only fill in when there is almost nothing else.
-                (if (real.size >= 2) real else pool).sortedByDescending { score(it) }
+                (if (real.size >= 2) real else songMatches).sortedByDescending { score(it) }
             }
             Kind.ARTIST -> scored.filter { it.creditAll && it.tier != Tier.OTHER }
                 .sortedByDescending { score(it) }
