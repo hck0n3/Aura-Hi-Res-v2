@@ -544,6 +544,24 @@ fun AuraHomeScreen(
                     }
                 }
 
+                // ACCESO RÁPIDO (owner 2026-10-19: «el diseño de Inicio lo sigo viendo muy básico»; sexta ronda: «esos cuatro
+                // botones… la colocación sea más bonita»): the four places the user goes back to, one tap from the greeting,
+                // like Spotify and YouTube Music open — now RIGHT UNDER «Pedir música» (they were after the mood chips, so the
+                // button and its four siblings never read as one block) and hidden while a mood chip's own page is open. See
+                // [AuraQuickAccess].
+                if (selectedChip == null) {
+                    item(key = "aura_home_quick_access", contentType = "aura_home_quick_access") {
+                        AuraQuickAccess(
+                            navController = navController,
+                            surprising = isRandomizing,
+                            onSurprise = onSurprise,
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(top = AURA_QUICK_TILE_GAP),
+                        )
+                    }
+                }
+
                 // Chips de estado de ánimo de YouTube (dynamic text; only when YouTube returns chips).
                 homePage?.chips?.takeIf { it.isNotEmpty() }?.let { chips ->
                     item(key = "aura_home_chips", contentType = "aura_home_chips") {
@@ -657,19 +675,6 @@ fun AuraHomeScreen(
                         }
                     }
                 } else {
-
-                // ACCESO RÁPIDO (owner 2026-10-19: «el diseño de Inicio lo sigo viendo muy básico»): the four places the user goes
-                // back to, one tap from the greeting, like Spotify and YouTube Music open. See [AuraQuickAccess].
-                item(key = "aura_home_quick_access", contentType = "aura_home_quick_access") {
-                    AuraQuickAccess(
-                        navController = navController,
-                        surprising = isRandomizing,
-                        onSurprise = onSurprise,
-                        modifier = Modifier
-                            .animateItem()
-                            .padding(top = 14.dp),
-                    )
-                }
 
                 // Apple Music style: Hero carousel "Para ti" — right under the quick access, before the podcasts and the recents shelf (it was
                 // drawn after them, so Inicio opened on a plain shelf instead of on its hero).

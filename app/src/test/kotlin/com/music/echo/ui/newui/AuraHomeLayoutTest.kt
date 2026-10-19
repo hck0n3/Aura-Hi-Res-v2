@@ -133,4 +133,40 @@ class AuraHomeLayoutTest {
         assertEquals("all shown above: the shelf keeps its list", listOf("a", "b"), listOf("a", "b").auraDedupedAgainst(setOf("a", "b")) { it })
         assertEquals(listOf("a"), listOf("a").auraDedupedAgainst(emptySet()) { it })
     }
+
+    @Test
+    fun `Pedir musica is drawn with the tiles' material and sits right above them, before the mood chips`() {
+        val layout = main("ui/newui/AuraHomeLayout.kt")
+        val invite = layout.substringAfter("internal fun AuraHomeInviteCard(").substringBefore("internal fun AuraQuickAccess(")
+        val tile = layout.substringAfter("private fun AuraQuickTileCard(")
+        for (piece in listOf(".background(AuraPalette.SurfaceFill)", "AuraShapes.Card", "AuraPalette.PlayButtonGradient", "tvFocusable(")) {
+            assertTrue("la tarjeta de Pedir música usa $piece como las baldosas", invite.contains(piece))
+            assertTrue("las baldosas usan $piece", tile.contains(piece))
+        }
+        assertTrue("el botón principal lleva el borde del acento", invite.contains("AuraPalette.Teal.copy(alpha = 0.55f)"))
+        // The entrance keeps its action: it opens the sheet, shows the spinner while it works and speaks its label.
+        val request = main("ui/newui/AuraMusicRequest.kt").substringAfter("fun AuraMusicRequestCard(").substringBefore("if (sheetOpen)")
+        assertTrue(request.contains("AuraHomeInviteCard("))
+        assertTrue(request.contains("onClick = { sheetOpen = true }"))
+        assertTrue(request.contains("loading = state is MusicRequestUiState.Working"))
+        assertTrue(request.contains("contentDescription = stringResource(R.string.music_request_label)"))
+        // In Inicio the four tiles come straight after the button, and before the mood chips.
+        val home = main("ui/newui/AuraHomeScreen.kt")
+        val ask = home.indexOf("key = \"aura_home_music_request\"")
+        val quick = home.indexOf("key = \"aura_home_quick_access\"")
+        val chips = home.indexOf("key = \"aura_home_chips\"")
+        assertTrue(ask > 0 && quick > ask && chips > quick)
+    }
+
+    @Test
+    fun `the four tiles are equal vertical cards with a fixed height and the whole name on two lines`() {
+        val layout = main("ui/newui/AuraHomeLayout.kt")
+        val tile = layout.substringAfter("private fun AuraQuickTileCard(")
+        assertTrue(tile.contains(".height(AURA_QUICK_TILE_HEIGHT)"))
+        assertTrue("el nombre completo en dos líneas", tile.contains("maxLines = 2"))
+        assertTrue(layout.substringAfter("internal fun AuraQuickAccess(").contains("modifier = Modifier.weight(1f)"))
+        assertTrue("sobran huecos con un Spacer para que la última fila conserve el ancho", layout.contains("repeat(columns - rowTiles.size)"))
+        assertTrue(AURA_QUICK_TILE_HEIGHT.value >= 88f)
+        assertTrue("el botón principal es más bajo que una baldosa vertical, pero ocupa todo el ancho", AURA_INVITE_CARD_HEIGHT.value in 64f..AURA_QUICK_TILE_HEIGHT.value)
+    }
 }

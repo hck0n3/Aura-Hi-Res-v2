@@ -168,20 +168,24 @@ fun shellGlassStyle(): HazeStyle {
 }
 
 /**
- * The glass of the floating WINDOWS (sheets, menus, dialogs): [shellGlassStyle]'s recipe, but with the window plate
- * ([AuraPalette.CoverWindowTint]) at [FLOATING_WINDOW_GLASS_ALPHA] instead of 0.85, so the screen behind — the cover's
- * bloom — reads through them. The bars keep [shellGlassStyle] untouched.
+ * The glass of the floating WINDOWS (sheets, menus, dialogs): the cover GROUND the whole app is painted with
+ * ([AuraPalette.WindowGlassTint]) at [AuraPalette.WindowGlassAlpha] over a wide [FLOATING_WINDOW_BLUR_DP] blur, so the screen
+ * behind — the cover's bloom — reads through them in the app's own colour and the blur removes the detail that would fight
+ * the text. The bars keep [shellGlassStyle] untouched. High-performance mode swaps the wide blur for a cheap one and a firmer
+ * tint.
  */
 @Composable
 fun floatingWindowGlassStyle(): HazeStyle {
-    val tint = AuraPalette.CoverWindowTint ?: AuraPalette.GroundRaised
+    val tint = AuraPalette.WindowGlassTint
+    val lean = iad1tya.echo.music.utils.rememberLeanMode()
+    val alpha = if (lean) maxOf(AuraPalette.WindowGlassAlpha, FLOATING_WINDOW_LEAN_ALPHA) else AuraPalette.WindowGlassAlpha
     return HazeStyle(
         backgroundColor = tint,
-        blurRadius = 18.dp,
+        blurRadius = if (lean) 8.dp else FLOATING_WINDOW_BLUR_DP.dp,
         noiseFactor = 0.12f,
-        tints = listOf(HazeTint(tint.copy(alpha = if (AuraPalette.CoverWindowTint != null) FLOATING_WINDOW_GLASS_ALPHA else 0.85f))),
+        tints = listOf(HazeTint(tint.copy(alpha = alpha))),
         // No blur available (some One UI builds): still translucent, the screen shows through a sharp window.
-        fallbackTint = HazeTint(tint.copy(alpha = FLOATING_WINDOW_PLATE_ALPHA)),
+        fallbackTint = HazeTint(AuraPalette.FloatingWindowPlate),
     )
 }
 

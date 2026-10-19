@@ -122,67 +122,24 @@ fun AuraMusicRequestCard(
     // Fila 361: the fill now goes straight to the service (MusicRequestFill), so it also arrives when
     // Inicio is no longer on screen — nothing to collect here any more.
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .sizeIn(minHeight = 72.dp)
-            .clip(AuraShapes.Card)
-            // Un degradado sutil en vez de un relleno plano: es lo que separa una tarjeta que INVITA
-            // de una fila más de la lista. Se queda en los colores del tema (teal → violeta del
-            // gradiente del botón de play) para no meter una paleta nueva en Inicio.
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        AuraPalette.Teal.copy(alpha = 0.18f),
-                        AuraPalette.SurfaceFill,
-                    ),
-                ),
-            )
-            .auraClickableInternal(
-                onClick = { sheetOpen = true },
-                contentDescription = stringResource(R.string.music_request_label),
-            )
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+    // La entrada de «Pedir música» comparte material con las baldosas de acceso rápido (dueño, 2026-10-19: «el botón de
+    // pedir música quiero que se vea como los otros cuatro botones»): mismo relleno, borde y esquinas, mismo cuadro de
+    // icono con el degradado del botón de play. Se distingue por su tamaño y por el borde del acento, no por otro material.
+    // Ver [AuraHomeInviteCard].
+    AuraHomeInviteCard(
+        title = stringResource(R.string.music_request_label),
+        subtitle = stringResource(R.string.music_request_card_subtitle),
+        loading = state is MusicRequestUiState.Working,
+        contentDescription = stringResource(R.string.music_request_label),
+        onClick = { sheetOpen = true },
+        modifier = modifier,
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(50))
-                .background(AuraPalette.Teal.copy(alpha = 0.20f)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.auto_awesome),
-                contentDescription = null,
-                tint = AuraPalette.Teal,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.music_request_label),
-                style = AuraType.RowTitle,
-                color = AuraPalette.OnGround,
-                maxLines = 1,
-                overflow = AuraDefaultOverflow,
-            )
-            Text(
-                text = stringResource(R.string.music_request_card_subtitle),
-                style = AuraType.MiniArtist,
-                color = AuraPalette.OnGroundMuted,
-                maxLines = 1,
-                overflow = AuraDefaultOverflow,
-            )
-        }
-        if (state is MusicRequestUiState.Working) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                strokeWidth = 2.dp,
-                color = AuraPalette.Teal,
-            )
-        }
+        Icon(
+            painter = painterResource(R.drawable.auto_awesome),
+            contentDescription = null,
+            tint = AuraPalette.OnAccent,
+            modifier = Modifier.size(24.dp),
+        )
     }
 
     if (sheetOpen) {

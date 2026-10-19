@@ -1372,6 +1372,8 @@
     <string name="download_sheet_pick">Choose songs…</string>
     <string name="download_sheet_pick_desc">Tick the ones you want</string>
     <string name="download_sheet_select_all">Select all</string>
+    <string name="download_sheet_select_none">Clear selection</string>
+    <string name="download_sheet_selected_count">%1$d of %2$d</string>
     <string name="download_sheet_start">Start (%1$d)</string>
     <string name="download_sheet_back">Back</string>
     <string name="download_sheet_video_count">Only the %1$d that have a music video</string>

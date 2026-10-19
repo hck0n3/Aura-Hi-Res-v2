@@ -334,7 +334,8 @@ fun PlaylistMenu(
                 TextButton(
                     onClick = {
                         showMp3ChoiceDialog = false
-                        selectedMp3Ids = songs.map { it.id }.toSet()
+                        // Nothing pre-ticked: the picker opens empty every time (owner 2026-10-19).
+                        selectedMp3Ids = emptySet()
                         showMp3SelectDialog = true
                     },
                 ) {
@@ -358,7 +359,18 @@ fun PlaylistMenu(
         ) {
             item {
                 ListItem(
-                    headlineContent = { Text(text = "Seleccionar todas") },
+                    headlineContent = {
+                        Text(
+                            text = stringResource(
+                                if (songs.isNotEmpty() && selectedMp3Ids.size == songs.size) R.string.download_sheet_select_none
+                                else R.string.download_sheet_select_all,
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    supportingContent = {
+                        Text(text = stringResource(R.string.download_sheet_selected_count, selectedMp3Ids.size, songs.size))
+                    },
                     trailingContent = {
                         Checkbox(
                             checked = songs.isNotEmpty() && selectedMp3Ids.size == songs.size,

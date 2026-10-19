@@ -1261,6 +1261,8 @@
     <string name="download_sheet_pick">Elegir canciones…</string>
     <string name="download_sheet_pick_desc">Marca las que quieras</string>
     <string name="download_sheet_select_all">Seleccionar todas</string>
+    <string name="download_sheet_select_none">Quitar selección</string>
+    <string name="download_sheet_selected_count">%1$d de %2$d</string>
     <string name="download_sheet_start">Empezar (%1$d)</string>
     <string name="download_sheet_back">Atrás</string>
     <string name="download_sheet_video_count">Solo las %1$d que tienen video musical</string>
