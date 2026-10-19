@@ -34,9 +34,9 @@ object MusicRequestMoods {
             listOf("concentracion", "focus", "estudio", "study", "productividad"),
         listOf("dormir", "sueño", "sueno", "relajar", "relajarme", "relajante", "relajado", "calma", "tranquilo", "sleep", "relax") to
             listOf("dormir", "sueño", "sueno", "relax", "relajacion", "calma", "chill", "sleep"),
-        listOf("gimnasio", "entrenar", "entrenamiento", "correr", "gym", "workout", "ejercicio", "run", "cardio", "crossfit", "pesas") to
+        listOf("gimnasio", "entrenar", "entrenamiento", "correr", "gym", "workout", "ejercicio", "run", "cardio", "crossfit") to
             listOf("entrenamiento", "workout", "fitness", "energia", "gym", "deporte"),
-        listOf("fiesta", "bailar", "baile", "party", "dance", "perreo", "antro", "discoteca", "boliche", "reunion", "asado", "parrillada") to
+        listOf("fiesta", "bailar", "baile", "party", "dance", "perreo", "antro", "discoteca", "boliche", "parrillada") to
             listOf("fiesta", "party", "baile", "dance", "bailar"),
         listOf("manejar", "conducir", "carretera", "viaje", "viajar", "driving", "road") to
             listOf("viaje", "carretera", "road", "conducir"),
@@ -44,28 +44,28 @@ object MusicRequestMoods {
         // como palabra suelta que la categoría o la lista tenían que nombrar.
         listOf(
             "triste", "bajon", "melancol", "desamor", "sad", "llorar", "lloro", "llorando", "corazon roto", "heartbreak",
-            "extrano", "extranar", "olvidar", "superar", "despecho", "dolor",
+            "despecho",
         ) to listOf("triste", "sad", "melancolia", "desamor", "sentimental", "despecho"),
         listOf("romantic", "amor", "cita", "love", "enamorar", "enamorado", "enamorada", "conquistar", "sensual", "intimo", "pasion") to
             listOf("romance", "romantic", "amor", "love"),
         listOf("cocinar", "cocinando", "cenar", "cena", "cenando", "desayuno", "almuerzo", "brunch", "restaurante", "dinner",
-            "de fondo", "ambiente", "background", "limpiar", "limpieza", "quehaceres", "oficina") to
+            "de fondo", "ambiente", "background", "limpiar", "limpieza", "quehaceres") to
             listOf("ambiente", "chill", "relax", "background", "cena", "dinner"),
-        listOf("playa", "verano", "summer", "beach", "vacaciones", "piscina", "alberca", "pool", "tropical") to
+        listOf("playa", "verano", "summer", "beach", "vacaciones", "piscina", "alberca") to
             listOf("verano", "summer", "playa", "beach", "vacaciones", "fiesta", "party"),
-        listOf("lluvia", "lluvioso", "llover", "rain", "rainy", "tormenta", "otono", "invierno", "frio", "cafe", "cafeteria", "coffee") to
+        listOf("lluvia", "lluvioso", "llover", "rain", "rainy", "tormenta", "otono", "invierno", "cafeteria", "coffee") to
             listOf("lluvia", "rain", "chill", "relax", "ambiente", "cafe", "coffee", "otono", "autumn"),
-        listOf("meditar", "meditacion", "yoga", "mindfulness", "spa", "masaje", "zen", "respirar", "respiracion", "naturaleza", "sonidos") to
+        listOf("meditar", "meditacion", "yoga", "mindfulness", "masaje", "respirar", "respiracion") to
             listOf("meditacion", "meditation", "yoga", "relax", "relajacion", "calma", "chill", "bienestar", "wellness"),
         listOf("bebe", "bebes", "arrullar", "nana", "nanas", "lullaby") to
             listOf("bebe", "nanas", "lullaby", "infantil", "kids", "ninos", "dormir", "sueno", "sleep", "relax"),
         listOf("navidad", "navideno", "navidena", "navidenos", "villancicos", "villancico", "christmas", "xmas", "nochebuena") to
             listOf("navidad", "christmas", "navideno", "holiday", "villancicos", "fiestas"),
         listOf("halloween", "terror", "spooky", "brujas") to listOf("halloween", "spooky", "terror"),
-        listOf("boda", "casamiento", "matrimonio", "wedding", "quinceanera", "quinceaneras", "quince", "cumpleanos", "birthday", "graduacion") to
+        listOf("boda", "casamiento", "matrimonio", "wedding", "quinceanera", "quinceaneras", "cumpleanos", "birthday", "graduacion") to
             listOf("boda", "wedding", "fiesta", "party", "cumpleanos", "birthday", "celebracion"),
         listOf("feliz", "alegre", "contento", "buena vibra", "buenas vibras", "positivo", "alegria", "sentirse bien", "feel good",
-            "happy", "motivacion", "motivar", "motivacional", "animarme", "animo", "energia", "energetico", "despertar") to
+            "happy", "motivacion", "motivar", "motivacional", "animarme", "energia", "energetico") to
             listOf("sentirse bien", "feel good", "happy", "alegre", "feliz", "positivo", "energia", "energy", "motivacion", "motivation"),
         listOf("gaming", "jugar") to listOf("gaming", "focus", "concentracion", "electronica", "edm"),
         listOf("madrugada", "nocturno", "trasnochar", "medianoche") to
