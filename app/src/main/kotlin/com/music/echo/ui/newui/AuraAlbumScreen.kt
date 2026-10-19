@@ -897,6 +897,9 @@ private fun AuraAlbumHeader(
     startAligned: Boolean = false,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
+    // The unified download button (owner 2026-10-19): one entry for offline / MP3 / video, and for a whole album
+    // it asks «todas o elegir» before anything is downloaded. The ⋮ menu keeps every download action it had.
+    var showDownloadSheet by remember { mutableStateOf(false) }
 
     val albumShuffleContextId = ShuffleContexts.album(album.album.id)
     val albumPlayedForStart = rememberPlayedShuffleSet(albumShuffleContextId)
@@ -1067,6 +1070,14 @@ private fun AuraAlbumHeader(
                 modifier = Modifier.tvFocusable(isTvOrCar, AuraShapes.Pill, scaleFocused = 1f),
             )
 
+            AuraDetailCircleButton(
+                icon = if (downloadState == Download.STATE_COMPLETED) AuraIcons.Downloaded else AuraIcons.Download,
+                contentDescription = stringResource(R.string.download_or_export_title),
+                tint = if (downloadState == Download.STATE_COMPLETED) AuraPalette.Teal else AuraPalette.OnGround,
+                onClick = { showDownloadSheet = true },
+                modifier = Modifier.tvFocusable(isTvOrCar, AuraShapes.Pill, scaleFocused = 1f),
+            )
+
             AuraDetailActionButton(
                 icon = if (isPlaying && isCurrentAlbum) AuraIcons.Pause else AuraIcons.Play,
                 label = if (isPlaying && isCurrentAlbum) {
@@ -1147,6 +1158,16 @@ private fun AuraAlbumHeader(
         }
 
         Spacer(Modifier.height(6.dp))
+    }
+
+    if (showDownloadSheet) {
+        val downloadItems = remember(album.songs) { album.songs.map { it.toAuraDownloadItem() } }
+        AuraDownloadSheet(
+            songs = downloadItems,
+            title = album.album.title,
+            offlineState = downloadState,
+            onDismiss = { showDownloadSheet = false },
+        )
     }
 }
 

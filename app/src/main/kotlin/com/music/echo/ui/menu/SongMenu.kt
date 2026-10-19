@@ -100,8 +100,7 @@ import iad1tya.echo.music.ui.component.NewAction
 import iad1tya.echo.music.ui.component.NewActionGrid
 import iad1tya.echo.music.ui.component.SongListItem
 import iad1tya.echo.music.ui.component.TextFieldDialog
-import iad1tya.echo.music.ui.utils.ExportFormat
-import iad1tya.echo.music.ui.utils.ExportFormatChooserDialog
+import iad1tya.echo.music.ui.newui.toAuraDownloadItem
 import iad1tya.echo.music.ui.utils.ShowMediaInfo
 import iad1tya.echo.music.utils.deleteExportedVideo
 import iad1tya.echo.music.utils.isLocalMediaId
@@ -313,26 +312,14 @@ fun SongMenu(
     val ringtoneViewModel = iad1tya.echo.music.LocalRingtoneViewModel.current
 
     if (showExportFormatDialog) {
-        ExportFormatChooserDialog(
-            songId = song.id,
-            hasMusicVideo = song.song.isVideo,
+        // The unified download sheet (owner 2026-10-19): the «Exportar» row now offers every output of a song in one
+        // place — sin conexión · MP3 · vídeo — through the same sheet as the album / list / player buttons.
+        iad1tya.echo.music.ui.newui.AuraDownloadSheet(
+            songs = listOf(song.toAuraDownloadItem()),
+            title = song.song.title,
+            offlineState = download?.state ?: Download.STATE_STOPPED,
             onDismiss = { showExportFormatDialog = false },
-            onChoose = { format ->
-                if (format == ExportFormat.Offline) return@ExportFormatChooserDialog
-                ensureMp3Folder { directoryUri ->
-                    onDismiss()
-                    AudioExportService.start(
-                        context = context,
-                        songId = song.id,
-                        songTitle = song.song.title,
-                        songArtist = song.artists.joinToString(", ") { it.name },
-                        songAlbum = song.song.albumName ?: "",
-                        artworkUrl = song.song.thumbnailUrl ?: "",
-                        targetDirectoryUri = directoryUri,
-                        exportAsVideo = format == ExportFormat.Video,
-                    )
-                }
-            },
+            onDone = onDismiss,
         )
     }
 

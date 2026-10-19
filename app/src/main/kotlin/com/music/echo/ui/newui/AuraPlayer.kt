@@ -144,7 +144,6 @@ import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.EnableLyricsThumbnailPlayPauseKey
-import iad1tya.echo.music.constants.ExportDirectoryUriKey
 import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.ExportingSongIdsKey
@@ -194,13 +193,10 @@ import iad1tya.echo.music.ui.player.rememberSwipeLyricsEnabled
 import iad1tya.echo.music.ui.player.swipeLyricsGestureArmed
 import iad1tya.echo.music.ui.player.swipeLyricsToChangeSong
 import iad1tya.echo.music.ui.screens.equalizer.axion.AxionEqViewModel
-import iad1tya.echo.music.ui.utils.ExportFormat
-import iad1tya.echo.music.ui.utils.ExportFormatChooserDialog
 import iad1tya.echo.music.ui.utils.ShowMediaInfo
 import iad1tya.echo.music.ui.utils.ShowOffsetDialog
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.rememberIsWideShell
-import iad1tya.echo.music.ui.utils.rememberMp3ExportFolderAccess
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceTier
@@ -770,11 +766,6 @@ private fun AuraPlayerShape(
     var showChoosePlaylistDialog by rememberSaveable { mutableStateOf(false) }
     var showSelectArtistDialog by rememberSaveable { mutableStateOf(false) }
     var showDownloadOrExportDialog by rememberSaveable { mutableStateOf(false) }
-    val (exportDirectoryUri, onExportDirectoryUriChange) = rememberPreference(ExportDirectoryUriKey, "")
-    val ensureMp3Folder = rememberMp3ExportFolderAccess(
-        exportDirectoryUri = exportDirectoryUri,
-        onExportDirectoryUriChange = onExportDirectoryUriChange,
-    )
     val downloadChooserMeta = mediaMetadata
     // Row 348 (C2 audit, UI_INVENTORY §20.1): «Exportar como MP3» OFF means the download button just
     // downloads — the classic player honoured it, the Aura chooser opened regardless.
@@ -792,40 +783,14 @@ private fun AuraPlayerShape(
         }
     }
     if (showDownloadOrExportDialog && downloadChooserMeta != null) {
-        ExportFormatChooserDialog(
-            songId = downloadChooserMeta.id,
-            includeOfflineDownload = true,
-            hasMusicVideo = downloadChooserMeta.isVideoSong ||
-                !downloadChooserMeta.podcastVideoUrl.isNullOrEmpty(),
+        // The unified download sheet (owner 2026-10-19): the same three outputs as the chooser it replaces (sin conexión ·
+        // MP3 · vídeo), now shared with the album / list buttons; a single song skips the «todas o elegir» step.
+        AuraDownloadSheet(
+            songs = listOf(downloadChooserMeta.toAuraDownloadItem()),
+            title = downloadChooserMeta.title,
+            offlineState = Download.STATE_STOPPED,
             onDismiss = { showDownloadOrExportDialog = false },
-            onChoose = { format ->
-                when (format) {
-                    ExportFormat.Offline -> {
-                        database.transaction { insert(downloadChooserMeta) }
-                        enqueueSongDownloads(
-                            context,
-                            downloadChooserMeta.id,
-                            downloadChooserMeta.title,
-                            isVideoSong = downloadChooserMeta.isVideoSong,
-                            deferWhileLiveVideo = videoMode,
-                        )
-                    }
-                    ExportFormat.Mp3, ExportFormat.Video -> {
-                        ensureMp3Folder { directoryUri ->
-                            AudioExportService.start(
-                                context = context,
-                                songId = downloadChooserMeta.id,
-                                songTitle = downloadChooserMeta.title,
-                                songArtist = downloadChooserMeta.artists.joinToString(", ") { it.name },
-                                songAlbum = downloadChooserMeta.album?.title ?: "",
-                                artworkUrl = downloadChooserMeta.thumbnailUrl ?: "",
-                                targetDirectoryUri = directoryUri,
-                                exportAsVideo = format == ExportFormat.Video,
-                            )
-                        }
-                    }
-                }
-            },
+            deferOfflineWhileLiveVideo = videoMode,
         )
     }
     if (showSelectArtistDialog) {

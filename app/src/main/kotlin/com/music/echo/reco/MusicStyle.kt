@@ -48,6 +48,20 @@ object MusicStyle {
          * filler when nothing surer exists — instead of OFF, which silently emptied or replaced the request.
          */
         val related: List<String> = emptyList(),
+        /**
+         * Request-only SYNONYMS ("alternativo" for rock, "tecno" for techno, "musica clasica" for classical): a person
+         * asking for music says them, but they are too loose to judge a TRACK by (a title that says "Soul" is not
+         * proof of anything), so [fromText] — the smart queue and the Last.fm tags — never reads them. Only
+         * [stylesIn] (a request) does.
+         */
+        val requestWords: List<String> = emptyList(),
+        /**
+         * Request-only SUB-STYLE names that stand alone ("tecnocumbia", "grime", "milonga"): the request is
+         * recognised as the parent style (so the per-song check and the searches work), but the name itself is NOT
+         * stripped from the request, so it still has to be named by the list or category that answers it — the same
+         * way "sonidera" in "cumbia sonidera" does.
+         */
+        val variants: List<String> = emptyList(),
     )
 
     const val FAMILY_TROPICAL = "tropical"
@@ -66,6 +80,7 @@ object MusicStyle {
     const val FAMILY_BRAZIL = "brasil"
     const val FAMILY_AFRO = "afro"
     const val FAMILY_CHILL = "chill"
+    const val FAMILY_WORLD = "mundo"
 
     /** Alabanza/adoración: also what a style word means in "Merengue de Adoración", so a concrete style wins. */
     const val WORSHIP = "worship"
@@ -73,7 +88,7 @@ object MusicStyle {
     /** Generic styles that give way to a concrete one named in the same text ("Pop Latino Cumbia" = cumbia). */
     private val YIELDING = setOf(WORSHIP, "pop")
 
-    val ALL: List<Style> = listOf(
+    private val BASE: List<Style> = listOf(
         // ── Tropical ────────────────────────────────────────────────────────────────────────────────
         Style("cumbia", FAMILY_TROPICAL, listOf("cumbia", "cumbias", "cumbion", "cumbiero", "cumbiera", "cumbieros",
             "sonidera", "sonidero", "cumbia sonidera", "cumbia nortena", "cumbia villera", "cumbia andina", "chicha"),
@@ -201,6 +216,118 @@ object MusicStyle {
         // ── África ──────────────────────────────────────────────────────────────────────────────────
         Style("afrobeats", FAMILY_AFRO, listOf("afrobeats", "afrobeat", "afropop", "afro pop", "amapiano", "afro gospel"), "afrobeats"),
     )
+    /**
+     * Pedir música (dueño, 2026-10-19): *«cuando pido algunos géneros no me pone lo que pido; necesito que identifiques
+     * todos los géneros que existen»*. Géneros que existen y la app aún no entendía, en dos formas:
+     *  · [NEW_STYLES] — géneros que no tenían estilo propio (champeta, kizomba, fado, bollywood, lounge…). Sus
+     *    nombres sin ambigüedad cuentan también como palabras de una canción; los sueltos y dudosos, solo en una
+     *    petición ([Style.requestWords]).
+     *  · [REQUEST_EXTRAS] — sinónimos y subgéneros de estilos que ya existían (alternativo → rock, tecnocumbia →
+     *    cumbia, "música clásica" → clásica…). Solo los lee una petición: la cola inteligente y las etiquetas de
+     *    Last.fm siguen viendo exactamente el vocabulario de antes.
+     */
+    private val NEW_STYLES: List<Style> = listOf(
+        // ── Tropical / regional ─────────────────────────────────────────────────────────────────────
+        Style("champeta", FAMILY_TROPICAL, listOf("champeta", "champeta criolla"), "champeta", latinNative = true, feminine = true),
+        Style("cuarteto", FAMILY_TROPICAL, listOf("cuarteto cordobes", "cuarteto cordoves"), "cuarteto cordobés",
+            latinNative = true, requestWords = listOf("cuarteto")),
+        Style("polka", FAMILY_REGIONAL, listOf("polka", "polkas"), "polka", latinNative = true, feminine = true),
+        Style("calypso", FAMILY_REGGAE, listOf("calypso", "soca", "soca music", "steelpan", "steel drum", "steel drums", "mento"),
+            "soca calypso", related = listOf("reggae", "dancehall")),
+        // ── África ──────────────────────────────────────────────────────────────────────────────────
+        Style("kizomba", FAMILY_AFRO, listOf("kizomba", "semba", "tarraxinha"), "kizomba", related = listOf("kuduro", "kompa")),
+        Style("kuduro", FAMILY_AFRO, listOf("kuduro"), "kuduro", related = listOf("kizomba", "afrobeats")),
+        Style("highlife", FAMILY_AFRO, listOf("highlife", "high life", "juju music", "fuji music"), "highlife"),
+        Style("soukous", FAMILY_AFRO, listOf("soukous", "ndombolo", "rumba congolesa", "congolese rumba", "lingala",
+            "coupe decale", "makossa", "mbalax"), "soukous"),
+        Style("gqom", FAMILY_AFRO, listOf("gqom", "kwaito"), "gqom", related = listOf("afrobeats", "house")),
+        // ── Mundo ───────────────────────────────────────────────────────────────────────────────────
+        Style("arabe", FAMILY_WORLD, listOf("musica arabe", "arabic music", "arabic pop", "arab pop", "pop arabe", "rai music",
+            "chaabi", "gnawa", "khaleeji", "dabke"), "arabic pop", requestWords = listOf("rai")),
+        Style("india", FAMILY_WORLD, listOf("bollywood", "bhangra", "punjabi", "hindi songs", "musica hindi", "indian pop",
+            "musica india", "musica de la india", "filmi", "ghazal", "qawwali"), "bollywood"),
+        Style("celtic", FAMILY_WORLD, listOf("celtic", "musica celta", "irish folk", "irish music", "gaelic"), "celtic music"),
+        Style("fado", FAMILY_IBERIAN, listOf("fado"), "fado"),
+        Style("cpop", FAMILY_POP, listOf("mandopop", "cantopop", "c pop", "cpop", "chinese pop", "musica china"), "mandopop"),
+        // Same family as iTunes "Folk" ([fromGenre] files it under IBERIAN), so an artist labelled "Folk" is not judged OFF.
+        Style("folk", FAMILY_IBERIAN, emptyList(), "folk", requestWords = listOf("folk", "folk rock", "freak folk", "neofolk",
+            "musica folk", "folk music", "singer songwriter", "cantautor", "cantautora", "cantautores")),
+        // ── Electrónica / baile / R&B ───────────────────────────────────────────────────────────────
+        Style("eurodance", FAMILY_ELECTRONIC, listOf("eurodance", "eurobeat", "euro dance", "europop", "euro pop", "italo dance"),
+            "eurodance", related = listOf("edm")),
+        Style("disco", FAMILY_RNB, listOf("italo disco", "nu disco", "disco music", "eurodisco"), "disco",
+            requestWords = listOf("disco", "musica disco", "studio 54"), related = listOf("funk", "eurodance")),
+        Style("doowop", FAMILY_RNB, listOf("doo wop", "doowop"), "doo wop"),
+        Style("lounge", FAMILY_CHILL, listOf("lounge", "easy listening", "musica lounge", "musica de ascensor"), "lounge music"),
+    )
+
+    private val REQUEST_EXTRAS: Map<String, Pair<List<String>, List<String>>> = mapOf(
+        // id to (requestWords, variants)
+        "cumbia" to (listOf("cumbias") to listOf("tecnocumbia", "villera")),
+        "salsa" to (emptyList<String>() to listOf("choke", "salsa gorda")),
+        "son" to (listOf("boogaloo", "charanga", "guaracha", "rumba cubana", "guajira", "descarga", "pachanga", "danzon",
+            "changui") to emptyList()),
+        "kompa" to (listOf("compas", "konpa direk", "zouk love", "cadence") to emptyList()),
+        "plena" to (listOf("bomba") to emptyList()),
+        "merengue" to (emptyList<String>() to listOf("mangulina")),
+        "reggaeton" to (emptyList<String>() to listOf("neoperreo", "rkt", "cachengue")),
+        "rap" to (emptyList<String>() to listOf("grime", "gangsta", "freestyle")),
+        "banda" to (emptyList<String>() to listOf("tamborazo")),
+        "huapango" to (listOf("son jarocho", "jarocho", "son huasteco", "huasteco") to emptyList()),
+        "rock" to (listOf("rockero", "rockera", "rockeros", "rockeras", "alternativo", "alternativa", "alternative") to
+            listOf("britpop", "madchester", "rockabilly", "psychobilly")),
+        "metal" to (emptyList<String>() to listOf("djent", "sludge", "grindcore", "mathcore", "nwobhm", "thrash", "doom")),
+        "punk" to (listOf("hardcore", "anarcopunk") to listOf("oi", "crust")),
+        "emo" to (listOf("post hardcore", "posthardcore") to emptyList()),
+        "postpunk" to (listOf("gotico", "gotica", "goth", "gothic", "new romantic", "industrial", "ebm") to emptyList()),
+        "prog" to (listOf("post rock", "postrock") to emptyList()),
+        "pop" to (listOf("pop music", "musica pop", "pop comercial", "top 40", "top40") to
+            listOf("electropop", "electro pop", "bedroom pop", "art pop", "chamber pop", "bubblegum")),
+        "kpop" to (listOf("korean pop", "musica coreana", "musica de corea", "k ballad", "korean ballad", "k rnb", "k hip hop") to
+            emptyList()),
+        "jpop" to (listOf("musica japonesa", "musica de japon", "japanese pop", "j rock", "jrock", "visual kei", "anime",
+            "anime songs", "vocaloid", "kayokyoku") to listOf("enka")),
+        "infantil" to (listOf("para ninos", "para bebes", "musica para ninos", "canciones para ninos") to emptyList()),
+        "house" to (listOf("house", "electro house") to emptyList()),
+        "techno" to (listOf("tecno") to emptyList()),
+        "dnb" to (listOf("drum bass") to emptyList()),
+        "edm" to (listOf("electronico", "electronicos", "musica electronica", "breakbeat", "big beat", "idm", "glitch",
+            "bass music") to listOf("moombahton", "future bass")),
+        "ambient" to (listOf("ambiental", "musica ambiental", "drone") to emptyList()),
+        "synthwave" to (listOf("chillwave") to emptyList()),
+        "hardstyle" to (listOf("hardcore techno", "frenchcore", "uptempo hardcore") to emptyList()),
+        "rnb" to (listOf("soul", "rhythm and blues", "new jack swing", "quiet storm") to emptyList()),
+        "funk" to (listOf("g funk", "p funk", "funk rock", "funk soul") to emptyList()),
+        "jazz" to (emptyList<String>() to listOf("hard bop", "manouche")),
+        "swing" to (listOf("ragtime", "charleston", "lindy hop") to emptyList()),
+        "country" to (listOf("country", "musica country", "honky tonk", "western", "outlaw", "americana", "nashville",
+            "texas country", "red dirt") to emptyList()),
+        "reggae" to (listOf("rasta", "rastafari") to listOf("dub")),
+        "dancehall" to (listOf("ragga", "raggamuffin", "reggae dancehall") to emptyList()),
+        "gospel" to (listOf("spirituals", "negro spiritual") to emptyList()),
+        "classical" to (listOf("musica clasica", "classical music", "barroco", "baroque", "gregoriano", "canto gregoriano",
+            "gregorian chant", "romanticismo", "musica de camara", "chamber music", "musica sinfonica", "orquesta sinfonica",
+            "piano clasico") to emptyList()),
+        "opera" to (listOf("zarzuela", "arias", "musica lirica") to emptyList()),
+        "soundtrack" to (listOf("bso", "musica de peliculas", "musica de series", "musica de cine", "musica de videojuegos",
+            "video game music", "game music", "film music", "movie soundtrack") to emptyList()),
+        "flamenco" to (listOf("flamenca", "cante jondo", "palos flamencos") to listOf("copla")),
+        "tango" to (emptyList<String>() to listOf("milonga")),
+        "folklore" to (listOf("folclor", "folclore", "folclorica", "musica folclorica", "musica andina", "andina", "andino",
+            "quena", "charango", "musica tradicional") to listOf("chamame", "candombe", "murga", "bambuco", "pasillo",
+            "currulao", "mapale", "bullerengue", "marinera", "festejo", "tinku", "morenada", "tonada", "gaita zuliana")),
+        "mpb" to (listOf("tropicalia") to emptyList()),
+        "samba" to (listOf("axe", "choro", "chorinho", "batucada", "samba enredo", "samba rock") to emptyList()),
+        "sertanejo" to (listOf("sertaneja", "modao", "musica sertaneja") to emptyList()),
+        "forro" to (listOf("xote", "baiao", "brega") to emptyList()),
+        "funkbr" to (listOf("funk ostentacao", "brega funk", "funk paulista", "favela funk", "proibidao") to emptyList()),
+        "afrobeats" to (listOf("afro", "naija", "musica africana", "african music", "musica de africa") to emptyList()),
+    )
+
+    val ALL: List<Style> = BASE.map { s ->
+        REQUEST_EXTRAS[s.id]?.let { (req, vars) -> s.copy(requestWords = s.requestWords + req, variants = s.variants + vars) } ?: s
+    } + NEW_STYLES
+
 
     private val byId: Map<String, Style> = ALL.associateBy { it.id }
 
@@ -228,6 +355,11 @@ object MusicStyle {
         "synthwave" to "Synthwave", "garage" to "UK garage", "hardstyle" to "Hardstyle", "swing" to "Swing / Big band",
         "motown" to "Motown / Soul", "opera" to "Ópera", "soundtrack" to "Bandas sonoras", "trova" to "Trova",
         "mpb" to "MPB",
+        "champeta" to "Champeta", "cuarteto" to "Cuarteto", "polka" to "Polka", "calypso" to "Soca / Calypso",
+        "kizomba" to "Kizomba", "kuduro" to "Kuduro", "highlife" to "Highlife / Juju", "soukous" to "Soukous / Rumba congoleña",
+        "gqom" to "Gqom / Kwaito", "arabe" to "Árabe / Raï", "india" to "India / Bollywood", "celtic" to "Celta",
+        "fado" to "Fado", "cpop" to "C-pop / Mandopop", "folk" to "Folk", "eurodance" to "Eurodance", "disco" to "Disco",
+        "doowop" to "Doo-wop", "lounge" to "Lounge",
     )
 
     /** Row 434: the sub-styles [id] contains ("corridos" → "tumbados"). Empty for a style that has none. */
@@ -240,6 +372,34 @@ object MusicStyle {
     private val phrases: List<Pair<String, String>> = ALL
         .flatMap { s -> s.words.map { it to s.id } }
         .sortedByDescending { it.first.length }
+
+    /** What a REQUEST understands: the track-level words plus the request-only synonyms and sub-style names. */
+    private val requestPhrases: List<Pair<String, String>> = ALL
+        .flatMap { s -> (s.words + s.requestWords + s.variants).map { it to s.id } }
+        .distinctBy { it.first }
+        .sortedByDescending { it.first.length }
+
+    /**
+     * The phrases of a request that name the style ITSELF, as opposed to a sub-style of it: a phrase that contains
+     * another phrase of the same style as whole words ("cumbia sonidera" ⊃ "cumbia", "deep house" ⊃ "house") is a
+     * sub-style and is not in this list, and neither are the stand-alone [Style.variants] ("tecnocumbia"). They are what
+     * [withoutStyles] removes from a request, so the sub-style's own words stay behind to be proven by the list that
+     * answers it.
+     */
+    private val basePhrases: List<Pair<String, String>> by lazy {
+        ALL.flatMap { s ->
+            val all = (s.words + s.requestWords).distinct()
+            all.filter { p -> all.none { q -> q != p && wholeWordsIn(q, p) } }.map { it to s.id }
+        }.distinctBy { it.first }.sortedByDescending { it.first.length }
+    }
+
+    private fun wholeWordsIn(small: String, big: String): Boolean = " $big ".contains(" $small ")
+
+    /**
+     * Single words that are also well-known artist or song names ("Jungle", "Swing", "OST"): when a request is NOTHING
+     * but one of them, it is not stripped as a genre, so the artist/song lookup still gets its chance.
+     */
+    private val AMBIGUOUS_SINGLE = setOf("jungle", "swing", "ost", "riddim", "outrun", "rai", "mento", "oi", "choke", "mambo", "aria")
 
     fun style(id: String?): Style? = id?.let { byId[it] }
 
@@ -279,7 +439,7 @@ object MusicStyle {
         if (text.isNullOrBlank()) return emptySet()
         var padded = " ${fold(text)} "
         val found = LinkedHashSet<String>()
-        for ((phrase, id) in phrases) {
+        for ((phrase, id) in requestPhrases) {
             val needle = " $phrase "
             if (padded.contains(needle)) {
                 found.add(id)
@@ -288,6 +448,54 @@ object MusicStyle {
         }
         val concrete = found.filter { it !in YIELDING }.toSet()
         return concrete.ifEmpty { found }
+    }
+
+    /**
+     * Every (phrase, style) a request names, longest phrase first, each phrase consumed once — [stylesIn] with the
+     * phrases kept, so a caller can tell WHICH words named the style. The same generic-yields-to-concrete rule as
+     * [stylesIn] applies ("Pop Latino Cumbia" = cumbia only).
+     */
+    fun phrasesIn(text: String?): List<Pair<String, String>> {
+        if (text.isNullOrBlank()) return emptyList()
+        var padded = " ${fold(text)} "
+        val found = ArrayList<Pair<String, String>>()
+        for ((phrase, id) in requestPhrases) {
+            val needle = " $phrase "
+            if (padded.contains(needle)) {
+                found += phrase to id
+                padded = padded.replace(needle, " | ")
+            }
+        }
+        val concrete = found.filter { it.second !in YIELDING }
+        return concrete.ifEmpty { found }
+    }
+
+    /**
+     * [text] with the names of the styles themselves taken out (replaced by a space) — see [basePhrases]. Sub-style words
+     * ("sonidera", "doom") and every other word stay. A request that is exactly one [AMBIGUOUS_SINGLE] word is returned
+     * untouched. The text comes back folded (lowercase, no accents, single spaces).
+     */
+    fun withoutStyles(text: String?): String {
+        val folded = fold(text.orEmpty())
+        if (folded in AMBIGUOUS_SINGLE) return folded
+        var padded = " $folded "
+        for ((phrase, _) in basePhrases) {
+            val needle = " $phrase "
+            while (padded.contains(needle)) padded = padded.replace(needle, " ")
+        }
+        return padded.trim().replace(Regex("\\s+"), " ")
+    }
+
+    /** True when [text] names at least one style a request understands ([stylesIn]). */
+    fun namesAStyle(text: String?): Boolean = stylesIn(text).isNotEmpty()
+
+    /**
+     * The words that make up the NAME of [id] ("death metal" → metal, "tecnocumbia" → cumbia) for proving a list title:
+     * every phrase of the style, request-only ones included. Folded.
+     */
+    fun namesOf(id: String): List<String> {
+        val s = style(id) ?: return emptyList()
+        return (s.words + s.requestWords + s.variants).distinct()
     }
 
     /** What an iTunes primary genre says: a concrete style, or only its family, or nothing. */

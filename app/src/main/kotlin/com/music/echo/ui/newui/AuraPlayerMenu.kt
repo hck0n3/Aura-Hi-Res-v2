@@ -58,7 +58,6 @@ import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.LocalRingtoneViewModel
 import iad1tya.echo.music.R
-import iad1tya.echo.music.constants.ExportDirectoryUriKey
 import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.ExportingSongIdsKey
@@ -68,8 +67,6 @@ import iad1tya.echo.music.listentogether.RoomRole
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.navigateAsTab
-import iad1tya.echo.music.playback.AudioExportService
-import iad1tya.echo.music.playback.enqueueSongDownloads
 import iad1tya.echo.music.playback.removeSongDownloads
 import iad1tya.echo.music.ui.component.BottomSheetState
 import iad1tya.echo.music.ui.component.ListDialog
@@ -80,8 +77,6 @@ import iad1tya.echo.music.ui.menu.TempoPitchDialog
 import iad1tya.echo.music.echomusic.AudioDeviceBottomSheet
 import iad1tya.echo.music.ui.player.rememberHidePlayerVolume
 import iad1tya.echo.music.ui.player.showPlayerVolumeControl
-import iad1tya.echo.music.ui.utils.ExportFormat
-import iad1tya.echo.music.ui.utils.ExportFormatChooserDialog
 import iad1tya.echo.music.utils.shareSong
 import iad1tya.echo.music.utils.isLocalMediaId
 import iad1tya.echo.music.utils.needsOnlineBrowseResolution
@@ -161,15 +156,10 @@ fun AuraPlayerMenu(
         dbAlbumName = librarySong?.song?.albumName,
     )
 
-    val (exportDirectoryUri, onExportDirectoryUriChange) = rememberPreference(ExportDirectoryUriKey, "")
     val (exportingSongIds) = rememberPreference(ExportingSongIdsKey, "")
     val (enableExportAsMp3) = rememberPreference(iad1tya.echo.music.constants.EnableExportAsMp3Key, true)
     val (exportedSongIds) = rememberPreference(ExportedSongIdsKey, "")
     val (exportedVideoIds) = rememberPreference(ExportedVideoIdsKey, "")
-    val ensureMp3Folder = iad1tya.echo.music.ui.utils.rememberMp3ExportFolderAccess(
-        exportDirectoryUri = exportDirectoryUri,
-        onExportDirectoryUriChange = onExportDirectoryUriChange,
-    )
     val isExporting = remember(exportingSongIds, mediaMetadata.id) {
         exportingSongIds.split(",").contains(mediaMetadata.id)
     }
@@ -226,45 +216,15 @@ fun AuraPlayerMenu(
     }
 
     if (showExportFormatDialog) {
-        ExportFormatChooserDialog(
-            songId = mediaMetadata.id,
-            // Row 348: opened only by the «Exportar» row now — downloading lives on the player's own button.
-            includeOfflineDownload = false,
-            hasMusicVideo = mediaMetadata.isVideoSong ||
-                !mediaMetadata.podcastVideoUrl.isNullOrEmpty(),
+        // The unified download sheet (owner 2026-10-19): the «Exportar» row now opens the same three outputs as the
+        // player's download button (sin conexión · MP3 · vídeo) instead of an export-only chooser.
+        AuraDownloadSheet(
+            songs = listOf(mediaMetadata.toAuraDownloadItem()),
+            title = mediaMetadata.title,
+            offlineState = download?.state ?: Download.STATE_STOPPED,
             onDismiss = { showExportFormatDialog = false },
-            onChoose = { format ->
-                when (format) {
-                    ExportFormat.Offline -> {
-                        database.transaction { insert(mediaMetadata) }
-                        val watching =
-                            videoMode && playerConnection.mediaMetadata.value?.id == mediaMetadata.id
-                        enqueueSongDownloads(
-                            context,
-                            mediaMetadata.id,
-                            mediaMetadata.title,
-                            isVideoSong = mediaMetadata.isVideoSong,
-                            deferWhileLiveVideo = watching,
-                        )
-                        onDismiss()
-                    }
-                    ExportFormat.Mp3, ExportFormat.Video -> {
-                        ensureMp3Folder { directoryUri ->
-                            onDismiss()
-                            AudioExportService.start(
-                                context = context,
-                                songId = mediaMetadata.id,
-                                songTitle = mediaMetadata.title,
-                                songArtist = artists.joinToString(", ") { it.name },
-                                songAlbum = mediaMetadata.album?.title ?: "",
-                                artworkUrl = mediaMetadata.thumbnailUrl ?: "",
-                                targetDirectoryUri = directoryUri,
-                                exportAsVideo = format == ExportFormat.Video,
-                            )
-                        }
-                    }
-                }
-            },
+            onDone = onDismiss,
+            deferOfflineWhileLiveVideo = videoMode && playerConnection.mediaMetadata.value?.id == mediaMetadata.id,
         )
     }
 

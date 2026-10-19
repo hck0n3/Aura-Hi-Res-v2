@@ -1367,6 +1367,18 @@
         <item quantity="other">Exporting %1$d songs to MP3…</item>
     </plurals>
     <string name="export_batch_nothing">There are no songs to export</string>
+    <string name="download_sheet_all">All %1$d</string>
+    <string name="download_sheet_all_desc">Everything at once, no more questions</string>
+    <string name="download_sheet_pick">Choose songs…</string>
+    <string name="download_sheet_pick_desc">Tick the ones you want</string>
+    <string name="download_sheet_select_all">Select all</string>
+    <string name="download_sheet_start">Start (%1$d)</string>
+    <string name="download_sheet_back">Back</string>
+    <string name="download_sheet_video_count">Only the %1$d that have a music video</string>
+    <string name="download_sheet_remove">Remove offline copy</string>
+    <string name="download_sheet_remove_desc">Free the space of the downloaded songs</string>
+    <string name="download_sheet_remove_confirm">The downloaded copy of %1$d song(s) will be removed from this device.</string>
+    <string name="download_sheet_cancel_hint">Tap to cancel the download</string>
     <string name="export_notification_batch_title">Exporting %1$d of %2$d</string>
     <plurals name="export_batch_finished">
         <item quantity="one">%1$d song exported</item>

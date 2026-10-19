@@ -69,8 +69,7 @@ import iad1tya.echo.music.constants.ListThumbnailSize
 import iad1tya.echo.music.playback.AudioExportService
 import iad1tya.echo.music.playback.enqueueSongDownloads
 import iad1tya.echo.music.playback.removeSongDownloads
-import iad1tya.echo.music.ui.utils.ExportFormat
-import iad1tya.echo.music.ui.utils.ExportFormatChooserDialog
+import iad1tya.echo.music.ui.newui.toAuraDownloadItem
 import iad1tya.echo.music.constants.ThumbnailCornerRadius
 import iad1tya.echo.music.db.entities.SpeedDialItem
 import iad1tya.echo.music.db.entities.SongEntity
@@ -172,26 +171,14 @@ fun YouTubeSongMenu(
     }  
 
     if (showExportFormatDialog) {
-        ExportFormatChooserDialog(
-            songId = song.id,
-            hasMusicVideo = song.isVideoSong,
+        // The unified download sheet (owner 2026-10-19): the «Exportar» row now offers every output of a song in one
+        // place — sin conexión · MP3 · vídeo. The metadata goes along so an offline copy gets its library row.
+        iad1tya.echo.music.ui.newui.AuraDownloadSheet(
+            songs = listOf(song.toAuraDownloadItem().copy(metadata = song.toMediaMetadata())),
+            title = song.title,
+            offlineState = download?.state ?: Download.STATE_STOPPED,
             onDismiss = { showExportFormatDialog = false },
-            onChoose = { format ->
-                if (format == ExportFormat.Offline) return@ExportFormatChooserDialog
-                ensureMp3Folder { directoryUri ->
-                    onDismiss()
-                    AudioExportService.start(
-                        context = context,
-                        songId = song.id,
-                        songTitle = song.title,
-                        songArtist = artists.joinToString(", ") { it.name },
-                        songAlbum = song.album?.name ?: "",
-                        artworkUrl = song.thumbnail,
-                        targetDirectoryUri = directoryUri,
-                        exportAsVideo = format == ExportFormat.Video,
-                    )
-                }
-            },
+            onDone = onDismiss,
         )
     }
 

@@ -656,6 +656,7 @@ fun AuraLocalPlaylistScreen(
                                 snackbarHostState = snackbarHostState,
                                 onSearch = { isSearching = true },
                                 listState = lazyListState,
+                                downloadState = downloadState,
                                 onMenu = {
                                     menuState.show {
                                         AuraLocalPlaylistMenuHost(
@@ -1121,9 +1122,12 @@ private fun AuraLocalPlaylistHeader(
     onMenu: () -> Unit,
     listState: LazyListState,
     modifier: Modifier = Modifier,
+    downloadState: Int = Download.STATE_STOPPED,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val isTvOrCar = rememberIsTvOrCar()
+    // The unified download button (owner 2026-10-19): offline / MP3 / video in one sheet that asks «todas o elegir».
+    var showDownloadSheet by remember { mutableStateOf(false) }
     val editable = playlist.playlist.isEditable
     val coverEditor = rememberPlaylistCoverEditor(playlist, snackbarHostState)
 
@@ -1305,6 +1309,13 @@ private fun AuraLocalPlaylistHeader(
                 modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
             )
             AuraHeaderCircleButton(
+                icon = if (downloadState == Download.STATE_COMPLETED) AuraIcons.Downloaded else AuraIcons.Download,
+                contentDescription = stringResource(R.string.download_or_export_title),
+                onClick = { showDownloadSheet = true },
+                enabled = songs.isNotEmpty(),
+                modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
+            )
+            AuraHeaderCircleButton(
                 icon = AuraIcons.More,
                 contentDescription = stringResource(R.string.cd_playlist_more_options),
                 onClick = onMenu,
@@ -1372,6 +1383,16 @@ private fun AuraLocalPlaylistHeader(
                 info(false)
             }
         }
+    }
+
+    if (showDownloadSheet) {
+        val downloadItems = remember(songs) { songs.map { it.song.toAuraDownloadItem() } }
+        AuraDownloadSheet(
+            songs = downloadItems,
+            title = playlist.playlist.name,
+            offlineState = downloadState,
+            onDismiss = { showDownloadSheet = false },
+        )
     }
 }
 

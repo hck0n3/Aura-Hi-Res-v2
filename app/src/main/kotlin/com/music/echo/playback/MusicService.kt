@@ -2080,6 +2080,13 @@ class MusicService :
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        // The Cast handler OBJECT exists from the start; only its initialize() (GMS listeners) waits for the first real
+        // playback (initializeCast). It used to be created there, so everything that captured `castConnectionHandler` earlier
+        // — PlayerConnection.isEffectivelyPlaying at construction, the player/mini/queue composables with
+        // `remember(playerConnection)` — held null for good and never followed Cast (timeline and play state; registry row 449).
+        if (castConnectionHandler == null && dataStore.get(iad1tya.echo.music.constants.EnableGoogleCastKey, true)) {
+            castConnectionHandler = CastConnectionHandler(this, scope, this)
+        }
         // Fila 361 — "Pedir música" background fills arrive here, whatever screen is showing.
         musicRequestFillJob?.cancel()
         musicRequestFillJob = CoroutineScope(Dispatchers.Main + SupervisorJob()).launch {
@@ -10429,7 +10436,7 @@ class MusicService :
         castInitAttempted = true
         if (dataStore.get(iad1tya.echo.music.constants.EnableGoogleCastKey, true)) {
             try {
-                castConnectionHandler = CastConnectionHandler(this, scope, this)
+                if (castConnectionHandler == null) castConnectionHandler = CastConnectionHandler(this, scope, this)
                 castConnectionHandler?.initialize()
                 timber.log.Timber.d("Google Cast initialized")
             } catch (e: Exception) {

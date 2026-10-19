@@ -64,11 +64,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
+import com.music.innertube.YouTube
 import com.music.innertube.models.AlbumItem
 import com.music.innertube.models.ArtistItem
 import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.SongItem
 import com.music.innertube.models.WatchEndpoint
+import com.music.innertube.utils.completed
 import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
@@ -104,6 +106,7 @@ import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.aspectRatio
@@ -708,6 +711,8 @@ private fun AuraOnlinePlaylistHeader(
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val isTvOrCar = rememberIsTvOrCar()
+    var showDownloadSheet by remember { mutableStateOf(false) }
+    var sheetSongs by remember { mutableStateOf<List<SongItem>>(emptyList()) }
 
     val saved = dbPlaylist?.playlist?.bookmarkedAt != null
     val playingThisPlaylist = isPlaying && mediaMetadata?.album?.id == playlist.id
@@ -923,15 +928,39 @@ private fun AuraOnlinePlaylistHeader(
                     enabled = songs.isNotEmpty() || dbPlaylist != null,
                     modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
                 )
-                // 🔴 EL BOTÓN DE DESCARGA SE FUE AL MENÚ (punto 5 del dueño, 2026-09-17: *"eliminar el
-                // botón de descarga principal de la vista y mover esta función exclusivamente dentro del
-                // menú desplegable de los tres puntos"*).
-                //
-                // Nada se pierde: el menú ⋮ de esta pantalla YA tenía "Descargar" con su descripción
-                // (`YouTubePlaylistMenu`), y esa entrada es la que hace el mismo trabajo. Este círculo era
-                // un duplicado que ocupaba un sitio de la fila de acciones — la misma razón por la que en
-                // 2026-09-13 quitó Ajustes de la barra de abajo: *"no me gusta el que está en la barra,
-                // elíminalo y solo deja el de arriba"*.
+                // EL BOTÓN DE DESCARGA VUELVE, UNIFICADO (dueño, 2026-10-19: *«que el botón de descargar esté
+                // unificado… visible debajo de las portadas de los álbumes, playlists o singles»*). El 2026-09-17 el
+                // dueño lo quitó de aquí porque duplicaba el «Descargar» del menú ⋮; ahora es OTRA cosa: un solo botón
+                // que abre la hoja con las tres salidas (sin conexión · MP3 · vídeo) y, para una lista, pregunta
+                // «todas o elegir». El menú ⋮ conserva todo lo que tenía. Si la lista aún no cargó entera
+                // (`continuation`), se completa antes de ofrecerla, como hace el menú.
+                AuraHeaderCircleButton(
+                    icon = if (downloadState == Download.STATE_COMPLETED) AuraIcons.Downloaded else AuraIcons.Download,
+                    contentDescription = stringResource(R.string.download_or_export_title),
+                    onClick = {
+                        coroutineScope.launch {
+                            val all = if (continuation == null) {
+                                songs
+                            } else {
+                                withContext(Dispatchers.IO) {
+                                    YouTube.playlist(playlist.id).completed().getOrNull()?.songs.orEmpty()
+                                }.ifEmpty { songs }
+                            }
+                            if (all.isEmpty()) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.playlist_download_empty),
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                sheetSongs = all
+                                showDownloadSheet = true
+                            }
+                        }
+                    },
+                    enabled = songs.isNotEmpty(),
+                    modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
+                )
                 AuraHeaderCircleButton(
                     icon = AuraIcons.Share,
                     contentDescription = stringResource(R.string.share),
@@ -1068,5 +1097,15 @@ private fun AuraOnlinePlaylistHeader(
                 info()
             }
         }
+    }
+
+    if (showDownloadSheet) {
+        val downloadItems = remember(sheetSongs) { sheetSongs.map { it.toAuraDownloadItem() } }
+        AuraDownloadSheet(
+            songs = downloadItems,
+            title = playlist.title,
+            offlineState = downloadState,
+            onDismiss = { showDownloadSheet = false },
+        )
     }
 }

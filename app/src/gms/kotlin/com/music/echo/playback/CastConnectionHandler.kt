@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import timber.log.Timber
 import android.os.Handler
 import android.os.Looper
@@ -120,6 +121,16 @@ class CastConnectionHandler(
     // The user flipped Song/Video while a queue load was still settling: replay the decision once it is.
     private var reconcilePending: Boolean = false
     private var videoModeJob: Job? = null
+
+    // Did the TV ever PLAY the video item it was last given, when was it given, and where did it start? A video the
+    // receiver cannot fetch/decode never reaches PLAYING; it reports IDLE/ERROR or skips on to the next (audio) item,
+    // which the phone used to read as «the user skipped» and answered by leaving video mode (registry row 449).
+    private var videoItemPlayed: Boolean = false
+    private var videoLoadedAtMs: Long = 0L
+    private var videoLoadStartPosition: Long = 0L
+    private var videoFailureHandled: Boolean = false
+    // A skip the PHONE asked for (queueNext/queuePrev): not evidence that the video failed.
+    private var lastPhoneSkipAtMs: Long = 0L
     
     // Flag to prevent reverse sync when Cast triggers local player update
     var isSyncingFromCast: Boolean = false
@@ -151,10 +162,31 @@ class CastConnectionHandler(
                 _castIsBuffering.value = playerState == MediaStatus.PLAYER_STATE_BUFFERING || 
                                          playerState == MediaStatus.PLAYER_STATE_LOADING
                 _castDuration.value = client.streamDuration
+                // Event-driven position (play, pause, seek, new item): the bar reacts at once instead of waiting for the next tick.
+                _castPosition.value = client.approximateStreamPosition
+
+                if (playerState == MediaStatus.PLAYER_STATE_PLAYING && loadedCurrentAsVideo && rendition) {
+                    videoItemPlayed = true
+                }
+                // The TV could not play the video it was given: it goes IDLE with reason ERROR (and may then skip on).
+                if (mediaStatus != null &&
+                    playerState == MediaStatus.PLAYER_STATE_IDLE &&
+                    mediaStatus.idleReason == MediaStatus.IDLE_REASON_ERROR &&
+                    loadedCurrentAsVideo && !videoFailureHandled
+                ) {
+                    // Not gated on isReloadingQueue: a receiver that refuses the URL answers within a second, inside that window.
+                    // The status must name the very item we loaded as video (the previous queue's leftovers are other ids).
+                    val failedId = loadedCurrentMediaId
+                    val erroredId = mediaStatus.mediaInfo?.customData?.optString("mediaId")?.takeIf { it.isNotEmpty() }
+                    if (failedId != null && erroredId == failedId) {
+                        recoverFromFailedCastVideo(failedId, "idle-error", client.approximateStreamPosition.takeIf { it > 0 })
+                    }
+                }
                 
                 // Check if the current Cast item changed (user skipped on Cast widget)
                 val currentItemId = mediaStatus?.currentItemId ?: -1
-                if (currentItemId != -1 && currentItemId != lastCastItemId && lastCastItemId != -1 && !isReloadingQueue && mediaStatus != null) {
+                val advancedFromFailedVideo = mediaStatus != null && advancedFromUnplayedVideo(mediaStatus, currentItemId)
+                if (!advancedFromFailedVideo && currentItemId != -1 && currentItemId != lastCastItemId && lastCastItemId != -1 && !isReloadingQueue && mediaStatus != null) {
                     Timber.d("Cast item changed: $lastCastItemId -> $currentItemId")
                     handleCastItemChanged(mediaStatus)
                 }
@@ -181,6 +213,25 @@ class CastConnectionHandler(
     // Job for resetting sync flag
     private var syncResetJob: Job? = null
     
+    /**
+     * The receiver moved on to ANOTHER track from a video item that never played, and the phone did not ask for it: the
+     * video could not be fetched/decoded and the receiver skipped to the next (audio) item. That is NOT a user skip —
+     * answering it by following the receiver left video mode and dragged the app to a track nobody chose (registry row 449).
+     * Starts the recovery and returns true when that is what happened.
+     */
+    private fun advancedFromUnplayedVideo(mediaStatus: MediaStatus, currentItemId: Int): Boolean {
+        val loadedId = loadedCurrentMediaId ?: return false
+        if (!loadedCurrentAsVideo || videoItemPlayed || videoFailureHandled) return false
+        if (currentItemId == -1 || lastCastItemId == -1 || currentItemId == lastCastItemId) return false
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - videoLoadedAtMs > VIDEO_START_GRACE_MS || now - lastPhoneSkipAtMs < PHONE_SKIP_GRACE_MS) return false
+        val nowOn = mediaStatus.getQueueItemById(currentItemId)?.media?.customData?.optString("mediaId")
+            ?.takeIf { it.isNotEmpty() } ?: return false
+        if (nowOn == loadedId) return false
+        recoverFromFailedCastVideo(loadedId, "advanced-before-playing", videoLoadStartPosition)
+        return true
+    }
+
     /**
      * Handle when Cast changes to a different item (user pressed next/prev on Cast widget)
      * This syncs the local player - we don't reload the queue since the item is already loaded
@@ -468,6 +519,7 @@ class CastConnectionHandler(
             remoteMediaClient = null
             
             stopPositionUpdates()
+            closeRelay()
             
             // Pause local playback when disconnecting from Cast.
             // THREAD CONTRACT (registry row 195): this callback fires on a GMS executor thread —
@@ -640,27 +692,103 @@ class CastConnectionHandler(
      * (itag 22 = 720p, 18 = 360p; picture and sound in one file). The phone's own video mode prefers
      * video-only adaptive streams and merges a separate audio track on the device — the receiver cannot
      * do that merge, so asking it for those would give a silent or blank TV. null = none available.
+     *
+     * A URL is only handed to the TV once it is known to be fetchable the way the TV fetches it ([deliverableVideoUrl]).
      */
     private suspend fun resolveCastVideoUrl(mediaId: String): String? =
         withContext(Dispatchers.IO) {
             // Source 1: NewPipe's extraction — fast, but it usually lists only adaptive streams, so a muxed itag is
             // often simply not in it (owner 2026-10-18: «transmite solo la canción, no lo pone a video»).
-            YTPlayerUtils.adaptiveVideoStreamNewPipe(
+            val fromNewPipe = YTPlayerUtils.adaptiveVideoStreamNewPipe(
                 mediaId,
                 musicService.connectivityManager,
                 maxHeight = 720,
                 forceMuxed = true,
-            ).getOrNull()?.url?.takeIf { it.isNotEmpty() }?.also {
+            ).getOrNull()?.url?.takeIf { it.isNotEmpty() }
+            if (fromNewPipe != null) {
                 Timber.i("Cast: video rendition from NewPipe (muxed)")
+                deliverableVideoUrl(fromNewPipe, "newpipe")?.let { return@withContext it }
             }
-                // Source 2: the regular InnerTube clients' progressive list (itag 22 / 18), cipher and n-transform
-                // applied like any other stream.
-                ?: runCatching {
-                    YTPlayerUtils.muxedVideoStreamUrl(mediaId, musicService.connectivityManager, videoMaxHeight = 720)
-                }.getOrNull()?.takeIf { it.isNotEmpty() }?.also {
-                    Timber.i("Cast: video rendition from InnerTube (muxed)")
-                }
+            // Source 2: the regular InnerTube clients' progressive list (itag 22 / 18), cipher and n-transform
+            // applied like any other stream.
+            val fromInnerTube = runCatching {
+                YTPlayerUtils.muxedVideoStreamUrl(mediaId, musicService.connectivityManager, videoMaxHeight = 720)
+            }.getOrNull()?.takeIf { it.isNotEmpty() }
+            if (fromInnerTube != null) {
+                Timber.i("Cast: video rendition from InnerTube (muxed)")
+                deliverableVideoUrl(fromInnerTube, "innertube")?.let { return@withContext it }
+            }
+            null
         }
+
+    /** Fetches like the TV does: its own User-Agent, no per-client replay. Never follows the app's YouTube interceptors. */
+    private val receiverProbeClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .proxy(com.music.innertube.YouTube.proxy)
+            .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
+
+    /**
+     * The URL to give the TV for [url], or null when the TV could not play it either way (registry row 449).
+     *
+     * googlevideo URLs are bound to the client that asked for them: fetched with a different User-Agent they answer 403
+     * (MusicService.videoOkHttpClient replays the right one for the phone). The TV fetches the URL ITSELF, with a Chromecast
+     * User-Agent, so a muxed URL that plays on the phone can still leave the TV black — and the receiver then skips on to
+     * the next audio item. So the TV's fetch is rehearsed first:
+     *  1. the TV's own way works → the URL goes to the TV as it is;
+     *  2. it fails but the phone's way works → the phone relays the bytes ([CastMediaRelay], which replays the right UA);
+     *  3. neither → null (the caller falls back to audio and says so), never a URL known to fail.
+     * Logged as numbers only (AGENTS.md rule 4).
+     */
+    private fun deliverableVideoUrl(url: String, source: String): String? {
+        val direct = CastVideoProbe.probe(receiverProbeClient, url, CastVideoProbe.RECEIVER_USER_AGENT)
+        Timber.i(
+            "CAST_VIDEO_SRC source=%s way=receiver status=%d type=%s kb=%d ms=%d",
+            source, direct.status, direct.contentType, direct.bytesRead / 1024, direct.elapsedMs,
+        )
+        if (direct.playable) return url
+        val viaPhone = CastVideoProbe.probe(musicService.videoOkHttpClient, url, null)
+        Timber.i(
+            "CAST_VIDEO_SRC source=%s way=phone status=%d type=%s kb=%d ms=%d",
+            source, viaPhone.status, viaPhone.contentType, viaPhone.bytesRead / 1024, viaPhone.elapsedMs,
+        )
+        if (!viaPhone.playable) return null
+        val relayed = relayFor(url)
+        Timber.i("CAST_VIDEO_SRC source=%s relay=%b", source, relayed != null)
+        return relayed
+    }
+
+    private var relay: CastMediaRelay? = null
+
+    /** The phone's address on the network the TV is on (a private IPv4), or null when it has none. */
+    private fun lanAddress(): java.net.InetAddress? = runCatching {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val network = manager.activeNetwork ?: return@runCatching null
+        manager.getLinkProperties(network)?.linkAddresses
+            ?.map { it.address }
+            ?.firstOrNull { it is java.net.Inet4Address && !it.isLoopbackAddress && it.isSiteLocalAddress }
+    }.getOrNull()
+
+    @Synchronized
+    private fun relayFor(url: String): String? {
+        val address = lanAddress() ?: return null
+        val existing = relay
+        val active = if (existing != null && existing.bindAddress == address) {
+            existing
+        } else {
+            existing?.close()
+            CastMediaRelay(musicService.videoOkHttpClient, address).also { relay = it }
+        }
+        return active.publish(url)
+    }
+
+    @Synchronized
+    private fun closeRelay() {
+        relay?.close()
+        relay = null
+    }
 
     /**
      * Build MediaInfo for a single track. With [asVideo] the TV is sent the video file (and told it is a
@@ -718,6 +846,40 @@ class CastConnectionHandler(
     }
 
     /**
+     * The TV could not play the video it was given (it went IDLE with an error, or skipped on to the next item before the
+     * video ever played). Say so, put the switch back on Song and give the TV the AUDIO of the same track from where the
+     * video was — instead of following the receiver to a neighbour nobody chose and leaving video mode silently (registry
+     * row 449). [resumeAt] null = the position the video was loaded at.
+     */
+    private fun recoverFromFailedCastVideo(mediaId: String, why: String, resumeAt: Long?) {
+        if (videoFailureHandled) return
+        videoFailureHandled = true
+        Timber.i("CAST_VIDEO_FAILED why=%s", why)
+        val position = resumeAt ?: videoLoadStartPosition
+        onPlayerThread {
+            val player = musicService.player
+            var metadata: AppMediaMetadata? = null
+            for (i in 0 until player.mediaItemCount) {
+                val item = player.getMediaItemAt(i)
+                if (item.mediaId == mediaId) {
+                    metadata = item.metadata
+                    break
+                }
+            }
+            android.widget.Toast.makeText(
+                context,
+                context.getString(iad1tya.echo.music.R.string.cast_video_unavailable),
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+            // The TV is no longer expected to hold a video: the failed item's leftover statuses are not failures any more.
+            loadedCurrentAsVideo = false
+            // Reloading first: it claims the queue (isReloadingQueue) before the Song switch reaches reconcileVideoMode.
+            metadata?.let { loadMediaWithQueue(it, startPositionOverride = position, forceAudio = true) }
+            musicService.exitVideoMode()
+        }
+    }
+
+    /**
      * The Song/Video switch moved (or the track under it did). If what the TV is playing no longer
      * matches what the switch asks for, reload ONLY the current track in the other rendition from where
      * the TV is, so the song carries on instead of restarting.
@@ -749,7 +911,7 @@ class CastConnectionHandler(
      * Loads up to 5 items: 2 previous, current, and 2 next for smoother transitions
      * Respects shuffle mode when determining prev/next items
      */
-    private fun loadMediaWithQueue(metadata: AppMediaMetadata, startPositionOverride: Long? = null) {
+    private fun loadMediaWithQueue(metadata: AppMediaMetadata, startPositionOverride: Long? = null, forceAudio: Boolean = false) {
         if (!_isCasting.value) return
         
         isReloadingQueue = true // Prevent sync logic from triggering during load
@@ -757,6 +919,10 @@ class CastConnectionHandler(
             try {
                 // Read BEFORE the bookkeeping below is overwritten: did the TV already hold this very track?
                 val tvHadTrack = loadedCurrentMediaId == metadata.id
+                videoItemPlayed = false
+                // A recovery load keeps «already handled» until a normal load: the failed video's leftover status must not
+                // trigger a second recovery while the audio load is still being built.
+                if (!forceAudio) videoFailureHandled = false
                 currentMediaId = metadata.id
                 _castIsBuffering.value = true
                 lastCastItemId = -1 // Reset to prevent false change detection
@@ -790,7 +956,8 @@ class CastConnectionHandler(
                     }
                 }
 
-                val wantVideo = wantsVideo(metadata.id)
+                // [forceAudio]: the video of this track just failed on the TV — the Song switch has not reached us yet.
+                val wantVideo = !forceAudio && wantsVideo(metadata.id)
                 var videoFellBack = false
                 val (prevInfos, currentMediaInfo, nextInfos) = coroutineScope {
                     val prev = prevItems.map { item -> async { item.metadata?.let { runCatching { buildMediaInfo(it) }.getOrNull() } } }
@@ -809,6 +976,8 @@ class CastConnectionHandler(
                 queueItems.add(MediaQueueItem.Builder(currentMediaInfo).build())
                 loadedCurrentMediaId = metadata.id
                 loadedCurrentAsVideo = wantVideo && !videoFellBack
+                // The relay only serves the video the TV is about to play; any other load frees it.
+                if (!loadedCurrentAsVideo) closeRelay()
                 nextInfos.filterNotNull().forEach { queueItems.add(MediaQueueItem.Builder(it).build()) }
 
                 // Where the TV starts. The phone's own player is PAUSED while casting, so its position is stale: using it
@@ -827,6 +996,8 @@ class CastConnectionHandler(
                     "CAST_LOAD items=%d wantVideo=%b fellBack=%b start=%ds",
                     queueItems.size, wantVideo, videoFellBack, startPosition / 1000,
                 )
+                videoLoadStartPosition = startPosition
+                videoLoadedAtMs = android.os.SystemClock.elapsedRealtime()
 
                 Timber.d("Loading Cast queue: ${queueItems.size} items, startIndex=$startIndex, shuffle=$shuffleEnabled")
                 
@@ -976,6 +1147,10 @@ class CastConnectionHandler(
         
         loadedCurrentMediaId = mediaId
         loadedCurrentAsVideo = storedAsVideo
+        videoItemPlayed = false
+        videoFailureHandled = false
+        videoLoadedAtMs = android.os.SystemClock.elapsedRealtime()
+        videoLoadStartPosition = 0L
 
         if (targetIndex == currentIndex) {
             // Already on this item - ensure local player is paused
@@ -1009,6 +1184,7 @@ class CastConnectionHandler(
         }
         
         // Navigate Cast
+        lastPhoneSkipAtMs = android.os.SystemClock.elapsedRealtime()
         client.queueJumpToItem(targetItem.itemId, org.json.JSONObject())
         currentMediaId = mediaId
         
@@ -1032,6 +1208,7 @@ class CastConnectionHandler(
             val currentIndex = queueItems.indexOfFirst { it.itemId == currentItemId }
             if (currentIndex >= 0 && currentIndex < queueItems.size - 1) {
                 // There's a next item in Cast queue, use it
+                lastPhoneSkipAtMs = android.os.SystemClock.elapsedRealtime()
                 client.queueNext(org.json.JSONObject())
                 // Ensure local player stays paused. THREAD CONTRACT (registry row 195): hop to
                 // the player's application thread (inline on Main, deferred otherwise).
@@ -1064,6 +1241,7 @@ class CastConnectionHandler(
             val currentIndex = queueItems.indexOfFirst { it.itemId == currentItemId }
             if (currentIndex > 0) {
                 // There's a previous item in Cast queue, use it
+                lastPhoneSkipAtMs = android.os.SystemClock.elapsedRealtime()
                 client.queuePrev(org.json.JSONObject())
                 // Ensure local player stays paused. THREAD CONTRACT (registry row 195): hop to
                 // the player's application thread (inline on Main, deferred otherwise).
@@ -1089,7 +1267,12 @@ class CastConnectionHandler(
         positionUpdateJob = scope.launch {
             while (isActive && _isCasting.value) {
                 remoteMediaClient?.let { client ->
-                    _castPosition.value = client.approximateStreamPosition
+                    // Only a PLAYING TV moves. Every other state change (pause, seek, buffering, a new item) pushes the position
+                    // from onStatusUpdated, so a paused or idle TV costs this loop nothing but the wake-up. One ticker, one
+                    // read per tick, only while casting — never per frame.
+                    if (client.mediaStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING) {
+                        _castPosition.value = client.approximateStreamPosition
+                    }
                 }
                 delay(500)
             }
@@ -1105,7 +1288,16 @@ class CastConnectionHandler(
         videoModeJob?.cancel()
         videoModeJob = null
         stopPositionUpdates()
+        closeRelay()
         remoteMediaClient?.unregisterCallback(remoteMediaClientCallback)
         sessionManager?.removeSessionManagerListener(sessionManagerListener, CastSession::class.java)
+    }
+
+    private companion object {
+        /** A video that has not reached PLAYING this long after its load is judged by what the receiver does next. */
+        const val VIDEO_START_GRACE_MS = 25_000L
+
+        /** A receiver item change this soon after the phone's own skip is that skip, not a video failure. */
+        const val PHONE_SKIP_GRACE_MS = 4_000L
     }
 }
