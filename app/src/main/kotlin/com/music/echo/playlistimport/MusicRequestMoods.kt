@@ -30,23 +30,77 @@ object MusicRequestMoods {
      * "quiero estudiar" caen las dos. Los valores se comparan contra el título de la categoría.
      */
     private val FAMILIES: List<Pair<List<String>, List<String>>> = listOf(
-        listOf("estudiar", "concentrar", "concentracion", "trabajar", "leer", "focus", "study") to
+        listOf("estudiar", "concentrar", "concentracion", "trabajar", "leer", "focus", "study", "programar", "codear", "coding") to
             listOf("concentracion", "focus", "estudio", "study", "productividad"),
-        listOf("dormir", "sueño", "sueno", "relajar", "relajarme", "calma", "tranquilo", "sleep", "relax") to
+        listOf("dormir", "sueño", "sueno", "relajar", "relajarme", "relajante", "relajado", "calma", "tranquilo", "sleep", "relax") to
             listOf("dormir", "sueño", "sueno", "relax", "relajacion", "calma", "chill", "sleep"),
-        listOf("gimnasio", "entrenar", "entrenamiento", "correr", "gym", "workout", "ejercicio", "run") to
+        listOf("gimnasio", "entrenar", "entrenamiento", "correr", "gym", "workout", "ejercicio", "run", "cardio", "crossfit", "pesas") to
             listOf("entrenamiento", "workout", "fitness", "energia", "gym", "deporte"),
-        listOf("fiesta", "bailar", "baile", "party", "dance", "perreo", "antro") to
+        listOf("fiesta", "bailar", "baile", "party", "dance", "perreo", "antro", "discoteca", "boliche", "reunion", "asado", "parrillada") to
             listOf("fiesta", "party", "baile", "dance", "bailar"),
-        listOf("manejar", "conducir", "carretera", "viaje", "driving", "road") to
+        listOf("manejar", "conducir", "carretera", "viaje", "viajar", "driving", "road") to
             listOf("viaje", "carretera", "road", "conducir"),
-        listOf("triste", "bajon", "melancol", "desamor", "sad") to
-            listOf("triste", "sad", "melancolia", "desamor", "sentimental"),
-        listOf("romantic", "amor", "cita", "love") to
+        // Llorar / desamor: «algo triste para llorar» (dueño, 2026-10-19) — «llorar» no era de ninguna familia y acababa
+        // como palabra suelta que la categoría o la lista tenían que nombrar.
+        listOf(
+            "triste", "bajon", "melancol", "desamor", "sad", "llorar", "lloro", "llorando", "corazon roto", "heartbreak",
+            "extrano", "extranar", "olvidar", "superar", "despecho", "dolor",
+        ) to listOf("triste", "sad", "melancolia", "desamor", "sentimental", "despecho"),
+        listOf("romantic", "amor", "cita", "love", "enamorar", "enamorado", "enamorada", "conquistar", "sensual", "intimo", "pasion") to
             listOf("romance", "romantic", "amor", "love"),
-        listOf("cocinar", "de fondo", "ambiente", "background") to
-            listOf("ambiente", "chill", "relax", "background"),
+        listOf("cocinar", "cocinando", "cenar", "cena", "cenando", "desayuno", "almuerzo", "brunch", "restaurante", "dinner",
+            "de fondo", "ambiente", "background", "limpiar", "limpieza", "quehaceres", "oficina") to
+            listOf("ambiente", "chill", "relax", "background", "cena", "dinner"),
+        listOf("playa", "verano", "summer", "beach", "vacaciones", "piscina", "alberca", "pool", "tropical") to
+            listOf("verano", "summer", "playa", "beach", "vacaciones", "fiesta", "party"),
+        listOf("lluvia", "lluvioso", "llover", "rain", "rainy", "tormenta", "otono", "invierno", "frio", "cafe", "cafeteria", "coffee") to
+            listOf("lluvia", "rain", "chill", "relax", "ambiente", "cafe", "coffee", "otono", "autumn"),
+        listOf("meditar", "meditacion", "yoga", "mindfulness", "spa", "masaje", "zen", "respirar", "respiracion", "naturaleza", "sonidos") to
+            listOf("meditacion", "meditation", "yoga", "relax", "relajacion", "calma", "chill", "bienestar", "wellness"),
+        listOf("bebe", "bebes", "arrullar", "nana", "nanas", "lullaby") to
+            listOf("bebe", "nanas", "lullaby", "infantil", "kids", "ninos", "dormir", "sueno", "sleep", "relax"),
+        listOf("navidad", "navideno", "navidena", "navidenos", "villancicos", "villancico", "christmas", "xmas", "nochebuena") to
+            listOf("navidad", "christmas", "navideno", "holiday", "villancicos", "fiestas"),
+        listOf("halloween", "terror", "spooky", "brujas") to listOf("halloween", "spooky", "terror"),
+        listOf("boda", "casamiento", "matrimonio", "wedding", "quinceanera", "quinceaneras", "quince", "cumpleanos", "birthday", "graduacion") to
+            listOf("boda", "wedding", "fiesta", "party", "cumpleanos", "birthday", "celebracion"),
+        listOf("feliz", "alegre", "contento", "buena vibra", "buenas vibras", "positivo", "alegria", "sentirse bien", "feel good",
+            "happy", "motivacion", "motivar", "motivacional", "animarme", "animo", "energia", "energetico", "despertar") to
+            listOf("sentirse bien", "feel good", "happy", "alegre", "feliz", "positivo", "energia", "energy", "motivacion", "motivation"),
+        listOf("gaming", "jugar") to listOf("gaming", "focus", "concentracion", "electronica", "edm"),
+        listOf("madrugada", "nocturno", "trasnochar", "medianoche") to
+            listOf("noche", "night", "madrugada", "nocturno", "chill", "relax"),
     )
+
+    /**
+     * Para que una palabra de momento NO se confunda con el nombre de una canción o artista. Prefijo con al menos
+     * [STEM_MIN_PREFIX] letras ("concentrar" → «concentrarme»); las más cortas, solo la palabra entera.
+     */
+    private const val STEM_MIN_PREFIX = 4
+
+    private fun stemMatches(token: String, stem: String): Boolean =
+        token == stem || (stem.length >= STEM_MIN_PREFIX && token.startsWith(stem))
+
+    private fun tokensOf(folded: String): List<String> =
+        folded.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
+
+    private fun triggerHits(folded: String, tokens: List<String>, trigger: String): Boolean =
+        if (trigger.contains(' ')) {
+            Regex("(?<![\\p{L}\\p{N}])${Regex.escape(trigger)}(?![\\p{L}\\p{N}])").containsMatchIn(folded)
+        } else {
+            tokens.any { stemMatches(it, trigger) }
+        }
+
+    /** true cuando [text] nombra un momento, actividad o ánimo ("para llorar", "cenar", "playa"…). */
+    fun hasMoment(text: String): Boolean {
+        val folded = fold(text)
+        val tokens = tokensOf(folded)
+        return FAMILIES.any { (triggers, _) -> triggers.any { triggerHits(folded, tokens, it) } }
+    }
+
+    /** true cuando la palabra suelta [word] (ya normalizada) es parte del vocabulario de momentos. */
+    fun isMomentWord(word: String): Boolean =
+        FAMILIES.any { (triggers, _) -> triggers.any { !it.contains(' ') && stemMatches(word, it) } }
 
     /**
      * Ronda 7 (dueño): "si pongo reggaetón me pone canciones que llevan el nombre de reggaetón en el

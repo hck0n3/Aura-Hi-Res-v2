@@ -4180,3 +4180,9 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Botón Cast (`CastButton`) | Zona táctil de 64 dp (`CAST_TOUCH_TARGET`) | 424 |
 | Pedir música — diálogo de voz | Botón «OK» (envía lo dictado ya) además de «Cancelar» | 423 |
 | Pedir música — tarjeta de resultado | Carrusel de dos páginas (esta lista / otra opción), puntos de página, portada en cada fila, apilado de portadas, «Escuchar esta opción», «Guardar como lista» de la 2.ª opción | 436-438 |
+
+## Anexo 2026-10-19: botón de descarga unificado
+
+| Elemento | Dónde | Archivo | Tipo | Frecuencia | Condición |
+|---|---|---|---|---|---|
+| **Descargar** (hoja con sin conexión · MP3 · vídeo; en colecciones «Todas (N)» o «Elegir canciones…») | Álbum/EP/single (fila de acciones bajo la portada), lista propia, lista online, reproductor y menús de canción (fila «Exportar») | `ui/newui/AuraDownloadSheet.kt` | acción primaria | diaria | MP3 y vídeo solo con «Exportar como MP3» activo; vídeo solo si hay canciones con vídeo musical |
