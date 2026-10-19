@@ -72,6 +72,9 @@ internal class ExactStyleState {
     @Volatile var currentItem: iad1tya.echo.music.models.MediaMetadata? = null
     @Volatile var currentItemStartedAt = 0L
 
+    /** Artists skipped within seconds in THIS queue, any song (not only the gated ones): the ordering demotes them. */
+    val quickSkips = iad1tya.echo.music.reco.SessionSkipMemory()
+
     // Fila 356, punto 4 — what the queue shows ("Siguiendo: Cumbia · cristiana") and the user's correction.
     @Volatile var override: StyleContinuity.Override? = null
     val follow = MutableStateFlow<StyleContinuity.Follow?>(null)
@@ -85,6 +88,7 @@ internal class ExactStyleState {
         skippedArtists.clear()
         skippedStyles.clear()
         confirmedStyles.clear()
+        quickSkips.clear()
     }
 }
 
@@ -408,6 +412,16 @@ internal fun MusicService.exactStyleOnTransition(newItem: MediaItem?, reason: In
     val now = SystemClock.elapsedRealtime()
     st.currentItem = newItem?.metadata
     st.currentItemStartedAt = now
+    // The smart queue's ordering memory ([SessionSkipMemory]) learns from EVERY song, not only the gated ones: a quick
+    // skip counts against its artist, a song heard to the end forgives it. No I/O.
+    if (previous != null && previous.id != newItem?.mediaId) {
+        when (reason) {
+            Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> if ((now - startedAt) in 0L until QUICK_SKIP_MS) {
+                st.quickSkips.record(previous.artists.firstOrNull()?.name)
+            }
+            Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> st.quickSkips.forgive(previous.artists.firstOrNull()?.name)
+        }
+    }
     if (previous == null || previous.id == newItem?.mediaId || previous.id !in st.gatedIds) return
     val t = previous.trackText()
     val ownStyle = MusicStyle.fromText(t.text)

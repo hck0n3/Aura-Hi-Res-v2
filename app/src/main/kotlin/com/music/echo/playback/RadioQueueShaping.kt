@@ -59,26 +59,14 @@ object RadioQueueShaping {
 
     /** Greedy artist-spacing: keep the incoming (taste/relatedness) order as the base, but when the next item
      *  repeats a primary artist placed in the last 2 slots, skip ahead to the best-ranked item by a different
-     *  artist (fallback: take the head). Preserves the backbone, kills same-artist streaks. */
-    fun spacedByArtist(items: List<MediaItem>): List<MediaItem> {
-        if (items.size < 3) return items
-        val remaining = ArrayList(items)
-        val out = ArrayList<MediaItem>(items.size)
-        val recent = ArrayDeque<String>()
-        while (remaining.isNotEmpty()) {
-            var idx = remaining.indexOfFirst { mi ->
-                val a = mi.metadata?.artists?.firstOrNull()?.name?.lowercase()
-                a == null || a !in recent
-            }
-            if (idx < 0) idx = 0
-            val pick = remaining.removeAt(idx)
-            out.add(pick)
-            pick.metadata?.artists?.firstOrNull()?.name?.lowercase()?.let {
-                recent.addLast(it); if (recent.size > 2) recent.removeFirst()
-            }
-        }
-        return out
-    }
+     *  artist (fallback: take the head). Preserves the backbone, kills same-artist streaks.
+     *
+     *  [leadingArtists] (lowercase primary artists, oldest first) are the songs this batch FOLLOWS in the queue
+     *  (see [LiveQueueSnapshot.tailArtists]): they count as already placed, so a batch no longer opens with the
+     *  artist of the song that is playing. Empty = exactly the old behaviour. The rule itself lives in the
+     *  Android-free [ArtistSpacing] so it can be unit-tested on the JVM. */
+    fun spacedByArtist(items: List<MediaItem>, leadingArtists: List<String> = emptyList()): List<MediaItem> =
+        ArtistSpacing.space(items, { mi -> mi.metadata?.artists?.firstOrNull()?.name?.lowercase() }, leadingArtists)
 
     /**
      * Phase B #4 — exploration quota. Reserve roughly every 15th slot for a "fresh" candidate: one whose primary

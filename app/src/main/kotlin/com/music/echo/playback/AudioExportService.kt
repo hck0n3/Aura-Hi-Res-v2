@@ -3,6 +3,7 @@ package iad1tya.echo.music.playback
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaScannerConnection
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -12,6 +13,8 @@ import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.IBinder
 import android.os.SystemClock
 import android.util.Log
@@ -43,11 +46,13 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -65,9 +70,41 @@ import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+/** One song of a queued export ([AudioExportService.startBatch]). */
+data class AudioExportTask(
+    val songId: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val artworkUrl: String,
+    val targetDirectoryUri: String,
+    val exportAsVideo: Boolean = false,
+)
+
 @AndroidEntryPoint
 class AudioExportService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // One notification per JOB (a single export, or a whole album/playlist batch), not per song. Owner 2026-10-19:
+    // *«cuando esté exportando a mp3 o en video quiero ver cómo va el proceso en la barra de notificaciones; no quiero
+    // que cada rato me esté notificando, solo la barra de progreso»*. The batch callers start this service once per
+    // song, one after another; the service used to remove its foreground notification and post a new one (progress
+    // back to 0 %, "Preparando…") at EVERY song, and rebuilt + notify()'d on every 1 % tick. Now a list is queued once
+    // ([startBatch]) and this service works it off under ONE notification whose bar is the whole list's progress.
+    private val activeJobs = AtomicInteger(0)
+    @Volatile private var batchIndex = 0
+    @Volatile private var batchTotal = 1
+    private val batchDone = AtomicInteger(0)
+    private val batchFailed = AtomicInteger(0)
+    private var idleStopJob: Job? = null
+    private var drainJob: Job? = null
+    /** Songs of the queue ([startBatch]) already finished in this run; the position shown as «3 de 12». */
+    private val queueDone = AtomicInteger(0)
+    private val notifyLock = Any()
+    private var lastNotifyAt = 0L
+    private var lastNotifyPct = -1
+    private var lastNotifyText: String? = null
+    private val jobStartedAt = System.currentTimeMillis()
     // Tuned for large googlevideo pulls: keep-alive pool, longer read, bigger sink buffer.
     // Multi-range uses concurrent calls on the same client (pool + dispatcher sized for 3 segments × A/V).
     private val httpClient = OkHttpClient.Builder()
@@ -271,15 +308,38 @@ class AudioExportService : Service() {
         // kill the long download+FFmpeg transcode mid-flight. The manifest already declares this
         // service with foregroundServiceType="dataSync" and the matching permission. Call this
         // FIRST (before any early return) to honour the startForegroundService 5s deadline.
+        // A start that arrives between two songs of a batch cancels the idle stop armed by [finishJob].
+        idleStopJob?.cancel()
+        idleStopJob = null
+        if (intent?.getBooleanExtra(EXTRA_DRAIN_QUEUE, false) == true) {
+            // [startBatch]: the WHOLE list is already in [batchQueue]; this one service works it off, song after song,
+            // so nothing depends on the screen that asked (or on starting a foreground service again from the
+            // background for every song).
+            if (drainJob?.isActive != true) {
+                batchIndex = 0
+                batchTotal = batchQueue.size.coerceAtLeast(1)
+            }
+            startExportForeground()
+            if (drainJob?.isActive != true) {
+                drainJob = serviceScope.launch { drainQueue() }
+            }
+            return START_NOT_STICKY
+        }
+        // A single export (the queue of [startBatch] is handled above). Another one may still be running:
+        // the position then stays that of the running one.
+        if (activeJobs.get() == 0) {
+            batchIndex = 0
+            batchTotal = 1
+        }
         startExportForeground()
 
         val songId = intent?.getStringExtra(EXTRA_SONG_ID)
         val targetDirectoryUri = intent?.getStringExtra(EXTRA_TARGET_DIRECTORY_URI)
         if (songId == null || targetDirectoryUri == null) {
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            if (activeJobs.get() == 0) stopExportService()
             return START_NOT_STICKY
         }
+        activeJobs.incrementAndGet()
         val songTitle = intent.getStringExtra(EXTRA_SONG_TITLE).orEmpty()
         val songArtist = intent.getStringExtra(EXTRA_SONG_ARTIST).orEmpty()
         val songAlbum = intent.getStringExtra(EXTRA_SONG_ALBUM).orEmpty()
@@ -307,6 +367,37 @@ class AudioExportService : Service() {
         return START_NOT_STICKY
     }
 
+    /** Work the queue of [startBatch] off, one song at a time, under the one notification. */
+    private suspend fun drainQueue() {
+        while (true) {
+            val task = batchQueue.poll() ?: break
+            idleStopJob?.cancel()
+            idleStopJob = null
+            activeJobs.incrementAndGet()
+            batchIndex = queueDone.get()
+            // The total follows the queue: songs added by a second [startBatch] while this one runs just extend it.
+            batchTotal = (batchIndex + 1 + batchQueue.size).coerceAtLeast(1)
+            postProgressNotification(itemPercent = 0, text = getString(R.string.export_preparing), force = true)
+            if (task.exportAsVideo) {
+                exportVideo(
+                    songId = task.songId,
+                    songTitle = task.title,
+                    targetDirectoryUri = task.targetDirectoryUri,
+                )
+            } else {
+                exportSong(
+                    songId = task.songId,
+                    songTitle = task.title,
+                    songArtist = task.artist,
+                    songAlbum = task.album,
+                    artworkUrl = task.artworkUrl,
+                    targetDirectoryUri = task.targetDirectoryUri,
+                )
+            }
+            queueDone.incrementAndGet()
+        }
+    }
+
     private suspend fun exportVideo(
         songId: String,
         songTitle: String,
@@ -317,6 +408,7 @@ class AudioExportService : Service() {
         var videoFileRef: File? = null
         var audioFileRef: File? = null
         var mp4FileRef: File? = null
+        var failed = false
         runCatching {
             val connectivityManager = getSystemService<ConnectivityManager>()
                 ?: error("No connectivity manager")
@@ -476,17 +568,21 @@ class AudioExportService : Service() {
             addExportedVideoId(songId)
             persistExportedFileUri(songId, outputFile.uri.toString())
 
-            withContext(Dispatchers.Main) {
-                Toast.makeText(
-                    this@AudioExportService,
-                    getString(R.string.export_complete, "$safeTitle.mp4"),
-                    Toast.LENGTH_LONG,
-                ).show()
+            // One toast per single export; a batch says it once, at the end ([stopExportService]).
+            if (batchTotal <= 1) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@AudioExportService,
+                        getString(R.string.export_complete, "$safeTitle.mp4"),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
             }
         }.onFailure { throwable ->
             if (throwable is CancellationException) {
                 Log.w(TAG, "Video export cancelled for $songId")
             } else {
+                failed = true
                 Log.e(TAG, "Video export failed for $songId", throwable)
                 val reason = when {
                     throwable.message?.contains("No video stream", ignoreCase = true) == true ->
@@ -495,15 +591,16 @@ class AudioExportService : Service() {
                         getString(R.string.export_video_ffmpeg_failed)
                     else -> getString(R.string.export_video_failed)
                 }
-                runCatching {
-                    withContext(NonCancellable + Dispatchers.Main) {
-                        Toast.makeText(
-                            this@AudioExportService,
-                            "$reason ($safeTitle)",
-                            Toast.LENGTH_LONG,
-                        ).show()
+                if (batchTotal <= 1) {
+                    runCatching {
+                        withContext(NonCancellable + Dispatchers.Main) {
+                            Toast.makeText(
+                                this@AudioExportService,
+                                "$reason ($safeTitle)",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
                     }
-                    updateExportProgress(songId, 0, reason)
                 }
             }
         }
@@ -513,8 +610,7 @@ class AudioExportService : Service() {
         withContext(NonCancellable) {
             removeExportingSongId(songId)
         }
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        finishJob(failed)
     }
 
     private suspend fun exportSong(
@@ -531,6 +627,7 @@ class AudioExportService : Service() {
         // success and failure paths (runCatching never rethrows, so the block after it acts as a
         // finally). Previously the .delete() calls sat after every error() throw site and leaked
         // multi-MB temp files into cacheDir on any failed export.
+        var failed = false
         var sourceFileRef: File? = null
         var artworkFileRef: File? = null
         var mp3FileRef: File? = null
@@ -752,16 +849,20 @@ class AudioExportService : Service() {
             if (throwable is CancellationException) {
                 Log.w(TAG, "Export cancelled for $songId")
             } else {
+                failed = true
                 Log.e(TAG, "Export failed for $songId", throwable)
                 // Surface the failure to the user on the main thread. NonCancellable keeps the
-                // toast alive even if we got here via cancellation-adjacent teardown.
-                runCatching {
-                    withContext(NonCancellable + Dispatchers.Main) {
-                        Toast.makeText(
-                            this@AudioExportService,
-                            "Export failed: $safeTitle",
-                            Toast.LENGTH_LONG,
-                        ).show()
+                // toast alive even if we got here via cancellation-adjacent teardown. A batch counts its
+                // failures and says so once at the end instead of one toast per failed song.
+                if (batchTotal <= 1) {
+                    runCatching {
+                        withContext(NonCancellable + Dispatchers.Main) {
+                            Toast.makeText(
+                                this@AudioExportService,
+                                "Export failed: $safeTitle",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
                     }
                 }
             }
@@ -774,6 +875,54 @@ class AudioExportService : Service() {
         // left stuck in the exporting set (P11 graceful-teardown).
         withContext(NonCancellable) {
             removeExportingSongId(songId)
+        }
+        finishJob(failed)
+    }
+
+    /**
+     * A song's work ended. A single export (or the last song of a batch) ends the service as it always did; between
+     * two songs of a batch the service and its ONE notification stay up, and an idle timer ends them if the next start
+     * never comes (the screen that was feeding the batch was left).
+     */
+    private fun finishJob(failed: Boolean) {
+        if (failed) batchFailed.incrementAndGet() else batchDone.incrementAndGet()
+        val remaining = activeJobs.decrementAndGet()
+        val lastOfBatch = batchIndex >= batchTotal - 1 && batchQueue.isEmpty()
+        when {
+            remaining > 0 -> Unit
+            lastOfBatch -> stopExportService()
+            else -> {
+                idleStopJob?.cancel()
+                idleStopJob = serviceScope.launch {
+                    delay(BATCH_IDLE_STOP_MS)
+                    stopExportService()
+                }
+            }
+        }
+    }
+
+    /** Close the notification and the service; a batch says how it went in ONE toast. */
+    private fun stopExportService() {
+        val ok = batchDone.getAndSet(0)
+        val bad = batchFailed.getAndSet(0)
+        queueDone.set(0)
+        val total = batchTotal
+        if (total > 1 && ok + bad > 0) {
+            Handler(Looper.getMainLooper()).post {
+                runCatching {
+                    val text = if (bad == 0) {
+                        resources.getQuantityString(R.plurals.export_batch_finished, ok, ok)
+                    } else {
+                        getString(R.string.export_batch_finished_failed, ok, bad)
+                    }
+                    Toast.makeText(applicationContext, text, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        synchronized(notifyLock) {
+            lastNotifyAt = 0L
+            lastNotifyPct = -1
+            lastNotifyText = null
         }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -790,23 +939,63 @@ class AudioExportService : Service() {
     private fun updateExportProgress(songId: String, percent: Int, text: String) {
         val pct = percent.coerceIn(0, 100)
         _liveProgress.update { it + (songId to pct.toFloat()) }
+        postProgressNotification(itemPercent = pct, text = text)
+    }
+
+    /** The whole job's progress: the songs already done plus this one's share, over the batch size. */
+    private fun overallPercent(itemPercent: Int): Int =
+        ((batchIndex * 100 + itemPercent) / batchTotal).coerceIn(0, 100)
+
+    /**
+     * Update the ONE export notification. Throttled so a download that ticks hundreds of times does not rebuild and
+     * re-post it hundreds of times (battery, and Android drops the excess anyway): it is re-posted when the stage text
+     * changes or when the bar moved by at least 1 % AND [NOTIFY_MIN_INTERVAL_MS] passed since the last post.
+     * `setOnlyAlertOnce` + a silent LOW channel keep every update mute.
+     */
+    private fun postProgressNotification(itemPercent: Int, text: String, force: Boolean = false) {
         runCatching {
             val nm = getSystemService<NotificationManager>() ?: return
-            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_nobg)
-                .setContentTitle(getString(R.string.exporting))
-                .setContentText(text)
-                // Tapping opens the Biblioteca, which is where the exported copy shows up. The
-                // notification had NO content intent at all, so the tap did nothing (owner report
-                // 2026-09-15).
-                .setContentIntent(exportTapIntent())
-                .setProgress(100, pct, false)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .build()
+            val overall = overallPercent(itemPercent)
+            val now = SystemClock.elapsedRealtime()
+            val notification = synchronized(notifyLock) {
+                val textChanged = text != lastNotifyText
+                val moved = overall >= lastNotifyPct + 1 && now - lastNotifyAt >= NOTIFY_MIN_INTERVAL_MS
+                if (!force && !textChanged && !moved) return
+                lastNotifyAt = now
+                lastNotifyPct = overall
+                lastNotifyText = text
+                buildExportNotification(overall, text, indeterminate = false)
+            }
             nm.notify(NOTIFICATION_ID, notification)
         }
+    }
+
+    private fun buildExportNotification(overallPercent: Int, text: String, indeterminate: Boolean): Notification {
+        val total = batchTotal
+        val title = if (total > 1) {
+            getString(R.string.export_notification_batch_title, batchIndex + 1, total)
+        } else {
+            getString(R.string.exporting)
+        }
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_nobg)
+            .setContentTitle(title)
+            .setContentText(text)
+            // Tapping opens the Biblioteca, which is where the exported copy shows up. The
+            // notification had NO content intent at all, so the tap did nothing (owner report
+            // 2026-09-15).
+            .setContentIntent(exportTapIntent())
+            .setProgress(100, overallPercent, indeterminate)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            // Same position in the shade for the whole job: no clock to re-sort it by, shown at once.
+            .setShowWhen(false)
+            .setWhen(jobStartedAt)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .build()
     }
 
     private fun startExportForeground() {
@@ -818,18 +1007,27 @@ class AudioExportService : Service() {
                         CHANNEL_ID,
                         getString(R.string.export_channel_name),
                         NotificationManager.IMPORTANCE_LOW,
-                    ).apply { setShowBadge(false) },
+                    ).apply {
+                        setShowBadge(false)
+                        setSound(null, null)
+                        enableVibration(false)
+                        enableLights(false)
+                    },
                 )
             }
-            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_nobg)
-                .setContentTitle(getString(R.string.exporting))
-                .setContentText(getString(R.string.export_preparing))
-                .setContentIntent(exportTapIntent())
-                .setProgress(100, 0, false)
-                .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .build()
+            // Between the songs of a batch the bar carries on from the songs already done (no reset to 0 % and
+            // "Preparando…" for every song); the very first start has nothing known yet, so it is indeterminate.
+            val firstOfJob = batchIndex == 0
+            val notification = buildExportNotification(
+                overallPercent = overallPercent(0),
+                text = getString(R.string.export_preparing),
+                indeterminate = firstOfJob,
+            )
+            synchronized(notifyLock) {
+                lastNotifyAt = SystemClock.elapsedRealtime()
+                lastNotifyPct = overallPercent(0)
+                lastNotifyText = getString(R.string.export_preparing)
+            }
             ServiceCompat.startForeground(
                 this,
                 NOTIFICATION_ID,
@@ -966,6 +1164,9 @@ class AudioExportService : Service() {
         private const val NOTIFICATION_ID = 0xE5A0
         private const val MULTI_RANGE_MIN_BYTES = 2L * 1024L * 1024L
         private const val PROGRESS_THROTTLE_MS = 150L
+        private const val NOTIFY_MIN_INTERVAL_MS = 1_000L
+        /** A batch whose next start never arrives (the screen feeding it was left) ends after this. */
+        private const val BATCH_IDLE_STOP_MS = 90_000L
 
         private const val EXTRA_SONG_ID = "extra_song_id"
         private const val EXTRA_SONG_TITLE = "extra_song_title"
@@ -974,6 +1175,25 @@ class AudioExportService : Service() {
         private const val EXTRA_ARTWORK_URL = "extra_artwork_url"
         private const val EXTRA_TARGET_DIRECTORY_URI = "extra_target_directory_uri"
         private const val EXTRA_EXPORT_AS_VIDEO = "extra_export_as_video"
+        private const val EXTRA_DRAIN_QUEUE = "extra_drain_queue"
+
+        /** Everything waiting for the service to export it, in order. Shared across service instances on purpose. */
+        private val batchQueue = java.util.concurrent.ConcurrentLinkedQueue<AudioExportTask>()
+
+        /**
+         * Export a whole list under ONE notification. The tasks are queued here and a single foreground start tells
+         * the service to work the queue off, so (unlike one start per song) it needs nothing from the screen that
+         * asked, which may be left or closed at any moment, and the notification never disappears and comes back
+         * between two songs.
+         */
+        fun startBatch(context: Context, tasks: List<AudioExportTask>) {
+            if (tasks.isEmpty()) return
+            batchQueue.addAll(tasks)
+            val intent = Intent(context, AudioExportService::class.java).apply {
+                putExtra(EXTRA_DRAIN_QUEUE, true)
+            }
+            ContextCompat.startForegroundService(context, intent)
+        }
 
         /** songId → 0–100 while an MP3/video export is running (player Apple-style ring). */
         private val _liveProgress = MutableStateFlow<Map<String, Float>>(emptyMap())

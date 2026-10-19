@@ -45,6 +45,7 @@ import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.PlaylistSong
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.playback.AudioExportService
+import iad1tya.echo.music.playback.AudioExportTask
 import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.ui.component.ListDialog
 import iad1tya.echo.music.ui.component.Material3MenuGroup
@@ -82,33 +83,28 @@ fun LocalPlaylistMenu(
     val (_, onExportDirectoryUriChange) = rememberPreference(key = ExportDirectoryUriKey, defaultValue = "")
     val exportSongs = remember(songs) { songs.map { it.song } }
 
-    // MP3 export: choice → optional selection → folder picker → serial AudioExportService.start
+    // MP3 export: choice → optional selection → folder picker → AudioExportService.startBatch
     var showMp3ChoiceDialog by remember { mutableStateOf(false) }
     var showMp3SelectDialog by remember { mutableStateOf(false) }
     var selectedMp3Ids by remember { mutableStateOf(emptySet<String>()) }
     var pendingMp3Songs by remember { mutableStateOf<List<Song>>(emptyList()) }
 
     val startSerialMp3Export: (List<Song>, String) -> Unit = { toExport, directoryUri ->
-        coroutineScope.launch(Dispatchers.IO) {
-            for (song in toExport) {
-                withContext(Dispatchers.Main) {
-                    AudioExportService.start(
-                        context = context,
-                        songId = song.id,
-                        songTitle = song.song.title,
-                        songArtist = song.artists.joinToString(", ") { it.name },
-                        songAlbum = song.song.albumName ?: "",
-                        artworkUrl = song.song.thumbnailUrl ?: "",
-                        targetDirectoryUri = directoryUri,
-                    )
-                }
-                val exporting = context.dataStore.data.map { prefs ->
-                    prefs[ExportingSongIdsKey].orEmpty().split(",").any { it == song.id }
-                }
-                withTimeoutOrNull(15_000) { exporting.first { it } }
-                exporting.first { !it }
-            }
-        }
+        // One start for the whole list: the service works the queue off under a single progress
+        // notification and does not depend on this menu staying composed (AudioExportService.startBatch).
+        AudioExportService.startBatch(
+            context.applicationContext,
+            toExport.map { song ->
+                AudioExportTask(
+                    songId = song.id,
+                    title = song.song.title,
+                    artist = song.artists.joinToString(", ") { it.name },
+                    album = song.song.albumName ?: "",
+                    artworkUrl = song.song.thumbnailUrl ?: "",
+                    targetDirectoryUri = directoryUri,
+                )
+            },
+        )
     }
 
     val mp3FolderLauncher = rememberLauncherForActivityResult(

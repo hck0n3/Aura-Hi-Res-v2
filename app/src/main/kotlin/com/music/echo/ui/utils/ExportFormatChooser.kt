@@ -46,21 +46,20 @@ private sealed class VideoProbe {
     data class Unavailable(val messageRes: Int) : VideoProbe()
 }
 
+/** What an "as video" row shows for one song: still probing, usable, or the reason it is not. */
+class ExportVideoAvailability(
+    val loading: Boolean,
+    val enabled: Boolean,
+    /** Why the row is off (null while loading or when usable). */
+    val messageRes: Int?,
+)
+
 /**
- * Frost chooser: optional offline download, then MP3 vs video.
- *
- * "As video" is shown ONLY when [hasMusicVideo] is true (OMV/UGC — a real music video, not an
- * art-track ATV). The live stream probe then confirms the mux is resolvable before enabling the row.
+ * Probe, once per song, whether its video can really be resolved (the same chain the export itself uses).
+ * Shared by [ExportFormatChooserDialog] and the unified download sheet so both answer the same way.
  */
 @Composable
-fun ExportFormatChooserDialog(
-    songId: String,
-    onDismiss: () -> Unit,
-    onChoose: (ExportFormat) -> Unit,
-    includeOfflineDownload: Boolean = false,
-    /** Official / UGC music video (not ATV art-track). When false, the video row is omitted. */
-    hasMusicVideo: Boolean = false,
-) {
+fun rememberExportVideoAvailability(songId: String, hasMusicVideo: Boolean): ExportVideoAvailability {
     val context = LocalContext.current
     var videoProbe by remember(songId, hasMusicVideo) {
         mutableStateOf<VideoProbe>(
@@ -101,11 +100,35 @@ fun ExportFormatChooserDialog(
         videoProbe = result
     }
 
-    val videoEnabled = videoProbe is VideoProbe.Available
-    val videoDescription = when (val p = videoProbe) {
-        VideoProbe.Loading -> stringResource(R.string.export_video_probing)
-        VideoProbe.Available -> stringResource(R.string.export_as_video_desc)
-        is VideoProbe.Unavailable -> stringResource(p.messageRes)
+    val probe = videoProbe
+    return ExportVideoAvailability(
+        loading = probe is VideoProbe.Loading,
+        enabled = probe is VideoProbe.Available,
+        messageRes = (probe as? VideoProbe.Unavailable)?.messageRes,
+    )
+}
+
+/**
+ * Frost chooser: optional offline download, then MP3 vs video.
+ *
+ * "As video" is shown ONLY when [hasMusicVideo] is true (OMV/UGC — a real music video, not an
+ * art-track ATV). The live stream probe then confirms the mux is resolvable before enabling the row.
+ */
+@Composable
+fun ExportFormatChooserDialog(
+    songId: String,
+    onDismiss: () -> Unit,
+    onChoose: (ExportFormat) -> Unit,
+    includeOfflineDownload: Boolean = false,
+    /** Official / UGC music video (not ATV art-track). When false, the video row is omitted. */
+    hasMusicVideo: Boolean = false,
+) {
+    val availability = rememberExportVideoAvailability(songId, hasMusicVideo)
+    val videoEnabled = availability.enabled
+    val videoDescription = when {
+        availability.loading -> stringResource(R.string.export_video_probing)
+        availability.enabled -> stringResource(R.string.export_as_video_desc)
+        else -> stringResource(availability.messageRes ?: R.string.export_video_unavailable)
     }
 
     DefaultDialog(
@@ -166,7 +189,7 @@ fun ExportFormatChooserDialog(
                     title = stringResource(R.string.export_as_video),
                     description = videoDescription,
                     enabled = videoEnabled,
-                    trailing = if (videoProbe is VideoProbe.Loading) {
+                    trailing = if (availability.loading) {
                         {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),

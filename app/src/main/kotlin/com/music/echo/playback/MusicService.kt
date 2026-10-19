@@ -4709,15 +4709,23 @@ class MusicService :
      * upcoming — including what the user queued by hand). PLAYER THREAD ONLY: callers capture it before
      * hopping to IO and hand the result to [orderedByTaste].
      */
-    internal fun liveQueueSnapshot(): Pair<Set<String>, Set<String>> {
+    internal fun liveQueueSnapshot(afterCurrent: Boolean = true): LiveQueueSnapshot {
         val ids = HashSet<String>()
         val keys = HashSet<String>()
-        for (i in 0 until player.mediaItemCount) {
+        val count = player.mediaItemCount
+        for (i in 0 until count) {
             val mi = runCatching { player.getMediaItemAt(i) }.getOrNull() ?: continue
             if (mi.mediaId.isNotEmpty()) ids.add(mi.mediaId)
             mi.dedupKeyOrNull()?.let { keys.add(it) }
         }
-        return ids to keys
+        // The songs the next batch will FOLLOW (primary artists, oldest first), for the artist spacing at the seam.
+        // Callers that replace the tail after the current song (appendSeed, autoplay chips) follow the CURRENT item
+        // ([afterCurrent] = true); queue pages are appended at the very end (false).
+        val anchor = if (afterCurrent) player.currentMediaItemIndex else count - 1
+        val tailArtists = ((anchor - 1)..anchor).filter { it in 0 until count }.mapNotNull { i ->
+            runCatching { player.getMediaItemAt(i).metadata?.artists?.firstOrNull()?.name?.lowercase() }.getOrNull()
+        }
+        return LiveQueueSnapshot(ids, keys, tailArtists)
     }
 
     /**
@@ -4751,7 +4759,7 @@ class MusicService :
         // result is the honest answer and every caller already falls through to its next source.
         strictNoRepeat: Boolean = false,
         // Ids / NoRepeatKeys of the live queue (see liveQueueSnapshot) — also off-limits when non-null.
-        queued: Pair<Set<String>, Set<String>>? = null,
+        queued: LiveQueueSnapshot? = null,
     ): List<MediaItem> {
         if (size < 2 && !strictNoRepeat) return this
         val disliked = runCatching { dislikeStore.snapshot() }
@@ -4808,6 +4816,17 @@ class MusicService :
         var ctxKnownGenre = 0
         var ctxUnknownGenre = 0
         val rnd = java.util.Random()
+        // QUEUE SIGNALS (cola inteligente review, 2026-10-19) — two bounded DEMOTIONS, never a drop and never an addition:
+        //  · an artist the listener skipped within seconds twice in THIS queue ([SessionSkipMemory]; not on the collection-
+        //    pattern layout, which keeps the collection's own artists);
+        //  · a processed re-upload (karaoke, instrumental, sped up, slowed, nightcore, 8D…: [VersionNoise]) unless what
+        //    plays right now is one itself — then that is the mood and they rank like any other song.
+        // Both are in-memory lookups (no I/O, no network), read once per candidate.
+        val nowMeta = currentMediaMetadata.value
+        val inDerivativeMood = nowMeta != null && iad1tya.echo.music.reco.VersionNoise.isDerivative(nowMeta.title, nowMeta.album?.title)
+        val skipMemory = exactStyle.quickSkips
+        var skipDemoted = 0
+        var versionDemoted = 0
         // Precompute the sort key ONCE per item: calling rnd inside the comparator would make it inconsistent
         // between comparisons and crash TimSort ("Comparison method violates contract").
         val keyed = filtered.mapIndexed { index, mi ->
@@ -4858,7 +4877,13 @@ class MusicService :
             // See [deprioritized]: dominates every other term so a sunk off-context candidate can never be
             // lifted back into the head by the pull cap or the exploration quota.
             val sunk = if (m != null && m.id in deprioritized) 1000.0 else 0.0
-            val key = index.toDouble() - pull + soft + jitter + ctx + sunk
+            val skipDemotion = if (m == null || usePattern) 0.0 else skipMemory.penalty(m.artists.map { it.name })
+            val versionDemotion = if (m == null || inDerivativeMood ||
+                !iad1tya.echo.music.reco.VersionNoise.isDerivative(m.title, m.album?.title)
+            ) 0.0 else iad1tya.echo.music.reco.VersionNoise.DEMOTION
+            if (skipDemotion > 0.0) skipDemoted++
+            if (versionDemotion > 0.0) versionDemoted++
+            val key = index.toDouble() - pull + soft + jitter + ctx + sunk + skipDemotion + versionDemotion
             // NO-REPEAT: "heard" is now SESSION-WIDE ([sessionPlayedIds] — everything played OR appended this
             // session), broadened beyond the last-~120 [recentSnapshot] and the ~5-min DB [playedHistory].
             // Ronda 10: also caught by TITLE+artist ([sessionPlayedDedupKeys]) so a different upload of a
@@ -4867,7 +4892,7 @@ class MusicService :
             val heard = m != null && (
                 m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory ||
                     dedupKey in sessionPlayedDedupKeys ||
-                    (queued != null && (m.id in queued.first || dedupKey in queued.second))
+                    (queued != null && (m.id in queued.ids || dedupKey in queued.keys))
             )
             Triple(mi, key, heard)
         }
@@ -4895,6 +4920,13 @@ class MusicService :
         // (relatedness backbone + taste/context steer); only the artist-spacing pass runs.
         // A batch never carries the same song twice either (two uploads of one song, or YouTube returning
         // the same id on two continuation slots): keep the best-ranked copy, by id AND by NoRepeatKey.
+        if (skipDemoted > 0 || versionDemoted > 0) {
+            // Counts only (AGENTS.md rule 4): no titles, artists or ids.
+            Timber.tag(TAG).i(
+                "QUEUE_SIGNALS demoted: skippedArtist=%d reupload=%d of %d candidates",
+                skipDemoted, versionDemoted, filtered.size,
+            )
+        }
         val batchIds = HashSet<String>()
         val batchKeys = HashSet<String>()
         val rankedUnheard = keyed.filterNot { it.third }.sortedBy { it.second }.map { it.first }.filter { mi ->
@@ -4938,7 +4970,7 @@ class MusicService :
                 )
             }
         } else {
-            RadioQueueShaping.spacedByArtist(rankedUnheard)
+            RadioQueueShaping.spacedByArtist(rankedUnheard, queued?.tailArtists.orEmpty())
         }
         // No fresh candidates left? Fall back to the ordered already-heard tail rather than dead-ending.
         val heardTail = keyed.filter { it.third }.sortedBy { it.second }.map { it.first }
@@ -6312,7 +6344,7 @@ class MusicService :
             // Ronda 10 — see [radioOriginContextId]'s own doc comment.
             val pageOriginContextId = radioOriginContextId
             // Live queue (ids + song keys) captured NOW, on the player thread — see liveQueueSnapshot.
-            val queuedNow = liveQueueSnapshot()
+            val queuedNow = liveQueueSnapshot(afterCurrent = false)
             // Fila 354 — the exact-style gate on radio pages (ExactStyleGate.kt). Only on automatic radio
             // continuations: an automatic radio, an album's radio, or the radio of the single song the user
             // tapped — never pages of a list the user chose (a YouTube playlist keeps every song).
@@ -6566,6 +6598,11 @@ class MusicService :
             }
         }
         previousMediaItemIndex = player.currentMediaItemIndex
+        // The exact-style gate and the queue's quick-skip memory track "the song that really plays" from
+        // onMediaItemTransition — which a crossfade swap (the DEFAULT) never fires, so after every auto-advance
+        // they still pointed at the song BEFORE: the next skip was attributed to the wrong song and timed from
+        // the wrong start. Idempotent on the transition path (same item → early return in the hook).
+        player.currentMediaItem?.let { exactStyleOnTransition(it, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) }
         checkSleepTimerAfterSong()
         lastPlaybackSpeed = -1.0f
         preloadUpcomingItems()

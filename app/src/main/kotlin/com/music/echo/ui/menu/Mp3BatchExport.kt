@@ -9,22 +9,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.ExportDirectoryUriKey
-import iad1tya.echo.music.constants.ExportingSongIdsKey
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.playback.AudioExportService
-import iad1tya.echo.music.utils.dataStore
+import iad1tya.echo.music.playback.AudioExportTask
 import iad1tya.echo.music.utils.rememberPreference
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 /** What the export service needs to write one MP3 (file, tags and cover). */
 data class Mp3ExportTrack(
@@ -47,8 +39,11 @@ fun Song.toMp3ExportTrack(): Mp3ExportTrack = Mp3ExportTrack(
  * «Descargar todo el álbum a MP3» (dueño, 2026-10-18: *«quiero poder descargar todo el álbum a MP3, o singles, o EPs,
  * o playlists enteras»*). Las listas ya tenían «Exportar a MP3» en su menú ⋮; los álbumes, EPs y sencillos no. Esta es
  * la misma mecánica en un solo sitio, para los menús de álbum: elige carpeta una vez y escribe TODAS las canciones, de
- * una en una (el servicio hace `stopSelf()` tras cada canción: dos arranques a la vez cancelarían el trabajo en curso),
- * con etiquetas y portada, mostrando el progreso de siempre en la notificación.
+ * una en una, con etiquetas y portada.
+ *
+ * 2026-10-19: la lista entera se entrega al servicio de una vez (`AudioExportService.startBatch`) y él la recorre bajo
+ * UNA notificación con barra de progreso. Antes cada canción era un arranque del servicio, con su notificación que se
+ * quitaba y volvía a salir, y el bucle vivía en el scope del propio menú (que se cancelaba al cerrarlo).
  *
  * Devuelve la función que se llama con las canciones: abre el selector de carpeta y, al elegirla, lanza la exportación
  * en segundo plano. [onStarted] cierra el menú.
@@ -56,7 +51,6 @@ fun Song.toMp3ExportTrack(): Mp3ExportTrack = Mp3ExportTrack(
 @Composable
 fun rememberMp3BatchExport(onStarted: () -> Unit): (List<Mp3ExportTrack>) -> Unit {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val (_, onExportDirectoryUriChange) = rememberPreference(key = ExportDirectoryUriKey, defaultValue = "")
     var pending by remember { mutableStateOf<List<Mp3ExportTrack>>(emptyList()) }
 
@@ -77,27 +71,22 @@ fun rememberMp3BatchExport(onStarted: () -> Unit): (List<Mp3ExportTrack>) -> Uni
             Toast.LENGTH_LONG,
         ).show()
         onStarted()
-        scope.launch(Dispatchers.IO) {
-            for (track in tracks) {
-                withContext(Dispatchers.Main) {
-                    AudioExportService.start(
-                        context = context,
-                        songId = track.id,
-                        songTitle = track.title,
-                        songArtist = track.artist,
-                        songAlbum = track.album,
-                        artworkUrl = track.artworkUrl,
-                        targetDirectoryUri = uri.toString(),
-                    )
-                }
-                // Same hand-off as the playlists' export: wait for the service to claim the song, then for it to finish.
-                val exporting = context.dataStore.data.map { prefs ->
-                    prefs[ExportingSongIdsKey].orEmpty().split(",").any { it == track.id }
-                }
-                withTimeoutOrNull(15_000) { exporting.first { it } }
-                exporting.first { !it }
-            }
-        }
+        // The whole list goes to the service in ONE start (see AudioExportService.startBatch): it works the queue off
+        // song after song under a single progress notification, and no longer depends on this menu staying
+        // composed (this scope used to be the menu's own, cancelled when [onStarted] closed it).
+        AudioExportService.startBatch(
+            context.applicationContext,
+            tracks.map { track ->
+                AudioExportTask(
+                    songId = track.id,
+                    title = track.title,
+                    artist = track.artist,
+                    album = track.album,
+                    artworkUrl = track.artworkUrl,
+                    targetDirectoryUri = uri.toString(),
+                )
+            },
+        )
     }
 
     return { tracks ->
