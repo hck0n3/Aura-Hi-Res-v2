@@ -92,6 +92,7 @@ const val AuraWideWindowMaxHeightFraction = 0.80f
  * Wraps the placement of a wide card: the area it floats in already discounts the status/navigation bars, the display cut-out
  * and the keyboard, so the card is never hidden behind them and never touches the window edge.
  */
+@Composable
 fun Modifier.auraWideWindowArea(): Modifier =
     this
         .windowInsetsPadding(WindowInsets.safeDrawing)
