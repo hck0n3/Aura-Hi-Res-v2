@@ -101,10 +101,10 @@ object MusicRequestKaraoke {
         "i want to sing", "por favor", "can you play", "me gustaria", "put on", "show me", "give me", "play me", "i want",
         "ponme", "pon", "poner", "ponga", "dame", "pasame", "busca", "buscame", "reproduce", "reproducir", "hazme",
         "muestrame", "porfa", "please", "play", "sing",
-        "de la cancion", "la cancion", "una cancion", "el tema", "un tema", "la version",
+        "de la cancion", "la cancion", "una cancion", "el tema", "un tema", "la version", "cancion", "tema",
     ).map { it.split(' ') }.sortedByDescending { it.size }
 
-    private val NOUN_LEADS = setOf("la", "una", "el", "un", "de")
+    private val NOUN_LEADS = setOf("la", "una", "el", "un", "de", "cancion", "tema")
 
     /** «quiero / necesito / busco» open a request only when followed by one of these (else «Quiero Bailar» is a title). */
     private val DESIRE = setOf("quiero", "necesito", "busco", "queria", "quisiera")
@@ -297,7 +297,7 @@ object MusicRequestKaraoke {
     }
 
     /** The song's own words in a karaoke title, and the credit words that go with it. */
-    internal class Parts(val song: List<String>, val credit: Set<String>)
+    internal class Parts(val song: List<String>, val credit: Set<String>, val segments: List<List<String>> = emptyList())
 
     internal fun partsOf(title: String, album: String?, artists: List<String>): Parts {
         val bracketText = Regex("""[(\[]([^)\]]*)[)\]]""").findAll(title).joinToString(" ") { it.groupValues[1] }
@@ -305,6 +305,7 @@ object MusicRequestKaraoke {
         val segments = noBrackets.split(Regex("""\s[-–—|:]\s""")).map { fold(it) }.filter { it.isNotBlank() }
         val credit = LinkedHashSet<String>()
         val songWords = ArrayList<String>()
+        val segmentSongs = ArrayList<List<String>>()
         for (segment in segments) {
             val words = segment.split(' ').filter { it.isNotEmpty() }
             var cut = words.size
@@ -317,7 +318,11 @@ object MusicRequestKaraoke {
             }
             val head = words.take(cut).filter { it !in WRAPPER_WORDS }
             songWords += head
+            if (head.isNotEmpty()) segmentSongs += head
         }
+        // «Title - Artist» and «Artist - Title»: when the title has several parts, each could be the song and the others the
+        // credit.
+        if (segmentSongs.size > 1) segmentSongs.forEach { credit += it }
         // Brackets can carry the credit too: «(Karaoke Version In the Style of Queen)».
         val bracketWords = fold(bracketText).split(' ').filter { it.isNotEmpty() }
         for (lead in CREDIT_LEAD) {
@@ -327,7 +332,7 @@ object MusicRequestKaraoke {
         credit += fold(listOfNotNull(album).joinToString(" ")).split(' ').filter { it.isNotEmpty() }
         credit += fold(artists.joinToString(" ")).split(' ').filter { it.isNotEmpty() }
         credit += bracketWords
-        return Parts(songWords, credit)
+        return Parts(songWords, credit, if (segmentSongs.size > 1) segmentSongs else emptyList())
     }
 
     private fun sig(words: List<String>): List<String> = words.filter { it !in STOP }.ifEmpty { words }
@@ -337,16 +342,19 @@ object MusicRequestKaraoke {
      * asked (the artist) is in its credit, 3 = the song is inside the request but the artist is not shown, 0 = another
      * song. The «Amor» karaoke of «Juan Gabriel Amor eterno» is NOT it: a lone word covering a quarter of the request.
      */
-    internal fun songTier(askWords: List<String>, parts: Parts): Int {
+    internal fun songTier(askWords: List<String>, parts: Parts): Int =
+        (listOf(parts.song) + parts.segments).maxOf { tierOfWords(askWords, it, parts.credit) }
+
+    private fun tierOfWords(askWords: List<String>, songWords: List<String>, credit: Set<String>): Int {
         val s = sig(askWords)
-        val b = sig(parts.song)
+        val b = sig(songWords)
         if (s.isEmpty() || b.isEmpty()) return 0
         if (b == s) return 1
         if (isSublist(b, s)) {
             // The track's title is inside the request: the words around it should be the artist.
             val at = indexOfSublist(b, s)
             val rest = s.take(at) + s.drop(at + b.size)
-            if (rest.all { it in parts.credit }) return 2
+            if (rest.all { it in credit }) return 2
             return if (b.size >= 2 || b.size.toDouble() / s.size >= 0.6) 3 else 0
         }
         if (isSublist(s, b)) {

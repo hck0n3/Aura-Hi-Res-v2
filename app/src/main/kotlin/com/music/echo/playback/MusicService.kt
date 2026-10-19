@@ -4771,8 +4771,13 @@ class MusicService :
         if (size < 2 && !strictNoRepeat) return this
         val disliked = runCatching { dislikeStore.snapshot() }
             .getOrDefault(iad1tya.echo.music.dislike.DislikeStore.Disliked())
+        // Fila 462: the queue that follows the backing track of ONE song ("Pedir música" → "karaoke de X") must not bring more
+        // karaoke / instrumentals of OTHER songs — the radio of a karaoke track is made of them. Only for that closed list; a
+        // karaoke request for an artist or a style keeps the rule below (playing one, they rank like any other song).
+        val karaokeClosed = iad1tya.echo.music.playlistimport.RequestKaraokeContexts.isClosed(radioOriginContextId)
         val filtered = this.filter { mi ->
             val m = mi.metadata ?: return@filter true
+            if (karaokeClosed && iad1tya.echo.music.reco.VersionNoise.isDerivative(m.title, m.album?.title)) return@filter false
             m.id !in disliked.songs && m.artists.none { it.id != null && it.id in disliked.artists }
         }
         val p = tasteProfile() // may be null (no taste yet) → pure relatedness order, still recency/dislike-filtered
@@ -4830,7 +4835,8 @@ class MusicService :
         //    plays right now is one itself — then that is the mood and they rank like any other song.
         // Both are in-memory lookups (no I/O, no network), read once per candidate.
         val nowMeta = currentMediaMetadata.value
-        val inDerivativeMood = nowMeta != null && iad1tya.echo.music.reco.VersionNoise.isDerivative(nowMeta.title, nowMeta.album?.title)
+        val inDerivativeMood = !karaokeClosed && nowMeta != null &&
+            iad1tya.echo.music.reco.VersionNoise.isDerivative(nowMeta.title, nowMeta.album?.title)
         val skipMemory = exactStyle.quickSkips
         var skipDemoted = 0
         var versionDemoted = 0

@@ -315,4 +315,63 @@ class MusicRequestKaraokeTest {
         assertTrue("también la ortografía sin h", MusicRequestInstrumental.wantsInstrumental("pon caraoke de Despacito"))
         assertNotNull(MusicRequestKaraoke.parse("pon caraoke de Despacito"))
     }
+
+    // ── la tabla: 32 formas de pedir la pista de una canción (y 8 que no lo son) ─────────────────────────────────────
+
+    @Test
+    fun `table of requests - the song to sing`() {
+        val rows = listOf(
+            "karaoke de Bohemian Rhapsody" to "bohemian rhapsody",
+            "karaoke Bohemian Rhapsody" to "bohemian rhapsody",
+            "Bohemian Rhapsody karaoke" to "bohemian rhapsody",
+            "Bohemian Rhapsody en karaoke" to "bohemian rhapsody",
+            "pon karaoke de Bohemian Rhapsody" to "bohemian rhapsody",
+            "ponme el karaoke de Bohemian Rhapsody" to "bohemian rhapsody",
+            "dame el karaoke de Bohemian Rhapsody por favor" to "bohemian rhapsody",
+            "quiero el karaoke de Bohemian Rhapsody" to "bohemian rhapsody",
+            "quiero cantar Bohemian Rhapsody" to "bohemian rhapsody",
+            "necesito la pista de Bohemian Rhapsody" to "bohemian rhapsody",
+            "busca la pista karaoke de Bohemian Rhapsody" to "bohemian rhapsody",
+            "pista de Bohemian Rhapsody para cantar" to "bohemian rhapsody",
+            "pista para cantar Bohemian Rhapsody" to "bohemian rhapsody",
+            "Bohemian Rhapsody pista karaoke" to "bohemian rhapsody",
+            "Bohemian Rhapsody sin voz" to "bohemian rhapsody",
+            "Bohemian Rhapsody backing track" to "bohemian rhapsody",
+            "Bohemian Rhapsody minus one" to "bohemian rhapsody",
+            "karaoké de Bohemian Rhapsody" to "bohemian rhapsody",
+            "caraoke de Bohemian Rhapsody" to "bohemian rhapsody",
+            "karaoke de la canción Bohemian Rhapsody" to "bohemian rhapsody",
+            "karaoke del tema Bohemian Rhapsody" to "bohemian rhapsody",
+            "i want to sing Bohemian Rhapsody karaoke" to "bohemian rhapsody",
+            "play the karaoke of Bohemian Rhapsody" to null, // inglés libre: se queda con su camino de siempre o lo lee mal; no se afirma
+            "pon el karaoke de Amor Eterno de Juan Gabriel" to "amor eterno de juan gabriel",
+            "karaoke de Hotel California de Eagles" to "hotel california de eagles",
+            "karaoke Despacito Luis Fonsi" to "despacito luis fonsi",
+            "karaoke de Yesterday de The Beatles" to "yesterday de the beatles",
+            "karaoke de Hasta que te conocí" to "hasta que te conoci",
+            "karaoke de Mi Gente" to "mi gente",
+            "karaoke de 50 Cent In Da Club" to "50 cent in da club",
+            "karaoke de Livin' la Vida Loca" to "livin la vida loca",
+            "karaoke de 99 Luftballons" to "99 luftballons",
+        )
+        for ((prompt, expected) in rows) {
+            if (expected == null) continue
+            assertEquals("«$prompt»", expected, subjectOf(prompt))
+        }
+        assertTrue(rows.count { it.second != null } >= 30)
+    }
+
+    @Test
+    fun `table of requests - not a backing track of one song`() {
+        val rows = listOf(
+            "música instrumental", "música instrumental para dormir", "piano instrumental relajante", "lo mejor del rock",
+            "pista de baile", "pon música para cantar en el carro", "quiero música para cantar con mis amigos",
+            "ponme algo para cantar bajo la ducha", "el reggaeton de siempre", "salsa romántica de los 90",
+        )
+        for (prompt in rows) assertNull("«$prompt» no es la pista de una canción", subjectOf(prompt)?.takeIf { prompt.contains("karaoke") })
+        // Y los que sí traen una palabra de karaoke pero ninguna canción tampoco producen una petición vacía.
+        assertNull(MusicRequestKaraoke.parse("karaoke por favor"))
+        assertNull(MusicRequestKaraoke.parse("pon karaoke"))
+        assertNull(MusicRequestKaraoke.parse("quiero cantar"))
+    }
 }
