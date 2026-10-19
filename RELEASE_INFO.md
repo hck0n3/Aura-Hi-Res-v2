@@ -16,8 +16,8 @@ Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Reún
   usan más columnas y la Biblioteca enseña unas cuatro miniaturas por fila.
 - **Álbumes, EP, sencillos, listas de YouTube y tus listas:** la portada a la izquierda y el título, el artista y los botones a su
   derecha; las canciones se ven enseguida.
-- **Las ventanas que se abren desde abajo, la búsqueda rápida y los diálogos quedan centrados** con un ancho máximo, y son de cristal más
-  translúcido, con el color de la mezcla de la portada.
+- **Las ventanas que se abren desde abajo, la búsqueda rápida y los diálogos quedan centrados** con un ancho máximo, y son de cristal mucho más
+  translúcido (también la hoja de descargas del reproductor), con el color de la mezcla de la portada.
 - **«Añadir a lista»:** el nombre completo de cada lista y, en pantalla ancha, portadas más grandes.
 - **Con el móvil sin plegar, al girarlo conserva su interfaz de móvil:** la barra flotante, el reproductor dividido y las dos tarjetas
   solo salen en el plegable abierto y en tabletas.
@@ -78,8 +78,11 @@ Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Reún
 
 ## Inicio, Novedades y búsqueda
 
-- **Acceso rápido bajo el saludo:** Canciones que me gustan, Descargado, Historial y el botón Aleatorio, en un toque; el carrusel «Para ti»
+- **Acceso rápido bajo el saludo:** Canciones que me gustan, Descargado, Mi top y el botón Aleatorio, en un toque; el carrusel «Para ti»
   abre Inicio y las filas de canciones van en dos columnas en pantalla ancha.
+- **Sin cosas repetidas en Inicio:** lo que ya sale en el carrusel no se repite en los estantes de recientes, favoritas olvidadas o mix de género.
+- **Me gusta, MP3 exportados, Mi top, Descargadas y En caché** tienen la misma cabecera con portada que las listas y los álbumes, en el móvil y
+  en el plegable abierto.
 - **Inicio más personal:** tu mix de género, «Porque escuchaste…» y tus favoritas olvidadas suben por encima de lo genérico.
 - **Novedades solo de artistas que sigues**, y «Lo más nuevo» se filtra con todo tu gusto.
 - **Cabecera limpia:** el nombre arriba y el saludo debajo; los botones secundarios tras un solo botón, con tu avatar siempre visible.
