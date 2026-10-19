@@ -101,7 +101,7 @@ object MusicRequestKaraoke {
         "i want to sing", "por favor", "can you play", "me gustaria", "put on", "show me", "give me", "play me", "i want",
         "ponme", "pon", "poner", "ponga", "dame", "pasame", "busca", "buscame", "reproduce", "reproducir", "hazme",
         "muestrame", "porfa", "please", "play", "sing",
-        "de la cancion", "la cancion", "una cancion", "el tema", "un tema", "la version", "el", "la", "una", "un",
+        "de la cancion", "la cancion", "una cancion", "el tema", "un tema", "la version",
     ).map { it.split(' ') }.sortedByDescending { it.size }
 
     /** «quiero / necesito / busco» open a request only when followed by one of these (else «Quiero Bailar» is a title). */
@@ -161,9 +161,7 @@ object MusicRequestKaraoke {
                         continue
                     }
                     val lead = LEADS.firstOrNull { p -> i + p.size <= work.size && p.indices.all { work[i + it] == p[it] } }
-                    // An article only goes when it opens a request («pon el karaoke»), never a title («La Bamba»): after a
-                    // verb or a marker the clause is still empty, but a bare article at the very start is left alone.
-                    if (lead != null && (lead.size > 1 || lead[0] !in setOf("el", "la", "una", "un") || i > 0)) {
+                    if (lead != null) {
                         i += lead.size
                         continue
                     }
