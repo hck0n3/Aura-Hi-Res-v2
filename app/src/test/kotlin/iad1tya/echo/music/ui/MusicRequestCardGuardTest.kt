@@ -68,6 +68,7 @@ class MusicRequestCardGuardTest {
         val ui = main("ui/newui/AuraMusicRequest.kt")
         val card = ui.substringAfter("fun AuraMusicRequestCard(").substringBefore("private fun AuraMusicRequestSheet(")
         assertTrue("pausa al empezar a buscar", card.contains("playerConnection.player.pause()") && card.contains("pausedForRequest = true"))
+        assertTrue("si algo la reanuda mientras busca, se vuelve a pausar", card.contains("playerConnection.isPlaying.collect") && card.contains("if (playing)"))
         assertTrue("solo se devuelve si NO hay música pedida", card.contains("if (state !is MusicRequestUiState.Ready) playerConnection.player.play()"))
         assertTrue("la música pedida entra con playQueue", card.contains("playerConnection.playQueue("))
         val body = ui.substringAfter("private fun AuraMusicRequestSheetBody(").substringBefore("private fun AuraMusicRequestResultCard(")

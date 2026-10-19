@@ -143,7 +143,7 @@ class AuraHomeLayoutTest {
             assertTrue("la tarjeta de Pedir música usa $piece como las baldosas", invite.contains(piece))
             assertTrue("las baldosas usan $piece", tile.contains(piece))
         }
-        assertTrue("el botón principal lleva el borde del acento", invite.contains("AuraPalette.Teal.copy(alpha = 0.55f)"))
+        assertTrue("el botón principal lleva el mismo borde que las baldosas", invite.contains("AuraPalette.SurfaceLine") && !invite.contains("Teal.copy"))
         // The entrance keeps its action: it opens the sheet, shows the spinner while it works and speaks its label.
         val request = main("ui/newui/AuraMusicRequest.kt").substringAfter("fun AuraMusicRequestCard(").substringBefore("if (sheetOpen)")
         assertTrue(request.contains("AuraHomeInviteCard("))
@@ -159,14 +159,14 @@ class AuraHomeLayoutTest {
     }
 
     @Test
-    fun `the four tiles are equal vertical cards with a fixed height and the whole name on two lines`() {
+    fun `the four tiles are equal horizontal cards with a fixed height and the whole name on two lines`() {
         val layout = main("ui/newui/AuraHomeLayout.kt")
         val tile = layout.substringAfter("private fun AuraQuickTileCard(")
         assertTrue(tile.contains(".height(AURA_QUICK_TILE_HEIGHT)"))
         assertTrue("el nombre completo en dos líneas", tile.contains("maxLines = 2"))
         assertTrue(layout.substringAfter("internal fun AuraQuickAccess(").contains("modifier = Modifier.weight(1f)"))
         assertTrue("sobran huecos con un Spacer para que la última fila conserve el ancho", layout.contains("repeat(columns - rowTiles.size)"))
-        assertTrue(AURA_QUICK_TILE_HEIGHT.value >= 88f)
-        assertTrue("el botón principal es más bajo que una baldosa vertical, pero ocupa todo el ancho", AURA_INVITE_CARD_HEIGHT.value in 64f..AURA_QUICK_TILE_HEIGHT.value)
+        assertTrue("baldosa horizontal: el icono a la izquierda, nombre y cuenta al lado", AURA_QUICK_TILE_HEIGHT.value in 64f..84f && tile.contains("Row("))
+        assertTrue("el botón principal ocupa todo el ancho y es algo más alto que una baldosa", AURA_INVITE_CARD_HEIGHT.value >= AURA_QUICK_TILE_HEIGHT.value)
     }
 }

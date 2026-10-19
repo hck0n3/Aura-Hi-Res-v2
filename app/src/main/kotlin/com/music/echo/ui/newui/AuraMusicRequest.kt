@@ -107,9 +107,14 @@ fun AuraMusicRequestCard(
     val searching = state is MusicRequestUiState.Working
     LaunchedEffect(searching) {
         if (searching) {
-            if (playerConnection.isPlaying.value) {
-                playerConnection.player.pause()
-                pausedForRequest = true
+            // Se queda pausada MIENTRAS dure la búsqueda: si algo la reanuda (el reconocimiento de voz suelta el foco de
+            // audio al terminar de dictar y el reproductor lo recupera solo — dueño, 2026-10-19: «una vez terminado de
+            // dictar no tiene que reanudar la canción anterior»), se vuelve a pausar en el acto.
+            playerConnection.isPlaying.collect { playing ->
+                if (playing) {
+                    playerConnection.player.pause()
+                    pausedForRequest = true
+                }
             }
         } else if (pausedForRequest) {
             pausedForRequest = false
