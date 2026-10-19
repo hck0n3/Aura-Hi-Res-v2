@@ -277,6 +277,8 @@ fun AuraAlbumScreen(
     }
 
     val listState = rememberLazyListState()
+    // Opens on the cover, never scrolled past it (see AuraOpenAtTop).
+    AuraOpenAtTop(listState)
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { listState.isScrollInProgress }
     // Fila 360: this screen wears ITS cover's colours (not the song playing) while it is shown.

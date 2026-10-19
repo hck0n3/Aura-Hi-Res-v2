@@ -241,6 +241,9 @@ internal fun AuraSongCollectionScaffold(
     }
 
     val listState = rememberLazyListState()
+    // Opens on the cover, never scrolled past it: Descargado puts its cards in the list before the songs (and the header)
+    // arrive, and the header inserted above them would otherwise push the page down (see AuraOpenAtTop).
+    AuraOpenAtTop(listState)
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { listState.isScrollInProgress }
     val pullRefreshState = rememberPullToRefreshState()

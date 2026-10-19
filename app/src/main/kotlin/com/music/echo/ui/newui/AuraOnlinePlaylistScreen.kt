@@ -171,6 +171,8 @@ fun AuraOnlinePlaylistScreen(
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
 
     val lazyListState = rememberLazyListState()
+    // Opens on the cover, never scrolled past it (see AuraOpenAtTop).
+    AuraOpenAtTop(lazyListState)
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { lazyListState.isScrollInProgress }
     val snackbarHostState = remember { SnackbarHostState() }
