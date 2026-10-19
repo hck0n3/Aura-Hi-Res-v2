@@ -33,7 +33,8 @@ class AgeGateRecoveryGuardTest {
     @Test
     fun `the recovery never matches the localised reason text and never logs it`() {
         val block = src.substringAfter("AGE GATE THAT ARRIVES AS LOGIN_REQUIRED").substringBefore("NOTE (fix #5)")
-        val code = block.lines().filterNot { it.trim().startsWith("//") }.joinToString("\n")
+        // The block starts in the MIDDLE of the first comment line, so that line is dropped before comments are filtered out.
+        val code = block.lines().drop(1).filterNot { it.trim().startsWith("//") }.joinToString("\n")
         assertFalse(code.contains(".reason"))
         assertFalse(code.contains("confirm your age", ignoreCase = true))
         assertFalse(code.contains("edad", ignoreCase = true))
