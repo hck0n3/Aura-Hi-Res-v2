@@ -34,7 +34,12 @@ class ExoDownloadService : DownloadService(
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == REMOVE_ALL_PENDING_DOWNLOADS) {
             downloadManager.currentDownloads.forEach { download ->
-                downloadManager.removeDownload(download.request.id)
+                // "Cancel" is for what is still downloading. A song that was ALREADY complete and is only passing through
+                // the queue again (a "download all" over a list that includes it) is not an unfinished download:
+                // removing it deletes bytes the user already has and was relying on offline.
+                if (!OfflineIntegrity.isFullyOnDisk(downloadUtil.downloadCache, download.request.id)) {
+                    downloadManager.removeDownload(download.request.id)
+                }
             }
         }
         return super.onStartCommand(intent, flags, startId)

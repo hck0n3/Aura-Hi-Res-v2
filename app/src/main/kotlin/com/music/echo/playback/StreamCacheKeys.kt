@@ -40,6 +40,17 @@ object StreamCacheKeys {
         }
     }
 
+    /**
+     * True for a listen-cache key written by the OLD scheme that keyed on the rotating `o-XXXX` stream id (`yt-stream-o-…`):
+     * unreachable now, safe to purge. A real videoId is exactly 11 characters; the companion VIDEO keys
+     * (`yt-stream-yt-video-<id>-<itag>`) are 17 and are NOT orphans — the one-shot purge used to match them too
+     * (`songIdOf` is `yt-video-<id>`, not 11 long), so it would have deleted every cached video on a device that ran it.
+     */
+    fun isLegacyRotatingKey(key: String): Boolean {
+        val songId = songIdOf(key) ?: return false
+        return songId.length != 11 && !songId.startsWith("yt-video-")
+    }
+
     /** True when [key] is a listen-cache key belonging to [songId] (any cached quality). */
     fun belongsTo(key: String, songId: String): Boolean = songIdOf(key) == songId
 

@@ -1323,6 +1323,10 @@ interface DatabaseDao {
     @Query("UPDATE song SET isDownloaded = 1, dateDownload = COALESCE(dateDownload, :date) WHERE id = :songId")
     fun markDownloadedKeepingDate(songId: String, date: LocalDateTime)
 
+    /** Flips ONLY the flag, keeping [dateDownload]: a song whose bytes come back is re-listed where it was. */
+    @Query("UPDATE song SET isDownloaded = :downloaded WHERE id = :songId")
+    fun setDownloadedFlag(songId: String, downloaded: Boolean)
+
     /** Ids of the songs the library lists as downloaded — one cheap read for the startup reconcile. */
     @Query("SELECT id FROM song WHERE isDownloaded = 1")
     fun downloadedSongIdsOnce(): List<String>

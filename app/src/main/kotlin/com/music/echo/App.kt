@@ -300,8 +300,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 if (dataStore.data.first()[iad1tya.echo.music.constants.StreamCacheOrphanPurgeAppliedKey] != true) {
                     val downloadUtil = downloadUtilLazy.get()
                     val orphans = downloadUtil.playerCache.keys.filter { key ->
-                        key.startsWith("yt-stream-") &&
-                            iad1tya.echo.music.playback.StreamCacheKeys.songIdOf(key)?.length != 11
+                        iad1tya.echo.music.playback.StreamCacheKeys.isLegacyRotatingKey(key)
                     }
                     if (orphans.isNotEmpty()) {
                         orphans.forEach { runCatching { downloadUtil.playerCache.removeResource(it) } }

@@ -735,7 +735,7 @@ object YTPlayerUtils {
         }
 
         var usedAgeRestrictedClient: YouTubeClient? = null
-        val wasOriginallyAgeRestricted: Boolean
+        var wasOriginallyAgeRestricted: Boolean
 
         
         
@@ -771,6 +771,39 @@ object YTPlayerUtils {
                 Timber.tag(logTag).d("Embedded player works for age-restricted (guest) content")
                 mainPlayerResponse = embedResponse
                 usedAgeRestrictedClient = TVHTML5_SIMPLY_EMBEDDED_PLAYER
+            }
+        }
+
+        // AGE GATE THAT ARRIVES AS LOGIN_REQUIRED (owner 2026-10-19: a user sees «Accede para confirmar tu edad»
+        // IO_UNSPECIFIED 2000 on a song and the owner's order is that nobody is ever locked out of explicit content).
+        // YouTube answers an age-gated video to the ANDROID_VR main client with status LOGIN_REQUIRED (reason «Sign in
+        // to confirm your age», localised), NOT with AGE_CHECK_REQUIRED — so the two age branches above, which only
+        // look at the AGE_* statuses, never ran, the LOGIN_REQUIRED was filed as "auth-shaped" (anonymous retry, which
+        // cannot help an age gate) and the song died. The reason text is localised and must not be matched, so the
+        // trigger is structural: any LOGIN_REQUIRED from the main client gets ONE more chance through the clients that
+        // serve age-gated videos (WEB_CREATOR with the account, the TV embedded player without any). A bot-check
+        // LOGIN_REQUIRED costs one extra request here and falls through exactly as before.
+        if (usedAgeRestrictedClient == null && mainStatus != null &&
+            (isAgeRestrictedFromResponse || mainStatus == "LOGIN_REQUIRED")
+        ) {
+            val triedCreator = isAgeRestrictedFromResponse && isLoggedIn
+            val triedEmbedded = isAgeRestrictedFromResponse && !isLoggedIn
+            val gateClients = listOfNotNull(
+                if (isLoggedIn && !triedCreator) WEB_CREATOR else null,
+                if (!triedEmbedded) TVHTML5_SIMPLY_EMBEDDED_PLAYER else null,
+            )
+            for (gateClient in gateClients) {
+                val gateResponse = YouTube.player(videoId, playlistId, gateClient, null, null, noLogin = noLogin).getOrNull()
+                val gateStatus = gateResponse?.playabilityStatus?.status
+                // Status only — never the reason or the response body (log privacy, AGENTS.md rule 4).
+                Timber.tag(TAG).i("Age-gate recovery: client=${gateClient.clientName} status=$gateStatus")
+                if (gateStatus == "OK") {
+                    mainPlayerResponse = gateResponse
+                    usedAgeRestrictedClient = gateClient
+                    // NewPipe cannot extract age-gated videos: findUrlOrNull skips it for these.
+                    wasOriginallyAgeRestricted = true
+                    break
+                }
             }
         }
 
