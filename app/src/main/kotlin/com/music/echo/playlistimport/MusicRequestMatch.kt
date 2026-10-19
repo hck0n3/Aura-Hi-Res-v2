@@ -132,12 +132,16 @@ object MusicRequestMatch {
         } else {
             val words = contentWords(parsed.query)
             val wordHits = words.count { containsToken(t, it) }
+            // Dueño (2026-10-19): con UN solo grupo reconocido (un género: «k-pop», «hyperpop», «trap») la lista que lo
+            // nombra con otra grafía («Kpop 2024») no comparte ninguna palabra con la consulta escrita y se rechazaba.
+            // Un único grupo que el título cumple vale igual que una palabra de la consulta.
+            val groupHit = groups.size == 1 && groups[0].any { containsToken(t, it) }
             // Sin década que comprobar, lo que se exige es que el título comparta al menos una palabra
             // de CONTENIDO con la petición. Sin esa regla, "Mi mix" pasaba por el simple hecho de
             // llamarse "mix" — una lista de cualquier cosa colándose en una petición de música para
             // estudiar.
-            if (decade == null && wordHits == 0) return REJECT
-            score += wordHits.coerceAtMost(3)
+            if (decade == null && wordHits == 0 && !groupHit) return REJECT
+            score += if (wordHits == 0 && groupHit) 1 else wordHits.coerceAtMost(3)
         }
 
         if (COMPILATION_WORDS.any { containsToken(t, it) }) score += 1

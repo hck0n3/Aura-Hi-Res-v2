@@ -106,6 +106,12 @@ object AiPlaylistConstraints {
             } ||
             folded == "musica" || folded.startsWith("musica ")
         if (isGenreLike) return null
+        // Dueño (2026-10-19): «música de bossa nova», «música de reguetón», «música de gospel», «canciones de k-pop»…
+        // La lista de arriba es de ~40 palabras; cualquier género que no estuviera (bossa nova, la ortografía «reguetón»,
+        // gospel, country, ópera, r&b, sertanejo, hyperpop, champeta…) se tomaba por el NOMBRE DE UN ARTISTA, el filtro
+        // de «solo este artista» no dejaba pasar nada y la petición terminaba en «no encontré nada». Ahora una frase
+        // hecha solo de géneros, ánimos, épocas o idiomas (el vocabulario completo de la app) nunca es un artista.
+        if (iad1tya.echo.music.playlistimport.MusicRequestQuery.isThemeOnly(s)) return null
         // 🔴 UNA DÉCADA NO ES UN ARTISTA (dueño, 2026-09-17: *"le pedí música de los 80s y nunca
         // funcionó, luego le pedí música de los 80s en inglés y no funcionó"*).
         //

@@ -231,34 +231,40 @@ object MusicStyle {
         Style("champeta", FAMILY_TROPICAL, listOf("champeta", "champeta criolla"), "champeta", latinNative = true, feminine = true),
         Style("cuarteto", FAMILY_TROPICAL, listOf("cuarteto cordobes", "cuarteto cordoves"), "cuarteto cordobés",
             latinNative = true, requestWords = listOf("cuarteto")),
-        Style("polka", FAMILY_REGIONAL, listOf("polka", "polkas"), "polka", latinNative = true, feminine = true),
-        Style("calypso", FAMILY_REGGAE, listOf("calypso", "soca", "soca music", "steelpan", "steel drum", "steel drums", "mento"),
-            "soca calypso", related = listOf("reggae", "dancehall")),
+        // «Polka» y «Calypso» como palabra suelta también son títulos («Polka Dots and Moonbeams», «Calypso» de John Denver):
+        // solo las entiende una petición, no la cola. Lo mismo con «Lounge» («Lounge Act»), «Mento» y «Celtic».
+        Style("polka", FAMILY_REGIONAL, listOf("polka nortena", "polka alemana", "polka music"), "polka",
+            latinNative = true, feminine = true, requestWords = listOf("polka", "polkas")),
+        Style("calypso", FAMILY_REGGAE, listOf("soca", "soca music", "steelpan", "steel drum", "steel drums"),
+            "soca calypso", related = listOf("reggae", "dancehall"), requestWords = listOf("calypso", "mento")),
         // ── África ──────────────────────────────────────────────────────────────────────────────────
         Style("kizomba", FAMILY_AFRO, listOf("kizomba", "semba", "tarraxinha"), "kizomba", related = listOf("kuduro", "kompa")),
         Style("kuduro", FAMILY_AFRO, listOf("kuduro"), "kuduro", related = listOf("kizomba", "afrobeats")),
-        Style("highlife", FAMILY_AFRO, listOf("highlife", "high life", "juju music", "fuji music"), "highlife"),
+        Style("highlife", FAMILY_AFRO, listOf("highlife", "juju music", "fuji music"), "highlife", requestWords = listOf("high life")),
         Style("soukous", FAMILY_AFRO, listOf("soukous", "ndombolo", "rumba congolesa", "congolese rumba", "lingala",
             "coupe decale", "makossa", "mbalax"), "soukous"),
         Style("gqom", FAMILY_AFRO, listOf("gqom", "kwaito"), "gqom", related = listOf("afrobeats", "house")),
         // ── Mundo ───────────────────────────────────────────────────────────────────────────────────
         Style("arabe", FAMILY_WORLD, listOf("musica arabe", "arabic music", "arabic pop", "arab pop", "pop arabe", "rai music",
             "chaabi", "gnawa", "khaleeji", "dabke"), "arabic pop", requestWords = listOf("rai")),
-        Style("india", FAMILY_WORLD, listOf("bollywood", "bhangra", "punjabi", "hindi songs", "musica hindi", "indian pop",
-            "musica india", "musica de la india", "filmi", "ghazal", "qawwali"), "bollywood"),
-        Style("celtic", FAMILY_WORLD, listOf("celtic", "musica celta", "irish folk", "irish music", "gaelic"), "celtic music"),
+        Style("india", FAMILY_WORLD, listOf("bollywood", "bhangra", "hindi songs", "musica hindi", "indian pop",
+            "musica india", "musica de la india", "filmi", "ghazal", "qawwali"), "bollywood", requestWords = listOf("punjabi")),
+        Style("klezmer", FAMILY_WORLD, listOf("klezmer"), "klezmer"),
+        Style("celtic", FAMILY_WORLD, listOf("musica celta", "irish folk", "irish music", "gaelic"), "celtic music",
+            requestWords = listOf("celtic")),
         Style("fado", FAMILY_IBERIAN, listOf("fado"), "fado"),
         Style("cpop", FAMILY_POP, listOf("mandopop", "cantopop", "c pop", "cpop", "chinese pop", "musica china"), "mandopop"),
         // Same family as iTunes "Folk" ([fromGenre] files it under IBERIAN), so an artist labelled "Folk" is not judged OFF.
-        Style("folk", FAMILY_IBERIAN, emptyList(), "folk", requestWords = listOf("folk", "folk rock", "freak folk", "neofolk",
-            "musica folk", "folk music", "singer songwriter", "cantautor", "cantautora", "cantautores")),
+        Style("folk", FAMILY_IBERIAN, listOf("folk music", "musica folk", "freak folk", "neofolk"), "folk",
+            requestWords = listOf("folk", "folk rock", "singer songwriter", "cantautor", "cantautora", "cantautores")),
         // ── Electrónica / baile / R&B ───────────────────────────────────────────────────────────────
         Style("eurodance", FAMILY_ELECTRONIC, listOf("eurodance", "eurobeat", "euro dance", "europop", "euro pop", "italo dance"),
             "eurodance", related = listOf("edm")),
         Style("disco", FAMILY_RNB, listOf("italo disco", "nu disco", "disco music", "eurodisco"), "disco",
             requestWords = listOf("disco", "musica disco", "studio 54"), related = listOf("funk", "eurodance")),
         Style("doowop", FAMILY_RNB, listOf("doo wop", "doowop"), "doo wop"),
-        Style("lounge", FAMILY_CHILL, listOf("lounge", "easy listening", "musica lounge", "musica de ascensor"), "lounge music"),
+        Style("lounge", FAMILY_CHILL, listOf("easy listening", "musica lounge", "musica de ascensor"), "lounge music",
+            requestWords = listOf("lounge")),
     )
 
     private val REQUEST_EXTRAS: Map<String, Pair<List<String>, List<String>>> = mapOf(
@@ -276,11 +282,12 @@ object MusicStyle {
         "huapango" to (listOf("son jarocho", "jarocho", "son huasteco", "huasteco") to emptyList()),
         "rock" to (listOf("rockero", "rockera", "rockeros", "rockeras", "alternativo", "alternativa", "alternative") to
             listOf("britpop", "madchester", "rockabilly", "psychobilly")),
-        "metal" to (emptyList<String>() to listOf("djent", "sludge", "grindcore", "mathcore", "nwobhm", "thrash", "doom")),
+        "metal" to (listOf("heavy") to listOf("djent", "sludge", "grindcore", "mathcore", "nwobhm", "thrash", "doom", "folk metal",
+            "viking metal", "gothic metal", "industrial metal")),
         "punk" to (listOf("hardcore", "anarcopunk") to listOf("oi", "crust")),
         "emo" to (listOf("post hardcore", "posthardcore") to emptyList()),
         "postpunk" to (listOf("gotico", "gotica", "goth", "gothic", "new romantic", "industrial", "ebm") to emptyList()),
-        "prog" to (listOf("post rock", "postrock") to emptyList()),
+        "prog" to (listOf("post rock", "postrock", "progresivo") to emptyList()),
         "pop" to (listOf("pop music", "musica pop", "pop comercial", "top 40", "top40") to
             listOf("electropop", "electro pop", "bedroom pop", "art pop", "chamber pop", "bubblegum")),
         "kpop" to (listOf("korean pop", "musica coreana", "musica de corea", "k ballad", "korean ballad", "k rnb", "k hip hop") to
@@ -310,11 +317,11 @@ object MusicStyle {
             "piano clasico") to emptyList()),
         "opera" to (listOf("zarzuela", "arias", "musica lirica") to emptyList()),
         "soundtrack" to (listOf("bso", "musica de peliculas", "musica de series", "musica de cine", "musica de videojuegos",
-            "video game music", "game music", "film music", "movie soundtrack") to emptyList()),
+            "video game music", "videogame music", "game music", "film music", "movie soundtrack") to emptyList()),
         "flamenco" to (listOf("flamenca", "cante jondo", "palos flamencos") to listOf("copla")),
         "tango" to (emptyList<String>() to listOf("milonga")),
         "folklore" to (listOf("folclor", "folclore", "folclorica", "musica folclorica", "musica andina", "andina", "andino",
-            "quena", "charango", "musica tradicional") to listOf("chamame", "candombe", "murga", "bambuco", "pasillo",
+            "quena", "charango", "musica tradicional", "vals criollo", "vals peruano") to listOf("chamame", "candombe", "murga", "bambuco", "pasillo",
             "currulao", "mapale", "bullerengue", "marinera", "festejo", "tinku", "morenada", "tonada", "gaita zuliana")),
         "mpb" to (listOf("tropicalia") to emptyList()),
         "samba" to (listOf("axe", "choro", "chorinho", "batucada", "samba enredo", "samba rock") to emptyList()),
@@ -358,7 +365,7 @@ object MusicStyle {
         "champeta" to "Champeta", "cuarteto" to "Cuarteto", "polka" to "Polka", "calypso" to "Soca / Calypso",
         "kizomba" to "Kizomba", "kuduro" to "Kuduro", "highlife" to "Highlife / Juju", "soukous" to "Soukous / Rumba congoleña",
         "gqom" to "Gqom / Kwaito", "arabe" to "Árabe / Raï", "india" to "India / Bollywood", "celtic" to "Celta",
-        "fado" to "Fado", "cpop" to "C-pop / Mandopop", "folk" to "Folk", "eurodance" to "Eurodance", "disco" to "Disco",
+        "fado" to "Fado", "klezmer" to "Klezmer", "cpop" to "C-pop / Mandopop", "folk" to "Folk", "eurodance" to "Eurodance", "disco" to "Disco",
         "doowop" to "Doo-wop", "lounge" to "Lounge",
     )
 
@@ -389,9 +396,20 @@ object MusicStyle {
     private val basePhrases: List<Pair<String, String>> by lazy {
         ALL.flatMap { s ->
             val all = (s.words + s.requestWords).distinct()
-            all.filter { p -> all.none { q -> q != p && wholeWordsIn(q, p) } }.map { it to s.id }
+            all.filter { p -> p !in SUBSTYLE_NAMES && all.none { q -> q != p && wholeWordsIn(q, p) } }.map { it to s.id }
         }.distinctBy { it.first }.sortedByDescending { it.first.length }
     }
+
+    /**
+     * Palabras que la cola ya entiende como el estilo [Style.id] pero que son el nombre de un SUBGÉNERO («sonidera» dentro de
+     * cumbia, «mambo» dentro de son, «bélicos» dentro de corridos): quien las pide quiere ESO, no el estilo en general, así
+     * que no se quitan de la petición y la lista o la categoría tienen que nombrarlas.
+     */
+    private val SUBSTYLE_NAMES = setOf(
+        "sonidera", "sonidero", "chicha", "belico", "belicos", "perico ripiao", "timba", "guaguanco", "chachacha", "cha cha cha",
+        "mambo", "tambora", "sinaloense", "redova", "bulerias", "sevillanas", "rumba flamenca", "punta garifuna", "punta catracha",
+        "montuno", "son montuno", "salsa baul",
+    )
 
     private fun wholeWordsIn(small: String, big: String): Boolean = " $big ".contains(" $small ")
 
@@ -399,6 +417,11 @@ object MusicStyle {
      * Single words that are also well-known artist or song names ("Jungle", "Swing", "OST"): when a request is NOTHING
      * but one of them, it is not stripped as a genre, so the artist/song lookup still gets its chance.
      */
+    private val FRAMING = setOf(
+        "musica", "canciones", "cancion", "temas", "tema", "de", "del", "la", "el", "los", "las", "un", "una", "music", "songs",
+        "of", "the", "pon", "ponme", "quiero", "dame", "play", "solo", "puro", "pura",
+    )
+
     private val AMBIGUOUS_SINGLE = setOf("jungle", "swing", "ost", "riddim", "outrun", "rai", "mento", "oi", "choke", "mambo", "aria")
 
     fun style(id: String?): Style? = id?.let { byId[it] }
@@ -477,13 +500,37 @@ object MusicStyle {
      */
     fun withoutStyles(text: String?): String {
         val folded = fold(text.orEmpty())
-        if (folded in AMBIGUOUS_SINGLE) return folded
+        // «música de Jungle» es la banda, no el género: sin las palabras de encuadre, una sola palabra ambigua se respeta.
+        val core = folded.split(' ').filter { it.isNotEmpty() && it !in FRAMING }
+        if (core.size == 1 && core[0] in AMBIGUOUS_SINGLE) return folded
         var padded = " $folded "
         for ((phrase, _) in basePhrases) {
             val needle = " $phrase "
             while (padded.contains(needle)) padded = padded.replace(needle, " ")
         }
         return padded.trim().replace(Regex("\\s+"), " ")
+    }
+
+    /**
+     * Palabras que nombran una FAMILIA entera, no un estilo ("música urbana", "tropical", "regional mexicano"): quien las
+     * pide acepta cualquier estilo de la familia. Folded.
+     */
+    private val UMBRELLAS: Map<String, String> = mapOf(
+        "urbano" to FAMILY_URBAN, "urbana" to FAMILY_URBAN, "urbanos" to FAMILY_URBAN, "urbanas" to FAMILY_URBAN,
+        "urban" to FAMILY_URBAN, "tropical" to FAMILY_TROPICAL, "tropicales" to FAMILY_TROPICAL,
+        "regional mexicano" to FAMILY_REGIONAL, "regional mexicana" to FAMILY_REGIONAL, "mexicana" to FAMILY_REGIONAL,
+        "mexicano" to FAMILY_REGIONAL, "mexicanas" to FAMILY_REGIONAL, "mexicanos" to FAMILY_REGIONAL,
+    )
+
+    /**
+     * Los estilos de las familias que [text] nombra cuando NO nombra ningún estilo concreto ("música urbana" → reguetón,
+     * trap, rap, dembow; "tropical" → cumbia, salsa, merengue…). Vacío si hay un estilo concreto: «salsa tropical» es salsa.
+     */
+    fun umbrellaStylesIn(text: String?): Set<String> {
+        if (text.isNullOrBlank() || stylesIn(text).isNotEmpty()) return emptySet()
+        val padded = " ${fold(text)} "
+        val families = UMBRELLAS.filter { (word, _) -> padded.contains(" $word ") }.values.toSet()
+        return ALL.filter { it.family in families && it.words.isNotEmpty() }.map { it.id }.toSet()
     }
 
     /** True when [text] names at least one style a request understands ([stylesIn]). */

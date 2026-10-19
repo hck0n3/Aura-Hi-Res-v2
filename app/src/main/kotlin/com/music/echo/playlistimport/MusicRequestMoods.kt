@@ -1,5 +1,6 @@
 package iad1tya.echo.music.playlistimport
 
+import iad1tya.echo.music.reco.MusicStyle
 import java.text.Normalizer
 
 /**
@@ -30,11 +31,12 @@ object MusicRequestMoods {
      * "quiero estudiar" caen las dos. Los valores se comparan contra el título de la categoría.
      */
     private val FAMILIES: List<Pair<List<String>, List<String>>> = listOf(
-        listOf("estudiar", "concentrar", "concentracion", "trabajar", "leer", "focus", "study", "programar", "codear", "coding") to
+        listOf("estudiar", "concentrar", "concentracion", "trabajar", "leer", "focus", "study", "programar", "codear") to
             listOf("concentracion", "focus", "estudio", "study", "productividad"),
-        listOf("dormir", "sueño", "sueno", "relajar", "relajarme", "relajante", "relajado", "calma", "tranquilo", "sleep", "relax") to
+        listOf("dormir", "sueño", "sueno", "relajar", "relajarme", "relajante", "relajado", "calma", "tranquilo", "sleep", "relax",
+            "ruido blanco", "white noise") to
             listOf("dormir", "sueño", "sueno", "relax", "relajacion", "calma", "chill", "sleep"),
-        listOf("gimnasio", "entrenar", "entrenamiento", "correr", "gym", "workout", "ejercicio", "run", "cardio", "crossfit") to
+        listOf("gimnasio", "entrenar", "entrenamiento", "correr", "gym", "workout", "ejercicio", "run", "cardio") to
             listOf("entrenamiento", "workout", "fitness", "energia", "gym", "deporte"),
         listOf("fiesta", "bailar", "baile", "party", "dance", "perreo", "antro", "discoteca", "boliche", "parrillada") to
             listOf("fiesta", "party", "baile", "dance", "bailar"),
@@ -43,40 +45,42 @@ object MusicRequestMoods {
         // Llorar / desamor: «algo triste para llorar» (dueño, 2026-10-19) — «llorar» no era de ninguna familia y acababa
         // como palabra suelta que la categoría o la lista tenían que nombrar.
         listOf(
-            "triste", "bajon", "melancol", "desamor", "sad", "llorar", "lloro", "llorando", "corazon roto", "heartbreak",
-            "despecho",
+            "triste", "bajon", "melancol", "desamor", "sad", "llorar", "lloro", "llorando", "corazon roto", "despecho",
         ) to listOf("triste", "sad", "melancolia", "desamor", "sentimental", "despecho"),
-        listOf("romantic", "amor", "cita", "love", "enamorar", "enamorado", "enamorada", "conquistar", "sensual", "intimo", "pasion") to
+        listOf("romantic", "amor", "cita", "love", "enamorar", "enamorado", "enamorada", "enamorarme", "conquistar", "sensual", "intimo",
+            "pasion", "serenata", "serenatas") to
             listOf("romance", "romantic", "amor", "love"),
-        listOf("cocinar", "cocinando", "cenar", "cena", "cenando", "desayuno", "almuerzo", "brunch", "restaurante", "dinner",
+        listOf("cocinar", "cocinando", "cenar", "cena", "cenando", "desayuno", "almuerzo", "brunch", "restaurante",
             "de fondo", "ambiente", "background", "limpiar", "limpieza", "quehaceres") to
             listOf("ambiente", "chill", "relax", "background", "cena", "dinner"),
-        listOf("playa", "verano", "summer", "beach", "vacaciones", "piscina", "alberca") to
+        listOf("playa", "verano", "vacaciones", "piscina", "alberca") to
             listOf("verano", "summer", "playa", "beach", "vacaciones", "fiesta", "party"),
-        listOf("lluvia", "lluvioso", "llover", "rain", "rainy", "tormenta", "otono", "invierno", "cafeteria", "coffee") to
+        listOf("lluvia", "lluvioso", "llover", "tormenta", "otono", "invierno", "cafeteria") to
             listOf("lluvia", "rain", "chill", "relax", "ambiente", "cafe", "coffee", "otono", "autumn"),
-        listOf("meditar", "meditacion", "yoga", "mindfulness", "masaje", "respirar", "respiracion") to
+        listOf("meditar", "meditacion", "yoga", "mindfulness", "masaje", "respirar", "respiracion", "sonidos de la naturaleza",
+            "sonidos de naturaleza", "nature sounds", "sonidos del mar") to
             listOf("meditacion", "meditation", "yoga", "relax", "relajacion", "calma", "chill", "bienestar", "wellness"),
-        listOf("bebe", "bebes", "arrullar", "nana", "nanas", "lullaby") to
+        listOf("bebe", "bebes", "arrullar", "nana", "nanas") to
             listOf("bebe", "nanas", "lullaby", "infantil", "kids", "ninos", "dormir", "sueno", "sleep", "relax"),
-        listOf("navidad", "navideno", "navidena", "navidenos", "villancicos", "villancico", "christmas", "xmas", "nochebuena") to
+        listOf("navidad", "navideno", "navidena", "navidenos", "villancicos", "villancico", "christmas", "nochebuena") to
             listOf("navidad", "christmas", "navideno", "holiday", "villancicos", "fiestas"),
-        listOf("halloween", "terror", "spooky", "brujas") to listOf("halloween", "spooky", "terror"),
-        listOf("boda", "casamiento", "matrimonio", "wedding", "quinceanera", "quinceaneras", "cumpleanos", "birthday", "graduacion") to
+        listOf("halloween", "brujas") to listOf("halloween", "spooky", "terror"),
+        listOf("boda", "casamiento", "matrimonio", "quinceanera", "quinceaneras", "quinceanos", "cumpleanos", "graduacion") to
             listOf("boda", "wedding", "fiesta", "party", "cumpleanos", "birthday", "celebracion"),
         listOf("feliz", "alegre", "contento", "buena vibra", "buenas vibras", "positivo", "alegria", "sentirse bien", "feel good",
-            "happy", "motivacion", "motivar", "motivacional", "animarme", "energia", "energetico") to
+            "motivacion", "motivar", "motivacional", "animarme", "energia", "energetico") to
             listOf("sentirse bien", "feel good", "happy", "alegre", "feliz", "positivo", "energia", "energy", "motivacion", "motivation"),
-        listOf("gaming", "jugar") to listOf("gaming", "focus", "concentracion", "electronica", "edm"),
+        listOf("gaming") to listOf("gaming", "focus", "concentracion", "electronica", "edm"),
         listOf("madrugada", "nocturno", "trasnochar", "medianoche") to
             listOf("noche", "night", "madrugada", "nocturno", "chill", "relax"),
     )
 
     /**
      * Para que una palabra de momento NO se confunda con el nombre de una canción o artista. Prefijo con al menos
-     * [STEM_MIN_PREFIX] letras ("concentrar" → «concentrarme»); las más cortas, solo la palabra entera.
+     * [STEM_MIN_PREFIX] letras ("concentrar" → «concentrarme»); las más cortas, solo la palabra entera — con prefijo
+     * "rain" se llevaba «Raining Blood» y «amor» a medio catálogo.
      */
-    private const val STEM_MIN_PREFIX = 4
+    private const val STEM_MIN_PREFIX = 6
 
     private fun stemMatches(token: String, stem: String): Boolean =
         token == stem || (stem.length >= STEM_MIN_PREFIX && token.startsWith(stem))
@@ -96,6 +100,11 @@ object MusicRequestMoods {
         val folded = fold(text)
         val tokens = tokensOf(folded)
         return FAMILIES.any { (triggers, _) -> triggers.any { triggerHits(folded, tokens, it) } }
+    }
+
+    /** Las frases de varias palabras del vocabulario de momentos («ruido blanco», «de fondo»): también salen del resto. */
+    val momentPhrases: List<String> by lazy {
+        FAMILIES.flatMap { it.first }.filter { it.contains(' ') }.map { fold(it) }.distinct().sortedByDescending { it.length }
     }
 
     /** true cuando la palabra suelta [word] (ya normalizada) es parte del vocabulario de momentos. */
@@ -157,6 +166,13 @@ object MusicRequestMoods {
         listOf("reggae") to listOf("reggae"),
         listOf("disco") to listOf("disco"),
         listOf("tango") to listOf("tango"),
+        // Familias enteras (dueño, 2026-10-19: «música urbana», «tropical», «regional mexicano»): cualquiera de sus nombres.
+        listOf("urbano", "urbana", "urbanos", "urbanas", "urban") to
+            listOf("urbano", "urbana", "urban", "reggaeton", "trap", "dembow", "hip hop", "rap", "perreo"),
+        listOf("tropical", "tropicales") to
+            listOf("tropical", "tropicales", "salsa", "cumbia", "merengue", "bachata", "vallenato"),
+        listOf("regional mexicano", "regional mexicana", "mexicana", "mexicano") to
+            listOf("regional mexicano", "regional mexican", "mexicana", "mexicano", "banda", "norteno", "corridos", "ranchera", "mariachi"),
         listOf("bolero", "boleros") to listOf("bolero"),
         // Fila 365: "christian"/"praise"/"ccm" — "80s Christian Hits" did not prove it was Christian.
         listOf("gospel", "cristiana", "cristiano", "alabanza", "worship", "christian") to
@@ -203,19 +219,83 @@ object MusicRequestMoods {
         conceptGroupsFor(prompt, parsed).flatten().distinct()
 
     /**
+     * Los conceptos con los que una categoría o una lista puede demostrar el estilo [id]: los de la tabla de arriba (si
+     * el estilo está en ella) más todos sus nombres de [MusicStyle] — "House Music" demuestra «house» aunque la tabla
+     * solo hable de «electrónica».
+     */
+    private val CONCEPTS_BY_STYLE: Map<String, List<String>> by lazy {
+        val map = HashMap<String, List<String>>()
+        GENRE_FAMILIES.forEach { (triggers, concepts) ->
+            triggers.forEach { t -> MusicStyle.stylesIn(t).forEach { id -> map.putIfAbsent(id, concepts) } }
+        }
+        map
+    }
+
+    private fun conceptsOfStyle(id: String): List<String> =
+        ((CONCEPTS_BY_STYLE[id] ?: emptyList()) + MusicStyle.namesOf(id)).distinct()
+
+    /**
+     * Los grupos de conceptos de GÉNERO (no momento/actividad) que [folded] dispara.
+     *
+     * Dueño (2026-10-19): *«cuando pido algunos géneros no me pone lo que pido»*. Dos causas, reproducidas con
+     * `MusicRequestVocabularyTest`:
+     *  · los disparadores eran SUBCADENA: «reggaeton» activaba también «reggae» y «trap» también «rap», así que la
+     *    categoría o la lista tenía que nombrar las dos palabras y NINGUNA lo hacía («Reggaeton Hits» no contiene
+     *    «reggae» como palabra) — toda petición de reggaetón o trap descartaba todas las listas;
+     *  · solo conocía ~40 géneros: cualquier otro (phonk, champeta, kizomba…) no tenía grupo y se tomaba por el título
+     *    de una canción. Ahora el reconocimiento es el de [MusicStyle] (palabra completa, la frase más larga primero).
+     */
+    private fun genreGroupsFor(folded: String): List<List<String>> {
+        val groups = LinkedHashSet<List<String>>()
+        // 1) Los estilos que la petición nombra (el vocabulario completo de la app).
+        // Varios estilos pedidos a la vez («salsa y merengue», «dancehall y afrobeats») son «cualquiera de ellos»: una lista
+        // que los nombre a TODOS no existe, y exigirlo descartaba todas. Cada canción se comprueba aparte contra el conjunto.
+        val styleIds = MusicStyle.phrasesIn(folded).map { it.second }.distinct()
+        if (styleIds.isNotEmpty()) groups += styleIds.flatMap { conceptsOfStyle(it) }.distinct()
+        // 2) Lo que la tabla conoce y MusicStyle no ("africa", "cristiana"…), sobre lo que queda sin esos estilos.
+        var rest = " ${MusicStyle.withoutStyles(folded)} "
+        for ((triggers, concepts) in GENRE_TRIGGERS_LONGEST_FIRST) {
+            val hit = triggers.firstOrNull { t -> wholeWord(rest, t) } ?: continue
+            groups += concepts
+            rest = rest.replace(Regex("(?<![\\p{L}\\p{N}])${Regex.escape(hit)}(?:s|es)?(?![\\p{L}\\p{N}])"), " ")
+        }
+        // 3) Lo cristiano se pide con su propia palabra aunque la frase ya sea un estilo ("afro gospel").
+        if (CHRISTIAN_TRIGGERS.any { wholeWord(" $folded ", it) } && groups.none { it.containsAll(CHRISTIAN_GROUP) }) {
+            groups += CHRISTIAN_GROUP
+        }
+        return groups.toList()
+    }
+
+    private fun wholeWord(paddedOrText: String, word: String): Boolean =
+        Regex("(?<![\\p{L}\\p{N}])${Regex.escape(word)}(?:s|es)?(?![\\p{L}\\p{N}])").containsMatchIn(paddedOrText)
+
+    private val CHRISTIAN_GROUP: List<String> by lazy {
+        GENRE_FAMILIES.first { (_, concepts) -> "ccm" in concepts }.second
+    }
+
+    /** La tabla de arriba, con el disparador MÁS LARGO primero para que «death metal» se lea antes que «metal». */
+    private val GENRE_TRIGGERS_LONGEST_FIRST: List<Pair<List<String>, List<String>>> by lazy {
+        GENRE_FAMILIES.sortedByDescending { (triggers, _) -> triggers.maxOf { it.length } }
+    }
+
+    /**
+     * Los momentos/actividades/ánimos que [folded] nombra, como grupos de conceptos. Son BLANDOS (ver
+     * [conceptGroupsFor]): el género y la década se comprueban, el momento se interpreta.
+     */
+    private fun momentGroupsFor(folded: String): List<List<String>> {
+        val tokens = tokensOf(folded)
+        return FAMILIES.mapNotNull { (triggers, concepts) ->
+            concepts.takeIf { triggers.any { t -> triggerHits(folded, tokens, t) } }
+        }
+    }
+
+    /**
      * Ronda 9 (dueño): "bachata cristiana" — [pickCategory] cogía la categoría "Bachata" a secas,
      * ignorando "cristiana" por completo, porque [conceptsFor] mezclaba los conceptos de TODAS las
      * familias que matchean en una sola bolsa plana, y bastaba con satisfacer UNA para "ganar". Esto
      * separa cada familia que matchea en su propio grupo para que la categoría elegida tenga que
      * demostrar TODAS las familias pedidas a la vez, no una cualquiera de ellas.
      */
-    /** Los grupos de conceptos de GÉNERO (no momento/actividad) que [prompt] dispara, ya normalizado. */
-    private fun genreGroupsFor(folded: String): List<List<String>> =
-        GENRE_FAMILIES.mapNotNull { (triggers, concepts) -> concepts.takeIf { triggers.any { t -> folded.contains(t) } } }
-
-    private fun momentGroupsFor(folded: String): List<List<String>> =
-        FAMILIES.mapNotNull { (triggers, concepts) -> concepts.takeIf { triggers.any { t -> folded.contains(t) } } }
-
     /**
      * @param qualifiers Ronda 12 — palabras de la petición que no son ninguna familia conocida pero la
      *   CALIFICAN ("argentino" en "rock argentino"; ver [MusicRequestQuery.residualWords]). Cada una es
@@ -228,11 +308,19 @@ object MusicRequestMoods {
     ): List<List<String>> {
         val folded = fold(prompt)
         val groups = ArrayList<List<String>>()
-        groups += momentGroupsFor(folded)
-        groups += genreGroupsFor(folded)
+        val genres = genreGroupsFor(folded)
+        // Lo comprobable manda sobre lo interpretable: «salsa romántica de los 90 para cocinar» pide salsa y los 90
+        // (se demuestran por el título); «romántica» y «cocinar» son ambiente, y exigirlos TAMBIÉN hacía que ninguna
+        // lista o categoría pasara jamás. El momento solo se exige cuando es lo ÚNICO que se pidió.
+        // Varios momentos («dormir» + «sonidos de la naturaleza») se suman: el título prueba cualquiera de ellos.
+        if (genres.isEmpty() && parsed.decade == null) {
+            val moments = momentGroupsFor(folded)
+            if (moments.isNotEmpty()) groups += moments.flatten().distinct()
+        }
+        groups += genres
         if (parsed.decade != null) groups += MusicRequestMatch.decadeTokens(parsed.decade)
         qualifiers.map { fold(it) }.filter { it.isNotBlank() }.distinct().forEach { groups += listOf(it) }
-        return groups
+        return groups.distinct()
     }
 
     /**
@@ -258,24 +346,39 @@ object MusicRequestMoods {
         if (parsed.decade != null) {
             val requiredGroups = listOf(MusicRequestMatch.decadeTokens(parsed.decade)) + genreGroupsFor(fold(prompt)) +
                 qualifierGroups
-            categoryTitles.forEachIndexed { index, title ->
-                val t = fold(title)
-                if (requiredGroups.all { group -> group.any { containsToken(t, it) } }) return index
-            }
-            // Pidió una década (y, si la hay, un género) y el catálogo no tiene una categoría que
-            // demuestre todo a la vez: NO se cae al momento, que daría una lista de otra cosa. Sin
-            // categoría, la escalera sigue por la búsqueda.
-            return null
+            return bestCategory(categoryTitles, requiredGroups)
         }
         val groups = conceptGroupsFor(prompt, parsed, qualifiers)
         if (groups.isEmpty()) return null
+        // Ronda 9: si matcheó VARIAS familias a la vez (género + tema), la categoría tiene que
+        // demostrar todas — una que solo cumpla una es la misma improvisación que ya se prohibió.
+        return bestCategory(categoryTitles, groups)
+    }
+
+    /**
+     * La categoría que cumple TODOS los [groups], y entre las que los cumplen la que lo hace con los conceptos más
+     * principales (los de cada grupo van de más a menos propios: «verano» antes que «fiesta»), después la primera del
+     * catálogo. Dueño (2026-10-19): «música para la playa» caía en «Fiesta» solo por salir antes en el catálogo.
+     * Si pidió una década (y, si la hay, un género) y el catálogo no tiene una categoría que demuestre todo a la vez: null —
+     * NO se cae al momento, que daría una lista de otra cosa; sin categoría, la escalera sigue por la búsqueda.
+     */
+    private fun bestCategory(categoryTitles: List<String>, groups: List<List<String>>): Int? {
+        var best: Int? = null
+        var bestRank = Int.MAX_VALUE
         categoryTitles.forEachIndexed { index, title ->
             val t = fold(title)
-            // Ronda 9: si matcheó VARIAS familias a la vez (género + tema), la categoría tiene que
-            // demostrar todas — una que solo cumpla una es la misma improvisación que ya se prohibió.
-            if (groups.all { group -> group.any { containsToken(t, it) } }) return index
+            var rank = 0
+            for (group in groups) {
+                val at = group.indexOfFirst { containsToken(t, it) }
+                if (at < 0) return@forEachIndexed
+                rank += at
+            }
+            if (rank < bestRank) {
+                best = index
+                bestRank = rank
+            }
         }
-        return null
+        return best
     }
 
     private fun containsToken(folded: String, token: String): Boolean {

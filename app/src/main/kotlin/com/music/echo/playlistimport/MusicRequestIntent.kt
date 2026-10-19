@@ -57,7 +57,14 @@ object MusicRequestIntent {
     }
 
     private val NEGATIONS = setOf("sin", "excepto", "menos", "without", "except", "salvo")
-    private val NEGATION_PAIRS = setOf("nada de", "no quiero", "que no sea", "que no sean", "no me pongas")
+    private val FRAMING = setOf("musica", "canciones", "cancion", "temas", "tema", "songs", "music")
+    private val NEGATIONS_EXTRA = setOf("evita", "evitar", "quita", "quitando", "ignora")
+    private val NEGATION_PAIRS = setOf(
+        "nada de", "no quiero", "que no sea", "que no sean", "no me pongas",
+        // Dueño (2026-10-19): el lenguaje natural dice lo mismo de muchas maneras.
+        "que no tenga", "que no tengan", "que no lleve", "que no lleven", "no incluyas", "no pongas", "no metas",
+        "sin nada de", "no quiero nada de", "nada que sea",
+    )
     private val STOP = setOf(
         "y", "pero", "con", "para", "en", "o", "que", "porque", "mas", "solo", "and", "but", "with", "for",
     )
@@ -65,6 +72,9 @@ object MusicRequestIntent {
         "que suene como", "que suenen como", "parecido a", "parecida a", "parecidos a", "parecidas a",
         "similar a", "similares a", "al estilo de", "estilo de", "como las de", "como los de", "tipo",
         "sounds like", "similar to", "like",
+        // Dueño (2026-10-19): «en la onda de X», «para fans de X», «inspirado en X».
+        "en la onda de", "de la onda de", "inspirado en", "inspirada en", "para fans de", "fans de", "algo como",
+        "igual que", "como si fuera", "estilo", "onda",
     )
     private val COUNT_NOUNS = setOf(
         "canciones", "cancion", "temas", "tema", "songs", "song", "tracks", "exitos", "rolas", "cantos",
@@ -83,18 +93,36 @@ object MusicRequestIntent {
     )
     private val OLD_WORDS = listOf(
         "viejitas", "viejitos", "antiguas", "antiguos", "clasicas", "clasicos", "de antes", "old school",
-        "retro", "vieja escuela", "de siempre", "del recuerdo",
+        "retro", "vieja escuela", "de siempre", "del recuerdo", "oldies", "golden oldies", "de colecciones",
     )
     private val NEW_WORDS = listOf(
         "nuevas", "nuevos", "recientes", "estrenos", "lo ultimo", "lo mas nuevo", "actuales", "de ahora",
-        "new", "latest",
+        "latest", "novedades", "nuevos lanzamientos", "new releases", "new music", "new songs", "new hits",
+        "del momento", "lo recien salido",
+    )
+    private val REQUEST_VERBS = setOf(
+        "pon", "ponme", "dame", "quiero", "play", "genera", "generame", "crea", "creame", "hazme", "armame", "arma", "pasame",
+        "necesito", "busca", "buscame", "give", "show",
+    )
+    private val NUMBER_WORDS = mapOf(
+        "diez" to 10, "quince" to 15, "veinte" to 20, "veinticinco" to 25, "treinta" to 30, "cuarenta" to 40,
+        "cincuenta" to 50, "cien" to 100, "ten" to 10, "twenty" to 20, "thirty" to 30, "fifty" to 50,
     )
     private val BEST_WORDS = listOf(
         "lo mejor", "las mejores", "los mejores", "mejores", "exitos", "top", "hits", "mas escuchadas",
-        "mas populares", "populares", "best",
+        "mas populares", "populares", "best", "de todos los tiempos", "of all time", "de la historia",
     )
     private val YEAR = Regex("^(19[5-9]\\d|20[0-4]\\d)$")
     private val NUMBER = Regex("^\\d{1,3}$")
+
+    /** true when the words at [from] (skipping an article) open a style: «el reguetón», «trap latino». */
+    private fun startsStyleAt(folded: List<String>, from: Int): Boolean {
+        var i = from
+        if (folded.getOrNull(i) in setOf("el", "la", "los", "las", "un", "una")) i++
+        val one = folded.getOrNull(i) ?: return false
+        val two = folded.getOrNull(i + 1)?.let { "$one $it" }
+        return MusicStyle.stylesIn(one).isNotEmpty() || (two != null && MusicStyle.stylesIn(two).isNotEmpty())
+    }
 
     fun parse(prompt: String, currentYear: Int = java.time.Year.now().value): Intent {
         // "2004-2010" and "70's" would otherwise be swallowed whole by the whitespace split (row 435).
@@ -114,7 +142,7 @@ object MusicRequestIntent {
         var i = 0
         while (i < folded.size) {
             val pairLen = NEGATION_PAIRS.firstOrNull { phraseAt(i, it) }?.split(' ')?.size
-            val isNeg = pairLen != null || folded[i] in NEGATIONS
+            val isNeg = pairLen != null || folded[i] in NEGATIONS || folded[i] in NEGATIONS_EXTRA
             if (!isNeg) {
                 i++
                 continue
@@ -137,9 +165,17 @@ object MusicRequestIntent {
                     j++
                     continue
                 }
+                // «evita el trap y el reguetón»: una «y» entre dos estilos sigue la lista de lo que NO se quiere.
+                if ((w == "y" || w == "e" || w == "and") && item.isNotEmpty() && startsStyleAt(folded, j + 1)) {
+                    flush()
+                    j++
+                    continue
+                }
                 // Another negation starts its own item ("sin reggaeton excepto Bad Bunny").
-                if (w in NEGATIONS || NEGATION_PAIRS.any { phraseAt(j, it) }) break
+                if (w in NEGATIONS || w in NEGATIONS_EXTRA || NEGATION_PAIRS.any { phraseAt(j, it) }) break
                 if (w in STOP && item.isNotEmpty()) break
+                // «evita el trap música urbana»: la palabra que enmarca la petición cierra lo que NO se quiere.
+                if (w in FRAMING && item.isNotEmpty()) break
                 if (w == "de" || w == "el" || w == "la" || w == "los" || w == "las") {
                     if (item.isEmpty()) {
                         j++
@@ -204,18 +240,25 @@ object MusicRequestIntent {
                 }
                 continue
             }
-            if (NUMBER.matches(w) && count == null) {
-                val n = w.toInt()
+            val number = if (NUMBER.matches(w)) w.toInt() else NUMBER_WORDS[w]
+            if (number != null && count == null) {
+                val n = number
                 val next = folded.getOrNull(k + 1)
                 val next2 = folded.getOrNull(k + 2)
                 val prev = folded.getOrNull(k - 1)
+                // «pon 30», «dame 20 de salsa», «30 de cumbia»: un número tras un verbo de petición, o seguido de «de»
+                // (salvo «los 80 de…», que es una década), también es una cantidad. Dueño (2026-10-19): «rock en español
+                // 2000-2010 pon 30» dejaba «pon 30» pegado a la búsqueda.
+                val afterVerb = prev in REQUEST_VERBS
+                val beforeDe = next == "de" && prev !in setOf("los", "las", "anos", "ano", "the", "de") && n >= 5
                 val countLike = n in 1..200 && (
                     next in COUNT_NOUNS || next2 in COUNT_NOUNS || prev == "top" ||
-                        (next == "mejores" || next == "mejor")
+                        (next == "mejores" || next == "mejor") || afterVerb || beforeDe
                     )
                 if (countLike) {
                     count = n
                     drop[k] = true
+                    if (afterVerb) drop[k - 1] = true
                 }
             }
         }
@@ -225,7 +268,9 @@ object MusicRequestIntent {
         val cleanFolded = " ${fold(clean)} "
         val fullFolded = " ${fold(prompt)} "
 
-        val styles = MusicStyle.stylesIn(clean) - excludedStyles
+        val concrete = MusicStyle.stylesIn(clean)
+        // «música urbana sin reguetón ni trap» pide la familia entera menos lo excluido; «salsa tropical» sigue siendo salsa.
+        val styles = (concrete.ifEmpty { MusicStyle.umbrellaStylesIn(clean) }) - excludedStyles
         val christian = CHRISTIAN_WORDS.any { cleanFolded.contains(" $it ") } ||
             GenreLane.laneOf(clean) == GenreLane.CHRISTIAN
         val language = LANGUAGE_WORDS.firstOrNull { (w, _) -> cleanFolded.contains(" $w ") }?.second
@@ -235,9 +280,11 @@ object MusicRequestIntent {
                 cleanFolded.contains(" portugues ") -> TitleLanguage.PT
                 else -> null
             }
+        // The era words are read AFTER the style names are taken out: «new jack swing» and «new wave» are styles, not «new».
+        val eraFolded = " ${MusicStyle.withoutStyles(clean)} "
         val era = when {
-            OLD_WORDS.any { cleanFolded.contains(" $it ") } -> Era.OLD
-            NEW_WORDS.any { cleanFolded.contains(" $it ") } -> Era.NEW
+            OLD_WORDS.any { eraFolded.contains(" $it ") } -> Era.OLD
+            NEW_WORDS.any { eraFolded.contains(" $it ") } -> Era.NEW
             else -> null
         }
         val best = BEST_WORDS.any { fullFolded.contains(" $it ") }

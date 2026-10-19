@@ -758,8 +758,12 @@ object AiPlaylistGenerator {
         val searchDeadline = System.currentTimeMillis() + SEARCH_STEPS_BUDGET_MS
         fun inBudget(): Boolean = System.currentTimeMillis() < searchDeadline
         val parsed = MusicRequestQuery.build(prompt)
-        val query = parsed.query.ifBlank { prompt.trim().take(80) }
-        if (query.isBlank()) return SearchOutcome(emptyList(), pinnedSpecific = false)
+        // Dueño (2026-10-19): «algo parecido a Bad Bunny pero sin reguetón» se quedaba, tras quitar el «parecido a X» y la
+        // negación, con la palabra «pero» y la buscaba como canción. Si NO queda nada que buscar y sí hay un artista de
+        // referencia, la petición es solo la radio de ese artista (peldaño P): no se buscan textos sueltos.
+        val onlyLike = parsed.query.isBlank() && intent.likeArtist != null
+        val query = parsed.query.ifBlank { if (onlyLike) "" else prompt.trim().take(80) }
+        if (query.isBlank() && !onlyLike) return SearchOutcome(emptyList(), pinnedSpecific = false)
 
         // UN MONTÓN Y LUEGO ELEGIR (dueño, 2026-09-17). Antes se aceptaban canciones por orden hasta
         // llenar el cupo, así que la primera fuente que pasara el filtro decidía el resultado entero.
@@ -893,7 +897,13 @@ object AiPlaylistGenerator {
         var songSearchCache: List<SongItem>? = null
         // Ronda 12: true cuando el resto de la petición resultó ser un ARTISTA (ver [MusicRequestArtist]).
         var artistLocked = false
-        if (residual.length >= 3) {
+        // Dueño (2026-10-19): «necesito que lo sepa interpretar… y que improvise». Una palabra que NO es un género de la
+        // app, NO es una canción que el buscador devuelva y NO es un artista confirmado es, con casi toda seguridad, un
+        // género o un tema que la app no conoce (una escena local, «música para pasear al perro»). Antes se quedaba en
+        // la búsqueda de canciones sueltas; ahora también busca listas hechas por personas, y solo vale la que nombra
+        // todas esas palabras en su título (como con cualquier otra palabra que califica).
+        var themeRequest = false
+        if (residual.length >= 3 && MusicRequestQuery.hasSubstance(residual)) {
             // Con género/momento se busca la frase entera (como antes); sin ellos, la consulta limpia
             // de muletillas — "ponme" no ayuda al buscador a encontrar una canción.
             val specificQuery = if (parsed.preferPlaylists) prompt.trim().take(80) else query
@@ -909,10 +919,12 @@ object AiPlaylistGenerator {
             // "Eminem" en el título era el mismo fallo). Entonces no se fija nada: TODO lo que suena es
             // de ese artista (filtro de artista principal, el mismo de "solo X"), y las categorías
             // genéricas del género no se tocan — hip hop de cualquiera no es lo que pidió.
-            val confirmedArtist = MusicRequestArtist.confirm(
-                residual,
-                candidates.map { it.artists.firstOrNull()?.name },
-            ) ?: soloArtist?.takeIf { MusicRequestArtist.sameName(it, residual) }
+            val candidateArtists = candidates.map { it.artists.firstOrNull()?.name }
+            val confirmedArtist = MusicRequestArtist.confirm(residual, candidateArtists)
+                // Dueño (2026-10-19): un artista cuyo nombre lleva una palabra de género («Pop Smoke», «Rock Hudson») deja
+                // de resto solo «smoke»: se prueba también con la petición entera.
+                ?: MusicRequestArtist.confirm(MusicRequestQuery.withoutLeadIn(prompt), candidateArtists)
+                ?: soloArtist?.takeIf { MusicRequestArtist.sameName(it, residual) }
             val residualWords = MusicRequestQuery.residualWords(residual)
             when {
                 confirmedArtist != null -> {
@@ -940,7 +952,12 @@ object AiPlaylistGenerator {
                         ?.takeIf { soloPrimaryMatch(it.artists.map { a -> a.name }, effectiveSolo) }
                     // Varias palabras junto a un género que no nombran ninguna canción ("salsa de puerto
                     // rico"): también califican al género.
-                    if (pinned == null && parsed.preferPlaylists) qualifiers = residualWords
+                    if (pinned == null && parsed.preferPlaylists) {
+                        qualifiers = residualWords
+                    } else if (pinned == null && intent.styles.isEmpty() && residualWords.isNotEmpty()) {
+                        themeRequest = true
+                        qualifiers = residualWords
+                    }
                 }
             }
             pinned?.let { match ->
@@ -1015,7 +1032,7 @@ object AiPlaylistGenerator {
             absorb(christianOnly(MusicRequestEraYears.songsOfAlbumsIn(eraText, eraRange)))
         }
 
-        if ((parsed.preferPlaylists || intent.styles.isNotEmpty()) && effectiveSolo == null && inBudget()) {
+        if ((parsed.preferPlaylists || intent.styles.isNotEmpty() || themeRequest) && effectiveSolo == null && inBudget()) {
             // Peldaño 0 — TENDENCIAS REALES (ronda 6, dueño: "lo que suena ahora"). Mismo espíritu que
             // el peldaño 1: no se le pide a la búsqueda ni a un LLM que ADIVINE qué está de moda —
             // se piden los charts reales de YouTube Music, que es la única fuente que de verdad lo
@@ -1045,7 +1062,7 @@ object AiPlaylistGenerator {
             // Peldaño 2 — listas de la búsqueda, y solo las que DEMUESTRAN por título que
             // corresponden ([MusicRequestMatch]). Ahora se usan las DOS mejores en vez de una: dos
             // curadores distintos dan más variedad que uno, y las dos han pasado la misma prueba.
-            if (pool.size < POOL_TARGET) {
+            if (pool.size < POOL_TARGET && query.isNotBlank()) {
                 val candidates = ArrayList<PlaylistItem>()
                 YouTube.search(query, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST).getOrNull()
                     ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)
@@ -1065,7 +1082,7 @@ object AiPlaylistGenerator {
         }
 
         // Peldaño 3 — canciones sueltas del buscador (siempre, si todavía no hay nada).
-        if (pool.size < POOL_TARGET && (inBudget() || pool.isEmpty())) {
+        if (query.isNotBlank() && pool.size < POOL_TARGET && (inBudget() || pool.isEmpty())) {
             (songSearchCache ?: YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>())?.let { absorb(christianOnly(it)) }
         }
@@ -1080,14 +1097,22 @@ object AiPlaylistGenerator {
         }
         // Peldaño 4 — los VÍDEOS son lo menos fiable (recopilaciones de una hora, versiones de
         // aficionado): en una petición de época o momento solo se tocan si no hay NADA.
-        val videosAllowed = (if (parsed.preferPlaylists) pool.isEmpty() else pool.size < target) &&
+        val videosAllowed = query.isNotBlank() &&
+            (if (parsed.preferPlaylists || themeRequest) pool.isEmpty() else pool.size < target) &&
             (inBudget() || pool.isEmpty())
         if (videosAllowed) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
         }
+        // Solo «parecido a X» y la radio de X no trajo nada (no se encontró la canción de partida): se busca a X.
+        if (onlyLike && pool.isEmpty()) {
+            intent.likeArtist?.let { like ->
+                YouTube.search(like, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                    ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
+            }
+        }
         // Red de seguridad: si la consulta construida no dio nada, se prueba su petición TAL CUAL.
-        if (pool.isEmpty() && query != prompt.trim().take(80)) {
+        if (pool.isEmpty() && query != prompt.trim().take(80) && !onlyLike) {
             YouTube.search(prompt.trim().take(80), YouTube.SearchFilter.FILTER_SONG).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
         }
@@ -1122,8 +1147,8 @@ object AiPlaylistGenerator {
         // Solo contadores (regla 4 de AGENTS.md): prueba en el log si la canción nombrada quedó fija, si
         // el resto era un artista, y cuántas palabras calificaron al género (nunca cuáles).
         timber.log.Timber.i(
-            "MUSIC_REQUEST specific=%b artist=%b qualifiers=%d versionsDropped=%d pool=%d",
-            pinned != null, artistLocked, qualifiers.size, versionsDropped, pool.size,
+            "MUSIC_REQUEST specific=%b artist=%b theme=%b qualifiers=%d versionsDropped=%d pool=%d",
+            pinned != null, artistLocked, themeRequest, qualifiers.size, versionsDropped, pool.size,
         )
         // Fila 361 — LA COMPROBACIÓN POR CANCIÓN ([MusicRequestStyleGate]): estilo, idioma, exclusiones y artista
         // real. Lo que él nombró (la canción fijada, el artista confirmado) nunca se juzga.
