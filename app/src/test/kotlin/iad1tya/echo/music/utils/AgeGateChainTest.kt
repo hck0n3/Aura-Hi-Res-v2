@@ -19,6 +19,26 @@ class AgeGateChainTest {
     }
 
     @Test
+    fun `desktopLegacyAgeGateReason marks an age gate whatever the status`() {
+        assertTrue(AgeGateChain.isAgeGateShaped("UNPLAYABLE", desktopLegacyAgeGateReason = 1))
+        assertFalse(AgeGateChain.isAgeGateShaped("UNPLAYABLE", desktopLegacyAgeGateReason = null))
+    }
+
+    @Test
+    fun `only the steps whose streams need a GVS PO token ask for one`() {
+        assertTrue(AgeGateChain.needsStreamPoToken(Step.WEB_CREATOR))
+        assertTrue(AgeGateChain.needsStreamPoToken(Step.ACCOUNT_WEB_REMIX))
+        assertFalse(AgeGateChain.needsStreamPoToken(Step.WEB_EMBEDDED))
+        assertFalse(AgeGateChain.needsStreamPoToken(Step.TV_SAMSUNG))
+        assertFalse(AgeGateChain.needsStreamPoToken(Step.LEGACY_TV_EMBEDDED))
+    }
+
+    @Test
+    fun `web_embedded stays first with a session, as in yt-dlp's authenticated default clients`() {
+        assertEquals(Step.WEB_EMBEDDED, AgeGateChain.order(isLoggedIn = true).first())
+    }
+
+    @Test
     fun `a signed-in user gets the account clients first and the creator client, which needs a stream PO token, after them`() {
         assertEquals(
             listOf(Step.WEB_EMBEDDED, Step.TV_SAMSUNG, Step.WEB_CREATOR, Step.ACCOUNT_WEB_REMIX, Step.LEGACY_TV_EMBEDDED),

@@ -82,6 +82,8 @@ data class YouTubeClient(
             loginSupported = true,
             loginRequired = true,
             useSignatureTimestamp = true,
+            // yt-dlp's client table marks web_creator's GVS PO token as required (not_required_with_player_token=False).
+            useWebPoTokens = true,
         )
 
         val TVHTML5 = YouTubeClient(

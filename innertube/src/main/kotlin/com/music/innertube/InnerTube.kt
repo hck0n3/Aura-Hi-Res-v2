@@ -289,11 +289,7 @@ class InnerTube {
                     // it; this is the half of that pattern that was missed.
                     context = client.toContext(locale, visitorData, if (noLogin) null else dataSyncId).let {
                         if (client.isEmbedded) {
-                            it.copy(
-                                thirdParty = Context.ThirdParty(
-                                    embedUrl = client.embedUrl ?: "https://www.youtube.com/watch?v=${videoId}"
-                                )
-                            )
+                            it.asEmbedded(client.embedUrl ?: "https://www.youtube.com/watch?v=${videoId}")
                         } else it
                     },
                     videoId = videoId,

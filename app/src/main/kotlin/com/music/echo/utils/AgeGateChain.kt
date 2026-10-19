@@ -37,7 +37,15 @@ internal object AgeGateChain {
      * bot-check answers LOGIN_REQUIRED too — the two cannot be told apart without the localised text, so both get the
      * recovery (a bot-check costs a few extra requests and ends exactly as before).
      */
-    fun isAgeGateShaped(status: String?): Boolean = status != null && (status == "LOGIN_REQUIRED" || status in AGE_STATUSES)
+    fun isAgeGateShaped(status: String?, desktopLegacyAgeGateReason: Int? = null): Boolean =
+        desktopLegacyAgeGateReason != null || (status != null && (status == "LOGIN_REQUIRED" || status in AGE_STATUSES))
+
+    /**
+     * Steps whose stream URLs need a GVS PO token (yt-dlp `GVS_PO_TOKEN_POLICY.required`: web_creator and web_music). Without
+     * a token they would hand back a response whose URLs 403 and, being accepted first, stop the chain — so the step is
+     * skipped instead, and the clients that need no token (web_embedded, tv_samsung) still get their turn.
+     */
+    fun needsStreamPoToken(step: Step): Boolean = step == Step.WEB_CREATOR || step == Step.ACCOUNT_WEB_REMIX
 
     /** The steps to try, in order. [alreadyTried] are skipped. A guest has no account, so no creator client for them. */
     fun order(isLoggedIn: Boolean, alreadyTried: Set<Step> = emptySet()): List<Step> {

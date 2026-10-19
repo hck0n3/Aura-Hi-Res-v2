@@ -153,7 +153,7 @@ class EmbeddedPlayerWebView private constructor(
             webView.onPause()
             webView.removeAllViews()
             webView.destroy()
-        }.onFailure { Timber.tag(TAG).w("Embedded player WebView teardown threw: $it") }
+        }.onFailure { Timber.tag(TAG).w("Embedded player WebView teardown threw: ${it.javaClass.simpleName}") }
     }
 
     companion object {

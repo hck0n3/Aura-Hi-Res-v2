@@ -22,6 +22,8 @@ data class PlayerResponse(
     data class PlayabilityStatus(
         val status: String,
         val reason: String?,
+        /** Present on an age-gated response whatever the language of [reason]. Only its presence matters. */
+        val desktopLegacyAgeGateReason: Int? = null,
     )
 
     @Serializable

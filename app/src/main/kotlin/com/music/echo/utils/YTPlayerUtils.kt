@@ -24,6 +24,7 @@ import com.music.innertube.models.YouTubeClient.Companion.WEB_REMIX
 import com.music.innertube.models.response.PlayerResponse
 import iad1tya.echo.music.constants.AudioQuality
 import iad1tya.echo.music.utils.cipher.CipherDeobfuscator
+import iad1tya.echo.music.utils.webplayer.CapturedStream
 import iad1tya.echo.music.utils.webplayer.EmbeddedPlayerUrlResolver
 import iad1tya.echo.music.utils.YTPlayerUtils.MAIN_CLIENT
 import iad1tya.echo.music.utils.YTPlayerUtils.STREAM_FALLBACK_CLIENTS
@@ -506,7 +507,7 @@ object YTPlayerUtils {
             BotDetectionMitigator.rotateGuestSession()
             val retryResult = boundedResolve()
             retryResult.onSuccess { BotDetectionMitigator.notifyPlaybackSuccess() }
-            return finishWithEmbeddedFallback(videoId, retryResult)
+            return finishWithEmbeddedFallback(videoId, retryResult, ageGated.get())
         }
 
         // SIGNED IN and the failure is auth-shaped: retry this ONE song anonymously.
@@ -553,7 +554,7 @@ object YTPlayerUtils {
         }
 
         firstAttempt.onSuccess { BotDetectionMitigator.notifyPlaybackSuccess() }
-        return finishWithEmbeddedFallback(videoId, firstAttempt)
+        return finishWithEmbeddedFallback(videoId, firstAttempt, ageGated.get())
     }
 
     /**
@@ -564,12 +565,50 @@ object YTPlayerUtils {
      * a null (fallback also failed/timed out/backed off) preserves today's exact failure, just
      * ~10s later.
      */
-    private suspend fun finishWithEmbeddedFallback(videoId: String, result: Result<PlaybackData>): Result<PlaybackData> {
-        // 2026-08-23, owner directive: audio may ONLY be requested through the SimpMusic providers
-        // (MAIN_CLIENT ANDROID_VR 1.65.10 + IOS fallback). The embedded-player scrape was a non-Simp
-        // request shape that every owner log showed hard-blocked anyway, and it cost ~10s of WebView
-        // per failing song. Disabled outright — the cascade result stands as-is.
-        return result
+    private suspend fun finishWithEmbeddedFallback(videoId: String, result: Result<PlaybackData>, ageGated: Boolean): Result<PlaybackData> {
+        // 2026-08-23, owner directive: audio is asked only through the SimpMusic providers; the WebView scrape stayed OFF for
+        // generic failures (it cost ~10 s per failing song and every log showed it blocked anyway).
+        // 2026-10-19, owner order: an age-restricted song must play with the signed-in account "a toda costa" and YouTube's
+        // own web player does exactly that. So the WebView comes back for ONE case and no other: the whole client chain
+        // ended in an age gate AND the account is signed in. Guests, region locks, deleted songs and every other failure
+        // keep returning `result` untouched.
+        if (result.isSuccess || !ageGated || YouTube.cookie.isNullOrBlank()) return result
+        val resolved = EmbeddedPlayerUrlResolver.tryResolve(videoId) ?: return result
+        val url = resolved.streamUrl
+        val itag = CapturedStream.itagOf(url)
+        val format = PlayerResponse.StreamingData.Format(
+            itag = itag,
+            url = url,
+            mimeType = CapturedStream.mimeTypeOf(url),
+            bitrate = 0,
+            width = null,
+            height = null,
+            contentLength = CapturedStream.contentLengthOf(url),
+            quality = "tiny",
+            fps = null,
+            qualityLabel = null,
+            averageBitrate = null,
+            audioQuality = null,
+            approxDurationMs = CapturedStream.durationMsOf(url),
+            audioSampleRate = null,
+            audioChannels = null,
+            loudnessDb = null,
+            lastModified = null,
+            signatureCipher = null,
+            cipher = null,
+            audioTrack = null,
+        )
+        return Result.success(
+            PlaybackData(
+                audioConfig = null,
+                videoDetails = null,
+                playbackTracking = null,
+                format = format,
+                streamUrl = url,
+                streamExpiresInSeconds = CapturedStream.expiresInSeconds(url, System.currentTimeMillis() / 1000),
+                fallbackRequestHeaders = resolved.requestHeaders,
+            ),
+        )
     }
 
     private suspend fun resolvePlaybackData(
@@ -764,7 +803,7 @@ object YTPlayerUtils {
         // Each gets the real signatureTimestamp (a response without it carries ciphers the player.js cannot undo). A
         // bot-check LOGIN_REQUIRED costs a few extra requests here and falls through exactly as before.
         var ageGateFailed = false
-        if (AgeGateChain.isAgeGateShaped(mainStatus)) {
+        if (AgeGateChain.isAgeGateShaped(mainStatus, mainPlayerResponse?.playabilityStatus?.desktopLegacyAgeGateReason)) {
             val steps = AgeGateChain.order(isLoggedIn)
             var recovered = false
             for (step in steps) {
@@ -775,16 +814,38 @@ object YTPlayerUtils {
                     AgeGateChain.Step.ACCOUNT_WEB_REMIX -> WEB_REMIX
                     AgeGateChain.Step.LEGACY_TV_EMBEDDED -> TVHTML5_SIMPLY_EMBEDDED_PLAYER
                 }
+                // web_creator and web_music (WEB_REMIX) refuse to stream without a GVS PO token (yt-dlp: required). Mint one
+                // like the main web path does; without one the step is skipped, not sent blind, so a response whose URLs would
+                // 403 never beats the clients that need no token.
+                var gatePoToken: PoTokenResult? = null
+                if (AgeGateChain.needsStreamPoToken(step)) {
+                    gatePoToken = poToken ?: sessionId?.let {
+                        try {
+                            poTokenGenerator.getWebClientPoToken(videoId, it)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    if (gatePoToken == null) {
+                        Timber.tag(TAG).i("AGE_GATE client=${gateClient.clientName} step=$step loggedIn=$isLoggedIn potoken=unavailable")
+                        continue
+                    }
+                }
                 val gateSts = if (gateClient.useSignatureTimestamp) awaitSts().timestamp else null
-                val gateResponse = YouTube.player(videoId, playlistId, gateClient, gateSts, null, noLogin = noLogin)
+                val gateResponse = YouTube.player(videoId, playlistId, gateClient, gateSts, gatePoToken?.playerRequestPoToken, noLogin = noLogin)
                     .onFailure { logClientFailure(gateClient.clientName, videoId, it) }
                     .getOrNull()
                 val gateStatus = gateResponse?.playabilityStatus?.status
                 // Client name and status only — never the reason, the body or the cookie (log privacy, AGENTS.md rule 4).
-                Timber.tag(TAG).i("AGE_GATE client=${gateClient.clientName} step=$step loggedIn=$isLoggedIn status=$gateStatus")
+                Timber.tag(TAG).i(
+                    "AGE_GATE client=${gateClient.clientName} step=$step loggedIn=$isLoggedIn status=$gateStatus" +
+                        (if (gatePoToken != null) " potoken=ok" else ""),
+                )
                 if (gateStatus == "OK" && gateResponse?.streamingData != null) {
                     mainPlayerResponse = gateResponse
                     usedAgeRestrictedClient = gateClient
+                    // The stream URL of a token-bound client carries the matching `pot=` (see the URL step below).
+                    if (gatePoToken != null) poToken = gatePoToken
                     // NewPipe cannot extract age-gated videos: findUrlOrNull skips it for these.
                     wasOriginallyAgeRestricted = true
                     recovered = true

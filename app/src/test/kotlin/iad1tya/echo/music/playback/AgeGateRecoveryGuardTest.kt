@@ -28,12 +28,15 @@ class AgeGateRecoveryGuardTest {
 
     @Test
     fun `an age-gate-shaped main response runs the chain with the real signature timestamp and the account`() {
-        assertTrue(block.contains("AgeGateChain.isAgeGateShaped(mainStatus)"))
+        assertTrue(block.contains("AgeGateChain.isAgeGateShaped(mainStatus, mainPlayerResponse?.playabilityStatus?.desktopLegacyAgeGateReason)"))
         assertTrue(block.contains("AgeGateChain.order(isLoggedIn)"))
         for (client in listOf("WEB_EMBEDDED_PLAYER", "TVHTML5_SAMSUNG", "WEB_CREATOR", "TVHTML5_SIMPLY_EMBEDDED_PLAYER")) {
             assertTrue("falta $client", block.contains(client))
         }
         assertTrue("WEB_REMIX con la cuenta es un paso de la cadena", block.contains("AgeGateChain.Step.ACCOUNT_WEB_REMIX -> WEB_REMIX"))
+        assertTrue("los pasos que exigen PO token lo piden y se saltan sin él", block.contains("AgeGateChain.needsStreamPoToken(step)") && block.contains("potoken=unavailable"))
+        assertTrue("el token viaja como PO token de la petición", block.contains("gatePoToken?.playerRequestPoToken"))
+        assertTrue("el pot= de la URL sale del token del paso", block.contains("poToken = gatePoToken"))
         assertTrue("signatureTimestamp real, no null", block.contains("awaitSts().timestamp"))
         assertTrue("la sesión NO se apaga en este camino", block.contains("noLogin = noLogin"))
         assertTrue("una respuesta con streamingData sustituye a la rechazada", block.contains("mainPlayerResponse = gateResponse"))
@@ -47,6 +50,10 @@ class AgeGateRecoveryGuardTest {
         assertFalse(code.contains("confirm your age", ignoreCase = true))
         assertFalse(code.contains("edad", ignoreCase = true))
         assertTrue("el log lleva cliente y estado", code.contains("AGE_GATE client="))
+        val logs = code.lines().filter { it.contains("AGE_GATE") }.joinToString("\n")
+        for (secret in listOf("videoId", "cookie", "visitorData", "streamingDataPoToken", "playerRequestPoToken")) {
+            assertFalse("el log AGE_GATE no lleva $secret", logs.contains(secret))
+        }
     }
 
     @Test
@@ -67,5 +74,7 @@ class AgeGateRecoveryGuardTest {
         assertTrue(tube.contains("sha1(\"\$currentTime \${cookieMap[\"SAPISID\"]} \$origin\")"))
         assertTrue(tube.contains("X-Goog-AuthUser"))
         assertTrue("embedUrl propio del cliente", tube.contains("client.embedUrl ?:"))
+        assertTrue("los embebidos envían clientScreen EMBED", tube.contains("asEmbedded("))
+        assertTrue("WEB_CREATOR exige PO token", clients.substringAfter("val WEB_CREATOR = YouTubeClient(").substringBefore("val TVHTML5 =").contains("useWebPoTokens = true"))
     }
 }
