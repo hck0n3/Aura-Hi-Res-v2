@@ -33,6 +33,7 @@ class AgeGateRecoveryGuardTest {
         for (client in listOf("WEB_EMBEDDED_PLAYER", "TVHTML5_SAMSUNG", "WEB_CREATOR", "TVHTML5_SIMPLY_EMBEDDED_PLAYER")) {
             assertTrue("falta $client", block.contains(client))
         }
+        assertTrue("WEB_REMIX con la cuenta es un paso de la cadena", block.contains("AgeGateChain.Step.ACCOUNT_WEB_REMIX -> WEB_REMIX"))
         assertTrue("signatureTimestamp real, no null", block.contains("awaitSts().timestamp"))
         assertTrue("la sesión NO se apaga en este camino", block.contains("noLogin = noLogin"))
         assertTrue("una respuesta con streamingData sustituye a la rechazada", block.contains("mainPlayerResponse = gateResponse"))

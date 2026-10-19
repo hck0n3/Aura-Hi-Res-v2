@@ -772,6 +772,7 @@ object YTPlayerUtils {
                     AgeGateChain.Step.WEB_EMBEDDED -> WEB_EMBEDDED_PLAYER
                     AgeGateChain.Step.TV_SAMSUNG -> TVHTML5_SAMSUNG
                     AgeGateChain.Step.WEB_CREATOR -> WEB_CREATOR
+                    AgeGateChain.Step.ACCOUNT_WEB_REMIX -> WEB_REMIX
                     AgeGateChain.Step.LEGACY_TV_EMBEDDED -> TVHTML5_SIMPLY_EMBEDDED_PLAYER
                 }
                 val gateSts = if (gateClient.useSignatureTimestamp) awaitSts().timestamp else null

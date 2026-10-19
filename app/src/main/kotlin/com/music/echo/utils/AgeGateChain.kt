@@ -16,7 +16,18 @@ package iad1tya.echo.music.utils
  */
 internal object AgeGateChain {
 
-    enum class Step { WEB_EMBEDDED, TV_SAMSUNG, WEB_CREATOR, LEGACY_TV_EMBEDDED }
+    enum class Step {
+        WEB_EMBEDDED, TV_SAMSUNG, WEB_CREATOR,
+
+        /**
+         * WEB_REMIX — the YouTube Music web client itself, asked with the account's cookies and SAPISIDHASH. It is what the
+         * official YouTube Music plays an age-gated song with once the user is signed in (owner 2026-10-19), and what SimpMusic
+         * sends first for every song (core `Ytmusic.player`, `ytClient(client, setLogin = true)`). Only a signed-in session can
+         * use it, and its streams need a GVS PO token like web_creator, so it goes after the clients that do not.
+         */
+        ACCOUNT_WEB_REMIX,
+        LEGACY_TV_EMBEDDED,
+    }
 
     /** Statuses that name the age gate directly. */
     val AGE_STATUSES = setOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "CONTENT_CHECK_REQUIRED")
@@ -31,7 +42,7 @@ internal object AgeGateChain {
     /** The steps to try, in order. [alreadyTried] are skipped. A guest has no account, so no creator client for them. */
     fun order(isLoggedIn: Boolean, alreadyTried: Set<Step> = emptySet()): List<Step> {
         val all = if (isLoggedIn) {
-            listOf(Step.WEB_EMBEDDED, Step.TV_SAMSUNG, Step.WEB_CREATOR, Step.LEGACY_TV_EMBEDDED)
+            listOf(Step.WEB_EMBEDDED, Step.TV_SAMSUNG, Step.WEB_CREATOR, Step.ACCOUNT_WEB_REMIX, Step.LEGACY_TV_EMBEDDED)
         } else {
             listOf(Step.WEB_EMBEDDED, Step.TV_SAMSUNG, Step.LEGACY_TV_EMBEDDED)
         }

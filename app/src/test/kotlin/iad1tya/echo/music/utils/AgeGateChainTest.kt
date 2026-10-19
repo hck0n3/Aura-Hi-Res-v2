@@ -21,15 +21,25 @@ class AgeGateChainTest {
     @Test
     fun `a signed-in user gets the account clients first and the creator client, which needs a stream PO token, after them`() {
         assertEquals(
-            listOf(Step.WEB_EMBEDDED, Step.TV_SAMSUNG, Step.WEB_CREATOR, Step.LEGACY_TV_EMBEDDED),
+            listOf(Step.WEB_EMBEDDED, Step.TV_SAMSUNG, Step.WEB_CREATOR, Step.ACCOUNT_WEB_REMIX, Step.LEGACY_TV_EMBEDDED),
             AgeGateChain.order(isLoggedIn = true),
         )
+    }
+
+    @Test
+    fun `the account WEB_REMIX step never goes before the clients that need no stream PO token`() {
+        val order = AgeGateChain.order(isLoggedIn = true)
+        val remix = order.indexOf(Step.ACCOUNT_WEB_REMIX)
+        assertTrue(remix > order.indexOf(Step.WEB_EMBEDDED))
+        assertTrue(remix > order.indexOf(Step.TV_SAMSUNG))
+        assertTrue(remix < order.indexOf(Step.LEGACY_TV_EMBEDDED))
     }
 
     @Test
     fun `a guest has no creator client and the legacy embed stays the last resort`() {
         val order = AgeGateChain.order(isLoggedIn = false)
         assertFalse(Step.WEB_CREATOR in order)
+        assertFalse("WEB_REMIX con cuenta no tiene sentido sin cuenta", Step.ACCOUNT_WEB_REMIX in order)
         assertEquals(Step.WEB_EMBEDDED, order.first())
         assertEquals(Step.LEGACY_TV_EMBEDDED, order.last())
     }
