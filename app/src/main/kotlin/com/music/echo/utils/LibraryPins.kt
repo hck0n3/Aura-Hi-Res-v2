@@ -198,7 +198,8 @@ object LibraryPinsStore {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun flow(context: Context): Flow<List<LibraryPin>> =
-        context.dataStore.data.map { LibraryPins.parse(it[LibraryPinsKey]) }.distinctUntilChanged()
+        // Parse only when OUR string changed: the DataStore emits on every preference write, whatever the key.
+        context.dataStore.data.map { it[LibraryPinsKey] }.distinctUntilChanged().map { LibraryPins.parse(it) }
 
     /** First-frame value: the process snapshot when it has arrived, the blocking read only on a cold start. */
     fun snapshot(context: Context): List<LibraryPin> =

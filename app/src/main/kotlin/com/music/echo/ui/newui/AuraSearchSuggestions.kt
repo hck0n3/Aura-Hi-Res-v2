@@ -589,22 +589,30 @@ fun AuraLocalSearchResults(
                 key = { "aura_local_${filter.name}_${it.id}" },
             ) { item ->
                 if (wideList) {
-                    AuraSearchWideRow(
-                        entry = auraLocalSearchEntry(item),
-                        selected = openKey == "local:${item.id}",
-                        isActive = when (item) {
-                            is Song -> item.id == mediaMetadata?.id
-                            is Album -> item.id == mediaMetadata?.album?.id
-                            else -> false
-                        },
-                        isPlaying = isPlaying,
-                        onClick = { pickLocal(item) },
-                        onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            pickLocal(item)
-                        },
-                        modifier = Modifier.padding(horizontal = AuraSpacing.Gutter - 8.dp),
-                    )
+                    val wideRow: @Composable () -> Unit = {
+                        AuraSearchWideRow(
+                            entry = auraLocalSearchEntry(item),
+                            selected = openKey == "local:${item.id}",
+                            isActive = when (item) {
+                                is Song -> item.id == mediaMetadata?.id
+                                is Album -> item.id == mediaMetadata?.album?.id
+                                else -> false
+                            },
+                            isPlaying = isPlaying,
+                            onClick = { pickLocal(item) },
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                pickLocal(item)
+                            },
+                            modifier = Modifier.padding(horizontal = AuraSpacing.Gutter - 8.dp),
+                        )
+                    }
+                    // The swipe-to-queue gesture of the phone row survives on library songs.
+                    if (item is Song) {
+                        AuraSwipeSongBox(mediaItem = item.toMediaItem()) { wideRow() }
+                    } else {
+                        wideRow()
+                    }
                 } else when (item) {
                     is Song -> AuraSongRow(
                         title = item.song.title,
