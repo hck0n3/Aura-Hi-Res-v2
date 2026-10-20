@@ -124,6 +124,7 @@ object AccountPush {
     private const val FLUSH_SPACING_MS = 250L
     private const val TOAST_MIN_GAP_MS = 45_000L
     private const val MAX_ARTIST_PASSES = 3
+    private val VIDEO_ID = Regex("^[A-Za-z0-9_-]{11}$")
 
     private data class Entry(
         val key: String,
@@ -186,6 +187,12 @@ object AccountPush {
      */
     fun submit(op: AccountPushPolicy.Op, id: String) {
         if (appContext == null || id.isBlank()) return
+        // Local files and imported placeholders have no YouTube video behind them: sending their id would
+        // only be rejected (and retried). A real video id is always 11 URL-safe characters.
+        if ((op.group == "r" || op.group == "l") && !VIDEO_ID.matches(id)) {
+            Timber.i("SYNC_PUSH kind=%s status=skipped_not_remote", op.logKind)
+            return
+        }
         if (!isSignedIn()) {
             Timber.i("SYNC_PUSH kind=%s status=skipped_signed_out", op.logKind)
             return

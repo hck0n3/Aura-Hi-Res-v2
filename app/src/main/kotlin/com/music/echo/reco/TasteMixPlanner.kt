@@ -199,17 +199,28 @@ object TasteMixPlanner {
     /**
      * Greedy pass: at every slot take the first remaining song whose artist is not among the last [gap] placed; if none,
      * relax the gap until one fits. Songs without an artist are unconstrained. Order otherwise preserved.
+     *
+     * One correction to «first that fits»: an artist whose remaining songs would no longer fit with the spacing if they
+     * waited any longer (`(count - 1) * (gap + 1) + 1 >= remaining`) goes first (the most numerous of them), otherwise
+     * the tail of the queue ends up as a block of the same few artists.
      */
     internal fun spaceArtists(ordered: List<Candidate>, gap: Int = ARTIST_GAP): List<Candidate> {
         val remaining = ArrayList(ordered)
         val out = ArrayList<Candidate>(ordered.size)
         fun artistKey(c: Candidate) = NoRepeatKey.normalizeArtist(c.artist)
         while (remaining.isNotEmpty()) {
+            val counts = HashMap<String, Int>()
+            remaining.forEach { c -> artistKey(c).takeIf { it.isNotEmpty() }?.let { counts.merge(it, 1) { a, b -> a + b } } }
             var g = gap
             var index = -1
             while (index < 0) {
                 val recent = out.takeLast(g).map { artistKey(it) }.filter { it.isNotEmpty() }.toSet()
-                index = remaining.indexOfFirst { artistKey(it).let { k -> k.isEmpty() || k !in recent } }
+                val eligible = remaining.indices.filter { i -> artistKey(remaining[i]).let { k -> k.isEmpty() || k !in recent } }
+                // The most crowded eligible artist, when it can no longer wait.
+                val urgent = eligible
+                    .filter { i -> (counts[artistKey(remaining[i])] ?: 0).let { n -> n > 1 && (n - 1) * (gap + 1) + 1 >= remaining.size } }
+                    .maxByOrNull { i -> counts[artistKey(remaining[i])] ?: 0 }
+                index = urgent ?: eligible.firstOrNull() ?: -1
                 if (index < 0) {
                     if (g == 0) index = 0 else g--
                 }

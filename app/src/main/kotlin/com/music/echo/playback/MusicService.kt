@@ -5399,6 +5399,13 @@ class MusicService :
                     database.query { upsert(unliked); syncUtils.likeSong(unliked) }
                 }
             }
+            // "No me gusta" reaches the account too (owner 2026-10-20): thumbs-down on YouTube Music's side,
+            // recorded durably and retried when offline. It goes AFTER the unlike above on purpose — the last
+            // action on a song wins in the outbox, and a dislike replaces the like on the account.
+            iad1tya.echo.music.utils.AccountPush.submit(
+                iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_DISLIKE,
+                mediaId,
+            )
             // Purge any other copies of this track still queued ahead, then advance.
             withContext(Dispatchers.Main) {
                 for (i in player.mediaItemCount - 1 downTo 0) {
@@ -5431,6 +5438,11 @@ class MusicService :
                     if (it is CancellationException) throw it
                     Timber.tag(TAG).w("SONG_UNDISLIKE persist failed: %s", privacySafeSummary(it))
                 }
+                // Undoing the dislike clears the thumbs-down on the account (removelike also clears a dislike).
+                iad1tya.echo.music.utils.AccountPush.submit(
+                    iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_UNLIKE,
+                    mediaId,
+                )
             } else {
                 // Only dislike if the SAME track is still current (the snapshot read suspends briefly;
                 // dislikeCurrentSong re-reads the current item, so a track change mid-await must bail

@@ -1089,12 +1089,23 @@ class SyncUtils @Inject constructor(
             return@withContext
         }
 
-        withRetry {
-            YouTube.likeVideo(s.id, s.liked).getOrThrow()
-        }.onFailure { e ->
-            Timber.w("Failed to like song on YouTube: %s", privacySafeSummary(e))
+        // `s` is the snapshot taken at the tap and this op can sit behind a long sync in the serial
+        // channel, so sending `s.liked` could undo a later tap (like, unlike, ... then the stale "like"
+        // lands). SongEntity.toggleLike already pushed the tap through AccountPush; here we only make
+        // sure the CURRENT local state is on record, for callers that flip the heart without it.
+        val wantLiked = database.song(s.id).firstOrNull()?.song?.liked ?: s.liked
+        val recorded = AccountPush.currentSongRatingOp(s.id)
+        val alreadyRecorded = when (recorded) {
+            AccountPushPolicy.Op.SONG_LIKE -> wantLiked
+            AccountPushPolicy.Op.SONG_UNLIKE, AccountPushPolicy.Op.SONG_DISLIKE -> !wantLiked
+            else -> false
         }
-
+        if (!alreadyRecorded) {
+            AccountPush.submit(
+                if (wantLiked) AccountPushPolicy.Op.SONG_LIKE else AccountPushPolicy.Op.SONG_UNLIKE,
+                s.id,
+            )
+        }
 
     }
 
@@ -1475,6 +1486,9 @@ class SyncUtils @Inject constructor(
 
                     remoteAlbums.forEach { album ->
                         try {
+                            // An un-save that has not landed on the account yet must not be re-saved from its
+                            // stale list (AccountPush).
+                            if (AccountPush.suppressesRemotePlaylistSave(album.playlistId)) return@forEach
                             val dbAlbum = database.album(album.id).firstOrNull()
                             if (dbAlbum == null) {
                                 // NEW album only: fetch the full page + insert. The old code called

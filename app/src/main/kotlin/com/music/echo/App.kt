@@ -123,6 +123,10 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
     override fun onCreate() {
         super.onCreate()
 
+        // Durable push of the user's own taps (unlike, "No me gusta", un-save, library removal) to their
+        // account: remember the context and, off the main thread, re-arm the retry if something is pending.
+        iad1tya.echo.music.utils.AccountPush.init(this)
+
         // Seed the process-wide image-cache-size mirror synchronously from a cheap SharedPreferences copy
         // (NOT DataStore) so newImageLoader() — which Coil invokes lazily on the main thread at first image
         // load — can read it without a blocking DataStore read. The authoritative DataStore value re-seeds
