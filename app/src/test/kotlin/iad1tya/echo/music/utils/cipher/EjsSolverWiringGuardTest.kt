@@ -66,7 +66,7 @@ class EjsSolverWiringGuardTest {
         assertTrue(lib.contains("meriyah") && lib.contains("astring") && lib.contains("Unlicense"))
         assertTrue(core.contains("SPDX-License-Identifier: Unlicense"))
         // In a browser, `globalThis.location = …` navigates the page and kills the solver; the patch keeps it a local var.
-        assertFalse("el prólogo no puede asignar window.location", core.contains("globalThis.location ="))
+        assertFalse("el prólogo no puede asignar window.location (la rama sin URL no existe en un WebView)", core.contains("globalThis.location = new URL("))
         assertTrue(core.contains("var location = new URL("))
         assertTrue(page.contains("<script src=\"yt.solver.lib.js\"></script>"))
         assertTrue("la lib se publica como globales antes del core", page.indexOf("Object.assign(globalThis, lib)") in 1 until page.indexOf("yt.solver.core.js"))
