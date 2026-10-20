@@ -240,6 +240,12 @@ internal fun AuraSongCollectionScaffold(
         }
     }
 
+    // Wide pane only: genre column. The genre is the ARTIST's (on-device GenreCache), never guessed.
+    val trackGenres = rememberAuraTrackGenres()
+    val showGenreColumn = remember(trackGenres, filteredSongs) {
+        trackGenres.anyKnown(filteredSongs) { song -> song.artists.map { it.name } }
+    }
+
     val listState = rememberLazyListState()
     // Opens on the cover, never scrolled past it: Descargado puts its cards in the list before the songs (and the header)
     // arrive, and the header inserted above them would otherwise push the page down (see AuraOpenAtTop).
@@ -438,6 +444,9 @@ internal fun AuraSongCollectionScaffold(
                         onSelectedChange = if (inSelectMode) onCheckedChange else null,
                         durationLabel = auraAppleDurationLabel(song.song.duration.takeIf { it > 0 }),
                         showQualityBadge = false,
+                        appleLayout = true,
+                        genre = trackGenres.of(song.artists.map { it.name }),
+                        showGenreColumn = showGenreColumn,
                         onClick = {
                             when {
                                 inSelectMode -> onCheckedChange(!selected)

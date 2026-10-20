@@ -272,10 +272,6 @@ private fun RecognitionWindow(
         }
     }
 
-    fun resetToReady() {
-        iad1tya.echo.music.recognition.MusicRecognitionService.reset()
-    }
-
     // Resolve-once: the first time a Success result renders, match it to a YouTube Music SongItem
     // (lazily, off the main thread) so Like / Add-to-playlist can persist the REAL song — the same
     // one the Play button would pick (same search + best-match logic as SuggestionsViewModel).

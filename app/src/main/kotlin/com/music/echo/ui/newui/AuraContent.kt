@@ -717,6 +717,8 @@ fun AuraCoverCard(
      * row simply take the height of the tallest one.
      */
     fullTitle: Boolean = false,
+    /** Explicit album / EP / single: the Apple-style «E» badge after the title. */
+    explicit: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -799,16 +801,36 @@ fun AuraCoverCard(
         // +2.dp slack: a Box height equal to lineHeight alone clips glyph bottoms (album years).
         val titleMinHeight = with(density) { AuraType.CoverTitle.lineHeight.toDp() } + 2.dp
         val subtitleBlockHeight = with(density) { AuraType.RowSubtitle.lineHeight.toDp() } + 2.dp
-        Text(
-            text = title,
-            style = AuraType.CoverTitle,
-            color = AuraPalette.OnGround,
-            maxLines = if (fullTitle) Int.MAX_VALUE else 2,
-            overflow = AuraDefaultOverflow,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = titleMinHeight),
-        )
+        if (explicit) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = titleMinHeight),
+            ) {
+                Text(
+                    text = title,
+                    style = AuraType.CoverTitle,
+                    color = AuraPalette.OnGround,
+                    maxLines = if (fullTitle) Int.MAX_VALUE else 2,
+                    overflow = AuraDefaultOverflow,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.width(6.dp))
+                AuraExplicitBadge()
+            }
+        } else {
+            Text(
+                text = title,
+                style = AuraType.CoverTitle,
+                color = AuraPalette.OnGround,
+                maxLines = if (fullTitle) Int.MAX_VALUE else 2,
+                overflow = AuraDefaultOverflow,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = titleMinHeight),
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -850,6 +872,8 @@ fun AuraPosterCard(
     contentDescription: String = title,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /** Explicit album / EP / single: the Apple-style «E» badge after the title. */
+    explicit: Boolean = false,
 ) {
     val brush = remember(seed) { AuraPalette.coverPlaceholder(seed) }
     // Posters always fill-bleed — never Fit letterboxes (owner: "portadas que no cubren todo").
@@ -894,13 +918,28 @@ fun AuraPosterCard(
                 .padding(horizontal = 10.dp, vertical = 10.dp)
                 .fillMaxWidth(),
         ) {
-            Text(
-                text = title,
-                style = AuraType.CoverTitle,
-                color = AuraPalette.OnGround,
-                maxLines = 2,
-                overflow = AuraDefaultOverflow,
-            )
+            if (explicit) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        style = AuraType.CoverTitle,
+                        color = AuraPalette.OnGround,
+                        maxLines = 2,
+                        overflow = AuraDefaultOverflow,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    AuraExplicitBadge()
+                }
+            } else {
+                Text(
+                    text = title,
+                    style = AuraType.CoverTitle,
+                    color = AuraPalette.OnGround,
+                    maxLines = 2,
+                    overflow = AuraDefaultOverflow,
+                )
+            }
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,

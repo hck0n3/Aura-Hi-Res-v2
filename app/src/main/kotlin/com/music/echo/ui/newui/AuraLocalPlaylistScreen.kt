@@ -603,6 +603,12 @@ fun AuraLocalPlaylistScreen(
         hiddenSongIds,
     ) { it.song }
 
+    // Wide pane only: genre column. The genre is the ARTIST's (on-device GenreCache), never guessed.
+    val trackGenres = rememberAuraTrackGenres()
+    val showGenreColumn = remember(trackGenres, rows) {
+        trackGenres.anyKnown(rows) { row -> row.song.artists.map { it.name } }
+    }
+
     Box(modifier = Modifier.fillMaxSize().auraScreenBackground(bloom, intensity = 0.40f)) {
         Column(Modifier.fillMaxSize()) {
             if (isSearching) {
@@ -836,6 +842,9 @@ fun AuraLocalPlaylistScreen(
                             onSelectedChange = if (inSelectMode) onCheckedChange else null,
                             durationLabel = auraAppleDurationLabel(song.song.song.duration),
                             showQualityBadge = false,
+                            appleLayout = true,
+                            genre = trackGenres.of(song.song.artists.map { it.name }),
+                            showGenreColumn = showGenreColumn,
                             onClick = {
                                 if (inSelectMode) {
                                     onCheckedChange(!selected)

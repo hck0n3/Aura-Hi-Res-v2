@@ -7,6 +7,7 @@ import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +40,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
@@ -756,4 +762,23 @@ private fun Modifier.auraFirstTap(
             disabled()
         }
     }
-    .then(if (enabled) Modifier.unstealableClick(action) else Modifier)
+    .then(
+        if (enabled) {
+            // The clickable used to give TV / car / keyboard users focus and the Enter / D-pad-centre press; the
+            // gesture alone does not, so both are restored here (still ONE path: the key press calls `action`).
+            Modifier
+                .onKeyEvent { event ->
+                    val select = event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.DirectionCenter
+                    if (select && event.type == KeyEventType.KeyUp) {
+                        action()
+                        true
+                    } else {
+                        false
+                    }
+                }
+                .focusable()
+                .unstealableClick(action)
+        } else {
+            Modifier
+        },
+    )

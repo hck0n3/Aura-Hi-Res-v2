@@ -213,6 +213,11 @@ fun AuraOnlinePlaylistScreen(
     val videoPlaylist = remember(songs) {
         songs.isNotEmpty() && songs.count { it.isVideoSong } * 2 >= songs.size
     }
+    // Wide pane only: genre column. The genre is the ARTIST's (on-device GenreCache), never guessed.
+    val trackGenres = rememberAuraTrackGenres()
+    val showGenreColumn = remember(trackGenres, filteredSongs) {
+        trackGenres.anyKnown(filteredSongs) { (_, song) -> song.artists.map { it.name } }
+    }
 
     var inSelectMode by rememberSaveable { mutableStateOf(false) }
     val selection = rememberSaveable(
@@ -471,6 +476,9 @@ fun AuraOnlinePlaylistScreen(
                         onSelectedChange = if (inSelectMode) onCheckedChange else null,
                         durationLabel = auraAppleDurationLabel(songItem.duration),
                         showQualityBadge = false,
+                        appleLayout = true,
+                        genre = trackGenres.of(songItem.artists.map { it.name }),
+                        showGenreColumn = showGenreColumn,
                         onClick = if (blocked) null else {
                             {
                                 when {

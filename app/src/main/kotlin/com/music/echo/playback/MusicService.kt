@@ -6924,7 +6924,13 @@ class MusicService :
     }
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-        
+        // Registry row 473: the other half of the pause trace (PLAY_TOGGLE in PlayerConnection says the tap arrived;
+        // this says what the player did with it and whether something else flipped it back). reason: 1 user,
+        // 2 focus loss, 3 noisy, 4 remote, 5 end of item, 6 suppressed too long. Ints and booleans only.
+        Timber.tag(TAG).i(
+            "PLAY_WHEN_READY -> %b reason=%d ownFocusPause=%b ownStopPause=%b",
+            playWhenReady, reason, expectingOwnFocusPause, expectingOwnStopPause,
+        )
         if (playWhenReady && castConnectionHandler?.isCasting?.value == true) {
             player.pause()
             return

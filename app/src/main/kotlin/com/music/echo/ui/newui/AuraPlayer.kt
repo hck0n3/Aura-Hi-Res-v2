@@ -1687,6 +1687,7 @@ private fun AuraPlayerShape(
                             }
                         },
                         enabled = !isListenTogetherGuest,
+                        firstTap = true,
                         size = if (dense) 22.dp else 24.dp,
                         tint = if (shuffleModeEnabled) transportAccent else AuraPalette.OnGroundFaint,
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -1696,6 +1697,7 @@ private fun AuraPlayerShape(
                         contentDescription = stringResource(R.string.previous),
                         onClick = playerConnection::seekToPrevious,
                         enabled = canSkipPrevious && !isListenTogetherGuest,
+                        firstTap = true,
                         size = if (dense) 30.dp else 34.dp,
                         tint = AuraPalette.OnGround.copy(alpha = 0.9f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -1733,6 +1735,9 @@ private fun AuraPlayerShape(
                         // TIDAL: no disc behind play/pause — the glyph alone, in the ground's ink.
                         fill = if (dense) playButtonFill else SolidColor(Color.Transparent),
                         ink = if (dense) playButtonInk else AuraPalette.OnGround,
+                        // Registry row 473: the shield above does NOT make a plain clickable reliable (it cancels it on
+                        // any MOVE between down and up); the tap must be the button's own gesture.
+                        firstTap = true,
                     )
                     Box(contentAlignment = Alignment.Center) {
                         if (isAdvancingIntoRadio) {
@@ -1751,6 +1756,7 @@ private fun AuraPlayerShape(
                                 contentDescription = stringResource(R.string.next),
                                 onClick = playerConnection::seekToNext,
                                 enabled = canSkipNext && !isListenTogetherGuest,
+                                firstTap = true,
                                 size = if (dense) 30.dp else 34.dp,
                                 tint = AuraPalette.OnGround.copy(alpha = 0.9f),
                                 modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -1763,6 +1769,7 @@ private fun AuraPlayerShape(
                             contentDescription = stringResource(R.string.repeat),
                             onClick = { playerConnection.player.toggleRepeatMode() },
                             enabled = !isListenTogetherGuest,
+                            firstTap = true,
                             size = if (dense) 22.dp else 24.dp,
                             tint = if (repeatMode != Player.REPEAT_MODE_OFF) transportAccent
                             else AuraPalette.OnGroundDisabled,
