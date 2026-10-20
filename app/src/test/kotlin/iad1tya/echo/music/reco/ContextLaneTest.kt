@@ -198,10 +198,10 @@ class ContextLaneTest {
         val lane = ContextLane.Lane(TitleLanguage.ES, mixed = false, christian = true, families = setOf("urbano"))
         val urban = candidate("Mi Testimonio", learned = "reggaeton", christian = true, target = target)
         val rock = candidate("Mi Testimonio", learned = "rock", christian = true, target = target)
-        val unknown = candidate("Mi Testimonio", christian = true, target = target)
-        assertEquals(0, tierOf(urban, lane))
+        val unknown = candidate("Jordan", christian = true, target = target)
+        assertEquals(0, tierOf(urban, lane)) // rap and reggaeton share the family: the honest limit without a style
         assertNull(tierOf(rock, lane))
-        assertEquals(2, tierOf(unknown, lane)) // unknown family stays eligible, a step further down... (see below)
+        assertEquals(3, tierOf(unknown, lane)) // nothing known: eligible (#39/#41), a step further down
     }
 
     // ── The widening ladder ────────────────────────────────────────────────────────────────────────────────────
@@ -297,5 +297,29 @@ class ContextLaneTest {
         val log = gate.substringAfter("\"STYLE_GATE %s: styles=%s lang=%s").substringBefore("kept\n}")
         assertTrue(log.contains("steps=%s never=%d only=%b"))
         assertFalse("no se registra ningún título/artista", log.contains("title") || log.contains(".name"))
+    }
+
+    // ── Learned artist language and Last.fm lane hints ─────────────────────────────────────────────────────────
+    @Test
+    fun `an artist language needs two observations and a clear majority`() {
+        var m: ArtistLanguageMemory.Memory = emptyMap()
+        m = ArtistLanguageMemory.merged(m, listOf("Redimi2" to "es"))
+        assertNull(ArtistLanguageMemory.languageOf(m, "redimi2"))
+        m = ArtistLanguageMemory.merged(m, listOf("redimi2 " to "es"))
+        assertEquals("es", ArtistLanguageMemory.languageOf(m, "Redimi2"))
+        m = ArtistLanguageMemory.merged(m, listOf("Redimi2" to "en", "Redimi2" to "en"))
+        assertNull(ArtistLanguageMemory.languageOf(m, "Redimi2")) // bilingual: nothing is judged by it
+    }
+
+    @Test
+    fun `last fm tags give a family and a spanish hint, never more`() {
+        val tags = listOf("christian hip hop" to 100, "reggaeton" to 70, "latin" to 40, "seen live" to 5)
+        assertEquals(MusicStyle.FAMILY_URBAN, ArtistTagStyles.familyFromTags(tags))
+        assertEquals("es", ArtistTagStyles.languageFromTags(tags))
+        assertNull(ArtistTagStyles.languageFromTags(listOf("rock" to 100, "latin" to 5)))
+        assertNull(ArtistTagStyles.familyFromTags(listOf("christian hip hop" to 50, "rock" to 50)))
+        val lane = ArtistTagStyles.TagLane("urbano", "es")
+        assertEquals(lane, ArtistTagStyles.decodeLane(ArtistTagStyles.encodeLane(lane)))
+        assertEquals(ArtistTagStyles.TagLane(null, "es"), ArtistTagStyles.decodeLane("|es"))
     }
 }
