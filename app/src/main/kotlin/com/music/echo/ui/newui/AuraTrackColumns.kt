@@ -10,9 +10,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +32,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import iad1tya.echo.music.R
+import iad1tya.echo.music.reco.ContextPattern
 import iad1tya.echo.music.reco.GenreCache
 import iad1tya.echo.music.ui.utils.LocalContentPaneWidth
 import iad1tya.echo.music.ui.utils.WIDE_LAYOUT_BREAKPOINT_DP
@@ -91,20 +96,40 @@ internal fun auraArtistGenre(artistNames: List<String>, genres: Map<String, Stri
     return genres[first.lowercase()]?.trim()?.takeIf { it.isNotEmpty() }
 }
 
+/** Most artists offered to one enrich call; [GenreCache.enrich] itself still caps a call at 15 lookups. */
+internal const val AURA_TRACK_GENRE_STUDY_ARTISTS = 40
+
 /**
  * Loads the genre snapshot ONCE per screen visit, off the main thread, and only when the pane is wide enough
- * to show the column (a folded phone never touches it). No network: this is a SharedPreferences read.
+ * to show the column (a folded phone never touches it). No per-row work.
+ *
+ * [primaryArtists] = the first artist of every song of the list. Once the list has songs, the artists the
+ * cache does not know yet are looked up with ONE bounded [GenreCache.enrich] call per screen instance
+ * (`onlyWifi = true` = honour the user's network preference, exactly like MusicService's own study call;
+ * at most 15 lookups, known artists and definitive misses skipped), and the snapshot is re-read so the genre
+ * column fills in without reopening the screen. Wide pane only. Nothing is logged.
  */
 @Composable
-internal fun rememberAuraTrackGenres(): AuraTrackGenres {
+internal fun rememberAuraTrackGenres(primaryArtists: List<String> = emptyList()): AuraTrackGenres {
     val columns = rememberAuraTrackColumns()
     val context = LocalContext.current.applicationContext
-    val byArtist by produceState(emptyMap<String, String>(), columns) {
+    var refresh by remember { mutableIntStateOf(0) }
+    var enrichStarted by remember { mutableStateOf(false) }
+    val byArtist by produceState(emptyMap<String, String>(), columns, refresh) {
         if (columns) {
             value = withContext(Dispatchers.IO) {
                 runCatching { GenreCache.snapshot(context) }.getOrDefault(emptyMap())
             }
         }
+    }
+    val hasArtists = primaryArtists.isNotEmpty()
+    LaunchedEffect(columns, hasArtists) {
+        if (!columns || !hasArtists || enrichStarted) return@LaunchedEffect
+        enrichStarted = true
+        val study = ContextPattern.studyArtists(primaryArtists, AURA_TRACK_GENRE_STUDY_ARTISTS)
+        if (study.isEmpty()) return@LaunchedEffect
+        runCatching { GenreCache.enrich(context, study, onlyWifi = true) }
+        refresh++
     }
     return remember(byArtist) { AuraTrackGenres(byArtist) }
 }

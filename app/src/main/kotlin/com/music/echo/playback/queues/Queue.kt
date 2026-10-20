@@ -90,8 +90,9 @@ interface Queue {
             return copy(items = filtered, mediaItemIndex = fallback)
         }
 
-        fun filterExplicit(enabled: Boolean = true) =
-            if (enabled) reanchor(items.filterExplicit()) else this
+        /** Explicit content is never hidden (owner 2026-10-20): a no-op on purpose, [enabled] ignored. */
+        @Suppress("UNUSED_PARAMETER")
+        fun filterExplicit(enabled: Boolean = true): Status = this
 
         /**
          * Hides video songs from the queue.

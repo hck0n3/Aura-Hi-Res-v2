@@ -241,7 +241,9 @@ internal fun AuraSongCollectionScaffold(
     }
 
     // Wide pane only: genre column. The genre is the ARTIST's (on-device GenreCache), never guessed.
-    val trackGenres = rememberAuraTrackGenres()
+    val trackGenres = rememberAuraTrackGenres(
+        remember(filteredSongs) { filteredSongs.mapNotNull { it.artists.firstOrNull()?.name } },
+    )
     val showGenreColumn = remember(trackGenres, filteredSongs) {
         trackGenres.anyKnown(filteredSongs) { song -> song.artists.map { it.name } }
     }

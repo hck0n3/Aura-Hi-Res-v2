@@ -214,7 +214,9 @@ fun AuraOnlinePlaylistScreen(
         songs.isNotEmpty() && songs.count { it.isVideoSong } * 2 >= songs.size
     }
     // Wide pane only: genre column. The genre is the ARTIST's (on-device GenreCache), never guessed.
-    val trackGenres = rememberAuraTrackGenres()
+    val trackGenres = rememberAuraTrackGenres(
+        remember(songs) { songs.mapNotNull { it.artists.firstOrNull()?.name } },
+    )
     val showGenreColumn = remember(trackGenres, filteredSongs) {
         trackGenres.anyKnown(filteredSongs) { (_, song) -> song.artists.map { it.name } }
     }

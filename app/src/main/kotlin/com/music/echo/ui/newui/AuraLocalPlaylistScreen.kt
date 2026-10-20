@@ -604,7 +604,9 @@ fun AuraLocalPlaylistScreen(
     ) { it.song }
 
     // Wide pane only: genre column. The genre is the ARTIST's (on-device GenreCache), never guessed.
-    val trackGenres = rememberAuraTrackGenres()
+    val trackGenres = rememberAuraTrackGenres(
+        remember(rows.size) { rows.mapNotNull { it.song.artists.firstOrNull()?.name } },
+    )
     val showGenreColumn = remember(trackGenres, rows) {
         trackGenres.anyKnown(rows) { row -> row.song.artists.map { it.name } }
     }
