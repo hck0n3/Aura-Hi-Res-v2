@@ -1,12 +1,14 @@
 package iad1tya.echo.music.ui.newui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,6 +64,19 @@ internal const val AURA_TRACK_TITLE_WEIGHT = 1.7f
 internal const val AURA_TRACK_ARTIST_WEIGHT = 1.0f
 internal const val AURA_TRACK_GENRE_WEIGHT = 0.8f
 internal val AuraTrackDurationWidth: Dp = 52.dp
+
+/**
+ * The trailing end of a column row is TWO fixed-width slots, reserved whether or not the row has anything to
+ * show in them. A heart / download tick / «ya reproducida» check used to widen the trailing cluster on the rows
+ * that had one, and the weighted columns (artist, genre, duration) then got a different width on every row —
+ * a liked song's columns sat ~25 px left of its neighbours' (owner, 2026-10-20, the «Oxigeno» screenshot).
+ *  · state slot  — heart, download state, library mark, played check, quality badge; right-aligned. Sized for
+ *    the usual worst case (liked + downloaded + in library); a rarer longer cluster grows LEFT, over the empty
+ *    part of the duration cell, never pushing a column.
+ *  · action slot — the ⋯ menu or, in selection mode, the checkbox: both are 48 dp, so swapping them is free.
+ */
+internal val AuraTrackStateSlotWidth: Dp = 72.dp
+internal val AuraTrackActionSlotWidth: Dp = AuraSpacing.MinTouchTarget
 
 /**
  * Does the screen's content pane have room for the column layout right now? Reads the window size and the
@@ -226,5 +241,29 @@ internal fun RowScope.AuraTrackColumns(
                 style = AuraType.RowSubtitle,
             )
         }
+    }
+}
+
+
+/**
+ * The trailing end of a column row: [state] in its fixed slot, then [action] in its fixed slot. Always the same
+ * total width ([AuraTrackStateSlotWidth] + [AuraTrackActionSlotWidth]), so every row of a list shares the same
+ * column x-positions whatever it has to show (heart, download tick, played check, menu, checkbox, nothing).
+ */
+@Composable
+internal fun AuraTrackTrailingSlots(
+    state: @Composable RowScope.() -> Unit,
+    action: @Composable () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(AuraTrackStateSlotWidth), contentAlignment = Alignment.CenterEnd) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                modifier = Modifier.wrapContentWidth(Alignment.End, unbounded = true),
+                content = state,
+            )
+        }
+        Box(Modifier.width(AuraTrackActionSlotWidth), contentAlignment = Alignment.Center) { action() }
     }
 }

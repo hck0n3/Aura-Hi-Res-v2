@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -1162,10 +1163,7 @@ fun AuraSongRow(
                 }
             },
             trailing = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
+                val state: @Composable RowScope.() -> Unit = {
                     if (playedCheck) {
                         AuraIconGlyph(
                             icon = AuraIcons.Check,
@@ -1210,6 +1208,8 @@ fun AuraSongRow(
                             style = AuraType.RowSubtitle,
                         )
                     }
+                }
+                val action: @Composable () -> Unit = {
                     if (selected != null) {
                         Checkbox(
                             checked = selected,
@@ -1228,6 +1228,18 @@ fun AuraSongRow(
                             size = 18.dp,
                             tint = AuraPalette.OnGroundDisabled,
                         )
+                    }
+                }
+                if (columnsLayout) {
+                    // Fixed-width slots: what this row shows must never move the columns (AuraTrackTrailingSlots).
+                    AuraTrackTrailingSlots(state = state, action = action)
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        state()
+                        action()
                     }
                 }
             },
@@ -1450,10 +1462,7 @@ fun AuraAlbumTrackRow(
             }
         },
         trailing = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
+            val state: @Composable RowScope.() -> Unit = {
                 if (playedCheck) {
                     AuraIconGlyph(
                         icon = AuraIcons.Check,
@@ -1480,6 +1489,8 @@ fun AuraAlbumTrackRow(
                         style = AuraType.RowSubtitle,
                     )
                 }
+            }
+            val action: @Composable () -> Unit = {
                 if (selected != null) {
                     Checkbox(
                         checked = selected,
@@ -1498,6 +1509,18 @@ fun AuraAlbumTrackRow(
                         size = 18.dp,
                         tint = AuraPalette.OnGroundDisabled,
                     )
+                }
+            }
+            if (columnsLayout) {
+                // Fixed-width slots: what this row shows must never move the columns (AuraTrackTrailingSlots).
+                AuraTrackTrailingSlots(state = state, action = action)
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    state()
+                    action()
                 }
             }
         },
