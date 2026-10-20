@@ -2,6 +2,9 @@
 
 package iad1tya.echo.music.ui.menu
 
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import android.content.Intent
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.PaddingValues
@@ -60,14 +63,10 @@ fun YouTubeArtistMenu(
     val isPinned by database.speedDialDao.isPinned(artist.id).collectAsState(initial = false)
     val coroutineScope = rememberCoroutineScope()
 
-    YouTubeListItem(
-        item = artist,
-        trailingContent = {},
+    MenuHeader(
+        title = artist.title,
+        thumbnail = { MenuHeaderCover(thumbnailUrl = artist.thumbnail, circle = true) },
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -126,7 +125,7 @@ fun YouTubeArtistMenu(
                         )
                     )
                 },
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
                 columns = if (isGuest) 1 else 3
             )
         }

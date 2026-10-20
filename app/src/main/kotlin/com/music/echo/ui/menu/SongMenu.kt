@@ -2,6 +2,9 @@
 
 package iad1tya.echo.music.ui.menu
 
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.Intent
@@ -487,13 +490,14 @@ fun SongMenu(
         return
     }
 
-    SongListItem(
-        song = song,
-        badges = {},
-        shape = listItemShape(0, 2),
-        horizontalPadding = 0.dp,
-        trailingContent = {
-            IconButton(
+    MenuHeader(
+        title = song.song.title,
+        subtitle = song.artists.joinToString { it.name },
+        meta = makeTimeString(song.song.duration * 1000L),
+        thumbnail = { MenuHeaderCover(thumbnailUrl = song.song.thumbnailUrl, isVideo = song.song.isVideo) },
+        trailing = {
+            MenuLikeButton(
+                liked = song.song.liked,
                 onClick = {
                     val s = song.song.toggleLike()
                     database.query {
@@ -501,19 +505,9 @@ fun SongMenu(
                     }
                     syncUtils.likeSong(s)
                 },
-            ) {
-                Icon(
-                    painter = painterResource(if (song.song.liked) R.drawable.favorite else R.drawable.favorite_border),
-                    tint = if (song.song.liked) MaterialTheme.colorScheme.error else LocalContentColor.current,
-                    contentDescription = null,
-                )
-            }
+            )
         },
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     LazyColumn(
         contentPadding = PaddingValues(
@@ -589,7 +583,7 @@ fun SongMenu(
                     )
                 ),
                 columns = 3,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
         item {
@@ -923,6 +917,7 @@ fun SongMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.view_artist)) },
+                            showChevron = true,
                             description = { Text(text = song.artists.joinToString { it.name }) },
                             icon = {
                                 Icon(
@@ -960,6 +955,7 @@ fun SongMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_album)) },
+                                showChevron = true,
                                 description = {
                                     if (album.title.isNotBlank()) {
                                         Text(text = album.title)

@@ -48,6 +48,9 @@
     <string name="no_results_found">No se encontraron resultados</string>
     <string name="library_song_empty">Las canciones de la biblioteca aparecerán aquí</string>
     <string name="library_artist_empty">La biblioteca de artistas aparecerán aquí</string>
+    <string name="library_artists_subscribed_empty">Aún no hay artistas suscritos</string>
+    <string name="library_artists_subscribed_hint">Aquí solo aparecen los artistas a los que tu cuenta de YouTube Music está suscrita. Pulsa Sincronizar para traerlos.</string>
+    <string name="library_artists_subscribed_hint_guest">Aquí aparecen los artistas a los que te suscribes. Inicia sesión en YouTube Music para traer los de tu cuenta.</string>
     <string name="library_album_empty">Los álbumes de la biblioteca aparecerán aquí</string>
     <string name="library_playlist_empty">Las listas de reproducción aparecerán aquí</string>
     <string name="from_your_library">Desde tu biblioteca</string>

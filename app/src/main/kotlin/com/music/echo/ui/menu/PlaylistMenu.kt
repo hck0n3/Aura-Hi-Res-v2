@@ -2,6 +2,13 @@
 
 package iad1tya.echo.music.ui.menu
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import iad1tya.echo.music.ui.component.MenuHeaderThumbSize
+import iad1tya.echo.music.ui.component.PlaylistThumbnail
+import androidx.compose.ui.res.pluralStringResource
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.ActivityNotFoundException
@@ -647,30 +654,42 @@ fun PlaylistMenu(
         )
     }
 
-    PlaylistListItem(
-        playlist = playlist,
-        trailingContent = {
-            if (playlist.playlist.isEditable != true) {
-                IconButton(
+    MenuHeader(
+        title = playlist.playlist.name,
+        meta = if (playlist.songCount == 0 && playlist.playlist.remoteSongCount != null) {
+            pluralStringResource(R.plurals.n_song, playlist.playlist.remoteSongCount, playlist.playlist.remoteSongCount)
+        } else {
+            pluralStringResource(R.plurals.n_song, playlist.songCount, playlist.songCount)
+        },
+        thumbnail = {
+            PlaylistThumbnail(
+                thumbnails = playlist.thumbnails,
+                fallbackThumbnails = playlist.songCovers,
+                size = MenuHeaderThumbSize,
+                placeHolder = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_launcher_nobg),
+                        contentDescription = null,
+                        tint = LocalContentColor.current.copy(alpha = 0.8f),
+                        modifier = Modifier.size(MenuHeaderThumbSize / 2),
+                    )
+                },
+                shape = RoundedCornerShape(10.dp),
+            )
+        },
+        trailing = if (playlist.playlist.isEditable != true) {
+            {
+                MenuLikeButton(
+                    liked = dbPlaylist?.playlist?.bookmarkedAt != null,
                     onClick = {
                         database.query {
                             dbPlaylist?.playlist?.toggleLike()?.let { update(it) }
                         }
-                    }
-                ) {
-                    Icon(
-                        painter = painterResource(if (dbPlaylist?.playlist?.bookmarkedAt != null) R.drawable.favorite else R.drawable.favorite_border),
-                        tint = if (dbPlaylist?.playlist?.bookmarkedAt != null) MaterialTheme.colorScheme.error else LocalContentColor.current,
-                        contentDescription = null
-                    )
-                }
+                    },
+                )
             }
-        },
+        } else null,
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -743,7 +762,7 @@ fun PlaylistMenu(
                         }
                     ))
                 },
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
                 columns = if (isGuest) 1 else 3
             )
         }

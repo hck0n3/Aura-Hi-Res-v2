@@ -92,8 +92,6 @@ import iad1tya.echo.music.constants.AlbumFilterKey
 import iad1tya.echo.music.constants.AlbumSortDescendingKey
 import iad1tya.echo.music.constants.AlbumSortType
 import iad1tya.echo.music.constants.AlbumSortTypeKey
-import iad1tya.echo.music.constants.ArtistFilter
-import iad1tya.echo.music.constants.ArtistFilterKey
 import iad1tya.echo.music.constants.ArtistSortDescendingKey
 import iad1tya.echo.music.constants.ArtistSortType
 import iad1tya.echo.music.constants.ArtistSortTypeKey
@@ -143,6 +141,7 @@ import iad1tya.echo.music.viewmodels.LibraryMixViewModel
 import iad1tya.echo.music.viewmodels.LibraryPlaylistsViewModel
 import iad1tya.echo.music.viewmodels.LibrarySongsViewModel
 import iad1tya.echo.music.ui.component.librarySectionEmptyText
+import iad1tya.echo.music.ui.component.rememberSubscribedArtistsEmpty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
@@ -1368,13 +1367,13 @@ fun AuraLibraryArtistsTab(
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
 
-    var filter by rememberEnumPreference(ArtistFilterKey, ArtistFilter.LIKED)
     val (sortType, onSortTypeChange) = rememberEnumPreference(ArtistSortTypeKey, ArtistSortType.CREATE_DATE)
     val (sortDescending, onSortDescendingChange) = rememberPreference(ArtistSortDescendingKey, true)
     val (ytmSync) = rememberPreference(YtmSyncKey, true)
 
     val searchQuery by viewModel.searchQuery.collectAsState()
     val artists by viewModel.filteredArtists.collectAsState()
+    val subscribedEmpty = rememberSubscribedArtistsEmpty(searching = searchQuery.isNotEmpty())
     // What is already pinned to the Library shows its pin on the cover (grid view).
     val pins by rememberLibraryPins()
     val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
@@ -1411,16 +1410,6 @@ fun AuraLibraryArtistsTab(
             .fillMaxSize()
             .padding(horizontal = AuraSpacing.Gutter),
     ) {
-        item(key = "aura_artists_subfilters", contentType = "aura_artists_subfilters", span = { GridItemSpan(maxLineSpan) }) {
-            AuraSubFilterRow(
-                options = listOf(
-                    ArtistFilter.LIKED to R.string.filter_liked,
-                    ArtistFilter.LIBRARY to R.string.filter_library,
-                ),
-                selected = filter,
-                onSelect = { filter = it },
-            )
-        }
         item(key = "aura_artists_sort", contentType = "aura_artists_sort", span = { GridItemSpan(maxLineSpan) }) {
             AuraSortControl(
                 sortType = sortType,
@@ -1446,17 +1435,21 @@ fun AuraLibraryArtistsTab(
 
         if (artists.isEmpty()) {
             item(key = "aura_artists_empty", contentType = "aura_artists_empty", span = { GridItemSpan(maxLineSpan) }) {
-                AuraEmpty(
-                    text = if (searchQuery.isNotEmpty()) {
-                        stringResource(R.string.no_results_found)
-                    } else {
-                        librarySectionEmptyText(
-                            section = { it.artists },
-                            emptyText = stringResource(R.string.library_artist_empty),
-                        )
-                    },
+                // The list is the account's subscriptions ONLY, so empty means "none synced yet": say
+                // where artists come from and (signed in, not already syncing) offer «Sincronizar».
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.animateItem(),
-                )
+                ) {
+                    AuraEmpty(text = subscribedEmpty.title, secondary = subscribedEmpty.hint)
+                    if (subscribedEmpty.canSync) {
+                        AuraChip(
+                            text = stringResource(R.string.action_sync),
+                            selected = true,
+                            onClick = { viewModel.sync() },
+                        )
+                    }
+                }
             }
         }
 

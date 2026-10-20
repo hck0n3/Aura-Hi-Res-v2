@@ -89,6 +89,9 @@
     <!-- Library -->
     <string name="library_song_empty">Library songs will show up here</string>
     <string name="library_artist_empty">Library artists will show up here</string>
+    <string name="library_artists_subscribed_empty">No subscribed artists yet</string>
+    <string name="library_artists_subscribed_hint">Only the artists your YouTube Music account is subscribed to are listed here. Tap Sync to bring them in.</string>
+    <string name="library_artists_subscribed_hint_guest">Artists you subscribe to appear here. Sign in to YouTube Music to bring in the ones from your account.</string>
     <string name="library_album_empty">Library albums will show up here</string>
     <string name="favorite_albums">Favorite albums</string>
     <string name="library_playlist_empty">Your playlists will show up here</string>

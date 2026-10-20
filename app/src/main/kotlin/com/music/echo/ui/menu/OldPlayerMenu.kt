@@ -546,6 +546,7 @@ fun OldPlayerMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_artist)) },
+                                showChevron = true,
                                 description = {
                                     Text(
                                         text = mediaMetadata.artists.joinToString { it.name },
@@ -581,6 +582,7 @@ fun OldPlayerMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_album)) },
+                                showChevron = true,
                                 description = {
                                     Text(
                                         text = album.title,

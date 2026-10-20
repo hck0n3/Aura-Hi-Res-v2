@@ -464,7 +464,7 @@ fun LyricsMenu(
                         )
                     }
                 ),
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 

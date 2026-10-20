@@ -2,6 +2,11 @@
 
 package iad1tya.echo.music.ui.menu
 
+import iad1tya.echo.music.utils.makeTimeString
+import iad1tya.echo.music.utils.joinByBullet
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.Intent
@@ -206,11 +211,14 @@ fun QueueMenu(
     }
 
     
-    MediaMetadataListItem(
-        mediaMetadata = mediaMetadata,
-        shape = listItemShape(0, 2),
-        trailingContent = {
-            IconButton(
+    MenuHeader(
+        title = mediaMetadata.title,
+        subtitle = mediaMetadata.artists.joinToString { it.name },
+        meta = joinByBullet(makeTimeString(mediaMetadata.duration * 1000L), mediaMetadata.suggestedBy),
+        thumbnail = { MenuHeaderCover(thumbnailUrl = mediaMetadata.thumbnailUrl) },
+        trailing = {
+            MenuLikeButton(
+                liked = librarySong?.song?.liked == true,
                 onClick = {
                     coroutineScope.launch(Dispatchers.IO) {
                         database.transaction {
@@ -228,23 +236,9 @@ fun QueueMenu(
                         }
                     }
                 },
-            ) {
-                Icon(
-                    painter = painterResource(
-                        if (librarySong?.song?.liked == true) R.drawable.favorite
-                        else R.drawable.favorite_border
-                    ),
-                    tint = if (librarySong?.song?.liked == true) MaterialTheme.colorScheme.error
-                    else LocalContentColor.current,
-                    contentDescription = null,
-                )
-            }
+            )
         },
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -311,7 +305,7 @@ fun QueueMenu(
                         }
                     )
                 ),
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 
@@ -451,6 +445,7 @@ fun QueueMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_artist)) },
+                                showChevron = true,
                                 description = {
                                     Text(
                                         text = mediaMetadata.artists.joinToString { it.name },
@@ -486,6 +481,7 @@ fun QueueMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_album)) },
+                                showChevron = true,
                                 description = {
                                     Text(
                                         text = album.title,

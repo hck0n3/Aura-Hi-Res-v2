@@ -449,7 +449,7 @@ fun PlayerMenu(
                     )
                 ),
                 columns = if (isListenTogetherGuest) 2 else 3,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 
@@ -460,6 +460,7 @@ fun PlayerMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_artist)) },
+                                showChevron = true,
                                 description = {
                                     Text(
                                         text = mediaMetadata.artists.joinToString { it.name },
@@ -495,6 +496,7 @@ fun PlayerMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_album)) },
+                                showChevron = true,
                                 description = {
                                     Text(
                                         text = album.title,

@@ -2,6 +2,10 @@
 
 package iad1tya.echo.music.ui.menu
 
+import androidx.compose.ui.res.pluralStringResource
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.Intent
@@ -110,15 +114,11 @@ fun ArtistMenu(
         onDismiss()
     }
 
-    ArtistListItem(
-        artist = artist,
-        badges = {},
-        trailingContent = {},
+    MenuHeader(
+        title = artist.artist.name,
+        meta = pluralStringResource(R.plurals.n_song, artist.songCount, artist.songCount),
+        thumbnail = { MenuHeaderCover(thumbnailUrl = artist.artist.thumbnailUrl, circle = true) },
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -210,7 +210,7 @@ fun ArtistMenu(
                         )
                     }
                 },
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
                 columns = if (isGuest) 1 else 3
             )
         }

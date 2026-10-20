@@ -2,6 +2,9 @@
 
 package iad1tya.echo.music.ui.menu
 
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -216,67 +219,64 @@ fun YouTubePlaylistMenu(
         onDismiss = { showChoosePlaylistDialog = false },
     )
 
-    YouTubeListItem(
-        item = playlist,
-        trailingContent = {
-            if (playlist.id != "LM" && !playlist.isEditable) {
-                IconButton(
-                    onClick = {
-                        if (dbPlaylist?.playlist == null) {
-                            database.transaction {
-                                val playlistEntity = PlaylistEntity(
-                                    name = playlist.title,
-                                    browseId = playlist.id,
-                                    thumbnailUrl = playlist.thumbnail,
-                                    isEditable = playlist.isEditable,
-                                    remoteSongCount = playlist.songCountText?.let {
-                                        Regex("""\d+""").find(it)?.value?.toIntOrNull()
-                                    },
-                                    playEndpointParams = playlist.playEndpoint?.params,
-                                    shuffleEndpointParams = playlist.shuffleEndpoint?.params,
-                                    radioEndpointParams = playlist.radioEndpoint?.params
-                                ).toggleLike()
-                                insert(playlistEntity)
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    songs.ifEmpty {
-                                        YouTube.playlist(playlist.id).completed()
-                                            .getOrNull()?.songs.orEmpty()
-                                    }.map { it.toMediaMetadata() }
-                                        .onEach(::insert)
-                                        .mapIndexed { index, song ->
-                                            PlaylistSongMap(
-                                                songId = song.id,
-                                                playlistId = playlistEntity.id,
-                                                position = index,
-                                                setVideoId = song.setVideoId
-                                            )
-                                        }
-                                        .forEach(::insert)
-                                }
-                            }
-                        } else {
-                            // Read the Compose state HERE: the transaction lambda runs later on the DB
-                            // executor, where a now-null dbPlaylist meant an NPE on a worker thread.
-                            val currentPlaylist = dbPlaylist?.playlist
-                            if (currentPlaylist != null) {
+    MenuHeader(
+        title = playlist.title,
+        subtitle = playlist.author?.name,
+        meta = playlist.songCountText,
+        thumbnail = { MenuHeaderCover(thumbnailUrl = playlist.thumbnail) },
+        trailing = if (playlist.id != "LM" && !playlist.isEditable) {
+            {
+                MenuLikeButton(
+                    liked = dbPlaylist?.playlist?.bookmarkedAt != null,
+                        onClick = {
+                            if (dbPlaylist?.playlist == null) {
                                 database.transaction {
-                                    update(currentPlaylist, playlist)
-                                    update(currentPlaylist.toggleLike())
+                                    val playlistEntity = PlaylistEntity(
+                                        name = playlist.title,
+                                        browseId = playlist.id,
+                                        thumbnailUrl = playlist.thumbnail,
+                                        isEditable = playlist.isEditable,
+                                        remoteSongCount = playlist.songCountText?.let {
+                                            Regex("""\d+""").find(it)?.value?.toIntOrNull()
+                                        },
+                                        playEndpointParams = playlist.playEndpoint?.params,
+                                        shuffleEndpointParams = playlist.shuffleEndpoint?.params,
+                                        radioEndpointParams = playlist.radioEndpoint?.params
+                                    ).toggleLike()
+                                    insert(playlistEntity)
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        songs.ifEmpty {
+                                            YouTube.playlist(playlist.id).completed()
+                                                .getOrNull()?.songs.orEmpty()
+                                        }.map { it.toMediaMetadata() }
+                                            .onEach(::insert)
+                                            .mapIndexed { index, song ->
+                                                PlaylistSongMap(
+                                                    songId = song.id,
+                                                    playlistId = playlistEntity.id,
+                                                    position = index,
+                                                    setVideoId = song.setVideoId
+                                                )
+                                            }
+                                            .forEach(::insert)
+                                    }
+                                }
+                            } else {
+                                // Read the Compose state HERE: the transaction lambda runs later on the DB
+                                // executor, where a now-null dbPlaylist meant an NPE on a worker thread.
+                                val currentPlaylist = dbPlaylist?.playlist
+                                if (currentPlaylist != null) {
+                                    database.transaction {
+                                        update(currentPlaylist, playlist)
+                                        update(currentPlaylist.toggleLike())
+                                    }
                                 }
                             }
                         }
-                    }
-                ) {
-                    Icon(
-                        painter = painterResource(if (dbPlaylist?.playlist?.bookmarkedAt != null) R.drawable.favorite else R.drawable.favorite_border),
-                        tint = if (dbPlaylist?.playlist?.bookmarkedAt != null) MaterialTheme.colorScheme.error else LocalContentColor.current,
-                        contentDescription = null
-                    )
-                }
+                )
             }
-        }
+        } else null,
     )
-    HorizontalDivider()
 
     var downloadState by remember {
         mutableIntStateOf(Download.STATE_STOPPED)
@@ -682,7 +682,7 @@ fun YouTubePlaylistMenu(
                         }
                     }
                 },
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 
