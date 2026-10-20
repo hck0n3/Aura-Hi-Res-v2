@@ -1,5 +1,33 @@
 package iad1tya.echo.music.ui.newui
 
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import com.music.innertube.models.AlbumItem
+import com.music.innertube.models.ArtistItem
+import iad1tya.echo.music.constants.LibraryFilter
+import iad1tya.echo.music.constants.LibraryPinSortDescendingKey
+import iad1tya.echo.music.constants.LibraryPinSortKey
+import iad1tya.echo.music.constants.LibraryPinsViewTypeKey
+import iad1tya.echo.music.ui.menu.YouTubeAlbumMenu
+import iad1tya.echo.music.ui.menu.YouTubeArtistMenu
+import iad1tya.echo.music.utils.LibraryPin
+import iad1tya.echo.music.utils.LibraryPinKind
+import iad1tya.echo.music.utils.LibraryPinSort
+import iad1tya.echo.music.utils.LibraryPins
+import iad1tya.echo.music.utils.LibraryPinsStore
+import iad1tya.echo.music.utils.rememberLibraryPins
+import iad1tya.echo.music.utils.reportException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -115,9 +143,6 @@ import iad1tya.echo.music.viewmodels.LibraryMixViewModel
 import iad1tya.echo.music.viewmodels.LibraryPlaylistsViewModel
 import iad1tya.echo.music.viewmodels.LibrarySongsViewModel
 import iad1tya.echo.music.ui.component.librarySectionEmptyText
-import java.text.Collator
-import java.time.LocalDateTime
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
@@ -159,6 +184,8 @@ private fun <T : Enum<T>> AuraSortControl(
     searchOpen: Boolean = false,
     onToggleSearch: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
+    /** false hides the ascending/descending arrow (the hub's «Mi orden» is the user's own order: a direction means nothing). */
+    showDirection: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val currentLabelRes = options.firstOrNull { it.first == sortType }?.second
@@ -219,16 +246,18 @@ private fun <T : Enum<T>> AuraSortControl(
                 }
             }
         }
-        AuraIconButton(
-            icon = AuraIcons.ChevronDown,
-            // The classic header hardcodes "Toggle sort order" in English; the new UI owns this string
-            // and the app's user-facing language is Spanish.
-            contentDescription = "Invertir el orden",
-            onClick = { onSortDescendingChange(!sortDescending) },
-            size = 16.dp,
-            tint = AuraPalette.OnGroundMuted,
-            modifier = Modifier.graphicsLayer { rotationZ = if (sortDescending) 0f else 180f },
-        )
+        if (showDirection) {
+            AuraIconButton(
+                icon = AuraIcons.ChevronDown,
+                // The classic header hardcodes "Toggle sort order" in English; the new UI owns this string
+                // and the app's user-facing language is Spanish.
+                contentDescription = "Invertir el orden",
+                onClick = { onSortDescendingChange(!sortDescending) },
+                size = 16.dp,
+                tint = AuraPalette.OnGroundMuted,
+                modifier = Modifier.graphicsLayer { rotationZ = if (sortDescending) 0f else 180f },
+            )
+        }
         // Grouped with the two controls it belongs with, and BEFORE the weighted spacer, so the 48 dp
         // touch target this costs is taken out of the trailing count — the only shrinkable thing in the
         // row and the one whose loss costs least, since it repeats what the list itself shows. The
@@ -321,14 +350,28 @@ private fun AuraSearchField(
 
 // ── 1. Hub ────────────────────────────────────────────────────────────────────────────────────────
 
-/** Biblioteca › hub (0.6.187): auto-playlist tiles, followed artists, then playlists and albums. */
+/**
+ * Biblioteca › hub — redesigned (owner 2026-10-20: *«no quiero que se vean todos los artistas allá abajo, ni mis playlists, a
+ * menos de que yo pueda pinear playlists y álbumes… e incluso artistas… y esta parte rediséñala»*).
+ *
+ *  1. **Shortcuts** — every button the hub always had (Me gusta, Exportado, Vídeos exportados, Mi top, Descargado, En caché,
+ *     Álbumes favoritos, Novedades, Podcasts, Local), same toggles, now Inicio-style glass tiles ([AuraLibraryShortcutGrid]).
+ *  2. **Fijados** — what the user PINNED (playlists, albums, artists; pinned from each item's menu, see `libraryPinMenuItem`)
+ *     as a big cover grid, two columns on a phone up to four unfolded ([auraLibraryPinColumns]); the same list/grid switch and
+ *     the sort the hub had; «Editar» turns it into a reorderable list with a ✕ per item. Nothing pinned → a card that says how.
+ *  3. **Ver todo** — the three full lists are one tap away (the chips above are untouched), so nothing is lost: the hub just
+ *     stopped dumping every artist, playlist and album under the shortcuts.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuraLibraryHub(
     navController: NavController,
     onOpenLocal: () -> Unit,
+    onOpenFilter: (LibraryFilter) -> Unit,
     viewModel: LibraryMixViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
+    val database = LocalDatabase.current
     val menuState = LocalMenuState.current
     val haptic = LocalHapticFeedback.current
     val playerConnection = LocalPlayerConnection.current ?: return
@@ -336,8 +379,6 @@ fun AuraLibraryHub(
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
-    val (sortType, onSortTypeChange) = rememberEnumPreference(MixSortTypeKey, MixSortType.CREATE_DATE)
-    val (sortDescending, onSortDescendingChange) = rememberPreference(MixSortDescendingKey, true)
     val (ytmSync) = rememberPreference(YtmSyncKey, true)
     val topSize by viewModel.topValue.collectAsState(initial = 50)
 
@@ -348,276 +389,507 @@ fun AuraLibraryHub(
     val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, true)
     val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
 
+    val (pinSort, onPinSortChange) = rememberEnumPreference(LibraryPinSortKey, LibraryPinSort.MANUAL)
+    val (pinSortDescending, onPinSortDescendingChange) = rememberPreference(LibraryPinSortDescendingKey, false)
+    var viewType by rememberEnumPreference(LibraryPinsViewTypeKey, LibraryViewType.GRID)
+
     val albums by viewModel.albums.collectAsState()
     val artists by viewModel.artists.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
+    val pins by rememberLibraryPins()
 
-    val allItems = remember(albums, artists, playlists, sortType, sortDescending) {
-        val collator = Collator.getInstance(Locale.getDefault()).apply { strength = Collator.PRIMARY }
-        val merged = albums + artists + playlists
-        val sorted = when (sortType) {
-            MixSortType.CREATE_DATE -> merged.sortedBy { item ->
-                when (item) {
-                    is Album -> item.album.bookmarkedAt
-                    is Artist -> item.artist.followedByUserAt
-                    is Playlist -> item.playlist.createdAt
-                    else -> LocalDateTime.now()
-                }
-            }
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var kindFilterOrdinal by rememberSaveable { mutableIntStateOf(0) }
+    BackHandler(enabled = editing) { editing = false }
+    LaunchedEffect(pins.isEmpty()) { if (pins.isEmpty()) editing = false }
 
-            MixSortType.NAME -> merged.sortedWith(
-                compareBy(collator) { item ->
-                    when (item) {
-                        is Album -> item.album.title
-                        is Artist -> item.artist.name
-                        is Playlist -> item.playlist.name
-                        else -> ""
-                    }
-                },
-            )
-
-            MixSortType.LAST_UPDATED -> merged.sortedBy { item ->
-                when (item) {
-                    is Album -> item.album.lastUpdateTime
-                    is Artist -> item.artist.lastUpdateTime
-                    is Playlist -> item.playlist.lastUpdateTime
-                    else -> LocalDateTime.now()
-                }
-            }
-        }
-        if (sortDescending) sorted.reversed() else sorted
+    val resolved = remember(pins, playlists, albums, artists) {
+        resolveLibraryPins(pins, playlists, albums, artists)
     }
-    val artistItems = allItems.filterIsInstance<Artist>().distinctBy { it.id }
-    val nonArtistItems = allItems.filterNot { it is Artist }.distinctBy { it.id }
+    val byKey = remember(resolved) { resolved.associateBy { it.key } }
+    val presentKinds = remember(resolved) { resolved.mapTo(HashSet()) { it.pin.kind } }
+    val selectedFilter = AuraPinFilter.entries.getOrNull(kindFilterOrdinal) ?: AuraPinFilter.ALL
+    // A filter whose kind was just unpinned falls back to «Todo» instead of showing an empty grid.
+    val activeFilter = if (selectedFilter.kind == null || selectedFilter.kind in presentKinds) selectedFilter else AuraPinFilter.ALL
+    val visible = remember(resolved, activeFilter, pinSort, pinSortDescending) {
+        val ofKind = activeFilter.kind?.let { kind -> resolved.filter { it.pin.kind == kind } } ?: resolved
+        LibraryPins.sorted(
+            items = ofKind,
+            sort = pinSort,
+            descending = pinSortDescending,
+            pinnedAt = { it.pin.pinnedAt },
+            name = { it.title },
+            updatedAt = { it.updatedAtMillis() },
+        )
+    }
 
     LaunchedEffect(Unit) {
         if (ytmSync) withContext(Dispatchers.IO) { viewModel.syncAllLibrary() }
     }
 
+    // A pin of a LOCAL playlist the user has since deleted would sit in the grid for ever. The library list cannot say "gone"
+    // (it is empty before it loads), so the database is asked: no row = deleted. Only the pins the lists did not resolve are
+    // asked about, so this is a no-op in the normal case.
+    LaunchedEffect(resolved) {
+        val unresolved = resolved.filter { it.pin.kind == LibraryPinKind.PLAYLIST && it.pin.local && it.playlist == null }
+        if (unresolved.isNotEmpty()) {
+            try {
+                val dead = withContext(Dispatchers.IO) {
+                    unresolved.filter { database.playlist(it.pin.id).first() == null }.map { it.key }
+                }
+                if (dead.isNotEmpty()) {
+                    LibraryPinsStore.update(context) { current -> current.filterNot { it.key in dead } }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                reportException(e)
+            }
+        }
+    }
+
+    // ── Opening and menus: the SAME routes and the SAME menus the full lists use ──────────────────
+    val openPin: (AuraResolvedPin) -> Unit = { r ->
+        when (r.pin.kind) {
+            LibraryPinKind.ARTIST -> navController.navigate("artist/${r.pin.id}")
+            LibraryPinKind.ALBUM -> navController.navigate("album/${r.pin.id}")
+            LibraryPinKind.PLAYLIST -> {
+                val inLibrary = r.playlist
+                if (inLibrary != null) {
+                    navController.navigate(auraLibraryPlaylistRoute(inLibrary))
+                } else {
+                    // Not in the library list (yet / any more): ask the database, like Inicio does for its pinned playlists.
+                    coroutineScope.launch {
+                        val saved = withContext(Dispatchers.IO) {
+                            database.playlist(r.pin.id).first() ?: database.playlistByBrowseId(r.pin.id).first()
+                        }
+                        when {
+                            saved != null -> navController.navigate(auraLibraryPlaylistRoute(saved))
+                            // A LOCAL playlist that was deleted: say so and drop the dead pin instead of opening an empty page.
+                            r.pin.local -> {
+                                Toast.makeText(context, context.getString(R.string.library_pins_missing), Toast.LENGTH_SHORT).show()
+                                LibraryPinsStore.update(context) { LibraryPins.without(it, r.key) }
+                            }
+                            else -> navController.navigate("online_playlist/${r.pin.id}")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    val openPinMenu: (AuraResolvedPin) -> Unit = { r ->
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        menuState.show { AuraPinMenu(r, navController, coroutineScope, menuState::dismiss) }
+    }
+    val playAlbum: (String) -> Unit = { albumId ->
+        coroutineScope.launch {
+            val albumWithSongs = withContext(Dispatchers.IO) { database.albumWithSongs(albumId).firstOrNull() }
+            albumWithSongs?.let {
+                playerConnection.playQueue(
+                    iad1tya.echo.music.playback.queues.LocalAlbumRadio(
+                        it,
+                        contextId = ShuffleContexts.album(it.album.id),
+                    ),
+                )
+            }
+        }
+    }
+
+    // ── Edit mode: reorder by dragging (the same library as the queue and the playlist page) ─────────
+    val listState = rememberLazyListState()
+    AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
+    // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
+    ScrollStateBusReporter { listState.isScrollInProgress }
+    val editKeys = remember { mutableStateListOf<String>() }
+    var dragDirty by remember { mutableStateOf(false) }
+    val reorderState = rememberReorderableLazyListState(
+        lazyListState = listState,
+        scrollThresholdPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+    ) { from, to ->
+        // Key-based, not index arithmetic: the shortcut and header items before the rows move the list indexes.
+        val fromKey = from.key as? String
+        val toKey = to.key as? String
+        if (fromKey != null && toKey != null) {
+            val fromIndex = editKeys.indexOf(fromKey)
+            val toIndex = editKeys.indexOf(toKey)
+            if (fromIndex >= 0 && toIndex >= 0) {
+                editKeys.add(toIndex, editKeys.removeAt(fromIndex))
+                dragDirty = true
+            }
+        }
+    }
+    // The working order follows the stored pins whenever the user is not holding one (a pin removed with ✕, a pin added
+    // from a menu while editing).
+    LaunchedEffect(pins, editing) {
+        if (editing && !reorderState.isAnyItemDragging) {
+            editKeys.clear()
+            editKeys.addAll(pins.map { it.key })
+        }
+    }
+    // Commit once, when the finger lifts: one DataStore write per drag, not one per row crossed.
+    LaunchedEffect(reorderState.isAnyItemDragging) {
+        if (!reorderState.isAnyItemDragging && dragDirty) {
+            dragDirty = false
+            val order = editKeys.toList()
+            LibraryPinsStore.update(context) { LibraryPins.reordered(it, order) }
+        }
+    }
+
+    val likedLabel = stringResource(R.string.liked)
+    val exportedLabel = stringResource(R.string.action_exported)
+    val exportedVideosLabel = stringResource(R.string.exported_videos_playlist)
+    val topLabel = stringResource(R.string.my_top) + " $topSize"
+    val downloadedLabel = stringResource(R.string.offline)
+    val cachedLabel = stringResource(R.string.cached_playlist)
+    val favoriteAlbumsLabel = stringResource(R.string.favorite_albums)
+    val releaseRadarLabel = stringResource(R.string.release_radar_title)
+    val podcastsLabel = stringResource(R.string.podcasts)
+    val localLabel = stringResource(R.string.filter_local)
+    // The tiles obey the same toggles as the classic UI (F9: every appearance setting must work in the new UI too).
+    val shortcuts = buildList<AuraLibraryShortcut> {
+        if (showLiked) add(AuraLibraryShortcut(AuraIcons.HeartFilled, likedLabel) { navController.navigate("auto_playlist/liked") })
+        if (showExported) add(AuraLibraryShortcut(AuraIcons.Export, exportedLabel) { navController.navigate("auto_playlist/exported") })
+        if (showExportedVideos) {
+            add(AuraLibraryShortcut(AuraIcons.Video, exportedVideosLabel) { navController.navigate("auto_playlist/exported_videos") })
+        }
+        if (showTop) add(AuraLibraryShortcut(AuraIcons.Speed, topLabel) { navController.navigate("top_playlist/$topSize") })
+        if (showDownloaded) add(AuraLibraryShortcut(AuraIcons.Downloaded, downloadedLabel) { navController.navigate("auto_playlist/downloaded") })
+        if (showCached) add(AuraLibraryShortcut(AuraIcons.Cloud, cachedLabel) { navController.navigate("cache_playlist/cached") })
+        add(AuraLibraryShortcut(AuraIcons.Album, favoriteAlbumsLabel) { navController.navigate("favorite_albums") })
+        add(AuraLibraryShortcut(AuraIcons.Radio, releaseRadarLabel) { navController.navigate("release_radar") })
+        add(AuraLibraryShortcut(AuraIcons.Lyrics, podcastsLabel) { navController.navigate("podcasts") })
+        // Owner request: Local must be visible the moment Biblioteca opens — it switches to the LOCAL chip in place (same
+        // embedded LocalSongScreen, same scan sheet — no second route, no second screen).
+        add(AuraLibraryShortcut(AuraIcons.Device, localLabel, onOpenLocal))
+    }
+
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val pullRefreshState = rememberPullToRefreshState()
 
-    PullToRefreshBox(
-        state = pullRefreshState,
-        isRefreshing = isRefreshing,
-        onRefresh = viewModel::refresh,
-        indicator = {
-            AuraPullRefreshIndicator(
-                state = pullRefreshState,
-                isRefreshing = isRefreshing,
-            )
-        },
+    val body: @Composable () -> Unit = {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // The PANE, not the window: with the player column open the Library is much narrower than the screen.
+            val paneWidth = maxWidth
+            val columns = auraLibraryPinColumns(paneWidth)
+            val cardWidth = auraLibraryPinCardWidth(paneWidth, columns)
+            LazyColumn(
+                state = listState,
+                contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                // While reordering the shortcuts step aside: the list being dragged gets the screen (they are back on «Listo»).
+                if (!editing) {
+                    item(key = "aura_hub_shortcuts", contentType = "aura_hub_shortcuts") {
+                        AuraLibraryShortcutGrid(
+                            shortcuts = shortcuts,
+                            columns = auraLibraryShortcutColumns(paneWidth),
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(top = 10.dp),
+                        )
+                    }
+                }
+
+                item(key = "aura_hub_pins_header", contentType = "aura_hub_pins_header") {
+                    AuraPinsHeader(
+                        count = resolved.size,
+                        editing = editing,
+                        onToggleEdit = {
+                            if (!editing) {
+                                // Seeded here too, not only by the effect, so the first edit frame is not an empty list.
+                                editKeys.clear()
+                                editKeys.addAll(pins.map { it.key })
+                            }
+                            editing = !editing
+                        },
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+
+                if (resolved.isEmpty()) {
+                    item(key = "aura_hub_pins_empty", contentType = "aura_hub_pins_empty") {
+                        AuraPinsEmptyCard(onOpenFilter = onOpenFilter, modifier = Modifier.animateItem())
+                    }
+                } else if (editing) {
+                    item(key = "aura_hub_pins_edit_hint", contentType = "aura_hub_pins_edit_hint") {
+                        Text(
+                            text = stringResource(R.string.library_pins_edit_hint),
+                            style = AuraType.RowSubtitle,
+                            color = AuraPalette.OnGroundMuted,
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = AuraSpacing.Gutter, vertical = 8.dp),
+                        )
+                    }
+                    items(editKeys, key = { it }, contentType = { "aura_hub_pin_edit_row" }) { key ->
+                        val r = byKey[key]
+                        if (r != null) {
+                            ReorderableItem(state = reorderState, key = key) { isDragging ->
+                                val dragHandle: @Composable () -> Unit = {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .sizeIn(
+                                                minWidth = AuraSpacing.MinTouchTarget,
+                                                minHeight = AuraSpacing.MinTouchTarget,
+                                            )
+                                            .clip(CircleShape)
+                                            .draggableHandle(),
+                                    ) {
+                                        AuraIconGlyph(
+                                            icon = AuraIcons.DragHandle,
+                                            contentDescription = stringResource(R.string.cd_reorder),
+                                            size = 21.dp,
+                                            tint = AuraPalette.OnGroundDisabled,
+                                        )
+                                    }
+                                }
+                                AuraRow(
+                                    title = r.title,
+                                    subtitle = r.subtitleText(),
+                                    leading = dragHandle,
+                                    artwork = {
+                                        AuraCover(
+                                            thumbnailUrl = r.thumbnailUrl,
+                                            size = 52.dp,
+                                            seed = r.pin.id,
+                                            shape = auraTypeVisual(r.contentKind).shape,
+                                        )
+                                    },
+                                    trailing = {
+                                        AuraIconButton(
+                                            // A "+" turned 45° is the render's own close glyph.
+                                            icon = AuraIcons.Plus,
+                                            contentDescription = stringResource(R.string.library_pins_remove_cd),
+                                            onClick = {
+                                                LibraryPinsStore.updateDetached(context) { LibraryPins.without(it, key) }
+                                            },
+                                            size = 20.dp,
+                                            tint = AuraPalette.OnGroundMuted,
+                                            modifier = Modifier.graphicsLayer { rotationZ = 45f },
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .then(
+                                            if (isDragging) {
+                                                Modifier.background(AuraPalette.FloatingFill, AuraShapes.Highlight)
+                                            } else {
+                                                Modifier
+                                            },
+                                        )
+                                        .padding(horizontal = AuraSpacing.Gutter),
+                                )
+                            }
+                        }
+                    }
+                    item(key = "aura_hub_pins_jump_edit", contentType = "aura_hub_pins_jump") {
+                        AuraLibraryJumpRow(onOpenFilter = onOpenFilter, modifier = Modifier.padding(top = 8.dp))
+                    }
+                } else {
+                    if (resolved.size >= 2) {
+                        item(key = "aura_hub_pins_controls", contentType = "aura_hub_pins_controls") {
+                            Column(Modifier.animateItem()) {
+                                AuraSortControl(
+                                    sortType = pinSort,
+                                    sortDescending = pinSortDescending,
+                                    options = listOf(
+                                        LibraryPinSort.MANUAL to R.string.library_pins_sort_manual,
+                                        LibraryPinSort.CREATE_DATE to R.string.sort_by_create_date,
+                                        LibraryPinSort.NAME to R.string.sort_by_name,
+                                        LibraryPinSort.LAST_UPDATED to R.string.sort_by_last_updated,
+                                    ),
+                                    onSortTypeChange = onPinSortChange,
+                                    onSortDescendingChange = onPinSortDescendingChange,
+                                    // «Mi orden» is the user's own order: a direction would mean nothing.
+                                    showDirection = pinSort != LibraryPinSort.MANUAL,
+                                    trailing = { AuraViewTypeToggle(viewType) { viewType = it } },
+                                )
+                                if (presentKinds.size > 1) {
+                                    AuraSubFilterRow(
+                                        options = AuraPinFilter.entries
+                                            .filter { it.kind == null || it.kind in presentKinds }
+                                            .map { it to it.labelRes },
+                                        selected = activeFilter,
+                                        onSelect = { kindFilterOrdinal = it.ordinal },
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (viewType == LibraryViewType.GRID) {
+                        items(
+                            visible.chunked(columns),
+                            key = { row -> "aura_hub_pin_row_" + row.first().key },
+                            contentType = { "aura_hub_pin_row" },
+                        ) { row ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(AURA_LIBRARY_PIN_GAP),
+                                modifier = Modifier
+                                    .animateItem()
+                                    .fillMaxWidth()
+                                    .padding(horizontal = AuraSpacing.Gutter),
+                            ) {
+                                row.forEach { r ->
+                                    AuraPinCard(
+                                        resolved = r,
+                                        width = cardWidth,
+                                        isActive = r.pin.kind == LibraryPinKind.ALBUM && r.pin.id == mediaMetadata?.album?.id,
+                                        isPlaying = isPlaying,
+                                        onClick = { openPin(r) },
+                                        onLongClick = { openPinMenu(r) },
+                                        // Only an album that is in the library can be played from its cover (it needs its songs).
+                                        onPlay = if (r.album != null) ({ playAlbum(r.pin.id) }) else null,
+                                    )
+                                }
+                                // An incomplete last row keeps the column width instead of stretching its covers.
+                                repeat(columns - row.size) { Spacer(Modifier.width(cardWidth)) }
+                            }
+                        }
+                    } else {
+                        items(visible, key = { it.key }, contentType = { "aura_hub_pin_list_row" }) { r ->
+                            val visual = auraTypeVisual(r.contentKind)
+                            AuraSongRow(
+                                title = r.title,
+                                fullTitle = r.pin.kind == LibraryPinKind.PLAYLIST,
+                                subtitle = r.subtitleText(),
+                                thumbnailUrl = r.thumbnailUrl,
+                                seed = r.pin.id,
+                                isActive = r.pin.kind == LibraryPinKind.ALBUM && r.pin.id == mediaMetadata?.album?.id,
+                                isPlaying = isPlaying,
+                                artworkShape = visual.shape,
+                                artworkSize = visual.rowWidth,
+                                typeChip = visual.label,
+                                onClick = { openPin(r) },
+                                onLongClick = { openPinMenu(r) },
+                                onMenuClick = { openPinMenu(r) },
+                                modifier = Modifier
+                                    .animateItem()
+                                    .padding(horizontal = AuraSpacing.Gutter),
+                            )
+                        }
+                    }
+
+                    item(key = "aura_hub_pins_jump", contentType = "aura_hub_pins_jump") {
+                        AuraLibraryJumpRow(onOpenFilter = onOpenFilter, modifier = Modifier.padding(top = 8.dp))
+                    }
+                }
+            }
+        }
+    }
+
+    if (editing) {
+        // No pull-to-refresh while reordering: dragging a row near the top would be read as a pull.
+        Box(Modifier.fillMaxSize()) { body() }
+    } else {
+        PullToRefreshBox(
+            state = pullRefreshState,
+            isRefreshing = isRefreshing,
+            onRefresh = viewModel::refresh,
+            indicator = {
+                AuraPullRefreshIndicator(
+                    state = pullRefreshState,
+                    isRefreshing = isRefreshing,
+                )
+            },
+        ) { body() }
+    }
+}
+
+/** A library playlist is pinned when its local id OR its YouTube browse id is (a pin made from the YouTube menu uses the latter). */
+private fun auraIsPlaylistPinned(pinnedKeys: Set<String>, playlist: Playlist): Boolean {
+    if (LibraryPin.keyOf(LibraryPinKind.PLAYLIST, playlist.id) in pinnedKeys) return true
+    val browseId = playlist.playlist.browseId ?: return false
+    return LibraryPin.keyOf(LibraryPinKind.PLAYLIST, browseId) in pinnedKeys
+}
+
+/**
+ * Where a library playlist opens. Copied verbatim from the Listas tab: a saved-but-unfetched YouTube playlist opens ONLINE,
+ * everything else opens local. Getting this wrong sends a synced playlist to an empty local screen.
+ */
+private fun auraLibraryPlaylistRoute(playlist: Playlist): String =
+    if (!playlist.playlist.isEditable &&
+        playlist.songCount == 0 &&
+        playlist.playlist.remoteSongCount != 0
     ) {
-        val listState = rememberLazyListState()
-        AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
-        // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
-        ScrollStateBusReporter { listState.isScrollInProgress }
-        LazyColumn(
-            state = listState,
-            contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            item(key = "aura_hub_sort", contentType = "aura_hub_sort") {
-                AuraSortControl(
-                    sortType = sortType,
-                    sortDescending = sortDescending,
-                    options = listOf(
-                        MixSortType.CREATE_DATE to R.string.sort_by_create_date,
-                        MixSortType.LAST_UPDATED to R.string.sort_by_last_updated,
-                        MixSortType.NAME to R.string.sort_by_name,
+        "online_playlist/${playlist.playlist.browseId}"
+    } else {
+        "local_playlist/${playlist.id}"
+    }
+
+/**
+ * The long-press / ⋯ menu of a pinned item: the library menu when the item IS in the library, the YouTube one (built from the
+ * pin's snapshot) when it is not — both carry the «Anclar / Quitar de Biblioteca» row, so a pin can always be removed from here.
+ */
+@Composable
+private fun AuraPinMenu(
+    resolved: AuraResolvedPin,
+    navController: NavController,
+    coroutineScope: CoroutineScope,
+    onDismiss: () -> Unit,
+) {
+    val database = LocalDatabase.current
+    val pin = resolved.pin
+    when (pin.kind) {
+        LibraryPinKind.ARTIST -> {
+            val artist = resolved.artist
+            if (artist != null) {
+                ArtistMenu(artist, coroutineScope, onDismiss)
+            } else {
+                YouTubeArtistMenu(
+                    artist = ArtistItem(
+                        id = pin.id,
+                        title = resolved.title,
+                        thumbnail = resolved.thumbnailUrl,
+                        shuffleEndpoint = null,
+                        radioEndpoint = null,
                     ),
-                    onSortTypeChange = onSortTypeChange,
-                    onSortDescendingChange = onSortDescendingChange,
+                    onDismiss = onDismiss,
                 )
             }
+        }
 
-            item(key = "aura_hub_auto_playlists", contentType = "aura_hub_auto_playlists") {
-                FlowRow(
-                    maxItemsInEachRow = 2,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = AuraSpacing.Gutter, vertical = 12.dp),
-                ) {
-                    val tile = Modifier.weight(1f)
-                    if (showLiked) {
-                        AuraTile(
-                            AuraIcons.HeartFilled,
-                            stringResource(R.string.liked),
-                            { navController.navigate("auto_playlist/liked") },
-                            tile,
-                        )
-                    }
-                    if (showExported) {
-                        AuraTile(
-                            AuraIcons.Export,
-                            stringResource(R.string.action_exported),
-                            { navController.navigate("auto_playlist/exported") },
-                            tile,
-                        )
-                    }
-                    if (showExportedVideos) {
-                        AuraTile(
-                            AuraIcons.Video,
-                            stringResource(R.string.exported_videos_playlist),
-                            { navController.navigate("auto_playlist/exported_videos") },
-                            tile,
-                        )
-                    }
-                    if (showTop) {
-                        AuraTile(
-                            AuraIcons.Speed,
-                            stringResource(R.string.my_top) + " $topSize",
-                            { navController.navigate("top_playlist/$topSize") },
-                            tile,
-                        )
-                    }
-                    // The Library's auto-list tiles obey the same toggles as the classic UI (F9:
-                    // every appearance setting must work in the new UI too). Previously these were
-                    // only reachable from the classic LocalSongScreen shortcuts.
-                    if (showDownloaded) {
-                        AuraTile(
-                            AuraIcons.Downloaded,
-                            stringResource(R.string.offline),
-                            { navController.navigate("auto_playlist/downloaded") },
-                            tile,
-                        )
-                    }
-                    if (showCached) {
-                        AuraTile(
-                            AuraIcons.Cloud,
-                            stringResource(R.string.cached_playlist),
-                            { navController.navigate("cache_playlist/cached") },
-                            tile,
-                        )
-                    }
-                    AuraTile(
-                        AuraIcons.Album,
-                        stringResource(R.string.favorite_albums),
-                        { navController.navigate("favorite_albums") },
-                        tile,
-                    )
-                    AuraTile(
-                        AuraIcons.Radio,
-                        stringResource(R.string.release_radar_title),
-                        { navController.navigate("release_radar") },
-                        tile,
-                    )
-                    AuraTile(
-                        AuraIcons.Lyrics,
-                        stringResource(R.string.podcasts),
-                        { navController.navigate("podcasts") },
-                        tile,
-                    )
-                    // Owner request: Local must be visible the moment Biblioteca opens — it used to be
-                    // reachable only through the LAST chip of a scrolling row, i.e. hidden. The tile sits
-                    // next to Podcasts and switches to the LOCAL chip in-place (same embedded
-                    // LocalSongScreen, same scan sheet — no second route, no second screen).
-                    AuraTile(
-                        AuraIcons.Device,
-                        stringResource(R.string.filter_local),
-                        onOpenLocal,
-                        tile,
-                    )
-                }
+        LibraryPinKind.ALBUM -> {
+            val liveAlbum by remember(pin.id) { database.album(pin.id) }.collectAsState(initial = null)
+            val album = resolved.album ?: liveAlbum
+            if (album != null) {
+                AlbumMenu(album, navController, onDismiss)
+            } else {
+                YouTubeAlbumMenu(
+                    albumItem = AlbumItem(
+                        browseId = pin.id,
+                        playlistId = pin.extra.orEmpty(),
+                        title = resolved.title,
+                        artists = pin.subtitle?.split(", ")?.map { com.music.innertube.models.Artist(name = it, id = null) },
+                        thumbnail = resolved.thumbnailUrl.orEmpty(),
+                    ),
+                    navController = navController,
+                    onDismiss = onDismiss,
+                )
             }
+        }
 
-            if (artistItems.isNotEmpty()) {
-                item(key = "aura_hub_artists_header", contentType = "aura_hub_artists_header") {
-                    AuraSectionHeader(title = stringResource(R.string.filter_artists))
-                }
-                items(artistItems, key = { "artist_${it.id}" }) { item ->
-                    val visual = auraTypeVisual(AuraContentKind.Artist)
-                    AuraSongRow(
-                        title = item.artist.name,
-                        subtitle = pluralStringResource(R.plurals.n_song, item.songCount, item.songCount),
-                        thumbnailUrl = item.artist.thumbnailUrl,
-                        seed = item.id,
-                        artworkShape = visual.shape,
-                        artworkSize = visual.rowWidth,
-                        typeChip = visual.label,
-                        onClick = { navController.navigate("artist/${item.id}") },
-                        onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            menuState.show {
-                                ArtistMenu(item, coroutineScope, menuState::dismiss)
-                            }
-                        },
-                        onMenuClick = {
-                            menuState.show { ArtistMenu(item, coroutineScope, menuState::dismiss) }
-                        },
-                        modifier = Modifier
-                            .animateItem()
-                            .padding(horizontal = AuraSpacing.Gutter),
-                    )
-                }
-            }
-
-            item(key = "aura_hub_playlists_header", contentType = "aura_hub_playlists_header") {
-                AuraSectionHeader(title = stringResource(R.string.filter_playlists))
-            }
-            items(nonArtistItems, key = { it.id }) { item ->
-                when (item) {
-                    is Playlist -> {
-                        val visual = auraTypeVisual(AuraContentKind.Playlist)
-                        AuraSongRow(
-                            title = item.playlist.name,
-                            fullTitle = true,
-                            subtitle = "${visual.label} · " + pluralStringResource(
-                                R.plurals.n_song,
-                                item.songCount,
-                                item.songCount,
-                            ),
-                            thumbnailUrl = item.thumbnails.firstOrNull(),
-                            seed = item.id,
-                            artworkShape = visual.shape,
-                            artworkSize = visual.rowWidth,
-                            typeChip = visual.label,
-                            onClick = { navController.navigate("local_playlist/${item.id}") },
-                            onLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                menuState.show { PlaylistMenu(item, coroutineScope, menuState::dismiss) }
-                            },
-                            onMenuClick = {
-                                menuState.show { PlaylistMenu(item, coroutineScope, menuState::dismiss) }
-                            },
-                            modifier = Modifier
-                                .animateItem()
-                                .padding(horizontal = AuraSpacing.Gutter),
-                        )
-                    }
-
-                    is Album -> {
-                        val visual = auraTypeVisual(AuraContentKind.Album)
-                        AuraSongRow(
-                            title = item.album.title,
-                            subtitle = "${visual.label} · ${item.artists.joinToString { it.name }}",
-                            thumbnailUrl = item.album.thumbnailUrl,
-                            seed = item.id,
-                            isActive = item.id == mediaMetadata?.album?.id,
-                            isPlaying = isPlaying,
-                            artworkShape = visual.shape,
-                            artworkSize = visual.rowWidth,
-                            typeChip = visual.label,
-                            onClick = { navController.navigate("album/${item.id}") },
-                            onLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                menuState.show {
-                                    AlbumMenu(item, navController, menuState::dismiss)
-                                }
-                            },
-                            onMenuClick = {
-                                menuState.show { AlbumMenu(item, navController, menuState::dismiss) }
-                            },
-                            modifier = Modifier
-                                .animateItem()
-                                .padding(horizontal = AuraSpacing.Gutter),
-                        )
-                    }
-
-                    else -> Unit
-                }
+        LibraryPinKind.PLAYLIST -> {
+            val byId by remember(pin.id) { database.playlist(pin.id) }.collectAsState(initial = null)
+            val byBrowse by remember(pin.id) { database.playlistByBrowseId(pin.id) }.collectAsState(initial = null)
+            val saved = resolved.playlist ?: byId ?: byBrowse
+            if (saved != null) {
+                PlaylistMenu(playlist = saved, coroutineScope = coroutineScope, onDismiss = onDismiss)
+            } else {
+                YouTubePlaylistMenu(
+                    playlist = PlaylistItem(
+                        id = pin.id,
+                        title = resolved.title,
+                        author = pin.subtitle?.let { com.music.innertube.models.Artist(name = it, id = null) },
+                        songCountText = null,
+                        thumbnail = resolved.thumbnailUrl,
+                        playEndpoint = null,
+                        shuffleEndpoint = null,
+                        radioEndpoint = null,
+                    ),
+                    coroutineScope = coroutineScope,
+                    onDismiss = onDismiss,
+                )
             }
         }
     }
@@ -967,6 +1239,9 @@ fun AuraLibraryAlbumsTab(
     val (ytmSync) = rememberPreference(YtmSyncKey, true)
 
     val albums by viewModel.allAlbums.collectAsState()
+    // What is already pinned to the Library shows its pin on the cover (grid view).
+    val pins by rememberLibraryPins()
+    val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
 
     LaunchedEffect(Unit) {
         if (ytmSync) withContext(Dispatchers.IO) { viewModel.sync() }
@@ -1047,6 +1322,11 @@ fun AuraLibraryAlbumsTab(
                 width = gridCellSize,
                 isActive = album.id == mediaMetadata?.album?.id,
                 isPlaying = isPlaying,
+                badge = if (LibraryPin.keyOf(LibraryPinKind.ALBUM, album.id) in pinnedKeys) {
+                    ({ AuraPinnedBadge(circle = false) })
+                } else {
+                    null
+                },
                 modifier = Modifier.animateItem(),
                 onClick = { navController.navigate("album/${album.id}") },
                 onLongClick = {
@@ -1095,6 +1375,9 @@ fun AuraLibraryArtistsTab(
 
     val searchQuery by viewModel.searchQuery.collectAsState()
     val artists by viewModel.filteredArtists.collectAsState()
+    // What is already pinned to the Library shows its pin on the cover (grid view).
+    val pins by rememberLibraryPins()
+    val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
 
     LaunchedEffect(Unit) {
         if (ytmSync) withContext(Dispatchers.IO) { viewModel.sync() }
@@ -1186,6 +1469,11 @@ fun AuraLibraryArtistsTab(
                 seed = artist.id,
                 width = gridCellSize,
                 shape = artistVisual.shape,
+                badge = if (LibraryPin.keyOf(LibraryPinKind.ARTIST, artist.id) in pinnedKeys) {
+                    ({ AuraPinnedBadge(circle = true) })
+                } else {
+                    null
+                },
                 modifier = Modifier.animateItem(),
                 onClick = { navController.navigate("artist/${artist.id}") },
                 onLongClick = {
@@ -1224,6 +1512,9 @@ fun AuraLibraryPlaylistsTab(
     val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
 
     val playlists by viewModel.allPlaylists.collectAsState()
+    // What is already pinned to the Library shows its pin on the cover (grid view).
+    val pins by rememberLibraryPins()
+    val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
     var playlistSearchQuery by rememberSaveable { mutableStateOf("") }
 
     // Same diacritic-insensitive match as the classic tab: "cancion" finds "Canción".
@@ -1372,6 +1663,11 @@ fun AuraLibraryPlaylistsTab(
                 // The card must be the cell, or "Pequeño" would re-column the grid and keep drawing
                 // 150 dp cards inside 104 dp cells.
                 width = gridCellSize,
+                badge = if (auraIsPlaylistPinned(pinnedKeys, playlist)) {
+                    ({ AuraPinnedBadge(circle = false) })
+                } else {
+                    null
+                },
                 // Creating, importing, deleting and re-sorting all move cards around this grid while it
                 // is on screen. `animateItem` is available on LazyGridItemScope exactly as it is on the
                 // list scopes, and the `it.id` key above is what makes it work.

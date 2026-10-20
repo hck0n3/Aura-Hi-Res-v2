@@ -185,7 +185,14 @@ fun YouTubeArtistMenu(
                             }
                             onDismiss()
                         }
-                    )
+                    ),
+                    // Biblioteca ▸ Fijados (owner 2026-10-20).
+                    artistPinMenuItem(
+                        id = artist.id,
+                        name = artist.title,
+                        thumbnailUrl = artist.thumbnail,
+                        onDismiss = onDismiss,
+                    ),
                 )
             )
         }

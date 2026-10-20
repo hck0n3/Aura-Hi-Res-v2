@@ -614,7 +614,16 @@ fun YouTubeAlbumMenu(
                             navController.navigate("album/${albumItem.id}")
                             onDismiss()
                         }
-                    )
+                    ),
+                    // Biblioteca ▸ Fijados (owner 2026-10-20).
+                    albumPinMenuItem(
+                        id = albumItem.id,
+                        title = albumItem.title,
+                        artists = albumItem.artists.orEmpty().map { it.name },
+                        thumbnailUrl = albumItem.thumbnail,
+                        playlistId = albumItem.playlistId,
+                        onDismiss = onDismiss,
+                    ),
                 )
             )
         }

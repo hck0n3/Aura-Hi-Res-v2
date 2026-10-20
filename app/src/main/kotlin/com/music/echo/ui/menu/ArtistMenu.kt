@@ -240,5 +240,20 @@ fun ArtistMenu(
                 )
             )
         }
+
+        // Biblioteca ▸ Fijados (owner 2026-10-20): pin the artist to the Library's lower part.
+        item { Spacer(modifier = Modifier.height(12.dp)) }
+        item {
+            Material3MenuGroup(
+                items = listOf(
+                    artistPinMenuItem(
+                        id = artist.id,
+                        name = artist.artist.name,
+                        thumbnailUrl = artist.artist.thumbnailUrl,
+                        onDismiss = onDismiss,
+                    ),
+                ),
+            )
+        }
     }
 }

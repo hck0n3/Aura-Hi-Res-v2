@@ -980,6 +980,8 @@ fun AuraHomeScreen(
                                                         AuraCoverCard(
                                                             title = auraLocalTitle(item),
                                                             subtitle = auraLocalSubtitle(item),
+                                                            explicit = (item as? Song)?.song?.explicit == true ||
+                                                                (item as? Album)?.album?.explicit == true,
                                                             thumbnailUrl = auraLocalThumbnail(item),
                                                             seed = item.id,
                                                             width = visual.shelfWidth * cardScale,
@@ -1902,6 +1904,7 @@ internal fun AuraSongShelfCard(
     AuraCoverCard(
         title = song.song.title,
         subtitle = song.artists.joinToString { it.name },
+        explicit = song.song.explicit,
         thumbnailUrl = song.song.thumbnailUrl,
         seed = song.id,
         width = visual.shelfWidth * cardScale,
@@ -2034,6 +2037,7 @@ internal fun AuraTypedYtCoverCard(
     AuraCoverCard(
         title = item.title,
         subtitle = auraYtSubtitle(item),
+        explicit = item.explicit,
         thumbnailUrl = item.thumbnail,
         seed = item.id,
         width = width,

@@ -232,6 +232,8 @@ fun AuraLibraryScreen(navController: NavController) {
                         LibraryFilter.LIBRARY -> AuraLibraryHub(
                             navController,
                             onOpenLocal = { filterType = LibraryFilter.LOCAL },
+                            // «Ver todo» and the empty «Fijados» card jump to the full lists through the same chips.
+                            onOpenFilter = { filterType = it },
                         )
                         LibraryFilter.PLAYLISTS ->
                             AuraLibraryPlaylistsTab(navController, searchOpen, toggleSearch)

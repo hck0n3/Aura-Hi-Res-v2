@@ -343,7 +343,14 @@ private fun AuraSpotlightHost(
                     .imePadding()
                     .padding(horizontal = 12.dp, vertical = 12.dp),
             ) {
-                val cap = minOf(maxHeight, (screenHeightDp * 0.72f).dp)
+                // WIDE WINDOW (owner 2026-10-20, unfolded Z Fold): the card is a results + detail split (see
+                // AuraPlayerQuickSearchContent), so it grows to AuraSpotlightWideMaxWidthDp and may be as tall as any other
+                // wide floating window. Phone: unchanged (640 dp, 72 %).
+                val wideSpotlight = iad1tya.echo.music.ui.newui.rememberAuraWideWindows()
+                val cap = minOf(
+                    maxHeight,
+                    (screenHeightDp * (if (wideSpotlight) iad1tya.echo.music.ui.newui.AuraWideWindowMaxHeightFraction else 0.72f)).dp,
+                )
                 androidx.compose.animation.AnimatedVisibility(
                     visible = visible,
                     enter = slideInVertically(animationSpec = tween(200)) { -it / 4 } +
@@ -353,7 +360,7 @@ private fun AuraSpotlightHost(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
-                        .widthIn(max = 640.dp)
+                        .widthIn(max = if (wideSpotlight) iad1tya.echo.music.ui.newui.AuraSpotlightWideMaxWidthDp.dp else 640.dp)
                         .fillMaxWidth()
                         .heightIn(max = cap),
                 ) {

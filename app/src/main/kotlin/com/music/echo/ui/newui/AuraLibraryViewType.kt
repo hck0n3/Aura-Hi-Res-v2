@@ -1,6 +1,7 @@
 package iad1tya.echo.music.ui.newui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -89,6 +90,8 @@ internal fun AuraLibraryCell(
     onPlay: (() -> Unit)? = null,
     /** Lists pass true: their name is shown in full, never cut with an ellipsis. */
     fullTitle: Boolean = false,
+    /** Grid only: drawn over the cover (the «Fijado» pin on what is already pinned to the Library). */
+    badge: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     if (viewType == LibraryViewType.LIST) {
         AuraSongRow(
@@ -120,6 +123,7 @@ internal fun AuraLibraryCell(
             onLongClick = onLongClick,
             onPlay = onPlay,
             fullTitle = fullTitle,
+            badge = badge,
         )
     }
 }

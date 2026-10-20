@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Type identifier shown on every search result in a wide window (unfolded foldable, tablet). Already upper-case: it is
+         drawn as a small tracked badge, and `uppercase()` on a localized string would be locale-sensitive. -->
+    <string name="aura_kind_song">SONG</string>
+    <string name="aura_kind_video">VIDEO</string>
+    <string name="aura_kind_album">ALBUM</string>
+    <string name="aura_kind_single">SINGLE</string>
+    <string name="aura_kind_ep">EP</string>
+    <string name="aura_kind_playlist">PLAYLIST</string>
+    <string name="aura_kind_artist">ARTIST</string>
+    <string name="aura_kind_podcast">PODCAST</string>
+
+    <!-- The empty state of the detail pane that sits next to the results when the window is wide. -->
+    <string name="aura_search_detail_empty_title">Pick a result</string>
+    <string name="aura_search_detail_empty_body">Its details and every action show up here, without opening another window.</string>
+    <string name="aura_search_played">Already played</string>
+</resources>

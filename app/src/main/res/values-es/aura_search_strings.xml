@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aura_kind_song">CANCIÓN</string>
+    <string name="aura_kind_video">VÍDEO</string>
+    <string name="aura_kind_album">ÁLBUM</string>
+    <string name="aura_kind_single">SENCILLO</string>
+    <string name="aura_kind_ep">EP</string>
+    <string name="aura_kind_playlist">PLAYLIST</string>
+    <string name="aura_kind_artist">ARTISTA</string>
+    <string name="aura_kind_podcast">PODCAST</string>
+
+    <string name="aura_search_detail_empty_title">Elige un resultado</string>
+    <string name="aura_search_detail_empty_body">Aquí verás sus detalles y todas sus opciones, sin abrir otra ventana.</string>
+    <string name="aura_search_played">Ya reproducida</string>
+</resources>

@@ -806,7 +806,16 @@ fun YouTubePlaylistMenu(
                             }
                             onDismiss()
                         }
-                    )
+                    ),
+                    // Biblioteca ▸ Fijados (owner 2026-10-20).
+                    playlistPinMenuItem(
+                        id = playlist.id,
+                        title = playlist.title,
+                        subtitle = playlist.author?.name,
+                        thumbnailUrl = playlist.thumbnail,
+                        local = false,
+                        onDismiss = onDismiss,
+                    ),
                 )
             )
         }

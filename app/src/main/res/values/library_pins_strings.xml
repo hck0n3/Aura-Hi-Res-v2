@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Library ▸ Pinned (owner 2026-10-20). Own file so it does not collide with the other streams editing echo_strings.xml. -->
+<resources>
+    <string name="library_pin">Pin to Library</string>
+    <string name="library_unpin">Unpin from Library</string>
+    <string name="library_pinned_toast">Pinned to Library</string>
+    <string name="library_unpinned_toast">Removed from pinned</string>
+    <string name="library_pins_full">You already have %1$d pinned items. Remove one to pin another.</string>
+    <string name="library_pins_title">Pinned</string>
+    <plurals name="library_pins_count">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <string name="library_pins_edit">Edit</string>
+    <string name="library_pins_edit_cd">Edit pinned items</string>
+    <string name="library_pins_done">Done</string>
+    <string name="library_pins_sort_manual">My order</string>
+    <string name="library_pins_filter_playlists">Playlists</string>
+    <string name="library_pins_empty_title">Pin what you play the most</string>
+    <string name="library_pins_empty_body">Long-press a playlist, album or artist and choose “Pin to Library”. It shows up here, big and one tap away.</string>
+    <string name="library_pins_see_all">See everything</string>
+    <string name="library_pins_edit_hint">Drag to reorder. To pin more, long-press any playlist, album or artist.</string>
+    <string name="library_pins_remove_cd">Remove from pinned</string>
+    <string name="library_pins_missing">That playlist no longer exists</string>
+    <string name="library_pinned_cd">Pinned</string>
+</resources>

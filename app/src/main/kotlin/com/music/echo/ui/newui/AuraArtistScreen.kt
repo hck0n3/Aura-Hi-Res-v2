@@ -626,6 +626,7 @@ fun AuraArtistScreen(
                                         title = album.album.title,
                                         subtitle = album.artists.joinToString { it.name }
                                             .takeIf { it.isNotBlank() },
+                                        explicit = album.album.explicit,
                                         thumbnailUrl = album.album.thumbnailUrl,
                                         seed = album.id,
                                         width = albumW,

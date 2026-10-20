@@ -653,7 +653,16 @@ fun AlbumMenu(
                                 }
                             }
                         }
-                    )
+                    ),
+                    // Biblioteca ▸ Fijados (owner 2026-10-20).
+                    albumPinMenuItem(
+                        id = album.id,
+                        title = album.album.title,
+                        artists = album.artists.map { it.name },
+                        thumbnailUrl = album.album.thumbnailUrl,
+                        playlistId = album.album.playlistId,
+                        onDismiss = onDismiss,
+                    ),
                 )
             )
         }

@@ -983,6 +983,19 @@ fun PlaylistMenu(
                             }
                         )
                     )
+                    // Biblioteca ▸ Fijados (owner 2026-10-20). Not for the automatic lists (Me gusta, Descargado…).
+                    if (autoPlaylist != true && downloadPlaylist != true) {
+                        add(
+                            playlistPinMenuItem(
+                                id = playlist.id,
+                                title = playlist.playlist.name,
+                                subtitle = null,
+                                thumbnailUrl = playlist.thumbnails.firstOrNull(),
+                                local = true,
+                                onDismiss = onDismiss,
+                            )
+                        )
+                    }
                     if (downloadPlaylist != true) {
                         add(
                             when (downloadState) {
