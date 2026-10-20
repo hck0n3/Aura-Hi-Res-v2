@@ -1,10 +1,11 @@
-# Aura Hi-Res v2.0.66-beta3 — Canciones +18 con tu cuenta por varias vías, también con el reproductor de YouTube
+# Aura Hi-Res v2.0.66-beta4 — Canciones +18: ahora sí descifra las URLs que YouTube entrega a tu cuenta
 
-Beta encima de la 2.0.66-beta2 (incluye todo lo suyo). Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.66-beta3 (incluye todo lo suyo). Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
 ## Canciones con restricción de edad
 
-- **Varias vías, una detrás de otra, siempre con tu cuenta:** si YouTube pide confirmar la edad, la app prueba los reproductores web embebido, de TV, de creadores y de YouTube Music (con los tokens que cada uno exige), y si una vía da un enlace que no sirve pasa a la siguiente en lugar de rendirse.
-- **Último recurso con el propio reproductor de YouTube:** si todas fallan y tienes sesión iniciada, la app abre en segundo plano la página del vídeo con tu cuenta, deja que YouTube confirme tu edad y toma el audio que él mismo pide. Solo se usa con canciones con restricción de edad y como mucho 15 segundos por canción.
-- **Si aun así no se puede, el mensaje es claro** («YouTube pide confirmar la edad y no la ha confirmado con tu cuenta»), y la recuperación de sesión caducada sigue funcionando como antes.
-- **Esto todavía no está comprobado contra YouTube real.** Si una canción +18 no suena, abre Ajustes ▸ Registros y comparte las líneas `AGE_GATE` y `AGE_WEBVIEW` (llevan solo el paso y el estado, nunca cookies, enlaces ni títulos): dirán en qué vía se cae.
+- **Encontrada la causa real con tu registro de la beta3:** tu cuenta sí desbloqueaba la edad (YouTube respondía «OK» a la TV, al reproductor de creadores y a YouTube Music), pero las direcciones llegaban cifradas y la app no sabía descifrarlas con el reproductor nuevo de YouTube; por eso se quedaba «cargando» y saltaba a otra canción.
+- **Nuevo descifrador:** la app ahora ejecuta el propio reproductor de YouTube con el solucionador de yt-dlp (el mismo que usa esa herramienta), que encuentra las funciones por su forma y no necesita una entrada nueva cada vez que YouTube cambia el reproductor. El descifrador anterior queda de respaldo.
+- **La firma de la petición sale del mismo reproductor** con el que se descifra, en vez de pedírsela a otra copia que podía ser de otra versión.
+- **La primera canción +18 tras una actualización de YouTube tarda unos segundos más** (analiza el reproductor); las siguientes salen al momento.
+- **Esto todavía no está comprobado contra YouTube real.** Si una canción +18 no suena, comparte desde Ajustes ▸ Registros las líneas `EJS_SOLVER`, `EJS_SOLVE`, `AGE_GATE` y `AGE_WEBVIEW` (solo llevan estado y tiempos, nunca cookies, enlaces ni títulos).

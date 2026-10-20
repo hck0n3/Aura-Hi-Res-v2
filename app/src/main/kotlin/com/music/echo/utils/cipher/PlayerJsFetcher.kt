@@ -122,6 +122,24 @@ object PlayerJsFetcher {
         }
     }
 
+    /** The signatureTimestamp written in [playerJs] (`signatureTimestamp:20352`), or null if the file carries none. */
+    fun signatureTimestampOf(playerJs: String): Int? = PlayerSts.parse(playerJs)
+
+    @Volatile private var stsMemo: Pair<String, Int>? = null
+
+    /**
+     * The signatureTimestamp of the CURRENT cached player and its hash, read from that very file (memoized per hash), or null.
+     * The sts a player request carries must belong to the player.js its signatures are then solved against: both come from here.
+     */
+    suspend fun currentSignatureTimestamp(): Pair<Int, String>? {
+        val hash = cachedPlayerHash()
+        stsMemo?.let { if (hash != null && it.first == hash) return it.second to it.first }
+        val (js, jsHash) = getPlayerJs(forceRefresh = false) ?: return null
+        val sts = signatureTimestampOf(js) ?: return null
+        stsMemo = jsHash to sts
+        return sts to jsHash
+    }
+
     /**
      * The player hash last written to the on-disk cache (first line of current_hash.txt), or null.
      * Tiny file, no network, no 2.8 MB read — cheap enough to call before an extraction (row 337).

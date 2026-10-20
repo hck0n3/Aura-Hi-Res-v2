@@ -24,6 +24,7 @@ import com.music.innertube.models.YouTubeClient.Companion.WEB_REMIX
 import com.music.innertube.models.response.PlayerResponse
 import iad1tya.echo.music.constants.AudioQuality
 import iad1tya.echo.music.utils.cipher.CipherDeobfuscator
+import iad1tya.echo.music.utils.cipher.PlayerJsFetcher
 import iad1tya.echo.music.utils.webplayer.CapturedStream
 import iad1tya.echo.music.utils.webplayer.EmbeddedPlayerUrlResolver
 import iad1tya.echo.music.utils.YTPlayerUtils.MAIN_CLIENT
@@ -136,6 +137,8 @@ object YTPlayerUtils {
     // always re-runs, so nothing is lost.
     @Volatile private var cachedSignatureTimestamp: Int? = null
     @Volatile private var cachedSignatureTimestampAtMs: Long = 0L
+    // The player hash the memoized sts was read from (null when it came from the NewPipe fallback).
+    @Volatile private var cachedSignatureTimestampHash: String? = null
     private const val SIGNATURE_TIMESTAMP_TTL_MS = 6 * 60 * 60 * 1000L
 
     // ASYNC sts (slow-start fix): ONE in-flight computation shared by every concurrent resolve (playback,
@@ -153,7 +156,8 @@ object YTPlayerUtils {
         // Fresh memoized value → complete instantly, no coroutine machinery at all.
         val cached = cachedSignatureTimestamp
         if (cached != null &&
-            SystemClock.elapsedRealtime() - cachedSignatureTimestampAtMs < SIGNATURE_TIMESTAMP_TTL_MS
+            SystemClock.elapsedRealtime() - cachedSignatureTimestampAtMs < SIGNATURE_TIMESTAMP_TTL_MS &&
+            stsMemoMatchesPlayer()
         ) {
             return CompletableDeferred(SignatureTimestampResult(cached, isAgeRestricted = false))
         }
@@ -1023,7 +1027,7 @@ object YTPlayerUtils {
 
             
             if (streamPlayerResponse?.playabilityStatus?.status == "OK") {
-                val resolvedClientName = if (clientIndex == -1) (if (preferVideo) VIDEO_CLIENT else MAIN_CLIENT).clientName else STREAM_FALLBACK_CLIENTS[clientIndex].clientName
+                val resolvedClientName = if (clientIndex == -1) (if (preferVideo) VIDEO_CLIENT else (usedAgeRestrictedClient ?: MAIN_CLIENT)).clientName else STREAM_FALLBACK_CLIENTS[clientIndex].clientName
                 Timber.tag(logTag).d("Player response status OK for client: $resolvedClientName")
                 PlaybackLogManager.log(PlaybackLogLevel.INFO, "Player response OK", resolvedClientName)
 
@@ -1719,15 +1723,35 @@ object YTPlayerUtils {
         val isAgeRestricted: Boolean
     )
 
-    private fun getSignatureTimestampOrNull(videoId: String): SignatureTimestampResult {
+    /** True when the memoized sts was read from the player JS that is cached now (or came from the NewPipe fallback). */
+    private fun stsMemoMatchesPlayer(): Boolean {
+        val memoHash = cachedSignatureTimestampHash ?: return true
+        return memoHash == PlayerJsFetcher.cachedPlayerHash()
+    }
+
+    private suspend fun getSignatureTimestampOrNull(videoId: String): SignatureTimestampResult {
         // Reuse the memoized sts if still fresh — it's the same for every video until the player rotates,
-        // so this skips the per-song hop into NewPipe (regex over the ~2.8 MB player JS, plus the
+        // so this skips the per-song hop into the player JS (regex over the ~2.8 MB player JS, plus the
         // first-call download/parse) for a value that never changes between songs.
         val cached = cachedSignatureTimestamp
         if (cached != null &&
-            android.os.SystemClock.elapsedRealtime() - cachedSignatureTimestampAtMs < SIGNATURE_TIMESTAMP_TTL_MS) {
+            android.os.SystemClock.elapsedRealtime() - cachedSignatureTimestampAtMs < SIGNATURE_TIMESTAMP_TTL_MS &&
+            stsMemoMatchesPlayer()) {
             Timber.tag(logTag).d("Signature timestamp (cached): $cached")
             return SignatureTimestampResult(cached, isAgeRestricted = false)
+        }
+        // 2026-10-20: the sts the player response is requested with must belong to the SAME player.js the signatures are then
+        // solved against (EJS reads it from PlayerJsFetcher). It is parsed from that very file, `signatureTimestamp:<5 digits>`,
+        // exactly as yt-dlp does; nothing is guessed. NewPipe (below) re-downloads its own copy of the player, which can be a
+        // different version, and it also refuses age-gated videos.
+        val fromPlayer = runCatching { PlayerJsFetcher.currentSignatureTimestamp() }.getOrNull()
+        if (fromPlayer != null) {
+            val (timestamp, hash) = fromPlayer
+            Timber.tag(TAG).i("STS source=player hash=%s", hash)
+            cachedSignatureTimestamp = timestamp
+            cachedSignatureTimestampHash = hash
+            cachedSignatureTimestampAtMs = android.os.SystemClock.elapsedRealtime()
+            return SignatureTimestampResult(timestamp, isAgeRestricted = false)
         }
         Timber.tag(logTag).d("Getting signature timestamp for videoId: $videoId")
         val result = NewPipeExtractor.getSignatureTimestamp(videoId)
@@ -1735,7 +1759,9 @@ object YTPlayerUtils {
             onSuccess = { timestamp ->
                 Timber.tag(logTag).d("Signature timestamp obtained: $timestamp")
                 cachedSignatureTimestamp = timestamp
+                cachedSignatureTimestampHash = null
                 cachedSignatureTimestampAtMs = android.os.SystemClock.elapsedRealtime()
+                Timber.tag(TAG).i("STS source=newpipe")
                 SignatureTimestampResult(timestamp, isAgeRestricted = false)
             },
             onFailure = { error ->
