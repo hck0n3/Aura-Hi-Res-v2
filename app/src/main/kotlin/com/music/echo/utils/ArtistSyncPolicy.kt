@@ -317,6 +317,66 @@ object ArtistSyncPolicy {
     fun afterAccountDetached(artist: ArtistEntity): ArtistEntity =
         artist.copy(ytmSyncedAt = null, unfollowedByUserAt = null)
 
+    // ---- Reading the account's subscription back when an artist page opens -------------------------
+    //
+    // Owner report 2026-10-20: «los cantantes a los que ya estoy suscrito, en algunos al meterme me
+    // aparece que no estoy suscrito». The artist screens show ONLY the local `followedByUserAt`, which
+    // is stamped by the library sync (a list read by exact id) and by taps. Anything that list did not
+    // stamp for the id the page was opened under — a subscription made in the YouTube app after the last
+    // sync, a truncated walk, the same artist stored under another id — read "Suscribirse". The
+    // functions below are the pure part of the fix: ids that name the same artist, and when an
+    // `account-says-subscribed` answer may be written back to the row.
+
+    /** Prefix YouTube Music puts in front of a channel id for the entries of the user's LIBRARY artists. */
+    const val LIBRARY_ARTIST_PREFIX = "MPLA"
+
+    /** A tap on "Dejar de seguir" this recent may still be in flight; the account can lag behind it. */
+    const val RECENT_UNFOLLOW_GRACE_MINUTES = 10L
+
+    /**
+     * Every id under which the SAME channel can be stored or opened: `UC…` and `MPLAUC…`. Anything that
+     * is not a channel id (local `LA…` rows, uploads) has no alias and comes back alone.
+     */
+    fun aliasIds(id: String): List<String> {
+        val bare = id.removePrefix(LIBRARY_ARTIST_PREFIX)
+        if (!bare.startsWith("UC")) return listOf(id)
+        return listOf(id, bare, LIBRARY_ARTIST_PREFIX + bare).distinct()
+    }
+
+    /**
+     * The row to write when the account's own artist page says "subscribed", or null when the stored row
+     * must be left exactly as it is. [existing] is the stored row (null when there is none) and [fresh]
+     * the row to create in that case.
+     *
+     * It only ever moves a row TOWARDS "followed" and never the other way, so a stale or guest answer
+     * (which reads `false`) cannot cost anyone a follow. It refuses when the row carries a live pending
+     * unsubscribe ([mayUnsubscribe]) or an unfollow tapped a moment ago: in both the account is
+     * about to change and its answer is the stale one. Everything else with a recorded unfollow is
+     * overruled — the account is the newer evidence (the user subscribed again, on YouTube itself) and
+     * the queued unfollow can no longer be retried anyway (`artistsPendingUnsubscribe` needs
+     * `ytmSyncedAt`).
+     */
+    fun healFromRemoteSubscription(
+        existing: ArtistEntity?,
+        fresh: ArtistEntity,
+        now: LocalDateTime,
+    ): ArtistEntity? {
+        val base = existing ?: fresh
+        if (base.isLocal) return null
+        if (base.followedByUserAt != null) return null
+        if (existing != null && mayUnsubscribe(existing, now)) return null
+        val unfollowedAt = base.unfollowedByUserAt
+        if (unfollowedAt != null && unfollowedAt.isAfter(now.minusMinutes(RECENT_UNFOLLOW_GRACE_MINUTES))) {
+            return null
+        }
+        return base.copy(
+            bookmarkedAt = base.bookmarkedAt ?: now,
+            followedByUserAt = now,
+            ytmSyncedAt = now,
+            unfollowedByUserAt = null,
+        )
+    }
+
     /**
      * Cuántos rechazos SEGUIDOS de YouTube bastan para abandonar la subida de suscripciones de esta
      * pasada.
