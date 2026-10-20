@@ -618,7 +618,7 @@ fun AuraSearchResultScreen(
 
                 if (split) {
                     AuraSearchSplit(
-                        detailWidth = auraSearchDetailWidth(maxWidth),
+                        detailWidth = auraSearchDetailWidth(this@BoxWithConstraints.maxWidth),
                         bottomPadding = detailBottom,
                         list = resultsBody,
                         detail = {

@@ -303,7 +303,7 @@ internal fun auraLocalSearchEntry(item: LocalItem): AuraSearchEntry {
 }
 
 /** What the detail half is showing: a YouTube Music result or a library one. */
-internal sealed interface AuraSearchPick {
+sealed interface AuraSearchPick {
     /** Stable identity: the highlight in the list and the reset of the detail's own state key off it. */
     val key: String
 
