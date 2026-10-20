@@ -162,6 +162,8 @@ import iad1tya.echo.music.listentogether.RoomRole
 import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.playback.AudioExportService
 import iad1tya.echo.music.playback.PendingDeferredDownloads
+import iad1tya.echo.music.playback.SongModeAvailability
+import iad1tya.echo.music.playback.SongModePlanning
 import iad1tya.echo.music.playback.enqueueSongDownloads
 import iad1tya.echo.music.playback.removeSongDownloads
 import iad1tya.echo.music.playback.videoDownloadMediaId
@@ -1529,7 +1531,12 @@ private fun AuraPlayerShape(
                     // techInfo.chips is already empty when "mostrar códec" is off (see the read site
                     // above). The crossfade chip is NOT codec data — the classic player shows it
                     // independently of that switch — so it keeps its own condition.
-                    val hasVideo = meta.hasCompatibleVideo || !meta.podcastVideoUrl.isNullOrEmpty()
+                    // Owner 2026-10-20: a video whose song audio YouTube Music refuses cannot go back to «Canción» — pressing
+                    // it only brings the error — so while it plays as video the toggle is not offered (SongModePlanning).
+                    val songBlockedIds by SongModeAvailability.blocked.collectAsState()
+                    val hasVideo = (meta.hasCompatibleVideo &&
+                        SongModePlanning.offerSongOption(videoMode, meta.isVideoSong, meta.id in songBlockedIds)) ||
+                        !meta.podcastVideoUrl.isNullOrEmpty()
                     if (techInfo.chips.isNotEmpty() || isCrossfading || hasVideo) {
                         Spacer(Modifier.height(if (dense) 6.dp else 10.dp))
                         Row(
@@ -2535,14 +2542,19 @@ private fun AuraImmersiveVideo(
                 )
                 // The way OUT of video. Names the DESTINATION — "Música" — exactly like the classic
                 // affordance, whose glyph is literally `music_note` while video is on.
-                AuraIconButton(
-                    icon = AuraIcons.Video,
-                    contentDescription = stringResource(R.string.music),
-                    onClick = onExitVideo,
-                    size = 26.dp,
-                    tint = AuraPalette.Teal,
-                    modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
-                )
+                // Owner 2026-10-20: not offered for a video whose song audio is refused (it would only error).
+                val songBlockedIds by SongModeAvailability.blocked.collectAsState()
+                val exitId = playerConnection.mediaMetadata.collectAsState().value?.id
+                if (exitId == null || exitId !in songBlockedIds) {
+                    AuraIconButton(
+                        icon = AuraIcons.Video,
+                        contentDescription = stringResource(R.string.music),
+                        onClick = onExitVideo,
+                        size = 26.dp,
+                        tint = AuraPalette.Teal,
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                    )
+                }
             }
         }
     }

@@ -430,4 +430,6 @@
     <!-- Aprender géneros con datos móviles (puerta de enriquecimiento de GenreCache) -->
     <string name="genre_enrich_on_mobile">Aprender géneros con datos móviles</string>
     <string name="genre_enrich_on_mobile_desc">Usa datos móviles para aprender los géneros de tus artistas — pequeñas consultas, solo cuando hace falta. Desactivado = solo con WiFi.</string>
+    <string name="account_push_queued">No se pudo enviar el cambio a YouTube Music. Se reintentará solo.</string>
+    <string name="account_push_gave_up">No se pudo enviar un cambio a YouTube Music tras varios intentos.</string>
 </resources>

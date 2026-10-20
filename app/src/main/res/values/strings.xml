@@ -831,4 +831,6 @@
     <string name="app_name_aura">Aura</string>
     <string name="app_name_hi_res">Hi-Res</string>
     <string name="cast_video_unavailable">This video can\u2019t be sent to the TV. Playing audio only.</string>
+    <string name="account_push_queued">Couldn\'t send that change to YouTube Music. It will be retried automatically.</string>
+    <string name="account_push_gave_up">Couldn\'t send a change to YouTube Music after several attempts.</string>
 </resources>

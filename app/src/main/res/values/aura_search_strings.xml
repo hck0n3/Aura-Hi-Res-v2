@@ -12,7 +12,21 @@
     <string name="aura_kind_podcast">PODCAST</string>
 
     <!-- The empty state of the detail pane that sits next to the results when the window is wide. -->
-    <string name="aura_search_detail_empty_title">Pick a result</string>
-    <string name="aura_search_detail_empty_body">Its details and every action show up here, without opening another window.</string>
+    <string name="aura_search_detail_empty_title">Select a result</string>
+    <string name="aura_search_detail_empty_body">Play it, queue it, see an album\'s songs or explore a whole artist here, without opening another window.</string>
     <string name="aura_search_played">Already played</string>
+
+    <string name="aura_pane_next">Next</string>
+    <string name="aura_pane_queue">Queue</string>
+    <string name="aura_pane_radio">Radio</string>
+    <string name="aura_pane_more">More</string>
+    <string name="aura_pane_all_options">All options</string>
+    <string name="aura_pane_open_album">Open album page</string>
+    <string name="aura_pane_open_artist">Open artist page</string>
+    <string name="aura_pane_open_playlist">Open the full playlist</string>
+    <string name="aura_pane_from_album">From the album</string>
+    <string name="aura_pane_load_failed">Could not load. Check your connection and try again.</string>
+    <string name="aura_pane_added_next">Will play next</string>
+    <string name="aura_pane_added_queue">Added to queue</string>
+    <string name="aura_pane_dislike_done">Will not be recommended</string>
 </resources>

@@ -156,20 +156,78 @@ class AuraSearchWideTest {
     }
 
     @Test
-    fun `every wide result carries the type pill and the detail never opens a second window`() {
+    fun `every wide result carries the type pill`() {
         val wide = main("ui/newui/AuraSearchWide.kt")
         val row = wide.substringAfter("internal fun AuraSearchWideRow(").substringBefore("/** [AuraSearchWideRow] for a YouTube Music result. */")
         assertTrue(row.contains("AuraTypeBadge(entry.kind)"))
         assertTrue("the explicit mark comes from the data", row.contains("if (entry.explicit)") && row.contains("AuraExplicitBadge()"))
         val card = wide.substringAfter("internal fun AuraSearchGridCard(").substringBefore("// ── The split")
         assertTrue(card.contains("AuraTypeBadge(entry.kind"))
-        // the detail embeds the real menus and opens nothing of its own
-        val pane = wide.substringAfter("internal fun AuraSearchDetailPane(")
+        assertFalse("a second floating window is exactly what the owner did not want", wide.contains("menuState.show") || wide.contains("LocalMenuState"))
+    }
+
+    @Test
+    fun `the detail pane is a useful master-detail and keeps every menu one tap away`() {
+        val pane = main("ui/newui/AuraSearchDetailPane.kt")
+        // content: tracks of a release / playlist, the whole artist, drilling with a back stack
+        for (call in listOf("YouTube.album(", "YouTube.artist(", "YouTube.playlist(", "BackHandler(enabled = stack.size > 1")) {
+            assertTrue("the pane lost $call", pane.contains(call))
+        }
+        // the full existing menus still live inside the pane (hiding is losing), behind «Todas las opciones»
+        val options = pane.substringAfter("private fun PaneOptionsPage(").substringBefore("private fun PaneEntity(")
         for (menu in listOf(
             "YouTubeSongMenu", "YouTubeAlbumMenu", "YouTubeArtistMenu", "YouTubePlaylistMenu",
             "SongMenu", "AlbumMenu", "ArtistMenu", "PlaylistMenu",
-        )) assertTrue("the detail lost $menu", Regex("(?<![A-Za-z])$menu\\(").containsMatchIn(pane))
-        assertFalse("a second floating window is exactly what the owner did not want", wide.contains("menuState.show") || wide.contains("LocalMenuState"))
+        )) assertTrue("the options page lost $menu", Regex("(?<![A-Za-z])$menu\\(").containsMatchIn(options))
+        // nothing a user owns reaches the shared log, and nothing loads outside the keyed effect
+        assertFalse(pane.contains("Timber.") || pane.contains("AppLogger") || pane.contains("Log.i("))
+        assertTrue(pane.contains("LaunchedEffect(key, attempt)") && pane.contains("withContext(Dispatchers.IO)"))
+        // the artist's name is not drawn twice: the header is the only place that draws a title
+        assertEquals(1, Regex("style = AuraType.PlayerTitle").findAll(pane).count())
+    }
+
+    @Test
+    fun `action tiles wrap to more rows on a narrow half instead of truncating`() {
+        assertEquals(5, auraPaneTileColumns(428f, 5))
+        assertEquals(3, auraPaneTileColumns(268f, 5))
+        assertEquals(2, auraPaneTileColumns(268f, 4))
+        assertEquals(4, auraPaneTileColumns(520f, 4))
+        assertEquals(3, auraPaneTileColumns(100f, 3))
+        assertEquals(1, auraPaneTileColumns(400f, 0))
+    }
+
+    @Test
+    fun `the artist chips jump to the item where each section starts`() {
+        // header + actions + chips = 3 fixed items; a song section of 5 rows, a shelf (1 row), another shelf
+        assertEquals(listOf(3, 9, 11), auraPaneSectionStarts(listOf(5, 1, 1), 3))
+        assertEquals(emptyList<Int>(), auraPaneSectionStarts(emptyList(), 3))
+    }
+
+    @Test
+    fun `tapping a track queues the playable ones and lands on the tapped one`() {
+        val unavailable = setOf("b", "d")
+        val (kept, index) = auraPanePlayable(listOf("a", "b", "c", "d", "e"), 2) { it in unavailable }
+        assertEquals(listOf("a", "c", "e"), kept)
+        assertEquals("c", kept[index])
+        // the tapped row stays even when the source marks it unavailable (the player explains and skips it)
+        val (keptTapped, tappedIndex) = auraPanePlayable(listOf("a", "b", "c"), 1) { it == "b" }
+        assertEquals(listOf("a", "b", "c"), keptTapped)
+        assertEquals(1, tappedIndex)
+        assertEquals(0, auraPanePlayable(emptyList<String>(), 3) { false }.second)
+    }
+
+    @Test
+    fun `the page cache is bounded and expires`() {
+        var now = 0L
+        val cache = AuraPaneCache(maxEntries = 2, ttlMs = 1_000L, clock = { now })
+        cache.put("a", "1")
+        cache.put("b", "2")
+        assertEquals("1", cache.get("a"))
+        cache.put("c", "3")
+        assertNull("the least recently used page goes first", cache.get("b"))
+        assertEquals("3", cache.get("c"))
+        now = 1_001L
+        assertNull("a stale page is never served", cache.get("c"))
     }
 
     @Test

@@ -551,6 +551,28 @@ class InnerTube {
         }
     }
 
+    /**
+     * Thumbs-DOWN on a song for the signed-in account ("No me gusta"). Same family, same body and same
+     * login handling as [likeVideo]/[unlikeVideo]: only the path differs (`like/dislike`, the third
+     * member of the like/like - like/removelike - like/dislike trio YouTube Music's web client uses for
+     * a song rating). A dislike REPLACES a like on the account, so no separate removelike is needed.
+     * Single item, user-initiated only (see AccountPush).
+     */
+    suspend fun dislikeVideo(
+        client: YouTubeClient,
+        videoId: String,
+    ) = withRetry {
+        httpClient.post("like/dislike") {
+            ytClient(client, setLogin = true)
+            setBody(
+                LikeBody(
+                    context = client.toContext(locale, visitorData, dataSyncId),
+                    target = LikeBody.Target.VideoTarget(videoId)
+                )
+            )
+        }
+    }
+
     suspend fun subscribeChannel(
         client: YouTubeClient,
         channelId: String,

@@ -9,7 +9,21 @@
     <string name="aura_kind_artist">ARTISTA</string>
     <string name="aura_kind_podcast">PODCAST</string>
 
-    <string name="aura_search_detail_empty_title">Elige un resultado</string>
-    <string name="aura_search_detail_empty_body">Aquí verás sus detalles y todas sus opciones, sin abrir otra ventana.</string>
+    <string name="aura_search_detail_empty_title">Selecciona un resultado</string>
+    <string name="aura_search_detail_empty_body">Aquí podrás reproducirlo, añadirlo a la cola, ver las canciones de un álbum o explorar todo un artista, sin abrir otra ventana.</string>
     <string name="aura_search_played">Ya reproducida</string>
+
+    <string name="aura_pane_next">Siguiente</string>
+    <string name="aura_pane_queue">A la cola</string>
+    <string name="aura_pane_radio">Radio</string>
+    <string name="aura_pane_more">Más</string>
+    <string name="aura_pane_all_options">Todas las opciones</string>
+    <string name="aura_pane_open_album">Abrir página del álbum</string>
+    <string name="aura_pane_open_artist">Abrir página del artista</string>
+    <string name="aura_pane_open_playlist">Abrir la lista completa</string>
+    <string name="aura_pane_from_album">Del álbum</string>
+    <string name="aura_pane_load_failed">No se pudo cargar. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="aura_pane_added_next">Se reproducirá a continuación</string>
+    <string name="aura_pane_added_queue">Añadido a la cola</string>
+    <string name="aura_pane_dislike_done">No se recomendará más</string>
 </resources>

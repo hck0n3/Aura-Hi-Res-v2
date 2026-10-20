@@ -416,17 +416,31 @@ fun AuraHomeScreen(
         val items = songs.distinctBy { it.id }.map { it.toMediaItem() }
         if (items.isNotEmpty()) playerConnection.playQueue(ListQueue(title = title, items = items))
     }
-    // «Aleatorio» of the quick-access block (UI_INVENTORY §10, the five-dot button): picks something from the user's taste and
-    // opens it. Tapping it WHILE it is picking cancels the pending pick — the contract the inventory records. The view model
-    // clears `isRandomizing` in a `finally`, so a cancelled pick cannot leave the tile spinning.
+    // «Aleatorio» of the quick-access block (UI_INVENTORY §10, the five-dot button): «Mezcla de tu gusto». Owner 2026-10-20
+    // («lo vuelvo a tocar y repite el contenido… no me gusta que salga nada repetido»): each tap builds a FRESH queue from the
+    // user's library weighted by their taste and never contains what an earlier tap already served or played
+    // ([HomeViewModel.buildTasteMix] / TasteMixPlanner). Only a library too small to mix falls back to the old pick
+    // (`getRandomItem`: one song + its radio). Tapping it WHILE it is picking cancels the pending pick — the contract the
+    // inventory records. The view model clears `isRandomizing` in a `finally`, so a cancelled pick cannot leave the tile
+    // spinning.
     val isRandomizing by viewModel.isRandomizing.collectAsState()
+    val tasteMixCount by viewModel.tasteMixCount.collectAsState()
+    val tasteMixFallback by viewModel.tasteMixFallback.collectAsState()
     var surpriseJob by remember { mutableStateOf<Job?>(null) }
     val onSurprise: () -> Unit = {
         val running = surpriseJob
         if (running != null && running.isActive) {
             running.cancel()
         } else {
-            surpriseJob = scope.launch { viewModel.getRandomItem()?.let { openYtItem(it) } }
+            surpriseJob = scope.launch {
+                val mix = viewModel.buildTasteMix(currentSongId = mediaMetadata?.id)
+                if (mix != null) {
+                    playerConnection.playQueue(mix.queue)
+                    viewModel.commitTasteMix(mix)
+                } else {
+                    viewModel.getRandomItem()?.let { openYtItem(it) }
+                }
+            }
         }
     }
 
@@ -555,6 +569,8 @@ fun AuraHomeScreen(
                             navController = navController,
                             surprising = isRandomizing,
                             onSurprise = onSurprise,
+                            tasteMixCount = tasteMixCount,
+                            tasteMixFallback = tasteMixFallback,
                             modifier = Modifier
                                 .animateItem()
                                 .padding(top = AURA_QUICK_TILE_GAP),

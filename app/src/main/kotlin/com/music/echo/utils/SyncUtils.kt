@@ -482,6 +482,10 @@ class SyncUtils @Inject constructor(
         val updateEntities = ArrayList<SongEntity>()
         songs.forEachIndexed { offset, song ->
             try {
+                // The user unliked / disliked this song in Aura and that action has not landed on the account
+                // yet (or landed seconds ago and the list is still catching up): the account's list is the
+                // STALE side here. Re-liking it locally is what made an unlike "come back" (AccountPush).
+                if (AccountPush.suppressesRemoteSongLike(song.id)) return@forEachIndexed
                 val dbSong = existing[song.id]
                 val isVideoSong = song.isVideoSong
                 if (dbSong == null) {
@@ -527,13 +531,19 @@ class SyncUtils @Inject constructor(
         val updateEntities = ArrayList<SongEntity>()
         pageSongs.forEach { song ->
             try {
+                // A removal from the library that has not landed on the account yet must not be undone by
+                // the account's stale list (AccountPush).
+                if (AccountPush.suppressesRemoteLibraryAdd(song.id)) return@forEach
                 val dbSong = existing[song.id]
+                // syncToYouTube = false: this row IS the account's own library entry, pushing an "add" back
+                // for it only cost two requests per song (next + feedback) and could re-add a song the user
+                // had just removed.
                 if (dbSong == null) {
                     val meta = song.toMediaMetadata()
                     insertMeta.add(meta)
-                    insertEntities.add(meta.toSongEntity().toggleLibrary())
+                    insertEntities.add(meta.toSongEntity().toggleLibrary(syncToYouTube = false))
                 } else if (dbSong.inLibrary == null) {
-                    updateEntities.add(dbSong.toggleLibrary())
+                    updateEntities.add(dbSong.toggleLibrary(syncToYouTube = false))
                 }
             } catch (e: Exception) {
                 // Never swallow coroutine cancellation: doing so let the sync loop keep
@@ -1229,6 +1239,8 @@ class SyncUtils @Inject constructor(
                     val updateEntities = ArrayList<SongEntity>()
                     remoteSongs.forEachIndexed { index, song ->
                         try {
+                            // Same veto as insertLikedSongsPage: a pending/just-confirmed unlike wins over the list.
+                            if (AccountPush.suppressesRemoteSongLike(song.id)) return@forEachIndexed
                             val dbSong = existing[song.id]
                             val timestamp = now.minusSeconds(index.toLong())
                             val isVideoSong = song.isVideoSong

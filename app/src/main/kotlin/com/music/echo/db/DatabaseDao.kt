@@ -2325,6 +2325,10 @@ interface DatabaseDao {
     @Query("SELECT songId FROM enhanced_shuffle_played WHERE contextId = :contextId")
     suspend fun playedSongIdsForContext(contextId: String): List<String>
 
+    /** Same memory as [playedSongIdsForContext] WITH when each song was heard (least-recent-first refills of the taste mix). */
+    @Query("SELECT songId, playedAt FROM enhanced_shuffle_played WHERE contextId = :contextId")
+    suspend fun playedAtForContext(contextId: String): List<iad1tya.echo.music.db.entities.EnhancedPlayedAt>
+
     /** How many songs of [contextId] have already played this cycle. */
     @Query("SELECT COUNT(*) FROM enhanced_shuffle_played WHERE contextId = :contextId")
     suspend fun countPlayedForContext(contextId: String): Int

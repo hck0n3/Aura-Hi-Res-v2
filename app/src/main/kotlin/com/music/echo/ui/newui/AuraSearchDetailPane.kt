@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -64,11 +65,8 @@ import com.music.innertube.models.ArtistItem
 import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.SongItem
 import com.music.innertube.models.WatchEndpoint
-import com.music.innertube.models.YTItem
-import com.music.innertube.pages.AlbumPage
 import com.music.innertube.pages.ArtistPage
 import com.music.innertube.pages.ArtistSection
-import com.music.innertube.pages.PlaylistPage
 import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.LocalListenTogetherManager
@@ -79,7 +77,6 @@ import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.Album
 import iad1tya.echo.music.db.entities.Artist
 import iad1tya.echo.music.db.entities.ArtistEntity
-import iad1tya.echo.music.db.entities.LocalItem
 import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
@@ -446,7 +443,7 @@ private fun PaneHeader(entry: AuraSearchEntry, lines: List<String>) {
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     if (entry.explicit) {
-                        Spacer(Modifier.padding(start = 6.dp))
+                        Spacer(Modifier.width(6.dp))
                         AuraExplicitBadge()
                     }
                 }
@@ -593,7 +590,7 @@ private fun PaneScaffold(
     tiles: List<PaneTile>,
     more: List<PaneMoreRow>,
     chips: List<PaneChipData>,
-    open: PaneMoreRow?,
+    openRow: PaneMoreRow?,
     content: LazyListScope.() -> Unit,
 ) {
     var moreOpen by remember { mutableStateOf(false) }
@@ -616,7 +613,7 @@ private fun PaneScaffold(
                 }
                 PaneTiles(all)
                 AnimatedVisibility(visible = moreOpen) { PaneMoreGroup(more) }
-                open?.let { PaneMoreGroup(listOf(it)) }
+                openRow?.let { PaneMoreGroup(listOf(it)) }
             }
         }
         if (chips.isNotEmpty()) {
@@ -775,6 +772,7 @@ private fun PaneYtSong(env: PaneEnv, pick: AuraSearchPick, item: SongItem, listS
     var showDownload by remember { mutableStateOf(false) }
     val download by LocalDownloadUtil.current.getDownload(item.id).collectAsState(initial = null)
     val album = item.album
+    val albumId = album?.id
     val albumLoad = album?.let { a -> rememberPaneLoad("album:${a.id}") { YouTube.album(a.id) } }
     val albumPage = albumLoad?.state?.valueOrNull()
     val albumTracks = remember(albumPage) { albumPage?.songs.orEmpty().map { it.toPaneTrack() } }
@@ -818,13 +816,13 @@ private fun PaneYtSong(env: PaneEnv, pick: AuraSearchPick, item: SongItem, listS
             tiles = tiles,
             more = more,
             chips = chips,
-            open = null,
+            openRow = null,
         ) {
             if (albumLoad != null) {
                 item(key = "pane_from_album", contentType = "pane_header_label") { AuraSectionHeader(title = fromAlbum) }
                 paneLoadItems(albumLoad.state, errorText, albumLoad.retry) { _ ->
                     paneTrackItems("pane_t_", env, albumTracks) { index, _ ->
-                        env.playList(albumPage?.album?.title, albumTracks, index, ShuffleContexts.album(album.id))
+                        env.playList(albumPage?.album?.title, albumTracks, index, albumId?.let { ShuffleContexts.album(it) })
                     }
                 }
             }
@@ -910,13 +908,13 @@ private fun PaneYtAlbum(env: PaneEnv, pick: AuraSearchPick, item: AlbumItem, lis
         allOptionsRow(env, pick),
     )
     val chips = artistChips(env, album.artists.orEmpty(), AuraIcons.Artist)
-    val open = PaneMoreRow(AuraIcons.Album, stringResource(R.string.aura_pane_open_album), chevron = true) {
+    val openRow = PaneMoreRow(AuraIcons.Album, stringResource(R.string.aura_pane_open_album), chevron = true) {
         env.go("album/${album.id}")
     }
     val errorText = stringResource(R.string.aura_pane_load_failed)
 
     Box(Modifier.fillMaxSize()) {
-        PaneScaffold(listState, entry, lines, tiles, more, chips, open) {
+        PaneScaffold(listState, entry, lines, tiles, more, chips, openRow) {
             paneLoadItems(load.state, errorText, load.retry) { _ ->
                 paneTrackItems("pane_t_", env, tracks) { index, _ -> env.playList(album.title, tracks, index, contextId) }
             }
@@ -1004,13 +1002,13 @@ private fun PaneYtPlaylist(env: PaneEnv, pick: AuraSearchPick, item: PlaylistIte
         ),
         allOptionsRow(env, pick),
     )
-    val open = PaneMoreRow(AuraIcons.Queue, stringResource(R.string.aura_pane_open_playlist), chevron = true) {
+    val openRow = PaneMoreRow(AuraIcons.Queue, stringResource(R.string.aura_pane_open_playlist), chevron = true) {
         env.go("online_playlist/${playlist.id}")
     }
     val errorText = stringResource(R.string.aura_pane_load_failed)
 
     Box(Modifier.fillMaxSize()) {
-        PaneScaffold(listState, entry, lines, tiles, more, emptyList(), open) {
+        PaneScaffold(listState, entry, lines, tiles, more, emptyList(), openRow) {
             paneLoadItems(load.state, errorText, load.retry) { _ ->
                 paneTrackItems("pane_t_", env, tracks) { index, _ ->
                     env.player.playQueue(queueOf(songs, index, false))
@@ -1061,8 +1059,6 @@ private fun PaneYtArtist(env: PaneEnv, pick: AuraSearchPick, item: ArtistItem, l
     val listeners = page?.monthlyListenerCount?.takeIf { it.isNotBlank() }?.let { "$it ${stringResource(R.string.monthly_listeners)}" }
     val subscribers = page?.subscriberCountText?.takeIf { it.isNotBlank() }?.let { "$it ${stringResource(R.string.subscribers)}" }
     val lines = listOfNotNull(listeners ?: subscribers)
-    var showMenuUnused by remember { mutableStateOf(false) }
-    showMenuUnused = false
 
     val playEndpoint = artist.playEndpoint ?: item.playEndpoint ?: artist.radioEndpoint ?: item.radioEndpoint
     val shuffleEndpoint = artist.shuffleEndpoint ?: item.shuffleEndpoint
@@ -1114,7 +1110,7 @@ private fun PaneYtArtist(env: PaneEnv, pick: AuraSearchPick, item: ArtistItem, l
         },
         allOptionsRow(env, pick),
     )
-    val open = PaneMoreRow(AuraIcons.Artist, stringResource(R.string.aura_pane_open_artist), chevron = true) {
+    val openRow = PaneMoreRow(AuraIcons.Artist, stringResource(R.string.aura_pane_open_artist), chevron = true) {
         env.go("artist/${artist.id}")
     }
 
@@ -1127,16 +1123,16 @@ private fun PaneYtArtist(env: PaneEnv, pick: AuraSearchPick, item: ArtistItem, l
     }
     val errorText = stringResource(R.string.aura_pane_load_failed)
 
-    PaneScaffold(listState, entry, lines, tiles, more, chips, open) {
+    PaneScaffold(listState, entry, lines, tiles, more, chips, openRow) {
         paneLoadItems(load.state, errorText, load.retry) { _ ->
             sections.forEachIndexed { sectionIndex, section ->
                 item(key = "pane_sec_h_$sectionIndex", contentType = "pane_sec_h") {
                     val moreEndpoint = section.moreEndpoint
                     AuraSectionHeader(
                         title = section.title,
-                        onClick = moreEndpoint?.let { more ->
+                        onClick = moreEndpoint?.let { endpoint ->
                             {
-                                env.go("artist/${artist.id}/items?browseId=${more.browseId}&params=${more.params}")
+                                env.go("artist/${artist.id}/items?browseId=${endpoint.browseId}&params=${endpoint.params}")
                             }
                         },
                     )
@@ -1252,7 +1248,7 @@ private fun PaneLocalCollection(
             add(queueTile(songs.isNotEmpty()) { env.addToQueue(songs) })
         }
     }
-    val open = PaneMoreRow(AuraIcons.Album, openLabel, chevron = true) { env.go(openRoute) }
+    val openRow = PaneMoreRow(AuraIcons.Album, openLabel, chevron = true) { env.go(openRoute) }
     val state: AuraPaneLoad<List<PaneTrack>> = if (tracks == null) AuraPaneLoad.Loading else AuraPaneLoad.Ready(tracks)
     val errorText = stringResource(R.string.aura_pane_load_failed)
     PaneScaffold(
@@ -1262,7 +1258,7 @@ private fun PaneLocalCollection(
         tiles = tiles,
         more = listOf(allOptionsRow(env, pick)),
         chips = emptyList(),
-        open = open,
+        openRow = openRow,
     ) {
         paneLoadItems(state, errorText, {}) { list ->
             paneTrackItems("pane_t_", env, list) { index, _ -> env.playList(entry.title, list, index, contextId) }

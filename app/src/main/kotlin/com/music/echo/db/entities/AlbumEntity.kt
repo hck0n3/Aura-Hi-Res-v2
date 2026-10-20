@@ -6,10 +6,6 @@ import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.music.innertube.YouTube
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 
 @Immutable
@@ -48,9 +44,14 @@ data class AlbumEntity(
     )
 
     fun toggleLike() = localToggleLike().also {
-        CoroutineScope(Dispatchers.IO).launch {
-            if (playlistId != null)
-                YouTube.likePlaylist(playlistId, bookmarkedAt == null)
+        // Durable + immediate (see AccountPush): the save/unsave reaches the account at once, is retried
+        // when the network is back, and the liked-albums sync no longer re-saves what was just removed.
+        if (playlistId != null) {
+            iad1tya.echo.music.utils.AccountPush.submit(
+                if (bookmarkedAt == null) iad1tya.echo.music.utils.AccountPushPolicy.Op.PLAYLIST_SAVE
+                else iad1tya.echo.music.utils.AccountPushPolicy.Op.PLAYLIST_UNSAVE,
+                playlistId,
+            )
         }
     }
 }

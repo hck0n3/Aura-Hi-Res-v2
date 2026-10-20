@@ -284,6 +284,10 @@ internal fun AuraQuickAccess(
     surprising: Boolean,
     onSurprise: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Songs of the last «Mezcla de tu gusto» this tile built (0 = none yet). */
+    tasteMixCount: Int = 0,
+    /** The library was too small to mix: the tile played one random song + its radio. */
+    tasteMixFallback: Boolean = false,
 ) {
     val database = LocalDatabase.current
     val likedCount by remember(database) { database.likedSongsCount() }.collectAsState(initial = 0)
@@ -302,7 +306,14 @@ internal fun AuraQuickAccess(
     val topCount = topSize.toIntOrNull() ?: 50
     val topSubtitle = pluralStringResource(R.plurals.n_song, topCount, topCount)
     val shuffleTitle = stringResource(R.string.shuffle)
-    val shuffleSubtitle = stringResource(R.string.home_quick_surprise_hint)
+    // The subtitle says what the tile DOES (owner 2026-10-20: «él hace referencia a algo de mi gusto y no sé cómo estará
+    // funcionando»): a mix weighted by the user's taste, then how many songs the last tap put in it; and when the library
+    // was too small to mix, that it was just something random.
+    val shuffleSubtitle = when {
+        tasteMixFallback -> stringResource(R.string.home_quick_surprise_fallback)
+        tasteMixCount > 0 -> pluralStringResource(R.plurals.home_quick_surprise_built, tasteMixCount, tasteMixCount)
+        else -> stringResource(R.string.home_quick_surprise_hint)
+    }
 
     val tiles = listOf(
         AuraQuickTile(AuraIcons.HeartFilled, likedTitle, likedSubtitle, onClick = { navController.navigate("auto_playlist/liked") }),

@@ -8,6 +8,13 @@ package iad1tya.echo.music.playback
  * auto-playlists must NEVER use `PL:` or a restart wipes their memory (registry #88).
  */
 object ShuffleContexts {
+    /**
+     * Inicio's «Aleatorio» tile («Mezcla de tu gusto»). ONE stable bucket for every tap, so what one mix played is
+     * remembered by the next ([iad1tya.echo.music.reco.TasteMixPlanner]). `AP:` like the other virtual lists: the
+     * orphan prune only touches `PL:`.
+     */
+    const val TASTE_MIX = "AP:taste-mix"
+
     fun playlist(localId: String): String = "PL:$localId"
 
     fun onlinePlaylist(browseId: String): String = "OL:${browseId.removePrefix("VL")}"

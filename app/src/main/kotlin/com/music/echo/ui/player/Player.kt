@@ -206,6 +206,8 @@ import iad1tya.echo.music.listentogether.RoomRole
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.playback.ExoDownloadService
+import iad1tya.echo.music.playback.SongModeAvailability
+import iad1tya.echo.music.playback.SongModePlanning
 import iad1tya.echo.music.echomusic.getConnectedBluetoothDeviceName
 import iad1tya.echo.music.echomusic.isBuds
 import iad1tya.echo.music.echomusic.isSpeaker
@@ -1992,7 +1994,12 @@ fun BottomSheetPlayer(
                     }) {
                         Icon(painterResource(R.drawable.graphic_eq), null, tint = textButtonColor, modifier = Modifier.size(24.dp))
                     }
-                    if ((!highPerfMode || wantsHiResBackdrop) && (mediaMetadata?.hasCompatibleVideo == true || mediaMetadata?.podcastVideoUrl.isNullOrEmpty() == false)) {
+                    // Owner 2026-10-20: «Canción» is not offered for a video whose song audio is refused (SongModePlanning).
+                    val songBlockedIds by SongModeAvailability.blocked.collectAsState()
+                    val songOptionOffered = mediaMetadata?.let {
+                        SongModePlanning.offerSongOption(videoMode, it.isVideoSong, it.id in songBlockedIds)
+                    } ?: true
+                    if ((!highPerfMode || wantsHiResBackdrop) && ((mediaMetadata?.hasCompatibleVideo == true && songOptionOffered) || mediaMetadata?.podcastVideoUrl.isNullOrEmpty() == false)) {
                         PlayerActionChip(
                             label = if (videoMode) "Canción" else "Video",
                             tint = textButtonColor,
@@ -2766,11 +2773,15 @@ fun BottomSheetPlayer(
                                 Icon(painterResource(R.drawable.skip_next), null, tint = Color.White, modifier = Modifier.size(34.dp))
                             }
                             Spacer(Modifier.weight(1f))
-                            IconButton(
-                                onClick = { playerConnection.exitVideoMode() },
-                                modifier = Modifier.tvFocusable(isTvOrCar),
-                            ) {
-                                Icon(painterResource(R.drawable.music_note), null, tint = Color.White, modifier = Modifier.size(30.dp))
+                            // Owner 2026-10-20: no way back to «Canción» for a video whose song audio is refused.
+                            val lsSongBlockedIds by SongModeAvailability.blocked.collectAsState()
+                            if (mediaMetadata?.id?.let { it in lsSongBlockedIds } != true) {
+                                IconButton(
+                                    onClick = { playerConnection.exitVideoMode() },
+                                    modifier = Modifier.tvFocusable(isTvOrCar),
+                                ) {
+                                    Icon(painterResource(R.drawable.music_note), null, tint = Color.White, modifier = Modifier.size(30.dp))
+                                }
                             }
                         }
                     }

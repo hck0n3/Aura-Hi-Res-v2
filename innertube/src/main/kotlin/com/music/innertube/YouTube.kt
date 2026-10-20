@@ -1184,6 +1184,11 @@ object YouTube {
             innerTube.unlikeVideo(WEB_REMIX, videoId)
     }
 
+    /** Thumbs-down on a song for the signed-in account. See [InnerTube.dislikeVideo]. */
+    suspend fun dislikeVideo(videoId: String) = runCatching {
+        innerTube.dislikeVideo(WEB_REMIX, videoId)
+    }
+
     suspend fun likePlaylist(playlistId: String, like: Boolean) = runCatching {
         if (like)
             innerTube.likePlaylist(WEB_REMIX, playlistId)

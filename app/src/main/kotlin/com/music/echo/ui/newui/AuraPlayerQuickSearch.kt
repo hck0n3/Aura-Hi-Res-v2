@@ -134,12 +134,11 @@ fun AuraPlayerQuickSearchContent(
 
     // WIDE WINDOW (owner 2026-10-20, unfolded Z Fold): *«cuando yo toque la canción… no me aparezca otro flotante sino que
     // aproveche el otro espacio para mostrar las opciones, como una pantalla dividida»*. The card grows (see
-    // AuraSpotlightHost) and splits in two: the search stays on the left and the OTHER half shows what was tapped — its
-    // hero and its real menu (AuraSearchDetailPane), or, for an album / artist / playlist, its songs (QuickSearchBrowsePane)
-    // — with its own back stack. On a phone none of this runs: tapping still opens the floating menu, browsing still
-    // replaces the page.
+    // AuraSpotlightHost) and splits in two: the search stays on the left and the OTHER half is AuraSearchDetailPane — action
+    // tiles, the track list of an album / playlist, the whole artist page, with ITS OWN back stack (it handles drilling into
+    // a release itself). On a phone none of this runs: tapping still opens the floating menu, browsing still replaces the page.
     val wide = rememberAuraWideWindows()
-    var detailStack by remember { mutableStateOf<List<QuickDetail>>(emptyList()) }
+    var pickedInDetail by remember { mutableStateOf<AuraSearchPick?>(null) }
 
     val focusRequester = remember { FocusRequester() }
     // Defer IME/focus until after the frost sheet finishes expanding — focusing on the first
@@ -152,8 +151,8 @@ fun AuraPlayerQuickSearchContent(
     }
 
     fun popBrowse() {
-        if (wide && detailStack.isNotEmpty()) {
-            detailStack = detailStack.dropLast(1)
+        if (wide && pickedInDetail != null) {
+            pickedInDetail = null
         } else if (browseStack.size > 1) {
             browseStack = browseStack.dropLast(1)
         } else {
@@ -276,30 +275,12 @@ fun AuraPlayerQuickSearchContent(
         }
     }
 
-    // ── Wide: what the detail half is doing ───────────────────────────────────────────────────────
-    // The list row that is "open" is the ROOT of the stack (a song picked from the results); deeper entries are
-    // songs of an album that was opened in the half.
-    val selectedKey = (detailStack.firstOrNull() as? QuickDetail.Pick)?.pick?.key
-    val pickInDetail: (YTItem) -> Unit = { item ->
-        detailStack = listOf(QuickDetail.Pick(AuraSearchPick.Yt(item)))
-    }
-    val pickLocalInDetail: (AuraSearchPick) -> Unit = { pick ->
-        detailStack = listOf(QuickDetail.Pick(pick))
-    }
-    // From INSIDE the half (the songs of an album): push, so "back" returns to the album.
-    val pushDetailItem: (YTItem) -> Unit = { item ->
-        detailStack = detailStack + when (item) {
-            is SongItem -> QuickDetail.Pick(AuraSearchPick.Yt(item))
-            is AlbumItem -> QuickDetail.Browse(QuickSearchBrowse.Album(item.id, item.title))
-            is ArtistItem -> QuickDetail.Browse(QuickSearchBrowse.Artist(item.id, item.title))
-            is PlaylistItem -> QuickDetail.Browse(QuickSearchBrowse.Playlist(item.id, item.title))
-        }
-    }
-    // The «Abrir» button of an album / artist / playlist hero: browse it in the half instead of leaving the card.
-    val openInPane: (AuraSearchPick) -> Unit = { pick ->
-        val item = (pick as? AuraSearchPick.Yt)?.item
-        if (item != null && item !is SongItem) pushDetailItem(item)
-    }
+    // ── Wide: what the detail half is showing ─────────────────────────────────────────────────────
+    // The list row that is "open" is the picked result; everything deeper (an album of an artist, its tracks) lives in the
+    // pane's own back stack.
+    val selectedKey = pickedInDetail?.key
+    val pickInDetail: (YTItem) -> Unit = { item -> pickedInDetail = AuraSearchPick.Yt(item) }
+    val pickLocalInDetail: (AuraSearchPick) -> Unit = { pick -> pickedInDetail = pick }
 
     // The search itself: the field and the results / suggestions. On a phone it IS the page; in a wide window it is the left
     // half and its rows are the big ones (cover, type pill, artist, album, duration) that select instead of opening a menu.
@@ -454,27 +435,10 @@ fun AuraPlayerQuickSearchContent(
                         .then(hideKeyboardOnTouch),
                 ) {
                     AuraSearchDetailCard {
-                        when (val top = detailStack.lastOrNull()) {
-                            null -> AuraSearchDetailPlaceholder()
-                            is QuickDetail.Pick -> AuraSearchDetailPane(
-                                pick = top.pick,
-                                navController = navController,
-                                onOpen = openInPane,
-                            )
-                            is QuickDetail.Browse -> QuickSearchBrowsePane(
-                                dest = top.dest,
-                                isPlaying = isPlaying,
-                                mediaId = mediaMetadata?.id,
-                                albumId = mediaMetadata?.album?.id,
-                                hideVideoSongs = hideVideoSongs,
-                                wide = true,
-                                onBack = { popBrowse() },
-                                onSongClick = pushDetailItem,
-                                onSongLongClick = pushDetailItem,
-                                onItemClick = pushDetailItem,
-                                onItemMenu = pushDetailItem,
-                            )
-                        }
+                        AuraSearchDetailPane(
+                            pick = pickedInDetail,
+                            navController = navController,
+                        )
                     }
                 }
             }
@@ -519,12 +483,6 @@ fun AuraPlayerQuickSearchContent(
     }
 }
 
-/** What the right half of the wide quick search is showing; the stack is its own back history. */
-private sealed interface QuickDetail {
-    data class Pick(val pick: AuraSearchPick) : QuickDetail
-    data class Browse(val dest: QuickSearchBrowse) : QuickDetail
-}
-
 private sealed class QuickSearchBrowse {
     data object Search : QuickSearchBrowse()
     data class Artist(val id: String, val title: String) : QuickSearchBrowse()
@@ -545,8 +503,6 @@ private fun QuickSearchBrowsePane(
     onItemClick: (YTItem) -> Unit,
     onItemMenu: (YTItem) -> Unit,
     modifier: Modifier = Modifier,
-    /** Wide window: the big rows (cover, type pill, artist, album, duration) — an artist page mixes releases, songs and videos. */
-    wide: Boolean = false,
 ) {
     val title = when (dest) {
         is QuickSearchBrowse.Artist -> dest.title
@@ -659,26 +615,14 @@ private fun QuickSearchBrowsePane(
                             val longClick: () -> Unit = {
                                 if (item is SongItem) onSongLongClick(item) else onItemMenu(item)
                             }
-                            if (wide) {
-                                AuraYtWideRow(
-                                    item = item,
-                                    selected = false,
-                                    isActive = active,
-                                    isPlaying = isPlaying,
-                                    onClick = click,
-                                    onLongClick = longClick,
-                                    modifier = Modifier.padding(horizontal = AuraSpacing.Gutter - 8.dp),
-                                )
-                            } else {
-                                AuraYtItemRow(
-                                    item = item,
-                                    isActive = active,
-                                    isPlaying = isPlaying,
-                                    onClick = click,
-                                    onLongClick = longClick,
-                                    onMenuClick = { onItemMenu(item) },
-                                )
-                            }
+                            AuraYtItemRow(
+                                item = item,
+                                isActive = active,
+                                isPlaying = isPlaying,
+                                onClick = click,
+                                onLongClick = longClick,
+                                onMenuClick = { onItemMenu(item) },
+                            )
                         }
                     }
                     item(key = "qb_spacer", contentType = "qb_spacer") { Spacer(Modifier.height(24.dp)) }
