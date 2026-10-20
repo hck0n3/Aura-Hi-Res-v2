@@ -1042,9 +1042,22 @@ fun AuraSongRow(
     contentDescription: String? = title,
     /** Show the whole title (wrapping onto as many lines as it needs) instead of cutting it at one line. */
     fullTitle: Boolean = false,
+    /**
+     * Apple-style track list (álbum / playlist): the explicit «E» goes right after the title instead of in the
+     * trailing cluster, and on a wide pane the row spreads into columns (title | [subtitle] artist | [genre] |
+     * duration). Off = the classic row every other list keeps.
+     */
+    appleLayout: Boolean = false,
+    /** Wide columns only: genre of this song (null = unknown, the cell stays empty). */
+    genre: String? = null,
+    /** Wide columns only: the list has at least one known genre, so the genre cell is reserved on every row. */
+    showGenreColumn: Boolean = false,
 ) {
     val playedCheck = playedInShuffle && !isActive
     val dimmed = dimContent || playedCheck
+    val columnsLayout = appleLayout && rememberAuraTrackColumns()
+    val titleBadge: (@Composable () -> Unit)? =
+        if (appleLayout && explicit) ({ AuraExplicitBadge() }) else null
 
     val row: @Composable () -> Unit = {
         AuraRow(
@@ -1053,6 +1066,22 @@ fun AuraSongRow(
             highlighted = isActive,
             dimmed = dimmed,
             titleMaxLines = if (fullTitle) Int.MAX_VALUE else 1,
+            titleBadge = titleBadge,
+            columns = if (columnsLayout) {
+                { titleColor, subtitleColor ->
+                    AuraTrackColumns(
+                        title = title,
+                        titleColor = titleColor,
+                        subtitleColor = subtitleColor,
+                        titleMaxLines = if (fullTitle) Int.MAX_VALUE else 1,
+                        titleBadge = titleBadge,
+                        artist = subtitle,
+                        genre = genre,
+                        showGenreColumn = showGenreColumn,
+                        durationLabel = durationLabel,
+                    )
+                }
+            } else null,
             contentDescription = contentDescription,
             leading = leading,
             onClick = onClick,
@@ -1106,7 +1135,7 @@ fun AuraSongRow(
                             tint = AuraPalette.Teal,
                         )
                     }
-                    if (explicit) {
+                    if (explicit && !appleLayout) {
                         AuraTechnicalText(
                             text = "E",
                             color = AuraPalette.OnGroundDisabled,
@@ -1135,7 +1164,7 @@ fun AuraSongRow(
                     if (showQualityBadge) {
                         AuraQualityBadge(format = format)
                     }
-                    if (!durationLabel.isNullOrBlank()) {
+                    if (!durationLabel.isNullOrBlank() && !columnsLayout) {
                         AuraTechnicalText(
                             text = durationLabel,
                             color = AuraPalette.OnGroundFaint,
@@ -1330,15 +1359,37 @@ fun AuraAlbumTrackRow(
     onMenuClick: (() -> Unit)? = null,
     menuContentDescription: String = title,
     contentDescription: String? = title,
+    /** Wide columns only: genre of this song (null = unknown, the cell stays empty). */
+    genre: String? = null,
+    /** Wide columns only: the album has at least one known genre, so the genre cell is reserved on every row. */
+    showGenreColumn: Boolean = false,
 ) {
     val playedCheck = playedInShuffle && !isActive
     val durationLabel = auraAppleDurationLabel(durationSeconds)
+    val columnsLayout = rememberAuraTrackColumns()
+    val titleBadge: (@Composable () -> Unit)? = if (explicit) ({ AuraExplicitBadge() }) else null
     AuraRow(
         title = title,
         subtitle = subtitle,
         highlighted = isActive,
         dimmed = playedCheck,
         contentDescription = contentDescription,
+        titleBadge = titleBadge,
+        columns = if (columnsLayout) {
+            { titleColor, subtitleColor ->
+                AuraTrackColumns(
+                    title = title,
+                    titleColor = titleColor,
+                    subtitleColor = subtitleColor,
+                    titleMaxLines = 1,
+                    titleBadge = titleBadge,
+                    artist = subtitle,
+                    genre = genre,
+                    showGenreColumn = showGenreColumn,
+                    durationLabel = durationLabel,
+                )
+            }
+        } else null,
         onClick = onClick,
         onLongClick = onLongClick,
         leading = {
@@ -1372,13 +1423,6 @@ fun AuraAlbumTrackRow(
                         tint = AuraPalette.Teal,
                     )
                 }
-                if (explicit) {
-                    AuraTechnicalText(
-                        text = "E",
-                        color = AuraPalette.OnGroundDisabled,
-                        style = AuraType.QualityBadge,
-                    )
-                }
                 if (liked) {
                     AuraIconGlyph(
                         icon = AuraIcons.HeartFilled,
@@ -1390,7 +1434,7 @@ fun AuraAlbumTrackRow(
                 if (downloadId != null) {
                     AuraDownloadTick(songId = downloadId)
                 }
-                if (!durationLabel.isNullOrBlank()) {
+                if (!durationLabel.isNullOrBlank() && !columnsLayout) {
                     AuraTechnicalText(
                         text = durationLabel,
                         color = AuraPalette.OnGroundFaint,

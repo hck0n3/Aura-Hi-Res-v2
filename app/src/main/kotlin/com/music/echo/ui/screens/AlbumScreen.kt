@@ -1097,7 +1097,12 @@ fun AlbumScreen(
                                     type = "text/plain"
                                     putExtra(
                                         android.content.Intent.EXTRA_TEXT,
-                                        ShareLinks.playlist(albumWithSongs.album.playlistId)
+                                        ShareLinks.albumShareText(
+                                            albumWithSongs.album.playlistId,
+                                            albumWithSongs.album.id,
+                                            albumWithSongs.album.title,
+                                            albumWithSongs.artists.map { it.name },
+                                        )
                                     )
                                 }
                                 context.startActivity(

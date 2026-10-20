@@ -74,4 +74,18 @@ class MusicRequestCardGuardTest {
         val body = ui.substringAfter("private fun AuraMusicRequestSheetBody(").substringBefore("private fun AuraMusicRequestResultCard(")
         assertTrue("hay un botón para cancelar la búsqueda", body.contains("onClick = onCancel") && card.contains("onCancel = viewModel::reset"))
     }
+
+    @Test
+    fun `the sheet body scrolls inside a bounded height so the last rows are never cut off`() {
+        // Owner 2026-10-20: «cuando entrega resultados y se expande, las letras de la parte de abajo no se ven por completo».
+        // The body was a plain Column in a window that clips to its maximum height: the suggestions, «Pedir de nuevo» and
+        // sometimes «Guardar como lista» fell outside it with no way to reach them.
+        val ui = main("ui/newui/AuraMusicRequest.kt")
+        val body = ui.substringAfter("private fun AuraMusicRequestSheetBody(").substringBefore("private fun AuraMusicRequestResultCard(")
+        val column = body.substringAfter("    Column(\n        modifier = Modifier\n            .fillMaxWidth()").substringBefore("verticalArrangement = Arrangement.spacedBy(14.dp)")
+        assertTrue("el cuerpo tiene un tope de alto", column.contains(".heightIn(max = maxBodyHeight)"))
+        assertTrue("y se desplaza por dentro", column.contains(".verticalScroll(rememberScrollState())"))
+        assertTrue("el tope va ANTES del desplazamiento (sin él, verticalScroll con alto infinito se rompe)", column.indexOf(".heightIn(") < column.indexOf(".verticalScroll("))
+        assertTrue("el relleno de abajo va dentro del desplazamiento", column.indexOf(".verticalScroll(") < column.indexOf(".padding(bottom = 24.dp)"))
+    }
 }

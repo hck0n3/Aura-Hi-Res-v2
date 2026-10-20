@@ -233,6 +233,12 @@ fun AuraAlbumScreen(
     val albumShuffleContextId = albumWithSongs?.let { ShuffleContexts.album(it.album.id) }
     val albumPlayedSet = rememberPlayedShuffleSet(albumShuffleContextId)
 
+    // Wide pane only: the genre column. The genre is the ARTIST's (on-device GenreCache), never guessed.
+    val trackGenres = rememberAuraTrackGenres()
+    val showGenreColumn = remember(trackGenres, filteredSongs) {
+        trackGenres.anyKnown(filteredSongs) { song -> song.artists.map { it.name } }
+    }
+
     var inSelectMode by rememberSaveable { mutableStateOf(false) }
     val selection = rememberSaveable(
         saver = listSaver<MutableList<String>, String>(
@@ -432,10 +438,11 @@ fun AuraAlbumScreen(
                                     fallbackIndex = index,
                                 ),
                                 title = song.song.title,
-                                subtitle = auraAppleAlbumSubtitle(
-                                    songArtists = song.artists.joinToString { it.name },
-                                    albumArtists = album.artists.joinToString { it.name },
-                                ),
+                                // The artist is under EVERY title now (owner: «quién la canta», as Apple Music);
+                                // auraAppleAlbumSubtitle's «omit when it matches the album» no longer applies.
+                                subtitle = song.artists.joinToString { it.name }.takeIf { it.isNotBlank() },
+                                genre = trackGenres.of(song.artists.map { it.name }),
+                                showGenreColumn = showGenreColumn,
                                 isActive = song.id == mediaMetadata?.id,
                                 isPlaying = isPlaying,
                                 liked = song.song.liked,
@@ -684,7 +691,12 @@ fun AuraAlbumScreen(
                                     type = "text/plain"
                                     putExtra(
                                         android.content.Intent.EXTRA_TEXT,
-                                        ShareLinks.playlist(album.album.playlistId),
+                                        ShareLinks.albumShareText(
+                                            album.album.playlistId,
+                                            album.album.id,
+                                            album.album.title,
+                                            album.artists.map { it.name },
+                                        ),
                                     )
                                 }
                             context.startActivity(
@@ -1010,10 +1022,8 @@ private fun AuraAlbumHeader(
             modifier = Modifier.padding(top = 8.dp),
         ) {
             if (album.album.explicit) {
-                AuraTechnicalText(
-                    text = stringResource(R.string.explicit).uppercase(Locale.ROOT),
-                    color = AuraPalette.OnGroundDisabled,
-                )
+                // Same «E» badge as the rows (Apple); the tick of the whole-album download follows it.
+                AuraExplicitBadge()
             }
             // The whole-album download state. Real data: the same DownloadUtil flow every row's tick
             // reads. The classic screen computes this value and never draws it.

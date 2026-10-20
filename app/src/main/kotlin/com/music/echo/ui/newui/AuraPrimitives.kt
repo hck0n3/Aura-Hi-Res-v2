@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,6 +40,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.onClick as semanticsOnClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -166,6 +172,13 @@ fun AuraIconButton(
      * visible under them (owner 2026-10-15, the Cast button).
      */
     interactive: Boolean = true,
+    /**
+     * true = the tap fires on LIFT inside the button no matter how the thumb rolled and no matter who else wants the
+     * gesture (see [auraFirstTap]). For the transport buttons that sit inside the sheet's drag and the pill's swipe,
+     * where a plain `clickable` is cancelled by the slightest finger movement («play/pausa hay que tocarlo varias
+     * veces»). Off by default: it takes the gesture from scrollable ancestors, which a button in a list must not do.
+     */
+    firstTap: Boolean = false,
 ) {
     Box(
         modifier = modifier
@@ -174,11 +187,21 @@ fun AuraIconButton(
                 minHeight = AuraSpacing.MinTouchTarget,
             )
             .clip(CircleShape)
-            .auraClickable(
-                onClick = onClick,
-                enabled = enabled && interactive,
-                role = Role.Button,
-                contentDescription = contentDescription,
+            .then(
+                if (firstTap) {
+                    Modifier.auraFirstTap(
+                        action = onClick,
+                        enabled = enabled && interactive,
+                        contentDescription = contentDescription,
+                    )
+                } else {
+                    Modifier.auraClickable(
+                        onClick = onClick,
+                        enabled = enabled && interactive,
+                        role = Role.Button,
+                        contentDescription = contentDescription,
+                    )
+                },
             ),
         contentAlignment = Alignment.Center,
     ) {
@@ -210,13 +233,21 @@ fun AuraPlayButton(
     contentDescription: String = if (isPlaying) "Pausar" else "Reproducir",
     fill: Brush = AuraPalette.PlayButtonGradient,
     ink: Color = AuraPalette.OnAccent,
+    /** See [AuraIconButton.firstTap]. */
+    firstTap: Boolean = false,
 ) {
     Box(
         modifier = modifier
             .size(diameter)
             .clip(CircleShape)
             .background(fill)
-            .auraClickable(onClick = onClick, role = Role.Button, contentDescription = contentDescription),
+            .then(
+                if (firstTap) {
+                    Modifier.auraFirstTap(action = onClick, enabled = true, contentDescription = contentDescription)
+                } else {
+                    Modifier.auraClickable(onClick = onClick, role = Role.Button, contentDescription = contentDescription)
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -325,6 +356,15 @@ fun AuraRow(
     trailing: (@Composable () -> Unit)? = null,
     /** Lines the title may use before it is cut with an ellipsis. Lists pass [Int.MAX_VALUE] to show the whole name. */
     titleMaxLines: Int = 1,
+    /** Small mark drawn right after the title (the Apple-style «E» of an explicit song). Null = none. */
+    titleBadge: (@Composable () -> Unit)? = null,
+    /**
+     * Replaces the stacked title / subtitle block with the caller's own columns (the wide track lists:
+     * title | artist | genre | duration). They are direct children of this row, so they can use
+     * `Modifier.weight`; the row keeps its clicks, leading, artwork and trailing slots. Receives the two
+     * animated text colours so the active / played tint still applies.
+     */
+    columns: (@Composable RowScope.(titleColor: Color, subtitleColor: Color) -> Unit)? = null,
 ) {
     val titleColor by animateColorAsState(
         targetValue = when {
@@ -362,22 +402,42 @@ fun AuraRow(
     ) {
         leading?.invoke()
         artwork?.invoke()
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = AuraType.RowTitle,
-                color = titleColor,
-                maxLines = titleMaxLines,
-                overflow = AuraDefaultOverflow,
-            )
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = AuraType.RowSubtitle,
-                    color = subtitleColor,
-                    maxLines = 1,
-                    overflow = AuraDefaultOverflow,
-                )
+        if (columns != null) {
+            columns(titleColor, subtitleColor)
+        } else {
+            Column(Modifier.weight(1f)) {
+                if (titleBadge == null) {
+                    Text(
+                        text = title,
+                        style = AuraType.RowTitle,
+                        color = titleColor,
+                        maxLines = titleMaxLines,
+                        overflow = AuraDefaultOverflow,
+                    )
+                } else {
+                    // The badge sits outside the text so a long title is ellipsised BEFORE it, never over it.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = title,
+                            style = AuraType.RowTitle,
+                            color = titleColor,
+                            maxLines = titleMaxLines,
+                            overflow = AuraDefaultOverflow,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        titleBadge()
+                    }
+                }
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = AuraType.RowSubtitle,
+                        color = subtitleColor,
+                        maxLines = 1,
+                        overflow = AuraDefaultOverflow,
+                    )
+                }
             }
         }
         trailing?.invoke()
@@ -663,3 +723,37 @@ private fun Modifier.auraClickable(
     role = role,
     onClick = onClick,
 )
+
+/**
+ * 🔴 EL TOQUE DE LOS BOTONES DE TRANSPORTE (dueño, 2026-10-20, beta4: «le doy play y va bien, pero para pausar toco
+ * y toco y no hace nada hasta varias veces»).
+ *
+ * Play/pausa, anterior y siguiente viven DENTRO de dos detectores de arrastre (la hoja del reproductor y el deslizar
+ * de la píldora), y el parche de las filas 372/396 les puso `shieldTapsFromAncestorDrags` encima. Ese escudo consume
+ * cada evento en la pasada Main DESPUÉS de que el `clickable` del botón lo viera, y `clickable` (a través de
+ * `waitForUpOrCancellation`) mira la pasada Final de cada evento intermedio: si alguien lo consumió, cancela. Un pulgar
+ * real genera algún MOVE entre el DOWN y el UP aunque no se mueva (presión/área), así que el toque se cancelaba
+ * a ratos — el síntoma de «varias veces». Es la misma causa que ya obligó a pasar el botón de Cast a [unstealableClick].
+ *
+ * Aquí el botón se queda el gesto en la pasada Initial y dispara al levantar el dedo dentro de él. Hay UN solo camino de
+ * disparo (el gesto); el `clickable` no se monta, porque aquí un doble disparo de un conmutador play/pausa se
+ * cancelaría a sí mismo. TalkBack invoca la acción semántica, que llama a lo mismo.
+ */
+private fun Modifier.auraFirstTap(
+    action: () -> Unit,
+    enabled: Boolean,
+    contentDescription: String,
+): Modifier = this
+    .semantics {
+        role = Role.Button
+        this.contentDescription = contentDescription
+        if (enabled) {
+            semanticsOnClick(label = contentDescription) {
+                action()
+                true
+            }
+        } else {
+            disabled()
+        }
+    }
+    .then(if (enabled) Modifier.unstealableClick(action) else Modifier)

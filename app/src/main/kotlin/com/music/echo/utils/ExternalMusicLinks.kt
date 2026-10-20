@@ -87,6 +87,27 @@ object ExternalMusicLinks {
         return segments[1].takeIf { id -> id.isNotBlank() && id.all { it.isLetterOrDigit() || it == '-' || it == '_' } }
     }
 
+    private val SONG_LINK_WRAP_PREFIX = Regex("^https?://(?:www\\.)?(?:song\\.link|album\\.link|odesli\\.co)/(.+)$", RegexOption.IGNORE_CASE)
+    private val YOUTUBE_MUSIC_URL = Regex("^https?://(?:music|www|m)\\.youtube\\.com/.+$", RegexOption.IGNORE_CASE)
+
+    /**
+     * `song.link/<https://music.youtube.com/…>` — the wrapper [ShareLinks.viaSongLink] puts around an
+     * artist, playlist or album. The inner YouTube Music URL is what Aura already routes natively (artist,
+     * album, playlist screens), so a share from another Aura opens exactly that item with no network
+     * round-trip, instead of going through the scraping resolver. Null for anything else (`/y/<id>`, Odesli
+     * page ids, wrapped Spotify/Apple URLs…), which keep their existing routes.
+     */
+    fun songLinkWrappedYouTubeUrl(url: String): String? {
+        val rest = SONG_LINK_WRAP_PREFIX.find(url.trim())?.groupValues?.get(1) ?: return null
+        // Some apps percent-encode the whole inner URL when they re-share it.
+        val inner = if (rest.startsWith("http%3A", ignoreCase = true) || rest.startsWith("https%3A", ignoreCase = true)) {
+            runCatching { java.net.URLDecoder.decode(rest, "UTF-8") }.getOrNull() ?: return null
+        } else {
+            rest
+        }
+        return inner.takeIf { YOUTUBE_MUSIC_URL.matches(it) }
+    }
+
     /**
      * Ronda 9 (dueño, reporte repetido de "no encontrado" sin ningún dato para rastrear la causa):
      * traza cada intento de resolver un link externo — plataforma, qué rama corrió y en qué se

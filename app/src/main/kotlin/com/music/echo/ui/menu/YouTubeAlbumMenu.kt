@@ -364,8 +364,9 @@ fun YouTubeAlbumMenu(
                             // Prefer the resolved album's playlistId (from the DB fetch) when the passed-in
                             // AlbumItem has none (e.g. the Release Radar shelf), so the share URL isn't broken.
                             val pid = albumItem.playlistId.ifBlank { album?.album?.playlistId.orEmpty() }
-                            val shareText = if (pid.isNotBlank())
-                                "https://music.youtube.com/playlist?list=$pid" else albumItem.shareLink
+                            val shareText = iad1tya.echo.music.utils.ShareLinks.albumShareText(
+                                pid, albumItem.browseId, albumItem.title, albumItem.artists.orEmpty().map { it.name },
+                            )
                             val intent = Intent().apply {
                                 action = Intent.ACTION_SEND
                                 type = "text/plain"

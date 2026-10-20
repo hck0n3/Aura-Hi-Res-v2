@@ -249,6 +249,16 @@
     <string name="novedades_daily_top">Top diario</string>
     <string name="novedades_everyones_listening">Lo que todos escuchan</string>
     <string name="novedades_coming_soon">Próximamente</string>
+    <string name="novedades_see_all">Ver todo</string>
+    <string name="novedades_see_less">Ver menos</string>
+    <string name="novedades_this_month">Este mes</string>
+    <string name="novedades_filter_singles">Sencillos y EP</string>
+    <string name="novedades_type_album">Álbum</string>
+    <string name="novedades_type_single">Sencillo</string>
+    <string name="novedades_type_ep">EP</string>
+    <string name="novedades_new_label">Nuevo</string>
+    <string name="novedades_more_releases">Más estrenos</string>
+    <string name="novedades_empty_hint">Aquí aparecerán los estrenos de tus artistas.</string>
     <string name="library_recently_added">Recién añadido</string>
     <string name="search_top_results">Resultados principales</string>
     <string name="action_presave">Presave</string>

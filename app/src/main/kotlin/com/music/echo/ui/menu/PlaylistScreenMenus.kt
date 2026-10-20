@@ -399,7 +399,7 @@ fun LocalPlaylistMenu(
                 },
                 onClick = {
                     val shareText = if (isYouTubePlaylist) {
-                        ShareLinks.playlist(playlist.playlist.browseId)
+                        ShareLinks.playlistShareText(playlist.playlist.browseId, playlist.playlist.name)
                     } else {
                         songs.joinToString("\n") { it.song.song.title }
                     }

@@ -55,10 +55,11 @@ class AuraHomeLayoutTest {
     }
 
     @Test
-    fun `quick access is two columns on a phone and one row of four on a wide pane`() {
+    fun `quick access is two columns on a phone and an unfolded foldable, and one row of four only on a really wide pane`() {
         assertEquals(2, auraQuickAccessColumns(360.dp - 42.dp))
         assertEquals(2, auraQuickAccessColumns(430.dp - 42.dp))
-        assertEquals(4, auraQuickAccessColumns(841.dp - 42.dp))
+        assertEquals(2, auraQuickAccessColumns(841.dp - 42.dp))
+        assertEquals(4, auraQuickAccessColumns(1000.dp - 42.dp))
         assertEquals(4, auraQuickAccessColumns(1100.dp))
     }
 
@@ -135,15 +136,23 @@ class AuraHomeLayoutTest {
     }
 
     @Test
-    fun `Pedir musica is drawn with the tiles' material and sits right above them, before the mood chips`() {
+    fun `Pedir musica and the four tiles are drawn by ONE piece and Pedir musica sits right above them, before the mood chips`() {
         val layout = main("ui/newui/AuraHomeLayout.kt")
-        val invite = layout.substringAfter("internal fun AuraHomeInviteCard(").substringBefore("internal fun AuraQuickAccess(")
+        val invite = layout.substringAfter("internal fun AuraHomeInviteCard(").substringBefore("private fun AuraBlockCard(")
         val tile = layout.substringAfter("private fun AuraQuickTileCard(")
-        for (piece in listOf(".background(AuraPalette.SurfaceFill)", "AuraShapes.Card", "AuraPalette.PlayButtonGradient", "tvFocusable(")) {
-            assertTrue("la tarjeta de Pedir música usa $piece como las baldosas", invite.contains(piece))
-            assertTrue("las baldosas usan $piece", tile.contains(piece))
+        // Same construction: neither draws its own plate/block, both go through AuraBlockCard (so they cannot drift apart).
+        assertTrue("Pedir música usa la pieza compartida", invite.contains("AuraBlockCard("))
+        assertTrue("las baldosas usan la pieza compartida", tile.contains("AuraBlockCard("))
+        assertFalse(invite.contains(".background("))
+        assertFalse(tile.contains(".background("))
+        val block = layout.substringAfter("private fun AuraBlockCard(").substringBefore("private fun AuraQuickTileCard(").substringBefore("internal fun AuraQuickAccess(")
+        for (piece in listOf(".background(AuraPalette.SurfaceFill)", "AuraShapes.Card", "AuraPalette.PlayButtonGradient", "tvFocusable(", "AuraPalette.SurfaceLine")) {
+            assertTrue("la pieza compartida usa $piece", block.contains(piece))
         }
-        assertTrue("el botón principal lleva el mismo borde que las baldosas", invite.contains("AuraPalette.SurfaceLine") && !invite.contains("Teal.copy"))
+        // The owner's design (screenshot of 2026-10-20): the gradient block fills the card's WHOLE height, with no rounded inner square.
+        assertTrue("el bloque de degradado ocupa toda la altura de la tarjeta", block.contains(".size(AURA_QUICK_TILE_HEIGHT)") && block.contains(".background(AuraPalette.PlayButtonGradient)"))
+        assertFalse("sin cuadrito redondeado dentro de la baldosa", block.contains("RoundedCornerShape("))
+        assertTrue("el botón principal no lleva un borde de acento", !invite.contains("Teal.copy"))
         // The entrance keeps its action: it opens the sheet, shows the spinner while it works and speaks its label.
         val request = main("ui/newui/AuraMusicRequest.kt").substringAfter("fun AuraMusicRequestCard(").substringBefore("if (sheetOpen)")
         assertTrue(request.contains("AuraHomeInviteCard("))
@@ -161,12 +170,13 @@ class AuraHomeLayoutTest {
     @Test
     fun `the four tiles are equal horizontal cards with a fixed height and the whole name on two lines`() {
         val layout = main("ui/newui/AuraHomeLayout.kt")
+        val block = layout.substringAfter("private fun AuraBlockCard(").substringBefore("private fun AuraQuickTileCard(").substringBefore("internal fun AuraQuickAccess(")
         val tile = layout.substringAfter("private fun AuraQuickTileCard(")
-        assertTrue(tile.contains(".height(AURA_QUICK_TILE_HEIGHT)"))
-        assertTrue("el nombre completo en dos líneas", tile.contains("maxLines = 2"))
+        assertTrue(block.contains(".height(AURA_QUICK_TILE_HEIGHT)"))
+        assertTrue("el nombre completo en dos líneas", tile.contains("titleMaxLines = 2"))
         assertTrue(layout.substringAfter("internal fun AuraQuickAccess(").contains("modifier = Modifier.weight(1f)"))
         assertTrue("sobran huecos con un Spacer para que la última fila conserve el ancho", layout.contains("repeat(columns - rowTiles.size)"))
-        assertTrue("baldosa horizontal: el icono a la izquierda, nombre y cuenta al lado", AURA_QUICK_TILE_HEIGHT.value in 64f..84f && tile.contains("Row("))
-        assertTrue("el botón principal ocupa todo el ancho y es algo más alto que una baldosa", AURA_INVITE_CARD_HEIGHT.value >= AURA_QUICK_TILE_HEIGHT.value)
+        assertTrue("baldosa horizontal: el bloque a la izquierda, nombre y cuenta al lado", AURA_QUICK_TILE_HEIGHT.value in 64f..84f && block.contains("Row("))
+        assertEquals("Pedir música tiene el mismo alto que una baldosa", AURA_QUICK_TILE_HEIGHT, AURA_INVITE_CARD_HEIGHT)
     }
 }

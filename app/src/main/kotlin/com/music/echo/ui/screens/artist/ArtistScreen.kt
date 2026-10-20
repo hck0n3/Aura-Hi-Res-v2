@@ -1308,8 +1308,10 @@ fun ArtistScreen(
             IconButton(
                 onClick = {
                     val artistId = viewModel.artistPage?.artist?.id ?: viewModel.artistId
-                    val link = viewModel.artistPage?.artist?.shareLink
-                        ?: iad1tya.echo.music.utils.ShareLinks.channel(artistId)
+                    val link = iad1tya.echo.music.utils.ShareLinks.artistShareText(
+                        artistId,
+                        viewModel.artistPage?.artist?.title,
+                    )
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, link)

@@ -57,4 +57,17 @@ class PlayerSheetFluidityGuardTest {
         assertTrue(frame.contains("drawPath(frame, ground, alpha = a)"))
         assertTrue("el progreso se lee al dibujar", frame.substringAfter("onDrawBehind {").contains("progress()"))
     }
+
+    @Test
+    fun `in the split pane the player ground is clipped to the card so it cannot tint the strip above it`() {
+        // Owner 2026-10-20: a glint at the top while the mini player expands / minimizes on the unfolded Fold. The ground
+        // fills the whole pane and fades in faster than AuraSplitCardsFrame covers the status-bar strip.
+        val player = main("ui/newui/AuraPlayer.kt")
+        val background = player.substringAfter("    BottomSheet(\n        state = state,").substringBefore("intensity = rhythmIntensity")
+        assertTrue(background.contains("AuraSplitPaneCardShape("))
+        assertTrue("solo en el panel dividido", background.contains("widePlayerMode.split"))
+        val chrome = main("ui/newui/AuraWideChrome.kt")
+        assertTrue("la forma sale de las mismas tarjetas que el marco", chrome.substringAfter("class AuraSplitPaneCardShape").contains("auraSplitCardRects("))
+        assertTrue(main("MainActivity.kt").contains("cardTopInset = splitTopInset"))
+    }
 }

@@ -383,6 +383,16 @@
     <string name="novedades_daily_top">Daily top</string>
     <string name="novedades_everyones_listening">Everyone’s listening to</string>
     <string name="novedades_coming_soon">Coming soon</string>
+    <string name="novedades_see_all">See all</string>
+    <string name="novedades_see_less">See less</string>
+    <string name="novedades_this_month">This month</string>
+    <string name="novedades_filter_singles">Singles &amp; EPs</string>
+    <string name="novedades_type_album">Album</string>
+    <string name="novedades_type_single">Single</string>
+    <string name="novedades_type_ep">EP</string>
+    <string name="novedades_new_label">New</string>
+    <string name="novedades_more_releases">More new releases</string>
+    <string name="novedades_empty_hint">Releases from your artists will show up here.</string>
     <string name="library_recently_added">Recently added</string>
     <string name="search_top_results">Top results</string>
     <string name="action_presave">Presave</string>

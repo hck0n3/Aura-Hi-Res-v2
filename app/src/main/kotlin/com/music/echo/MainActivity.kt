@@ -1154,12 +1154,14 @@ class MainActivity : ComponentActivity() {
                         AuraWideNavGap - iad1tya.echo.music.ui.newui.AuraFloatingInset * 2
                 }
                 val miniCompact = miniPillWidth < 460.dp
-                val widePlayerMode = remember(auraWideBottom, widePlayerSplit, miniCompact) {
+                val widePlayerMode = remember(auraWideBottom, widePlayerSplit, miniCompact, splitTopInset, bottomInset) {
                     if (auraWideBottom) {
                         AuraWidePlayerMode(
                             split = widePlayerSplit,
                             onToggle = { setWidePlayerSplit(!widePlayerSplit) },
                             miniCompact = miniCompact,
+                            cardTopInset = splitTopInset,
+                            cardBottomInset = bottomInset,
                         )
                     } else {
                         null
@@ -1173,16 +1175,13 @@ class MainActivity : ComponentActivity() {
                 // Shuffle FAB removed from the floating toolbar (0.6.92) — only the recognition mic FAB
                 // is surfaced there now, so the shuffle click handler is no longer wired.
 
-                val onMusicRecognitionClick: (() -> Unit) = remember(navController, playerBottomSheetState) {
+                val onMusicRecognitionClick: (() -> Unit) = remember {
                     {
-                        if (playerBottomSheetState.isExpanded) {
-                            playerBottomSheetState.collapseSoft()
-                        }
-                        // In-app tap starts recognizing immediately (autoStart) — the screen requests the
-                        // mic permission if missing, then begins listening, so no idle second tap is needed.
-                        navController.navigate("recognition?autoStart=true") {
-                            launchSingleTop = true
-                        }
+                        // Recognition is a FLOATING WINDOW now (owner 2026-10-20), not a route: it opens over whatever is
+                        // showing — the expanded player included, so the sheet is no longer collapsed first. In-app tap
+                        // starts recognizing immediately (autoStart) — the window requests the mic permission if
+                        // missing, then begins listening, so no idle second tap is needed.
+                        iad1tya.echo.music.ui.screens.recognition.RecognitionWindowState.open(autoStart = true)
                     }
                 }
 
@@ -2432,12 +2431,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
-                            val onRailSearchLongClick: () -> Unit = remember(navController) {
+                            val onRailSearchLongClick: () -> Unit = remember {
                                 {
-                                    // In-app entry (nav-rail search long-press): auto-start recognizing.
-                                    navController.navigate("recognition?autoStart=true") {
-                                        launchSingleTop = true
-                                    }
+                                    // In-app entry (nav-rail search long-press): auto-start recognizing (floating window).
+                                    iad1tya.echo.music.ui.screens.recognition.RecognitionWindowState.open(autoStart = true)
                                 }
                             }
 
@@ -2734,6 +2731,10 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // The music recognizer (Shazam-style) as a floating window, over whatever is showing. Its own host
+                    // reads the open/close switch, so this composition does not recompose when it opens.
+                    iad1tya.echo.music.ui.screens.recognition.RecognitionWindowHost(navController)
+
                     if (showSettingDialoge) {
                         SettingDialoge(
                             onDismissRequest = { showSettingDialoge = false },
@@ -2996,19 +2997,21 @@ class MainActivity : ComponentActivity() {
                 }
                 return
             }
-            runCatching {
-                navController.navigate(if (autoStart) "recognition?autoStart=true" else "recognition") {
-                    launchSingleTop = true
-                }
-            }
+            // The recognizer is a floating window composed by RecognitionWindowHost: opening it is a state change,
+            // not a navigation (the old "recognition" route remains only as a redirect to this same call).
+            iad1tya.echo.music.ui.screens.recognition.RecognitionWindowState.open(autoStart)
             return
         }
-        val uri = intent.data ?: run {
+        val uri = (intent.data ?: run {
             val sharedText = intent.extras?.getString(Intent.EXTRA_TEXT) ?: return
             // Extract first http(s) URL from shared text (message may contain extra text around the URL)
             val urlRegex = Regex("""https?://\S+""")
             val extracted = urlRegex.find(sharedText)?.value ?: return
             extracted.toUri()
+        }).let { opened ->
+            // song.link/<music.youtube.com/…>: what Aura shares for artists, playlists and albums.
+            // Unwrap to the inner YouTube Music URL so the routing below opens the item natively.
+            iad1tya.echo.music.utils.ExternalMusicLinks.songLinkWrappedYouTubeUrl(opened.toString())?.toUri() ?: opened
         }
         intent.data = null
         intent.removeExtra(Intent.EXTRA_TEXT)

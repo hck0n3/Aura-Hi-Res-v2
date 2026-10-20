@@ -740,7 +740,7 @@ fun PlaylistMenu(
                             val intent = Intent().apply {
                                 action = Intent.ACTION_SEND
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, ShareLinks.playlist(dbPlaylist?.playlist?.browseId))
+                                putExtra(Intent.EXTRA_TEXT, ShareLinks.playlistShareText(dbPlaylist?.playlist?.browseId, dbPlaylist?.playlist?.name))
                             }
                             context.startActivity(Intent.createChooser(intent, null))
                         }

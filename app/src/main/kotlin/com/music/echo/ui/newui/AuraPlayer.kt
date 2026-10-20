@@ -905,7 +905,19 @@ private fun AuraPlayerShape(
     BottomSheet(
         state = state,
         modifier = modifier,
-        background = { AuraGroundLayer(ground, intensity = rhythmIntensity) },
+        background = {
+            AuraGroundLayer(
+                ground,
+                // Split pane: the ground stays inside the player's CARD. Left full-pane it tinted the status-bar strip
+                // above the card while the frame was still translucent — the flash at the top of the flip (owner 2026-10-20).
+                modifier = if (widePlayerMode != null && widePlayerMode.split) {
+                    Modifier.clip(AuraSplitPaneCardShape(widePlayerMode.cardTopInset, widePlayerMode.cardBottomInset))
+                } else {
+                    Modifier
+                },
+                intensity = rhythmIntensity,
+            )
+        },
         // DESTRUCTIVE GESTURE, PRESERVED VERBATIM: dragging the sheet below the dismiss threshold stops
         // playback and wipes the queue + automix. Identical to the classic player (Player.kt:1550).
         onDismiss = {

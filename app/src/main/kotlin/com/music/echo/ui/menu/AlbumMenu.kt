@@ -416,7 +416,7 @@ fun AlbumMenu(
                             val intent = Intent().apply {
                                 action = Intent.ACTION_SEND
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, ShareLinks.playlist(album.album.playlistId))
+                                putExtra(Intent.EXTRA_TEXT, ShareLinks.albumShareText(album.album.playlistId, album.album.id, album.album.title, album.artists.map { it.name }))
                             }
                             context.startActivity(Intent.createChooser(intent, null))
                         }

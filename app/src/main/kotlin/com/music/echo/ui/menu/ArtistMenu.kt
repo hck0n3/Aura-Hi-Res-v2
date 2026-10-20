@@ -204,7 +204,7 @@ fun ArtistMenu(
                                         type = "text/plain"
                                         putExtra(
                                             Intent.EXTRA_TEXT,
-                                            ShareLinks.channel(artist.id)
+                                            ShareLinks.artistShareText(artist.id, artist.artist.name)
                                         )
                                     }
                                     context.startActivity(Intent.createChooser(intent, null))

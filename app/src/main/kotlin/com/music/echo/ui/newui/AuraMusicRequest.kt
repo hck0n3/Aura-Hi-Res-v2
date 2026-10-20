@@ -45,6 +45,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -146,10 +147,10 @@ fun AuraMusicRequestCard(
     // Fila 361: the fill now goes straight to the service (MusicRequestFill), so it also arrives when
     // Inicio is no longer on screen — nothing to collect here any more.
 
-    // La entrada de «Pedir música» comparte material con las baldosas de acceso rápido (dueño, 2026-10-19: «el botón de
-    // pedir música quiero que se vea como los otros cuatro botones»): mismo relleno, borde y esquinas, mismo cuadro de
-    // icono con el degradado del botón de play. Se distingue por su tamaño y por el borde del acento, no por otro material.
-    // Ver [AuraHomeInviteCard].
+    // La entrada de «Pedir música» ES una baldosa de acceso rápido que ocupa la fila (dueño, 2026-10-20: «el estilo de estos
+    // botones los quiero de nuevo… y ese mismo estilo para el botón de pedir música»): se dibuja con la misma pieza
+    // (`AuraBlockCard`): mismo relleno, borde, esquinas, alto, tipografía y el mismo bloque a toda altura con el degradado del
+    // botón de play, con la chispa dentro. Ver [AuraHomeInviteCard].
     AuraHomeInviteCard(
         title = stringResource(R.string.music_request_label),
         subtitle = stringResource(R.string.music_request_card_subtitle),
@@ -162,7 +163,7 @@ fun AuraMusicRequestCard(
             painter = painterResource(R.drawable.auto_awesome),
             contentDescription = null,
             tint = AuraPalette.OnAccent,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(AURA_QUICK_TILE_GLYPH),
         )
     }
 
@@ -304,9 +305,21 @@ private fun AuraMusicRequestSheetBody(
         },
     )
 
+    // LA HOJA SE DESPLAZA (dueño, 2026-10-20: «cuando entrega resultados y se expande, las letras de la parte de abajo no se
+    // ven por completo»). Esta columna no tenía desplazamiento: con un resultado se apilan el campo, la tarjeta (portadas,
+    // tres filas o TODA la lista desplegada, «Guardar como lista»), el filtro, «Pedir de nuevo» y las sugerencias, y en
+    // «Grande» o desplegada eso pasa del alto de la ventana (móvil, y en ancho el tope es el 80 %). La ventana flotante mide
+    // a su contenido pero lo recorta a su máximo, así que lo último —las sugerencias, «Pedir de nuevo», a veces el botón de
+    // guardar— quedaba cortado sin forma de llegar. Ahora el cuerpo tiene un tope (el de la ventana, nunca por debajo de la
+    // barra de estado) y se desplaza por dentro; el relleno de abajo va DENTRO del desplazamiento, así que la última fila
+    // se puede subir por encima del borde. El tope también es lo que hace seguro `verticalScroll` aquí: sin él, una
+    // restricción de alto infinita lo rompería.
+    val maxBodyHeight = (LocalConfiguration.current.screenHeightDp * MUSIC_REQUEST_BODY_MAX_HEIGHT_FRACTION).dp
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(max = maxBodyHeight)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -1082,6 +1095,13 @@ private fun musicRequestSuggestions(currentArtist: String?): List<MusicRequestSu
     ).shuffled().take(6).map { MusicRequestSuggestion(it) }
     return personal + pool
 }
+
+/**
+ * How much of the window's height the body of the sheet may take before it scrolls. Below 1 so the sheet never reaches under the
+ * status bar; the wide card is capped at 0.80 by its own host ([AuraWideWindowMaxHeightFraction]), and the body takes whatever
+ * that leaves after the card's top margin (the column hands each child the room the previous ones left).
+ */
+private const val MUSIC_REQUEST_BODY_MAX_HEIGHT_FRACTION = 0.9f
 
 /** Silence after the last recognised phrase before a dictated request is sent (the dialog also has «OK»). */
 internal const val MUSIC_REQUEST_DICTATION_SETTLE_MS = 2_500L

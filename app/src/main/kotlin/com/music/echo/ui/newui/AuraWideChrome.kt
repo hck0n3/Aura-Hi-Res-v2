@@ -10,9 +10,14 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
 /**
@@ -51,6 +56,12 @@ class AuraWidePlayerMode(
      * «salida de audio» y play/pausa, y anterior/siguiente quedan en el reproductor y en el deslizamiento.
      */
     val miniCompact: Boolean = false,
+    /**
+     * Insets the two cards are drawn with (status bar / navigation bar), so the player can clip ITS ground to the
+     * same card the frame cuts out — see [AuraSplitPaneCardShape]. Only meaningful when [split].
+     */
+    val cardTopInset: Dp = 0.dp,
+    val cardBottomInset: Dp = 0.dp,
 )
 
 val LocalAuraWidePlayerMode = staticCompositionLocalOf<AuraWidePlayerMode?> { null }
@@ -140,6 +151,36 @@ fun auraSplitCardRects(
     val y0 = top
     val y1 = height - bottom
     return Rect(gap, y0, boundary - gap / 2f, y1) to Rect(boundary + gap / 2f, y0, width - gap, y1)
+}
+
+/**
+ * The RIGHT card (the player's), in the coordinates of the player pane itself, as a clip for the player's ground.
+ *
+ * Owner 2026-10-20 (unfolded Z Fold): *«cuando expando el mini reproductor y lo minimizo se ve un pequeño destello en la
+ * parte de arriba cuando hace la animación»*. The sheet's ground layer fills the WHOLE pane, status-bar strip included,
+ * and fades in with `BottomSheetVisuals.backgroundAlpha` (reaches 1 at progress ≈ 0.6) — its bloom / wash are strongest
+ * at the TOP edge. [AuraSplitCardsFrame] only covers that strip with the plain ground from progress 0.15 to 0.75. For the
+ * middle of the flip both are translucent, so the cover's hue showed in the strip above the card and then vanished: a
+ * glint, in both directions. Clipping the ground to the card keeps the strip free of it: what is left there is the
+ * screen fading to the flat ground, monotonically.
+ *
+ * The rectangle is the card grown by one pixel on every side, so the frame's anti-aliased hole edge always overlaps
+ * the clip's and no seam of the screen behind can show through at the end of the flip.
+ */
+@Immutable
+data class AuraSplitPaneCardShape(val topInset: Dp, val bottomInset: Dp) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val d = density.density
+        val card = auraSplitCardRects(
+            width = size.width,
+            height = size.height,
+            paneWidth = size.width,
+            gap = AuraSplitCardGap.value * d,
+            top = (topInset + AuraSplitCardTopExtra).value * d,
+            bottom = (bottomInset + AuraSplitCardBottomExtra).value * d,
+        ).second
+        return Outline.Rounded(RoundRect(card.inflate(1f), CornerRadius(AuraSplitCardCorner.value * d + 1f)))
+    }
 }
 
 /**
