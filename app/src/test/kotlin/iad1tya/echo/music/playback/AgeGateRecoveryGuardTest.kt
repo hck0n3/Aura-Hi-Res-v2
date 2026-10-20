@@ -36,10 +36,10 @@ class AgeGateRecoveryGuardTest {
         assertTrue("WEB_REMIX con la cuenta es un paso de la cadena", block.contains("AgeGateChain.Step.ACCOUNT_WEB_REMIX -> WEB_REMIX"))
         assertTrue("los pasos que exigen PO token lo piden y se saltan sin él", block.contains("AgeGateChain.needsStreamPoToken(step)") && block.contains("potoken=unavailable"))
         assertTrue("el token viaja como PO token de la petición", block.contains("gatePoToken?.playerRequestPoToken"))
-        assertTrue("el pot= de la URL sale del token del paso", block.contains("poToken = gatePoToken"))
+        assertTrue("el pot= de la URL sale del token del paso", block.contains("poToken = hit.poToken"))
         assertTrue("signatureTimestamp real, no null", block.contains("awaitSts().timestamp"))
         assertTrue("la sesión NO se apaga en este camino", block.contains("noLogin = noLogin"))
-        assertTrue("una respuesta con streamingData sustituye a la rechazada", block.contains("mainPlayerResponse = gateResponse"))
+        assertTrue("una respuesta con streamingData sustituye a la rechazada", block.contains("mainPlayerResponse = hit.response"))
         assertTrue("NewPipe se salta en vídeos con edad", block.contains("wasOriginallyAgeRestricted = true"))
     }
 
@@ -61,6 +61,19 @@ class AgeGateRecoveryGuardTest {
         assertTrue(block.contains("ageGated?.set(true)"))
         assertTrue("el reintento anónimo no se dispara por una puerta de edad", src.contains("&& !ageGated.get()"))
         assertTrue(src.contains("AgeGateChain.failureMessage(isLoggedIn)"))
+    }
+
+    @Test
+    fun `a client that answered OK but whose URL is unusable hands over to the next chain step`() {
+        assertTrue("el hueco del cliente recuperado se repite con el siguiente paso", src.contains("val next = tryNextGateStep(poToken) ?: continue"))
+        assertTrue(src.contains("val gateRetrySlots"))
+        assertTrue("la puerta cerrada se marca también si el cliente recuperado no sirvió", src.contains("if (ageGateMet && ("))
+    }
+
+    @Test
+    fun `an ambiguous login-required still gets the stale-session retry as the last step`() {
+        assertTrue(src.contains("if (finished.isFailure && staleSessionShaped && firstAgeGated)"))
+        assertTrue("el WebView decide con la bandera del primer intento", src.contains("finishWithEmbeddedFallback(videoId, firstAttempt, firstAgeGated)"))
     }
 
     @Test

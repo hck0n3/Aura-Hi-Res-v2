@@ -173,7 +173,9 @@ class EmbeddedPlayerWebView private constructor(
                         suspendCancellableCoroutine { cont ->
                             val wv = EmbeddedPlayerWebView(context, cont)
                             created = wv
-                            cont.invokeOnCancellation { wv.close() }
+                            // No close() on cancellation here: it runs on whatever thread cancels (the timeout's), and a WebView
+                            // only tolerates the main thread — a failed teardown would also mark it destroyed and the real one
+                            // below (on Main, NonCancellable) would be skipped, leaking a live page. That teardown always runs.
                             wv.start(videoId, cookie)
                         }
                     }

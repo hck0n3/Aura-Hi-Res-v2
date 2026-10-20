@@ -523,9 +523,14 @@ object YTPlayerUtils {
         //
         // Independent of the cipher/player-rotation path: playabilityStatus is decided server-side before
         // any signature work, so this survives a correct cipher config.
-        if (firstAttempt.isFailure && YouTube.cookie != null &&
-            (authShaped.get() || identityRejections.isIdentityShaped) && !ageGated.get()
-        ) {
+        //
+        // An age gate arrives as LOGIN_REQUIRED too, which this retry cannot tell from a dead session. So it runs FIRST only when
+        // the age gate was not met (it would drop the very account that can confirm the age), and as the LAST step for an age
+        // gate that neither the client chain nor the signed-in WebView opened — a stale session still gets its recovery.
+        val firstAgeGated = ageGated.get()
+        val staleSessionShaped = firstAttempt.isFailure && YouTube.cookie != null &&
+            (authShaped.get() || identityRejections.isIdentityShaped)
+        suspend fun anonymousRetry(): Result<PlaybackData>? {
             Timber.tag(TAG).w("Auth-shaped failure while signed in — rotating the guest session and retrying anonymously")
             PlaybackLogManager.log(
                 PlaybackLogLevel.BOT,
@@ -551,10 +556,18 @@ object YTPlayerUtils {
                 )
                 return anonResult
             }
+            return null
+        }
+        if (staleSessionShaped && !ageGated.get()) {
+            anonymousRetry()?.let { return it }
         }
 
         firstAttempt.onSuccess { BotDetectionMitigator.notifyPlaybackSuccess() }
-        return finishWithEmbeddedFallback(videoId, firstAttempt, ageGated.get())
+        val finished = finishWithEmbeddedFallback(videoId, firstAttempt, firstAgeGated)
+        if (finished.isFailure && staleSessionShaped && firstAgeGated) {
+            anonymousRetry()?.let { return it }
+        }
+        return finished
     }
 
     /**
@@ -802,11 +815,17 @@ object YTPlayerUtils {
         // (see [AgeGateChain] for the order and the sources): web_embedded, tv_samsung, web_creator, the legacy TV embed.
         // Each gets the real signatureTimestamp (a response without it carries ciphers the player.js cannot undo). A
         // bot-check LOGIN_REQUIRED costs a few extra requests here and falls through exactly as before.
-        var ageGateFailed = false
-        if (AgeGateChain.isAgeGateShaped(mainStatus, mainPlayerResponse?.playabilityStatus?.desktopLegacyAgeGateReason)) {
-            val steps = AgeGateChain.order(isLoggedIn)
-            var recovered = false
-            for (step in steps) {
+        // True once the main client answered with an age-gate-shaped status, whatever happens next (recovered or not).
+        var ageGateMet = false
+        // What a chain step that answered OK brings: the client, its response and the PO token minted for it (if any).
+        class GateHit(val client: YouTubeClient, val response: PlayerResponse, val poToken: PoTokenResult?)
+        // The steps of the chain not tried yet. A step that answers OK is NOT final: its stream URL can still fail the
+        // validation below (a 403 from a client whose URLs want a token), and then the next step must get its turn instead
+        // of the chain ending on the first client that merely answered.
+        val gateSteps = ArrayDeque<AgeGateChain.Step>()
+        suspend fun tryNextGateStep(currentPoToken: PoTokenResult?): GateHit? {
+            while (gateSteps.isNotEmpty()) {
+                val step = gateSteps.removeFirst()
                 val gateClient = when (step) {
                     AgeGateChain.Step.WEB_EMBEDDED -> WEB_EMBEDDED_PLAYER
                     AgeGateChain.Step.TV_SAMSUNG -> TVHTML5_SAMSUNG
@@ -819,7 +838,7 @@ object YTPlayerUtils {
                 // 403 never beats the clients that need no token.
                 var gatePoToken: PoTokenResult? = null
                 if (AgeGateChain.needsStreamPoToken(step)) {
-                    gatePoToken = poToken ?: sessionId?.let {
+                    gatePoToken = currentPoToken ?: sessionId?.let {
                         try {
                             poTokenGenerator.getWebClientPoToken(videoId, it)
                         } catch (e: Exception) {
@@ -841,20 +860,25 @@ object YTPlayerUtils {
                     "AGE_GATE client=${gateClient.clientName} step=$step loggedIn=$isLoggedIn status=$gateStatus" +
                         (if (gatePoToken != null) " potoken=ok" else ""),
                 )
-                if (gateStatus == "OK" && gateResponse?.streamingData != null) {
-                    mainPlayerResponse = gateResponse
-                    usedAgeRestrictedClient = gateClient
-                    // The stream URL of a token-bound client carries the matching `pot=` (see the URL step below).
-                    if (gatePoToken != null) poToken = gatePoToken
-                    // NewPipe cannot extract age-gated videos: findUrlOrNull skips it for these.
-                    wasOriginallyAgeRestricted = true
-                    recovered = true
-                    break
-                }
+                if (gateStatus == "OK" && gateResponse != null && gateResponse.streamingData != null) return GateHit(gateClient, gateResponse, gatePoToken)
             }
-            ageGateFailed = !recovered
-            // The anonymous retry cannot help an age gate (it drops the very account that could confirm the age).
-            if (ageGateFailed) ageGated?.set(true)
+            return null
+        }
+        if (AgeGateChain.isAgeGateShaped(mainStatus, mainPlayerResponse?.playabilityStatus?.desktopLegacyAgeGateReason)) {
+            ageGateMet = true
+            gateSteps.addAll(AgeGateChain.order(isLoggedIn))
+            val hit = tryNextGateStep(poToken)
+            if (hit != null) {
+                mainPlayerResponse = hit.response
+                usedAgeRestrictedClient = hit.client
+                // The stream URL of a token-bound client carries the matching `pot=` (see the URL step below).
+                if (hit.poToken != null) poToken = hit.poToken
+                // NewPipe cannot extract age-gated videos: findUrlOrNull skips it for these.
+                wasOriginallyAgeRestricted = true
+            } else {
+                // The anonymous retry cannot help an age gate (it drops the very account that could confirm the age).
+                ageGated?.set(true)
+            }
         }
 
         // NOTE (fix #5): a null mainPlayerResponse is NO LONGER a hard failure/abort. We fall through to
@@ -908,7 +932,16 @@ object YTPlayerUtils {
             else -> -1
         }
 
-        for (clientIndex in (startIndex until STREAM_FALLBACK_CLIENTS.size)) {
+        // The slot of the main/recovered response may repeat: when the client that unlocked an age gate answered OK but its
+        // URL could not be used (no URL, no expiry, failed validation), the SAME slot comes again with the next chain step,
+        // so the chain is not over at the first client that merely answered. Everything else runs exactly once, as before.
+        val gateRetrySlots = if (startIndex == -1 && usedAgeRestrictedClient != null && !preferVideo) gateSteps.size else 0
+        val clientSlots = buildList<Int> {
+            repeat(1 + gateRetrySlots) { if (startIndex == -1) add(-1) }
+            for (i in maxOf(startIndex, 0) until STREAM_FALLBACK_CLIENTS.size) add(i)
+        }
+
+        for ((slot, clientIndex) in clientSlots.withIndex()) {
             
             format = null
             streamUrl = null
@@ -917,7 +950,13 @@ object YTPlayerUtils {
             
             val client: YouTubeClient
             if (clientIndex == -1) {
-                
+                if (slot > 0) {
+                    val next = tryNextGateStep(poToken) ?: continue
+                    mainPlayerResponse = next.response
+                    retryMainPlayerResponse = next.response
+                    usedAgeRestrictedClient = next.client
+                    if (next.poToken != null) poToken = next.poToken
+                }
                 client = if (preferVideo) VIDEO_CLIENT else (usedAgeRestrictedClient ?: MAIN_CLIENT)
                 streamPlayerResponse = retryMainPlayerResponse ?: mainPlayerResponse
                 Timber.tag(logTag).d("Trying stream from ${if (preferVideo) "VIDEO_CLIENT" else "MAIN_CLIENT"}: ${client.clientName}")
@@ -1199,12 +1238,18 @@ object YTPlayerUtils {
             }
         }
 
+        // The age gate was met and nothing playable came out of it (not even a recovered client whose URL was unusable): the
+        // caller skips the anonymous retry and may hand the song to the signed-in WebView.
+        if (ageGateMet && (streamPlayerResponse?.playabilityStatus?.status != "OK" || streamUrl == null || format == null || streamExpiresInSeconds == null)) {
+            ageGated?.set(true)
+        }
+
         if (streamPlayerResponse == null) {
             Timber.tag(logTag).e("Bad stream player response - all clients failed (uploadedTrack=%b)", isUploadedTrack)
             // DEAD-END (fix #1): no client could serve this song. Typed so the loader maps it to NO_STREAM
             // (skip + message), NEVER a network code — carry the real reason when we captured one.
             throw StreamResolutionException(
-                (if (ageGateFailed) AgeGateChain.failureMessage(isLoggedIn) else null)
+                (if (ageGateMet) AgeGateChain.failureMessage(isLoggedIn) else null)
                     ?: lastPlayabilityReason ?: "No hay ninguna fuente disponible para esta canción",
                 contentLevel = lastPlayabilityReason != null && onlyContentRefusals == true,
             )
@@ -1220,7 +1265,7 @@ object YTPlayerUtils {
             // maps it to NO_STREAM with that reason instead of a generic REMOTE_ERROR silent pause.
             val finalStatus = streamPlayerResponse.playabilityStatus.status
             throw StreamResolutionException(
-                (if (ageGateFailed) AgeGateChain.failureMessage(isLoggedIn) else null)
+                (if (ageGateMet) AgeGateChain.failureMessage(isLoggedIn) else null)
                     ?: errorReason ?: lastPlayabilityReason ?: "Esta canción no está disponible",
                 // Only YouTube's verdict on the SONG; LOGIN_REQUIRED & co. are about the session.
                 contentLevel = finalStatus == "UNPLAYABLE" || finalStatus == "ERROR",

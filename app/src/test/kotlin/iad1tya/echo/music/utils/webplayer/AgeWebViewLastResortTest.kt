@@ -83,7 +83,7 @@ class AgeWebViewLastResortTest {
         val fn = ytPlayer.substringAfter("private suspend fun finishWithEmbeddedFallback").substringBefore("private suspend fun resolvePlaybackData")
         assertTrue(fn.contains("result.isSuccess || !ageGated || YouTube.cookie.isNullOrBlank()) return result"))
         assertTrue(ytPlayer.contains("finishWithEmbeddedFallback(videoId, retryResult, ageGated.get())"))
-        assertTrue(ytPlayer.contains("finishWithEmbeddedFallback(videoId, firstAttempt, ageGated.get())"))
+        assertTrue(ytPlayer.contains("finishWithEmbeddedFallback(videoId, firstAttempt, firstAgeGated)"))
         assertTrue("el resultado reproduce con las cabeceras capturadas", fn.contains("fallbackRequestHeaders = resolved.requestHeaders"))
     }
 
