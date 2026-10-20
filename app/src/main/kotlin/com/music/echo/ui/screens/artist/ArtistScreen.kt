@@ -106,7 +106,6 @@ import iad1tya.echo.music.constants.HideExplicitKey
 import iad1tya.echo.music.constants.ShowArtistDescriptionKey
 import iad1tya.echo.music.constants.ShowArtistSubscriberCountKey
 import iad1tya.echo.music.constants.ShowMonthlyListenersKey
-import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.playback.queues.ListQueue
@@ -173,6 +172,7 @@ fun ArtistScreen(
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val artistPage = viewModel.artistPage
     val libraryArtist by viewModel.libraryArtist.collectAsState()
+    val isSubscribed by viewModel.isSubscribed.collectAsState()
     val librarySongs by viewModel.librarySongs.collectAsState()
     // Full local catalogue (librarySongs is a 3-item preview for the shelf): anything that PLAYS the
     // artist's songs must use this, never the preview.
@@ -601,26 +601,8 @@ fun ArtistScreen(
                                 ) {
                                     
                                     ToggleButton(
-                                        checked = libraryArtist?.artist?.followedByUserAt != null,
-                                        onCheckedChange = {
-                                            database.transaction {
-                                                val artist = libraryArtist?.artist
-                                                if (artist != null) {
-                                                    update(artist.toggleLike(database::confirmArtistUnsubscribed))
-                                                } else {
-                                                    artistPage?.artist?.let {
-                                                        insert(
-                                                            ArtistEntity(
-                                                                id = it.id,
-                                                                name = it.title,
-                                                                channelId = it.channelId,
-                                                                thumbnailUrl = it.thumbnail,
-                                                            ).toggleLike(database::confirmArtistUnsubscribed)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        },
+                                        checked = isSubscribed,
+                                        onCheckedChange = { viewModel.toggleSubscription() },
                                         modifier = Modifier
                                             .weight(1f)
                                             .height(52.dp)
@@ -630,7 +612,7 @@ fun ArtistScreen(
                                     ) {
                                         Icon(
                                             painter = painterResource(
-                                                if (libraryArtist?.artist?.followedByUserAt != null) {
+                                                if (isSubscribed) {
                                                     R.drawable.subscribed
                                                 } else {
                                                     R.drawable.subscribe
@@ -638,7 +620,7 @@ fun ArtistScreen(
                                             ),
                                             contentDescription = null,
                                             modifier = Modifier.size(20.dp),
-                                            tint = if (libraryArtist?.artist?.followedByUserAt != null) {
+                                            tint = if (isSubscribed) {
                                                 MaterialTheme.colorScheme.onPrimary
                                             } else {
                                                 LocalContentColor.current
@@ -647,7 +629,7 @@ fun ArtistScreen(
                                         Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
                                         Text(
                                             text = stringResource(
-                                                if (libraryArtist?.artist?.followedByUserAt != null) {
+                                                if (isSubscribed) {
                                                     R.string.subscribed
                                                 } else {
                                                     R.string.subscribe

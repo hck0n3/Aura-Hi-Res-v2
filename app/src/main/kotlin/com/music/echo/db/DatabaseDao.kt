@@ -882,6 +882,14 @@ interface DatabaseDao {
     @Query("SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1)) AS songCount FROM artist WHERE id = :id")
     fun artist(id: String): Flow<Artist?>
 
+    /**
+     * Is ANY of these ids (the `UC…` / `MPLAUC…` spellings of one channel, see
+     * `ArtistSyncPolicy.aliasIds`) a deliberate follow? Keyed off `followedByUserAt` like every other
+     * subscription display (registry #154), never `bookmarkedAt`.
+     */
+    @Query("SELECT EXISTS(SELECT 1 FROM artist WHERE id IN (:ids) AND followedByUserAt IS NOT NULL)")
+    fun isAnyArtistFollowed(ids: List<String>): Flow<Boolean>
+
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
     @Query("SELECT * FROM album WHERE EXISTS(SELECT * FROM song WHERE song.albumId = album.id AND song.inLibrary IS NOT NULL) ORDER BY rowId")

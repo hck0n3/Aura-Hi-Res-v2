@@ -297,15 +297,26 @@ fun AuraPlayerQuickSearchContent(
                     SearchSource.LOCAL -> {
                         // Library destinations still leave the sheet (local screens), but do not
                         // collapse the player — only dismiss this frost plate.
-                        AuraLocalSearchResults(
-                            query = query.text,
-                            navController = navController,
-                            onDismiss = onDismiss,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f, fill = !compact)
-                                .then(hideKeyboardOnTouch),
-                        )
+                        // Offline: only what plays with no network (see AuraOfflineSearchResults).
+                        val localModifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = !compact)
+                            .then(hideKeyboardOnTouch)
+                        if (offlineMode) {
+                            AuraOfflineSearchResults(
+                                query = query.text,
+                                navController = navController,
+                                onDismiss = onDismiss,
+                                modifier = localModifier,
+                            )
+                        } else {
+                            AuraLocalSearchResults(
+                                query = query.text,
+                                navController = navController,
+                                onDismiss = onDismiss,
+                                modifier = localModifier,
+                            )
+                        }
                     }
 
                     SearchSource.ONLINE -> {

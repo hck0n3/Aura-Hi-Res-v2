@@ -47,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -170,7 +171,7 @@ fun AuraNovedadesScreen(
     // is drawn for those and for nobody else.
     val ages: Map<String, ReleaseAge> = remember(radar) {
         val today = LocalDate.now()
-        buildMap {
+        buildMap<String, ReleaseAge> {
             radar.forEach { r ->
                 if (r.playId.isBlank()) return@forEach
                 NovedadesShelves.ageOf(r.releaseDate.toLocalDate(), today)?.let { put(r.playId, it) }
@@ -359,6 +360,15 @@ fun AuraNovedadesScreen(
         val activeAlbumId = mediaMetadata?.album?.id
         val seeAll = stringResource(R.string.novedades_see_all)
         val seeLess = stringResource(R.string.novedades_see_less)
+        // The shelf builders run in a non-composable scope, so every title is resolved here.
+        val moreReleasesTitle = stringResource(R.string.novedades_more_releases)
+        val featuredTitle = stringResource(R.string.novedades_featured_songs)
+        val latestTitle = stringResource(R.string.novedades_latest_albums)
+        val recentTitle = stringResource(R.string.novedades_recent_releases)
+        val momentTitle = stringResource(R.string.novedades_songs_of_the_moment)
+        val listeningTitle = stringResource(R.string.novedades_everyones_listening)
+        val dailyTitle = stringResource(R.string.novedades_daily_top)
+        val comingSoonTitle = stringResource(R.string.novedades_coming_soon)
 
         PullToRefreshBox(
             state = pullRefreshState,
@@ -458,17 +468,9 @@ fun AuraNovedadesScreen(
                 }
 
                 val heroRest = shown.hero.drop(1)
-                novedadesShelf(
-                    layout = layout,
-                    key = "hero_rest",
-                    title = stringResource(R.string.novedades_more_releases),
-                    count = heroRest.size,
-                    minItems = 1,
-                    itemKey = { heroRest[it].id },
-                    seeAllLabel = seeAll,
-                    seeLessLabel = seeLess,
-                    carouselOverride = if (wide && heroRest.size >= NovedadesShelves.MIN_SHELF_ITEMS) {
-                        {
+                val heroRestCarousel: (@Composable () -> Unit)? =
+                    if (wide && heroRest.size >= NovedadesShelves.MIN_SHELF_ITEMS) {
+                        val carousel: @Composable () -> Unit = {
                             NovedadesWideCarousel(
                                 albums = heroRest,
                                 paneWidth = paneWidth,
@@ -480,9 +482,20 @@ fun AuraNovedadesScreen(
                                 onMenu = { ytMenu(it) },
                             )
                         }
+                        carousel
                     } else {
                         null
-                    },
+                    }
+                novedadesShelf(
+                    layout = layout,
+                    key = "hero_rest",
+                    title = moreReleasesTitle,
+                    count = heroRest.size,
+                    minItems = 1,
+                    itemKey = { heroRest[it].id },
+                    seeAllLabel = seeAll,
+                    seeLessLabel = seeLess,
+                    carouselOverride = heroRestCarousel,
                 ) { index, width ->
                     NovedadesYtCard(
                         item = heroRest[index],
@@ -499,7 +512,7 @@ fun AuraNovedadesScreen(
                 novedadesShelf(
                     layout = layout,
                     key = "featured",
-                    title = stringResource(R.string.novedades_featured_songs),
+                    title = featuredTitle,
                     count = shown.featured.size,
                     itemKey = { shown.featured[it].id },
                     seeAllLabel = seeAll,
@@ -519,7 +532,7 @@ fun AuraNovedadesScreen(
                 novedadesShelf(
                     layout = layout,
                     key = "latest",
-                    title = stringResource(R.string.novedades_latest_albums),
+                    title = latestTitle,
                     count = shown.newAlbums.size,
                     itemKey = { shown.newAlbums[it].id },
                     seeAllLabel = seeAll,
@@ -540,7 +553,7 @@ fun AuraNovedadesScreen(
                 novedadesShelf(
                     layout = layout,
                     key = "recent",
-                    title = stringResource(R.string.novedades_recent_releases),
+                    title = recentTitle,
                     count = shown.radarAlbums.size,
                     itemKey = { shown.radarAlbums[it].id },
                     seeAllLabel = seeAll,
@@ -563,7 +576,6 @@ fun AuraNovedadesScreen(
                 // únicamente la sección de novedades"*). Era la única sección de Novedades que no
                 // hablaba de lanzamientos: listas que YouTube marca como "actualizadas" y que ya
                 // aparecen en Inicio, así que en la práctica repetía contenido de otra pestaña.
-                val momentTitle = stringResource(R.string.novedades_songs_of_the_moment)
                 novedadesShelf(
                     layout = layout,
                     key = "moment",
@@ -590,7 +602,7 @@ fun AuraNovedadesScreen(
                 novedadesShelf(
                     layout = layout,
                     key = "listening",
-                    title = stringResource(R.string.novedades_everyones_listening),
+                    title = listeningTitle,
                     count = shown.listening.size,
                     minItems = 1,
                     itemKey = { shown.listening[it].id },
@@ -608,7 +620,6 @@ fun AuraNovedadesScreen(
                         onMenu = ytMenu,
                     )
                 }
-                val dailyTitle = stringResource(R.string.novedades_daily_top)
                 novedadesShelf(
                     layout = layout,
                     key = "daily_top",
@@ -637,7 +648,7 @@ fun AuraNovedadesScreen(
                 novedadesShelf(
                     layout = layout,
                     key = "coming_soon",
-                    title = stringResource(R.string.novedades_coming_soon),
+                    title = comingSoonTitle,
                     count = shown.upcoming.size,
                     minItems = 1,
                     itemKey = { shown.upcoming[it].id },
@@ -670,10 +681,10 @@ private data class NovedadesUnique(
     val upcoming: List<UpcomingReleaseEntity>,
 ) {
     /** The same lists after the type filter. [NovedadesFilter.All] is the identity. */
-    fun filteredBy(filter: NovedadesFilter): NovedadesUnique {
-        if (filter == NovedadesFilter.All) return this
-        fun <T : YTItem> List<T>.keep() = filter { NovedadesShelves.matches(filter, auraContentKind(it)) }
-        val songsWanted = NovedadesShelves.matches(filter, AuraContentKind.Song)
+    fun filteredBy(which: NovedadesFilter): NovedadesUnique {
+        if (which == NovedadesFilter.All) return this
+        fun <T : YTItem> List<T>.keep(): List<T> = this.filter { NovedadesShelves.matches(which, auraContentKind(it)) }
+        val songsWanted = NovedadesShelves.matches(which, AuraContentKind.Song)
         return NovedadesUnique(
             hero = hero.keep(),
             featured = featured.keep(),
@@ -682,7 +693,7 @@ private data class NovedadesUnique(
             moment = if (songsWanted) moment else emptyList(),
             listening = listening.keep(),
             topSongs = if (songsWanted) topSongs else emptyList(),
-            upcoming = if (filter == NovedadesFilter.Upcoming) upcoming else emptyList(),
+            upcoming = if (which == NovedadesFilter.Upcoming) upcoming else emptyList(),
         )
     }
 }
@@ -744,7 +755,8 @@ private fun LazyListScope.novedadesShelf(
 ) {
     // Ver [NovedadesShelves]: un estante con una sola tarjeta no es variedad, es una sección rota
     // con un encabezado que promete más de lo que hay.
-    if (count < minItems) return
+    // With a type filter on, a short result is still the answer to what was asked: nothing is hidden.
+    if (count < (if (layout.filtered) 1 else minItems)) return
     val expanded = layout.expandedKey == key
     val asGrid = NovedadesShelves.asGrid(layout.filtered, expanded, count)
     val headerKey = "aura_novedades_$key"
@@ -1052,7 +1064,7 @@ private fun NovedadesHero(
                 seed = album.id,
                 modifier = Modifier
                     .matchParentSize()
-                    .androidxAlpha(0.55f),
+                    .alpha(0.55f),
             )
         }
         // The cover's colours as a wash, then the page's ground rising under the text.
@@ -1122,10 +1134,6 @@ private fun NovedadesHero(
         }
     }
 }
-
-/** Alpha for a backdrop image without a layer per frame: set once in the draw phase. */
-private fun Modifier.androidxAlpha(alpha: Float): Modifier =
-    this.then(androidx.compose.ui.draw.alpha(alpha))
 
 @Composable
 private fun NovedadesHeroInfo(

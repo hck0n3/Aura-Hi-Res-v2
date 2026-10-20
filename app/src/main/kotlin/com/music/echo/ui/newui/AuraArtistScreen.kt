@@ -86,7 +86,6 @@ import iad1tya.echo.music.constants.ShowArtistDescriptionKey
 import iad1tya.echo.music.constants.ShowArtistSubscriberCountKey
 import iad1tya.echo.music.constants.ShowArtistVideoKey
 import iad1tya.echo.music.constants.ShowMonthlyListenersKey
-import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.toMediaMetadata
@@ -464,7 +463,7 @@ fun AuraArtistScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val subscribed = libraryArtist?.artist?.followedByUserAt != null
+                            val subscribed by viewModel.isSubscribed.collectAsState()
                             AuraDetailActionButton(
                                 icon = if (subscribed) AuraIcons.Check else AuraIcons.Plus,
                                 label = stringResource(
@@ -472,28 +471,10 @@ fun AuraArtistScreen(
                                 ),
                                 accent = false,
                                 onClick = {
-                                    // Byte for byte the classic handler: update the existing row, or
-                                    // insert one built from the page. `confirmArtistUnsubscribed` is
-                                    // what keeps the YouTube subscription sync honest.
-                                    database.transaction {
-                                        val artist = libraryArtist?.artist
-                                        if (artist != null) {
-                                            update(
-                                                artist.toggleLike(database::confirmArtistUnsubscribed),
-                                            )
-                                        } else {
-                                            artistPage?.artist?.let {
-                                                insert(
-                                                    ArtistEntity(
-                                                        id = it.id,
-                                                        name = it.title,
-                                                        channelId = it.channelId,
-                                                        thumbnailUrl = it.thumbnail,
-                                                    ).toggleLike(database::confirmArtistUnsubscribed),
-                                                )
-                                            }
-                                        }
-                                    }
+                                    // Same toggleLike as the classic screen (live YouTube call +
+                                    // `confirmArtistUnsubscribed` write-back), now routed through the
+                                    // ViewModel so the state shown and the row toggled cannot disagree.
+                                    viewModel.toggleSubscription()
                                 },
                                 modifier = Modifier
                                     .weight(1f)

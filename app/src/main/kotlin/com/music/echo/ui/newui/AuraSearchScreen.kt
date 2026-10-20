@@ -337,11 +337,22 @@ fun AuraSearchScreen(
                 Box(Modifier.fillMaxSize()) {
                     if (searchActive) {
                         when (effectiveSource) {
-                            SearchSource.LOCAL -> AuraLocalSearchResults(
-                                query = query.text,
-                                navController = navController,
-                                onDismiss = { closePanel() },
-                            )
+                            // Offline (owner 2026-10-20): the panel searches ONLY what plays with no network — downloads,
+                            // complete cache copies, exports and the downloaded albums/lists — never the whole library,
+                            // whose other songs would fail on tap. Online + "Biblioteca" keeps the library search.
+                            SearchSource.LOCAL -> if (offlineMode) {
+                                AuraOfflineSearchResults(
+                                    query = query.text,
+                                    navController = navController,
+                                    onDismiss = { closePanel() },
+                                )
+                            } else {
+                                AuraLocalSearchResults(
+                                    query = query.text,
+                                    navController = navController,
+                                    onDismiss = { closePanel() },
+                                )
+                            }
 
                             SearchSource.ONLINE -> AuraOnlineSearchSuggestions(
                                 query = query.text,
@@ -1029,7 +1040,9 @@ internal fun auraRunSearch(
 ) {
     if (rawQuery.isEmpty()) return
 
-    when (val parsed = YouTubeUrlParser.parse(rawQuery)) {
+    // Offline a pasted YouTube link would start a network queue / open a network page that cannot load: the offline search
+    // (AuraOfflineSearchResults) is a pure local filter, so there is nothing to run here but the history write below.
+    if (!offlineMode) when (val parsed = YouTubeUrlParser.parse(rawQuery)) {
         is YouTubeUrlParser.ParsedUrl.Video ->
             playerConnection?.playQueue(YouTubeQueue(WatchEndpoint(videoId = parsed.id)))
 
