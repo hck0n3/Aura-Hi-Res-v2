@@ -419,8 +419,9 @@ fun MusicService.startRadioSeamlessly() {
         // "después de pedir música la cola no continúa"): when every source came back empty the engine used
         // to REPLAY the finished list. The usual cause is not "nothing exists" but our own filters eating the
         // whole batch (the persistent "already served after this list" memory, the exact-style gate). Level 1
-        // drops the persistent memory, level 2 also drops the style gate; session no-repeat, dislikes and
-        // the genre/language ordering (which only sinks) stay on at every level.
+        // drops the persistent memory, level 2 also drops the style (the language gate stays), level 3 drops the
+        // whole gate; session no-repeat, dislikes and the genre/language ordering (which only sinks) stay on at
+        // every level.
         var relaxLevel = 0
         suspend fun appendSeed(
             rawItems: List<MediaItem>,
@@ -746,7 +747,10 @@ fun MusicService.startRadioSeamlessly() {
             // passes above (which stay as they were); null = gate does not apply, keep the list as is; empty =
             // nothing in style even after searching the style itself, so this source yields and the caller
             // tries the next one instead of playing another style.
-            val styled = if (contextSteerActive && keepGenreLaneHint && relaxLevel < 2) {
+            // Row 459 (owner 2026-10-20: rap cristiano en español → reggaetón → hip hop en inglés): relaxation level 2
+            // no longer switches the gate OFF — the style and the genre family stand down but the LANGUAGE still
+            // holds (languageOnly); only level 3 plays anything, and only after every coherent source came back empty.
+            val styled = if (contextSteerActive && keepGenreLaneHint && relaxLevel < 3) {
                 exactStyleFilter(
                     items = languageOrdered.first,
                     anchor = radioAnchorMetadata ?: currentMediaMetadata,
@@ -756,6 +760,7 @@ fun MusicService.startRadioSeamlessly() {
                     site = "appendSeed",
                     minMatches = iad1tya.echo.music.reco.StyleContinuity.MIN_MATCHES,
                     allowSearch = true,
+                    languageOnly = relaxLevel >= 2,
                 )
             } else {
                 null
@@ -1226,6 +1231,11 @@ fun MusicService.startRadioSeamlessly() {
         }
         if (!appended) {
             relaxLevel = 2
+            appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
+            if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the language gate only")
+        }
+        if (!appended) {
+            relaxLevel = 3
             appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
             if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the style gate off")
         }

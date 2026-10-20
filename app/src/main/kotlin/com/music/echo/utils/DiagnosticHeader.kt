@@ -90,6 +90,9 @@ object DiagnosticHeader {
         appendLine("Storage  : ${field { storageLine(context) }}")
         appendLine("Memory   : ${field { memoryLine(context) }}")
         appendLine("Power    : ${field { powerLine(context) }}")
+        // Battery audit 2026-10-20: level, charger, network, thermal status and the CPU this process has used since it
+        // started (cpuTotal vs processAge = the share of one core). The per-phase numbers are the POWER lines in the log.
+        appendLine("Battery  : ${field { PowerTimeline.headerLine(context) }}")
         appendLine("Settings : ${settingsLine()}")
         appendLine(
             "Uptime   : ${(android.os.SystemClock.elapsedRealtime() - processStartElapsedMs) / 1000}s " +

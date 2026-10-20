@@ -12,8 +12,13 @@ import android.webkit.WebViewClient
 import iad1tya.echo.music.utils.cipher.CipherDeobfuscator
 import iad1tya.echo.music.utils.cipher.PlayerJsFetcher
 import iad1tya.echo.music.utils.cipher.SignatureCipher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -92,6 +97,10 @@ object EjsNTransformSolver {
                 report("no_solver", null)
                 return@withLock null
             }
+            // Battery/heat (audit 2026-10-20): every use restarts the idle clock, so a solver only goes away after
+            // [EjsSolverIdlePolicy.IDLE_RELEASE_MS] without a single solve. Armed inside the lock, before the solve,
+            // so the release job can never observe a stale timestamp while this solve is in flight.
+            armIdleRelease()
             try {
                 val answer = solver.solve(kind, value)
                 if (answer == null) {
@@ -167,10 +176,49 @@ object EjsNTransformSolver {
     suspend fun close() {
         // Take the same lock so teardown can't null out solverWebView while a solve is mid-flight.
         solverMutex.withLock {
+            idleJob?.cancel()
+            idleJob = null
             withContext(Dispatchers.Main) {
                 solverWebView?.close()
             }
             solverWebView = null
+        }
+    }
+
+    // ── Idle release (audit 2026-10-20, battery/heat) ─────────────────────────────────────────────────────────
+    // A working solver used to live up to SOLVER_MAX_AGE_MS (6 h) after its last use: a WebView with the multi-MB
+    // preprocessed player.js loaded plus its share of the Chromium renderer process, kept resident for hours of
+    // playback that mostly replays the cache or sits on the same track. Rebuilding it is cheap once the preprocessed
+    // player is on disk (EJS_SOLVER ready ms=335 in the owner's log), so it is released after a quiet spell instead.
+    // Continuous streaming resolves a song every few minutes and keeps resetting the clock, so the hot path never
+    // pays the rebuild; only genuinely idle stretches (long pause, screen-off replay of cached songs) do.
+    private val idleScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var idleJob: Job? = null
+
+    @Volatile private var lastUsedAtMs = 0L
+
+    // Callers MUST hold [solverMutex].
+    private fun armIdleRelease() {
+        lastUsedAtMs = SystemClock.elapsedRealtime()
+        idleJob?.cancel()
+        idleJob = idleScope.launch {
+            delay(EjsSolverIdlePolicy.IDLE_RELEASE_MS)
+            releaseIfIdle()
+        }
+    }
+
+    private suspend fun releaseIfIdle() {
+        // The same lock as solve(): a solve in flight finishes first, and its armIdleRelease() cancels this job
+        // while it waits here, so a solver that was just used is never torn down underneath its caller.
+        solverMutex.withLock {
+            val sv = solverWebView ?: return@withLock
+            val idleFor = SystemClock.elapsedRealtime() - lastUsedAtMs
+            if (!EjsSolverIdlePolicy.releaseDue(idleFor)) return@withLock
+            withContext(NonCancellable + Dispatchers.Main) { sv.close() }
+            solverWebView = null
+            idleJob = null
+            // Name and duration only (log privacy, AGENTS.md rule 4).
+            Timber.tag(TAG).i("EJS_IDLE_RELEASE idleMs=%d", idleFor)
         }
     }
 
@@ -464,4 +512,16 @@ object EjsNTransformSolver {
             }
         }
     }
+}
+
+/**
+ * When the EJS solver WebView is let go (audit 2026-10-20, battery/heat). Pure, so a guard test pins the contract:
+ * the window is long enough that streaming (a resolve every few minutes) never trips it, and short enough that an
+ * hours-long idle stretch does not keep a renderer-backed WebView resident.
+ */
+internal object EjsSolverIdlePolicy {
+    const val IDLE_RELEASE_MS = 10 * 60 * 1000L
+
+    /** True once the solver has gone [idleForMs] without a solve. */
+    fun releaseDue(idleForMs: Long, idleReleaseMs: Long = IDLE_RELEASE_MS): Boolean = idleForMs >= idleReleaseMs
 }

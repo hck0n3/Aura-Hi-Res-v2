@@ -78,8 +78,8 @@ object ContextLane {
         "sigue", "alla", "alli", "aca", "asi", "entonces", "despues", "bajo", "hasta", "hacia", "cristiano",
         "cristiana", "cristianos", "cristianas", "escucha", "escuchame", "mirame", "ayuda", "ayudame", "salvame",
         "salvacion", "resucito", "resurreccion", "sanidad", "sanar", "cadenas", "cadena", "sangre", "cordero",
-        "promesa", "promesas", "palabra", "mio", "mia", "tuyo", "tuya", "tuyos", "vivir", "vivire", "mujer",
-        "hombre", "hombres", "nino", "ninos", "nina", "ojos", "manos", "nombre", "oye", "oyeme", "dale", "manana",
+        "promesa", "promesas", "palabra", "tuyo", "tuya", "tuyos", "vivir", "vivire", "mujer",
+        "hombre", "hombres", "nino", "ninos", "ojos", "manos", "nombre", "oye", "oyeme", "dale", "manana",
         "ayer", "jamas", "puedo", "puedes", "puede", "podemos", "sabes", "peligro", "miedo", "dolor", "lagrimas",
         "llorar", "sonrisa", "beso", "besos", "piel", "gracias", "bendiciones", "predica", "iglesia", "pueblo",
     )
@@ -198,7 +198,7 @@ object ContextLane {
             }
         }
         val hints = evidence.count { !it.strong && it.code == TitleLanguage.ES }
-        if (decided.isEmpty() && hints >= minOf(minDecided, 1).coerceAtLeast(1) && hints * 2 >= evidence.size) {
+        if (decided.isEmpty() && hints >= maxOf(minDecided, 1) && hints * 2 >= evidence.size) {
             return ContextLanguage(TitleLanguage.ES, mixed = false, weak = true)
         }
         return ContextLanguage(null, false)
@@ -275,19 +275,20 @@ object ContextLane {
     fun tier(lane: Lane, c: Candidate): Int? {
         if (c.verdict == StyleContinuity.Verdict.OFF) return null
         val wanted = lane.language
-        val languageSame = wanted == null || c.language.code == wanted
-        if (wanted != null && c.language.code != null && c.language.code != wanted && c.language.strong) return null
+        val code = c.language.code
+        if (wanted != null && code != null && code != wanted && c.language.strong) return null
         if (lane.families.isNotEmpty() && c.family != null && c.family !in lane.families) return null
-        val familySame = lane.families.isNotEmpty() && c.family != null && c.family in lane.families
+        val familySame = lane.families.isNotEmpty() && c.family != null
         val exact = c.verdict == StyleContinuity.Verdict.MATCH || familySame
-        val languageKnownSame = wanted == null || (c.language.code == wanted)
+        // «Proven» = the lane asks no language, or the candidate's evidence says it. A hint of ANOTHER language
+        // proves nothing either way (it never excludes), so it only keeps the candidate out of the best steps.
+        val languageProven = wanted == null || code == wanted
         val faithOk = !lane.christian || c.christian
         return when {
-            exact && languageKnownSame -> 0
+            exact && languageProven -> 0
             exact -> 1
-            languageKnownSame && wanted != null && faithOk -> 2
-            wanted == null && faithOk -> 2
-            faithOk && !languageSame -> 3
+            languageProven && faithOk -> 2
+            faithOk -> 3
             else -> MAX_TIER
         }
     }

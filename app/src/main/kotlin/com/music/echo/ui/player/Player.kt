@@ -707,7 +707,10 @@ fun BottomSheetPlayer(
         defaultValue = false
     )
 
-    LaunchedEffect(mediaMetadata?.id, playerBackground) {
+    // Battery/radio (audit 2026-10-20): same as Thumbnail's lookup — wait for the app to be on screen before spending
+    // the provider searches (a LaunchedEffect keeps running with the activity stopped).
+    val canvasLookupInForeground = rememberIsAppInForeground()
+    LaunchedEffect(mediaMetadata?.id, playerBackground, canvasLookupInForeground) {
         if (playerBackground != PlayerBackgroundStyle.APPLE_MUSIC || !enableCanvas) {
             canvasArtwork = null
             return@LaunchedEffect
@@ -720,7 +723,9 @@ fun BottomSheetPlayer(
             return@LaunchedEffect
         }
 
-        if (canvasFetchInFlight) return@LaunchedEffect
+        if (!canvasLookupInForeground) return@LaunchedEffect
+        // (No «already in flight» guard here: an effect never overlaps itself, and a run cancelled mid-fetch because the app left the
+        // screen would have left the flag set and blocked the retry on return.)
         canvasFetchInFlight = true
         
         withContext(Dispatchers.IO) {
@@ -866,15 +871,18 @@ fun BottomSheetPlayer(
     
     
     
-    LaunchedEffect(isPlaying, isCasting) {
-        if (!isCasting && isPlaying) {
+    // Battery/heat (audit 2026-10-20): delay()-driven, so Compose's paused frame clock does not stop it. Runs only while
+    // the app is on screen and reads before it sleeps (fresh position on return). Same change as AuraPlayer's ticker.
+    val positionTickerInForeground = rememberIsAppInForeground()
+    LaunchedEffect(isPlaying, isCasting, positionTickerInForeground) {
+        if (!isCasting && isPlaying && positionTickerInForeground) {
             while (isActive) {
-                // Perf mode: poll position half as often (1s vs 500ms) — one fewer recomposition/sec.
-                delay(if (highPerfMode) 1000L else 500L)
                 if (sliderPosition == null) {
                     position = playerConnection.player.currentPosition
                     duration = playerConnection.player.duration
                 }
+                // Perf mode: poll position half as often (1s vs 500ms) — one fewer recomposition/sec.
+                delay(if (highPerfMode) 1000L else 500L)
             }
         }
     }

@@ -1737,6 +1737,9 @@ class MusicService :
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> {
+                    iad1tya.echo.music.utils.PowerTimeline.log(
+                        context, "screen_off", playing = ::player.isInitialized && player.isPlaying, screenOn = false,
+                    )
                     // INSTANT VIDEO SWAP: screen off = invisible → no speculative player may keep
                     // buffering video bytes (heat/battery rule). No-op when nothing is prepared.
                     teardownInstantVideoSwap("screen off")
@@ -1756,6 +1759,9 @@ class MusicService :
                     }
                 }
                 Intent.ACTION_SCREEN_ON -> {
+                    iad1tya.echo.music.utils.PowerTimeline.log(
+                        context, "screen_on", playing = ::player.isInitialized && player.isPlaying, screenOn = true,
+                    )
                     // Re-attempt the instant-swap pre-prepare (fully re-gated inside: only if the player
                     // sheet is still expanded over a video song in audio mode, unmetered, capable, etc).
                     scheduleInstantVideoPrepare(INSTANT_VIDEO_PREPARE_DELAY_MS)
@@ -6686,6 +6692,7 @@ class MusicService :
         val autoConnected = isAndroidAutoControllerConnected()
         playbackKeepAlive.setAndroidAutoConnected(autoConnected)
         playbackKeepAlive.setPlaying(isPlaying)
+        iad1tya.echo.music.utils.PowerTimeline.log(this, if (isPlaying) "play" else "pause", playing = isPlaying)
         if (isPlaying) {
             startPeriodicPersist()
             if ((getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true) {
@@ -6829,6 +6836,11 @@ class MusicService :
             while (true) {
                 kotlinx.coroutines.delay(5000)
                 tick++
+                // Battery timeline (audit 2026-10-20): one INFO line per [PowerTimeline.TICK_MS] of playback, piggybacking on
+                // this existing 5 s tick (no loop of its own) — battery %, CPU spent since the previous line, network kind.
+                if (tick % (iad1tya.echo.music.utils.PowerTimeline.TICK_MS / 5000L).toInt() == 0) {
+                    iad1tya.echo.music.utils.PowerTimeline.log(this@MusicService, "tick", playing = true)
+                }
                 // ONE-SHOT measurement cache: persist a measured loudness for the NEXT play. Never
                 // moves the live gain (like + auto-download used that path to swell the volume).
                 runCatching { maybeApplyMeasuredLoudness() }

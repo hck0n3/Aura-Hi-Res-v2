@@ -197,6 +197,7 @@ import iad1tya.echo.music.ui.player.swipeLyricsToChangeSong
 import iad1tya.echo.music.ui.screens.equalizer.axion.AxionEqViewModel
 import iad1tya.echo.music.ui.utils.ShowMediaInfo
 import iad1tya.echo.music.ui.utils.ShowOffsetDialog
+import iad1tya.echo.music.ui.utils.rememberIsAppInForeground
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.rememberIsWideShell
 import iad1tya.echo.music.ui.utils.tvFocusable
@@ -558,15 +559,20 @@ private fun AuraPlayerShape(
     var sliderPosition by remember { mutableStateOf<Long?>(null) }
     var lastManualSeekTime by remember { mutableLongStateOf(0L) }
 
-    LaunchedEffect(isPlaying, isCasting, highPerfMode) {
-        if (!isCasting && isPlaying) {
+    // Battery/heat (audit 2026-10-20): this ticker is driven by delay(), not by frames, so Compose's paused frame clock
+    // does NOT stop it — the player is composed on every screen, and it kept polling the ExoPlayer twice a second through
+    // every hour of screen-off listening for a scrubber nobody could see. It now runs only while the app is on screen, and
+    // reads once on the way back in (the loop reads BEFORE it sleeps) so the scrubber never shows a stale position.
+    val appInForeground = rememberIsAppInForeground()
+    LaunchedEffect(isPlaying, isCasting, highPerfMode, appInForeground) {
+        if (!isCasting && isPlaying && appInForeground) {
             while (isActive) {
-                delay(if (highPerfMode) 1000L else 500L)
                 if (sliderPosition == null) {
                     position = playerConnection.player.currentPosition
                     duration = playerConnection.player.duration
                     buffered = playerConnection.player.bufferedPosition
                 }
+                delay(if (highPerfMode) 1000L else 500L)
             }
         }
     }

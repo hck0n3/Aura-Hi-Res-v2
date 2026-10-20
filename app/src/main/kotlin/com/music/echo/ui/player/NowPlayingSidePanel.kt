@@ -71,8 +71,11 @@ fun NowPlayingSidePanel(
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     // Cheap 500ms position ticker (kept light for low-end / TV). Re-keys per song.
-    LaunchedEffect(playerConnection, meta.id) {
-        while (true) {
+    // Battery/heat (audit 2026-10-20): off screen there is nobody to show it to (delay() is not stopped by Compose's
+    // paused frame clock), so it only ticks while the app is on screen.
+    val panelInForeground = iad1tya.echo.music.ui.utils.rememberIsAppInForeground()
+    LaunchedEffect(playerConnection, meta.id, panelInForeground) {
+        while (panelInForeground) {
             position = playerConnection.player.currentPosition.coerceAtLeast(0L)
             duration = playerConnection.player.duration.let { if (it > 0L) it else 0L }
             kotlinx.coroutines.delay(500)

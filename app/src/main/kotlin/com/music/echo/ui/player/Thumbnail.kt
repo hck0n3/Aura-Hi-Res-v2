@@ -1112,13 +1112,20 @@ private fun ThumbnailItem(
                     defaultValue = false,
                 )
 
-                LaunchedEffect(item.mediaId) {
+                // Battery/radio (audit 2026-10-20): the lookup below is up to a dozen provider searches for a song
+                // without a motion cover, and a LaunchedEffect keeps running while the activity is stopped — so with the
+                // player left open and the screen off, every track change woke the radio for artwork nobody could see.
+                // It waits for the app to be on screen (the key restarts it on return, for whatever is playing then).
+                val canvasInForeground = iad1tya.echo.music.ui.utils.rememberIsAppInForeground()
+                LaunchedEffect(item.mediaId, canvasInForeground) {
                     CanvasArtworkPlaybackCache.get(item.mediaId)?.let { cached ->
                         canvasArtwork = cached
                         return@LaunchedEffect
                     }
 
-                    if (canvasFetchInFlight) return@LaunchedEffect
+                    if (!canvasInForeground) return@LaunchedEffect
+                    // (No «already in flight» guard here: an effect never overlaps itself, and a run cancelled mid-fetch because the app left the
+                    // screen would have left the flag set and blocked the retry on return.)
                     canvasFetchInFlight = true
 
                     // Overall cap: a slow/hanging canvas provider used to leave canvasFetchInFlight stuck

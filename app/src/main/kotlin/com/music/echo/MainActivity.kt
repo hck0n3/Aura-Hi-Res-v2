@@ -453,6 +453,8 @@ class MainActivity : ComponentActivity() {
         playerConnection?.service?.onAppForegrounded()
         // Battery/heat (owner 2026-10-06): the player's audio capture only runs while the app is visible.
         iad1tya.echo.music.ui.newui.AuraVisualizerHub.setAppVisible(true)
+        // Battery/heat (audit 2026-10-20): UI-feeding loops without a frame clock (see AppForeground) park while off screen.
+        iad1tya.echo.music.utils.AppForeground.set(true)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -473,6 +475,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         iad1tya.echo.music.ui.newui.AuraVisualizerHub.setAppVisible(false)
+        iad1tya.echo.music.utils.AppForeground.set(false)
         if (isServiceBound) {
             runCatching { unbindService(serviceConnection) }
             isServiceBound = false
