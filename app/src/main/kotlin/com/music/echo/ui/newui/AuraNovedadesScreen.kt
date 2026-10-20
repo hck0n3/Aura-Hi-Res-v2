@@ -891,9 +891,10 @@ private fun NovedadesYtCard(
         onLongClick = { onMenu(item) },
         badge = {
             // A video already carries its own pill at the top-left corner.
+            // The «E» is drawn after the title by AuraTypedYtCoverCard (explicit = item.explicit): not a second one here.
             NovedadesCoverBadges(
                 age = age.takeIf { visual.kind != AuraContentKind.Video },
-                explicit = item.explicit,
+                explicit = false,
             )
         },
     )
