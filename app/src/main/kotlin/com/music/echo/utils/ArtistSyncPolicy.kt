@@ -344,6 +344,62 @@ object ArtistSyncPolicy {
     }
 
     /**
+     * One key per CHANNEL: `UC…` and `MPLAUC…` collapse into the bare `UC…`; anything that is not a
+     * channel id keys on itself. The Library "Artistas" list de-duplicates on it, so a channel stored
+     * under both spellings is one row and one unit of the «N artistas» counter, exactly like the artist
+     * screen's [aliasIds]-based `isSubscribed` treats it as one subscription.
+     */
+    fun channelKey(id: String): String {
+        val bare = id.removePrefix(LIBRARY_ARTIST_PREFIX)
+        return if (bare.startsWith("UC")) bare else id
+    }
+
+    /**
+     * A follow stamped from the account must not outlive the subscription. Grace before a row whose
+     * `ytmSyncedAt` is this recent may be judged "gone": the read-back that stamped it and the list we
+     * compare against can disagree for a moment (a subscription made seconds ago).
+     */
+    const val GONE_FROM_ACCOUNT_GRACE_MINUTES = 15L
+
+    /**
+     * Owner 2026-10-20: the Library «Artistas» list must hold EXCLUSIVELY what the account is subscribed
+     * to. The list reads `followedByUserAt`, and the sync only ever stamped it towards "followed", so a
+     * subscription removed on YouTube itself stayed in the list for ever. This is the pure decision for
+     * the opposite direction: which stored follows is the account's own, COMPLETE list proof of "no
+     * longer subscribed". It only ever clears LOCAL state; it never talks to the account.
+     *
+     * Every condition below is a way this could clear a real follow, so each one refuses:
+     *  - [readWasComplete] false (a paginated walk cut short — request cap, failed page) or an EMPTY
+     *    [remoteIds] (an expired cookie also answers with an empty page): absence proves nothing.
+     *  - local / privately-owned artists: they have no public channel to be listed under.
+     *  - a row that never came from the account (`ytmSyncedAt == null`): a follow the user made that
+     *    the account has not seen yet (pending SUBSCRIBE, guest follows, onboarding picks) is not stale.
+     *  - a row with a queued unfollow: that is the unsubscribe path's business ([mayUnsubscribe]).
+     *  - a row stamped inside the grace window, or after the read began.
+     *  - a row whose id OR channel id names a channel the account did list (UC / MPLAUC aliases).
+     *
+     * @return the ids of the rows to clear (follow, bookmark and sync stamp).
+     */
+    fun followsGoneFromAccount(
+        candidates: List<ArtistEntity>,
+        remoteIds: Set<String>,
+        readWasComplete: Boolean,
+        readStartedAt: LocalDateTime,
+    ): List<String> {
+        if (!readWasComplete || remoteIds.isEmpty()) return emptyList()
+        val remoteKeys = remoteIds.mapTo(HashSet()) { channelKey(it) }
+        val cutoff = readStartedAt.minusMinutes(GONE_FROM_ACCOUNT_GRACE_MINUTES)
+        return candidates.asSequence()
+            .filter { !it.isLocal && !it.isPrivatelyOwnedArtist }
+            .filter { it.followedByUserAt != null && it.unfollowedByUserAt == null }
+            .filter { row -> row.ytmSyncedAt?.isBefore(cutoff) == true }
+            .filter { row -> channelKey(row.id) !in remoteKeys }
+            .filter { row -> row.channelId?.let { channelKey(it) in remoteKeys } != true }
+            .map { it.id }
+            .toList()
+    }
+
+    /**
      * The row to write when the account's own artist page says "subscribed", or null when the stored row
      * must be left exactly as it is. [existing] is the stored row (null when there is none) and [fresh]
      * the row to create in that case.

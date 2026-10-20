@@ -2,6 +2,9 @@
 
 package iad1tya.echo.music.ui.menu
 
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.res.Configuration
@@ -249,29 +252,22 @@ fun YouTubeAlbumMenu(
         }
     }
 
-    YouTubeListItem(
-        item = albumItem,
-        badges = {},
-        trailingContent = {
-            IconButton(
+    MenuHeader(
+        title = albumItem.title,
+        subtitle = albumItem.artists?.joinToString { it.name },
+        meta = albumItem.year?.toString(),
+        thumbnail = { MenuHeaderCover(thumbnailUrl = albumItem.thumbnail) },
+        trailing = {
+            MenuLikeButton(
+                liked = album?.album?.bookmarkedAt != null,
                 onClick = {
                     database.query {
                         album?.album?.toggleLike()?.let(::update)
                     }
                 },
-            ) {
-                Icon(
-                    painter = painterResource(if (album?.album?.bookmarkedAt != null) R.drawable.favorite else R.drawable.favorite_border),
-                    tint = if (album?.album?.bookmarkedAt != null) MaterialTheme.colorScheme.error else LocalContentColor.current,
-                    contentDescription = null,
-                )
-            }
+            )
         },
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -296,8 +292,7 @@ fun YouTubeAlbumMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.play),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.play),
@@ -322,8 +317,7 @@ fun YouTubeAlbumMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.shuffle),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.shuffle),
@@ -354,8 +348,7 @@ fun YouTubeAlbumMenu(
                             Icon(
                                 painter = painterResource(R.drawable.share),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.share),
@@ -376,7 +369,7 @@ fun YouTubeAlbumMenu(
                         }
                     ))
                 },
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
                 columns = if (isGuest) 1 else 3
             )
         }
@@ -386,7 +379,6 @@ fun YouTubeAlbumMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.play_next)) },
-                            description = { Text(text = stringResource(R.string.play_next_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.playlist_play),
@@ -405,7 +397,6 @@ fun YouTubeAlbumMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.add_to_queue)) },
-                            description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.queue_music),
@@ -439,7 +430,6 @@ fun YouTubeAlbumMenu(
                     ),
                     Material3MenuItemData(
                         title = { Text(text = stringResource(R.string.add_to_playlist)) },
-                        description = { Text(text = stringResource(R.string.add_to_playlist_desc)) },
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.playlist_add),
@@ -458,7 +448,7 @@ fun YouTubeAlbumMenu(
 
         item {
             Material3MenuGroup(
-                items = listOf(
+                items = listOfNotNull(
                     when (downloadState) {
                         Download.STATE_COMPLETED -> {
                             Material3MenuItemData(
@@ -509,7 +499,6 @@ fun YouTubeAlbumMenu(
                         else -> {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.action_download)) },
-                                description = { Text(text = stringResource(R.string.download_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.download),
@@ -569,21 +558,12 @@ fun YouTubeAlbumMenu(
                                 }
                             )
                         }
-                    }
-                )
-            )
-        }
-
-
-        // «Exportar todo a MP3» (dueño, 2026-10-18): el álbum / EP / sencillo entero a una carpeta, con etiquetas y portada.
-        if (enableExportAsMp3) {
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-            item {
-                Material3MenuGroup(
-                    items = listOf(
+                    },
+                    // «Exportar todo a MP3» (dueño, 2026-10-18): el álbum / EP / sencillo entero a una carpeta, con etiquetas y portada.
+                    // Misma categoría que «Descargar» (2026-10-20): un solo grupo «Descargas / Exportar».
+                    if (enableExportAsMp3) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.export_all_mp3_title)) },
-                            description = { Text(text = stringResource(R.string.export_all_mp3_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.file_export),
@@ -591,57 +571,42 @@ fun YouTubeAlbumMenu(
                                 )
                             },
                             onClick = { exportAlbumMp3((album?.songs.orEmpty()).map { it.toMp3ExportTrack() }) },
-                        ),
-                    ),
+                        )
+                    } else null,
                 )
-            }
+            )
         }
 
         item { Spacer(modifier = Modifier.height(12.dp)) }
         item {
             Material3MenuGroup(
-                items = listOf(
+                items = listOfNotNull(
                     Material3MenuItemData(
                         title = { Text(text = stringResource(R.string.view_album)) },
-                        description = { Text(text = albumItem.title) },
+                        description = { Text(text = albumItem.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.album),
                                 contentDescription = null,
                             )
                         },
+                        showChevron = true,
                         onClick = {
                             navController.navigate("album/${albumItem.id}")
                             onDismiss()
                         }
                     ),
-                    // Biblioteca ▸ Fijados (owner 2026-10-20).
-                    albumPinMenuItem(
-                        id = albumItem.id,
-                        title = albumItem.title,
-                        artists = albumItem.artists.orEmpty().map { it.name },
-                        thumbnailUrl = albumItem.thumbnail,
-                        playlistId = albumItem.playlistId,
-                        onDismiss = onDismiss,
-                    ),
-                )
-            )
-        }
-
-        albumItem.artists?.let { artists ->
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-            item {
-                Material3MenuGroup(
-                    items = listOf(
+                    albumItem.artists?.let { artists ->
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.view_artist)) },
-                            description = { Text(text = artists.joinToString { it.name }) },
+                            description = { Text(text = artists.joinToString { it.name }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.artist),
                                     contentDescription = null,
                                 )
                             },
+                            showChevron = true,
                             onClick = {
                                 if (artists.size == 1) {
                                     if (artists[0].id != null) {
@@ -655,9 +620,18 @@ fun YouTubeAlbumMenu(
                                 }
                             }
                         )
-                    )
+                    },
+                    // Biblioteca ▸ Fijados (owner 2026-10-20).
+                    albumPinMenuItem(
+                        id = albumItem.id,
+                        title = albumItem.title,
+                        artists = albumItem.artists.orEmpty().map { it.name },
+                        thumbnailUrl = albumItem.thumbnail,
+                        playlistId = albumItem.playlistId,
+                        onDismiss = onDismiss,
+                    ),
                 )
-            }
+            )
         }
     }
 }

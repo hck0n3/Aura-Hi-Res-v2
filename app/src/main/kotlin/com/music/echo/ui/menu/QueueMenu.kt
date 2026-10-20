@@ -266,8 +266,7 @@ fun QueueMenu(
                             Icon(
                                 painter = painterResource(R.drawable.radio),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.start_radio),
@@ -283,8 +282,7 @@ fun QueueMenu(
                             Icon(
                                 painter = painterResource(R.drawable.playlist_add),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.add_to_playlist),
@@ -295,8 +293,7 @@ fun QueueMenu(
                             Icon(
                                 painter = painterResource(R.drawable.share),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.share),
@@ -324,7 +321,6 @@ fun QueueMenu(
                 items = listOf(
                     Material3MenuItemData(
                         title = { Text(text = stringResource(R.string.play_next)) },
-                        description = { Text(text = stringResource(R.string.play_next_desc)) },
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.playlist_play),
@@ -342,7 +338,6 @@ fun QueueMenu(
                     ),
                     Material3MenuItemData(
                         title = { Text(text = stringResource(R.string.add_to_queue)) },
-                        description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.queue_music),
@@ -415,7 +410,6 @@ fun QueueMenu(
                         else -> {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.action_download)) },
-                                description = { Text(text = stringResource(R.string.download_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.download),
@@ -527,7 +521,6 @@ fun QueueMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.refetch)) },
-                            description = { Text(text = stringResource(R.string.refetch_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.sync),
@@ -567,7 +560,6 @@ fun QueueMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.details)) },
-                            description = { Text(text = stringResource(R.string.details_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.info),

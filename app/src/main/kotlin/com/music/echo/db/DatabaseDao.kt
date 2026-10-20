@@ -57,6 +57,7 @@ import iad1tya.echo.music.extensions.toSQLiteQuery
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.ui.utils.resize
+import iad1tya.echo.music.utils.ArtistSyncPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.text.Collator
@@ -844,6 +845,14 @@ interface DatabaseDao {
     )
     fun artistsBookmarkedByPlayTimeAsc(): Flow<List<Artist>>
 
+    /**
+     * Every artist that merely has a song in the library (`inLibrary` / liked). NOT a Library-screen
+     * list: owner 2026-10-20, «quiero exclusivamente a lo que mi cuenta está suscrito … me salen
+     * artistas y cuando me meto me sale que no estoy suscrito». The Library «Artistas» tab, the hub
+     * and Android Auto read [artistsBookmarked] only; this one is kept for the backup export
+     * (`BackupRestoreViewModel`), where "every artist the library knows" is exactly what is wanted.
+     * `ArtistLibraryListGuardTest` fails if a screen ViewModel calls it again.
+     */
     fun artists(sortType: ArtistSortType, descending: Boolean) =
         when (sortType) {
             ArtistSortType.CREATE_DATE -> artistsByCreateDateAsc()
@@ -875,7 +884,10 @@ interface DatabaseDao {
             ArtistSortType.SONG_COUNT -> artistsBookmarkedBySongCountAsc()
             ArtistSortType.PLAY_TIME -> artistsBookmarkedByPlayTimeAsc()
         }.map { artists ->
-            artists.reversed(descending)
+            // ONE row per channel: the same channel stored as `UC…` and `MPLAUC…` is one subscription
+            // (the artist screen's `isSubscribed` already counts it as one), so it is one row and one
+            // unit of the «N artistas» counter here too.
+            artists.distinctBy { ArtistSyncPolicy.channelKey(it.artist.id) }.reversed(descending)
         }
 
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
@@ -1727,6 +1739,35 @@ interface DatabaseDao {
 
     @Query("SELECT COUNT(*) FROM artist WHERE followedByUserAt IS NOT NULL AND ytmSyncedAt IS NOT NULL AND isLocal = 0")
     suspend fun countFollowsSyncedToYtm(): Int
+
+    /**
+     * Follows the account has been seen to hold (`ytmSyncedAt`) — the only rows a COMPLETE subscription
+     * read may judge as "gone from the account". See [ArtistSyncPolicy.followsGoneFromAccount]; the
+     * policy applies the remaining refusals, this query just narrows the scan.
+     */
+    @Query(
+        """
+        SELECT * FROM artist
+        WHERE followedByUserAt IS NOT NULL AND ytmSyncedAt IS NOT NULL AND unfollowedByUserAt IS NULL
+          AND isLocal = 0
+        """
+    )
+    suspend fun artistsFollowedAndSeenOnAccount(): List<ArtistEntity>
+
+    /**
+     * Drops the local follow of artists the account no longer lists, so the Library «Artistas» list
+     * (which is `followedByUserAt IS NOT NULL`) mirrors the account. LOCAL state only: it never queues
+     * anything for the account — `unfollowedByUserAt` stays NULL, `ytmSyncedAt` goes with the follow, so
+     * the row ends in the inert "incidental" shape. The WHERE re-checks the follow and the absence of a
+     * queued unfollow at write time, so a tap that landed after the scan wins.
+     */
+    @Query(
+        """
+        UPDATE artist SET bookmarkedAt = NULL, followedByUserAt = NULL, ytmSyncedAt = NULL
+        WHERE id IN (:ids) AND followedByUserAt IS NOT NULL AND unfollowedByUserAt IS NULL
+        """
+    )
+    suspend fun clearFollowsGoneFromAccount(ids: List<String>)
 
     /** Must stay identical to the predicate of [artistsPendingUnsubscribe] or the report lies. */
     @Query(

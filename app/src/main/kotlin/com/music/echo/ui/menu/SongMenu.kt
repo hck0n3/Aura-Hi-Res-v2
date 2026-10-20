@@ -400,7 +400,6 @@ fun SongMenu(
                 items = listOf(
                     Material3MenuItemData(
                         title = { Text(text = stringResource(R.string.action_share)) },
-                        description = { Text(text = stringResource(R.string.share_local_desc)) },
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.share),
@@ -438,7 +437,6 @@ fun SongMenu(
                         )
                         else -> Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.export_as_mp3)) },
-                            description = { Text(text = stringResource(R.string.export_as_mp3_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.file_export),
@@ -534,8 +532,7 @@ fun SongMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.radio),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.start_radio),
@@ -550,8 +547,7 @@ fun SongMenu(
                             Icon(
                                 painter = painterResource(R.drawable.playlist_add),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.add_to_playlist),
@@ -562,8 +558,7 @@ fun SongMenu(
                             Icon(
                                 painter = painterResource(R.drawable.share),
                                 contentDescription = null,
-                                modifier = Modifier.size(22.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.share),
@@ -642,7 +637,6 @@ fun SongMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.play_next)) },
-                            description = { Text(text = stringResource(R.string.play_next_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.playlist_play),
@@ -658,7 +652,6 @@ fun SongMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.add_to_queue)) },
-                            description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.queue_music),
@@ -690,7 +683,6 @@ fun SongMenu(
                                     )
                                 )
                             },
-                            description = { Text(text = stringResource(R.string.add_to_library_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(
@@ -830,7 +822,6 @@ fun SongMenu(
                         else -> {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.action_download)) },
-                                description = { Text(text = stringResource(R.string.download_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.download),
@@ -860,7 +851,6 @@ fun SongMenu(
                         when {
                             isLocalTrack -> Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.action_share)) },
-                                description = { Text(text = stringResource(R.string.share_local_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.share),
@@ -1011,7 +1001,6 @@ fun SongMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.refetch)) },
-                            description = { Text(text = stringResource(R.string.refetch_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.sync),
@@ -1047,7 +1036,6 @@ fun SongMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.details)) },
-                            description = { Text(text = stringResource(R.string.details_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.info),

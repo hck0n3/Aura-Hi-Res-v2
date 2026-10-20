@@ -629,8 +629,7 @@ fun YouTubePlaylistMenu(
                                         Icon(
                                             painter = painterResource(R.drawable.play),
                                             contentDescription = null,
-                                            modifier = Modifier.size(28.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            modifier = Modifier.size(24.dp),
                                         )
                                     },
                                     text = stringResource(R.string.play),
@@ -655,8 +654,7 @@ fun YouTubePlaylistMenu(
                                         Icon(
                                             painter = painterResource(R.drawable.shuffle),
                                             contentDescription = null,
-                                            modifier = Modifier.size(28.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            modifier = Modifier.size(24.dp),
                                         )
                                     },
                                     text = stringResource(R.string.shuffle),
@@ -671,8 +669,7 @@ fun YouTubePlaylistMenu(
                                         Icon(
                                             painter = painterResource(R.drawable.radio),
                                             contentDescription = null,
-                                            modifier = Modifier.size(28.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            modifier = Modifier.size(24.dp),
                                         )
                                     },
                                     text = stringResource(R.string.start_radio),
@@ -711,7 +708,6 @@ fun YouTubePlaylistMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.play_next)) },
-                            description = { Text(text = stringResource(R.string.play_next_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.playlist_play),
@@ -744,7 +740,6 @@ fun YouTubePlaylistMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.add_to_queue)) },
-                            description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.queue_music),
@@ -773,7 +768,6 @@ fun YouTubePlaylistMenu(
                     } else null,
                     Material3MenuItemData(
                         title = { Text(text = stringResource(R.string.add_to_playlist)) },
-                        description = { Text(text = stringResource(R.string.add_to_playlist_desc)) },
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.playlist_add),
@@ -880,7 +874,6 @@ fun YouTubePlaylistMenu(
                             else -> {
                                 Material3MenuItemData(
                                     title = { Text(text = stringResource(R.string.action_download)) },
-                                    description = { Text(text = stringResource(R.string.download_desc)) },
                                     icon = {
                                         Icon(
                                             painter = painterResource(R.drawable.download),
@@ -930,7 +923,6 @@ fun YouTubePlaylistMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.share)) },
-                            description = { Text(text = stringResource(R.string.share_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.share),

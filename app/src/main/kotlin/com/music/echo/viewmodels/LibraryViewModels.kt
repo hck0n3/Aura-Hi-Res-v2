@@ -16,8 +16,6 @@ import iad1tya.echo.music.constants.AlbumFilterKey
 import iad1tya.echo.music.constants.AlbumSortDescendingKey
 import iad1tya.echo.music.constants.AlbumSortType
 import iad1tya.echo.music.constants.AlbumSortTypeKey
-import iad1tya.echo.music.constants.ArtistFilter
-import iad1tya.echo.music.constants.ArtistFilterKey
 import iad1tya.echo.music.constants.ArtistSongSortDescendingKey
 import iad1tya.echo.music.constants.ArtistSongSortType
 import iad1tya.echo.music.constants.ArtistSongSortTypeKey
@@ -192,25 +190,24 @@ constructor(
     database: MusicDatabase,
     private val syncUtils: SyncUtils,
 ) : ViewModel() {
+    // EXCLUSIVELY the artists the account is subscribed to (`followedByUserAt`, which the subscription
+    // sync stamps and mirrors — SyncUtils.executeSyncArtistsSubscriptions). There is deliberately no
+    // "everything the library has a song of" source any more: owner 2026-10-20, «me salen artistas y
+    // cuando me meto me sale que no estoy suscrito … porque tengo una canción agregada de ese artista».
+    // The old `ArtistFilterKey` (Me gusta / Biblioteca) is no longer read; a stored "Biblioteca" is inert.
     val allArtists =
         context.dataStore.data
             .map {
-                Triple(
-                    it[ArtistFilterKey].toEnum(ArtistFilter.LIKED),
-                    it[ArtistSortTypeKey].toEnum(ArtistSortType.CREATE_DATE),
-                    it[ArtistSortDescendingKey] ?: true,
-                )
+                it[ArtistSortTypeKey].toEnum(ArtistSortType.CREATE_DATE) to
+                    (it[ArtistSortDescendingKey] ?: true)
             }.distinctUntilChanged()
-            .flatMapLatest { (filter, sortType, descending) ->
-                when (filter) {
-                    ArtistFilter.LIKED -> database.artistsBookmarked(sortType, descending)
-                    ArtistFilter.LIBRARY -> database.artists(sortType, descending)
-                }
+            .flatMapLatest { (sortType, descending) ->
+                database.artistsBookmarked(sortType, descending)
             }
             .conflate() // collapse mid-sync emission bursts (see LibrarySongsViewModel)
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // In-memory search over the currently emitted artists (followed/LIKED by default).
+    // In-memory search over the subscribed artists.
     val searchQuery = MutableStateFlow("")
 
     val filteredArtists =

@@ -322,8 +322,7 @@ fun OldPlayerMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.radio),
                                     contentDescription = null,
-                                    modifier = Modifier.size(32.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.start_radio),
@@ -339,8 +338,7 @@ fun OldPlayerMenu(
                             Icon(
                                 painter = painterResource(R.drawable.playlist_add),
                                 contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.add_to_playlist),
@@ -351,8 +349,7 @@ fun OldPlayerMenu(
                             Icon(
                                 painter = painterResource(R.drawable.share),
                                 contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.share),
@@ -466,7 +463,6 @@ fun OldPlayerMenu(
                             isLocalTrack -> add(
                                 Material3MenuItemData(
                                     title = { Text(text = stringResource(R.string.action_share)) },
-                                    description = { Text(text = stringResource(R.string.share_local_desc)) },
                                     icon = {
                                         Icon(
                                             painter = painterResource(R.drawable.share),
@@ -676,7 +672,6 @@ fun OldPlayerMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.refetch)) },
-                            description = { Text(text = stringResource(R.string.refetch_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.sync),
@@ -777,7 +772,6 @@ fun OldPlayerMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.details)) },
-                            description = { Text(text = stringResource(R.string.details_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.info),

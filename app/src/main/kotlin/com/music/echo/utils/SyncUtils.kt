@@ -1655,6 +1655,25 @@ class SyncUtils @Inject constructor(
                         }.onFailure { Timber.w(it, "Could not stamp subscribed artists") }
                     }
 
+                    // The other direction of the same mirror (owner 2026-10-20: the Library «Artistas» list
+                    // must be EXCLUSIVELY what the account is subscribed to). Everything above only moves a
+                    // row towards "followed", so a subscription removed on YouTube itself stayed in the list
+                    // for ever. A COMPLETE walk (`page.continuation == null`: the streaming read leaves it
+                    // non-null when the request cap, a failed page or a loop guard cut it short) is the
+                    // proof; the policy refuses anything the account never confirmed. Local state only.
+                    runCatching {
+                        val gone = ArtistSyncPolicy.followsGoneFromAccount(
+                            candidates = database.artistsFollowedAndSeenOnAccount(),
+                            remoteIds = remoteIds,
+                            readWasComplete = page.continuation == null,
+                            readStartedAt = now,
+                        )
+                        if (gone.isNotEmpty()) {
+                            gone.chunked(SQL_IN_CHUNK).forEach { database.clearFollowsGoneFromAccount(it) }
+                            Timber.i("ARTIST_FOLLOWS_GONE_FROM_ACCOUNT count=%d", gone.size)
+                        }
+                    }.onFailure { if (it is CancellationException) throw it else Timber.w(it, "Could not mirror removed subscriptions") }
+
                     // NOTE: the removed bulk follow (`followArtistsWithContent`) used to run here and
                     // subscribe every artist with ANY content in the library — playing or liking a song
                     // was enough to make its artist appear under "tus artistas". Real channel

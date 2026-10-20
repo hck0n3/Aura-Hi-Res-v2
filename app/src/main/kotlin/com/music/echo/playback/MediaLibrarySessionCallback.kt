@@ -262,7 +262,7 @@ constructor(
                         .map { it.toMediaItem(parentId) }
 
                     MusicService.ARTIST ->
-                        database.artistsByCreateDateAsc().first().map { artist ->
+                        database.artistsBookmarkedByCreateDateAsc().first().map { artist ->
                             browsableMediaItem(
                                 "${MusicService.ARTIST}/${artist.id}",
                                 artist.artist.name,

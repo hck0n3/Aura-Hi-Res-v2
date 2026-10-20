@@ -695,8 +695,7 @@ fun PlaylistMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.play),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.play),
@@ -717,8 +716,7 @@ fun PlaylistMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.shuffle),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.shuffle),
@@ -730,8 +728,7 @@ fun PlaylistMenu(
                             Icon(
                                 painter = painterResource(R.drawable.share),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.share),
@@ -817,7 +814,6 @@ fun PlaylistMenu(
                             add(
                                 Material3MenuItemData(
                                     title = { Text(text = stringResource(R.string.start_radio)) },
-                                    description = { Text(text = stringResource(R.string.start_radio_desc)) },
                                     icon = {
                                         Icon(
                                             painter = painterResource(R.drawable.radio),
@@ -846,7 +842,6 @@ fun PlaylistMenu(
                             add(
                                 Material3MenuItemData(
                                     title = { Text(text = stringResource(R.string.playlist_sync_now)) },
-                                    description = { Text(text = stringResource(R.string.sync_playlist_desc)) },
                                     icon = {
                                         Icon(
                                             painter = painterResource(R.drawable.sync),
@@ -890,7 +885,6 @@ fun PlaylistMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.play_next)) },
-                                description = { Text(text = stringResource(R.string.play_next_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.playlist_play),
@@ -910,7 +904,6 @@ fun PlaylistMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.add_to_queue)) },
-                                description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.queue_music),
@@ -937,7 +930,6 @@ fun PlaylistMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.edit)) },
-                                description = { Text(text = stringResource(R.string.edit_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.edit),
@@ -1034,7 +1026,6 @@ fun PlaylistMenu(
                                 else -> {
                                     Material3MenuItemData(
                                         title = { Text(text = stringResource(R.string.action_download)) },
-                                        description = { Text(text = stringResource(R.string.download_desc)) },
                                         icon = {
                                             Icon(
                                                 painter = painterResource(R.drawable.download),
@@ -1143,7 +1134,6 @@ fun PlaylistMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.delete)) },
-                                description = { Text(text = stringResource(R.string.delete_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.delete),
