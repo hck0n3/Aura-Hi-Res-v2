@@ -112,6 +112,8 @@ object PlayerJsFetcher {
                 val files = cacheDir.listFiles()
                 Timber.tag(TAG).d("Deleting ${files?.size ?: 0} cache files")
                 files?.forEach {
+                    // The EJS solver's preprocessed player is keyed by hash: it stays valid, and rebuilding it is the slow part.
+                    if (it.name.startsWith("ejs_pre_")) return@forEach
                     Timber.tag(TAG).v("Deleting: ${it.name}")
                     it.delete()
                 }

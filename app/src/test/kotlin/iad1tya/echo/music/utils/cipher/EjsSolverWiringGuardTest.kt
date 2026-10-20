@@ -38,6 +38,9 @@ class EjsSolverWiringGuardTest {
         assertTrue(src.contains("solve(\"sig\", parts.s)") && src.contains("solve(\"n\", nValue)"))
         assertTrue("sin respuesta no se inventa una URL", src.contains("?: return null"))
         assertTrue("una a la vez", src.contains("solverMutex.withLock"))
+        assertTrue("cada respuesta lleva el id de su petición: una tardía no se entrega a la siguiente", src.contains("fun onSolved(id: Int, kind: String, result: String)") && src.contains("takePending(id)?.resumeSafely { it.resume(result) }"))
+        assertTrue("un build fallido no se reintenta en cada canción", src.contains("CREATE_FAILURE_BACKOFF_MS"))
+        assertTrue("si quien llama cancela, el WebView a medias se cierra", src.contains("catch (e: kotlinx.coroutines.CancellationException) {") && src.contains("created?.let { discard(it) }"))
         assertTrue("el solver se reconstruye cuando el reproductor rota", src.contains("currentHash == existing.playerHash"))
         assertTrue("diagnóstico sin datos del usuario", src.contains("EJS_SOLVE kind=%s status=%s ms=%d hash=%s") && src.contains("EJS_SOLVER ready hash=%s"))
         // The log line carries the kind and the state, never the value or the answer.
@@ -67,7 +70,7 @@ class EjsSolverWiringGuardTest {
         assertTrue(core.contains("var location = new URL("))
         assertTrue(page.contains("<script src=\"yt.solver.lib.js\"></script>"))
         assertTrue("la lib se publica como globales antes del core", page.indexOf("Object.assign(globalThis, lib)") in 1 until page.indexOf("yt.solver.core.js"))
-        assertTrue(page.contains("function solve(kind, value)") && page.contains("EjsBridge.onSolved(kind, String(r))"))
+        assertTrue(page.contains("function solve(id, kind, value)") && page.contains("EjsBridge.onSolved(id, kind, String(r))"))
         assertFalse("los motores viejos sueltos ya no se empaquetan", File(root, "$assets/meriyah.js").exists() || File(root, "$assets/astring.js").exists())
     }
 }

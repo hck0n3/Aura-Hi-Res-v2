@@ -71,21 +71,21 @@ function initSolver() {
     }
 }
 
-function solve(kind, value) {
+function solve(id, kind, value) {
     try {
         var f = _solvers[kind];
         if (typeof f !== 'function') {
-            EjsBridge.onSolveError(kind, 'no ' + kind + ' solver');
+            EjsBridge.onSolveError(id, kind, 'no ' + kind + ' solver');
             return;
         }
         var r = f(value);
         if (r === undefined || r === null || r === '') {
-            EjsBridge.onSolveError(kind, 'empty result');
+            EjsBridge.onSolveError(id, kind, 'empty result');
             return;
         }
-        EjsBridge.onSolved(kind, String(r));
+        EjsBridge.onSolved(id, kind, String(r));
     } catch (e) {
-        EjsBridge.onSolveError(kind, _errText(e));
+        EjsBridge.onSolveError(id, kind, _errText(e));
     }
 }
 </script>

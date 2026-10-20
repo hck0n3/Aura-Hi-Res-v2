@@ -130,6 +130,12 @@ object EjsNTransformSolver {
         // A previously cached solver whose renderer died (or that was replaced above) is unusable; drop it and rebuild.
         solverWebView = null
 
+        // A build that just failed (timeout, dead renderer) is not retried on every song: each attempt can take up to
+        // CREATE_TIMEOUT_MS while holding the mutex, so a slow device would pay it per cipher format.
+        if (SystemClock.elapsedRealtime() - lastCreateFailureAtMs < CREATE_FAILURE_BACKOFF_MS) {
+            Timber.tag(TAG).d("EJS solver creation skipped: it failed a moment ago")
+            return null
+        }
         val result = PlayerJsFetcher.getPlayerJs(forceRefresh = false)
         if (result == null) {
             Timber.tag(TAG).e("Failed to get player JS for EJS solver")
@@ -143,13 +149,17 @@ object EjsNTransformSolver {
             if (sv == null) {
                 // create() timed out or the renderer died before init completed.
                 Timber.tag(TAG).e("EJS solver creation timed out; falling back")
+                lastCreateFailureAtMs = SystemClock.elapsedRealtime()
                 null
             } else {
                 solverWebView = sv
                 sv
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to create EJS solver: ${e.message}")
+            lastCreateFailureAtMs = SystemClock.elapsedRealtime()
             null
         }
     }
@@ -164,6 +174,11 @@ object EjsNTransformSolver {
         }
     }
 
+    @Volatile private var lastCreateFailureAtMs = -CREATE_FAILURE_BACKOFF_MS
+
+    // After a failed build, no new one is attempted for this long.
+    private const val CREATE_FAILURE_BACKOFF_MS = 60_000L
+
     // A working solver is rebuilt after this long so a rotated player is picked up (the cached player.js itself has a 6 h TTL).
     private const val SOLVER_MAX_AGE_MS = 6 * 60 * 60 * 1000L
 
@@ -172,7 +187,6 @@ object EjsNTransformSolver {
 
     class SolverWebView private constructor(
         context: Context,
-        private val playerJs: String,
         val playerHash: String,
         initContinuation: Continuation<SolverWebView>,
     ) {
@@ -185,6 +199,13 @@ object EjsNTransformSolver {
         // thread via takePending (onSolved/onSolveError), so publish it safely across threads.
         @Volatile
         private var pending: Continuation<String>? = null
+
+        // The id of the solve [pending] belongs to. A late answer of a solve that was cancelled or timed out must not
+        // be handed to the NEXT solve (it would get the wrong signature), so every answer carries its id.
+        @Volatile
+        private var pendingId = 0
+
+        private var nextId = 0 // only touched on Main
 
         val createdAtMs: Long = SystemClock.elapsedRealtime()
 
@@ -255,42 +276,20 @@ object EjsNTransformSolver {
         private fun takeInitContinuation(): Continuation<SolverWebView>? =
             initContinuation.also { initContinuation = null }
 
+        /** The pending continuation, if [id] is the solve it belongs to (null = whoever is pending, for a dead renderer). */
         @Synchronized
-        private fun takePending(): Continuation<String>? =
-            pending.also { pending = null }
+        private fun takePending(id: Int? = null): Continuation<String>? {
+            if (id != null && id != pendingId) return null
+            return pending.also { pending = null }
+        }
 
         private inline fun <T> T.resumeSafely(block: (T) -> Unit) {
             runCatching { block(this) }
         }
 
-        private fun preprocessedDir(): File = File(webView.context.filesDir, "cipher_cache")
-
-        private fun preprocessedFile(): File =
-            File(preprocessedDir(), "${PRE_PREFIX}${playerHash.filter { it.isLetterOrDigit() || it == '_' || it == '-' }}.js")
-
-        private fun loadSolverAndPlayer() {
-            val dir = File(webView.context.cacheDir, "ejs_solver")
-            dir.mkdirs()
-
-            val assetManager = webView.context.assets
-            for (file in listOf("yt.solver.lib.js", "yt.solver.core.js")) {
-                assetManager.open("solver/$file").use { input ->
-                    File(dir, file).outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-            }
-            val html = assetManager.open("solver/yt.solver.page.html").bufferedReader().use { it.readText() }
-
-            File(dir, "player.js").writeText(playerJs)
-            // The preprocessed copy of THIS player (kept from an earlier run) skips the slow parse; a stale one is removed.
-            val pre = preprocessedFile()
-            val preTarget = File(dir, "pre.js")
-            if (pre.isFile) pre.copyTo(preTarget, overwrite = true) else preTarget.delete()
-            Timber.tag(TAG).d("EJS solver assets written (${playerJs.length} chars, preprocessed cached=${pre.isFile})")
-
+        private fun loadSolverAndPlayer(html: String, baseDir: File) {
             webView.loadDataWithBaseURL(
-                "file://${dir.absolutePath}/",
+                "file://${baseDir.absolutePath}/",
                 html, "text/html", "utf-8", null
             )
         }
@@ -303,12 +302,12 @@ object EjsNTransformSolver {
         @JavascriptInterface
         fun onPreprocessed(code: String) {
             runCatching {
-                val dir = preprocessedDir()
+                val dir = preprocessedDir(webView.context)
                 dir.mkdirs()
                 dir.listFiles { f -> f.name.startsWith(PRE_PREFIX) }?.forEach { it.delete() }
                 val tmp = File(dir, "${PRE_PREFIX}tmp")
                 tmp.writeText(code)
-                if (!tmp.renameTo(preprocessedFile())) tmp.delete()
+                if (!tmp.renameTo(preprocessedFile(webView.context, playerHash))) tmp.delete()
             }.onFailure { Timber.tag(TAG).w("EJS preprocessed cache not written: ${it.javaClass.simpleName}") }
         }
 
@@ -345,24 +344,33 @@ object EjsNTransformSolver {
             return withTimeoutOrNull(EVAL_TIMEOUT_MS) {
                 withContext(Dispatchers.Main) {
                     suspendCancellableCoroutine { cont ->
-                        pending = cont
-                        cont.invokeOnCancellation { takePending() }
+                        val id = ++nextId
+                        synchronized(this@SolverWebView) {
+                            pending = cont
+                            pendingId = id
+                        }
+                        cont.invokeOnCancellation { takePending(id) }
                         // JSON string literals are valid JS string literals: every quote, backslash and control
                         // character of the challenge is escaped.
-                        webView.evaluateJavascript("solve(${JSONObject.quote(kind)}, ${JSONObject.quote(value)})", null)
+                        webView.evaluateJavascript("solve($id, ${JSONObject.quote(kind)}, ${JSONObject.quote(value)})", null)
                     }
                 }
             }
         }
 
         @JavascriptInterface
-        fun onSolved(kind: String, result: String) {
-            takePending()?.resumeSafely { it.resume(result) }
+        fun onSolved(id: Int, kind: String, result: String) {
+            takePending(id)?.resumeSafely { it.resume(result) }
         }
 
         @JavascriptInterface
-        fun onSolveError(kind: String, error: String) {
-            takePending()?.resumeSafely { it.resumeWithException(SabrException("EJS $kind solve failed: ${error.take(60)}")) }
+        fun onSolveError(id: Int, kind: String, error: String) {
+            // The page has no solver for this kind (the player had no matching function): remember it, so the
+            // diagnostic and the keep-or-rebuild decision tell the truth.
+            if (error.startsWith("no solutions") || error.startsWith("no ") || error == "empty result") {
+                if (kind == "n") nFunctionAvailable = false else sigFunctionAvailable = false
+            }
+            takePending(id)?.resumeSafely { it.resumeWithException(SabrException("EJS $kind solve failed: ${error.take(60)}")) }
         }
 
         fun close() {
@@ -398,28 +406,61 @@ object EjsNTransformSolver {
              * Callers fall back to the older paths in that case.
              */
             suspend fun create(context: Context, playerJs: String, playerHash: String): SolverWebView? {
+                // The multi-MB copies happen off the main thread, before the WebView exists.
+                val (html, dir) = withContext(Dispatchers.IO) { prepareFiles(context, playerJs, playerHash) }
                 var created: SolverWebView? = null
-                val result = withTimeoutOrNull(CREATE_TIMEOUT_MS) {
-                    withContext(Dispatchers.Main) {
-                        suspendCancellableCoroutine { cont ->
-                            val sv = SolverWebView(context, playerJs, playerHash, cont)
-                            created = sv
-                            cont.invokeOnCancellation { sv.takeInitContinuation() }
-                            sv.loadSolverAndPlayer()
+                suspend fun discard(sv: SolverWebView) = withContext(NonCancellable + Dispatchers.Main) {
+                    sv.isDead = true
+                    sv.takeInitContinuation()
+                    sv.close()
+                }
+                try {
+                    val result = withTimeoutOrNull(CREATE_TIMEOUT_MS) {
+                        withContext(Dispatchers.Main) {
+                            suspendCancellableCoroutine { cont ->
+                                val sv = SolverWebView(context, playerHash, cont)
+                                created = sv
+                                cont.invokeOnCancellation { sv.takeInitContinuation() }
+                                sv.loadSolverAndPlayer(html, dir)
+                            }
                         }
                     }
+                    if (result == null) {
+                        // Timed out: tear the half-built WebView down so it doesn't leak/linger.
+                        created?.let { discard(it) }
+                    }
+                    return result
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    // The caller gave up (track skipped, resolve budget spent): the half-built WebView must not keep
+                    // parsing a multi-MB player in the background (heat, battery).
+                    created?.let { discard(it) }
+                    throw e
                 }
-                if (result == null) {
-                    // Timed out: tear the half-built WebView down so it doesn't leak/linger.
-                    created?.let { sv ->
-                        withContext(NonCancellable + Dispatchers.Main) {
-                            sv.isDead = true
-                            sv.takeInitContinuation()
-                            sv.close()
-                        }
+            }
+
+            private fun preprocessedDir(context: Context): File = File(context.filesDir, "cipher_cache")
+
+            private fun preprocessedFile(context: Context, playerHash: String): File =
+                File(preprocessedDir(context), "${PRE_PREFIX}${playerHash.filter { it.isLetterOrDigit() || it == '_' || it == '-' }}.js")
+
+            /** Copies the solver bundle and the player next to each other; returns the page and the directory it is loaded from. */
+            private fun prepareFiles(context: Context, playerJs: String, playerHash: String): Pair<String, File> {
+                val dir = File(context.cacheDir, "ejs_solver")
+                dir.mkdirs()
+                val assetManager = context.assets
+                for (file in listOf("yt.solver.lib.js", "yt.solver.core.js")) {
+                    assetManager.open("solver/$file").use { input ->
+                        File(dir, file).outputStream().use { output -> input.copyTo(output) }
                     }
                 }
-                return result
+                val html = assetManager.open("solver/yt.solver.page.html").bufferedReader().use { it.readText() }
+                File(dir, "player.js").writeText(playerJs)
+                // The preprocessed copy of THIS player (kept from an earlier run) skips the slow parse; a stale one is removed.
+                val pre = preprocessedFile(context, playerHash)
+                val preTarget = File(dir, "pre.js")
+                if (pre.isFile) pre.copyTo(preTarget, overwrite = true) else preTarget.delete()
+                Timber.tag(TAG).d("EJS solver assets written (${playerJs.length} chars, preprocessed cached=${pre.isFile})")
+                return html to dir
             }
         }
     }
