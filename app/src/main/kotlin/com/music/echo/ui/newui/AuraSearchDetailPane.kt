@@ -131,7 +131,7 @@ import kotlinx.coroutines.withContext
  *
  * Data: `YouTube.album / artist / playlist` once per selection on IO, cancelled when the selection changes (LaunchedEffect
  * keyed on the page), a small in-memory cache ([AuraPaneCache]) so going back or re-selecting costs nothing. Nothing is
- * logged (titles and ids never reach AppLogger) and nothing runs per frame.
+ * logged (titles and ids never reach the shared log) and nothing runs per frame.
  */
 
 // ── Pure pieces (a test pins them) ────────────────────────────────────────────────────────────────
