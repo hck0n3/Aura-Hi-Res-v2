@@ -201,13 +201,15 @@ object TasteMixPlanner {
      * relax the gap until one fits. Songs without an artist are unconstrained. Order otherwise preserved.
      *
      * One correction to «first that fits»: an artist whose remaining songs would no longer fit with the spacing if they
-     * waited any longer (`(count - 1) * (gap + 1) + 1 >= remaining`) goes first (the most numerous of them), otherwise
+     * waited any longer (`(count - 1) * (gap + 1) + 1 + gap >= remaining`, a margin of one gap) goes first (the most numerous of them), otherwise
      * the tail of the queue ends up as a block of the same few artists.
      */
     internal fun spaceArtists(ordered: List<Candidate>, gap: Int = ARTIST_GAP): List<Candidate> {
         val remaining = ArrayList(ordered)
         val out = ArrayList<Candidate>(ordered.size)
-        fun artistKey(c: Candidate) = NoRepeatKey.normalizeArtist(c.artist)
+        // Normalised once per song: the greedy loop below asks for it O(n^2) times.
+        val keyById = ordered.associate { it.id to NoRepeatKey.normalizeArtist(it.artist) }
+        fun artistKey(c: Candidate): String = keyById.getValue(c.id)
         while (remaining.isNotEmpty()) {
             val counts = HashMap<String, Int>()
             remaining.forEach { c -> artistKey(c).takeIf { it.isNotEmpty() }?.let { counts.merge(it, 1) { a, b -> a + b } } }
@@ -218,7 +220,7 @@ object TasteMixPlanner {
                 val eligible = remaining.indices.filter { i -> artistKey(remaining[i]).let { k -> k.isEmpty() || k !in recent } }
                 // The most crowded eligible artist, when it can no longer wait.
                 val urgent = eligible
-                    .filter { i -> (counts[artistKey(remaining[i])] ?: 0).let { n -> n > 1 && (n - 1) * (gap + 1) + 1 >= remaining.size } }
+                    .filter { i -> (counts[artistKey(remaining[i])] ?: 0).let { n -> n > 1 && (n - 1) * (gap + 1) + 1 + gap >= remaining.size } }
                     .maxByOrNull { i -> counts[artistKey(remaining[i])] ?: 0 }
                 index = urgent ?: eligible.firstOrNull() ?: -1
                 if (index < 0) {

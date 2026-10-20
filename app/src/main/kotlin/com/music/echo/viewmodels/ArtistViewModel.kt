@@ -25,6 +25,7 @@ import iad1tya.echo.music.extensions.filterExplicit
 import iad1tya.echo.music.extensions.filterExplicitAlbums
 import iad1tya.echo.music.utils.ArtistPageCache
 import iad1tya.echo.music.utils.ArtistSyncPolicy
+import iad1tya.echo.music.utils.toggleArtistFollow
 import iad1tya.echo.music.utils.isLoggedCookie
 import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.utils.dataStore
@@ -145,29 +146,15 @@ class ArtistViewModel @Inject constructor(
      * `confirmArtistUnsubscribed` write-back are untouched.
      */
     fun toggleSubscription() {
+        val pageArtist = artistPage?.artist
         viewModelScope.launch(Dispatchers.IO) {
-            val rows = database.getArtistEntitiesByIds(ArtistSyncPolicy.aliasIds(artistId))
-            val followed = rows.filter { it.followedByUserAt != null }
-            val pageArtist = artistPage?.artist
-            database.transaction {
-                if (followed.isNotEmpty()) {
-                    followed.forEach { update(it.toggleLike(database::confirmArtistUnsubscribed)) }
-                } else {
-                    val own = rows.firstOrNull { it.id == artistId }
-                    if (own != null) {
-                        update(own.toggleLike(database::confirmArtistUnsubscribed))
-                    } else if (pageArtist != null) {
-                        insert(
-                            ArtistEntity(
-                                id = pageArtist.id,
-                                name = pageArtist.title,
-                                channelId = pageArtist.channelId,
-                                thumbnailUrl = pageArtist.thumbnail,
-                            ).toggleLike(database::confirmArtistUnsubscribed),
-                        )
-                    }
-                }
-            }
+            // Shared with the artist menus (utils/ArtistFollowToggle.kt): one definition of the tap.
+            database.toggleArtistFollow(
+                artistId,
+                pageArtist?.let {
+                    ArtistEntity(id = it.id, name = it.title, channelId = it.channelId, thumbnailUrl = it.thumbnail)
+                },
+            )
         }
     }
 

@@ -35,6 +35,8 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.applicationScope
+import iad1tya.echo.music.utils.toggleArtistFollow
 import iad1tya.echo.music.db.entities.SpeedDialItem
 import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.playback.queues.YouTubeQueue
@@ -57,7 +59,9 @@ fun YouTubeArtistMenu(
     val context = LocalContext.current
     val database = LocalDatabase.current
     val playerConnection = LocalPlayerConnection.current ?: return
-    val libraryArtist by database.artist(artist.id).collectAsState(initial = null)
+    // Same definition as the artist page (ArtistViewModel.isSubscribed): any spelling of the channel id counts.
+    val isSubscribed by database.isAnyArtistFollowed(iad1tya.echo.music.utils.ArtistSyncPolicy.aliasIds(artist.id))
+        .collectAsState(initial = false)
     val listenTogetherManager = LocalListenTogetherManager.current
     val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
     val isPinned by database.speedDialDao.isPinned(artist.id).collectAsState(initial = false)
@@ -135,12 +139,12 @@ fun YouTubeArtistMenu(
                 items = listOf(
                     Material3MenuItemData(
                         title = {
-                            Text(text = if (libraryArtist?.artist?.followedByUserAt != null) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
+                            Text(text = if (isSubscribed) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
                         },
                         icon = {
                             Icon(
                                 painter = painterResource(
-                                    if (libraryArtist?.artist?.followedByUserAt != null) {
+                                    if (isSubscribed) {
                                         R.drawable.subscribed
                                     } else {
                                         R.drawable.subscribe
@@ -150,20 +154,17 @@ fun YouTubeArtistMenu(
                             )
                         },
                         onClick = {
-                            database.query {
-                                val libraryArtist = libraryArtist
-                                if (libraryArtist != null) {
-                                    update(libraryArtist.artist.toggleLike(database::confirmArtistUnsubscribed))
-                                } else {
-                                    insert(
-                                        ArtistEntity(
-                                            id = artist.id,
-                                            name = artist.title,
-                                            channelId = artist.channelId,
-                                            thumbnailUrl = artist.thumbnail,
-                                        ).toggleLike(database::confirmArtistUnsubscribed)
-                                    )
-                                }
+                            // Application scope: the menu can close right after the tap and the tap must still land.
+                            context.applicationScope.launch(Dispatchers.IO) {
+                                database.toggleArtistFollow(
+                                    artist.id,
+                                    ArtistEntity(
+                                        id = artist.id,
+                                        name = artist.title,
+                                        channelId = artist.channelId,
+                                        thumbnailUrl = artist.thumbnail,
+                                    ),
+                                )
                             }
                         }
                     ),
