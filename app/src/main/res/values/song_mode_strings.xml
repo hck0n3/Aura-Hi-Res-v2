@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="skip_chain_stopped">Playback stopped: several tracks in a row could not be played. Pick another one.</string>
+    <string name="song_mode_unavailable_playing_video">This video is not available as a song, so it plays as a video.</string>
+</resources>

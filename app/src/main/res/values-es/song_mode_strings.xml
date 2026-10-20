@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="skip_chain_stopped">Se detuvo la reproducción: varias canciones seguidas no se pueden reproducir. Elige otra.</string>
+    <string name="song_mode_unavailable_playing_video">Este vídeo no está disponible como canción, así que suena como vídeo.</string>
+</resources>

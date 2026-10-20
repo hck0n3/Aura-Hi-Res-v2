@@ -1468,6 +1468,23 @@ class MusicService :
     @Volatile
     private var lastVideoFailureAtMs: Long = 0L
 
+    /**
+     * Owner 2026-10-20: video mode entered by the automatic «song audio refused» fallback must not pop the full
+     * player open (MainActivity's `videoModeOn` effect) — the user did not tap Video. Valid for a few seconds only,
+     * so a stale flag can never swallow a later, genuine expansion. Read once by [consumeSilentVideoEntry].
+     */
+    @Volatile private var silentVideoEntryUntilMs = 0L
+    internal var silentVideoEntry: Boolean
+        get() = System.currentTimeMillis() <= silentVideoEntryUntilMs
+        set(value) { silentVideoEntryUntilMs = if (value) System.currentTimeMillis() + 5_000L else 0L }
+
+    /** True once if the video mode that just turned on was the automatic fallback (then clears itself). */
+    internal fun consumeSilentVideoEntry(): Boolean {
+        val silent = silentVideoEntry
+        silentVideoEntry = false
+        return silent
+    }
+
     internal var userHasUsedVideo: Boolean
         get() = playbackState.userHasUsedVideo
         set(value) { playbackState.userHasUsedVideo = value }
@@ -3529,6 +3546,11 @@ class MusicService :
             return
         }
 
+        // Owner 2026-10-20: the chain used to end in a SILENT pause (his log: five unplayable videos in a row, then
+        // nothing). One clear notice instead; the counter resets so a deliberate next tap works normally.
+        if (SongModePlanning.skipChainExhausted(consecutivePlaybackErr, MAX_CONSECUTIVE_ERR)) {
+            runCatching { Toast.makeText(this, R.string.skip_chain_stopped, Toast.LENGTH_LONG).show() }
+        }
         player.pause()
         consecutivePlaybackErr = 0
     }
@@ -7787,7 +7809,11 @@ class MusicService :
         // era su cookie de YouTube muerta. Estuvo así hasta que cerró sesión y volvió a entrar a mano.
         // Cuando el resolver ya ha visto la racha (vídeos DISTINTOS, no reintentos de uno), nombrar la
         // causa una vez convierte ese misterio en treinta segundos de arreglo.
-        if (iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint()) {
+        // (Not for a video item: a burst of non-catalog videos looks like a dead session to the tracker — the log of
+        // 2026-10-19 — and «sign in again» would be a false alarm; those fall back to video mode instead.)
+        if (player.currentMetadata?.isVideoSong != true &&
+            iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint()
+        ) {
             runCatching {
                 Toast.makeText(
                     this@MusicService,
@@ -7826,6 +7852,14 @@ class MusicService :
                 // InnerTube → muxed 22/18) mientras el audio sigue sonando. Solo cuando no queda ningún
                 // peldaño se vuelve a audio — y ni siquiera entonces se salta la canción.
                 if (videoCoordinator.retryVideoWithAnotherFormat(mediaId)) return
+                // Owner 2026-10-20: the video failed because its merged AUDIO (the refused song audio) did, and no muxed
+                // rung is left: going «back to audio» would only fail again. It is unplayable — one notice + skip.
+                if (iad1tya.echo.music.playback.SongModeAvailability.isBlocked(mediaId)) {
+                    silentVideoEntry = false
+                    iad1tya.echo.music.utils.UnavailableSongs.recordFailure(mediaId)
+                    handleUnresolvableSong(mediaId, null)
+                    return
+                }
             }
             exitVideoMode()
             Toast.makeText(this, "Video no disponible — volviendo a audio", Toast.LENGTH_SHORT).show()
@@ -7877,6 +7911,19 @@ class MusicService :
                     error,
                     "Unresolvable song (no stream) for $mediaId: ${PlaybackErrorClassifier.noStreamReason(error)}",
                 )
+                // Owner 2026-10-20 (artist «Videos» that cannot be a song): a VIDEO whose song audio YouTube Music
+                // refuses (content verdict) starts in video mode instead of «Canción no disponible» + skip. Once per id;
+                // it is only a failure (recorded as unavailable, skipped) if the video does not resolve either.
+                if (mediaId != null && SongModePlanning.shouldFallBackToVideo(
+                        isVideoSong = player.currentMetadata?.isVideoSong == true,
+                        contentLevel = PlaybackErrorClassifier.isContentLevelNoStream(error),
+                        videoModeOn = _videoMode.value,
+                        alreadyTried = mediaId in videoCoordinator.songFallbackTried,
+                    ) &&
+                    videoCoordinator.fallBackToVideoForUnresolvableSong(mediaId)
+                ) {
+                    return
+                }
                 // Owner 2026-10-06 — remember a CONTENT-level dead end (region, Premium-only, removed…) so
                 // the song is hidden from lists and never queued again. Pending until another song plays
                 // (UnavailableRegistry), and never while the resolver itself sees an identity-shaped streak.
@@ -8702,7 +8749,13 @@ class MusicService :
         if (id == null || url == null || item == null || item.mediaId != id ||
             isCrossfading || fadingPlayer != null || secondaryPlayer != null ||
             pre.playbackState != Player.STATE_READY ||
-            pre.currentMediaItem?.mediaId != id
+            pre.currentMediaItem?.mediaId != id ||
+            // Owner 2026-10-20: a pre-player built before the song audio of this id was refused holds a video-only
+            // source whose merged audio half would fail; only a muxed one may be published.
+            !SongModePlanning.cachedVideoUsable(
+                SongModeAvailability.isBlocked(id),
+                id in videoCoordinator.newPipeMuxedVideoIds,
+            )
         ) {
             releaseInstantVideoPlayer("swap gates failed (not READY / track changed / crossfade live)")
             return false

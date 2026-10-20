@@ -777,6 +777,10 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
                 // the real reason, so onPlayerError skips the song with a message instead of looping
                 // forever in a fake "no internet" state. NEVER map this to a network code.
                 is iad1tya.echo.music.utils.YTPlayerUtils.StreamResolutionException -> {
+                    // Owner 2026-10-20 (artist «Videos»): a CONTENT verdict on the song audio of this id. Remembered so a
+                    // video id is not offered «Canción» and its video mode asks for a muxed stream (see SongModeAvailability).
+                    // Learned here (not in onPlayerError) so a failing PRELOAD teaches it before the item becomes current.
+                    if (throwable.contentLevel) SongModeAvailability.markBlocked(mediaId)
                     throw PlaybackException(
                         throwable.reason,
                         throwable,
@@ -816,6 +820,7 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         // Owner 2026-10-06 — a song resolved: the session and the network work, so earlier CONTENT
         // failures of other songs are real (UnavailableRegistry), and this one is playable again.
         iad1tya.echo.music.utils.UnavailableSongs.recordSuccess(mediaId)
+        SongModeAvailability.clear(mediaId)
 
         val nonNullPlayback = requireNotNull(playbackData) {
             getString(R.string.error_unknown)

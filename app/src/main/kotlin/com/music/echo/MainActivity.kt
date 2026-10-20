@@ -1338,8 +1338,15 @@ class MainActivity : ComponentActivity() {
                         // expanden solos pudo confirmarse por lectura de código con ese dato. Log
                         // puntual (sin datos de usuario) en cada uno para que el próximo log lo
                         // pruebe en vez de seguir adivinando.
-                        Timber.tag("MainActivity").i("PLAYER_EXPAND videoModeOn route=%s", currentRoute)
-                        playerBottomSheetState.expandSoft()
+                        // Owner 2026-10-20: the AUTOMATIC fallback («this video is not available as a song», artist
+                        // Videos) enters video mode on its own — the full player must not pop open for it; the picture
+                        // is one tap on the mini player away. A tap on Video still expands as before.
+                        if (playerConnection?.service?.consumeSilentVideoEntry() == true) {
+                            Timber.tag("MainActivity").i("PLAYER_EXPAND skipped: automatic song->video fallback")
+                        } else {
+                            Timber.tag("MainActivity").i("PLAYER_EXPAND videoModeOn route=%s", currentRoute)
+                            playerBottomSheetState.expandSoft()
+                        }
                     }
                 }
 

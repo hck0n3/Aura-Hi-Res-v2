@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Toast after Settings > Storage > Clear image cache. %1$s = freed space, already formatted (e.g. "312 MB"). -->
+    <string name="image_cache_cleared">Image cache cleared · %1$s freed</string>
+</resources>
