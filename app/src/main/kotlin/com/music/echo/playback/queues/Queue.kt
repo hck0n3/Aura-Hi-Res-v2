@@ -142,14 +142,9 @@ interface Queue {
     }
 }
 
-fun List<MediaItem>.filterExplicit(enabled: Boolean = true) =
-    if (enabled) {
-        filterNot {
-            it.metadata?.explicit == true
-        }
-    } else {
-        this
-    }
+// Explicit content is never hidden (owner 2026-10-20): no-op on purpose, [enabled] ignored.
+@Suppress("UNUSED_PARAMETER")
+fun List<MediaItem>.filterExplicit(enabled: Boolean = true): List<MediaItem> = this
 
 fun List<MediaItem>.filterVideoSongs(disableVideos: Boolean = false) =
     if (disableVideos) {

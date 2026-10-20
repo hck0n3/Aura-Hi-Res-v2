@@ -536,7 +536,6 @@ class HomeViewModel @Inject constructor(
                             val recommendations = page.songs
                                 .filter { item ->
                                     if (hideVideoSongs && item.isVideoSong) return@filter false
-                                    if (item.explicit) return@filter false
                                     true
                                 }
 

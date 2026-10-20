@@ -288,7 +288,6 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.ip_version_ipv4), "Contenido", "settings/content"),
             Triple(stringResource(R.string.ip_version_ipv6), "Contenido", "settings/content"),
             Triple(stringResource(R.string.general), "Contenido", "settings/content"),
-            Triple(stringResource(R.string.hide_explicit), "Contenido", "settings/content"),
             Triple(stringResource(R.string.hide_video_songs), "Contenido", "settings/content"),
             Triple(stringResource(R.string.hide_youtube_shorts), "Contenido", "settings/content"),
             Triple(stringResource(R.string.artist_page_settings), "Contenido", "settings/content"),
