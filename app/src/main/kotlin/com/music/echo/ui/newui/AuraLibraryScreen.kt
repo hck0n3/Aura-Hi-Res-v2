@@ -385,7 +385,6 @@ fun AuraLibraryScreen(navController: NavController) {
                             shape = AuraShapes.Card,
                             containerColor = AuraPalette.FloatingWindowPlate,
                             border = AuraMenuBorder,
-                            border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
                             content = importMenuItems,
                         )
                     }

@@ -1003,7 +1003,7 @@ object AiPlaylistGenerator {
         }
         // [words]: the sub-style / country words every list title has to prove (fila 466 — before, only «cumbia cristiana»
         // was searched and proved, so «cumbia villera / colombiana / mexicana cristiana» all returned the same lists).
-        fun styleLists(words: List<String>, force: Boolean = false) {
+        suspend fun styleLists(words: List<String>, force: Boolean = false) {
             val groups = words.map { MusicRequestRegion.group(it) }
             for (style in intent.styles.take(2)) {
                 if (pool.size >= POOL_TARGET || (!force && !inBudget())) break
