@@ -237,7 +237,13 @@
     <string name="home_offline_no_internet">Parece que no tienes conexión a internet.</string>
     <string name="home_offline_downloads_hint">Puedes seguir escuchando tu música descargada sin conexión.</string>
     <string name="home_offline_continue">Continuar sin conexión</string>
-    <string name="home_quick_surprise_hint">Algo de tu gusto</string>
+    <string name="home_quick_surprise_hint">Mezcla de tu gusto</string>
+    <string name="home_quick_surprise_fallback">Algo al azar</string>
+    <plurals name="home_quick_surprise_built">
+        <item quantity="one">Tu gusto · %d nueva</item>
+        <item quantity="many">Tu gusto · %d nuevas</item>
+        <item quantity="other">Tu gusto · %d nuevas</item>
+    </plurals>
     <string name="home_cold_empty_title">Reproduce algo para personalizar Inicio</string>
     <string name="home_cold_empty_hint">Busca una canción, álbum o artista — Inicio aprende de lo que reproduces.</string>
     <string name="tab_novedades">Novedades</string>
@@ -249,6 +255,16 @@
     <string name="novedades_daily_top">Top diario</string>
     <string name="novedades_everyones_listening">Lo que todos escuchan</string>
     <string name="novedades_coming_soon">Próximamente</string>
+    <string name="novedades_see_all">Ver todo</string>
+    <string name="novedades_see_less">Ver menos</string>
+    <string name="novedades_this_month">Este mes</string>
+    <string name="novedades_filter_singles">Sencillos y EP</string>
+    <string name="novedades_type_album">Álbum</string>
+    <string name="novedades_type_single">Sencillo</string>
+    <string name="novedades_type_ep">EP</string>
+    <string name="novedades_new_label">Nuevo</string>
+    <string name="novedades_more_releases">Más estrenos</string>
+    <string name="novedades_empty_hint">Aquí aparecerán los estrenos de tus artistas.</string>
     <string name="library_recently_added">Recién añadido</string>
     <string name="search_top_results">Resultados principales</string>
     <string name="action_presave">Presave</string>
@@ -1261,6 +1277,8 @@
     <string name="download_sheet_pick">Elegir canciones…</string>
     <string name="download_sheet_pick_desc">Marca las que quieras</string>
     <string name="download_sheet_select_all">Seleccionar todas</string>
+    <string name="download_sheet_select_none">Quitar selección</string>
+    <string name="download_sheet_selected_count">%1$d de %2$d</string>
     <string name="download_sheet_start">Empezar (%1$d)</string>
     <string name="download_sheet_back">Atrás</string>
     <string name="download_sheet_video_count">Solo las %1$d que tienen video musical</string>

@@ -162,6 +162,8 @@ import iad1tya.echo.music.listentogether.RoomRole
 import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.playback.AudioExportService
 import iad1tya.echo.music.playback.PendingDeferredDownloads
+import iad1tya.echo.music.playback.SongModeAvailability
+import iad1tya.echo.music.playback.SongModePlanning
 import iad1tya.echo.music.playback.enqueueSongDownloads
 import iad1tya.echo.music.playback.removeSongDownloads
 import iad1tya.echo.music.playback.videoDownloadMediaId
@@ -195,6 +197,7 @@ import iad1tya.echo.music.ui.player.swipeLyricsToChangeSong
 import iad1tya.echo.music.ui.screens.equalizer.axion.AxionEqViewModel
 import iad1tya.echo.music.ui.utils.ShowMediaInfo
 import iad1tya.echo.music.ui.utils.ShowOffsetDialog
+import iad1tya.echo.music.ui.utils.rememberIsAppInForeground
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.rememberIsWideShell
 import iad1tya.echo.music.ui.utils.tvFocusable
@@ -556,15 +559,20 @@ private fun AuraPlayerShape(
     var sliderPosition by remember { mutableStateOf<Long?>(null) }
     var lastManualSeekTime by remember { mutableLongStateOf(0L) }
 
-    LaunchedEffect(isPlaying, isCasting, highPerfMode) {
-        if (!isCasting && isPlaying) {
+    // Battery/heat (audit 2026-10-20): this ticker is driven by delay(), not by frames, so Compose's paused frame clock
+    // does NOT stop it — the player is composed on every screen, and it kept polling the ExoPlayer twice a second through
+    // every hour of screen-off listening for a scrubber nobody could see. It now runs only while the app is on screen, and
+    // reads once on the way back in (the loop reads BEFORE it sleeps) so the scrubber never shows a stale position.
+    val appInForeground = rememberIsAppInForeground()
+    LaunchedEffect(isPlaying, isCasting, highPerfMode, appInForeground) {
+        if (!isCasting && isPlaying && appInForeground) {
             while (isActive) {
-                delay(if (highPerfMode) 1000L else 500L)
                 if (sliderPosition == null) {
                     position = playerConnection.player.currentPosition
                     duration = playerConnection.player.duration
                     buffered = playerConnection.player.bufferedPosition
                 }
+                delay(if (highPerfMode) 1000L else 500L)
             }
         }
     }
@@ -905,7 +913,19 @@ private fun AuraPlayerShape(
     BottomSheet(
         state = state,
         modifier = modifier,
-        background = { AuraGroundLayer(ground, intensity = rhythmIntensity) },
+        background = {
+            AuraGroundLayer(
+                ground,
+                // Split pane: the ground stays inside the player's CARD. Left full-pane it tinted the status-bar strip
+                // above the card while the frame was still translucent — the flash at the top of the flip (owner 2026-10-20).
+                modifier = if (widePlayerMode != null && widePlayerMode.split) {
+                    Modifier.clip(AuraSplitPaneCardShape(widePlayerMode.cardTopInset, widePlayerMode.cardBottomInset))
+                } else {
+                    Modifier
+                },
+                intensity = rhythmIntensity,
+            )
+        },
         // DESTRUCTIVE GESTURE, PRESERVED VERBATIM: dragging the sheet below the dismiss threshold stops
         // playback and wipes the queue + automix. Identical to the classic player (Player.kt:1550).
         onDismiss = {
@@ -1517,7 +1537,12 @@ private fun AuraPlayerShape(
                     // techInfo.chips is already empty when "mostrar códec" is off (see the read site
                     // above). The crossfade chip is NOT codec data — the classic player shows it
                     // independently of that switch — so it keeps its own condition.
-                    val hasVideo = meta.hasCompatibleVideo || !meta.podcastVideoUrl.isNullOrEmpty()
+                    // Owner 2026-10-20: a video whose song audio YouTube Music refuses cannot go back to «Canción» — pressing
+                    // it only brings the error — so while it plays as video the toggle is not offered (SongModePlanning).
+                    val songBlockedIds by SongModeAvailability.blocked.collectAsState()
+                    val hasVideo = (meta.hasCompatibleVideo &&
+                        SongModePlanning.offerSongOption(videoMode, meta.isVideoSong, meta.id in songBlockedIds)) ||
+                        !meta.podcastVideoUrl.isNullOrEmpty()
                     if (techInfo.chips.isNotEmpty() || isCrossfading || hasVideo) {
                         Spacer(Modifier.height(if (dense) 6.dp else 10.dp))
                         Row(
@@ -1675,6 +1700,7 @@ private fun AuraPlayerShape(
                             }
                         },
                         enabled = !isListenTogetherGuest,
+                        firstTap = true,
                         size = if (dense) 22.dp else 24.dp,
                         tint = if (shuffleModeEnabled) transportAccent else AuraPalette.OnGroundFaint,
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -1684,6 +1710,7 @@ private fun AuraPlayerShape(
                         contentDescription = stringResource(R.string.previous),
                         onClick = playerConnection::seekToPrevious,
                         enabled = canSkipPrevious && !isListenTogetherGuest,
+                        firstTap = true,
                         size = if (dense) 30.dp else 34.dp,
                         tint = AuraPalette.OnGround.copy(alpha = 0.9f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -1721,6 +1748,9 @@ private fun AuraPlayerShape(
                         // TIDAL: no disc behind play/pause — the glyph alone, in the ground's ink.
                         fill = if (dense) playButtonFill else SolidColor(Color.Transparent),
                         ink = if (dense) playButtonInk else AuraPalette.OnGround,
+                        // Registry row 473: the shield above does NOT make a plain clickable reliable (it cancels it on
+                        // any MOVE between down and up); the tap must be the button's own gesture.
+                        firstTap = true,
                     )
                     Box(contentAlignment = Alignment.Center) {
                         if (isAdvancingIntoRadio) {
@@ -1739,6 +1769,7 @@ private fun AuraPlayerShape(
                                 contentDescription = stringResource(R.string.next),
                                 onClick = playerConnection::seekToNext,
                                 enabled = canSkipNext && !isListenTogetherGuest,
+                                firstTap = true,
                                 size = if (dense) 30.dp else 34.dp,
                                 tint = AuraPalette.OnGround.copy(alpha = 0.9f),
                                 modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -1751,6 +1782,7 @@ private fun AuraPlayerShape(
                             contentDescription = stringResource(R.string.repeat),
                             onClick = { playerConnection.player.toggleRepeatMode() },
                             enabled = !isListenTogetherGuest,
+                            firstTap = true,
                             size = if (dense) 22.dp else 24.dp,
                             tint = if (repeatMode != Player.REPEAT_MODE_OFF) transportAccent
                             else AuraPalette.OnGroundDisabled,
@@ -2516,14 +2548,19 @@ private fun AuraImmersiveVideo(
                 )
                 // The way OUT of video. Names the DESTINATION — "Música" — exactly like the classic
                 // affordance, whose glyph is literally `music_note` while video is on.
-                AuraIconButton(
-                    icon = AuraIcons.Video,
-                    contentDescription = stringResource(R.string.music),
-                    onClick = onExitVideo,
-                    size = 26.dp,
-                    tint = AuraPalette.Teal,
-                    modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
-                )
+                // Owner 2026-10-20: not offered for a video whose song audio is refused (it would only error).
+                val songBlockedIds by SongModeAvailability.blocked.collectAsState()
+                val exitId = playerConnection.mediaMetadata.collectAsState().value?.id
+                if (exitId == null || exitId !in songBlockedIds) {
+                    AuraIconButton(
+                        icon = AuraIcons.Video,
+                        contentDescription = stringResource(R.string.music),
+                        onClick = onExitVideo,
+                        size = 26.dp,
+                        tint = AuraPalette.Teal,
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                    )
+                }
             }
         }
     }

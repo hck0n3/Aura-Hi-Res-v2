@@ -56,6 +56,19 @@ Obtain your own licence from <mailto:licensing@superpowered.com>.
 
 ---
 
+## yt-dlp EJS player solver — Unlicense, bundles meriyah (ISC) and astring (MIT)
+
+| Path | Contents |
+| --- | --- |
+| `app/src/main/assets/solver/yt.solver.lib.js` | `yt-dlp-ejs` 0.8.0 library bundle (meriyah ISC, astring MIT), unmodified |
+| `app/src/main/assets/solver/yt.solver.core.js` | `yt-dlp-ejs` 0.8.0 core, one line patched (marked `AURA PATCH` in its header) |
+
+Source: <https://github.com/yt-dlp/ejs> (Unlicense). All three licences are GPL-3.0 compatible, so this
+component **is** redistributable with the rest of the repository. It solves YouTube's signature and `n`
+challenges by running the real player in a WebView; see `EjsNTransformSolver.kt`.
+
+---
+
 ## Engine availability is verifiable, not assumed
 
 Superpowered validates a licence key at runtime, and the agreement states service may be interrupted

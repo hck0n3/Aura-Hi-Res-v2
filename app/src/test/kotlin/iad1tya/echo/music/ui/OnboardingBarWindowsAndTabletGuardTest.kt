@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Registry rows 463-466 (owner 2026-10-21): the bottom bar must not show over the first-run onboarding, every floating
+ * Registry rows 494-497 (owner 2026-10-21): the bottom bar must not show over the first-run onboarding, every floating
  * window is the same translucent plate as the ⋯ menus, the Biblioteca grids grow on a tablet, and an artist's page on a wide
  * pane uses the album / playlist top.
  */
@@ -24,7 +24,7 @@ class OnboardingBarWindowsAndTabletGuardTest {
     private fun main(path: String) =
         File(mainDir, path).also { assertTrue("$path se movió", it.isFile) }.readText()
 
-    // ── 463 · the bar stays away from the first-run onboarding ─────────────────────────────────────────────────────────
+    // ── 494 · the bar stays away from the first-run onboarding ─────────────────────────────────────────────────────────
 
     @Test
     fun `the navigation bar is hidden on every onboarding route, phone and wide`() {
@@ -41,7 +41,7 @@ class OnboardingBarWindowsAndTabletGuardTest {
         }
     }
 
-    // ── 464 · one floating material ────────────────────────────────────────────────────────────────────────────────────
+    // ── 495 · one floating material ────────────────────────────────────────────────────────────────────────────────────
 
     @Test
     fun `no floating window container is painted with the opaque frost fill`() {
@@ -83,7 +83,7 @@ class OnboardingBarWindowsAndTabletGuardTest {
         assertTrue(sheet.contains("modifier.border(1.dp, AuraPalette.SurfaceLine, resolvedShape)"))
     }
 
-    // ── 465 · the Biblioteca grids on a tablet ─────────────────────────────────────────────────────────────────────────
+    // ── 496 · the Biblioteca grids on a tablet ─────────────────────────────────────────────────────────────────────────
 
     /** What `GridCells.Adaptive(minSize)` does with a pane [widthDp] wide (gutters 21 dp both sides, 11 dp between). */
     private fun columns(widthDp: Float, big: Boolean): Int {
@@ -120,7 +120,7 @@ class OnboardingBarWindowsAndTabletGuardTest {
         assertTrue(s.contains("iad1tya.echo.music.ui.utils.LocalContentPaneWidth.current?.value"))
     }
 
-    // ── 466 · the artist's top on a wide pane ──────────────────────────────────────────────────────────────────────────
+    // ── 497 · the artist's top on a wide pane ──────────────────────────────────────────────────────────────────────────
 
     @Test
     fun `an artist on a wide pane gets the album top, a narrow pane keeps the full-bleed hero`() {

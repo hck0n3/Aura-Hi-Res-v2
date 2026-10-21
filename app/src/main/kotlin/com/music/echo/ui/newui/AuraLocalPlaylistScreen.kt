@@ -520,6 +520,8 @@ fun AuraLocalPlaylistScreen(
     // ── Reordenar arrastrando ─────────────────────────────────────────────────────────────────────
 
     val lazyListState = rememberLazyListState()
+    // Opens on the cover, never scrolled past it (see AuraOpenAtTop).
+    AuraOpenAtTop(lazyListState)
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { lazyListState.isScrollInProgress }
     var dragInfo by remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -600,6 +602,14 @@ fun AuraLocalPlaylistScreen(
         if (isSearching) filteredSongs else mutableSongs,
         hiddenSongIds,
     ) { it.song }
+
+    // Wide pane only: genre column. The genre is the ARTIST's (on-device GenreCache), never guessed.
+    val trackGenres = rememberAuraTrackGenres(
+        remember(rows.size) { rows.mapNotNull { it.song.artists.firstOrNull()?.name } },
+    )
+    val showGenreColumn = remember(trackGenres, rows) {
+        trackGenres.anyKnown(rows) { row -> row.song.artists.map { it.name } }
+    }
 
     Box(modifier = Modifier.fillMaxSize().auraScreenBackground(bloom, intensity = 0.40f)) {
         Column(Modifier.fillMaxSize()) {
@@ -834,6 +844,9 @@ fun AuraLocalPlaylistScreen(
                             onSelectedChange = if (inSelectMode) onCheckedChange else null,
                             durationLabel = auraAppleDurationLabel(song.song.song.duration),
                             showQualityBadge = false,
+                            appleLayout = true,
+                            genre = trackGenres.of(song.song.artists.map { it.name }),
+                            showGenreColumn = showGenreColumn,
                             onClick = {
                                 if (inSelectMode) {
                                     onCheckedChange(!selected)
@@ -1015,7 +1028,12 @@ fun AuraLocalPlaylistScreen(
                 }
             }
 
-            item(key = "aura_lp_tail", contentType = "aura_lp_tail") { Spacer(Modifier.height(50.dp)) }
+            // Only once the playlist is there. This footer used to be emitted while the playlist was still loading, when it was
+            // the ONLY item: the list state then followed it to the bottom when the header and the songs were inserted above
+            // it, and the page opened scrolled past its cover (owner 2026-10-19: «que inicien mostrando la portada»).
+            if (current != null) {
+                item(key = "aura_lp_tail", contentType = "aura_lp_tail") { Spacer(Modifier.height(50.dp)) }
+            }
         }
         }
 

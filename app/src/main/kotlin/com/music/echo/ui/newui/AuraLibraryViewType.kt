@@ -1,6 +1,7 @@
 package iad1tya.echo.music.ui.newui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -53,7 +54,7 @@ internal fun AuraViewTypeToggle(viewType: LibraryViewType, onChange: (LibraryVie
  * they grow to 176 / 132 dp — about three or four per row on a Fold, still adaptive. [GridItemsSizeKey] still decides
  * Grande vs Pequeño on both.
  *
- * Fila 465 (dueño 2026-10-21, Galaxy Tab S12 Ultra: «las listas de reproducción siguen siendo muy pequeñas»): a 14.6"
+ * Fila 496 (dueño 2026-10-21, Galaxy Tab S12 Ultra: «las listas de reproducción siguen siendo muy pequeñas»): a 14.6"
  * tablet is ~1480 dp wide, and a cell that stopped growing at 176 dp gave seven or eight covers per row. From
  * [AURA_LIBRARY_TABLET_MIN_DP] the number of COLUMNS is what is chosen (3 / 4 / 5 Grande, 4 / 5 / 6 Pequeño) and the cell
  * fills its share of the pane, so the cover grows with the screen. The Fold keeps exactly what it had.
@@ -113,6 +114,8 @@ internal fun AuraLibraryCell(
     onPlay: (() -> Unit)? = null,
     /** Lists pass true: their name is shown in full, never cut with an ellipsis. */
     fullTitle: Boolean = false,
+    /** Grid only: drawn over the cover (the «Fijado» pin on what is already pinned to the Library). */
+    badge: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     if (viewType == LibraryViewType.LIST) {
         AuraSongRow(
@@ -144,6 +147,7 @@ internal fun AuraLibraryCell(
             onLongClick = onLongClick,
             onPlay = onPlay,
             fullTitle = fullTitle,
+            badge = badge,
         )
     }
 }

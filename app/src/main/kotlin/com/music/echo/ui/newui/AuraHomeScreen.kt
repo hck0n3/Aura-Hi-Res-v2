@@ -416,17 +416,31 @@ fun AuraHomeScreen(
         val items = songs.distinctBy { it.id }.map { it.toMediaItem() }
         if (items.isNotEmpty()) playerConnection.playQueue(ListQueue(title = title, items = items))
     }
-    // «Aleatorio» of the quick-access block (UI_INVENTORY §10, the five-dot button): picks something from the user's taste and
-    // opens it. Tapping it WHILE it is picking cancels the pending pick — the contract the inventory records. The view model
-    // clears `isRandomizing` in a `finally`, so a cancelled pick cannot leave the tile spinning.
+    // «Aleatorio» of the quick-access block (UI_INVENTORY §10, the five-dot button): «Mezcla de tu gusto». Owner 2026-10-20
+    // («lo vuelvo a tocar y repite el contenido… no me gusta que salga nada repetido»): each tap builds a FRESH queue from the
+    // user's library weighted by their taste and never contains what an earlier tap already served or played
+    // ([HomeViewModel.buildTasteMix] / TasteMixPlanner). Only a library too small to mix falls back to the old pick
+    // (`getRandomItem`: one song + its radio). Tapping it WHILE it is picking cancels the pending pick — the contract the
+    // inventory records. The view model clears `isRandomizing` in a `finally`, so a cancelled pick cannot leave the tile
+    // spinning.
     val isRandomizing by viewModel.isRandomizing.collectAsState()
+    val tasteMixCount by viewModel.tasteMixCount.collectAsState()
+    val tasteMixFallback by viewModel.tasteMixFallback.collectAsState()
     var surpriseJob by remember { mutableStateOf<Job?>(null) }
     val onSurprise: () -> Unit = {
         val running = surpriseJob
         if (running != null && running.isActive) {
             running.cancel()
         } else {
-            surpriseJob = scope.launch { viewModel.getRandomItem()?.let { openYtItem(it) } }
+            surpriseJob = scope.launch {
+                val mix = viewModel.buildTasteMix(currentSongId = mediaMetadata?.id)
+                if (mix != null) {
+                    playerConnection.playQueue(mix.queue)
+                    viewModel.commitTasteMix(mix)
+                } else {
+                    viewModel.getRandomItem()?.let { openYtItem(it) }
+                }
+            }
         }
     }
 
@@ -544,6 +558,26 @@ fun AuraHomeScreen(
                     }
                 }
 
+                // ACCESO RÁPIDO (owner 2026-10-19: «el diseño de Inicio lo sigo viendo muy básico»; sexta ronda: «esos cuatro
+                // botones… la colocación sea más bonita»): the four places the user goes back to, one tap from the greeting,
+                // like Spotify and YouTube Music open — now RIGHT UNDER «Pedir música» (they were after the mood chips, so the
+                // button and its four siblings never read as one block) and hidden while a mood chip's own page is open. See
+                // [AuraQuickAccess].
+                if (selectedChip == null) {
+                    item(key = "aura_home_quick_access", contentType = "aura_home_quick_access") {
+                        AuraQuickAccess(
+                            navController = navController,
+                            surprising = isRandomizing,
+                            onSurprise = onSurprise,
+                            tasteMixCount = tasteMixCount,
+                            tasteMixFallback = tasteMixFallback,
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(top = AURA_QUICK_TILE_GAP),
+                        )
+                    }
+                }
+
                 // Chips de estado de ánimo de YouTube (dynamic text; only when YouTube returns chips).
                 homePage?.chips?.takeIf { it.isNotEmpty() }?.let { chips ->
                     item(key = "aura_home_chips", contentType = "aura_home_chips") {
@@ -657,19 +691,6 @@ fun AuraHomeScreen(
                         }
                     }
                 } else {
-
-                // ACCESO RÁPIDO (owner 2026-10-19: «el diseño de Inicio lo sigo viendo muy básico»): the four places the user goes
-                // back to, one tap from the greeting, like Spotify and YouTube Music open. See [AuraQuickAccess].
-                item(key = "aura_home_quick_access", contentType = "aura_home_quick_access") {
-                    AuraQuickAccess(
-                        navController = navController,
-                        surprising = isRandomizing,
-                        onSurprise = onSurprise,
-                        modifier = Modifier
-                            .animateItem()
-                            .padding(top = 14.dp),
-                    )
-                }
 
                 // Apple Music style: Hero carousel "Para ti" — right under the quick access, before the podcasts and the recents shelf (it was
                 // drawn after them, so Inicio opened on a plain shelf instead of on its hero).
@@ -975,6 +996,8 @@ fun AuraHomeScreen(
                                                         AuraCoverCard(
                                                             title = auraLocalTitle(item),
                                                             subtitle = auraLocalSubtitle(item),
+                                                            explicit = (item as? Song)?.song?.explicit == true ||
+                                                                (item as? Album)?.album?.explicit == true,
                                                             thumbnailUrl = auraLocalThumbnail(item),
                                                             seed = item.id,
                                                             width = visual.shelfWidth * cardScale,
@@ -1897,6 +1920,7 @@ internal fun AuraSongShelfCard(
     AuraCoverCard(
         title = song.song.title,
         subtitle = song.artists.joinToString { it.name },
+        explicit = song.song.explicit,
         thumbnailUrl = song.song.thumbnailUrl,
         seed = song.id,
         width = visual.shelfWidth * cardScale,
@@ -2029,6 +2053,7 @@ internal fun AuraTypedYtCoverCard(
     AuraCoverCard(
         title = item.title,
         subtitle = auraYtSubtitle(item),
+        explicit = item.explicit,
         thumbnailUrl = item.thumbnail,
         seed = item.id,
         width = width,

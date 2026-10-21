@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modo sin conexión: su propio buscador y el cuerpo más rico (fila del registro del 2026-10-20). En su propio archivo. -->
+<resources>
+    <string name="offline_home_title">Sin conexión</string>
+    <plurals name="offline_songs_available">
+        <item quantity="one">%d canción disponible</item>
+        <item quantity="many">%d de canciones disponibles</item>
+        <item quantity="other">%d canciones disponibles</item>
+    </plurals>
+    <string name="offline_search_placeholder">Buscar en tu música sin conexión…</string>
+    <string name="offline_search_playlists">Listas</string>
+    <string name="offline_search_only_offline">Aquí solo se busca lo que suena sin conexión.</string>
+    <string name="offline_search_hint_title">Busca entre lo que suena sin conexión</string>
+    <string name="offline_search_hint_counts">%1$s · %2$d álbumes · %3$d listas</string>
+    <string name="offline_tile_shuffle_hint">De todo lo disponible</string>
+    <string name="offline_tile_downloads">Mis descargas</string>
+    <string name="offline_recent_title">Escuchado recientemente</string>
+    <string name="offline_empty_title">Aún no hay música sin conexión</string>
+    <string name="offline_empty_how">Cuando tengas conexión, abre el menú ⋯ de cualquier canción, álbum o lista y elige Descargar.</string>
+    <string name="offline_empty_cta">Volver online para descargar música</string>
+    <string name="offline_empty_auto">Vuelve a estar en línea sola en cuanto haya red.</string>
+</resources>

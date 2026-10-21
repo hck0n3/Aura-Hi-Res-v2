@@ -29,13 +29,16 @@ class OfflineCollectionsTest {
     }
 
     @Test
-    fun `the offline body shows albums then playlists before the song sections, and a partial one says how much plays`() {
+    fun `the offline body shows albums then playlists then recents before the song sections, and a partial one says how much plays`() {
         val src = main("ui/screens/OfflineHome.kt")
         val body = src.substringAfter("LazyColumn(").substringBefore("section(\"downloaded\"")
         assertTrue(body.indexOf("offline_albums") in 0 until body.indexOf("offline_playlists"))
-        assertTrue(body.indexOf("offline_playlists") < body.indexOf("offline_empty"))
+        assertTrue(body.indexOf("offline_playlists") < body.indexOf("offline_recent"))
+        assertTrue("el estado vacío sale antes que los estantes", body.indexOf("offline_empty") < body.indexOf("offline_tiles"))
         assertTrue(src.contains("navController.navigate(\"album/\${it.id}\")"))
         assertTrue(src.contains("navController.navigate(\"local_playlist/\${it.id}\")"))
-        assertTrue(src.contains("R.string.offline_collection_progress"))
+        assertTrue(src.contains("offlineCollectionSubtitle(collection)"))
+        // The "3 de 12" wording lives with the shared offline pieces (the search rows say it too).
+        assertTrue(main("ui/newui/AuraOfflineSearch.kt").contains("R.string.offline_collection_progress"))
     }
 }

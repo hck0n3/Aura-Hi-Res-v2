@@ -456,6 +456,7 @@ internal fun AuraYtPosterGridItem(
         typeLabel = visual.label,
         onClick = onClick,
         onLongClick = onLongClick,
+        explicit = (item is AlbumItem && item.explicit) || (item is SongItem && item.explicit),
         modifier = modifier,
     )
 }

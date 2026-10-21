@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -62,6 +63,8 @@ import iad1tya.echo.music.ui.screens.search.suggestions.SuggestionArtist
 import iad1tya.echo.music.ui.screens.search.suggestions.SuggestionMatch
 import iad1tya.echo.music.ui.screens.search.suggestions.SuggestionTrack
 import iad1tya.echo.music.ui.screens.search.suggestions.SuggestionsViewModel
+import iad1tya.echo.music.ui.utils.rememberIsWideLayout
+import iad1tya.echo.music.ui.utils.rememberIsWideShell
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.systemRegionCode
@@ -157,6 +160,29 @@ private fun AuraRankBadge(rank: Int, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Wide window (an unfolded foldable, a tablet) AND a content pane that really is wide: the covers and tiles of the three
+ * tabs are bigger there (owner 2026-10-20: *«todo está muy pequeño»* when unfolded). The window test keeps a phone on its side
+ * (wide but short) on its phone layout; the pane test keeps a screen squeezed by the split player on it too.
+ */
+@Composable
+private fun rememberAuraWideTabs(): Boolean {
+    val paneWide = rememberIsWideLayout()
+    val windowWide = rememberIsWideShell()
+    return paneWide && windowWide
+}
+
+/** Mood / genre tiles per row: two on a phone (what already shipped), more as a wide pane grows. Pure. */
+internal fun auraExploreColumns(paneWidth: Dp, wide: Boolean): Int {
+    if (!wide) return 2
+    val spacing = 10.dp
+    val available = paneWidth - AuraSpacing.Gutter * 2
+    return ((available + spacing) / (190.dp + spacing)).toInt().coerceIn(3, 5)
+}
+
+/** How much bigger the shelf covers of the Sugerencias tab are in a wide window. */
+internal const val AURA_WIDE_SHELF_SCALE = 1.3f
+
 // ── 1. Explorar ───────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -175,6 +201,10 @@ fun AuraExploreTab(
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { listState.isScrollInProgress }
 
+    val wideTabs = rememberAuraWideTabs()
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val columns = auraExploreColumns(maxWidth, wideTabs)
     LazyColumn(
         state = listState,
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
@@ -193,7 +223,7 @@ fun AuraExploreTab(
                 AuraSectionHeader(title = section.title, modifier = Modifier.animateItem())
             }
 
-            val rows = section.items.chunked(2)
+            val rows = section.items.chunked(columns)
             itemsIndexed(
                 items = rows,
                 key = { rowIndex, _ -> "aura_explore_row_${sectionIndex}_$rowIndex" },
@@ -214,10 +244,11 @@ fun AuraExploreTab(
                                 )
                             },
                             modifier = Modifier.weight(1f),
+                            minHeight = if (wideTabs) 84.dp else 64.dp,
                         )
                     }
-                    // Keep a lone tile at half width instead of letting it stretch.
-                    repeat(2 - row.size) { Spacer(Modifier.weight(1f)) }
+                    // Keep a lone tile at its own width instead of letting it stretch.
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -238,6 +269,7 @@ fun AuraExploreTab(
 
         item(key = "aura_explore_bottom_spacer", contentType = "aura_explore_bottom_spacer") { Spacer(Modifier.height(24.dp)) }
     }
+    }
 }
 
 /** A mood/genre entry: a `SurfaceFill` card with a hairline and the label. */
@@ -246,10 +278,11 @@ private fun AuraGenreTile(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    minHeight: Dp = 64.dp,
 ) {
     Box(
         modifier = modifier
-            .sizeIn(minHeight = 64.dp)
+            .sizeIn(minHeight = minHeight)
             .clip(AuraShapes.Card)
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
@@ -301,6 +334,7 @@ fun AuraTrendingTab(
     val isManualLoading by viewModel.isManualLoading.collectAsState()
 
     val (regionCode) = rememberPreference(key = SuggestionRegionKey, defaultValue = "system")
+    val shelfScale = if (rememberAuraWideTabs()) AURA_WIDE_SHELF_SCALE else 1f
 
     LaunchedEffect(regionCode) { viewModel.refresh(regionCode) }
 
@@ -353,6 +387,7 @@ fun AuraTrendingTab(
                         title = stringResource(R.string.trending_top_global),
                         label = null,
                         tracks = list,
+                        cardWidth = 130.dp * shelfScale,
                         onMore = { uriHandler.openUri("https://music.youtube.com/charts") },
                         onTrack = { track ->
                             Toast.makeText(
@@ -372,6 +407,7 @@ fun AuraTrendingTab(
                         title = stringResource(R.string.trending_apple_top),
                         label = regionLabel,
                         tracks = list,
+                        cardWidth = 130.dp * shelfScale,
                         onMore = { uriHandler.openUri(appleChartsUrl("")) },
                         onTrack = { track ->
                             Toast.makeText(
@@ -390,6 +426,7 @@ fun AuraTrendingTab(
                     AuraAlbumShelf(
                         title = stringResource(R.string.trending_albums),
                         albums = list,
+                        cardWidth = 130.dp * shelfScale,
                         onMore = { uriHandler.openUri(appleChartsUrl("/albums")) },
                         onAlbum = { album ->
                             Toast.makeText(
@@ -408,6 +445,7 @@ fun AuraTrendingTab(
                     AuraArtistShelf(
                         title = stringResource(R.string.trending_artists),
                         artists = list,
+                        cardWidth = 104.dp * shelfScale,
                         onArtist = { artist ->
                             Toast.makeText(
                                 context,
@@ -428,7 +466,7 @@ fun AuraTrendingTab(
                         tracks = list,
                         // Videos keep their native 16:9 frame, as the results list does.
                         ratio = 16f / 9f,
-                        cardWidth = 210.dp,
+                        cardWidth = 210.dp * shelfScale,
                         onMore = { uriHandler.openUri(appleChartsUrl("/videos")) },
                         onTrack = { video ->
                             Toast.makeText(
@@ -482,7 +520,7 @@ private fun AuraTrackShelf(
     onTrack: (SuggestionTrack) -> Unit,
     modifier: Modifier = Modifier,
     ratio: Float = 1f,
-    cardWidth: androidx.compose.ui.unit.Dp = 130.dp,
+    cardWidth: Dp = 130.dp,
 ) {
     Column(modifier) {
         AuraSectionHeader(title = title, label = label, onClick = onMore)
@@ -528,6 +566,7 @@ private fun AuraAlbumShelf(
     onMore: () -> Unit,
     onAlbum: (SuggestionAlbum) -> Unit,
     modifier: Modifier = Modifier,
+    cardWidth: Dp = 130.dp,
 ) {
     Column(modifier) {
         AuraSectionHeader(title = title, onClick = onMore)
@@ -548,7 +587,7 @@ private fun AuraAlbumShelf(
                     subtitle = album.artist,
                     thumbnailUrl = album.thumbnailUrl,
                     seed = album.title + album.artist,
-                    width = 130.dp,
+                    width = cardWidth,
                     onClick = { onAlbum(album) },
                     badge = { AuraRankBadge(album.rank, Modifier.align(Alignment.TopStart)) },
                     modifier = Modifier.animateItem(),
@@ -558,7 +597,7 @@ private fun AuraAlbumShelf(
                 AuraPillAction(
                     label = stringResource(R.string.trending_see_more),
                     onClick = onMore,
-                    modifier = Modifier.padding(top = 65.dp),
+                    modifier = Modifier.padding(top = cardWidth / 2),
                 )
             }
         }
@@ -571,6 +610,7 @@ private fun AuraArtistShelf(
     artists: List<SuggestionArtist>,
     onArtist: (SuggestionArtist) -> Unit,
     modifier: Modifier = Modifier,
+    cardWidth: Dp = 104.dp,
 ) {
     Column(modifier) {
         AuraSectionHeader(title = title)
@@ -590,7 +630,7 @@ private fun AuraArtistShelf(
                     title = artist.name,
                     thumbnailUrl = artist.thumbnailUrl,
                     seed = artist.name,
-                    width = 104.dp,
+                    width = cardWidth,
                     shape = CircleShape,
                     onClick = { onArtist(artist) },
                     badge = { AuraRankBadge(artist.rank, Modifier.align(Alignment.BottomEnd)) },
@@ -630,6 +670,7 @@ fun AuraNewAlbumsTab(
     val albums = explorePage?.newReleaseAlbums
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
+    val wideTabs = rememberAuraWideTabs()
 
     // isNullOrEmpty (not == null): after a successful-but-empty load the page is non-null with an
     // empty album list — Reintentar must show the loading line again, not freeze on the empty state.
@@ -654,7 +695,12 @@ fun AuraNewAlbumsTab(
 
         else -> BoxWithConstraints(Modifier.fillMaxSize()) {
             val spacing = 12.dp
-            val minCard = if (gridItemSize == GridItemSize.BIG) 140.dp else 104.dp
+            val minCard = when {
+                wideTabs && gridItemSize == GridItemSize.BIG -> 190.dp
+                wideTabs -> 140.dp
+                gridItemSize == GridItemSize.BIG -> 140.dp
+                else -> 104.dp
+            }
             val available = maxWidth - AuraSpacing.Gutter * 2
             val columns = max(2, ((available + spacing) / (minCard + spacing)).toInt())
             val cardWidth = (available - spacing * (columns - 1)) / columns
@@ -689,6 +735,16 @@ fun AuraNewAlbumsTab(
                         width = cardWidth,
                         isActive = mediaMetadata?.album?.id == album.id,
                         isPlaying = isPlaying,
+                        // Wide window: the type pill (ÁLBUM / EP / SENCILLO) and the «E», like every other search result.
+                        badge = {
+                            if (wideTabs) {
+                                AuraTypeBadge(
+                                    auraContentKind(album),
+                                    Modifier.align(Alignment.TopStart).padding(7.dp),
+                                )
+                            }
+                        },
+                        explicit = wideTabs && album.explicit,
                         onClick = { navController.navigate("album/${album.id}") },
                         onLongClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)

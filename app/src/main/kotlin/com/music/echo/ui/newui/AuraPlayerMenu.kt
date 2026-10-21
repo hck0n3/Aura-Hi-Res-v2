@@ -67,6 +67,8 @@ import iad1tya.echo.music.listentogether.RoomRole
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.navigateAsTab
+import iad1tya.echo.music.playback.SongModeAvailability
+import iad1tya.echo.music.playback.SongModePlanning
 import iad1tya.echo.music.playback.removeSongDownloads
 import iad1tya.echo.music.ui.component.BottomSheetState
 import iad1tya.echo.music.ui.component.ListDialog
@@ -272,7 +274,10 @@ fun AuraPlayerMenu(
     }
 
     val isInLibrary = librarySong?.song?.inLibrary != null
-    val hasVideo = mediaMetadata.hasCompatibleVideo ||
+    // Owner 2026-10-20: no «Canción» way out for a video whose song audio is refused (SongModePlanning).
+    val songBlockedIds by SongModeAvailability.blocked.collectAsState()
+    val hasVideo = (mediaMetadata.hasCompatibleVideo &&
+        SongModePlanning.offerSongOption(videoMode, mediaMetadata.isVideoSong, mediaMetadata.id in songBlockedIds)) ||
         isExportedVideo ||
         !mediaMetadata.podcastVideoUrl.isNullOrEmpty()
     // Sheet already paints FrostFill ([BottomSheetMenu] + LocalAuraFloatingChrome).

@@ -35,6 +35,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
@@ -102,11 +105,68 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** One request to show the recognition window. [nonce] makes a repeated request (a second tap, a notification) distinct. */
+data class RecognitionWindowRequest(val autoStart: Boolean, val nonce: Int)
+
+/**
+ * THE RECOGNITION WINDOW'S SWITCH (owner 2026-10-20: *«quiero que el reconocedor de música tipo shazam sea también como
+ * ventana flotante»*). Recognition used to be a full-screen route; it is now a floating window composed ONCE at the
+ * activity level ([RecognitionWindowHost], next to the other floating windows), so it opens over whatever is showing —
+ * including the expanded player — instead of replacing it. Every door (the toolbar mic, the header button, the rail
+ * long-press, the notification / tile / widget intents) calls [open]; none of them navigates any more.
+ *
+ * Process-level on purpose: the entry points live in `MainActivity` (a lambda inside `setContent` and the intent handler),
+ * the legacy route in `NavigationBuilder`, and all of them must reach the same window.
+ */
+object RecognitionWindowState {
+    var request by mutableStateOf<RecognitionWindowRequest?>(null)
+        private set
+    private var counter = 0
+
+    /** Show the window; with [autoStart] it starts listening at once (asking for the microphone first if needed). */
+    fun open(autoStart: Boolean) {
+        request = RecognitionWindowRequest(autoStart = autoStart, nonce = ++counter)
+    }
+
+    fun close() {
+        request = null
+    }
+}
+
+private const val RECOGNITION_ROUTE = "recognition?autoStart={autoStart}"
+
+/**
+ * The OLD full-screen route, kept as a thin redirect so nothing that still names it (a saved back stack, a deep link)
+ * breaks: it opens the window and takes itself off the back stack. It draws nothing.
+ */
 @Composable
 fun RecognitionScreen(
     navController: NavController,
     autoStart: Boolean = false
+) {
+    LaunchedEffect(Unit) {
+        RecognitionWindowState.open(autoStart)
+        if (navController.currentDestination?.route == RECOGNITION_ROUTE) {
+            navController.popBackStack()
+        }
+    }
+}
+
+/**
+ * Composed once by `MainActivity`. Reads the switch HERE, so opening / closing recomposes only this host and not the whole
+ * activity content.
+ */
+@Composable
+fun RecognitionWindowHost(navController: NavController) {
+    val request = RecognitionWindowState.request ?: return
+    RecognitionWindow(navController = navController, request = request)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecognitionWindow(
+    navController: NavController,
+    request: RecognitionWindowRequest,
 ) {
     val context = LocalContext.current
     val database = LocalDatabase.current
@@ -114,8 +174,11 @@ fun RecognitionScreen(
     val syncUtils = LocalSyncUtils.current
     val coroutineScope = rememberCoroutineScope()
 
+    // Closing = removing the request. The ONE teardown lives in the DisposableEffect below, so every way the window can go
+    // away (scrim, back, the sheet handle, the X, "Cerrar", the history button, a fallback navigation) stops the mic.
+    val onDismiss: () -> Unit = { RecognitionWindowState.close() }
 
-    // Only reset when no session is live — otherwise entering the screen mid-recognition
+    // Only reset when no session is live — otherwise opening the window mid-recognition
     // (e.g. started from the Quick Settings tile) would clobber the Listening/Processing state.
     // A retained terminal Success/NoMatch (headless tile/notification flow finished while the app
     // was closed) must be shown, not clobbered: only clear Ready or a stale Error.
@@ -129,12 +192,27 @@ fun RecognitionScreen(
     }
 
 
+    // CLOSING THE WINDOW STOPS THE MICROPHONE (owner brief 2026-10-20). A window, unlike the old screen, is something the
+    // user dismisses on purpose: leaving it open while the mic keeps recording behind an invisible UI would be wrong.
+    //  - Ready / Listening / Processing → MusicRecognitionService.cancel(context): aborts the capture job AND stops the
+    //    microphone foreground service (and its ongoing notification). Ready is included on purpose: a mic tap whose
+    //    service has started but has not reached `recognize()` yet still reads Ready, and must not start recording later.
+    //  - Success / NoMatch / Error → reset() only: the service already finished and left its result notification; stopping
+    //    it again could remove that notification before the history write finished.
+    // It is skipped when the ACTIVITY is going away (finishing / config change): that is not "the user closed the window",
+    // and backgrounding the app mid-listen keeps working through the foreground service exactly as before.
     DisposableEffect(Unit) {
         onDispose {
-            // Leaving the screen mid-recognition is fine: the mic foreground service keeps the session
-            // alive and shows progress in its notification, so don't reset a live session.
-            if (!iad1tya.echo.music.recognition.MusicRecognitionService.isInProgress()) {
-                iad1tya.echo.music.recognition.MusicRecognitionService.reset()
+            val activity = context as? android.app.Activity
+            if (activity != null && (activity.isFinishing || activity.isChangingConfigurations)) {
+                return@onDispose
+            }
+            when (iad1tya.echo.music.recognition.MusicRecognitionService.recognitionStatus.value) {
+                is RecognitionStatus.Success,
+                is RecognitionStatus.NoMatch,
+                is RecognitionStatus.Error ->
+                    iad1tya.echo.music.recognition.MusicRecognitionService.reset()
+                else -> iad1tya.echo.music.recognition.MusicRecognitionService.cancel(context)
             }
         }
     }
@@ -153,7 +231,8 @@ fun RecognitionScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasPermission = isGranted
-        if (isGranted) {
+        // The window may have been closed while the system dialog was up: do not start the mic for a window that is gone.
+        if (isGranted && RecognitionWindowState.request != null) {
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, iad1tya.echo.music.recognition.RecognitionForegroundService::class.java)
@@ -165,7 +244,7 @@ fun RecognitionScreen(
         if (hasPermission) {
             // Route through the microphone foreground service so the ~10s listen keeps capturing audio
             // even if the user backgrounds the app or locks the screen (Android 12+ mutes AudioRecord
-            // for cached apps). The screen keeps rendering states from the shared status flow.
+            // for cached apps). The window keeps rendering states from the shared status flow.
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, iad1tya.echo.music.recognition.RecognitionForegroundService::class.java)
@@ -182,17 +261,15 @@ fun RecognitionScreen(
         iad1tya.echo.music.recognition.MusicRecognitionService.cancel(context)
     }
 
-    // Auto-start when opened from the Quick Settings tile / widget / a RECOGNITION deep link with
+    // Auto-start when opened from the toolbar mic / Quick Settings tile / widget / a RECOGNITION deep link with
     // autoStart: begin listening immediately instead of requiring a second tap. If the permission is
-    // missing, request it exactly like the manual tap path does.
-    LaunchedEffect(autoStart) {
-        if (autoStart) {
+    // missing, request it exactly like the manual tap path does. Keyed by the request's nonce so a second
+    // request (a notification tapped while the window is already open) is honoured too; a session already
+    // live is not restarted (the service ignores a start while its job is active).
+    LaunchedEffect(request.nonce) {
+        if (request.autoStart) {
             startRecognition()
         }
-    }
-
-    fun resetToReady() {
-        iad1tya.echo.music.recognition.MusicRecognitionService.reset()
     }
 
     // Resolve-once: the first time a Success result renders, match it to a YouTube Music SongItem
@@ -234,8 +311,10 @@ fun RecognitionScreen(
     fun playRecognizedSong(result: RecognitionResult) {
         val connection = playerConnection
         if (connection == null) {
-            // No live player connection: fall back to the old search navigation.
+            // No live player connection: fall back to the old search navigation. The search screen would open BEHIND
+            // the floating window, so the window goes first.
             val searchQuery = "${result.title} ${result.artist}"
+            RecognitionWindowState.close()
             navController.navigate("search/${java.net.URLEncoder.encode(searchQuery, "UTF-8")}")
             return
         }
@@ -319,78 +398,54 @@ fun RecognitionScreen(
 
     var showChoosePlaylistDialog by rememberSaveable { mutableStateOf(false) }
 
-    // Mirrors YouTubeSongMenu's AddToPlaylistDialog wiring. Remote sync is NOT done here: the dialog
-    // itself pushes the returned ids to the synced playlist's browseId (AddToPlaylistDialog) — adding
-    // here too sent the song TWICE to the remote playlist.
-    AddToPlaylistDialog(
-        isVisible = showChoosePlaylistDialog,
-        onGetSong = { _ ->
-            val songItem = resolvedSong
-            if (songItem == null) {
-                emptyList()
-            } else {
-                database.withTransaction {
-                    insert(songItem.toMediaMetadata())
-                }
-                listOf(songItem.id)
-            }
-        },
-        onDismiss = { showChoosePlaylistDialog = false }
-    )
-
     // History is saved by RecognitionForegroundService's success branch (single writer — the in-app
     // flow also runs through that service). Saving here too would duplicate every entry, and a
     // retained headless Success re-rendered on screen entry would duplicate it again.
 
-    // ONE flag read for the whole screen. The recognition PIPELINE below is untouched — this is the
+    // ONE flag read for the whole window. The recognition PIPELINE above is untouched — this is the
     // chrome only: ground, glyph colours, type, radii.
     val skin = rememberAuraPanelSkin()
 
-    Scaffold(
-        containerColor = if (skin.enabled) AuraPalette.Ground else MaterialTheme.colorScheme.background,
-        topBar = {
-            iad1tya.echo.music.ui.component.AuraTopAppBar(
-                title = { Text(stringResource(R.string.recognize_music)) },
-                navigationIcon = {
-                    IconButton(
-                        onClick = { navController.navigateUp() },
-                        onLongClick = null
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_back),
-                            contentDescription = null
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { navController.navigate("recognition_history") }) {
-                        Icon(
-                            painter = painterResource(R.drawable.history),
-                            contentDescription = stringResource(R.string.recognition_history)
-                        )
-                    }
-                },
-                colors = if (skin.enabled) {
-                    androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-                        containerColor = AuraPalette.Ground,
-                        titleContentColor = skin.ink,
-                        navigationIconContentColor = skin.ink,
-                        actionIconContentColor = skin.ink,
-                    )
+    // Mirrors YouTubeSongMenu's AddToPlaylistDialog wiring. Remote sync is NOT done here: the dialog
+    // itself pushes the returned ids to the synced playlist's browseId (AddToPlaylistDialog) — adding
+    // here too sent the song TWICE to the remote playlist.
+    val playlistDialog: @Composable () -> Unit = {
+        AddToPlaylistDialog(
+            isVisible = showChoosePlaylistDialog,
+            onGetSong = { _ ->
+                val songItem = resolvedSong
+                if (songItem == null) {
+                    emptyList()
                 } else {
-                    androidx.compose.material3.TopAppBarDefaults.topAppBarColors()
+                    database.withTransaction {
+                        insert(songItem.toMediaMetadata())
+                    }
+                    listOf(songItem.id)
                 }
-            )
-        }
-    ) { paddingValues ->
+            },
+            onDismiss = { showChoosePlaylistDialog = false }
+        )
+    }
+
+    val windowBody: @Composable () -> Unit = {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
+                .fillMaxWidth()
+                // A short window (folded phone in landscape, a result card on a small screen) scrolls instead of clipping.
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
         ) {
+            RecognitionWindowHeader(
+                skin = skin,
+                onHistory = {
+                    // The history is still a full screen: the window goes first (its teardown also stops a live listen).
+                    RecognitionWindowState.close()
+                    navController.navigate("recognition_history")
+                },
+                onClose = onDismiss,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             AnimatedContent(
                 targetState = recognitionStatus,
                 transitionSpec = {
@@ -424,7 +479,8 @@ fun RecognitionScreen(
                             onTryAgain = {
                                 startRecognition()
                             },
-                            onClose = ::resetToReady
+                            // "Cerrar" closes the window now (it used to go back to the Ready state of the screen).
+                            onClose = onDismiss
                         )
                     }
                     is RecognitionStatus.NoMatch -> {
@@ -447,6 +503,72 @@ fun RecognitionScreen(
                     }
                 }
             }
+        }
+    }
+
+    // THE UNIFIED FLOATING STYLE — a bottom sheet with the drag handle on a phone, a centred card on a wide window — the same
+    // host and the same routing as the download sheet, "Pedir música", the settings menu and AddMusicSheet: it is the same
+    // weight (a few states, a handful of actions, content that measures itself), and an in-window dialog is what carries the
+    // real glass (the cover-tinted translucent plate, the blur, the wide card recipe, the handle's drag-to-close).
+    // Premium skin + a live overlay host → AuraInWindowDialog; otherwise the classic Material sheet window.
+    val inWindowGlass = skin.enabled && skin.darkGround &&
+        iad1tya.echo.music.ui.newui.LocalOverlayHazeState.current != null &&
+        iad1tya.echo.music.ui.newui.auraOverlayHostAvailable()
+    if (inWindowGlass) {
+        iad1tya.echo.music.ui.newui.AuraInWindowDialog(
+            visible = true,
+            onDismiss = onDismiss,
+            center = false,
+            fullHeight = false,
+        ) { windowBody() }
+        // A sibling, not a child: it floats above this window through the same portal.
+        playlistDialog()
+    } else {
+        iad1tya.echo.music.ui.component.AuraModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            windowBody()
+            // Inside the sheet WINDOW, so the dialog it opens stays above it.
+            playlistDialog()
+        }
+    }
+}
+
+@Composable
+private fun RecognitionWindowHeader(
+    skin: AuraPanelSkin,
+    onHistory: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val ink = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.recognize_music),
+            style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.titleMedium,
+            color = ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 4.dp),
+        )
+        IconButton(onClick = onHistory) {
+            Icon(
+                painter = painterResource(R.drawable.history),
+                contentDescription = stringResource(R.string.recognition_history),
+                tint = ink,
+            )
+        }
+        IconButton(onClick = onClose) {
+            Icon(
+                painter = painterResource(R.drawable.close),
+                contentDescription = stringResource(R.string.close),
+                tint = ink,
+            )
         }
     }
 }
@@ -497,7 +619,7 @@ private fun ReadyState(
     ) {
         Box(
             modifier = Modifier
-                .size(200.dp)
+                .size(168.dp)
                 .clip(CircleShape)
                 .background(micHalo(skin))
                 .clickable { onStartRecognition() },
@@ -505,7 +627,7 @@ private fun ReadyState(
         ) {
             Box(
                 modifier = Modifier
-                    .size(160.dp)
+                    .size(132.dp)
                     .clip(CircleShape)
                     .micFill(skin),
                 contentAlignment = Alignment.Center
@@ -513,7 +635,7 @@ private fun ReadyState(
                 Icon(
                     painter = painterResource(R.drawable.mic),
                     contentDescription = null,
-                    modifier = Modifier.size(64.dp),
+                    modifier = Modifier.size(56.dp),
                     tint = micInk(skin)
                 )
             }
@@ -549,13 +671,13 @@ private fun ListeningState(
     ) {
         
         Box(
-            modifier = Modifier.size(260.dp),
+            modifier = Modifier.size(220.dp),
             contentAlignment = Alignment.Center
         ) {
             
             Box(
                 modifier = Modifier
-                    .size(200.dp)
+                    .size(170.dp)
                     .scale(scale)
                     .clip(CircleShape)
                     .background(
@@ -567,7 +689,7 @@ private fun ListeningState(
 
             Box(
                 modifier = Modifier
-                    .size(180.dp)
+                    .size(150.dp)
                     .scale(scale * 0.9f)
                     .clip(CircleShape)
                     .background(
@@ -579,7 +701,7 @@ private fun ListeningState(
 
             Box(
                 modifier = Modifier
-                    .size(160.dp)
+                    .size(132.dp)
                     .clip(CircleShape)
                     .micFill(skin)
                     .clickable { onCancel() },
@@ -588,7 +710,7 @@ private fun ListeningState(
                 Icon(
                     painter = painterResource(R.drawable.mic),
                     contentDescription = null,
-                    modifier = Modifier.size(64.dp),
+                    modifier = Modifier.size(56.dp),
                     tint = micInk(skin)
                 )
             }
@@ -628,12 +750,12 @@ private fun ProcessingState(skin: AuraPanelSkin) {
         
         val sweepAccent = if (skin.enabled && skin.darkGround) AuraPalette.Teal else MaterialTheme.colorScheme.primary
         Box(
-            modifier = Modifier.size(160.dp),
+            modifier = Modifier.size(128.dp),
             contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier = Modifier
-                    .size(160.dp)
+                    .size(128.dp)
                     .clip(CircleShape)
                     .border(
                         width = 4.dp,
@@ -779,7 +901,7 @@ private fun SuccessState(
             else RoundedCornerShape(iad1tya.echo.music.constants.ThumbnailCornerRadius)
             Box(
                 modifier = Modifier
-                    .size(180.dp)
+                    .size(148.dp)
                     .aspectRatio(1f)
                     .clip(artworkShape)
                     .then(
@@ -930,28 +1052,12 @@ private fun SuccessState(
         }
     }
 
-    if (skin.enabled) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-            shape = AuraShapes.PlayerArtwork,
-            color = AuraPalette.FrostFill,
-            border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
-        ) {
-            Box(Modifier.padding(20.dp)) {
-                resultBody()
-            }
-        }
-    } else {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        ) {
-            resultBody()
-        }
+    // No inner card: the floating window IS the card (a frosted panel inside the glass would be glass-on-glass).
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 8.dp),
+    ) {
+        resultBody()
     }
 }
 
@@ -968,7 +1074,7 @@ private fun NoMatchState(
         // The error disc keeps the theme's `errorContainer` on BOTH paths: its colour is the message.
         Box(
             modifier = Modifier
-                .size(120.dp)
+                .size(88.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.errorContainer),
             contentAlignment = Alignment.Center
@@ -1023,7 +1129,7 @@ private fun ErrorState(
     ) {
         Box(
             modifier = Modifier
-                .size(120.dp)
+                .size(88.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.errorContainer),
             contentAlignment = Alignment.Center

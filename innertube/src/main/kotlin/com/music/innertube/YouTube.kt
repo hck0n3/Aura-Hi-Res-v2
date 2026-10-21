@@ -1184,6 +1184,11 @@ object YouTube {
             innerTube.unlikeVideo(WEB_REMIX, videoId)
     }
 
+    /** Thumbs-down on a song for the signed-in account. See [InnerTube.dislikeVideo]. */
+    suspend fun dislikeVideo(videoId: String) = runCatching {
+        innerTube.dislikeVideo(WEB_REMIX, videoId)
+    }
+
     suspend fun likePlaylist(playlistId: String, like: Boolean) = runCatching {
         if (like)
             innerTube.likePlaylist(WEB_REMIX, playlistId)
@@ -1203,6 +1208,25 @@ object YouTube {
             return it.artist.channelId ?: ""
         }
         return ""
+    }
+
+    /**
+     * Whether the SIGNED-IN account is subscribed to this artist, read from the subscribe button of the
+     * artist page itself (`subscribed`). [artist] cannot answer this: it is an anonymous request (unless
+     * `useLoginForBrowse` is on, which is off by default), and an anonymous page always says `false`.
+     *
+     * Returns `null` when the answer is unknown (no session, or the page has no subscribe button, as
+     * with auto-generated "Topic" headers). A `false` is NOT proof of "not subscribed" either — an
+     * expired cookie also yields a guest page — so callers may only ever act on `true`.
+     */
+    suspend fun artistSubscribed(browseId: String): Result<Boolean?> = runCatching {
+        if (cookie?.contains("SAPISID") != true) {
+            null
+        } else {
+            innerTube.browse(WEB_REMIX, browseId, setLogin = true).body<BrowseResponse>()
+                .header?.musicImmersiveHeaderRenderer?.subscriptionButton
+                ?.subscribeButtonRenderer?.subscribed
+        }
     }
 
     suspend fun addToPlaylist(playlistId: String, videoId: String) = runCatching {

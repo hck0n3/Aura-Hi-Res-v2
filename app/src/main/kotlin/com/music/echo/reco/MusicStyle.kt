@@ -237,7 +237,7 @@ object MusicStyle {
             latinNative = true, feminine = true, requestWords = listOf("polka", "polkas")),
         Style("calypso", FAMILY_REGGAE, listOf("soca", "soca music", "steelpan", "steel drum", "steel drums"),
             "soca calypso", related = listOf("reggae", "dancehall"), requestWords = listOf("calypso", "mento")),
-        // Row 462 (owner 2026-10-21: «identifica todos los géneros que existen en YouTube Music»): gaps found by probing
+        // Row 493 (owner 2026-10-21: «identifica todos los géneros que existen en YouTube Music»): gaps found by probing
         // the catalogue names a person says — Colombian carranga, tropipop, Guatemalan marimba, pasodoble, stage musicals.
         Style("carranga", FAMILY_TROPICAL, listOf("carranga", "musica carranguera"), "carranga", latinNative = true, feminine = true),
         Style("tropipop", FAMILY_POP, listOf("tropipop", "tropi pop"), "tropipop", latinNative = true),
@@ -562,7 +562,7 @@ object MusicStyle {
     )
 
     /**
-     * Row 462: the words that only name a SUB-STYLE of a style ("villera" in «cumbia villera», "sonidera", "tecnocumbia",
+     * Row 493: the words that only name a SUB-STYLE of a style ("villera" in «cumbia villera», "sonidera", "tecnocumbia",
      * "doom"): what is left of a multi-word phrase once the style's own name is taken out, plus the stand-alone sub-style
      * names. A request that is only those words is describing a style, not naming a song — pinning a track that happens to be
      * called «Villera» was the improvisation the owner forbade.

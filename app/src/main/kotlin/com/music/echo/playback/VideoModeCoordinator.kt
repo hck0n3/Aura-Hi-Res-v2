@@ -258,6 +258,28 @@ class VideoModeCoordinator(private val service: MusicService) {
         applyVideoToCurrent(swapGeneration = videoSwapGeneration.incrementAndGet(), forceExplicit = true)
     }
 
+    /** Ids whose failed song audio already got ONE automatic video attempt this session (no song→video→song loop). */
+    internal val songFallbackTried = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    /**
+     * Owner 2026-10-20 (artist «Videos»): the song audio of this VIDEO was refused by the content verdict. Instead
+     * of «Canción no disponible» + skip, start it in video mode (muxed stream only, see [SongModePlanning]). Once per
+     * id: if the video does not resolve either, the failure takes its usual road. Silent: the player sheet is NOT
+     * expanded for it (music first, row 219 / R10 #8), the picture is one tap away.
+     * Returns true when video mode took over and the caller must not skip.
+     */
+    internal fun fallBackToVideoForUnresolvableSong(id: String): Boolean {
+        if (!MusicService.VIDEO_PROVIDERS_ENABLED || isCastingNow()) return false
+        if (id.isEmpty() || id.isLocalMediaId() || id.startsWith("http", ignoreCase = true)) return false
+        if (id in videoFallbackGaveUp) return false
+        if (!songFallbackTried.add(id)) return false
+        Timber.tag(MusicService.TAG).i("SONG_MODE_FALLBACK song audio refused -> video mode (muxed only)")
+        service.silentVideoEntry = true
+        runCatching { Toast.makeText(service, R.string.song_mode_unavailable_playing_video, Toast.LENGTH_SHORT).show() }
+        enterVideoModeInternal(forceExplicit = true)
+        return true
+    }
+
     fun toggleVideoMode() {
         // High-Performance Mode defaults to audio-only, but if the user explicitly taps the Video toggle,
         // we should respect their intent and let them switch. We no longer block it here.
@@ -484,7 +506,10 @@ class VideoModeCoordinator(private val service: MusicService) {
             isVideoSong = service.player.currentMetadata?.isVideoSong == true,
             offlineOnly = service.dataStore.get(OfflineModeKey, false),
             videoDownloaded = isVideoDownloadComplete(id),
-            cachedUrl = VideoModePlanning.cachedVideoUrl(MusicService.videoUrlCache[id], System.currentTimeMillis()),
+            // Owner 2026-10-20: a video-only URL (the speculative prefetch) cannot be used for an id whose song audio
+            // is refused — the merged audio half would fail again. Only a muxed (picture + sound) URL survives.
+            cachedUrl = VideoModePlanning.cachedVideoUrl(MusicService.videoUrlCache[id], System.currentTimeMillis())
+                ?.takeIf { SongModePlanning.cachedVideoUsable(SongModeAvailability.isBlocked(id), id in newPipeMuxedVideoIds) },
             armModeWhenReady = armModeWhenReady,
             videoModeOn = service._videoMode.value,
             muxedFlagForId = id in newPipeMuxedVideoIds,
@@ -579,6 +604,14 @@ class VideoModeCoordinator(private val service: MusicService) {
                     markVideoFormatIncompatible(id)
                     if (!armModeWhenReady) {
                         disarmVideoModeKeepAudio()
+                        if (SongModeAvailability.isBlocked(id)) {
+                            // Owner 2026-10-20: the song audio was refused AND no muxed video exists: this one is really
+                            // unplayable. Same road as before the fallback existed (one notice + skip), not «Video falló».
+                            service.silentVideoEntry = false
+                            iad1tya.echo.music.utils.UnavailableSongs.recordFailure(id)
+                            service.handleUnresolvableSong(id, null)
+                            return@withContext
+                        }
                         val ex = outcome.innerTubeError
                         val reason = ex?.let { "${it.javaClass.simpleName}: ${it.message}" } ?: "sin formato de video"
                         Toast.makeText(service, "Video falló — $reason", Toast.LENGTH_LONG).show()
@@ -642,8 +675,16 @@ class VideoModeCoordinator(private val service: MusicService) {
         }
 
         var attempt = startAttempt
+        val songBlocked = SongModeAvailability.isBlocked(id)
         while (true) {
             val source = VideoFormatFallback.sourceForAttempt(attempt) ?: break
+            // Owner 2026-10-20: with the song audio of this id refused by the music clients, every video-only rung
+            // would merge back the SAME broken audio (the log's endless «ladder exhausted» loop). Only the
+            // progressive rung (audio inside the file) can work, so the others are skipped without a request.
+            if (!SongModePlanning.ladderSourceAllowed(source, songBlocked)) {
+                attempt++
+                continue
+            }
             val excluded = excludedVideoItags[id].orEmpty()
             val resolved = when (source) {
                 // El camino rápido de siempre — PipePipe/ANDROID_VR, sin quemar, una sola extracción —
@@ -701,7 +742,17 @@ class VideoModeCoordinator(private val service: MusicService) {
             )
             return false
         }
-        if (!VideoFormatFallback.hasNextSource(nextAttempt)) {
+        // Song audio refused for this id (SongModeAvailability): only the progressive rung can still work, so "is there a
+        // next rung" must count only the allowed ones — otherwise the ladder would spin through rungs that are skipped.
+        val songBlocked = SongModeAvailability.isBlocked(mediaId)
+        val rungLeft = if (songBlocked) {
+            (nextAttempt until VideoFormatFallback.MAX_ATTEMPTS).any {
+                VideoFormatFallback.sourceForAttempt(it)?.let { src -> SongModePlanning.ladderSourceAllowed(src, true) } == true
+            }
+        } else {
+            VideoFormatFallback.hasNextSource(nextAttempt)
+        }
+        if (!rungLeft) {
             videoFallbackInFlight.remove(mediaId)
             // AGOTADO de verdad: se RECUERDA. `exitVideoMode` limpia el contador de intentos, así que
             // sin esta marca la siguiente re-entrada empezaría en attempt=1 — el bucle infinito de su
@@ -723,7 +774,8 @@ class VideoModeCoordinator(private val service: MusicService) {
         videoItagForId.remove(mediaId)
         service.resetRetryCount(mediaId)
         // Volver a AUDIO ya mismo: la canción no puede callarse mientras se busca otro formato.
-        restoreVideoTracksExcept(null)
+        // (Salvo si el audio de canción de este id está rechazado: volver a él solo repetiría el error.)
+        if (!songBlocked) restoreVideoTracksExcept(null)
         // Seguimos armados — el usuario pidió video y lo va a tener en cuanto un formato entre.
         //
         // `stickyVideoPreferred` NO se toca aquí: ponerlo a true era la primera pata del bucle
@@ -1060,6 +1112,9 @@ class VideoModeCoordinator(private val service: MusicService) {
         val id = service.player.currentMediaItem?.mediaId ?: return
         if (id.isEmpty() || id.isLocalMediaId() || id.startsWith("http", ignoreCase = true)) return
         if (service.player.currentMetadata?.isVideoSong != true) return
+        // Owner 2026-10-20: a song-refused id needs a MUXED stream, which the toggle resolves on demand; the
+        // speculative video-only URL would only be thrown away (and costs a resolve while music plays).
+        if (SongModeAvailability.isBlocked(id)) return
         // Before the user has opened video once: only capable devices pay the speculative cipher cost.
         if (!service.userHasUsedVideo) {
             val perfMode = iad1tya.echo.music.utils.PerformanceMode.isOn(service)

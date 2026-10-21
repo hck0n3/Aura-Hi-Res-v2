@@ -226,7 +226,7 @@ object MusicRequestQuery {
      */
     private val IGNORED_WORDS = FILLER_WORDS + SOFT_WORDS + setOf("music", "for", "in", "on", "with", "by")
 
-    /** Row 462: GENRE_HINTS words that mean a COUNTRY once a concrete style is named next to them. */
+    /** Row 493: GENRE_HINTS words that mean a COUNTRY once a concrete style is named next to them. */
     private val DEMONYM_HINTS = setOf("mexicana", "mexicano")
 
     fun build(prompt: String): Parsed {
@@ -359,7 +359,7 @@ object MusicRequestQuery {
         // «champeta» quedaban como resto y se buscaban como si fueran el título de una canción. Solo se quitan los nombres
         // del estilo; las palabras de un subgénero («sonidera», «doom») se quedan para que la lista las demuestre. Va
         // antes que las palabras sueltas de la lista vieja: «city pop» es un estilo, no «pop» más «city».
-        // Row 462: «mexicana» is the FAMILY «regional mexicano» only when no concrete style is named; with one («cumbia
+        // Row 493: «mexicana» is the FAMILY «regional mexicano» only when no concrete style is named; with one («cumbia
         // mexicana») it is the COUNTRY and has to stay, or «cumbia mexicana» was answered as plain «cumbia».
         val concreteStyleNamed = MusicStyle.stylesIn(stripped).isNotEmpty()
         stripped = MusicStyle.withoutStyles(stripped)
@@ -397,7 +397,7 @@ object MusicRequestQuery {
         residualBeyondCategory(text).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
             .all {
                 it in IGNORED_WORDS || MusicRequestMoods.isMomentWord(it) ||
-                    // Row 462: a country («colombiana») or a sub-style («villera») is not a person either.
+                    // Row 493: a country («colombiana») or a sub-style («villera») is not a person either.
                     MusicRequestRegion.isRegionWord(it) || MusicStyle.isSubStyleWord(it)
             }
 

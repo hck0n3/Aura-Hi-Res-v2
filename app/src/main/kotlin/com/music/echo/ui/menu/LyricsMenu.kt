@@ -408,8 +408,7 @@ fun LyricsMenu(
                             Icon(
                                 painter = painterResource(R.drawable.edit),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.edit),
@@ -422,8 +421,7 @@ fun LyricsMenu(
                             Icon(
                                 painter = painterResource(R.drawable.cached),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.refetch),
@@ -437,8 +435,7 @@ fun LyricsMenu(
                             Icon(
                                 painter = painterResource(R.drawable.search),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.search),
@@ -456,8 +453,7 @@ fun LyricsMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.restore),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.restore_previous_lyrics),
@@ -468,7 +464,7 @@ fun LyricsMenu(
                         )
                     }
                 ),
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 

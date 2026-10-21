@@ -6,7 +6,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
@@ -14,11 +17,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -79,8 +84,16 @@ import iad1tya.echo.music.ui.menu.SongMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.ui.newui.AuraAppleCoverDividerInset
 import iad1tya.echo.music.ui.newui.AuraAppleListRowFrame
+import iad1tya.echo.music.ui.newui.AuraChip
+import iad1tya.echo.music.ui.newui.AuraCoverThemeScope
+import iad1tya.echo.music.ui.newui.AuraPalette
+import iad1tya.echo.music.ui.newui.AuraSectionHeader
 import iad1tya.echo.music.ui.newui.AuraSongRow
+import iad1tya.echo.music.ui.newui.AuraSpacing
 import iad1tya.echo.music.ui.newui.auraAppleDurationLabel
+import iad1tya.echo.music.ui.newui.auraScreenBackground
+import iad1tya.echo.music.ui.newui.rememberAuraBloom
+import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.listItemShape
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.DateAgo
@@ -100,6 +113,17 @@ fun HistoryScreen(
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+
+    // Owner 2026-10-20: «la parte de cuando entro al historial no tiene los mismos colores de la app».
+    // Every other page sits on the cover-tinted ground (Aura screens paint it themselves, Ajustes gets
+    // it from the shell); this one was a bare Material page on the flat theme background with the
+    // theme's own accent. Read the skin and the Material colours HERE, outside AuraCoverThemeScope:
+    // inside it surface/background are transparent, which would flip the dark-ground test.
+    val skin = rememberAuraPanelSkin()
+    val auraDark = skin.enabled && skin.darkGround
+    val bloom = rememberAuraBloom(mediaMetadata?.id)
+    val remoteHeaderBg = if (auraDark) AuraPalette.Ground else MaterialTheme.colorScheme.background
+    val localHeaderBg = if (auraDark) AuraPalette.Ground else MaterialTheme.colorScheme.surface
 
     var inSelectMode by rememberSaveable { mutableStateOf(false) }
     val selection = rememberSaveable(
@@ -200,6 +224,21 @@ fun HistoryScreen(
 
     val lazyListState = rememberLazyListState()
 
+    val onHistorySourceChange: (HistorySource) -> Unit = {
+        viewModel.historySource.value = it
+        if (it == HistorySource.REMOTE) {
+            viewModel.fetchRemoteHistory()
+        }
+    }
+
+    // New UI: the cover's accents/ink (Checkbox, FAB, headers, rows) + the cover's ground and bloom.
+    // Classic (auraDark false): the scope hands the outer scheme straight back and no ground is drawn.
+    AuraCoverThemeScope(enabled = auraDark) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .then(if (auraDark) Modifier.auraScreenBackground(bloom, intensity = 0.40f) else Modifier),
+    ) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             state = lazyListState,
@@ -212,31 +251,47 @@ fun HistoryScreen(
             )
         ) {
             item(key = "chips_row") {
-                ChipsRow(
-                    chips = if (isLoggedIn) listOf(
-                        HistorySource.LOCAL to stringResource(R.string.local_history),
-                        HistorySource.REMOTE to stringResource(R.string.remote_history),
-                    ) else {
-                        listOf(HistorySource.LOCAL to stringResource(R.string.local_history))
-                    },
-                    currentValue = historySource,
-                    onValueUpdate = {
-                        viewModel.historySource.value = it
-                        if (it == HistorySource.REMOTE){
-                            viewModel.fetchRemoteHistory()
+                val sourceChips = if (isLoggedIn) listOf(
+                    HistorySource.LOCAL to stringResource(R.string.local_history),
+                    HistorySource.REMOTE to stringResource(R.string.remote_history),
+                ) else {
+                    listOf(HistorySource.LOCAL to stringResource(R.string.local_history))
+                }
+                if (auraDark) {
+                    // The same filter chip as Biblioteca / Cola / Buscar.
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = AuraSpacing.Gutter, vertical = 4.dp),
+                    ) {
+                        sourceChips.forEach { (source, label) ->
+                            AuraChip(
+                                text = label,
+                                selected = historySource == source,
+                                onClick = { onHistorySourceChange(source) },
+                            )
                         }
                     }
-                )
+                } else {
+                    ChipsRow(
+                        chips = sourceChips,
+                        currentValue = historySource,
+                        onValueUpdate = onHistorySourceChange,
+                    )
+                }
             }
 
             if (historySource == HistorySource.REMOTE && isLoggedIn) {
                 filteredRemoteContent?.forEach { section ->
                     stickyHeader {
-                        NavigationTitle(
+                        HistoryDateHeader(
                             title = section.title,
+                            auraDark = auraDark,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.background)
+                                .background(remoteHeaderBg)
                         )
                     }
 
@@ -302,11 +357,12 @@ fun HistoryScreen(
             } else {
                 filteredEvents.forEach { (dateAgo, dateEvents) ->
                     stickyHeader {
-                        NavigationTitle(
+                        HistoryDateHeader(
                             title = dateAgoToString(dateAgo),
+                            auraDark = auraDark,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface)
+                                .background(localHeaderBg)
                         )
                     }
 
@@ -524,4 +580,19 @@ fun HistoryScreen(
             }
         }
     )
+    }
+    }
+}
+
+/**
+ * A sticky date / section header. New UI: the tracked mono section label every Aura screen uses; classic:
+ * the Material one. Opaque by construction (rows scroll under it) — the caller supplies the ground.
+ */
+@Composable
+private fun HistoryDateHeader(title: String, auraDark: Boolean, modifier: Modifier = Modifier) {
+    if (auraDark) {
+        AuraSectionHeader(title = title, modifier = modifier)
+    } else {
+        NavigationTitle(title = title, modifier = modifier)
+    }
 }

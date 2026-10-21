@@ -215,7 +215,7 @@ object StyleContinuity {
         style: String?,
         language: String?,
         christian: Boolean,
-        /** Row 462: sub-style and country words the request named ("villera", "colombiana"), placed right after the style. */
+        /** Row 493: sub-style and country words the request named ("villera", "colombiana"), placed right after the style. */
         qualifiers: List<String> = emptyList(),
     ): String? {
         val s = MusicStyle.style(style) ?: return null

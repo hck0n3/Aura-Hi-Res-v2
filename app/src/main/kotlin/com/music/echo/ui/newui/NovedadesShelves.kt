@@ -1,5 +1,8 @@
 package iad1tya.echo.music.ui.newui
 
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+
 /**
  * Cuándo un estante de Novedades merece dibujarse, y por qué había estantes con una sola tarjeta.
  *
@@ -42,4 +45,69 @@ object NovedadesShelves {
 
     /** ¿Merece dibujarse un estante con [count] elementos? */
     fun worthShowing(count: Int): Boolean = count >= MIN_SHELF_ITEMS
+
+    /**
+     * ¿Se dibuja el estante como REJILLA (todas las tarjetas, en filas) en vez de como carrusel?
+     *
+     * Sí cuando el usuario lo expandió con «Ver todo», cuando hay un filtro de tipo activo (un resultado
+     * filtrado puede tener 1 o 2 tarjetas, y un carrusel con dos tarjetas se lee roto: la rejilla las
+     * deja bien colocadas) o cuando el estante, por tener pocas tarjetas, no da para desplazarse.
+     */
+    fun asGrid(filtered: Boolean, expanded: Boolean, count: Int): Boolean =
+        filtered || expanded || count < MIN_SHELF_ITEMS
+
+    /**
+     * Qué tan reciente es un estreno, para la píldora «Hoy» / «Ayer» / «Esta semana» / «Este mes».
+     * `null` = demasiado viejo o con fecha futura: no se dibuja nada antes que una etiqueta falsa.
+     */
+    fun ageOf(date: LocalDate, today: LocalDate): ReleaseAge? {
+        val days = ChronoUnit.DAYS.between(date, today)
+        return when {
+            days < 0 -> null
+            days == 0L -> ReleaseAge.Today
+            days == 1L -> ReleaseAge.Yesterday
+            days <= 6L -> ReleaseAge.ThisWeek
+            days <= 29L -> ReleaseAge.ThisMonth
+            else -> null
+        }
+    }
+
+    /** ¿Un elemento de este tipo pasa el filtro? «Próximamente» solo enseña su propio estante. */
+    fun matches(filter: NovedadesFilter, kind: AuraContentKind): Boolean = when (filter) {
+        NovedadesFilter.All -> true
+        NovedadesFilter.Albums -> kind == AuraContentKind.Album
+        NovedadesFilter.SinglesAndEps -> kind == AuraContentKind.Single || kind == AuraContentKind.Ep
+        NovedadesFilter.Songs -> kind == AuraContentKind.Song || kind == AuraContentKind.Video
+        NovedadesFilter.Upcoming -> false
+    }
+
+    /**
+     * Los filtros que se ofrecen: «Todo» y solo los que tienen algo detrás (un chip que siempre deja la
+     * pantalla vacía es un botón roto). Con un único filtro posible no hay nada que elegir y la fila no se dibuja.
+     */
+    fun visibleFilters(
+        hasAlbums: Boolean,
+        hasSinglesAndEps: Boolean,
+        hasSongs: Boolean,
+        hasUpcoming: Boolean,
+    ): List<NovedadesFilter> {
+        val all = buildList {
+            add(NovedadesFilter.All)
+            if (hasAlbums) add(NovedadesFilter.Albums)
+            if (hasSinglesAndEps) add(NovedadesFilter.SinglesAndEps)
+            if (hasSongs) add(NovedadesFilter.Songs)
+            if (hasUpcoming) add(NovedadesFilter.Upcoming)
+        }
+        return if (all.size < 3) listOf(NovedadesFilter.All) else all
+    }
+
+    /** Filas necesarias para [count] tarjetas en [columns] columnas. */
+    fun rowCount(count: Int, columns: Int): Int =
+        if (count <= 0 || columns <= 0) 0 else (count + columns - 1) / columns
 }
+
+/** Filtro por tipo de la pantalla de Novedades. */
+enum class NovedadesFilter { All, Albums, SinglesAndEps, Songs, Upcoming }
+
+/** Antigüedad de un estreno con fecha conocida. */
+enum class ReleaseAge { Today, Yesterday, ThisWeek, ThisMonth }

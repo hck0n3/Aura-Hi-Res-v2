@@ -40,12 +40,9 @@ fun <T : Any> List<T>.mergeNearbyElements(
 }
 
 
-fun List<Song>.filterExplicit(enabled: Boolean = true) =
-    if (enabled) {
-        filter { !it.song.explicit }
-    } else {
-        this
-    }
+// Explicit content is never hidden (owner 2026-10-20): no-op on purpose, [enabled] ignored.
+@Suppress("UNUSED_PARAMETER")
+fun List<Song>.filterExplicit(enabled: Boolean = true): List<Song> = this
 
 
 fun List<Song>.filterVideoSongs(enabled: Boolean = true) =
@@ -56,12 +53,9 @@ fun List<Song>.filterVideoSongs(enabled: Boolean = true) =
     }
 
 
-fun List<Album>.filterExplicitAlbums(enabled: Boolean = true) =
-    if (enabled) {
-        filter { !it.album.explicit }
-    } else {
-        this
-    }
+// Explicit content is never hidden (owner 2026-10-20): no-op on purpose, [enabled] ignored.
+@Suppress("UNUSED_PARAMETER")
+fun List<Album>.filterExplicitAlbums(enabled: Boolean = true): List<Album> = this
 
 
 fun List<Playlist>.filterYoutubeShorts(enabled: Boolean = false) =

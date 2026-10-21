@@ -2,6 +2,11 @@
 
 package iad1tya.echo.music.ui.menu
 
+import androidx.compose.ui.res.pluralStringResource
+import iad1tya.echo.music.utils.joinByBullet
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import iad1tya.echo.music.utils.ShareLinks
 import iad1tya.echo.music.utils.rememberPreference
 
@@ -315,12 +320,17 @@ fun AlbumMenu(
         }
     }
 
-    AlbumListItem(
-        album = album,
-        showLikedIcon = false,
-        badges = {},
-        trailingContent = {
-            IconButton(
+    MenuHeader(
+        title = album.album.title,
+        subtitle = album.artists.joinToString { it.name },
+        meta = joinByBullet(
+            pluralStringResource(R.plurals.n_song, album.album.songCount, album.album.songCount),
+            album.album.year?.toString(),
+        ),
+        thumbnail = { MenuHeaderCover(thumbnailUrl = album.album.thumbnailUrl) },
+        trailing = {
+            MenuLikeButton(
+                liked = album.album.bookmarkedAt != null,
                 onClick = {
                     val willLike = album.album.bookmarkedAt == null
                     database.query {
@@ -333,19 +343,9 @@ fun AlbumMenu(
                         }
                     }
                 },
-            ) {
-                Icon(
-                    painter = painterResource(if (album.album.bookmarkedAt != null) R.drawable.favorite else R.drawable.favorite_border),
-                    tint = if (album.album.bookmarkedAt != null) MaterialTheme.colorScheme.error else LocalContentColor.current,
-                    contentDescription = null,
-                )
-            }
+            )
         },
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -370,8 +370,7 @@ fun AlbumMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.play),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.play),
@@ -393,8 +392,7 @@ fun AlbumMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.shuffle),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.shuffle),
@@ -406,8 +404,7 @@ fun AlbumMenu(
                             Icon(
                                 painter = painterResource(R.drawable.share),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.share),
@@ -416,13 +413,13 @@ fun AlbumMenu(
                             val intent = Intent().apply {
                                 action = Intent.ACTION_SEND
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, ShareLinks.playlist(album.album.playlistId))
+                                putExtra(Intent.EXTRA_TEXT, ShareLinks.albumShareText(album.album.playlistId, album.album.id, album.album.title, album.artists.map { it.name }))
                             }
                             context.startActivity(Intent.createChooser(intent, null))
                         }
                     ))
                 },
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
                 columns = if (isGuest) 1 else 3
             )
         }
@@ -432,7 +429,6 @@ fun AlbumMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.play_next)) },
-                            description = { Text(text = stringResource(R.string.play_next_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.playlist_play),
@@ -448,7 +444,6 @@ fun AlbumMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.add_to_queue)) },
-                            description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.queue_music),
@@ -463,7 +458,6 @@ fun AlbumMenu(
                     } else null,
                     Material3MenuItemData(
                         title = { Text(text = stringResource(R.string.add_to_playlist)) },
-                        description = { Text(text = stringResource(R.string.add_to_playlist_desc)) },
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.playlist_add),
@@ -482,7 +476,7 @@ fun AlbumMenu(
 
         item {
             Material3MenuGroup(
-                items = listOf(
+                items = listOfNotNull(
                     when (downloadState) {
                         STATE_COMPLETED -> {
                             Material3MenuItemData(
@@ -533,7 +527,6 @@ fun AlbumMenu(
                         else -> {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.action_download)) },
-                                description = { Text(text = stringResource(R.string.download_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.download),
@@ -578,21 +571,12 @@ fun AlbumMenu(
                                 }
                             )
                         }
-                    }
-                )
-            )
-        }
-
-
-        // «Exportar todo a MP3» (dueño, 2026-10-18): el álbum / EP / sencillo entero a una carpeta, con etiquetas y portada.
-        if (enableExportAsMp3) {
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-            item {
-                Material3MenuGroup(
-                    items = listOf(
+                    },
+                    // «Exportar todo a MP3» (dueño, 2026-10-18): el álbum / EP / sencillo entero a una carpeta, con etiquetas y portada.
+                    // Misma categoría que «Descargar» (2026-10-20): un solo grupo «Descargas / Exportar».
+                    if (enableExportAsMp3) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.export_all_mp3_title)) },
-                            description = { Text(text = stringResource(R.string.export_all_mp3_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.file_export),
@@ -600,10 +584,10 @@ fun AlbumMenu(
                                 )
                             },
                             onClick = { exportAlbumMp3(songs.map { it.toMp3ExportTrack() }) },
-                        ),
-                    ),
+                        )
+                    } else null,
                 )
-            }
+            )
         }
 
         item { Spacer(modifier = Modifier.height(12.dp)) }
@@ -613,7 +597,8 @@ fun AlbumMenu(
                 items = listOf(
                     Material3MenuItemData(
                         title = { Text(text = stringResource(R.string.view_artist)) },
-                        description = { Text(text = album.artists.joinToString { it.name }) },
+                        description = { Text(text = album.artists.joinToString { it.name }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        showChevron = true,
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.artist),
@@ -635,7 +620,6 @@ fun AlbumMenu(
                     ),
                     Material3MenuItemData(
                         title = { Text(text = stringResource(R.string.refetch)) },
-                        description = { Text(text = stringResource(R.string.refetch_desc)) },
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.sync),
@@ -653,7 +637,16 @@ fun AlbumMenu(
                                 }
                             }
                         }
-                    )
+                    ),
+                    // Biblioteca ▸ Fijados (owner 2026-10-20).
+                    albumPinMenuItem(
+                        id = album.id,
+                        title = album.album.title,
+                        artists = album.artists.map { it.name },
+                        thumbnailUrl = album.album.thumbnailUrl,
+                        playlistId = album.album.playlistId,
+                        onDismiss = onDismiss,
+                    ),
                 )
             )
         }

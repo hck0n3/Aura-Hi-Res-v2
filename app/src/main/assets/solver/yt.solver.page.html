@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html><head>
+<!-- yt-dlp's EJS (https://github.com/yt-dlp/ejs, Unlicense; meriyah + astring bundled in the lib, ISC/MIT).
+     EjsNTransformSolver loads this page with the lib, the core and the player copied next to it. The page solves
+     YouTube's two challenges, the throttling parameter `n` and the signature `s`, by running the REAL player. -->
+<script src="yt.solver.lib.js"></script>
+<script>Object.assign(globalThis, lib);</script>
+<script src="yt.solver.core.js"></script>
+<script>
+var _solvers = {n: null, sig: null};
+
+function _errText(e) {
+    // Name only for the log: a thrown string can carry the challenge or its solution.
+    return (e && e.name) ? String(e.name) : String(e).split(':')[0].slice(0, 40);
+}
+
+function _ready(code) {
+    try {
+        var r = {n: null, sig: null};
+        (new Function('_result', code))(r);
+        _solvers = r;
+        EjsBridge.onSolverReady(String(typeof r.n === 'function'), String(typeof r.sig === 'function'));
+        return true;
+    } catch (e) {
+        EjsBridge.onLog('preprocessed player did not evaluate: ' + _errText(e));
+        return false;
+    }
+}
+
+function _load(url, ok, fail) {
+    var x = new XMLHttpRequest();
+    x.open('GET', url, true);
+    x.onload = function () { ok(x.responseText); };
+    x.onerror = function () { fail(); };
+    x.send();
+}
+
+function _full() {
+    _load('player.js', function (playerCode) {
+        try {
+            if (!playerCode || playerCode.length < 1000) {
+                EjsBridge.onSolverError('player too small: ' + (playerCode ? playerCode.length : 0));
+                return;
+            }
+            EjsBridge.onLog('preprocessing the player (' + playerCode.length + ' chars)');
+            var res = jsc({type: 'player', player: playerCode, requests: [], output_preprocessed: true});
+            var pre = res.preprocessed_player;
+            if (!pre) {
+                EjsBridge.onSolverError('no preprocessed player');
+                return;
+            }
+            // Kotlin keeps it for the next process: parsing the multi-MB player is the slow part, evaluating is not.
+            EjsBridge.onPreprocessed(pre);
+            if (!_ready(pre)) EjsBridge.onSolverError('preprocessed player did not evaluate');
+        } catch (e) {
+            EjsBridge.onSolverError('preprocess: ' + _errText(e));
+        }
+    }, function () {
+        EjsBridge.onSolverError('player.js unreadable');
+    });
+}
+
+function initSolver() {
+    try {
+        _load('pre.js', function (code) {
+            if (code && code.length > 1000 && _ready(code)) return;
+            _full();
+        }, _full);
+    } catch (e) {
+        EjsBridge.onSolverError('init: ' + _errText(e));
+    }
+}
+
+function solve(id, kind, value) {
+    try {
+        var f = _solvers[kind];
+        if (typeof f !== 'function') {
+            EjsBridge.onSolveError(id, kind, 'no ' + kind + ' solver');
+            return;
+        }
+        var r = f(value);
+        if (r === undefined || r === null || r === '') {
+            EjsBridge.onSolveError(id, kind, 'empty result');
+            return;
+        }
+        EjsBridge.onSolved(id, kind, String(r));
+    } catch (e) {
+        EjsBridge.onSolveError(id, kind, _errText(e));
+    }
+}
+</script>
+</head><body onload="initSolver()"></body></html>

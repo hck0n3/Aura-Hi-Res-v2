@@ -3,7 +3,7 @@ package iad1tya.echo.music.playlistimport
 import java.text.Normalizer
 
 /**
- * Fila 462 — EL PAÍS DE LO QUE SE PIDE («cumbia colombiana», «cumbia villera argentina», «rock de Chile»).
+ * Fila 493 — EL PAÍS DE LO QUE SE PIDE («cumbia colombiana», «cumbia villera argentina», «rock de Chile»).
  *
  * 🔴 Dueño (2026-10-21): pidió «cumbia villera cristiana argentina», «cumbia colombiana cristiana» y «cumbia mexicana
  * cristiana» y las tres veces recibió LA MISMA lista, y no era cristiana. Causa leída en el código: el peldaño de

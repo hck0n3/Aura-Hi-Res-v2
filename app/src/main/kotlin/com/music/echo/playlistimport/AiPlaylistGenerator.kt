@@ -185,6 +185,12 @@ object AiPlaylistGenerator {
         val name: String,
         val songs: List<MediaMetadata>,
         val fromAi: Boolean,
+        /**
+         * Fila 462: set when the request was a backing track to sing ([MusicRequestKaraoke]). [MusicRequestKaraoke.Kind.SONG]
+         * is a CLOSED list (the track and its alternatives): the caller does not top it up and the queue that follows must
+         * not bring more karaoke of other songs.
+         */
+        val karaoke: MusicRequestKaraoke.Kind? = null,
     )
 
     /**
@@ -246,6 +252,20 @@ object AiPlaylistGenerator {
             intent.excludedStyles.size + intent.excludedTerms.size,
             intent.likeArtist != null,
         )
+        // Fila 462 (dueño 2026-10-19: «si necesito una canción en específico en karaoke, que la pueda pedir de ahí para que me
+        // ponga la pista para que yo la pueda cantar»). A request for the BACKING TRACK of a song (or of an artist, or of a
+        // style) has its own short ladder: it searches the karaoke / instrumental versions, keeps only those, and never
+        // falls to the generic route — which filtered every karaoke out, read «amor» in «Amor Eterno» as a mood and filled
+        // the list with the radio of the first track (more karaoke of OTHER songs).
+        MusicRequestKaraoke.parse(prompt)?.let { ask ->
+            val karaoke = produceKaraoke(ask, count)
+            timber.log.Timber.i(
+                "MUSIC_REQUEST source=karaoke kind=%s tracks=%d",
+                karaoke?.karaoke?.name?.lowercase() ?: "none",
+                karaoke?.songs?.size ?: 0,
+            )
+            return karaoke
+        }
         val soloArtist = AiPlaylistConstraints.extractSoloArtist(intent.cleanPrompt)
         val startedAt = System.currentTimeMillis()
         val racedRaw = produceRacing(
@@ -293,6 +313,100 @@ object AiPlaylistGenerator {
             System.currentTimeMillis() - startedAt,
         )
         return produced
+    }
+
+    /**
+     * Fila 462 — the backing track(s) of what the user wants to sing. Searches the karaoke wording first (songs AND videos:
+     * most karaoke channels upload videos, not songs), the other kind of track and the «backing track» wording only while the
+     * list is thin, and playlists of karaoke only for an artist or a style. What is kept, and in which order, is decided by
+     * [MusicRequestKaraoke.select] (pure, tested): only backing tracks, the exact one first, never the original.
+     *
+     * No per-song style check (a karaoke channel's artist says nothing about the style), no [MusicRequestRecents] for ONE song
+     * (asking the same track again must return the same track), and no AI (its titles cannot be verified as backing tracks).
+     * Returns null when no backing track was found — an honest «no encontré nada», not the original song.
+     */
+    private suspend fun produceKaraoke(ask: MusicRequestKaraoke.Ask, count: Int): Produced? {
+        val target = count.coerceAtLeast(1)
+        return try {
+            withTimeoutOrNull(MUSIC_REQUEST_SEARCH_BUDGET_MS) { karaokeSearch(ask, target) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            timber.log.Timber.w("MUSIC_REQUEST karaoke failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+            null
+        }
+    }
+
+    private suspend fun karaokeSearch(ask: MusicRequestKaraoke.Ask, target: Int): Produced? = coroutineScope {
+        val deadline = System.currentTimeMillis() + SEARCH_STEPS_BUDGET_MS
+        fun inBudget(): Boolean = System.currentTimeMillis() < deadline
+        val pool = ArrayList<SongItem>()
+        val seen = HashSet<String>()
+        fun absorb(items: List<SongItem>) {
+            for (item in items) if (pool.size < POOL_TARGET * 2 && seen.add(item.id)) pool += item
+        }
+        suspend fun searchTracks(query: String) {
+            val songs = async { YouTube.search(query, YouTube.SearchFilter.FILTER_SONG).getOrNull()?.items?.filterIsInstance<SongItem>().orEmpty() }
+            val videos = async { YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()?.items?.filterIsInstance<SongItem>().orEmpty() }
+            absorb(songs.await())
+            absorb(videos.await())
+        }
+        // Wider than the final list for an artist / a style: the recents rule below may take some out.
+        val wide = if (ask.styleOnly) maxOf(target * 2, 20) else maxOf(target, MusicRequestKaraoke.SONG_LIST_MAX)
+        fun pick() = MusicRequestKaraoke.select(ask, pool, wide) { item ->
+            MusicRequestKaraoke.Cand(item.title, item.album?.name, item.artists.map { it.name })
+        }
+        fun thin(p: MusicRequestKaraoke.Pick<SongItem>): Boolean = when (p.kind) {
+            MusicRequestKaraoke.Kind.SONG -> p.ordered.size < 3
+            null -> true
+            else -> p.ordered.size < minOf(target, 10)
+        }
+
+        searchTracks(ask.query)
+        var picked = pick()
+        if (thin(picked) && inBudget()) {
+            searchTracks(ask.altQuery)
+            picked = pick()
+        }
+        if (thin(picked) && inBudget()) {
+            searchTracks(ask.backingQuery)
+            picked = pick()
+        }
+        // An artist or a style: the playlists PEOPLE made of karaoke for it, and only their backing tracks pass the selection.
+        if ((ask.styleOnly || picked.kind != MusicRequestKaraoke.Kind.SONG) && thin(picked) && inBudget()) {
+            val listQuery = "${ask.subject} karaoke"
+            val playlists = ArrayList<PlaylistItem>()
+            YouTube.search(listQuery, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST).getOrNull()
+                ?.items?.filterIsInstance<PlaylistItem>()?.take(2)?.let { playlists += it }
+            YouTube.search(listQuery, YouTube.SearchFilter.FILTER_COMMUNITY_PLAYLIST).getOrNull()
+                ?.items?.filterIsInstance<PlaylistItem>()?.take(2)?.let { playlists += it }
+            for (pl in playlists.distinctBy { it.id }) {
+                if (!inBudget()) break
+                YouTube.playlist(pl.id).getOrNull()?.songs?.let { absorb(it) }
+            }
+            picked = pick()
+        }
+        val kind = picked.kind
+        var items = picked.ordered
+        if (kind == null || items.isEmpty()) {
+            timber.log.Timber.i("MUSIC_REQUEST karaoke: pool=%d, no backing track found", pool.size)
+            return@coroutineScope null
+        }
+        if (kind == MusicRequestKaraoke.Kind.SONG) {
+            items = items.take(minOf(target, MusicRequestKaraoke.SONG_LIST_MAX))
+        } else {
+            // Variety across requests, as with any other topic ([MusicRequestRecents]); a one-song list is exempt.
+            val fresh = items.filter { !MusicRequestRecents.isRecent(it.id) }
+            items = (if (fresh.size >= 3) fresh else items).take(target)
+            MusicRequestRecents.markServed(items.map { it.id })
+        }
+        timber.log.Timber.i("MUSIC_REQUEST karaoke kind=%s pool=%d picked=%d", kind.name.lowercase(), pool.size, items.size)
+        Produced(
+            name = MusicRequestKaraoke.label(ask, kind, picked.best?.title, MAX_NAME_LENGTH),
+            songs = items.map { it.toMediaMetadata() },
+            fromAi = false,
+            karaoke = kind,
+        )
     }
 
     /**
@@ -926,7 +1040,7 @@ object AiPlaylistGenerator {
                 ?: MusicRequestArtist.confirm(MusicRequestQuery.withoutLeadIn(prompt), candidateArtists)
                 ?: soloArtist?.takeIf { MusicRequestArtist.sameName(it, residual) }
             val residualWords = MusicRequestQuery.residualWords(residual)
-            // Fila 462 (dueño 2026-10-21: «cumbia villera cristiana argentina / colombiana / mexicana» daban lo mismo): un
+            // Fila 493 (dueño 2026-10-21: «cumbia villera cristiana argentina / colombiana / mexicana» daban lo mismo): un
             // país («colombiana») o el nombre de un subgénero («villera») describe el estilo, no nombra una canción ni un
             // artista. Antes se fijaba cualquier canción que se llamara exactamente así y las tres peticiones caían en la
             // misma lista genérica. Ahora son calificadores que el título de la lista tiene que demostrar.
@@ -993,7 +1107,7 @@ object AiPlaylistGenerator {
         // cristianas, si se pidió); sus canciones cuentan como del estilo en la comprobación por canción. Va
         // antes que las categorías genéricas: es lo más exacto que hay para un estilo concreto.
         val styleVerified = HashSet<String>()
-        // Fila 462: ids that came from a list whose TITLE proved the faith. Each song is checked too ([christianOnly]), but a
+        // Fila 493: ids that came from a list whose TITLE proved the faith. Each song is checked too ([christianOnly]), but a
         // small Christian artist Last.fm never catalogued must not empty the result (the same relaxation as fila 364).
         val listFaith = HashSet<String>()
         fun absorbListSongs(songs: List<SongItem>) {
@@ -1001,7 +1115,7 @@ object AiPlaylistGenerator {
             absorb(christianOnly(songs))
             if (requireChristian) for (idx in before until pool.size) listFaith.add(pool[idx].id)
         }
-        // [words]: the sub-style / country words every list title has to prove (fila 466 — before, only «cumbia cristiana»
+        // [words]: the sub-style / country words every list title has to prove (fila 497 — before, only «cumbia cristiana»
         // was searched and proved, so «cumbia villera / colombiana / mexicana cristiana» all returned the same lists).
         suspend fun styleLists(words: List<String>, force: Boolean = false) {
             val groups = words.map { MusicRequestRegion.group(it) }
@@ -1139,7 +1253,7 @@ object AiPlaylistGenerator {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
         }
-        // Fila 462: pidió un subgénero o un país y nada de lo anterior lo encontró: el estilo a secas es mejor que nada.
+        // Fila 493: pidió un subgénero o un país y nada de lo anterior lo encontró: el estilo a secas es mejor que nada.
         if (styleListsAllowed && qualifiers.isNotEmpty() && pool.size < MusicRequestStyleGate.MIN_RESULT &&
             (inBudget() || pool.isEmpty())
         ) {
@@ -1232,7 +1346,7 @@ object AiPlaylistGenerator {
                 item.id in faithPending && item.id != specificMatchId &&
                     item.artists.none { christianArtist(it.name, genresNow, tagsNow, flagsNow) }
             }
-            // Fila 462: when almost nothing is CONFIRMED Christian, the songs of a list whose title said so stay (a small
+            // Fila 493: when almost nothing is CONFIRMED Christian, the songs of a list whose title said so stay (a small
             // Christian artist Last.fm does not know) rather than leaving the request empty.
             val mercy = if (pool.size - unproven.size < MusicRequestStyleGate.MIN_RESULT) {
                 unproven.filter { it.id in listFaith }.map { it.id }.toSet()

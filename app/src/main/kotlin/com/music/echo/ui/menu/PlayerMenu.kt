@@ -388,8 +388,7 @@ fun PlayerMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.radio),
                                     contentDescription = null,
-                                    modifier = Modifier.size(32.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.start_radio),
@@ -405,8 +404,7 @@ fun PlayerMenu(
                             Icon(
                                 painter = painterResource(R.drawable.playlist_add),
                                 contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.add_to_playlist),
@@ -417,8 +415,7 @@ fun PlayerMenu(
                             Icon(
                                 painter = painterResource(R.drawable.share),
                                 contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.share),
@@ -452,7 +449,7 @@ fun PlayerMenu(
                     )
                 ),
                 columns = if (isListenTogetherGuest) 2 else 3,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 
@@ -463,6 +460,7 @@ fun PlayerMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_artist)) },
+                                showChevron = true,
                                 description = {
                                     Text(
                                         text = mediaMetadata.artists.joinToString { it.name },
@@ -498,6 +496,7 @@ fun PlayerMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_album)) },
+                                showChevron = true,
                                 description = {
                                     Text(
                                         text = album.title,
@@ -588,7 +587,6 @@ fun PlayerMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.refetch)) },
-                            description = { Text(text = stringResource(R.string.refetch_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.sync),
@@ -701,7 +699,6 @@ fun PlayerMenu(
                         when {
                             isLocalTrack -> Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.action_share)) },
-                                description = { Text(text = stringResource(R.string.share_local_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.share),
@@ -838,7 +835,6 @@ fun PlayerMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.details)) },
-                            description = { Text(text = stringResource(R.string.details_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.info),
@@ -877,7 +873,6 @@ fun PlayerMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.equalizer)) },
-                                description = { Text(text = stringResource(R.string.equalizer_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.equalizer),

@@ -21,12 +21,22 @@ data class Context(
         val gl: String,
         val hl: String,
         val visitorData: String?,
+        /** "EMBED" for the embedded player clients; null (not serialised, explicitNulls = false) for every other client. */
+        val clientScreen: String? = null,
     )
 
     @Serializable
     data class ThirdParty(
         val embedUrl: String,
     )
+
+    /** This context as an embedded player sends it: a third-party [embedUrl] and the EMBED client screen. */
+    fun asEmbedded(embedUrl: String): Context =
+        copy(client = client.copy(clientScreen = EMBED_CLIENT_SCREEN), thirdParty = ThirdParty(embedUrl = embedUrl))
+
+    companion object {
+        const val EMBED_CLIENT_SCREEN = "EMBED"
+    }
 
     @Serializable
     data class Request(

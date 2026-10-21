@@ -183,15 +183,21 @@ class InnerTube {
             append("X-Goog-Api-Format-Version", "1")
             append("X-YouTube-Client-Name", client.clientId /* Not a typo. The Client-Name header does contain the client id. */)
             append("X-YouTube-Client-Version", client.clientVersion)
-            append("X-Origin", YouTubeClient.ORIGIN_YOUTUBE_MUSIC)
-            append("Referer", YouTubeClient.REFERER_YOUTUBE_MUSIC)
+            // The age-gate clients live on the www host: the origin the hash is computed for must be the one the request names.
+            val origin = if (client.useWwwHost) YouTubeClient.ORIGIN_YOUTUBE_WWW else YouTubeClient.ORIGIN_YOUTUBE_MUSIC
+            append("X-Origin", origin)
+            append("Referer", if (client.useWwwHost) YouTubeClient.REFERER_YOUTUBE_WWW else YouTubeClient.REFERER_YOUTUBE_MUSIC)
             visitorData?.let { append("X-Goog-Visitor-Id", it) }
             if (setLogin && client.loginSupported) {
                 cookie?.let { cookie ->
                     append("cookie", cookie)
+                    if (client.useWwwHost) {
+                        append("X-Goog-AuthUser", "0")
+                        append("X-Youtube-Bootstrap-Logged-In", "true")
+                    }
                     if ("SAPISID" !in cookieMap) return@let
                     val currentTime = System.currentTimeMillis() / 1000
-                    val sapisidHash = sha1("$currentTime ${cookieMap["SAPISID"]} ${YouTubeClient.ORIGIN_YOUTUBE_MUSIC}")
+                    val sapisidHash = sha1("$currentTime ${cookieMap["SAPISID"]} $origin")
                     append("Authorization", "SAPISIDHASH ${currentTime}_${sapisidHash}")
                 }
             }
@@ -269,7 +275,9 @@ class InnerTube {
         // logged-out sessions too.
         noLogin: Boolean = false,
     ) = withRetry {
-        httpClient.post("player") {
+        // The age-gate clients (web_embedded, tv_samsung) are served by www.youtube.com, as yt-dlp does; every other client
+        // keeps the music host it always used (an absolute URL overrides the client's default one).
+        httpClient.post(if (client.useWwwHost) YouTubeClient.API_URL_YOUTUBE_WWW + "player" else "player") {
             ytClient(client, setLogin = !noLogin)
             setBody(
                 PlayerBody(
@@ -281,11 +289,7 @@ class InnerTube {
                     // it; this is the half of that pattern that was missed.
                     context = client.toContext(locale, visitorData, if (noLogin) null else dataSyncId).let {
                         if (client.isEmbedded) {
-                            it.copy(
-                                thirdParty = Context.ThirdParty(
-                                    embedUrl = "https://www.youtube.com/watch?v=${videoId}"
-                                )
-                            )
+                            it.asEmbedded(client.embedUrl ?: "https://www.youtube.com/watch?v=${videoId}")
                         } else it
                     },
                     videoId = videoId,
@@ -537,6 +541,28 @@ class InnerTube {
         videoId: String,
     ) = withRetry {
         httpClient.post("like/removelike") {
+            ytClient(client, setLogin = true)
+            setBody(
+                LikeBody(
+                    context = client.toContext(locale, visitorData, dataSyncId),
+                    target = LikeBody.Target.VideoTarget(videoId)
+                )
+            )
+        }
+    }
+
+    /**
+     * Thumbs-DOWN on a song for the signed-in account ("No me gusta"). Same family, same body and same
+     * login handling as [likeVideo]/[unlikeVideo]: only the path differs (`like/dislike`, the third
+     * member of the like/like - like/removelike - like/dislike trio YouTube Music's web client uses for
+     * a song rating). A dislike REPLACES a like on the account, so no separate removelike is needed.
+     * Single item, user-initiated only (see AccountPush).
+     */
+    suspend fun dislikeVideo(
+        client: YouTubeClient,
+        videoId: String,
+    ) = withRetry {
+        httpClient.post("like/dislike") {
             ytClient(client, setLogin = true)
             setBody(
                 LikeBody(

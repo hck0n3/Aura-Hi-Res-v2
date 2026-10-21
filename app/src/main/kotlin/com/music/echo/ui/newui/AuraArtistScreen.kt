@@ -87,7 +87,6 @@ import iad1tya.echo.music.constants.ShowArtistDescriptionKey
 import iad1tya.echo.music.constants.ShowArtistSubscriberCountKey
 import iad1tya.echo.music.constants.ShowArtistVideoKey
 import iad1tya.echo.music.constants.ShowMonthlyListenersKey
-import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.toMediaMetadata
@@ -330,7 +329,7 @@ fun AuraArtistScreen(
             .fillMaxSize()
             .auraScreenBackground(bloom, intensity = 0.45f),
     ) {
-        // Fila 466 (dueño 2026-10-21, Galaxy Tab desplegada: «la portada del artista no se ve bien; quiero el estilo de las
+        // Fila 497 (dueño 2026-10-21, Galaxy Tab desplegada: «la portada del artista no se ve bien; quiero el estilo de las
         // playlist y los álbumes»): in a wide pane the portrait was cropped into a 320 dp banner. Wide now takes the SAME top
         // as an album / playlist ([AuraWideTop]: the square cover on the left, name and actions on its right); a narrow pane
         // (a folded foldable, a phone, a split screen) keeps the full-bleed hero exactly as it was.
@@ -462,7 +461,7 @@ fun AuraArtistScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val subscribed = libraryArtist?.artist?.followedByUserAt != null
+                            val subscribed by viewModel.isSubscribed.collectAsState()
                             AuraDetailActionButton(
                                 icon = if (subscribed) AuraIcons.Check else AuraIcons.Plus,
                                 label = stringResource(
@@ -470,28 +469,10 @@ fun AuraArtistScreen(
                                 ),
                                 accent = false,
                                 onClick = {
-                                    // Byte for byte the classic handler: update the existing row, or
-                                    // insert one built from the page. `confirmArtistUnsubscribed` is
-                                    // what keeps the YouTube subscription sync honest.
-                                    database.transaction {
-                                        val artist = libraryArtist?.artist
-                                        if (artist != null) {
-                                            update(
-                                                artist.toggleLike(database::confirmArtistUnsubscribed),
-                                            )
-                                        } else {
-                                            artistPage?.artist?.let {
-                                                insert(
-                                                    ArtistEntity(
-                                                        id = it.id,
-                                                        name = it.title,
-                                                        channelId = it.channelId,
-                                                        thumbnailUrl = it.thumbnail,
-                                                    ).toggleLike(database::confirmArtistUnsubscribed),
-                                                )
-                                            }
-                                        }
-                                    }
+                                    // Same toggleLike as the classic screen (live YouTube call +
+                                    // `confirmArtistUnsubscribed` write-back), now routed through the
+                                    // ViewModel so the state shown and the row toggled cannot disagree.
+                                    viewModel.toggleSubscription()
                                 },
                                 modifier = Modifier
                                     .weight(1f)
@@ -681,6 +662,7 @@ fun AuraArtistScreen(
                                         title = album.album.title,
                                         subtitle = album.artists.joinToString { it.name }
                                             .takeIf { it.isNotBlank() },
+                                        explicit = album.album.explicit,
                                         thumbnailUrl = album.album.thumbnailUrl,
                                         seed = album.id,
                                         width = albumW,
@@ -1029,8 +1011,10 @@ fun AuraArtistScreen(
                     onClick = {
                         val artistId = viewModel.artistPage?.artist?.id
                             ?: viewModel.artistId
-                        val link = viewModel.artistPage?.artist?.shareLink
-                            ?: iad1tya.echo.music.utils.ShareLinks.channel(artistId)
+                        val link = iad1tya.echo.music.utils.ShareLinks.artistShareText(
+                            artistId,
+                            viewModel.artistPage?.artist?.title,
+                        )
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, link)
@@ -1077,7 +1061,7 @@ private fun AuraArtistHero(
         // Hoisted: inside the inner Box the closest implicit receiver is BoxScope, not
         // BoxWithConstraintsScope, so `maxWidth` cannot be reached there without an explicit receiver.
         val heroWidth = maxWidth
-        // Fila 466: only a NARROW pane gets this full-bleed hero; a wide one is drawn by [AuraWideTop] (the caller).
+        // Fila 497: only a NARROW pane gets this full-bleed hero; a wide one is drawn by [AuraWideTop] (the caller).
         Box(
             modifier = Modifier
                 .fillMaxWidth()

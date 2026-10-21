@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -717,6 +718,8 @@ fun AuraCoverCard(
      * row simply take the height of the tallest one.
      */
     fullTitle: Boolean = false,
+    /** Explicit album / EP / single: the Apple-style «E» badge after the title. */
+    explicit: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -799,16 +802,36 @@ fun AuraCoverCard(
         // +2.dp slack: a Box height equal to lineHeight alone clips glyph bottoms (album years).
         val titleMinHeight = with(density) { AuraType.CoverTitle.lineHeight.toDp() } + 2.dp
         val subtitleBlockHeight = with(density) { AuraType.RowSubtitle.lineHeight.toDp() } + 2.dp
-        Text(
-            text = title,
-            style = AuraType.CoverTitle,
-            color = AuraPalette.OnGround,
-            maxLines = if (fullTitle) Int.MAX_VALUE else 2,
-            overflow = AuraDefaultOverflow,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = titleMinHeight),
-        )
+        if (explicit) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = titleMinHeight),
+            ) {
+                Text(
+                    text = title,
+                    style = AuraType.CoverTitle,
+                    color = AuraPalette.OnGround,
+                    maxLines = if (fullTitle) Int.MAX_VALUE else 2,
+                    overflow = AuraDefaultOverflow,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.width(6.dp))
+                AuraExplicitBadge()
+            }
+        } else {
+            Text(
+                text = title,
+                style = AuraType.CoverTitle,
+                color = AuraPalette.OnGround,
+                maxLines = if (fullTitle) Int.MAX_VALUE else 2,
+                overflow = AuraDefaultOverflow,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = titleMinHeight),
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -850,6 +873,8 @@ fun AuraPosterCard(
     contentDescription: String = title,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /** Explicit album / EP / single: the Apple-style «E» badge after the title. */
+    explicit: Boolean = false,
 ) {
     val brush = remember(seed) { AuraPalette.coverPlaceholder(seed) }
     // Posters always fill-bleed — never Fit letterboxes (owner: "portadas que no cubren todo").
@@ -894,13 +919,28 @@ fun AuraPosterCard(
                 .padding(horizontal = 10.dp, vertical = 10.dp)
                 .fillMaxWidth(),
         ) {
-            Text(
-                text = title,
-                style = AuraType.CoverTitle,
-                color = AuraPalette.OnGround,
-                maxLines = 2,
-                overflow = AuraDefaultOverflow,
-            )
+            if (explicit) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        style = AuraType.CoverTitle,
+                        color = AuraPalette.OnGround,
+                        maxLines = 2,
+                        overflow = AuraDefaultOverflow,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    AuraExplicitBadge()
+                }
+            } else {
+                Text(
+                    text = title,
+                    style = AuraType.CoverTitle,
+                    color = AuraPalette.OnGround,
+                    maxLines = 2,
+                    overflow = AuraDefaultOverflow,
+                )
+            }
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
@@ -1042,9 +1082,22 @@ fun AuraSongRow(
     contentDescription: String? = title,
     /** Show the whole title (wrapping onto as many lines as it needs) instead of cutting it at one line. */
     fullTitle: Boolean = false,
+    /**
+     * Apple-style track list (álbum / playlist): the explicit «E» goes right after the title instead of in the
+     * trailing cluster, and on a wide pane the row spreads into columns (title | [subtitle] artist | [genre] |
+     * duration). Off = the classic row every other list keeps.
+     */
+    appleLayout: Boolean = false,
+    /** Wide columns only: genre of this song (null = unknown, the cell stays empty). */
+    genre: String? = null,
+    /** Wide columns only: the list has at least one known genre, so the genre cell is reserved on every row. */
+    showGenreColumn: Boolean = false,
 ) {
     val playedCheck = playedInShuffle && !isActive
     val dimmed = dimContent || playedCheck
+    val columnsLayout = appleLayout && rememberAuraTrackColumns()
+    val titleBadge: (@Composable () -> Unit)? =
+        if (appleLayout && explicit) ({ AuraExplicitBadge() }) else null
 
     val row: @Composable () -> Unit = {
         AuraRow(
@@ -1053,6 +1106,22 @@ fun AuraSongRow(
             highlighted = isActive,
             dimmed = dimmed,
             titleMaxLines = if (fullTitle) Int.MAX_VALUE else 1,
+            titleBadge = titleBadge,
+            columns = if (columnsLayout) {
+                { titleColor, subtitleColor ->
+                    AuraTrackColumns(
+                        title = title,
+                        titleColor = titleColor,
+                        subtitleColor = subtitleColor,
+                        titleMaxLines = if (fullTitle) Int.MAX_VALUE else 1,
+                        titleBadge = titleBadge,
+                        artist = subtitle,
+                        genre = genre,
+                        showGenreColumn = showGenreColumn,
+                        durationLabel = durationLabel,
+                    )
+                }
+            } else null,
             contentDescription = contentDescription,
             leading = leading,
             onClick = onClick,
@@ -1094,10 +1163,7 @@ fun AuraSongRow(
                 }
             },
             trailing = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
+                val state: @Composable RowScope.() -> Unit = {
                     if (playedCheck) {
                         AuraIconGlyph(
                             icon = AuraIcons.Check,
@@ -1106,7 +1172,7 @@ fun AuraSongRow(
                             tint = AuraPalette.Teal,
                         )
                     }
-                    if (explicit) {
+                    if (explicit && !appleLayout) {
                         AuraTechnicalText(
                             text = "E",
                             color = AuraPalette.OnGroundDisabled,
@@ -1135,13 +1201,15 @@ fun AuraSongRow(
                     if (showQualityBadge) {
                         AuraQualityBadge(format = format)
                     }
-                    if (!durationLabel.isNullOrBlank()) {
+                    if (!durationLabel.isNullOrBlank() && !columnsLayout) {
                         AuraTechnicalText(
                             text = durationLabel,
                             color = AuraPalette.OnGroundFaint,
                             style = AuraType.RowSubtitle,
                         )
                     }
+                }
+                val action: @Composable () -> Unit = {
                     if (selected != null) {
                         Checkbox(
                             checked = selected,
@@ -1160,6 +1228,18 @@ fun AuraSongRow(
                             size = 18.dp,
                             tint = AuraPalette.OnGroundDisabled,
                         )
+                    }
+                }
+                if (columnsLayout) {
+                    // Fixed-width slots: what this row shows must never move the columns (AuraTrackTrailingSlots).
+                    AuraTrackTrailingSlots(state = state, action = action)
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        state()
+                        action()
                     }
                 }
             },
@@ -1330,15 +1410,37 @@ fun AuraAlbumTrackRow(
     onMenuClick: (() -> Unit)? = null,
     menuContentDescription: String = title,
     contentDescription: String? = title,
+    /** Wide columns only: genre of this song (null = unknown, the cell stays empty). */
+    genre: String? = null,
+    /** Wide columns only: the album has at least one known genre, so the genre cell is reserved on every row. */
+    showGenreColumn: Boolean = false,
 ) {
     val playedCheck = playedInShuffle && !isActive
     val durationLabel = auraAppleDurationLabel(durationSeconds)
+    val columnsLayout = rememberAuraTrackColumns()
+    val titleBadge: (@Composable () -> Unit)? = if (explicit) ({ AuraExplicitBadge() }) else null
     AuraRow(
         title = title,
         subtitle = subtitle,
         highlighted = isActive,
         dimmed = playedCheck,
         contentDescription = contentDescription,
+        titleBadge = titleBadge,
+        columns = if (columnsLayout) {
+            { titleColor, subtitleColor ->
+                AuraTrackColumns(
+                    title = title,
+                    titleColor = titleColor,
+                    subtitleColor = subtitleColor,
+                    titleMaxLines = 1,
+                    titleBadge = titleBadge,
+                    artist = subtitle,
+                    genre = genre,
+                    showGenreColumn = showGenreColumn,
+                    durationLabel = durationLabel,
+                )
+            }
+        } else null,
         onClick = onClick,
         onLongClick = onLongClick,
         leading = {
@@ -1360,23 +1462,13 @@ fun AuraAlbumTrackRow(
             }
         },
         trailing = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
+            val state: @Composable RowScope.() -> Unit = {
                 if (playedCheck) {
                     AuraIconGlyph(
                         icon = AuraIcons.Check,
                         contentDescription = "Ya reproducida",
                         size = 16.dp,
                         tint = AuraPalette.Teal,
-                    )
-                }
-                if (explicit) {
-                    AuraTechnicalText(
-                        text = "E",
-                        color = AuraPalette.OnGroundDisabled,
-                        style = AuraType.QualityBadge,
                     )
                 }
                 if (liked) {
@@ -1390,13 +1482,15 @@ fun AuraAlbumTrackRow(
                 if (downloadId != null) {
                     AuraDownloadTick(songId = downloadId)
                 }
-                if (!durationLabel.isNullOrBlank()) {
+                if (!durationLabel.isNullOrBlank() && !columnsLayout) {
                     AuraTechnicalText(
                         text = durationLabel,
                         color = AuraPalette.OnGroundFaint,
                         style = AuraType.RowSubtitle,
                     )
                 }
+            }
+            val action: @Composable () -> Unit = {
                 if (selected != null) {
                     Checkbox(
                         checked = selected,
@@ -1415,6 +1509,18 @@ fun AuraAlbumTrackRow(
                         size = 18.dp,
                         tint = AuraPalette.OnGroundDisabled,
                     )
+                }
+            }
+            if (columnsLayout) {
+                // Fixed-width slots: what this row shows must never move the columns (AuraTrackTrailingSlots).
+                AuraTrackTrailingSlots(state = state, action = action)
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    state()
+                    action()
                 }
             }
         },

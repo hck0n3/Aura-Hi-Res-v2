@@ -104,12 +104,13 @@ data class ArtistItem(
         get() = "https://music.youtube.com/channel/$id"
 }
 
-fun <T : YTItem> List<T>.filterExplicit(enabled: Boolean = true) =
-    if (enabled) {
-        filter { !it.explicit }
-    } else {
-        this
-    }
+/**
+ * Explicit content is NEVER hidden (owner 2026-10-20: "que no haya nada que me oculte"). Kept as a no-op, and
+ * [enabled] deliberately ignored, so every `filterExplicit(...)` call site (search, home, artist, charts…) is
+ * inert even if a stray `true` reaches it; the badge is still parsed so the "E" icon keeps showing.
+ */
+@Suppress("UNUSED_PARAMETER")
+fun <T : YTItem> List<T>.filterExplicit(enabled: Boolean = true): List<T> = this
 
 fun <T : YTItem> List<T>.filterVideoSongs(disableVideos: Boolean = false) =
     if (disableVideos) {

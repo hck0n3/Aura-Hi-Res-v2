@@ -13,6 +13,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -134,7 +136,18 @@ private fun AuraInWindowDialogPanel(
         onDispose { callback.remove() }
     }
 
-    val shape = if (center) AuraShapes.Card else AuraShapes.Sheet
+    // WIDE WINDOWS (owner 2026-10-19): in an unfolded foldable EVERY floating window is a card — centred, four large
+    // corners, a soft shadow and a lit edge, no drag handle (see AuraWindowRecipe.kt). A phone keeps what it had.
+    val wide = rememberAuraWideWindows()
+    val windowEnter = rememberAuraWindowEnter(wide)
+    val windowExit = rememberAuraWindowExit(wide)
+    val shape = when {
+        wide -> AuraWindowShapeWide
+        center -> AuraShapes.Card
+        else -> AuraShapes.Sheet
+    }
+    val wideMaxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp *
+        AuraWideWindowMaxHeightFraction).dp
     // Cerrar arrastrando la barrita (dueño, 2026-10-18); solo las hojas inferiores la tienen.
     val drag = rememberAuraSheetDragState()
     LaunchedEffect(visible) { if (visible) drag.offsetPx = 0f }
@@ -159,23 +172,33 @@ private fun AuraInWindowDialogPanel(
           // KEYBOARD (owner report 2026-09-14: "se estiran hasta abajo cuando se abre el teclado"): the
           // IME inset used to be padding INSIDE the panel, so the card grew down to the keyboard. It is
           // now taken off the area the panel is placed in: the card keeps its size and moves above it.
-          Box(modifier = Modifier.fillMaxSize().imePadding()) {
+          Box(
+              modifier = Modifier
+                  .fillMaxSize()
+                  .imePadding()
+                  .then(if (wide) Modifier.auraWideWindowArea() else Modifier),
+          ) {
             AnimatedVisibility(
                 visible = visible,
-                enter = if (center) {
-                    scaleIn(initialScale = 0.92f, animationSpec = tween(220)) +
+                enter = when {
+                    wide -> windowEnter
+                    center -> scaleIn(initialScale = 0.92f, animationSpec = tween(220)) +
                         fadeIn(animationSpec = tween(180))
-                } else {
-                    slideInVertically(animationSpec = tween(220)) { it } +
-                        fadeIn(animationSpec = tween(180))
+                    else -> windowEnter // the phone's slide up from the bottom
                 },
-                exit = if (center) {
-                    fadeOut(animationSpec = tween(160))
-                } else {
-                    slideOutVertically(animationSpec = tween(200)) { it } +
-                        fadeOut(animationSpec = tween(160))
+                exit = when {
+                    wide -> windowExit
+                    center -> fadeOut(animationSpec = tween(160))
+                    else -> windowExit // the phone's slide down
                 },
-                modifier = if (center) {
+                modifier = if (wide && !center) {
+                    Modifier
+                        .align(Alignment.Center)
+                        // Compact sheets (audio output, downloads) are narrower than a full-height page.
+                        .widthIn(max = (if (fullHeight) AuraWidePageWidthDp else AuraWideCompactWidthDp).dp)
+                        .fillMaxWidth()
+                        .heightIn(max = wideMaxHeight)
+                } else if (center) {
                     Modifier
                         .align(Alignment.Center)
                         .padding(horizontal = 32.dp)
@@ -193,6 +216,8 @@ private fun AuraInWindowDialogPanel(
             ) {
                 Column(
                     modifier = Modifier
+                        // The shadow goes BEFORE the clip, or the clip would cut it.
+                        .auraWindowShadow(shape, enabled = wide)
                         .then(
                             when {
                                 center -> Modifier
@@ -222,10 +247,17 @@ private fun AuraInWindowDialogPanel(
                                 else -> Modifier.background(auraFloatingContainerColor())
                             },
                         )
-                        .border(1.dp, AuraPalette.SurfaceLine, shape)
+                        .then(
+                            if (wide) Modifier.auraWindowBorder(shape)
+                            else Modifier.border(1.dp, AuraPalette.SurfaceLine, shape),
+                        )
                         .then(if (center) Modifier else Modifier.navigationBarsPadding()),
                 ) {
-                    if (!center) {
+                    if (!center && wide) {
+                        // A card has no drag handle: it closes with the scrim, back or its own buttons.
+                        Spacer(Modifier.size(width = 1.dp, height = 10.dp))
+                    }
+                    if (!center && !wide) {
                         // Drag handle — TOP CENTER (the owner's centered-handle directive); draggable down to close.
                         AuraSheetHandle(
                             state = drag,

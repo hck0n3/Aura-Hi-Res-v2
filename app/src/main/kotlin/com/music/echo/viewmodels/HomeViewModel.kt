@@ -37,6 +37,7 @@ import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.db.entities.SpeedDialItem
 import iad1tya.echo.music.extensions.filterVideoSongs
 import iad1tya.echo.music.extensions.toEnum
+import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.GenreMix
 import iad1tya.echo.music.models.SimilarRecommendation
 import iad1tya.echo.music.models.toMediaMetadata
@@ -457,6 +458,121 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // ── «Aleatorio» tile of the quick access: «Mezcla de tu gusto» ────────────────────────────────────────────────────
+    // Owner 2026-10-20: *«lo vuelvo a tocar y repite el contenido… no sé cómo estará funcionando bien el gusto mío ahí…
+    // no me gusta que salga nada repetido»*. [getRandomItem] (kept as the fallback) picks ONE song of the ~20 «Para ti»
+    // picks and starts its radio: tiny fixed pool, no taste weighting, no memory. This builds a real queue instead; the
+    // rules live in [iad1tya.echo.music.reco.TasteMixPlanner].
+
+    /** Songs in the last mix this tile built (0 = none yet this session). Drives the tile's honest subtitle. */
+    val tasteMixCount = MutableStateFlow(0)
+
+    /** The library was too small for a mix, so the tile fell back to «one random song + its radio». */
+    val tasteMixFallback = MutableStateFlow(false)
+
+    /** A mix ready to play. [ids] are committed to the no-repeat memory by [commitTasteMix] once it is playing. */
+    class TasteMix(
+        val queue: iad1tya.echo.music.playback.queues.ListQueue,
+        val ids: List<String>,
+        val cycleReset: Boolean,
+    )
+
+    private suspend fun <T> readOr(default: T, block: suspend () -> T): T =
+        try {
+            block()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            default
+        }
+
+    /**
+     * Builds the queue for one tap of the tile, or null when the library is too small to mix (the caller falls back to
+     * [getRandomItem]). Read-only apart from wiping the memory on an exhausted lap. Bounded: one library read (the same
+     * bounded query the taste model uses), 150 most played songs and one small memory table, all on IO; the planning
+     * itself is CPU work on Default. No network, nothing is logged.
+     */
+    suspend fun buildTasteMix(currentSongId: String?): TasteMix? {
+        isRandomizing.value = true
+        try {
+            val ctx = iad1tya.echo.music.playback.ShuffleContexts.TASTE_MIX
+            val pool = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                val hideVideos = context.dataStore.get(HideVideoSongsKey, false)
+                val library = readOr(emptyList<Song>()) {
+                    database.librarySongsForTaste(iad1tya.echo.music.reco.AffinityEngine.MAX_LIBRARY).first()
+                }
+                val mostPlayed = readOr(emptyList<Song>()) { database.mostPlayedSongs(0L, limit = 150).first() }
+                val disliked = readOr(iad1tya.echo.music.dislike.DislikeStore.Disliked()) { dislikeStore.snapshot() }
+                val heardRows = readOr(emptyList<iad1tya.echo.music.db.entities.EnhancedPlayedAt>()) {
+                    database.playedAtForContext(ctx)
+                }
+                Triple(
+                    (library + mostPlayed).distinctBy { it.id }.filter { s ->
+                        s.id != currentSongId &&
+                            !(hideVideos && s.song.isVideo) &&
+                            s.id !in disliked.songs &&
+                            (s.song.albumId == null || s.song.albumId !in disliked.albums) &&
+                            s.artists.none { it.id in disliked.artists }
+                    },
+                    heardRows,
+                    disliked,
+                )
+            }
+            val (songs, heardRows, _) = pool
+            if (songs.size < MIN_TASTE_MIX_POOL) return fallToRandom()
+
+            val profile = tasteProfile
+            val byId = HashMap<String, Song>(songs.size)
+            val candidates = songs.map { s ->
+                byId[s.id] = s
+                iad1tya.echo.music.reco.TasteMixPlanner.Candidate(
+                    id = s.id,
+                    title = s.song.title,
+                    artist = s.artists.firstOrNull()?.name,
+                    // No profile yet (cold start): likes still count, everything else is neutral.
+                    affinity = profile?.score(s) ?: if (s.song.liked) 0.35 else 0.0,
+                    liked = s.song.liked,
+                    playTimeMs = s.song.totalPlayTime,
+                )
+            }
+            val memory = HashMap<String, Long>()
+            heardRows.forEach { memory[it.songId] = it.playedAt }
+            iad1tya.echo.music.reco.TasteMixSession.snapshot().forEach { (id, at) -> memory.merge(id, at) { a, b -> maxOf(a, b) } }
+
+            val plan = kotlinx.coroutines.withContext(Dispatchers.Default) {
+                iad1tya.echo.music.reco.TasteMixPlanner.plan(candidates, memory)
+            }
+            if (plan.picks.size < MIN_TASTE_MIX_POOL) return fallToRandom()
+            if (plan.cycleReset) {
+                // Every song was heard: a clear new lap (the least recently heard come back first, see the planner).
+                kotlinx.coroutines.withContext(Dispatchers.IO) { database.clearEnhancedContext(ctx) }
+                iad1tya.echo.music.reco.TasteMixSession.clear()
+            }
+            val picked = plan.picks.mapNotNull { byId[it.id] }
+            val queue = iad1tya.echo.music.playback.queues.ListQueue(
+                title = context.getString(iad1tya.echo.music.R.string.home_quick_surprise_hint),
+                items = picked.map { it.toMediaItem() },
+                contextId = ctx,
+            )
+            return TasteMix(queue, picked.map { it.id }, plan.cycleReset)
+        } finally {
+            isRandomizing.value = false
+        }
+    }
+
+    private fun fallToRandom(): TasteMix? {
+        tasteMixCount.value = 0
+        tasteMixFallback.value = true
+        return null
+    }
+
+    /** Call right after the mix started playing: what it served must not come back on the next tap. */
+    fun commitTasteMix(mix: TasteMix) {
+        iad1tya.echo.music.reco.TasteMixSession.remember(mix.ids, System.currentTimeMillis())
+        tasteMixCount.value = mix.ids.size
+        tasteMixFallback.value = false
+    }
+
     val accountName = MutableStateFlow("Guest")
     val accountImageUrl = MutableStateFlow<String?>(null)
 
@@ -536,7 +652,6 @@ class HomeViewModel @Inject constructor(
                             val recommendations = page.songs
                                 .filter { item ->
                                     if (hideVideoSongs && item.isVideoSong) return@filter false
-                                    if (item.explicit) return@filter false
                                     true
                                 }
 
@@ -1514,3 +1629,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 }
+
+/** Fewer songs than this in the library: no mix to speak of, the tile falls back to one random song + its radio. */
+private const val MIN_TASTE_MIX_POOL = 10

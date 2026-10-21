@@ -357,7 +357,11 @@ constructor(
                     ),
                 )
             }
-            val fillWillRun = firstSongs.size < requestedTotal
+            // Fila 462: the backing track of ONE song is a closed list (the track and its alternatives): no top-up with other
+            // songs, and the queue that continues it must not bring more karaoke of other songs ([RequestKaraokeContexts]).
+            val closedKaraoke = produced.karaoke == iad1tya.echo.music.playlistimport.MusicRequestKaraoke.Kind.SONG
+            if (closedKaraoke) iad1tya.echo.music.playlistimport.RequestKaraokeContexts.markClosed(contextId)
+            val fillWillRun = firstSongs.size < requestedTotal && !closedKaraoke
             alternateArgs = AlternateArgs(
                 contextId, prompt, provider, apiKey, baseUrl, model, focus, taste,
                 isFamiliar, isPlayed, familiarity, requestedTotal,

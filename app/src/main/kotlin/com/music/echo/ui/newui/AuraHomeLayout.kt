@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -126,16 +127,31 @@ internal fun <T> List<T>.auraDedupedAgainst(shownAbove: Set<String>, idOf: (T) -
 internal fun List<iad1tya.echo.music.db.entities.Song>.auraDedupedAgainst(shownAbove: Set<String>) =
     auraDedupedAgainst(shownAbove) { it.id }
 
-// ── Acceso rápido ─────────────────────────────────────────────────────────────────────────────────────────────────
+// ── Pedir música + Acceso rápido: un solo lenguaje ─────────────────────────────────────────────────────────────────
 
-/** How many tiles a row of the quick-access block holds: 2 on a phone, 4 once the pane is wide. */
+/**
+ * How many tiles a row of the quick-access block holds: 2 on a phone and on a medium-wide pane, 4 once the pane is really wide. The tiles are equal-width,
+ * equal-height cards (the gradient block at the left, the name and the count beside it), so 2 × 2 on a phone and one row of four
+ * on a foldable look like the same block, with «Pedir música» above as the same card across the whole row.
+ */
 internal fun auraQuickAccessColumns(paneWidth: Dp): Int = if (paneWidth >= AURA_QUICK_ACCESS_WIDE_MIN_WIDTH) 4 else 2
 
-/** Inner width (gutters already taken off) from which the block lays its four tiles in one row. */
-internal val AURA_QUICK_ACCESS_WIDE_MIN_WIDTH = 520.dp
+/**
+ * Inner width (gutters already taken off) from which the block lays its four tiles in one row. The full-height gradient block takes
+ * 72 dp of every tile, so a tile needs about 190 dp to leave the name ~95 dp: below 880 dp a wide pane (an unfolded foldable is
+ * ~800 dp) keeps two columns, which are roomy tiles (~400 dp), not a tile stretched absurdly or a name cut to two letters.
+ */
+internal val AURA_QUICK_ACCESS_WIDE_MIN_WIDTH = 880.dp
 
-private val AURA_QUICK_TILE_HEIGHT = 68.dp
-private val AURA_QUICK_TILE_GAP = 10.dp
+/**
+ * One fixed height for every tile (no jumps between «Mi top» and «Canciones que me gustan») and the space between tiles. The icon
+ * block is a SQUARE of exactly this height, so it is also the block's width.
+ */
+internal val AURA_QUICK_TILE_HEIGHT = 72.dp
+internal val AURA_QUICK_TILE_GAP = 10.dp
+
+/** The «Pedir música» card: the same height as a tile (it is the same card, spanning the whole row). */
+internal val AURA_INVITE_CARD_HEIGHT = AURA_QUICK_TILE_HEIGHT
 
 private class AuraQuickTile(
     val icon: ImageVector,
@@ -146,8 +162,114 @@ private class AuraQuickTile(
 )
 
 /**
- * "Acceso rápido": four tiles right under the greeting, the way Spotify and YouTube Music open on the things you go back
- * to — Canciones que me gustan, Descargado, Historial and the shuffle button.
+ * "Pedir música" built from the SAME piece as the four tiles ([AuraBlockCard]). Owner 2026-10-20, with the screenshot of the
+ * tiles they like: *«el estilo de estos botones los quiero de nuevo… y así mismo quiero ese mismo estilo para el botón de pedir
+ * música; también quiero el mismo diseño»*. The card is a tile that spans the row: the same dark plate with its hairline, the same
+ * corners, the same full-height block with the play button's gradient (cover-driven, like the tiles) with the sparkle in it, the
+ * same title and subtitle styles, the same height. [icon] draws inside the block; [loading] swaps it for the spinner.
+ */
+@Composable
+internal fun AuraHomeInviteCard(
+    title: String,
+    subtitle: String,
+    loading: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: @Composable () -> Unit,
+) {
+    AuraBlockCard(
+        title = title,
+        subtitle = subtitle,
+        titleMaxLines = 1,
+        subtitleMaxLines = 2,
+        loading = loading,
+        contentDescription = contentDescription,
+        onClick = onClick,
+        isTvOrCar = rememberIsTvOrCar(),
+        modifier = modifier.fillMaxWidth(),
+        icon = icon,
+    )
+}
+
+/**
+ * The one card of the Inicio shortcuts — the four tiles AND «Pedir música» are drawn by this, so they cannot drift apart: a fixed
+ * [AURA_QUICK_TILE_HEIGHT] row on the SurfaceFill plate with its SurfaceLine hairline and the card corners; at the left a SQUARE
+ * block that fills the card's whole height with the play button's own gradient (so it follows the cover's colours, with its own
+ * ink guaranteed to read); at the right the title ([titleMaxLines] lines at most) and the subtitle.
+ */
+@Composable
+private fun AuraBlockCard(
+    title: String,
+    subtitle: String?,
+    titleMaxLines: Int,
+    subtitleMaxLines: Int,
+    loading: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit,
+    isTvOrCar: Boolean,
+    modifier: Modifier = Modifier,
+    icon: @Composable () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .height(AURA_QUICK_TILE_HEIGHT)
+            // TV/car: the ring sits ABOVE the clip and the clickable so it draws outside them. No-op on touch.
+            .tvFocusable(isTvOrCar, AuraShapes.Card, scaleFocused = 1f)
+            .clip(AuraShapes.Card)
+            .background(AuraPalette.SurfaceFill)
+            .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
+            .auraClickableInternal(onClick = onClick, contentDescription = contentDescription),
+    ) {
+        // The play button's own gradient with its own ink: the one pair that is already guaranteed to read on
+        // whatever accent the cover gives the app. Full-bleed: the card's clip rounds its outer corners.
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(AURA_QUICK_TILE_HEIGHT)
+                .background(AuraPalette.PlayButtonGradient),
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp,
+                    color = AuraPalette.OnAccent,
+                )
+            } else {
+                icon()
+            }
+        }
+        Column(
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp),
+        ) {
+            // The whole name: «Canciones que me gustan» does not fit on one line in half a phone.
+            Text(
+                text = title,
+                style = AuraType.MiniTitle,
+                color = AuraPalette.OnGround,
+                maxLines = titleMaxLines,
+                overflow = AuraDefaultOverflow,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = AuraType.MiniArtist,
+                    color = AuraPalette.OnGroundMuted,
+                    maxLines = subtitleMaxLines,
+                    overflow = AuraDefaultOverflow,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * "Acceso rápido": four tiles right under «Pedir música», the way Spotify and YouTube Music open on the things you go back
+ * to — Canciones que me gustan, Descargado, Mi top and the shuffle button.
  *
  * Why these four. They are the user's OWN places, one tap from Inicio instead of two or three through Biblioteca, and they
  * cost no network and no image decoding (an icon and two lines of text each), so the block is free for the thermal budget.
@@ -162,6 +284,10 @@ internal fun AuraQuickAccess(
     surprising: Boolean,
     onSurprise: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Songs of the last «Mezcla de tu gusto» this tile built (0 = none yet). */
+    tasteMixCount: Int = 0,
+    /** The library was too small to mix: the tile played one random song + its radio. */
+    tasteMixFallback: Boolean = false,
 ) {
     val database = LocalDatabase.current
     val likedCount by remember(database) { database.likedSongsCount() }.collectAsState(initial = 0)
@@ -180,7 +306,14 @@ internal fun AuraQuickAccess(
     val topCount = topSize.toIntOrNull() ?: 50
     val topSubtitle = pluralStringResource(R.plurals.n_song, topCount, topCount)
     val shuffleTitle = stringResource(R.string.shuffle)
-    val shuffleSubtitle = stringResource(R.string.home_quick_surprise_hint)
+    // The subtitle says what the tile DOES (owner 2026-10-20: «él hace referencia a algo de mi gusto y no sé cómo estará
+    // funcionando»): a mix weighted by the user's taste, then how many songs the last tap put in it; and when the library
+    // was too small to mix, that it was just something random.
+    val shuffleSubtitle = when {
+        tasteMixFallback -> stringResource(R.string.home_quick_surprise_fallback)
+        tasteMixCount > 0 -> pluralStringResource(R.plurals.home_quick_surprise_built, tasteMixCount, tasteMixCount)
+        else -> stringResource(R.string.home_quick_surprise_hint)
+    }
 
     val tiles = listOf(
         AuraQuickTile(AuraIcons.HeartFilled, likedTitle, likedSubtitle, onClick = { navController.navigate("auto_playlist/liked") }),
@@ -210,65 +343,31 @@ internal fun AuraQuickAccess(
     }
 }
 
+/**
+ * One tile: [AuraBlockCard] with its glyph. Owner 2026-10-20: the full-height gradient block with the dark body is the design they
+ * like and want kept (the 2026-10-19 round that shrank the block to a small rounded square is undone — registry 472 had misread
+ * «los colores» as «el diseño»).
+ */
 @Composable
 private fun AuraQuickTileCard(tile: AuraQuickTile, isTvOrCar: Boolean, modifier: Modifier = Modifier) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .height(AURA_QUICK_TILE_HEIGHT)
-            // TV/car: the ring sits ABOVE the clip and the clickable so it draws outside them. No-op on touch.
-            .tvFocusable(isTvOrCar, AuraShapes.Card, scaleFocused = 1f)
-            .clip(AuraShapes.Card)
-            .background(AuraPalette.SurfaceFill)
-            .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
-            .auraClickableInternal(onClick = tile.onClick, contentDescription = tile.title),
+    AuraBlockCard(
+        title = tile.title,
+        subtitle = tile.subtitle,
+        titleMaxLines = 2,
+        subtitleMaxLines = 1,
+        loading = tile.loading,
+        contentDescription = tile.title,
+        onClick = tile.onClick,
+        isTvOrCar = isTvOrCar,
+        modifier = modifier,
     ) {
-        // The play button's own gradient with its own ink: the one pair that is already guaranteed to read on
-        // whatever accent the cover gives the app.
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(AURA_QUICK_TILE_HEIGHT)
-                .background(AuraPalette.PlayButtonGradient),
-        ) {
-            if (tile.loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    strokeWidth = 2.dp,
-                    color = AuraPalette.OnAccent,
-                )
-            } else {
-                AuraIconGlyph(
-                    icon = tile.icon,
-                    contentDescription = null,
-                    size = 26.dp,
-                    tint = AuraPalette.OnAccent,
-                )
-            }
-        }
-        Column(
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 12.dp),
-        ) {
-            // The whole name, on two lines at most: «Canciones que me gustan» does not fit on one in half a phone.
-            Text(
-                text = tile.title,
-                style = AuraType.MiniTitle,
-                color = AuraPalette.OnGround,
-                maxLines = 2,
-                overflow = AuraDefaultOverflow,
-            )
-            if (tile.subtitle != null) {
-                Text(
-                    text = tile.subtitle,
-                    style = AuraType.MiniArtist,
-                    color = AuraPalette.OnGroundMuted,
-                    maxLines = 1,
-                    overflow = AuraDefaultOverflow,
-                )
-            }
-        }
+        AuraIconGlyph(
+            icon = tile.icon,
+            contentDescription = null,
+            size = AURA_QUICK_TILE_GLYPH,
+            tint = AuraPalette.OnAccent,
+        )
     }
 }
+
+internal val AURA_QUICK_TILE_GLYPH = 26.dp

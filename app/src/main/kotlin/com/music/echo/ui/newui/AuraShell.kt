@@ -1301,6 +1301,7 @@ fun AuraMiniPlayer(
                         contentDescription = stringResource(R.string.action_like),
                         onClick = { playerConnection.toggleLike() },
                         interactive = gesturesEnabled,
+                        firstTap = true,
                         size = 22.dp,
                         tint = if (songLiked) AuraPalette.Teal else AuraPalette.OnGround,
                     )
@@ -1312,6 +1313,7 @@ fun AuraMiniPlayer(
                         onClick = { playerConnection.player.seekToPreviousMediaItem() },
                         enabled = canSkipPrevious && !isListenTogetherGuest,
                         interactive = gesturesEnabled,
+                        firstTap = true,
                         size = 22.dp,
                     )
                 }
@@ -1343,6 +1345,8 @@ fun AuraMiniPlayer(
                         }
                     },
                     interactive = gesturesEnabled,
+                    // Registry row 473: a plain clickable under the row's shield is cancelled by any MOVE event.
+                    firstTap = true,
                     size = 25.dp,
                     tint = if (isListenTogetherGuest && isMuted) {
                         AuraPalette.OnGroundDisabled
@@ -1358,6 +1362,7 @@ fun AuraMiniPlayer(
                         onClick = { playerConnection.player.seekToNext() },
                         enabled = canSkipNext && !isListenTogetherGuest,
                         interactive = gesturesEnabled,
+                        firstTap = true,
                         size = 22.dp,
                     )
                 }

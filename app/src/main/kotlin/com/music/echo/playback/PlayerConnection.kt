@@ -544,6 +544,14 @@ class PlayerConnection(
     fun togglePlayPause() {
         try {
             val castHandler = service.castConnectionHandler
+            // Registry row 473: proves that a tap REACHED the player and from which state (INFO = in the shared log;
+            // booleans and ints only, no title / artist / id). A tap that never shows here was lost in the UI.
+            Timber.tag(TAG).i(
+                "PLAY_TOGGLE playWhenReady=%b state=%d casting=%b",
+                player.playWhenReady,
+                player.playbackState,
+                castHandler?.isCasting?.value == true,
+            )
             if (castHandler?.isCasting?.value == true) {
                 if (castHandler.castIsPlaying.value) {
                     castHandler.pause()

@@ -397,7 +397,14 @@ val EnableSimpMusicKey = booleanPreferencesKey("enableSimpMusic")
 val EnableYouLyPlusKey = booleanPreferencesKey("enableYouLyPlus")
 val EnablePaxsenixKey = booleanPreferencesKey("enablePaxsenix")
 val UnisonLyricsEnabledKey = booleanPreferencesKey("unison_lyrics_enabled")
-val HideExplicitKey = booleanPreferencesKey("hideExplicit")
+// RETIRED (owner 2026-10-20: "que la app pueda mostrar todo el contenido que es para mayores de edad, que no
+// haya nada que me oculte"; before: "nunca quiero que restrinjas a los usuarios el contenido explícito").
+// "Ocultar contenido explícito" no longer exists: no screen writes this key and the old stored value lives
+// under the former name "hideExplicit", which nobody reads any more — so a user (or a restored backup) that
+// had hiding ON is silently back to "show everything". The symbol stays only because ~25 call sites still
+// read it with `false` as default and an always-false read is exactly what the owner wants; do NOT point it
+// back at "hideExplicit" or add a toggle (guard: ExplicitContentNeverHiddenGuardTest).
+val HideExplicitKey = booleanPreferencesKey("hideExplicit_retired")
 val HideVideoSongsKey = booleanPreferencesKey("hideVideoSongs")
 val HideYoutubeShortsKey = booleanPreferencesKey("hideYoutubeShorts")
 val ShowArtistDescriptionKey = booleanPreferencesKey("showArtistDescription")

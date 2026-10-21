@@ -508,33 +508,49 @@ object AuraPalette {
         get() = FloatingWindowFill
 
     /**
-     * The plate of the floating WINDOWS (bottom sheets, menus, dialogs, the account flyout) — owner 2026-10-19: *«la
-     * transparencia de todas las ventanas flotantes está muy oscura y no coincide con los colores de la portada de la
-     * app en reproducción»*. Same cover colour as [CoverGlassTint], but chosen for a glass that lets
-     * [FLOATING_WINDOW_GLASS_ALPHA] of the screen through (the screen IS the cover's bloom, which is the colour match he
-     * asked for): the secondary ink is checked on the plate AS SEEN over a mid bloom ([FLOATING_WINDOW_BEHIND]), not on
-     * the plate alone. The pills and bars keep [FloatingFill]/[CoverGlassTint] untouched.
+     * The tint of the floating WINDOWS (bottom sheets, menus, dialogs, the account flyout) — owner 2026-10-19:
+     * *«los colores de las transparencias de las ventanas flotantes siguen sin coincidir con la apariencia del programa… que se
+     * vayan cambiando al mismo color, lo más transparentes posible, y que se distinga bien lo que se lee con el blur»*.
+     *
+     * Why the earlier tint did not match: it was the cover accent's HUE darkened to a saturated shade (the bars' recipe,
+     * built so the nav labels hold 4.5:1), while the screen behind a window is painted with the cover GROUND — the same
+     * low-chroma, lightness-0.22 colour every Aura screen uses ([GroundRaised] is that ground lifted by 4 % white). A saturated
+     * dark green over a muted dark green screen is a visibly different green. So the window tint is now that very ground,
+     * [FLOATING_WINDOW_VEIL] darker (a floor of black for the worst backdrops), painted at [FLOATING_WINDOW_GLASS_ALPHA]
+     * over a [FLOATING_WINDOW_BLUR_DP] blur: what shows through is the app's own cover colour. A custom surface colour of the
+     * user's is used as it is, never darkened.
      */
+    val WindowGlassTint: Color
+        get() = GroundRaised.let { ground ->
+            // Straight sRGB scaling (not an Oklab lerp): the same arithmetic the contrast sweep and the test use.
+            if (roleOverrides.surface != null) {
+                ground
+            } else {
+                val keep = 1f - FLOATING_WINDOW_VEIL
+                Color(ground.red * keep, ground.green * keep, ground.blue * keep, ground.alpha)
+            }
+        }
+
+    /** How much of [WindowGlassTint] the window glass paints: a user's own surface colour keeps the old, firmer 0.85. */
+    val WindowGlassAlpha: Float
+        get() = if (roleOverrides.surface != null) 0.85f else FLOATING_WINDOW_GLASS_ALPHA
+
+    /** The opaque form of [WindowGlassTint] (what the Material containers and the chips on a window use). */
     val FloatingWindowFill: Color
-        get() = CoverWindowTint ?: FloatingFill
+        get() = WindowGlassTint
 
     /**
      * The plate UNDER a floating window's glass, translucent. Owner 2026-10-19 (One UI 9): *«las ventanas flotantes dejaron
-     * de ser transparentes»*. Where the glass cannot sample (a descendant of the haze source, or a system whose blur is off)
-     * this plate is ALL the window is, and an opaque one reads as a solid slab. At [FLOATING_WINDOW_PLATE_ALPHA] the screen
-     * behind stays visible there too; the ink was checked at a lower alpha than this, so legibility only gets better.
+     * de ser transparentes»*. Where the glass cannot sample (a descendant of the haze source, a Material sheet, or a system
+     * whose blur is off) this plate is ALL the window is, and an opaque one reads as a solid slab. At
+     * [FLOATING_WINDOW_PLATE_ALPHA] the screen behind stays visible there too.
      */
     val FloatingWindowPlate: Color
-        get() = FloatingWindowFill.copy(alpha = FLOATING_WINDOW_PLATE_ALPHA)
+        get() = WindowGlassTint.copy(alpha = if (roleOverrides.surface != null) 0.92f else FLOATING_WINDOW_PLATE_ALPHA)
 
-    /** [CoverGlassTint]'s sibling for the floating windows; null with no cover resolved (the old plate then). */
+    /** [WindowGlassTint] while a cover is resolved; null otherwise (kept for callers that asked "is there a cover tint?"). */
     val CoverWindowTint: Color?
-        get() = if (artworkInk == null || roleOverrides.surface != null) null
-        else coverGlassTintOf(
-            Teal, GroundRaised, mutedInk = OnGroundMuted,
-            translucency = FLOATING_WINDOW_GLASS_ALPHA, behind = FLOATING_WINDOW_BEHIND,
-            minSaturation = FLOATING_WINDOW_MIN_SATURATION,
-        )
+        get() = if (artworkInk == null || roleOverrides.surface != null) null else WindowGlassTint
 
     /**
      * Card / chip hairline: `rgba(255,255,255,.10)`, or the user's Bordes colour.
@@ -1050,19 +1066,28 @@ internal const val COVER_GLASS_GREY_BELOW = 0.12f
 internal const val COVER_GLASS_MAX_LUMINANCE = 0.034f
 
 /**
- * How much of the plate the floating windows' glass paints (the rest is the blurred screen behind it): 0.85 left 15 %
- * of the screen, i.e. a near-black slab; 0.72 lets the cover's bloom behind show through.
+ * How much of [AuraPalette.WindowGlassTint] the floating windows' glass paints (the rest is the blurred screen behind it): 0.85
+ * left 15 % of the screen, i.e. a near-black slab; 0.58 lets the cover's own colours show through.
  */
 internal const val FLOATING_WINDOW_GLASS_ALPHA = 0.58f
 
 /** The plate under the glass (and the glass' own no-blur fallback) is this opaque: never a solid slab. */
-internal const val FLOATING_WINDOW_PLATE_ALPHA = 0.66f
+internal const val FLOATING_WINDOW_PLATE_ALPHA = 0.72f
 
-/** A mid bloom under a window (a cover-coloured lobe, luminance ≈ 0.04): what the plate's ink is checked against. */
+/** How much darker than [AuraPalette.GroundRaised] the window tint is: the floor that keeps the ink readable over a mid bloom. */
+internal const val FLOATING_WINDOW_VEIL = 0.15f
+
+/** Blur of the window glass, in dp (the bars use 18): wide enough that the detail behind stops competing with the text. */
+internal const val FLOATING_WINDOW_BLUR_DP = 28f
+
+/** A mid bloom under a window (a cover-coloured lobe, luminance ≈ 0.04): what the secondary ink is checked against. */
 internal val FLOATING_WINDOW_BEHIND = Color(0xFF3A3A3A)
 
-/** The windows' tint is a little more saturated than the bars': it is seen mixed with the screen, which greys it. */
-internal const val FLOATING_WINDOW_MIN_SATURATION = 0.90f
+/** A bright cover under a window (mid grey, luminance ≈ 0.22): the documented bad case, where only the primary ink is guaranteed. */
+internal val FLOATING_WINDOW_LIGHT_BEHIND = Color(0xFF808080)
+
+/** High-performance mode: no wide blur, the glass is this firm instead (the screen shows through less, reads like the plate). */
+internal const val FLOATING_WINDOW_LEAN_ALPHA = 0.90f
 
 /** The secondary ink (58 % of the cover-tinted ink) keeps at least this contrast on the glass; WCAG AA is 4.5. */
 internal const val COVER_GLASS_MIN_MUTED_CONTRAST = 4.5f

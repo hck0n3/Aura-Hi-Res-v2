@@ -400,10 +400,21 @@ constructor(
                         scope.launch {
                             when (download.state) {
                                 Download.STATE_COMPLETED -> {
-                                    database.updateDownloadedInfo(download.request.id, true, LocalDateTime.now())
+                                    // Keep the date a song was FIRST downloaded: a COMPLETED download that is merely
+                                    // re-confirmed (a re-add that finds every byte on disk) must not move it to the top of
+                                    // "Descargadas", which is ordered by that date.
+                                    database.markDownloadedKeepingDate(download.request.id, LocalDateTime.now())
                                 }
                                 Download.STATE_FAILED,
-                                Download.STATE_STOPPED,
+                                Download.STATE_STOPPED -> {
+                                    // A failed or stopped ATTEMPT is not the loss of the file: a re-add of a song whose bytes
+                                    // were already complete (auto-download, "download all") passes through here when it
+                                    // cannot resolve, and used to un-list a song that still plays offline. Only an attempt
+                                    // that leaves the bytes incomplete un-lists it.
+                                    if (!OfflineIntegrity.isFullyOnDisk(downloadCache, download.request.id)) {
+                                        database.updateDownloadedInfo(download.request.id, false, null)
+                                    }
+                                }
                                 Download.STATE_REMOVING -> {
                                     database.updateDownloadedInfo(download.request.id, false, null)
                                 }
@@ -441,6 +452,12 @@ constructor(
         downloads.value = result
         downloadsPaused.value = downloadManager.downloadsPaused
         syncProgressPolling()
+
+        // Reconcile the library's "downloaded" flag with the bytes on disk, and record (counts only) what an app update did
+        // to the caches. Off the constructing thread: it walks the cache index and writes a few Room rows.
+        scope.launch {
+            OfflineIntegrity.run(context, database, downloadCache, playerCache, downloads.value)
+        }
     }
 
     fun getDownload(songId: String): Flow<Download?> = downloads.map { it[songId] }

@@ -123,6 +123,10 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
     override fun onCreate() {
         super.onCreate()
 
+        // Durable push of the user's own taps (unlike, "No me gusta", un-save, library removal) to their
+        // account: remember the context and, off the main thread, re-arm the retry if something is pending.
+        iad1tya.echo.music.utils.AccountPush.init(this)
+
         // Seed the process-wide image-cache-size mirror synchronously from a cheap SharedPreferences copy
         // (NOT DataStore) so newImageLoader() — which Coil invokes lazily on the main thread at first image
         // load — can read it without a blocking DataStore read. The authoritative DataStore value re-seeds
@@ -300,8 +304,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 if (dataStore.data.first()[iad1tya.echo.music.constants.StreamCacheOrphanPurgeAppliedKey] != true) {
                     val downloadUtil = downloadUtilLazy.get()
                     val orphans = downloadUtil.playerCache.keys.filter { key ->
-                        key.startsWith("yt-stream-") &&
-                            iad1tya.echo.music.playback.StreamCacheKeys.songIdOf(key)?.length != 11
+                        iad1tya.echo.music.playback.StreamCacheKeys.isLegacyRotatingKey(key)
                     }
                     if (orphans.isNotEmpty()) {
                         orphans.forEach { runCatching { downloadUtil.playerCache.removeResource(it) } }

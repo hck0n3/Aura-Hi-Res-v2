@@ -6,6 +6,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import iad1tya.echo.music.LocalSyncUtils
 import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.InnerTubeCookieKey
+import iad1tya.echo.music.utils.isLoggedCookie
+import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.SyncState
 import iad1tya.echo.music.utils.SyncStatus
 import iad1tya.echo.music.utils.isSectionPending
@@ -65,4 +68,39 @@ fun librarySectionEmptyText(
 ): String {
     val pending = rememberLibrarySyncPending(section)
     return if (!searching && pending) stringResource(R.string.home_syncing_library) else emptyText
+}
+
+/**
+ * What the Library «Artistas» tab says when it has nothing to list.
+ *
+ * The tab lists EXCLUSIVELY the artists the account is subscribed to (owner 2026-10-20), so an empty
+ * list is not "your library has no artists": it is "no subscription has been synced yet", and the way
+ * out is to sync, not to add songs. [canSync] is true only when a sync can actually bring something
+ * (signed in, no pass already running, the user is not filtering).
+ *
+ * @param title the line to show (the sync-in-progress text while a pass is pending, "no results" while
+ *   searching).
+ * @param hint the explanation under it, or null while searching / syncing.
+ */
+data class SubscribedArtistsEmpty(val title: String, val hint: String?, val canSync: Boolean)
+
+@Composable
+fun rememberSubscribedArtistsEmpty(searching: Boolean): SubscribedArtistsEmpty {
+    val pending = rememberLibrarySyncPending { it.artists }
+    val (cookie) = rememberPreference(InnerTubeCookieKey, "")
+    val loggedIn = isLoggedCookie(cookie)
+    return when {
+        searching -> SubscribedArtistsEmpty(stringResource(R.string.no_results_found), null, false)
+        pending -> SubscribedArtistsEmpty(stringResource(R.string.home_syncing_library), null, false)
+        loggedIn -> SubscribedArtistsEmpty(
+            stringResource(R.string.library_artists_subscribed_empty),
+            stringResource(R.string.library_artists_subscribed_hint),
+            true,
+        )
+        else -> SubscribedArtistsEmpty(
+            stringResource(R.string.library_artists_subscribed_empty),
+            stringResource(R.string.library_artists_subscribed_hint_guest),
+            false,
+        )
+    }
 }

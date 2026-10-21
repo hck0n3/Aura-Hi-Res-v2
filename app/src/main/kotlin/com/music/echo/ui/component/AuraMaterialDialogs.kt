@@ -119,7 +119,7 @@ fun AuraModalBottomSheet(
 ) {
     val skin = rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
-    // Fila 464 (dueño 2026-10-21: *«las ventanas flotantes con el diseño de las opciones de los tres puntos»*): the ⋯ sheets
+    // Fila 495 (dueño 2026-10-21: *«las ventanas flotantes con el diseño de las opciones de los tres puntos»*): the ⋯ sheets
     // are rounded at the top with the `AuraShapes.Sheet` radius and a hairline round them; a Material sheet that kept its
     // stock corner and no line read as a different window. A caller that chose a shape of its own keeps it.
     val resolvedShape = if (premium && shape == BottomSheetDefaults.ExpandedShape) {
