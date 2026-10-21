@@ -4206,3 +4206,5 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Añadir a lista de reproducción | Título; «Crear lista de reproducción» en una losa; buscador; ordenar; playlists como una losa continua (con la marca «ya está en esta lista») | 498 |
 | Buscar (móvil sin desplegar) | «Historial de búsqueda» y sugerencias como losa continua; ✕ borra, ↖ copia al campo, «Borrar todo» | 498 |
 | Inicio — Pedir música, Canciones que me gustan, Descargado, Mi top, Aleatorio | Cada botón con su propio tono (degradado de las tres tintas de la portada, lavado en el cuerpo y filete teñido); misma altura, bloque a toda la altura, textos y acciones | 499 |
+| Menú ⋯ del reproductor (pantalla completa) | Cabecera con portada; Ver artista, Ver álbum, Ecualizador, Sonido, Detalles y Ajustes en una losa; Reproducción, Biblioteca y Más opciones como losas desplegables con todas sus filas | 500 |
+| Dispositivos de audio y volumen | Salida conectada (nombre, estado, volumen %), lista de salidas al desplegar, control de volumen, batería Bluetooth y «Listo», con las losas del menú ⋯ | 500 |

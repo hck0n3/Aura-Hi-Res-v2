@@ -28,6 +28,7 @@ Beta encima de la 2.0.66-beta7 (incluye todo lo suyo, la beta6 y las anteriores)
 - **Pedir música estrena el diseño del menú ⋯:** cabecera con ficha, el campo con el micro y «Empezar» en una losa de cristal, «Pequeña / Grande» y «Todo / Conocido / Descubrir» como selectores, la tarjeta del resultado con separadores finos y el historial de peticiones como una lista (tocar repite, la ✕ quita una, «Borrar todo» sigue).
 - **Añadir a lista de reproducción, igual:** título, «Crear lista» en su losa, el buscador con la misma forma y todas tus listas como una sola losa continua. Siguen las marcas «ya está en esta lista», el orden y el aviso de duplicados.
 - **El historial de Buscar (móvil sin desplegar)** y las sugerencias son una losa continua; la ✕ borra, la flecha copia al campo y «Borrar todo» sigue.
+- **El menú ⋯ del reproductor y la ventana de dispositivos de audio y volumen** también: sus opciones van en losas de cristal (las secciones Reproducción, Biblioteca y Más opciones se despliegan dentro de su losa) y la salida de audio, el volumen y «Listo» usan el mismo material. Todas las opciones siguen donde estaban.
 
 ## Inicio
 

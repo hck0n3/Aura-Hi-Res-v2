@@ -50,11 +50,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
+import iad1tya.echo.music.ui.newui.AuraGlassCorner
+import iad1tya.echo.music.ui.newui.AuraGlassDivider
+import iad1tya.echo.music.ui.newui.AuraGlassSlab
+import iad1tya.echo.music.ui.newui.AuraPalette
+import iad1tya.echo.music.ui.newui.AuraType
+import iad1tya.echo.music.ui.newui.auraClickableInternal
 import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.pointerInput
@@ -359,6 +366,28 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                     }
                 }
 
+                // The output card as the glass slabs of the ⋯ menus (owner 2026-10-21): the same plate, hairline and
+                // 20 dp corner instead of Material's brown pills and circular chevron.
+                premiumSheet -> GlassAudioDeviceBody(
+                    devices = audioDevices,
+                    currentVolume = currentVolume,
+                    maxVolume = maxVolume,
+                    showDevicePopup = showDevicePopup,
+                    onTogglePopup = { showDevicePopup = !showDevicePopup },
+                    onPickDevice = { dev ->
+                        service?.setPreferredAudioDevice(dev.deviceId)
+                        refreshDevices()
+                        showDevicePopup = false
+                    },
+                    onVolumeChange = { newVolume ->
+                        currentVolume = newVolume
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume.toInt(), 0)
+                    },
+                    onDragStart = { isUserDragging = true },
+                    onDragEnd = { isUserDragging = false },
+                    onDone = onDismiss,
+                )
+
                 else -> {
                     val activeDevice = audioDevices.firstOrNull { it.isActive }
                     val hasBluetooth = audioDevices.any { it.type == AudioDeviceType.BLUETOOTH }
@@ -652,6 +681,229 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
     }
 }
 
+private fun glassDeviceIcon(type: AudioDeviceType) = when (type) {
+    AudioDeviceType.BLUETOOTH -> Icons.Filled.Bluetooth
+    AudioDeviceType.WIRED_HEADPHONES -> Icons.Filled.Headphones
+    AudioDeviceType.USB_HEADSET -> Icons.Filled.Usb
+    AudioDeviceType.HDMI -> Icons.Filled.Tv
+    AudioDeviceType.EXTERNAL_SPEAKER -> Icons.Filled.Speaker
+    AudioDeviceType.PHONE_SPEAKER -> Icons.Filled.PhoneAndroid
+}
+
+/**
+ * The body of the output card on the premium (glass) skin: one slab with the connected output (and, unfolded, the other
+ * outputs as rows), one slab for the volume, and the «Listo» button as the accent wash of the glass selectors. Same
+ * behaviour as the Material body — [onPickDevice] is the same `setPreferredAudioDevice` + refresh.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun GlassAudioDeviceBody(
+    devices: List<AudioDevice>,
+    currentVolume: Float,
+    maxVolume: Int,
+    showDevicePopup: Boolean,
+    onTogglePopup: () -> Unit,
+    onPickDevice: (AudioDevice) -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    onDragStart: () -> Unit,
+    onDragEnd: () -> Unit,
+    onDone: () -> Unit,
+) {
+    val activeDevice = devices.firstOrNull { it.isActive }
+    val hasBluetooth = devices.any { it.type == AudioDeviceType.BLUETOOTH }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (showDevicePopup) 180f else 0f,
+        animationSpec = tween(durationMillis = 300),
+        label = "chevron",
+    )
+    val doneText = stringResource(R.string.done)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AuraGlassSlab {
+            if (activeDevice != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (hasBluetooth) {
+                                Modifier.auraClickableInternal(
+                                    onClick = onTogglePopup,
+                                    contentDescription = stringResource(R.string.audio_devices),
+                                )
+                            } else Modifier,
+                        )
+                        .heightIn(min = 72.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Icon(
+                        imageVector = glassDeviceIcon(activeDevice.type),
+                        contentDescription = null,
+                        tint = AuraPalette.Teal,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = activeDevice.name,
+                            style = AuraType.RowTitle,
+                            color = AuraPalette.OnGround,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = stringResource(R.string.audio_device_connected),
+                            style = AuraType.RowSubtitle,
+                            color = AuraPalette.OnGroundMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Filled.VolumeUp,
+                        contentDescription = null,
+                        tint = AuraPalette.OnGroundMuted,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "${((currentVolume / maxVolume) * 100).toInt()}%",
+                        style = AuraType.RowSubtitle,
+                        color = AuraPalette.OnGroundMuted,
+                    )
+                    if (hasBluetooth) {
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Filled.ExpandMore,
+                            contentDescription = null,
+                            tint = AuraPalette.OnGroundMuted,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .graphicsLayer { rotationZ = chevronRotation },
+                        )
+                    }
+                }
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = hasBluetooth && showDevicePopup,
+                enter = androidx.compose.animation.expandVertically(
+                    animationSpec = tween(300, easing = FastOutSlowInEasing),
+                ) + androidx.compose.animation.fadeIn(tween(200)),
+                exit = androidx.compose.animation.shrinkVertically(
+                    animationSpec = tween(250, easing = FastOutSlowInEasing),
+                ) + androidx.compose.animation.fadeOut(tween(150)),
+            ) {
+                Column(Modifier.fillMaxWidth()) {
+                    devices.forEach { dev ->
+                        key(dev.deviceId) {
+                            val selected = dev.isActive
+                            AuraGlassDivider(inset = 16.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(if (selected) AuraPalette.Teal.copy(alpha = 0.14f) else Color.Transparent)
+                                    .auraClickableInternal(onClick = { onPickDevice(dev) }, contentDescription = dev.name)
+                                    .heightIn(min = 54.dp)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = glassDeviceIcon(dev.type),
+                                    contentDescription = null,
+                                    tint = if (selected) AuraPalette.Teal else AuraPalette.OnGround.copy(alpha = 0.75f),
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(Modifier.width(16.dp))
+                                Text(
+                                    text = if (dev.type == AudioDeviceType.PHONE_SPEAKER) {
+                                        stringResource(R.string.this_phone)
+                                    } else dev.name,
+                                    style = AuraType.MenuLabel,
+                                    color = AuraPalette.OnGround,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (selected) {
+                                    Icon(
+                                        imageVector = Icons.Filled.VolumeUp,
+                                        contentDescription = null,
+                                        tint = AuraPalette.Teal,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        VolumeControlRow(
+            label = stringResource(R.string.volume),
+            icon = Icons.Filled.MusicNote,
+            volume = currentVolume,
+            maxVolume = maxVolume,
+            onVolumeChange = onVolumeChange,
+            onDragStart = onDragStart,
+            onDragEnd = onDragEnd,
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (activeDevice?.type == AudioDeviceType.BLUETOOTH && activeDevice.batteryLevel != null) {
+                val strokeWidthPx = with(LocalDensity.current) { 4.dp.toPx() }
+                val wavyStroke = remember(strokeWidthPx) { Stroke(width = strokeWidthPx, cap = StrokeCap.Round) }
+                Box(
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .size(56.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularWavyProgressIndicator(
+                        progress = { activeDevice.batteryLevel.toFloat() / 100f },
+                        modifier = Modifier.fillMaxSize(),
+                        color = AuraPalette.Teal,
+                        trackColor = AuraPalette.Teal.copy(alpha = 0.2f),
+                        stroke = wavyStroke,
+                        trackStroke = wavyStroke,
+                        gapSize = 3.dp,
+                    )
+                    Text(
+                        text = "${activeDevice.batteryLevel}%",
+                        style = AuraType.Chip,
+                        color = AuraPalette.OnGround,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.width(1.dp))
+            }
+            val doneShape = RoundedCornerShape(AuraGlassCorner)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clip(doneShape)
+                    .background(AuraPalette.Teal.copy(alpha = 0.22f))
+                    .border(1.dp, AuraPalette.Teal.copy(alpha = 0.45f), doneShape)
+                    .auraClickableInternal(onClick = onDone, contentDescription = doneText)
+                    .padding(horizontal = 28.dp, vertical = 10.dp),
+            ) {
+                Text(text = doneText, style = AuraType.Chip, color = AuraPalette.OnGround, maxLines = 1)
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun VolumeControlRow(
@@ -680,11 +932,17 @@ fun VolumeControlRow(
         MaterialTheme.colorScheme.surfaceContainerHigh
     }
 
+    val glassVolume = volumeSkin.enabled && volumeSkin.darkGround
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(72.dp),
-        shape = CircleShape,
+            .height(if (glassVolume) 60.dp else 72.dp)
+            .then(
+                if (glassVolume) {
+                    Modifier.border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(AuraGlassCorner))
+                } else Modifier,
+            ),
+        shape = if (glassVolume) RoundedCornerShape(AuraGlassCorner) else CircleShape,
         color = volumeTrack,
         tonalElevation = 0.dp
     ) {

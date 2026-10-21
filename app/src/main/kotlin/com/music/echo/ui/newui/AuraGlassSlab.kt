@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -108,6 +109,46 @@ internal fun AuraGlassRow(
             )
             Spacer(Modifier.width(16.dp))
         }
+        Text(
+            text = title,
+            style = AuraType.MenuLabel,
+            color = AuraPalette.OnGround,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (trailing != null) {
+            Spacer(Modifier.width(8.dp))
+            trailing()
+        }
+    }
+}
+
+/** Lo mismo que [AuraGlassRow] con un icono vectorial (los de [AuraIcons]): el menú del reproductor los usa. */
+@Composable
+internal fun AuraGlassVectorRow(
+    title: String,
+    onClick: () -> Unit,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    iconTint: Color = AuraPalette.OnGround.copy(alpha = 0.75f),
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .auraClickableInternal(onClick = onClick, contentDescription = title)
+            .heightIn(min = AuraGlassRowMinHeight)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(Modifier.width(16.dp))
         Text(
             text = title,
             style = AuraType.MenuLabel,

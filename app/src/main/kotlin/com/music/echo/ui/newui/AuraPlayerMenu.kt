@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -362,117 +363,113 @@ fun AuraPlayerMenu(
         }
 
         // Streaming quality cycling (Opus / Saavn / Qobuz) removed — Opus is the only stream path.
-        item {
-            Spacer(Modifier.height(6.dp))
-            AuraDivider()
-        }
+        item { Spacer(Modifier.height(6.dp)) }
 
-        // ── Fijas (siempre visibles) ───────────────────────────────────────────────────────────────
+        // ── Fijas (siempre visibles): UNA losa de cristal, como el menú ⋯ de una canción ────────────
         item {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                if (artists.isNotEmpty()) {
-                    AuraMenuRow(
-                        icon = AuraIcons.Artist,
-                        label = stringResource(R.string.view_artist),
-                        onClick = {
-                            if (artists.size == 1) {
-                                val only = artists[0]
+            AuraGlassSlab(modifier = Modifier.padding(horizontal = AuraSpacing.Gutter)) {
+                SlabRowsColumn {
+                    if (artists.isNotEmpty()) {
+                        row(
+                            icon = AuraIcons.Artist,
+                            label = stringResource(R.string.view_artist),
+                            onClick = {
+                                if (artists.size == 1) {
+                                    val only = artists[0]
+                                    coroutineScope.launch {
+                                        val browseId = if (needsOnlineBrowseResolution(only.id)) {
+                                            withContext(Dispatchers.IO) {
+                                                resolveOnlineArtistBrowseId(only.name)
+                                            }
+                                        } else {
+                                            only.id
+                                        }
+                                        if (!browseId.isNullOrBlank()) {
+                                            navController.navigateOnce("artist/$browseId")
+                                        } else {
+                                            navController.navigate(
+                                                "search/${URLEncoder.encode(only.name, "UTF-8")}"
+                                            )
+                                        }
+                                        playerBottomSheetState.collapseAfterNavigate()
+                                        onDismiss()
+                                    }
+                                } else {
+                                    showSelectArtistDialog = true
+                                }
+                            },
+                        )
+                    }
+                    resolvedAlbum?.let { album ->
+                        row(
+                            icon = AuraIcons.Album,
+                            label = stringResource(R.string.view_album),
+                            onClick = {
                                 coroutineScope.launch {
-                                    val browseId = if (needsOnlineBrowseResolution(only.id)) {
+                                    val browseId = if (needsOnlineBrowseResolution(album.id)) {
+                                        val query = listOfNotNull(
+                                            album.title.takeIf { it.isNotBlank() },
+                                            artists.joinToString(" ") { it.name }.takeIf { it.isNotBlank() },
+                                        ).joinToString(" ")
                                         withContext(Dispatchers.IO) {
-                                            resolveOnlineArtistBrowseId(only.name)
+                                            resolveOnlineAlbumBrowseId(query)
                                         }
                                     } else {
-                                        only.id
+                                        album.id
                                     }
                                     if (!browseId.isNullOrBlank()) {
-                                        navController.navigateOnce("artist/$browseId")
-                                    } else {
+                                        navController.navigateOnce("album/$browseId")
+                                    } else if (album.title.isNotBlank()) {
                                         navController.navigate(
-                                            "search/${URLEncoder.encode(only.name, "UTF-8")}"
+                                            "search/${URLEncoder.encode(album.title, "UTF-8")}"
                                         )
                                     }
                                     playerBottomSheetState.collapseAfterNavigate()
                                     onDismiss()
                                 }
-                            } else {
-                                showSelectArtistDialog = true
-                            }
-                        },
-                    )
-                }
-                resolvedAlbum?.let { album ->
-                    AuraMenuRow(
-                        icon = AuraIcons.Album,
-                        label = stringResource(R.string.view_album),
+                            },
+                        )
+                    }
+                    row(
+                        icon = AuraIcons.Equalizer,
+                        label = stringResource(R.string.equalizer),
                         onClick = {
-                            coroutineScope.launch {
-                                val browseId = if (needsOnlineBrowseResolution(album.id)) {
-                                    val query = listOfNotNull(
-                                        album.title.takeIf { it.isNotBlank() },
-                                        artists.joinToString(" ") { it.name }.takeIf { it.isNotBlank() },
-                                    ).joinToString(" ")
-                                    withContext(Dispatchers.IO) {
-                                        resolveOnlineAlbumBrowseId(query)
-                                    }
-                                } else {
-                                    album.id
-                                }
-                                if (!browseId.isNullOrBlank()) {
-                                    navController.navigateOnce("album/$browseId")
-                                } else if (album.title.isNotBlank()) {
-                                    navController.navigate(
-                                        "search/${URLEncoder.encode(album.title, "UTF-8")}"
-                                    )
-                                }
-                                playerBottomSheetState.collapseAfterNavigate()
-                                onDismiss()
-                            }
+                            playerBottomSheetState.collapseAfterNavigate()
+                            navController.navigate("settings/equalizer") { launchSingleTop = true }
+                            onDismiss()
+                        },
+                    )
+                    row(
+                        icon = AuraIcons.Volume,
+                        label = "Sonido",
+                        onClick = {
+                            playerBottomSheetState.collapseAfterNavigate()
+                            navController.navigate("settings/sound")
+                            onDismiss()
+                        },
+                    )
+                    row(
+                        icon = AuraIcons.Search,
+                        label = stringResource(R.string.details),
+                        onClick = {
+                            onShowDetailsDialog()
+                            onDismiss()
+                        },
+                    )
+                    row(
+                        icon = AuraIcons.Settings,
+                        label = stringResource(R.string.settings),
+                        onClick = {
+                            playerBottomSheetState.collapseAfterNavigate()
+                            navController.navigateAsTab("settings")
+                            onDismiss()
                         },
                     )
                 }
-                AuraMenuRow(
-                    icon = AuraIcons.Equalizer,
-                    label = stringResource(R.string.equalizer),
-                    onClick = {
-                        playerBottomSheetState.collapseAfterNavigate()
-                        navController.navigate("settings/equalizer") { launchSingleTop = true }
-                        onDismiss()
-                    },
-                )
-                AuraMenuRow(
-                    icon = AuraIcons.Volume,
-                    label = "Sonido",
-                    onClick = {
-                        playerBottomSheetState.collapseAfterNavigate()
-                        navController.navigate("settings/sound")
-                        onDismiss()
-                    },
-                )
-                AuraMenuRow(
-                    icon = AuraIcons.Search,
-                    label = stringResource(R.string.details),
-                    onClick = {
-                        onShowDetailsDialog()
-                        onDismiss()
-                    },
-                )
-                AuraMenuRow(
-                    icon = AuraIcons.Settings,
-                    label = stringResource(R.string.settings),
-                    onClick = {
-                        playerBottomSheetState.collapseAfterNavigate()
-                        navController.navigateAsTab("settings")
-                        onDismiss()
-                    },
-                )
             }
         }
 
-        item {
-            Spacer(Modifier.height(4.dp))
-            AuraDivider()
-        }
+        item { Spacer(Modifier.height(12.dp)) }
 
         // ── REPRODUCCIÓN (contraída) ───────────────────────────────────────────────────────────────
         item {
@@ -482,7 +479,7 @@ fun AuraPlayerMenu(
                 onToggle = { toggleSection(SECTION_PLAYBACK) },
             ) {
                 if (!isListenTogetherGuest) {
-                    AuraMenuRow(
+                    row(
                         icon = AuraIcons.Shuffle,
                         label = stringResource(R.string.shuffle),
                         iconTint = if (shuffleModeEnabled) AuraPalette.Teal
@@ -502,7 +499,7 @@ fun AuraPlayerMenu(
                             )
                         },
                     )
-                    AuraMenuRow(
+                    row(
                         icon = AuraIcons.Repeat,
                         label = stringResource(R.string.repeat),
                         iconTint = if (repeatMode != Player.REPEAT_MODE_OFF) AuraPalette.Teal
@@ -521,7 +518,7 @@ fun AuraPlayerMenu(
                         },
                     )
                     val startingRadioText = stringResource(R.string.starting_radio)
-                    AuraMenuRow(
+                    row(
                         icon = AuraIcons.Radio,
                         label = stringResource(R.string.start_radio),
                         onClick = {
@@ -531,23 +528,25 @@ fun AuraPlayerMenu(
                         },
                     )
                 }
-                AuraMenuRow(
+                row(
                     icon = AuraIcons.Speed,
                     label = stringResource(R.string.advanced),
                     onClick = { showPitchTempoDialog = true },
                 )
-                AuraMenuRow(
+                row(
                     icon = AuraIcons.Timer,
                     label = stringResource(R.string.sleep_timer),
                     onClick = { showSleepTimerDialog = true },
                 )
-                AuraMenuRow(
+                row(
                     icon = AuraIcons.Radio,
                     label = stringResource(R.string.refetch),
                     onClick = { playerConnection.refetchCurrentInOpus() },
                 )
             }
         }
+
+        item { Spacer(Modifier.height(12.dp)) }
 
         // ── BIBLIOTECA ────────────────────────────────────────────────────────────────────────────
         item {
@@ -556,7 +555,7 @@ fun AuraPlayerMenu(
                 expanded = openSection == SECTION_LIBRARY,
                 onToggle = { toggleSection(SECTION_LIBRARY) },
             ) {
-                AuraMenuRow(
+                row(
                     icon = if (isInLibrary) AuraIcons.Check else AuraIcons.Plus,
                     label = stringResource(
                         if (isInLibrary) R.string.remove_from_library else R.string.add_to_library
@@ -566,7 +565,7 @@ fun AuraPlayerMenu(
                         onDismiss()
                     },
                 )
-                AuraMenuRow(
+                row(
                     icon = AuraIcons.PlaylistAdd,
                     label = stringResource(R.string.add_to_playlist),
                     onClick = { showChoosePlaylistDialog = true },
@@ -576,20 +575,20 @@ fun AuraPlayerMenu(
                 // button only offers export for songs that are not downloaded yet.
                 if (enableExportAsMp3 && !isLocalTrack) {
                     if (isExporting) {
-                        AuraMenuRow(
+                        row(
                             icon = AuraIcons.Export,
                             label = stringResource(R.string.exporting),
                             onClick = {},
                         )
                     } else {
-                        AuraMenuRow(
+                        row(
                             icon = AuraIcons.Export,
                             label = stringResource(R.string.action_export),
                             onClick = { showExportFormatDialog = true },
                         )
                     }
                 }
-                AuraMenuRow(
+                row(
                     icon = AuraIcons.Timer,
                     label = stringResource(R.string.set_as_ringtone),
                     onClick = {
@@ -605,6 +604,8 @@ fun AuraPlayerMenu(
             }
         }
 
+        item { Spacer(Modifier.height(12.dp)) }
+
         // ── MÁS OPCIONES (resto contraído) ─────────────────────────────────────────────────────────
         item {
             AuraMenuExpandableSection(
@@ -613,7 +614,7 @@ fun AuraPlayerMenu(
                 onToggle = { toggleSection(SECTION_MORE) },
             ) {
                 if (mediaMetadata.id.startsWith("http")) {
-                    AuraMenuRow(
+                    row(
                         icon = AuraIcons.Queue,
                         label = stringResource(R.string.go_to_podcast),
                         onClick = {
@@ -633,7 +634,7 @@ fun AuraPlayerMenu(
                     )
                 }
                 if (hasVideo) {
-                    AuraMenuRow(
+                    row(
                         icon = AuraIcons.Video,
                         label = "Vídeo",
                         iconTint = if (videoMode) AuraPalette.Teal
@@ -647,12 +648,12 @@ fun AuraPlayerMenu(
                 // AUDIT FIX (2026-09-04): this was a DUPLICATE "Sonido" row (the fixed section
                 // above already navigates to settings/sound) with its icon swapped with the
                 // Equalizer's — removed; the fixed row keeps Volume + "Sonido".
-                AuraMenuRow(
+                row(
                     icon = AuraIcons.Volume,
                     label = stringResource(R.string.audio_devices),
                     onClick = { showAudioDeviceSheet = true },
                 )
-                AuraMenuRow(
+                row(
                     icon = AuraIcons.People,
                     label = stringResource(R.string.listen_together),
                     onClick = { showListenTogetherDialog = true },
@@ -674,7 +675,7 @@ fun AuraPlayerMenu(
                     },
                 )
                 if (isListenTogetherGuest) {
-                    AuraMenuRow(
+                    row(
                         icon = AuraIcons.Radio,
                         label = stringResource(R.string.resync),
                         onClick = {
@@ -683,7 +684,7 @@ fun AuraPlayerMenu(
                         },
                     )
                 }
-                AuraMenuRow(
+                row(
                     icon = AuraIcons.Album,
                     label = stringResource(R.string.ambient_mode),
                     onClick = {
@@ -692,7 +693,7 @@ fun AuraPlayerMenu(
                         onDismiss()
                     },
                 )
-                AuraMenuRow(
+                row(
                     icon = AuraIcons.Share,
                     label = stringResource(R.string.share),
                     onClick = {
@@ -719,55 +720,65 @@ fun AuraPlayerMenu(
 }
 
 /**
- * Accordion group header (Settings-style chevron) for the player Más menu. Only one section should
- * be open at a time — the host owns that via [expanded] / [onToggle].
+ * The rows a slab collects: [row] records one, [SlabRowsColumn] lays them out with the thin divider between two of them
+ * (the menu's rows are conditional, so the divider cannot be written next to each one).
+ */
+private class SlabRows {
+    val rows = mutableListOf<@Composable () -> Unit>()
+
+    fun row(
+        icon: ImageVector,
+        label: String,
+        onClick: () -> Unit,
+        iconTint: Color = AuraPalette.OnGround.copy(alpha = 0.75f),
+        trailing: (@Composable () -> Unit)? = null,
+    ) {
+        rows.add { AuraGlassVectorRow(title = label, onClick = onClick, icon = icon, iconTint = iconTint, trailing = trailing) }
+    }
+}
+
+@Composable
+private fun SlabRowsColumn(build: @Composable SlabRows.() -> Unit) {
+    val collected = SlabRows()
+    collected.build()
+    collected.rows.forEachIndexed { index, content ->
+        if (index > 0) AuraGlassDivider(inset = 56.dp)
+        content()
+    }
+}
+
+/**
+ * Accordion group (Settings-style chevron) for the player Más menu, as ONE glass slab of the ⋯ menu: the header row is
+ * the slab's first row and the section's rows unfold under it. Only one section should be open at a time — the host owns
+ * that via [expanded] / [onToggle].
  */
 @Composable
 private fun AuraMenuExpandableSection(
     title: String,
     expanded: Boolean,
     onToggle: () -> Unit,
-    sectionBody: @Composable () -> Unit,
+    sectionBody: @Composable SlabRows.() -> Unit,
 ) {
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 90f else 0f,
         animationSpec = AuraMotion.float,
         label = "aura-player-menu-chevron",
     )
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClickLabel = title, role = Role.Button, onClick = onToggle)
-                .padding(
-                    start = AuraSpacing.Gutter,
-                    end = AuraSpacing.Gutter,
-                    top = 15.dp,
-                    bottom = 7.dp,
-                ),
-        ) {
-            Text(
-                text = title,
-                style = AuraType.MenuGroupLabel.copy(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                color = AuraPalette.OnGroundMuted,
-                maxLines = 1,
-                overflow = AuraDefaultOverflow,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(
-                imageVector = AuraIcons.ChevronRight,
-                contentDescription = null,
-                tint = AuraPalette.OnGroundDisabled,
-                modifier = Modifier
-                    .size(18.dp)
-                    .rotate(rotation),
-            )
-        }
+    AuraGlassSlab(modifier = Modifier.padding(horizontal = AuraSpacing.Gutter)) {
+        AuraGlassRow(
+            title = title,
+            onClick = onToggle,
+            trailing = {
+                Icon(
+                    imageVector = AuraIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = AuraPalette.OnGroundMuted,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .rotate(rotation),
+                )
+            },
+        )
         AnimatedVisibility(
             visible = expanded,
             enter = expandVertically(animationSpec = AuraMotion.intSize) +
@@ -776,8 +787,8 @@ private fun AuraMenuExpandableSection(
                 fadeOut(animationSpec = AuraMotion.float),
         ) {
             Column(Modifier.fillMaxWidth()) {
-                sectionBody()
-                Spacer(Modifier.height(4.dp))
+                AuraGlassDivider(inset = 16.dp)
+                SlabRowsColumn(sectionBody)
             }
         }
     }
