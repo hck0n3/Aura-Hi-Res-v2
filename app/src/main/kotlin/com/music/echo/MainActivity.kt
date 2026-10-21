@@ -996,10 +996,23 @@ class MainActivity : ComponentActivity() {
                     navigationItems.map { it.route }.toSet()
                 }
 
-                val shouldShowNavigationBar = remember(currentRoute, navigationItemRoutes) {
-                    currentRoute == null ||
-                        navigationItemRoutes.contains(currentRoute) ||
-                        currentRoute!!.startsWith("search/")
+                // Fila 463 (dueño 2026-10-21, Tab S12 Ultra: «cuando el programa está recién instalado y da la bienvenida para
+                // elegir los géneros, la barra de exploración me sale encima de todo; no tiene que salir hasta que llegue a
+                // Inicio»): la bienvenida (artistas → géneros → Spotify → YouTube) es de ventana completa. La ventana ancha
+                // dibuja la cápsula en TODA ruta salvo una lista corta, y ninguna de estas estaba en ella.
+                val inOnboarding = remember(currentRoute, navBackStackEntry) {
+                    currentRoute?.startsWith("onboarding_") == true ||
+                        ((currentRoute?.startsWith("settings/spotify_import") == true ||
+                            currentRoute?.startsWith("settings/ytm_sync") == true) &&
+                            navBackStackEntry?.arguments?.getBoolean("onboarding") == true)
+                }
+
+                val shouldShowNavigationBar = remember(currentRoute, navigationItemRoutes, inOnboarding) {
+                    !inOnboarding && (
+                        currentRoute == null ||
+                            navigationItemRoutes.contains(currentRoute) ||
+                            currentRoute!!.startsWith("search/")
+                        )
                 }
 
                 // Routes whose NEW screen draws its own [AuraScreenHeader]. The render has no opaque
@@ -1045,7 +1058,7 @@ class MainActivity : ComponentActivity() {
                 // In a wide window the capsule is on every route (Spotify's is), except the screens that own the
                 // whole window. Phones keep `shouldShowNavigationBar`.
                 val navBarShown = if (auraWideBottom) {
-                    currentRoute != "update" && currentRoute != "listen_together/chat" &&
+                    !inOnboarding && currentRoute != "update" && currentRoute != "listen_together/chat" &&
                         currentRoute != "ambient_mode" && currentRoute != "login" && currentRoute != "spotify_login"
                 } else {
                     shouldShowNavigationBar

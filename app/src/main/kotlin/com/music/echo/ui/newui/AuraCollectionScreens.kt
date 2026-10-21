@@ -1072,7 +1072,8 @@ internal fun <T : Enum<T>> AuraInlineSortControl(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 shape = AuraShapes.Card,
-                containerColor = AuraPalette.FrostFill,
+                containerColor = AuraPalette.FloatingWindowPlate,
+                border = AuraMenuBorder,
             ) {
                 options.forEach { (option, labelRes) ->
                     DropdownMenuItem(

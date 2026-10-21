@@ -626,7 +626,7 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
         modifier = modifier,
         shape = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraShapes.Sheet
             else BottomSheetDefaults.ExpandedShape,
-        containerColor = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.FrostFill
+        containerColor = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.FloatingWindowPlate
             else MaterialTheme.colorScheme.surface,
         contentColor = if (premiumSheet) iad1tya.echo.music.ui.newui.AuraPalette.OnGround
             else MaterialTheme.colorScheme.onSurface,

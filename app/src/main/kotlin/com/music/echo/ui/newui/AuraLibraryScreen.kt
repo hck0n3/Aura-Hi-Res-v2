@@ -383,7 +383,8 @@ fun AuraLibraryScreen(navController: NavController) {
                             expanded = showImportMenu,
                             onDismissRequest = { showImportMenu = false },
                             shape = AuraShapes.Card,
-                            containerColor = AuraPalette.FrostFill,
+                            containerColor = AuraPalette.FloatingWindowPlate,
+                            border = AuraMenuBorder,
                             border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
                             content = importMenuItems,
                         )

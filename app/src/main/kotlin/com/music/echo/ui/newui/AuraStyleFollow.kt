@@ -80,7 +80,8 @@ internal fun AuraStyleFollowRow(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             shape = AuraShapes.Card,
-            containerColor = AuraPalette.FrostFill,
+            containerColor = AuraPalette.FloatingWindowPlate,
+            border = AuraMenuBorder,
         ) {
             @Composable
             fun option(label: String, selected: Boolean, onClick: () -> Unit) {

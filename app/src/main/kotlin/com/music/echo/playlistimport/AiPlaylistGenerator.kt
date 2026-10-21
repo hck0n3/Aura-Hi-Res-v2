@@ -926,7 +926,19 @@ object AiPlaylistGenerator {
                 ?: MusicRequestArtist.confirm(MusicRequestQuery.withoutLeadIn(prompt), candidateArtists)
                 ?: soloArtist?.takeIf { MusicRequestArtist.sameName(it, residual) }
             val residualWords = MusicRequestQuery.residualWords(residual)
+            // Fila 462 (dueño 2026-10-21: «cumbia villera cristiana argentina / colombiana / mexicana» daban lo mismo): un
+            // país («colombiana») o el nombre de un subgénero («villera») describe el estilo, no nombra una canción ni un
+            // artista. Antes se fijaba cualquier canción que se llamara exactamente así y las tres peticiones caían en la
+            // misma lista genérica. Ahora son calificadores que el título de la lista tiene que demostrar.
+            val qualifierOnly = residualWords.isNotEmpty() &&
+                residualWords.all { MusicRequestRegion.isRegionWord(it) || iad1tya.echo.music.reco.MusicStyle.isSubStyleWord(it) }
             when {
+                qualifierOnly -> {
+                    qualifiers = residualWords
+                    // «música de Chile» / «música argentina»: sin género ni momento, el país ES el tema; las listas que lo
+                    // nombran en su título lo responden (antes se fijaba cualquier canción que se llamara «Argentina»).
+                    if (!parsed.preferPlaylists && intent.styles.isEmpty()) themeRequest = true
+                }
                 confirmedArtist != null -> {
                     artistLocked = true
                     if (effectiveSolo == null) effectiveSolo = confirmedArtist
@@ -981,10 +993,21 @@ object AiPlaylistGenerator {
         // cristianas, si se pidió); sus canciones cuentan como del estilo en la comprobación por canción. Va
         // antes que las categorías genéricas: es lo más exacto que hay para un estilo concreto.
         val styleVerified = HashSet<String>()
-        if (intent.styles.isNotEmpty() && effectiveSolo == null && pinned == null) {
+        // Fila 462: ids that came from a list whose TITLE proved the faith. Each song is checked too ([christianOnly]), but a
+        // small Christian artist Last.fm never catalogued must not empty the result (the same relaxation as fila 364).
+        val listFaith = HashSet<String>()
+        fun absorbListSongs(songs: List<SongItem>) {
+            val before = pool.size
+            absorb(christianOnly(songs))
+            if (requireChristian) for (idx in before until pool.size) listFaith.add(pool[idx].id)
+        }
+        // [words]: the sub-style / country words every list title has to prove (fila 466 — before, only «cumbia cristiana»
+        // was searched and proved, so «cumbia villera / colombiana / mexicana cristiana» all returned the same lists).
+        fun styleLists(words: List<String>, force: Boolean = false) {
+            val groups = words.map { MusicRequestRegion.group(it) }
             for (style in intent.styles.take(2)) {
-                if (pool.size >= POOL_TARGET || !inBudget()) break
-                val q = MusicRequestIntent.styleQuery(intent, style) ?: continue
+                if (pool.size >= POOL_TARGET || (!force && !inBudget())) break
+                val q = MusicRequestIntent.styleQuery(intent, style, words) ?: continue
                 val found = ArrayList<PlaylistItem>()
                 YouTube.search(q, YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST).getOrNull()
                     ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)?.let { found += it }
@@ -992,7 +1015,7 @@ object AiPlaylistGenerator {
                     ?.items?.filterIsInstance<PlaylistItem>()?.take(PLAYLIST_CANDIDATES)?.let { found += it }
                 val year = intent.year?.toString()
                 found
-                    .filter { MusicRequestIntent.playlistMatches(it.title, style, intent.christian) }
+                    .filter { MusicRequestIntent.playlistMatches(it.title, style, intent.christian, groups) }
                     .distinctBy { it.id }
                     .sortedByDescending { year != null && it.title.contains(year) }
                     .take(PLAYLISTS_USED + 1)
@@ -1000,10 +1023,22 @@ object AiPlaylistGenerator {
                         if (pool.size >= POOL_TARGET) return@forEach
                         YouTube.playlist(pl.id).getOrNull()?.songs?.let { songs ->
                             val before = pool.size
-                            absorb(songs.shuffled())
+                            absorbListSongs(songs.shuffled())
                             for (idx in before until pool.size) styleVerified.add(pool[idx].id)
                         }
                     }
+            }
+        }
+        val styleListsAllowed = intent.styles.isNotEmpty() && effectiveSolo == null && pinned == null
+        if (styleListsAllowed) {
+            // The exact request first; each step down gives up ONE thing and only when the lists found are too few: the
+            // country, then the sub-style. The plain style is the last resort, after the rest of the ladder (below).
+            styleLists(qualifiers)
+            val placeWords = qualifiers.filter { MusicRequestRegion.isRegionWord(it) }
+            val subWords = qualifiers.filterNot { MusicRequestRegion.isRegionWord(it) }
+            if (subWords.isNotEmpty() && placeWords.isNotEmpty()) {
+                if (styleVerified.size < target) styleLists(subWords)
+                if (styleVerified.size < target) styleLists(placeWords)
             }
         }
         // Peldaño P (fila 361) — "PARECIDO A X": la radio de una canción de X, con X solo una o dos veces (pidió
@@ -1027,7 +1062,7 @@ object AiPlaylistGenerator {
         // año), se quedan los del rango y se traen sus canciones, que además llegan con año seguro.
         val eraRange = intent.eraRange
         if (eraRange != null && effectiveSolo == null && pinned == null && pool.size < POOL_TARGET && inBudget()) {
-            val eraText = intent.styles.firstNotNullOfOrNull { MusicRequestIntent.styleQuery(intent, it) }
+            val eraText = intent.styles.firstNotNullOfOrNull { MusicRequestIntent.styleQuery(intent, it, qualifiers) }
                 ?: "$query ${eraRange.searchWord()}"
             absorb(christianOnly(MusicRequestEraYears.songsOfAlbumsIn(eraText, eraRange)))
         }
@@ -1075,7 +1110,7 @@ object AiPlaylistGenerator {
                     .take(PLAYLISTS_USED)
                     .forEach { index ->
                         if (pool.size < POOL_TARGET) {
-                            YouTube.playlist(candidates[index].id).getOrNull()?.songs?.let { absorb(it) }
+                            YouTube.playlist(candidates[index].id).getOrNull()?.songs?.let { absorbListSongs(it) }
                         }
                     }
             }
@@ -1103,6 +1138,12 @@ object AiPlaylistGenerator {
         if (videosAllowed) {
             YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()
                 ?.items?.filterIsInstance<SongItem>()?.let { absorb(christianOnly(it)) }
+        }
+        // Fila 462: pidió un subgénero o un país y nada de lo anterior lo encontró: el estilo a secas es mejor que nada.
+        if (styleListsAllowed && qualifiers.isNotEmpty() && pool.size < MusicRequestStyleGate.MIN_RESULT &&
+            (inBudget() || pool.isEmpty())
+        ) {
+            styleLists(emptyList(), force = true)
         }
         // Solo «parecido a X» y la radio de X no trajo nada (no se encontró la canción de partida): se busca a X.
         if (onlyLike && pool.isEmpty()) {
@@ -1187,10 +1228,19 @@ object AiPlaylistGenerator {
                 ?.let { runCatching { iad1tya.echo.music.reco.ArtistTagStyles.christianSnapshot(it) }.getOrNull() }
                 .orEmpty()
             val waiting = pool.count { it.id in faithPending }
-            pool.removeAll { item ->
+            val unproven = pool.filter { item ->
                 item.id in faithPending && item.id != specificMatchId &&
                     item.artists.none { christianArtist(it.name, genresNow, tagsNow, flagsNow) }
             }
+            // Fila 462: when almost nothing is CONFIRMED Christian, the songs of a list whose title said so stay (a small
+            // Christian artist Last.fm does not know) rather than leaving the request empty.
+            val mercy = if (pool.size - unproven.size < MusicRequestStyleGate.MIN_RESULT) {
+                unproven.filter { it.id in listFaith }.map { it.id }.toSet()
+            } else {
+                emptySet()
+            }
+            val unprovenIds = unproven.map { it.id }.toSet() - mercy
+            pool.removeAll { it.id in unprovenIds }
             // Counts only (AGENTS.md rule 4).
             timber.log.Timber.i(
                 "MUSIC_REQUEST faith pending=%d confirmed=%d",

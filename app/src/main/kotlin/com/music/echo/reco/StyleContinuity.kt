@@ -211,7 +211,13 @@ object StyleContinuity {
      * What to ask YouTube for more songs of [style] in this context: "cumbia cristiana", "rock en español",
      * "worship", "corridos"… Null when there is no style.
      */
-    fun searchQuery(style: String?, language: String?, christian: Boolean): String? {
+    fun searchQuery(
+        style: String?,
+        language: String?,
+        christian: Boolean,
+        /** Row 462: sub-style and country words the request named ("villera", "colombiana"), placed right after the style. */
+        qualifiers: List<String> = emptyList(),
+    ): String? {
         val s = MusicStyle.style(style) ?: return null
         if (s.id == MusicStyle.WORSHIP) {
             return when (language) {
@@ -221,6 +227,7 @@ object StyleContinuity {
             }
         }
         val parts = mutableListOf(s.search)
+        parts += qualifiers.filter { it.isNotBlank() }
         if (christian) {
             parts += when (language) {
                 TitleLanguage.EN -> "christian"

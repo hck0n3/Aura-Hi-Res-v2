@@ -4186,3 +4186,13 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Elemento | Dónde | Archivo | Tipo | Frecuencia | Condición |
 |---|---|---|---|---|---|
 | **Descargar** (hoja con sin conexión · MP3 · vídeo; en colecciones «Todas (N)» o «Elegir canciones…») | Álbum/EP/single (fila de acciones bajo la portada), lista propia, lista online, reproductor y menús de canción (fila «Exportar») | `ui/newui/AuraDownloadSheet.kt` | acción primaria | diaria | MP3 y vídeo solo con «Exportar como MP3» activo; vídeo solo si hay canciones con vídeo musical |
+
+## Anexo 2026-10-21: lo que CAMBIÓ de sitio o de tamaño (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Barra inferior / cápsula (`MainActivity`) | No se dibuja en las rutas `onboarding_*` ni en importar Spotify / sincronizar YouTube Music abiertas desde la bienvenida; vuelve en Inicio | 463 |
+| Menús desplegables (ordenar, chips, Estadísticas, Biblioteca, estilo que sigue la cola…) y diálogos de ventana (`AuraFloatingSurface`) | Misma placa traslúcida y filete que los menús ⋯; la hoja Material (`AuraModalBottomSheet`) con la esquina y el filete de las hojas ⋯ | 464 |
+| Biblioteca (Listas, Canciones, Álbumes, Artistas), tableta ≥ 900 dp | 3 / 4 / 5 columnas (Grande) o 4 / 5 / 6 (Pequeño) en vez de 7-8 portadas pequeñas; teléfono y plegable igual | 465 |
+| Artista, panel ancho (≥ 560 dp) | Cabecera `AuraWideTop`: portada cuadrada a la izquierda; nombre, cifras, «acerca de», Suscribirse / Radio / Aleatorio y el vídeo de fondo (sobre la portada) a su derecha. Panel estrecho: héroe a sangre como siempre | 466 |
+| Pedir música | Entiende país («colombiana», «de Argentina»…) y subgénero («villera»), que van en la consulta y que el título de la lista tiene que demostrar; cada canción de una lista «cristiana» se comprueba; géneros nuevos: carranga, tropipop, marimba, pasodoble, musicales | 462 |

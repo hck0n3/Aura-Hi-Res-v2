@@ -953,7 +953,7 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
     iad1tya.echo.music.ui.component.AuraAlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         onDismissRequest = onDismiss,
-        containerColor = if (premium) iad1tya.echo.music.ui.newui.AuraPalette.FrostFill
+        containerColor = if (premium) iad1tya.echo.music.ui.newui.AuraPalette.FloatingWindowPlate
         else MaterialTheme.colorScheme.surface,
         title = {
             if (premium) iad1tya.echo.music.ui.newui.AuraDialogWindowEffects(enabled = true)

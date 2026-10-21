@@ -204,7 +204,8 @@ private fun <T : Enum<T>> AuraSortControl(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 shape = AuraShapes.Card,
-                containerColor = AuraPalette.FrostFill,
+                containerColor = AuraPalette.FloatingWindowPlate,
+                border = AuraMenuBorder,
             ) {
                 options.forEach { (option, labelRes) ->
                     DropdownMenuItem(
