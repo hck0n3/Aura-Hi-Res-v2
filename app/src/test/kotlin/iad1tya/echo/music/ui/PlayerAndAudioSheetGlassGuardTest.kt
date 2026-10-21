@@ -50,4 +50,18 @@ class PlayerAndAudioSheetGlassGuardTest {
     fun `the vector row primitive exists`() {
         assertTrue(main("ui/newui/AuraGlassSlab.kt").contains("internal fun AuraGlassVectorRow("))
     }
+
+    // ── 501 · the player's quick search ─────────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `the player quick search history is the same glass slab as Buscar and keeps its gestures`() {
+        val s = main("ui/newui/AuraPlayerQuickSearch.kt")
+        val row = s.substringAfter("private fun AuraPlayerQueryRow(").substringBefore("fun AuraPlayerQuickSearchSongMenu(")
+        assertTrue(row.contains("AuraQueryRow("))
+        assertTrue(s.contains("last = index == viewState.history.lastIndex"))
+        assertTrue(s.contains("last = index == viewState.suggestions.lastIndex"))
+        listOf("onRunSearch(history.query)", "onDeleteHistory(history)", "onFillQuery(history.query)", "AuraSearchHistoryHeader(onClearAll = onClearHistory)")
+            .forEach { assertTrue(it, s.contains(it)) }
+        assertTrue(main("ui/newui/AuraSearchSuggestions.kt").contains("internal fun AuraQueryRow("))
+    }
 }

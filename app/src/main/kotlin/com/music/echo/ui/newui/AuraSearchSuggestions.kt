@@ -337,7 +337,7 @@ fun AuraOnlineSearchSuggestions(
  * classic `SuggestionItem` has — delete (history only) and "copy into the field".
  */
 @Composable
-private fun AuraQueryRow(
+internal fun AuraQueryRow(
     query: String,
     fromHistory: Boolean,
     onClick: () -> Unit,

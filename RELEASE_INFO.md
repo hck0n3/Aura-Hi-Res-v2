@@ -29,6 +29,7 @@ Beta encima de la 2.0.66-beta7 (incluye todo lo suyo, la beta6 y las anteriores)
 - **Añadir a lista de reproducción, igual:** título, «Crear lista» en su losa, el buscador con la misma forma y todas tus listas como una sola losa continua. Siguen las marcas «ya está en esta lista», el orden y el aviso de duplicados.
 - **El historial de Buscar (móvil sin desplegar)** y las sugerencias son una losa continua; la ✕ borra, la flecha copia al campo y «Borrar todo» sigue.
 - **El menú ⋯ del reproductor y la ventana de dispositivos de audio y volumen** también: sus opciones van en losas de cristal (las secciones Reproducción, Biblioteca y Más opciones se despliegan dentro de su losa) y la salida de audio, el volumen y «Listo» usan el mismo material. Todas las opciones siguen donde estaban.
+- **La búsqueda rápida del reproductor (la lupa)** muestra su historial y sugerencias como la misma losa de cristal que Buscar.
 
 ## Inicio
 

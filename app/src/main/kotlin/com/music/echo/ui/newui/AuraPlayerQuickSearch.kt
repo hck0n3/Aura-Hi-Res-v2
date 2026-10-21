@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -669,10 +670,12 @@ private fun PlayerOnlineSuggestionPanel(
             item(key = "pq_history_header", contentType = "pq_history_header") {
                 AuraSearchHistoryHeader(onClearAll = onClearHistory)
             }
-            items(viewState.history, key = { "pq_hist_${it.query}" }) { history ->
+            itemsIndexed(viewState.history, key = { _, h -> "pq_hist_${h.query}" }) { index, history ->
                 AuraPlayerQueryRow(
                     text = history.query,
                     fromHistory = true,
+                    first = index == 0,
+                    last = index == viewState.history.lastIndex,
                     onClick = { onRunSearch(history.query) },
                     onDelete = { onDeleteHistory(history) },
                     onFill = { onFillQuery(history.query) },
@@ -684,10 +687,12 @@ private fun PlayerOnlineSuggestionPanel(
             item(key = "pq_sug_header", contentType = "pq_sug_header") {
                 AuraSectionHeader(title = stringResource(R.string.suggestions))
             }
-            items(viewState.suggestions, key = { "pq_sug_$it" }) { suggestion ->
+            itemsIndexed(viewState.suggestions, key = { _, q -> "pq_sug_$q" }) { index, suggestion ->
                 AuraPlayerQueryRow(
                     text = suggestion,
                     fromHistory = false,
+                    first = index == 0,
+                    last = index == viewState.suggestions.lastIndex,
                     onClick = { onRunSearch(suggestion) },
                     onDelete = null,
                     onFill = { onFillQuery(suggestion) },
@@ -870,50 +875,28 @@ private fun PlayerOnlineSummaryResults(
     }
 }
 
+/**
+ * Fila 501 — la misma losa de cristal del historial de Buscar ([AuraQueryRow]) dentro de la búsqueda rápida del reproductor
+ * (dueño 2026-10-21: «me faltó esta»). Mismos gestos: tocar busca, ✕ borra del historial, ↖ copia al campo.
+ */
 @Composable
 private fun AuraPlayerQueryRow(
     text: String,
     fromHistory: Boolean,
+    first: Boolean,
+    last: Boolean,
     onClick: () -> Unit,
     onDelete: (() -> Unit)?,
     onFill: () -> Unit,
 ) {
-    AuraRow(
-        title = text,
+    AuraQueryRow(
+        query = text,
+        fromHistory = fromHistory,
         onClick = onClick,
-        contentDescription = text,
-        leading = {
-            AuraIconGlyph(
-                icon = if (fromHistory) AuraIcons.History else AuraIcons.Search,
-                contentDescription = null,
-                size = 17.dp,
-                tint = AuraPalette.OnGroundDisabled,
-            )
-        },
-        trailing = {
-            androidx.compose.foundation.layout.Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (onDelete != null) {
-                    AuraIconButton(
-                        icon = AuraIcons.Plus,
-                        contentDescription = stringResource(R.string.search_history_remove),
-                        onClick = onDelete,
-                        size = 15.dp,
-                        tint = AuraPalette.OnGroundDisabled,
-                        modifier = Modifier.padding(end = 2.dp),
-                    )
-                }
-                AuraIconButton(
-                    icon = AuraIcons.ChevronRight,
-                    contentDescription = stringResource(R.string.search_use_suggestion),
-                    onClick = onFill,
-                    size = 16.dp,
-                    tint = AuraPalette.OnGroundDisabled,
-                )
-            }
-        },
-        modifier = Modifier.padding(horizontal = AuraSpacing.Gutter),
+        onDelete = onDelete,
+        onFillTextField = onFill,
+        first = first,
+        last = last,
     )
 }
 
