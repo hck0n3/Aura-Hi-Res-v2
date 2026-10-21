@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -53,7 +54,12 @@ import iad1tya.echo.music.ui.component.ListDialog
 import iad1tya.echo.music.ui.component.ListItem
 import iad1tya.echo.music.ui.component.RoomyPlaylistListItem
 import iad1tya.echo.music.ui.component.SortHeader
+import iad1tya.echo.music.ui.newui.AuraGlassCorner
+import iad1tya.echo.music.ui.newui.AuraGlassRow
+import iad1tya.echo.music.ui.newui.AuraGlassSlab
 import iad1tya.echo.music.ui.newui.AuraPalette
+import iad1tya.echo.music.ui.newui.AuraType
+import iad1tya.echo.music.ui.newui.auraGlassSegment
 import iad1tya.echo.music.ui.newui.auraFloatingTextFieldColors
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.rememberEnumPreference
@@ -156,7 +162,31 @@ fun AddToPlaylistDialog(
         ListDialog(
             onDismiss = onDismiss,
         ) {
+            // Fila 498 (dueño 2026-10-21: «Añadir a lista con el estilo de las opciones del menú ⋯»): con la interfaz nueva la
+            // ventana es la del menú ⋯ — un título, una losa de cristal para «Crear lista», el buscador con la misma forma y
+            // la lista de playlists como UNA losa continua (`auraGlassSegment`), con los mismos márgenes de 20 dp.
+            if (premium) {
+                item {
+                    Text(
+                        text = stringResource(R.string.add_to_playlist),
+                        style = AuraType.SheetTitle,
+                        color = AuraPalette.OnGround,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
+                    )
+                }
+            }
             item {
+              if (premium) {
+                AuraGlassSlab(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp)) {
+                    AuraGlassRow(
+                        title = stringResource(R.string.create_playlist),
+                        icon = R.drawable.add,
+                        onClick = { showCreatePlaylistDialog = true },
+                    )
+                }
+              } else {
                 ListItem(
                     title = stringResource(R.string.create_playlist),
                     thumbnailContent = {
@@ -174,6 +204,7 @@ fun AddToPlaylistDialog(
                         showCreatePlaylistDialog = true
                     }
                 )
+              }
             }
 
             if (playlists.isNotEmpty()) {
@@ -209,7 +240,7 @@ fun AddToPlaylistDialog(
                             }
                         },
                         singleLine = true,
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(if (premium) AuraGlassCorner else 24.dp),
                         colors = if (premium) auraFloatingTextFieldColors()
                         else OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -221,7 +252,7 @@ fun AddToPlaylistDialog(
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .padding(horizontal = if (premium) 20.dp else 16.dp, vertical = 6.dp)
                     )
                 }
             }
@@ -230,7 +261,7 @@ fun AddToPlaylistDialog(
                 item {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(start = 16.dp),
+                        modifier = Modifier.padding(start = if (premium) 20.dp else 16.dp),
                     ) {
                         SortHeader(
                             sortType = sortType,
@@ -268,7 +299,7 @@ fun AddToPlaylistDialog(
                 val alreadyHasSong = playlist.id in playlistIdsWithSong
                 RoomyPlaylistListItem(
                     playlist = playlist,
-                    shape = listItemShape(index = index + 1, count = totalItemsCount),
+                    shape = if (premium) RectangleShape else listItemShape(index = index + 1, count = totalItemsCount),
                     trailingContent = {
                         // The mark, not a block: adding again is still allowed (that is what the
                         // duplicates dialog is for) — this only answers "where is it already?".
@@ -292,7 +323,16 @@ fun AddToPlaylistDialog(
                             }
                         }
                     },
-                    modifier = Modifier.clickable {
+                    modifier = (
+                        if (premium) {
+                            Modifier
+                                .padding(horizontal = 20.dp)
+                                .fillMaxWidth()
+                                .auraGlassSegment(first = index == 0, last = index == filteredPlaylists.lastIndex)
+                        } else {
+                            Modifier
+                        }
+                        ).clickable {
                         selectedPlaylist = playlist
                         coroutineScope.launch(Dispatchers.IO) {
                             songIds = onGetSong(playlist)

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.ui.component.MenuHeader
 import iad1tya.echo.music.constants.AiProviderKey
 import iad1tya.echo.music.constants.OpenRouterApiKey
 import iad1tya.echo.music.constants.OpenRouterBaseUrlKey
@@ -324,26 +326,35 @@ private fun AuraMusicRequestSheetBody(
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.auto_awesome),
-                contentDescription = null,
-                tint = AuraPalette.Teal,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = stringResource(R.string.music_request_label),
-                style = AuraType.SheetTitle,
-                color = AuraPalette.OnGround,
-            )
-        }
+        // Fila 498 (dueño 2026-10-21: «Pedir música con el estilo de las opciones del menú ⋯»): la cabecera es la del menú ⋯
+        // (ficha redondeada + título), y todo lo de debajo va en losas de cristal — el campo, los selectores, el resultado, el
+        // historial — con el mismo material, filete y texto que las filas de ese menú.
+        MenuHeader(
+            title = stringResource(R.string.music_request_label),
+            thumbnail = {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(AuraPalette.Teal.copy(alpha = 0.16f))
+                        .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(14.dp)),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.auto_awesome),
+                        contentDescription = null,
+                        tint = AuraPalette.Teal,
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
+            },
+        )
 
+        AuraGlassSlab {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(end = 8.dp),
         ) {
             TextField(
                 value = prompt,
@@ -361,9 +372,9 @@ private fun AuraMusicRequestSheetBody(
                 keyboardActions = KeyboardActions(onGo = { send(prompt) }),
                 shape = AuraShapes.Card,
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = AuraPalette.SurfaceFill,
-                    unfocusedContainerColor = AuraPalette.SurfaceFill,
-                    disabledContainerColor = AuraPalette.SurfaceFill,
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
                     focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                     unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                     disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -412,6 +423,7 @@ private fun AuraMusicRequestSheetBody(
                 }
             }
         }
+        }
 
         // El resultado de la última petición: lo que está sonando, sus tres primeras canciones y guardarlo.
         if (last != null) {
@@ -428,22 +440,16 @@ private fun AuraMusicRequestSheetBody(
 
         // «Todo / Conocido / Descubrir» (YouTube Music: Familiar / Discover). Descubrir = nunca reproducidas y de
         // artistas que no conoces; Conocido = de artistas que ya escuchas.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            listOf(
-                MusicRequestFocus.All to R.string.music_request_focus_all,
-                MusicRequestFocus.Familiar to R.string.music_request_focus_familiar,
-                MusicRequestFocus.Discover to R.string.music_request_focus_discover,
-            ).forEach { (value, label) ->
-                AuraChip(
-                    text = stringResource(label),
-                    selected = mode == value,
-                    onClick = { mode = value },
-                )
-            }
-        }
+        val focusOptions = listOf(
+            MusicRequestFocus.All to R.string.music_request_focus_all,
+            MusicRequestFocus.Familiar to R.string.music_request_focus_familiar,
+            MusicRequestFocus.Discover to R.string.music_request_focus_discover,
+        )
+        AuraGlassSegmented(
+            labels = focusOptions.map { (_, label) -> stringResource(label) },
+            selected = focusOptions.indexOfFirst { it.first == mode }.coerceAtLeast(0),
+            onSelect = { mode = focusOptions[it].first },
+        )
 
         // HISTORIAL / "OTRA TANDA" (ronda 6, dueño): repetir la última petición sin reescribirla es
         // "otra tanda" (canciones distintas, gracias al TTL de MusicRequestRecents); repetir una
@@ -478,45 +484,39 @@ private fun AuraMusicRequestSheetBody(
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                 }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                ) {
-                    recentPrompts.forEach { text ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            AuraChip(
-                                text = "↻ $text",
-                                selected = false,
-                                onClick = {
-                                    prompt = text
-                                    send(text)
-                                },
-                            )
-                            // Quita SOLO esta petición: no toca las demás ni lo que ya suena.
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .auraClickableInternal(
-                                        onClick = { MusicRequestHistory.remove(text) },
-                                        contentDescription = stringResource(R.string.music_request_remove_entry),
-                                    ),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.close),
-                                    contentDescription = null,
-                                    tint = AuraPalette.OnGroundFaint,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
-                        }
+                // Una losa con una fila por petición ya completada (como las filas del menú ⋯): tocar la repite, la ✕ quita SOLO esa.
+                AuraGlassSlab {
+                    recentPrompts.forEachIndexed { index, text ->
+                        if (index > 0) AuraGlassDivider(inset = 56.dp)
+                        AuraGlassRow(
+                            title = text,
+                            icon = R.drawable.history,
+                            iconTint = AuraPalette.OnGroundMuted,
+                            onClick = {
+                                prompt = text
+                                send(text)
+                            },
+                            trailing = {
+                                // Quita SOLO esta petición: no toca las demás ni lo que ya suena.
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .auraClickableInternal(
+                                            onClick = { MusicRequestHistory.remove(text) },
+                                            contentDescription = stringResource(R.string.music_request_remove_entry),
+                                        ),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.close),
+                                        contentDescription = null,
+                                        tint = AuraPalette.OnGroundFaint,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -641,14 +641,14 @@ private fun AuraMusicRequestResultCard(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.animateContentSize(animationSpec = REQUEST_CARD_SPRING),
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            AuraChip(text = stringResource(R.string.music_request_size_small), selected = !big, onClick = { big = false })
-            AuraChip(text = stringResource(R.string.music_request_size_big), selected = big, onClick = { big = true })
-        }
+        AuraGlassSegmented(
+            labels = listOf(
+                stringResource(R.string.music_request_size_small),
+                stringResource(R.string.music_request_size_big),
+            ),
+            selected = if (big) 1 else 0,
+            onSelect = { big = it == 1 },
+        )
         androidx.compose.foundation.pager.HorizontalPager(
             state = pagerState,
             pageSpacing = 12.dp,
@@ -794,8 +794,9 @@ private fun Modifier.auraRequestOptionSurface(): Modifier =
         .fillMaxWidth()
         // Antes del fondo: la tarjeta crece/encoge con su contenido (grande/pequeña, «+N más») sin saltos.
         .animateContentSize(animationSpec = REQUEST_CARD_SPRING)
-        .clip(AuraShapes.Card)
-        .background(Brush.verticalGradient(listOf(AuraPalette.Teal.copy(alpha = 0.10f), AuraPalette.SurfaceFill)))
+        .clip(RoundedCornerShape(AuraGlassCorner))
+        .background(AuraPalette.SurfaceFill)
+        .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(AuraGlassCorner))
         .padding(horizontal = 14.dp, vertical = 12.dp)
 
 @Composable
@@ -858,6 +859,7 @@ private fun AuraMusicRequestOptionOne(
                 ),
         ) {
             shown.forEachIndexed { index, song ->
+                if (index > 0) AuraGlassDivider(inset = if (big) 74.dp else 54.dp)
                 AuraRequestSongRow(
                     song = song,
                     big = big,
@@ -971,6 +973,7 @@ private fun AuraMusicRequestOptionTwo(
                     big = big,
                 )
                 alt.songs.take(8).forEachIndexed { index, song ->
+                    if (index > 0) AuraGlassDivider(inset = if (big) 74.dp else 54.dp)
                     AuraRequestSongRow(
                         song = song,
                         big = big,

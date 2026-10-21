@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -190,10 +191,12 @@ fun AuraOnlineSearchSuggestions(
             }
         }
 
-        items(viewState.history, key = { "aura_history_${it.query}" }) { history ->
+        itemsIndexed(viewState.history, key = { _, h -> "aura_history_${h.query}" }) { index, history ->
             AuraQueryRow(
                 query = history.query,
                 fromHistory = true,
+                first = index == 0,
+                last = index == viewState.history.lastIndex,
                 onClick = { onSearch(history.query) },
                 onDelete = { database.query { delete(history) } },
                 onFillTextField = {
@@ -214,10 +217,12 @@ fun AuraOnlineSearchSuggestions(
             }
         }
 
-        items(viewState.suggestions, key = { "aura_suggestion_$it" }) { suggestion ->
+        itemsIndexed(viewState.suggestions, key = { _, q -> "aura_suggestion_$q" }) { index, suggestion ->
             AuraQueryRow(
                 query = suggestion,
                 fromHistory = false,
+                first = index == 0,
+                last = index == viewState.suggestions.lastIndex,
                 onClick = { onSearch(suggestion) },
                 onDelete = null,
                 onFillTextField = {
@@ -339,19 +344,20 @@ private fun AuraQueryRow(
     onDelete: (() -> Unit)?,
     onFillTextField: () -> Unit,
     modifier: Modifier = Modifier,
+    first: Boolean = true,
+    last: Boolean = true,
 ) {
-    AuraRow(
+    // Fila 498 (dueño 2026-10-21: «el historial de Buscar con el estilo de las opciones del menú ⋯»): las filas del historial
+    // (y las sugerencias) son una losa de cristal continua — el mismo material, el texto grande y los separadores finos del
+    // menú ⋯ — en vez de filas sueltas sobre el fondo. Los gestos son los de siempre: tocar busca, ✕ borra, ↖ copia al campo.
+    AuraGlassRow(
         title = query,
         onClick = onClick,
-        contentDescription = query,
-        leading = {
-            AuraIconGlyph(
-                icon = if (fromHistory) AuraIcons.History else AuraIcons.Search,
-                contentDescription = null,
-                size = 17.dp,
-                tint = AuraPalette.OnGroundDisabled,
-            )
-        },
+        icon = if (fromHistory) R.drawable.history else R.drawable.search,
+        iconTint = AuraPalette.OnGroundMuted,
+        modifier = modifier
+            .padding(horizontal = AuraSpacing.Gutter)
+            .auraGlassSegment(first = first, last = last, dividerInset = 56.dp),
         trailing = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -364,7 +370,7 @@ private fun AuraQueryRow(
                         contentDescription = stringResource(R.string.search_history_remove),
                         onClick = onDelete,
                         size = 15.dp,
-                        tint = AuraPalette.OnGroundDisabled,
+                        tint = AuraPalette.OnGroundMuted,
                         modifier = Modifier.graphicsLayer { rotationZ = 45f },
                     )
                 }
@@ -374,12 +380,11 @@ private fun AuraQueryRow(
                     contentDescription = stringResource(R.string.search_use_suggestion),
                     onClick = onFillTextField,
                     size = 16.dp,
-                    tint = AuraPalette.OnGroundDisabled,
+                    tint = AuraPalette.OnGroundMuted,
                     modifier = Modifier.graphicsLayer { rotationZ = -135f },
                 )
             }
         },
-        modifier = modifier.padding(horizontal = AuraSpacing.Gutter),
     )
 }
 

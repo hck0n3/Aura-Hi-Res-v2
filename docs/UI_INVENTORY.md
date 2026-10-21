@@ -4197,3 +4197,12 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Biblioteca (Listas, Canciones, Álbumes, Artistas), tableta ≥ 900 dp | 3 / 4 / 5 columnas (Grande) o 4 / 5 / 6 (Pequeño) en vez de 7-8 portadas pequeñas; teléfono y plegable igual | 496 |
 | Artista, panel ancho (≥ 560 dp) | Cabecera `AuraWideTop`: portada cuadrada a la izquierda; nombre, cifras, «acerca de», Suscribirse / Radio / Aleatorio y el vídeo de fondo (sobre la portada) a su derecha. Panel estrecho: héroe a sangre como siempre | 497 |
 | Pedir música | Entiende país («colombiana», «de Argentina»…) y subgénero («villera»), que van en la consulta y que el título de la lista tiene que demostrar; cada canción de una lista «cristiana» se comprueba; géneros nuevos: carranga, tropipop, marimba, pasodoble, musicales | 493 |
+
+## Anexo 2026-10-21 (2): Pedir música, Añadir a lista y el historial de Buscar con las losas de cristal del menú ⋯ (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Pedir música (hoja) | Cabecera del menú ⋯; campo, micro y «Empezar» en una losa; «Pequeña/Grande» y «Todo/Conocido/Descubrir» como selectores segmentados; tarjeta de resultado en la misma losa, con separadores; historial como losa de filas (tocar repite, ✕ quita una, «Borrar todo»); sugerencias en chips | 498 |
+| Añadir a lista de reproducción | Título; «Crear lista de reproducción» en una losa; buscador; ordenar; playlists como una losa continua (con la marca «ya está en esta lista») | 498 |
+| Buscar (móvil sin desplegar) | «Historial de búsqueda» y sugerencias como losa continua; ✕ borra, ↖ copia al campo, «Borrar todo» | 498 |
+| Inicio — Pedir música, Canciones que me gustan, Descargado, Mi top, Aleatorio | Cada botón con su propio tono (degradado de las tres tintas de la portada, lavado en el cuerpo y filete teñido); misma altura, bloque a toda la altura, textos y acciones | 499 |

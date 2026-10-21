@@ -146,11 +146,11 @@ class AuraHomeLayoutTest {
         assertFalse(invite.contains(".background("))
         assertFalse(tile.contains(".background("))
         val block = layout.substringAfter("private fun AuraBlockCard(").substringBefore("private fun AuraQuickTileCard(").substringBefore("internal fun AuraQuickAccess(")
-        for (piece in listOf(".background(AuraPalette.SurfaceFill)", "AuraShapes.Card", "AuraPalette.PlayButtonGradient", "tvFocusable(", "AuraPalette.SurfaceLine")) {
+        for (piece in listOf(".background(AuraPalette.SurfaceFill)", "AuraShapes.Card", "rememberAuraTileTone(", "tvFocusable(", "AuraPalette.SurfaceLine")) {
             assertTrue("la pieza compartida usa $piece", block.contains(piece))
         }
         // The owner's design (screenshot of 2026-10-20): the gradient block fills the card's WHOLE height, with no rounded inner square.
-        assertTrue("el bloque de degradado ocupa toda la altura de la tarjeta", block.contains(".size(AURA_QUICK_TILE_HEIGHT)") && block.contains(".background(AuraPalette.PlayButtonGradient)"))
+        assertTrue("el bloque de degradado ocupa toda la altura de la tarjeta", block.contains(".size(AURA_QUICK_TILE_HEIGHT)") && block.contains(".background(toneOf.block)"))
         assertFalse("sin cuadrito redondeado dentro de la baldosa", block.contains("RoundedCornerShape("))
         assertTrue("el botón principal no lleva un borde de acento", !invite.contains("Teal.copy"))
         // The entrance keeps its action: it opens the sheet, shows the spinner while it works and speaks its label.
@@ -178,5 +178,19 @@ class AuraHomeLayoutTest {
         assertTrue("sobran huecos con un Spacer para que la última fila conserve el ancho", layout.contains("repeat(columns - rowTiles.size)"))
         assertTrue("baldosa horizontal: el bloque a la izquierda, nombre y cuenta al lado", AURA_QUICK_TILE_HEIGHT.value in 64f..84f && block.contains("Row("))
         assertEquals("Pedir música tiene el mismo alto que una baldosa", AURA_QUICK_TILE_HEIGHT, AURA_INVITE_CARD_HEIGHT)
+    }
+
+    @Test
+    fun `each shortcut wears its own cover-driven tone, built once from the three accent inks`() {
+        val layout = main("ui/newui/AuraHomeLayout.kt")
+        // Fila 499 (dueño 2026-10-21: «mejora la mezcla y las tonalidades de colores de los botones»): five blocks, five tones.
+        val tones = layout.substringAfter("internal fun rememberAuraTileTone(").substringBefore("internal fun AuraHomeInviteCard(")
+        for (ink in listOf("AuraPalette.Teal", "AuraPalette.Blue", "AuraPalette.Violet")) {
+            assertTrue("el tono sale de $ink (la portada)", tones.contains(ink))
+        }
+        assertTrue("se construye UNA vez por cambio de portada", tones.contains("remember(index, a, b, c)"))
+        assertTrue("sin animación por fotograma", !tones.contains("animate") && !tones.contains("infiniteTransition"))
+        for (i in 1..4) assertTrue("la baldosa $i lleva su tono", layout.contains("tone = $i"))
+        assertTrue("Pedir música es el tono 0", layout.substringAfter("internal fun AuraHomeInviteCard(").substringBefore("private fun AuraBlockCard(").contains("tone = 0"))
     }
 }

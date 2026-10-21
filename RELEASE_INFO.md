@@ -1,6 +1,6 @@
-# Aura Hi-Res v2.0.66-beta7 — Pedir música entiende países y subgéneros, la bienvenida sin barra, ventanas uniformes, tabletas más grandes y todo lo de las betas 2 a 6
+# Aura Hi-Res v2.0.66-beta8 — Pedir música, Añadir a lista y Buscar con el estilo del menú ⋯, botones de Inicio con más color y el país en Pedir música
 
-Beta encima de la 2.0.66-beta6 (incluye todo lo suyo y lo de las betas 2 a 5). Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.66-beta7 (incluye todo lo suyo, la beta6 y las anteriores). Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
 ## Listas, álbumes y menús
 
@@ -22,6 +22,16 @@ Beta encima de la 2.0.66-beta6 (incluye todo lo suyo y lo de las betas 2 a 5). C
 
 - **Vídeos que no tienen versión canción:** ya no ofrecen modo canción ni dan error.
 - **Cola inteligente más coherente:** respeta el idioma y el estilo de lo que escuchas (por ejemplo, rap cristiano en español ya no salta a reggaetón o hip hop en inglés) y rellena con artistas parecidos antes de relajar el filtro.
+
+## Ventanas con el estilo del menú de tres puntos
+
+- **Pedir música estrena el diseño del menú ⋯:** cabecera con ficha, el campo con el micro y «Empezar» en una losa de cristal, «Pequeña / Grande» y «Todo / Conocido / Descubrir» como selectores, la tarjeta del resultado con separadores finos y el historial de peticiones como una lista (tocar repite, la ✕ quita una, «Borrar todo» sigue).
+- **Añadir a lista de reproducción, igual:** título, «Crear lista» en su losa, el buscador con la misma forma y todas tus listas como una sola losa continua. Siguen las marcas «ya está en esta lista», el orden y el aviso de duplicados.
+- **El historial de Buscar (móvil sin desplegar)** y las sugerencias son una losa continua; la ✕ borra, la flecha copia al campo y «Borrar todo» sigue.
+
+## Inicio
+
+- **Los botones Pedir música, Canciones que me gustan, Descargado, Mi top y Aleatorio tienen cada uno su tono:** mezclan las tres tintas de la portada en otro orden y ángulo, con un lavado de color en el cuerpo del botón y el borde teñido. Antes los cinco eran el mismo color.
 
 ## Pedir música
 

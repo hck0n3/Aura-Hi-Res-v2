@@ -158,8 +158,53 @@ private class AuraQuickTile(
     val title: String,
     val subtitle: String?,
     val loading: Boolean = false,
+    /** Fila 499: which of the cover-driven tones of [AuraTileTone] this tile wears. */
+    val tone: Int = 0,
     val onClick: () -> Unit,
 )
+
+/**
+ * Fila 499 — LA MEZCLA DE COLORES DE LOS BOTONES DE INICIO.
+ *
+ * Dueño (2026-10-21): *«mejora la mezcla y las tonalidades de colores de los botones Pedir música, Descargado, Aleatorio, Mi
+ * top»*. Los cinco bloques usaban EXACTAMENTE el mismo degradado (el del botón de play), así que eran cinco copias del mismo
+ * color. Ahora cada uno lleva su propio degradado hecho con las MISMAS tres tintas de la portada ([AuraPalette.Teal] /
+ * [AuraPalette.Blue] / [AuraPalette.Violet], que ya cumplen el contraste con la tinta del bloque): otro orden de las tres, otro
+ * ángulo y una tinta intermedia mezclada, de modo que se distinguen entre sí y siguen siendo de la familia de la portada. El
+ * cuerpo del botón recibe además un lavado suave de la tinta del bloque y su filete se tiñe un poco, para que el bloque y el
+ * cuerpo se lean como una sola pieza y no como un cuadrado pegado a una placa gris.
+ *
+ * Sin animación por fotograma: los pinceles se construyen UNA vez por cambio de portada (`remember`) y se pintan estáticos.
+ */
+@androidx.compose.runtime.Immutable
+internal class AuraTileTone(val block: androidx.compose.ui.graphics.Brush, val wash: androidx.compose.ui.graphics.Color)
+
+/** The five tones, in the order of the shortcuts: Pedir música, Me gusta, Descargado, Mi top, Aleatorio. */
+@Composable
+internal fun rememberAuraTileTone(index: Int): AuraTileTone {
+    val a = AuraPalette.Teal
+    val b = AuraPalette.Blue
+    val c = AuraPalette.Violet
+    return remember(index, a, b, c) {
+        val ab = androidx.compose.ui.graphics.lerp(a, b, 0.5f)
+        val bc = androidx.compose.ui.graphics.lerp(b, c, 0.5f)
+        val ac = androidx.compose.ui.graphics.lerp(a, c, 0.5f)
+        val diag = androidx.compose.ui.geometry.Offset.Infinite
+        val zero = androidx.compose.ui.geometry.Offset.Zero
+        when (index) {
+            // «Pedir música»: el degradado completo del botón de play, el protagonista.
+            0 -> AuraTileTone(androidx.compose.ui.graphics.Brush.linearGradient(listOf(a, b, c), zero, diag), b)
+            // «Canciones que me gustan»: de la tinta lejana hacia la principal, cálido-frío.
+            1 -> AuraTileTone(androidx.compose.ui.graphics.Brush.linearGradient(listOf(c, ac, a), zero, diag), ac)
+            // «Descargado»: del azul medio a la principal.
+            2 -> AuraTileTone(androidx.compose.ui.graphics.Brush.linearGradient(listOf(b, ab, a), zero, diag), ab)
+            // «Mi top»: de la principal a la lejana por la mezcla de las dos.
+            3 -> AuraTileTone(androidx.compose.ui.graphics.Brush.linearGradient(listOf(a, ac, c), zero, diag), ac)
+            // «Aleatorio»: las tres al revés, del violeta al azul y a la principal.
+            else -> AuraTileTone(androidx.compose.ui.graphics.Brush.linearGradient(listOf(c, bc, a), zero, diag), bc)
+        }
+    }
+}
 
 /**
  * "Pedir música" built from the SAME piece as the four tiles ([AuraBlockCard]). Owner 2026-10-20, with the screenshot of the
@@ -181,6 +226,7 @@ internal fun AuraHomeInviteCard(
     AuraBlockCard(
         title = title,
         subtitle = subtitle,
+        tone = 0,
         titleMaxLines = 1,
         subtitleMaxLines = 2,
         loading = loading,
@@ -202,6 +248,7 @@ internal fun AuraHomeInviteCard(
 private fun AuraBlockCard(
     title: String,
     subtitle: String?,
+    tone: Int,
     titleMaxLines: Int,
     subtitleMaxLines: Int,
     loading: Boolean,
@@ -211,6 +258,7 @@ private fun AuraBlockCard(
     modifier: Modifier = Modifier,
     icon: @Composable () -> Unit,
 ) {
+    val toneOf = rememberAuraTileTone(tone)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -219,7 +267,17 @@ private fun AuraBlockCard(
             .tvFocusable(isTvOrCar, AuraShapes.Card, scaleFocused = 1f)
             .clip(AuraShapes.Card)
             .background(AuraPalette.SurfaceFill)
-            .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
+            // The block's own tint washes into the body (left → right), so block and body read as one piece.
+            .background(
+                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                    listOf(toneOf.wash.copy(alpha = 0.20f), toneOf.wash.copy(alpha = 0.04f)),
+                ),
+            )
+            .border(
+                1.dp,
+                androidx.compose.ui.graphics.lerp(AuraPalette.SurfaceLine, toneOf.wash.copy(alpha = 0.45f), 0.5f),
+                AuraShapes.Card,
+            )
             .auraClickableInternal(onClick = onClick, contentDescription = contentDescription),
     ) {
         // The play button's own gradient with its own ink: the one pair that is already guaranteed to read on
@@ -228,7 +286,7 @@ private fun AuraBlockCard(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(AURA_QUICK_TILE_HEIGHT)
-                .background(AuraPalette.PlayButtonGradient),
+                .background(toneOf.block),
         ) {
             if (loading) {
                 CircularProgressIndicator(
@@ -316,10 +374,10 @@ internal fun AuraQuickAccess(
     }
 
     val tiles = listOf(
-        AuraQuickTile(AuraIcons.HeartFilled, likedTitle, likedSubtitle, onClick = { navController.navigate("auto_playlist/liked") }),
-        AuraQuickTile(AuraIcons.Downloaded, downloadedTitle, downloadedSubtitle, onClick = { navController.navigate("auto_playlist/downloaded") }),
-        AuraQuickTile(AuraIcons.Music, topTitle, topSubtitle, onClick = { navController.navigate("top_playlist/$topSize") }),
-        AuraQuickTile(AuraIcons.Shuffle, shuffleTitle, shuffleSubtitle, loading = surprising, onClick = onSurprise),
+        AuraQuickTile(AuraIcons.HeartFilled, likedTitle, likedSubtitle, tone = 1, onClick = { navController.navigate("auto_playlist/liked") }),
+        AuraQuickTile(AuraIcons.Downloaded, downloadedTitle, downloadedSubtitle, tone = 2, onClick = { navController.navigate("auto_playlist/downloaded") }),
+        AuraQuickTile(AuraIcons.Music, topTitle, topSubtitle, tone = 3, onClick = { navController.navigate("top_playlist/$topSize") }),
+        AuraQuickTile(AuraIcons.Shuffle, shuffleTitle, shuffleSubtitle, loading = surprising, tone = 4, onClick = onSurprise),
     )
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -353,6 +411,7 @@ private fun AuraQuickTileCard(tile: AuraQuickTile, isTvOrCar: Boolean, modifier:
     AuraBlockCard(
         title = tile.title,
         subtitle = tile.subtitle,
+        tone = tile.tone,
         titleMaxLines = 2,
         subtitleMaxLines = 1,
         loading = tile.loading,
