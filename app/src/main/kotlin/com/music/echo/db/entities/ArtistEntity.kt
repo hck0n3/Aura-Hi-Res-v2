@@ -169,13 +169,24 @@ data class ArtistEntity(
             // user had never deliberately followed.
             val subscribing = followedByUserAt == null
             val targetChannelId = channelId ?: YouTube.getChannelId(id)
-            if (targetChannelId.isEmpty()) return@launch
+            if (targetChannelId.isEmpty()) {
+                // The channel could not be resolved (typically offline): the unfollow is still queued on the
+                // row, but nothing would carry it out soon. Arm the network-constrained retry.
+                if (!subscribing) iad1tya.echo.music.utils.AccountPush.onLiveArtistUnsubscribe(confirmed = false)
+                return@launch
+            }
             // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a SONG
             // appears to also subscribe its artist. This call site is the explicit follow button and
             // is meant to reach the account — timestamp only (regla 4), so a like/dislike log line at
             // the same moment in app.log would be the real evidence a static read alone can't give.
             timber.log.Timber.i("ARTIST_SUBSCRIBE_CALL subscribing=%b", subscribing)
             val confirmedByAccount = YouTube.subscribeChannel(targetChannelId, subscribing).isSuccess
+            // SYNC_PUSH log line + (on a failed unsubscribe) the retry that does not wait for a manual sync.
+            if (subscribing) {
+                iad1tya.echo.music.utils.AccountPush.onLiveArtistSubscribe(confirmedByAccount)
+            } else {
+                iad1tya.echo.music.utils.AccountPush.onLiveArtistUnsubscribe(confirmedByAccount)
+            }
 
             // The instruction has been carried out, so it stops being an instruction. `toggled` is the
             // row we are about to persist, so its `unfollowedByUserAt` is the exact timestamp the

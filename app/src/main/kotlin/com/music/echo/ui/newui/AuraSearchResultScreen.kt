@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,8 +23,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -182,12 +188,20 @@ fun AuraSearchResultScreen(
     val lazyListState = rememberLazyListState()
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { lazyListState.isScrollInProgress }
+    // WIDE WINDOW: the single-filter views of albums / artists / playlists / videos are a grid of big covers.
+    val gridState = rememberLazyGridState()
+    ScrollStateBusReporter { gridState.isScrollInProgress }
+    // WIDE WINDOW: the result whose detail is open in the other half (null = none yet).
+    var picked by remember { mutableStateOf<AuraSearchPick?>(null) }
     val searchFilter by viewModel.filter.collectAsState()
     val searchSummary = viewModel.summaryPage
     val searchFailed = viewModel.hasFailed
 
     LaunchedEffect(searchSummary, searchFilter) {
-        if (searchSummary != null || searchFilter != null) lazyListState.scrollToItem(0)
+        if (searchSummary != null || searchFilter != null) {
+            lazyListState.scrollToItem(0)
+            gridState.scrollToItem(0)
+        }
     }
 
     val itemsPage by remember(searchFilter) {
@@ -197,6 +211,15 @@ fun AuraSearchResultScreen(
     LaunchedEffect(lazyListState) {
         snapshotFlow {
             lazyListState.layoutInfo.visibleItemsInfo.any { it.key == "aura_results_loading" }
+        }.collect { shouldLoadMore ->
+            if (shouldLoadMore) viewModel.loadMore()
+        }
+    }
+
+    // Same infinite scroll for the grid (it has its own state and its own loading cell).
+    LaunchedEffect(gridState) {
+        snapshotFlow {
+            gridState.layoutInfo.visibleItemsInfo.any { it.key == "aura_results_loading" }
         }.collect { shouldLoadMore ->
             if (shouldLoadMore) viewModel.loadMore()
         }
@@ -290,7 +313,285 @@ fun AuraSearchResultScreen(
             showSource = false,
         )
 
-        Box(Modifier.fillMaxSize()) {
+        // WIDE WINDOW (owner 2026-10-20, unfolded Z Fold: *«desplegado… se desaprovecha todo ese espacio… cuando encuentre
+        // algo se podría aprovechar el otro espacio»*, *«en los filtros las carátulas y todo sea más grande»*). Decided on the
+        // room THIS screen really has (a content pane squeezed by the split player, a folded phone and a phone on its side
+        // all keep the single column): the results go on the left with big rows (and a grid of big covers for the
+        // albums / artists / playlists / videos filters), every one with a type pill, and tapping one shows its hero and its
+        // real menu in the other half instead of playing / navigating / opening a floating menu.
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val split = auraSearchSplitFits(maxWidth.value, maxHeight.value)
+            val itemsPageNow = itemsPage
+            // The grid needs the page to exist: while it loads (or failed) the list shows the skeleton / the error.
+            val useGrid = split && itemsPageNow != null && auraResultFilterIsGrid(searchFilter)
+            val detailBottom = LocalPlayerAwareWindowInsets.current
+                .only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding() + 12.dp
+
+            // One row of the single-column list: the phone row, or in a wide window the big one that selects.
+            val resultRow: @Composable (YTItem, Modifier) -> Unit = { item, rowModifier ->
+                val active = when (item) {
+                    is SongItem -> mediaMetadata?.id == item.id
+                    is AlbumItem -> mediaMetadata?.album?.id == item.id
+                    else -> false
+                }
+                if (split) {
+                    AuraYtWideRow(
+                        item = item,
+                        selected = picked.isYt(item),
+                        isActive = active,
+                        isPlaying = isPlaying,
+                        onClick = { picked = AuraSearchPick.Yt(item) },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            picked = AuraSearchPick.Yt(item)
+                        },
+                        modifier = rowModifier.padding(horizontal = AuraSpacing.Gutter - 8.dp),
+                    )
+                } else {
+                    AuraYtItemRow(
+                        item = item,
+                        isActive = active,
+                        isPlaying = isPlaying,
+                        onClick = { onItemClick(item) },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            openMenu(item)
+                        },
+                        onMenuClick = { openMenu(item) },
+                        modifier = rowModifier,
+                    )
+                }
+            }
+
+            val resultsBody: @Composable () -> Unit = {
+                if (useGrid) {
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val spacing = 14.dp
+                        val available = maxWidth - AuraSpacing.Gutter * 2
+                        val minCell = if (searchFilter == FILTER_VIDEO) 230.dp else 150.dp
+                        val columns = auraSearchGridColumns(
+                            available = available,
+                            minCell = minCell,
+                            spacing = spacing,
+                            floor = if (searchFilter == FILTER_VIDEO) 1 else 2,
+                        )
+                        val cellWidth = (available - spacing * (columns - 1)) / columns
+                        val filteredItems = itemsPageNow?.items.orEmpty().distinctBy { it.id }
+
+                        LazyVerticalGrid(
+                            state = gridState,
+                            columns = GridCells.Fixed(columns),
+                            horizontalArrangement = Arrangement.spacedBy(spacing),
+                            verticalArrangement = Arrangement.spacedBy(spacing),
+                            contentPadding = PaddingValues(
+                                start = AuraSpacing.Gutter,
+                                end = AuraSpacing.Gutter,
+                                top = 10.dp,
+                                bottom = 24.dp + LocalPlayerAwareWindowInsets.current.asPaddingValues()
+                                    .calculateBottomPadding(),
+                            ),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            gridItems(filteredItems, key = { "aura_filtered_${it.id}" }) { item ->
+                                AuraSearchGridCard(
+                                    entry = remember(item) { auraSearchEntry(item) },
+                                    width = cellWidth,
+                                    selected = picked.isYt(item),
+                                    isActive = when (item) {
+                                        is SongItem -> mediaMetadata?.id == item.id
+                                        is AlbumItem -> mediaMetadata?.album?.id == item.id
+                                        else -> false
+                                    },
+                                    isPlaying = isPlaying,
+                                    onClick = { picked = AuraSearchPick.Yt(item) },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        picked = AuraSearchPick.Yt(item)
+                                    },
+                                    modifier = Modifier.animateItem(),
+                                )
+                            }
+
+                            if (itemsPageNow?.continuation != null) {
+                                item(
+                                    key = "aura_results_loading",
+                                    span = { GridItemSpan(maxLineSpan) },
+                                    contentType = "aura_results_loading",
+                                ) {
+                                    ShimmerHost { repeat(2) { AuraSkeletonRow() } }
+                                }
+                            }
+
+                            if (itemsPageNow?.items?.isEmpty() == true) {
+                                item(
+                                    key = "aura_results_empty_filtered",
+                                    span = { GridItemSpan(maxLineSpan) },
+                                    contentType = "aura_results_empty_filtered",
+                                ) {
+                                    AuraEmpty(text = stringResource(R.string.no_results_found))
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        state = lazyListState,
+                        // Top dropped on purpose: the status bar is already cleared by this screen's own
+                        // `.windowInsetsPadding(...Top)` above, and the search bar + filter row sit above
+                        // this list too. Padding the FULL inset here (Top included) stacked a second gap
+                        // on top of both, leaving a visible dead band between the filters and the results.
+                        contentPadding = LocalPlayerAwareWindowInsets.current
+                            .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                            .asPaddingValues(),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        if (searchFilter == null) {
+                            // Same order as the classic screen: artists, then songs (YouTube already ranks
+                            // them), then albums, then playlists. Podcasts are appended last, below.
+                            searchSummary?.summaries
+                                ?.sortedBy { summary ->
+                                    when (summary.items.firstOrNull()) {
+                                        is ArtistItem -> 0
+                                        is SongItem -> 1
+                                        is AlbumItem -> 2
+                                        is PlaylistItem -> 3
+                                        else -> 4
+                                    }
+                                }
+                                ?.forEachIndexed { summaryIndex, summary ->
+                                    // "Ocultar vídeos" applies here (default = show); a section left empty
+                                    // by it is dropped rather than drawn as a bare header.
+                                    // All tab: dedicated Artists shelf caps at 2; mixed Top result
+                                    // (artist card + songs) must NOT be truncated — that 0.6.190 take(2)
+                                    // emptied Buscar. Full artist list stays on the Artistas chip.
+                                    val musicItems = summary.items.filterNot {
+                                        hideVideoSongs && it is SongItem && it.isVideoSong
+                                    }.forAllTabSearchPreview()
+                                    if (musicItems.isEmpty()) return@forEachIndexed
+
+                                    item(key = "aura_summary_${summaryIndex}_${summary.title}", contentType = "aura_summary") {
+                                        AuraSectionHeader(
+                                            title = summary.title,
+                                            modifier = Modifier.animateItem(),
+                                        )
+                                    }
+
+                                    itemsIndexed(
+                                        items = musicItems,
+                                        key = { index, item -> "${summary.title}/${item.id}/$index" },
+                                        // Reuse slots only within one item type, so reordering sections can
+                                        // never hand an artist's slot to a song.
+                                        contentType = { _, item -> item::class },
+                                    ) { _, item ->
+                                        resultRow(item, Modifier.animateItem())
+                                    }
+                                }
+
+                            // Universal search: podcasts (Apple/RSS) alongside the music results.
+                            val podcasts = viewModel.podcastResults
+                            if (podcasts.isNotEmpty()) {
+                                item(key = "aura_podcasts_title", contentType = "aura_podcasts_title") {
+                                    AuraSectionHeader(
+                                        title = stringResource(R.string.podcasts),
+                                        modifier = Modifier.animateItem(),
+                                    )
+                                }
+                                items(podcasts, key = { "aura_podcast_${it.id}" }) { show ->
+                                    val openShow = {
+                                        navController.navigate(
+                                            "podcasts?feedUrl=" +
+                                                URLEncoder.encode(show.feedUrl, "UTF-8"),
+                                        )
+                                    }
+                                    if (split) {
+                                        AuraSearchWideRow(
+                                            entry = AuraSearchEntry(
+                                                kind = AuraContentKind.Podcast,
+                                                title = show.title,
+                                                artist = show.author,
+                                                meta = null,
+                                                duration = null,
+                                                thumbnailUrl = show.artworkUrl,
+                                                seed = show.id,
+                                                explicit = false,
+                                            ),
+                                            selected = false,
+                                            isActive = false,
+                                            isPlaying = false,
+                                            onClick = { openShow() },
+                                            modifier = Modifier
+                                                .animateItem()
+                                                .padding(horizontal = AuraSpacing.Gutter - 8.dp),
+                                        )
+                                    } else {
+                                        AuraRow(
+                                            title = show.title,
+                                            subtitle = show.author,
+                                            contentDescription = show.title,
+                                            onClick = { openShow() },
+                                            artwork = {
+                                                AuraCover(
+                                                    thumbnailUrl = show.artworkUrl,
+                                                    size = 50.dp,
+                                                    seed = show.id,
+                                                    fillBleed = true,
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .animateItem()
+                                                .padding(horizontal = AuraSpacing.Gutter),
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (searchSummary?.summaries?.isEmpty() == true && podcasts.isEmpty()) {
+                                item(key = "aura_results_empty", contentType = "aura_results_empty") {
+                                    AuraEmpty(text = stringResource(R.string.no_results_found))
+                                }
+                            }
+                        } else {
+                            val filtered = itemsPage?.items.orEmpty().distinctBy { it.id }
+                            items(filtered, key = { "aura_filtered_${it.id}" }) { item ->
+                                resultRow(item, Modifier.animateItem())
+                            }
+
+                            if (itemsPage?.continuation != null) {
+                                item(key = "aura_results_loading", contentType = "aura_results_loading") {
+                                    ShimmerHost { repeat(3) { AuraSkeletonRow() } }
+                                }
+                            }
+
+                            if (itemsPage?.items?.isEmpty() == true) {
+                                item(key = "aura_results_empty_filtered", contentType = "aura_results_empty_filtered") {
+                                    AuraEmpty(text = stringResource(R.string.no_results_found))
+                                }
+                            }
+                        }
+
+                        if (searchFailed &&
+                            ((searchFilter == null && searchSummary == null) ||
+                                (searchFilter != null && itemsPage == null))
+                        ) {
+                            item(key = "aura_results_error", contentType = "aura_results_error") {
+                                AuraDetailErrorState(
+                                    message = stringResource(R.string.couldnt_load_search),
+                                    onRetry = viewModel::retry,
+                                )
+                            }
+                        } else if (searchFilter == null && searchSummary == null ||
+                            searchFilter != null && itemsPage == null
+                        ) {
+                            item(key = "aura_results_skeleton", contentType = "aura_results_skeleton") {
+                                ShimmerHost { repeat(8) { AuraSkeletonRow() } }
+                            }
+                        }
+
+                        item(key = "aura_results_bottom_spacer", contentType = "aura_results_bottom_spacer") { Spacer(Modifier.height(24.dp)) }
+                    }
+                }
+            }
+
             Column(Modifier.fillMaxSize()) {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
@@ -306,173 +607,28 @@ fun AuraSearchResultScreen(
                             selected = searchFilter == filter,
                             onClick = {
                                 if (viewModel.filter.value != filter) viewModel.filter.value = filter
-                                coroutineScope.launch { lazyListState.animateScrollToItem(0) }
+                                // Only the scroller that is on screen: an unattached state has nothing to animate.
+                                coroutineScope.launch {
+                                    if (useGrid) gridState.animateScrollToItem(0) else lazyListState.animateScrollToItem(0)
+                                }
                             },
                         )
                     }
                 }
 
-                LazyColumn(
-                    state = lazyListState,
-                    // Top dropped on purpose: the status bar is already cleared by this screen's own
-                    // `.windowInsetsPadding(...Top)` above, and the search bar + filter row sit above
-                    // this list too. Padding the FULL inset here (Top included) stacked a second gap
-                    // on top of both, leaving a visible dead band between the filters and the results.
-                    contentPadding = LocalPlayerAwareWindowInsets.current
-                        .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
-                        .asPaddingValues(),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    if (searchFilter == null) {
-                        // Same order as the classic screen: artists, then songs (YouTube already ranks
-                        // them), then albums, then playlists. Podcasts are appended last, below.
-                        searchSummary?.summaries
-                            ?.sortedBy { summary ->
-                                when (summary.items.firstOrNull()) {
-                                    is ArtistItem -> 0
-                                    is SongItem -> 1
-                                    is AlbumItem -> 2
-                                    is PlaylistItem -> 3
-                                    else -> 4
-                                }
+                if (split) {
+                    AuraSearchSplit(
+                        detailWidth = auraSearchDetailWidth(this@BoxWithConstraints.maxWidth),
+                        bottomPadding = detailBottom,
+                        list = resultsBody,
+                        detail = {
+                            AuraSearchDetailCard {
+                                AuraSearchDetailPane(pick = picked, navController = navController)
                             }
-                            ?.forEachIndexed { summaryIndex, summary ->
-                                // "Ocultar vídeos" applies here (default = show); a section left empty
-                                // by it is dropped rather than drawn as a bare header.
-                                // All tab: dedicated Artists shelf caps at 2; mixed Top result
-                                // (artist card + songs) must NOT be truncated — that 0.6.190 take(2)
-                                // emptied Buscar. Full artist list stays on the Artistas chip.
-                                val musicItems = summary.items.filterNot {
-                                    hideVideoSongs && it is SongItem && it.isVideoSong
-                                }.forAllTabSearchPreview()
-                                if (musicItems.isEmpty()) return@forEachIndexed
-
-                                item(key = "aura_summary_${summaryIndex}_${summary.title}", contentType = "aura_summary") {
-                                    AuraSectionHeader(
-                                        title = summary.title,
-                                        modifier = Modifier.animateItem(),
-                                    )
-                                }
-
-                                itemsIndexed(
-                                    items = musicItems,
-                                    key = { index, item -> "${summary.title}/${item.id}/$index" },
-                                    // Reuse slots only within one item type, so reordering sections can
-                                    // never hand an artist's slot to a song.
-                                    contentType = { _, item -> item::class },
-                                ) { _, item ->
-                                    AuraYtItemRow(
-                                        item = item,
-                                        isActive = when (item) {
-                                            is SongItem -> mediaMetadata?.id == item.id
-                                            is AlbumItem -> mediaMetadata?.album?.id == item.id
-                                            else -> false
-                                        },
-                                        isPlaying = isPlaying,
-                                        onClick = { onItemClick(item) },
-                                        onLongClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            openMenu(item)
-                                        },
-                                        onMenuClick = { openMenu(item) },
-                                        modifier = Modifier.animateItem(),
-                                    )
-                                }
-                            }
-
-                        // Universal search: podcasts (Apple/RSS) alongside the music results.
-                        val podcasts = viewModel.podcastResults
-                        if (podcasts.isNotEmpty()) {
-                            item(key = "aura_podcasts_title", contentType = "aura_podcasts_title") {
-                                AuraSectionHeader(
-                                    title = stringResource(R.string.podcasts),
-                                    modifier = Modifier.animateItem(),
-                                )
-                            }
-                            items(podcasts, key = { "aura_podcast_${it.id}" }) { show ->
-                                AuraRow(
-                                    title = show.title,
-                                    subtitle = show.author,
-                                    contentDescription = show.title,
-                                    onClick = {
-                                        navController.navigate(
-                                            "podcasts?feedUrl=" +
-                                                URLEncoder.encode(show.feedUrl, "UTF-8"),
-                                        )
-                                    },
-                                    artwork = {
-                                        AuraCover(
-                                            thumbnailUrl = show.artworkUrl,
-                                            size = 50.dp,
-                                            seed = show.id,
-                                            fillBleed = true,
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .animateItem()
-                                        .padding(horizontal = AuraSpacing.Gutter),
-                                )
-                            }
-                        }
-
-                        if (searchSummary?.summaries?.isEmpty() == true && podcasts.isEmpty()) {
-                            item(key = "aura_results_empty", contentType = "aura_results_empty") {
-                                AuraEmpty(text = stringResource(R.string.no_results_found))
-                            }
-                        }
-                    } else {
-                        val filtered = itemsPage?.items.orEmpty().distinctBy { it.id }
-                        items(filtered, key = { "aura_filtered_${it.id}" }) { item ->
-                            AuraYtItemRow(
-                                item = item,
-                                isActive = when (item) {
-                                    is SongItem -> mediaMetadata?.id == item.id
-                                    is AlbumItem -> mediaMetadata?.album?.id == item.id
-                                    else -> false
-                                },
-                                isPlaying = isPlaying,
-                                onClick = { onItemClick(item) },
-                                onLongClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    openMenu(item)
-                                },
-                                onMenuClick = { openMenu(item) },
-                                modifier = Modifier.animateItem(),
-                            )
-                        }
-
-                        if (itemsPage?.continuation != null) {
-                            item(key = "aura_results_loading", contentType = "aura_results_loading") {
-                                ShimmerHost { repeat(3) { AuraSkeletonRow() } }
-                            }
-                        }
-
-                        if (itemsPage?.items?.isEmpty() == true) {
-                            item(key = "aura_results_empty_filtered", contentType = "aura_results_empty_filtered") {
-                                AuraEmpty(text = stringResource(R.string.no_results_found))
-                            }
-                        }
-                    }
-
-                    if (searchFailed &&
-                        ((searchFilter == null && searchSummary == null) ||
-                            (searchFilter != null && itemsPage == null))
-                    ) {
-                        item(key = "aura_results_error", contentType = "aura_results_error") {
-                            AuraDetailErrorState(
-                                message = stringResource(R.string.couldnt_load_search),
-                                onRetry = viewModel::retry,
-                            )
-                        }
-                    } else if (searchFilter == null && searchSummary == null ||
-                        searchFilter != null && itemsPage == null
-                    ) {
-                        item(key = "aura_results_skeleton", contentType = "aura_results_skeleton") {
-                            ShimmerHost { repeat(8) { AuraSkeletonRow() } }
-                        }
-                    }
-
-                    item(key = "aura_results_bottom_spacer", contentType = "aura_results_bottom_spacer") { Spacer(Modifier.height(24.dp)) }
+                        },
+                    )
+                } else {
+                    resultsBody()
                 }
             }
 
@@ -500,6 +656,14 @@ fun AuraSearchResultScreen(
         }
     }
 }
+
+/**
+ * Filters whose single-filter view is a grid of big covers in a wide window: the ones that are about a cover or a portrait.
+ * Songs and podcasts stay as rows (a long list of tracks reads better as rows, and the row already carries the cover).
+ */
+private fun auraResultFilterIsGrid(filter: YouTube.SearchFilter?): Boolean =
+    filter == FILTER_ALBUM || filter == FILTER_ARTIST || filter == FILTER_COMMUNITY_PLAYLIST ||
+        filter == FILTER_FEATURED_PLAYLIST || filter == FILTER_VIDEO
 
 /** The eight filter chips of the results screen, in the classic order. */
 private fun auraResultFilters(): List<Pair<YouTube.SearchFilter?, Int>> = listOf(

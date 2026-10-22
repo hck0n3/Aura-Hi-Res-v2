@@ -1468,6 +1468,23 @@ class MusicService :
     @Volatile
     private var lastVideoFailureAtMs: Long = 0L
 
+    /**
+     * Owner 2026-10-20: video mode entered by the automatic «song audio refused» fallback must not pop the full
+     * player open (MainActivity's `videoModeOn` effect) — the user did not tap Video. Valid for a few seconds only,
+     * so a stale flag can never swallow a later, genuine expansion. Read once by [consumeSilentVideoEntry].
+     */
+    @Volatile private var silentVideoEntryUntilMs = 0L
+    internal var silentVideoEntry: Boolean
+        get() = System.currentTimeMillis() <= silentVideoEntryUntilMs
+        set(value) { silentVideoEntryUntilMs = if (value) System.currentTimeMillis() + 5_000L else 0L }
+
+    /** True once if the video mode that just turned on was the automatic fallback (then clears itself). */
+    internal fun consumeSilentVideoEntry(): Boolean {
+        val silent = silentVideoEntry
+        silentVideoEntry = false
+        return silent
+    }
+
     internal var userHasUsedVideo: Boolean
         get() = playbackState.userHasUsedVideo
         set(value) { playbackState.userHasUsedVideo = value }
@@ -1720,6 +1737,9 @@ class MusicService :
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> {
+                    iad1tya.echo.music.utils.PowerTimeline.log(
+                        context, "screen_off", playing = ::player.isInitialized && player.isPlaying, screenOn = false,
+                    )
                     // INSTANT VIDEO SWAP: screen off = invisible → no speculative player may keep
                     // buffering video bytes (heat/battery rule). No-op when nothing is prepared.
                     teardownInstantVideoSwap("screen off")
@@ -1739,6 +1759,9 @@ class MusicService :
                     }
                 }
                 Intent.ACTION_SCREEN_ON -> {
+                    iad1tya.echo.music.utils.PowerTimeline.log(
+                        context, "screen_on", playing = ::player.isInitialized && player.isPlaying, screenOn = true,
+                    )
                     // Re-attempt the instant-swap pre-prepare (fully re-gated inside: only if the player
                     // sheet is still expanded over a video song in audio mode, unmetered, capable, etc).
                     scheduleInstantVideoPrepare(INSTANT_VIDEO_PREPARE_DELAY_MS)
@@ -3529,6 +3552,11 @@ class MusicService :
             return
         }
 
+        // Owner 2026-10-20: the chain used to end in a SILENT pause (his log: five unplayable videos in a row, then
+        // nothing). One clear notice instead; the counter resets so a deliberate next tap works normally.
+        if (SongModePlanning.skipChainExhausted(consecutivePlaybackErr, MAX_CONSECUTIVE_ERR)) {
+            runCatching { Toast.makeText(this, R.string.skip_chain_stopped, Toast.LENGTH_LONG).show() }
+        }
         player.pause()
         consecutivePlaybackErr = 0
     }
@@ -4771,8 +4799,13 @@ class MusicService :
         if (size < 2 && !strictNoRepeat) return this
         val disliked = runCatching { dislikeStore.snapshot() }
             .getOrDefault(iad1tya.echo.music.dislike.DislikeStore.Disliked())
+        // Fila 462: the queue that follows the backing track of ONE song ("Pedir música" → "karaoke de X") must not bring more
+        // karaoke / instrumentals of OTHER songs — the radio of a karaoke track is made of them. Only for that closed list; a
+        // karaoke request for an artist or a style keeps the rule below (playing one, they rank like any other song).
+        val karaokeClosed = iad1tya.echo.music.playlistimport.RequestKaraokeContexts.isClosed(radioOriginContextId)
         val filtered = this.filter { mi ->
             val m = mi.metadata ?: return@filter true
+            if (karaokeClosed && iad1tya.echo.music.reco.VersionNoise.isDerivative(m.title, m.album?.title)) return@filter false
             m.id !in disliked.songs && m.artists.none { it.id != null && it.id in disliked.artists }
         }
         val p = tasteProfile() // may be null (no taste yet) → pure relatedness order, still recency/dislike-filtered
@@ -4830,7 +4863,8 @@ class MusicService :
         //    plays right now is one itself — then that is the mood and they rank like any other song.
         // Both are in-memory lookups (no I/O, no network), read once per candidate.
         val nowMeta = currentMediaMetadata.value
-        val inDerivativeMood = nowMeta != null && iad1tya.echo.music.reco.VersionNoise.isDerivative(nowMeta.title, nowMeta.album?.title)
+        val inDerivativeMood = !karaokeClosed && nowMeta != null &&
+            iad1tya.echo.music.reco.VersionNoise.isDerivative(nowMeta.title, nowMeta.album?.title)
         val skipMemory = exactStyle.quickSkips
         var skipDemoted = 0
         var versionDemoted = 0
@@ -5371,6 +5405,13 @@ class MusicService :
                     database.query { upsert(unliked); syncUtils.likeSong(unliked) }
                 }
             }
+            // "No me gusta" reaches the account too (owner 2026-10-20): thumbs-down on YouTube Music's side,
+            // recorded durably and retried when offline. It goes AFTER the unlike above on purpose — the last
+            // action on a song wins in the outbox, and a dislike replaces the like on the account.
+            iad1tya.echo.music.utils.AccountPush.submit(
+                iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_DISLIKE,
+                mediaId,
+            )
             // Purge any other copies of this track still queued ahead, then advance.
             withContext(Dispatchers.Main) {
                 for (i in player.mediaItemCount - 1 downTo 0) {
@@ -5403,6 +5444,11 @@ class MusicService :
                     if (it is CancellationException) throw it
                     Timber.tag(TAG).w("SONG_UNDISLIKE persist failed: %s", privacySafeSummary(it))
                 }
+                // Undoing the dislike clears the thumbs-down on the account (removelike also clears a dislike).
+                iad1tya.echo.music.utils.AccountPush.submit(
+                    iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_UNLIKE,
+                    mediaId,
+                )
             } else {
                 // Only dislike if the SAME track is still current (the snapshot read suspends briefly;
                 // dislikeCurrentSong re-reads the current item, so a track change mid-await must bail
@@ -6646,6 +6692,7 @@ class MusicService :
         val autoConnected = isAndroidAutoControllerConnected()
         playbackKeepAlive.setAndroidAutoConnected(autoConnected)
         playbackKeepAlive.setPlaying(isPlaying)
+        iad1tya.echo.music.utils.PowerTimeline.log(this, if (isPlaying) "play" else "pause", playing = isPlaying)
         if (isPlaying) {
             startPeriodicPersist()
             if ((getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true) {
@@ -6789,6 +6836,11 @@ class MusicService :
             while (true) {
                 kotlinx.coroutines.delay(5000)
                 tick++
+                // Battery timeline (audit 2026-10-20): one INFO line per [PowerTimeline.TICK_MS] of playback, piggybacking on
+                // this existing 5 s tick (no loop of its own) — battery %, CPU spent since the previous line, network kind.
+                if (tick % (iad1tya.echo.music.utils.PowerTimeline.TICK_MS / 5000L).toInt() == 0) {
+                    iad1tya.echo.music.utils.PowerTimeline.log(this@MusicService, "tick", playing = true)
+                }
                 // ONE-SHOT measurement cache: persist a measured loudness for the NEXT play. Never
                 // moves the live gain (like + auto-download used that path to swell the volume).
                 runCatching { maybeApplyMeasuredLoudness() }
@@ -6918,7 +6970,13 @@ class MusicService :
     }
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-        
+        // Registry row 473: the other half of the pause trace (PLAY_TOGGLE in PlayerConnection says the tap arrived;
+        // this says what the player did with it and whether something else flipped it back). reason: 1 user,
+        // 2 focus loss, 3 noisy, 4 remote, 5 end of item, 6 suppressed too long. Ints and booleans only.
+        Timber.tag(TAG).i(
+            "PLAY_WHEN_READY -> %b reason=%d ownFocusPause=%b ownStopPause=%b",
+            playWhenReady, reason, expectingOwnFocusPause, expectingOwnStopPause,
+        )
         if (playWhenReady && castConnectionHandler?.isCasting?.value == true) {
             player.pause()
             return
@@ -7775,7 +7833,11 @@ class MusicService :
         // era su cookie de YouTube muerta. Estuvo así hasta que cerró sesión y volvió a entrar a mano.
         // Cuando el resolver ya ha visto la racha (vídeos DISTINTOS, no reintentos de uno), nombrar la
         // causa una vez convierte ese misterio en treinta segundos de arreglo.
-        if (iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint()) {
+        // (Not for a video item: a burst of non-catalog videos looks like a dead session to the tracker — the log of
+        // 2026-10-19 — and «sign in again» would be a false alarm; those fall back to video mode instead.)
+        if (player.currentMetadata?.isVideoSong != true &&
+            iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint()
+        ) {
             runCatching {
                 Toast.makeText(
                     this@MusicService,
@@ -7814,6 +7876,14 @@ class MusicService :
                 // InnerTube → muxed 22/18) mientras el audio sigue sonando. Solo cuando no queda ningún
                 // peldaño se vuelve a audio — y ni siquiera entonces se salta la canción.
                 if (videoCoordinator.retryVideoWithAnotherFormat(mediaId)) return
+                // Owner 2026-10-20: the video failed because its merged AUDIO (the refused song audio) did, and no muxed
+                // rung is left: going «back to audio» would only fail again. It is unplayable — one notice + skip.
+                if (iad1tya.echo.music.playback.SongModeAvailability.isBlocked(mediaId)) {
+                    silentVideoEntry = false
+                    iad1tya.echo.music.utils.UnavailableSongs.recordFailure(mediaId)
+                    handleUnresolvableSong(mediaId, null)
+                    return
+                }
             }
             exitVideoMode()
             Toast.makeText(this, "Video no disponible — volviendo a audio", Toast.LENGTH_SHORT).show()
@@ -7865,6 +7935,19 @@ class MusicService :
                     error,
                     "Unresolvable song (no stream) for $mediaId: ${PlaybackErrorClassifier.noStreamReason(error)}",
                 )
+                // Owner 2026-10-20 (artist «Videos» that cannot be a song): a VIDEO whose song audio YouTube Music
+                // refuses (content verdict) starts in video mode instead of «Canción no disponible» + skip. Once per id;
+                // it is only a failure (recorded as unavailable, skipped) if the video does not resolve either.
+                if (mediaId != null && SongModePlanning.shouldFallBackToVideo(
+                        isVideoSong = player.currentMetadata?.isVideoSong == true,
+                        contentLevel = PlaybackErrorClassifier.isContentLevelNoStream(error),
+                        videoModeOn = _videoMode.value,
+                        alreadyTried = mediaId in videoCoordinator.songFallbackTried,
+                    ) &&
+                    videoCoordinator.fallBackToVideoForUnresolvableSong(mediaId)
+                ) {
+                    return
+                }
                 // Owner 2026-10-06 — remember a CONTENT-level dead end (region, Premium-only, removed…) so
                 // the song is hidden from lists and never queued again. Pending until another song plays
                 // (UnavailableRegistry), and never while the resolver itself sees an identity-shaped streak.
@@ -8690,7 +8773,13 @@ class MusicService :
         if (id == null || url == null || item == null || item.mediaId != id ||
             isCrossfading || fadingPlayer != null || secondaryPlayer != null ||
             pre.playbackState != Player.STATE_READY ||
-            pre.currentMediaItem?.mediaId != id
+            pre.currentMediaItem?.mediaId != id ||
+            // Owner 2026-10-20: a pre-player built before the song audio of this id was refused holds a video-only
+            // source whose merged audio half would fail; only a muxed one may be published.
+            !SongModePlanning.cachedVideoUsable(
+                SongModeAvailability.isBlocked(id),
+                id in videoCoordinator.newPipeMuxedVideoIds,
+            )
         ) {
             releaseInstantVideoPlayer("swap gates failed (not READY / track changed / crossfade live)")
             return false

@@ -190,9 +190,11 @@ private fun DialogBody(
     titleTint: androidx.compose.ui.graphics.Color,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+            // A wide window (an unfolded foldable) gives the card a little more air: it is a card, not a sheet.
+            val bodyPadding = if (premium && iad1tya.echo.music.ui.newui.rememberAuraWideWindows()) 28.dp else 24.dp
             Column(
                 horizontalAlignment = horizontalAlignment,
-                modifier = modifier.padding(24.dp)
+                modifier = modifier.padding(bodyPadding)
             ) {
                 if (icon != null) {
                     CompositionLocalProvider(LocalContentColor provides iconTint) {

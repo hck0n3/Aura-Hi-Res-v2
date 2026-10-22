@@ -27,3 +27,9 @@ data class EnhancedShufflePlayedEntity(
     val songId: String,
     val playedAt: Long,
 )
+
+/** Query projection of [EnhancedShufflePlayedEntity] for one context: the song and when it was heard. */
+data class EnhancedPlayedAt(
+    val songId: String,
+    val playedAt: Long,
+)

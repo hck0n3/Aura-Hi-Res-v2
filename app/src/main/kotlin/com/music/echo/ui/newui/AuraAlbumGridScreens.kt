@@ -136,6 +136,7 @@ fun AuraFavoriteAlbumsScreen(
                         isActive = album.id == mediaMetadata?.album?.id,
                         isPlaying = isPlaying,
                         typeIcon = AuraIcons.Album,
+                        explicit = album.album.explicit,
                         onClick = { navController.navigate("album/${album.id}") },
                         onLongClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)

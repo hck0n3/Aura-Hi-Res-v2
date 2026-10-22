@@ -163,7 +163,8 @@ fun LocalPlaylistMenu(
                 TextButton(
                     onClick = {
                         showMp3ChoiceDialog = false
-                        selectedMp3Ids = exportSongs.map { it.id }.toSet()
+                        // Nothing pre-ticked: the picker opens empty every time (owner 2026-10-19).
+                        selectedMp3Ids = emptySet()
                         showMp3SelectDialog = true
                     },
                 ) {
@@ -187,7 +188,18 @@ fun LocalPlaylistMenu(
         ) {
             item {
                 ListItem(
-                    headlineContent = { Text(text = "Seleccionar todas") },
+                    headlineContent = {
+                        Text(
+                            text = stringResource(
+                                if (exportSongs.isNotEmpty() && selectedMp3Ids.size == exportSongs.size) R.string.download_sheet_select_none
+                                else R.string.download_sheet_select_all,
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    supportingContent = {
+                        Text(text = stringResource(R.string.download_sheet_selected_count, selectedMp3Ids.size, exportSongs.size))
+                    },
                     trailingContent = {
                         Checkbox(
                             checked = exportSongs.isNotEmpty() && selectedMp3Ids.size == exportSongs.size,
@@ -253,7 +265,6 @@ fun LocalPlaylistMenu(
     val downloadMenuItem = when (downloadState) {
         Download.STATE_COMPLETED -> Material3MenuItemData(
             title = { Text(stringResource(R.string.remove_download)) },
-            description = { Text(stringResource(R.string.remove_download_playlist_desc)) },
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.offline),
@@ -267,7 +278,6 @@ fun LocalPlaylistMenu(
         )
         Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> Material3MenuItemData(
             title = { Text(stringResource(R.string.downloading)) },
-            description = { Text(stringResource(R.string.download_in_progress_desc)) },
             icon = {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
@@ -281,7 +291,6 @@ fun LocalPlaylistMenu(
         )
         else -> Material3MenuItemData(
             title = { Text(stringResource(R.string.action_download)) },
-            description = { Text(stringResource(R.string.download_playlist_desc)) },
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.download),
@@ -301,7 +310,6 @@ fun LocalPlaylistMenu(
         add(
             Material3MenuItemData(
                 title = { Text(stringResource(R.string.edit)) },
-                description = { Text(stringResource(R.string.edit_playlist)) },
                 icon = {
                     Icon(
                         painter = painterResource(R.drawable.edit),
@@ -339,7 +347,6 @@ fun LocalPlaylistMenu(
             add(
                 Material3MenuItemData(
                     title = { Text(stringResource(R.string.action_sync)) },
-                    description = { Text(stringResource(R.string.sync_playlist_desc)) },
                     icon = {
                         Icon(
                             painter = painterResource(R.drawable.sync),
@@ -358,7 +365,6 @@ fun LocalPlaylistMenu(
             add(
                 Material3MenuItemData(
                     title = { Text(stringResource(R.string.add_to_queue)) },
-                    description = { Text(stringResource(R.string.add_to_queue_desc)) },
                     icon = {
                         Icon(
                             painter = painterResource(R.drawable.queue_music),
@@ -378,7 +384,6 @@ fun LocalPlaylistMenu(
         add(
             Material3MenuItemData(
                 title = { Text(stringResource(R.string.share)) },
-                description = { Text(stringResource(R.string.share_playlist_desc)) },
                 icon = {
                     Icon(
                         painter = painterResource(R.drawable.share),
@@ -387,7 +392,7 @@ fun LocalPlaylistMenu(
                 },
                 onClick = {
                     val shareText = if (isYouTubePlaylist) {
-                        ShareLinks.playlist(playlist.playlist.browseId)
+                        ShareLinks.playlistShareText(playlist.playlist.browseId, playlist.playlist.name)
                     } else {
                         songs.joinToString("\n") { it.song.song.title }
                     }
@@ -466,7 +471,6 @@ fun AutoPlaylistMenu(
     val downloadMenuItem = when (downloadState) {
         Download.STATE_COMPLETED -> Material3MenuItemData(
             title = { Text(stringResource(R.string.remove_download)) },
-            description = { Text(stringResource(R.string.remove_download_playlist_desc)) },
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.offline),
@@ -480,7 +484,6 @@ fun AutoPlaylistMenu(
         )
         Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> Material3MenuItemData(
             title = { Text(stringResource(R.string.downloading)) },
-            description = { Text(stringResource(R.string.download_in_progress_desc)) },
             icon = {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
@@ -494,7 +497,6 @@ fun AutoPlaylistMenu(
         )
         else -> Material3MenuItemData(
             title = { Text(stringResource(R.string.action_download)) },
-            description = { Text(stringResource(R.string.download_playlist_desc)) },
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.download),
@@ -529,7 +531,6 @@ fun AutoPlaylistMenu(
             if (!isGuest) {
                 Material3MenuItemData(
                     title = { Text(stringResource(R.string.add_to_queue)) },
-                    description = { Text(stringResource(R.string.add_to_queue_desc)) },
                     icon = {
                         Icon(
                             painter = painterResource(R.drawable.queue_music),
@@ -561,7 +562,6 @@ fun TopPlaylistMenu(
     val downloadMenuItem = when (downloadState) {
         Download.STATE_COMPLETED -> Material3MenuItemData(
             title = { Text(stringResource(R.string.remove_download)) },
-            description = { Text(stringResource(R.string.remove_download_playlist_desc)) },
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.offline),
@@ -575,7 +575,6 @@ fun TopPlaylistMenu(
         )
         Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> Material3MenuItemData(
             title = { Text(stringResource(R.string.downloading)) },
-            description = { Text(stringResource(R.string.download_in_progress_desc)) },
             icon = {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
@@ -589,7 +588,6 @@ fun TopPlaylistMenu(
         )
         else -> Material3MenuItemData(
             title = { Text(stringResource(R.string.action_download)) },
-            description = { Text(stringResource(R.string.download_playlist_desc)) },
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.download),
@@ -608,7 +606,6 @@ fun TopPlaylistMenu(
             if (!isGuest) {
                 Material3MenuItemData(
                     title = { Text(stringResource(R.string.add_to_queue)) },
-                    description = { Text(stringResource(R.string.add_to_queue_desc)) },
                     icon = {
                         Icon(
                             painter = painterResource(R.drawable.queue_music),
@@ -640,7 +637,6 @@ fun CachePlaylistMenu(
     val downloadMenuItem = when (downloadState) {
         Download.STATE_COMPLETED -> Material3MenuItemData(
             title = { Text(stringResource(R.string.remove_download)) },
-            description = { Text(stringResource(R.string.remove_download_playlist_desc)) },
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.offline),
@@ -654,7 +650,6 @@ fun CachePlaylistMenu(
         )
         Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> Material3MenuItemData(
             title = { Text(stringResource(R.string.downloading)) },
-            description = { Text(stringResource(R.string.download_in_progress_desc)) },
             icon = {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
@@ -668,7 +663,6 @@ fun CachePlaylistMenu(
         )
         else -> Material3MenuItemData(
             title = { Text(stringResource(R.string.action_download)) },
-            description = { Text(stringResource(R.string.download_playlist_desc)) },
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.download),
@@ -687,7 +681,6 @@ fun CachePlaylistMenu(
             if (!isGuest) {
                 Material3MenuItemData(
                     title = { Text(stringResource(R.string.add_to_queue)) },
-                    description = { Text(stringResource(R.string.add_to_queue_desc)) },
                     icon = {
                         Icon(
                             painter = painterResource(R.drawable.queue_music),

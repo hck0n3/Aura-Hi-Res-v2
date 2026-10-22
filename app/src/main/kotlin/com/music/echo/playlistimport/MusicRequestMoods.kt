@@ -319,7 +319,8 @@ object MusicRequestMoods {
         }
         groups += genres
         if (parsed.decade != null) groups += MusicRequestMatch.decadeTokens(parsed.decade)
-        qualifiers.map { fold(it) }.filter { it.isNotBlank() }.distinct().forEach { groups += listOf(it) }
+        // Row 493: a country is proved by ANY of its names ("colombiana" ⇒ also "colombia", "colombiano", "vallenato"…).
+        qualifiers.map { fold(it) }.filter { it.isNotBlank() }.distinct().forEach { groups += MusicRequestRegion.group(it) }
         return groups.distinct()
     }
 
@@ -342,7 +343,7 @@ object MusicRequestMoods {
         qualifiers: List<String> = emptyList(),
     ): Int? {
         if (categoryTitles.isEmpty()) return null
-        val qualifierGroups = qualifiers.map { fold(it) }.filter { it.isNotBlank() }.distinct().map { listOf(it) }
+        val qualifierGroups = qualifiers.map { fold(it) }.filter { it.isNotBlank() }.distinct().map { MusicRequestRegion.group(it) }
         if (parsed.decade != null) {
             val requiredGroups = listOf(MusicRequestMatch.decadeTokens(parsed.decade)) + genreGroupsFor(fold(prompt)) +
                 qualifierGroups

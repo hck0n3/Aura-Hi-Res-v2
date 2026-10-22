@@ -2,6 +2,13 @@
 
 package iad1tya.echo.music.ui.menu
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import iad1tya.echo.music.ui.component.MenuHeaderThumbSize
+import iad1tya.echo.music.ui.component.PlaylistThumbnail
+import androidx.compose.ui.res.pluralStringResource
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.ActivityNotFoundException
@@ -334,7 +341,8 @@ fun PlaylistMenu(
                 TextButton(
                     onClick = {
                         showMp3ChoiceDialog = false
-                        selectedMp3Ids = songs.map { it.id }.toSet()
+                        // Nothing pre-ticked: the picker opens empty every time (owner 2026-10-19).
+                        selectedMp3Ids = emptySet()
                         showMp3SelectDialog = true
                     },
                 ) {
@@ -358,7 +366,18 @@ fun PlaylistMenu(
         ) {
             item {
                 ListItem(
-                    headlineContent = { Text(text = "Seleccionar todas") },
+                    headlineContent = {
+                        Text(
+                            text = stringResource(
+                                if (songs.isNotEmpty() && selectedMp3Ids.size == songs.size) R.string.download_sheet_select_none
+                                else R.string.download_sheet_select_all,
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    supportingContent = {
+                        Text(text = stringResource(R.string.download_sheet_selected_count, selectedMp3Ids.size, songs.size))
+                    },
                     trailingContent = {
                         Checkbox(
                             checked = songs.isNotEmpty() && selectedMp3Ids.size == songs.size,
@@ -635,30 +654,42 @@ fun PlaylistMenu(
         )
     }
 
-    PlaylistListItem(
-        playlist = playlist,
-        trailingContent = {
-            if (playlist.playlist.isEditable != true) {
-                IconButton(
+    MenuHeader(
+        title = playlist.playlist.name,
+        meta = if (playlist.songCount == 0 && playlist.playlist.remoteSongCount != null) {
+            pluralStringResource(R.plurals.n_song, playlist.playlist.remoteSongCount, playlist.playlist.remoteSongCount)
+        } else {
+            pluralStringResource(R.plurals.n_song, playlist.songCount, playlist.songCount)
+        },
+        thumbnail = {
+            PlaylistThumbnail(
+                thumbnails = playlist.thumbnails,
+                fallbackThumbnails = playlist.songCovers,
+                size = MenuHeaderThumbSize,
+                placeHolder = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_launcher_nobg),
+                        contentDescription = null,
+                        tint = LocalContentColor.current.copy(alpha = 0.8f),
+                        modifier = Modifier.size(MenuHeaderThumbSize / 2),
+                    )
+                },
+                shape = RoundedCornerShape(10.dp),
+            )
+        },
+        trailing = if (playlist.playlist.isEditable != true) {
+            {
+                MenuLikeButton(
+                    liked = dbPlaylist?.playlist?.bookmarkedAt != null,
                     onClick = {
                         database.query {
                             dbPlaylist?.playlist?.toggleLike()?.let { update(it) }
                         }
-                    }
-                ) {
-                    Icon(
-                        painter = painterResource(if (dbPlaylist?.playlist?.bookmarkedAt != null) R.drawable.favorite else R.drawable.favorite_border),
-                        tint = if (dbPlaylist?.playlist?.bookmarkedAt != null) MaterialTheme.colorScheme.error else LocalContentColor.current,
-                        contentDescription = null
-                    )
-                }
+                    },
+                )
             }
-        },
+        } else null,
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -683,8 +714,7 @@ fun PlaylistMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.play),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.play),
@@ -705,8 +735,7 @@ fun PlaylistMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.shuffle),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.shuffle),
@@ -718,8 +747,7 @@ fun PlaylistMenu(
                             Icon(
                                 painter = painterResource(R.drawable.share),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.share),
@@ -728,13 +756,13 @@ fun PlaylistMenu(
                             val intent = Intent().apply {
                                 action = Intent.ACTION_SEND
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, ShareLinks.playlist(dbPlaylist?.playlist?.browseId))
+                                putExtra(Intent.EXTRA_TEXT, ShareLinks.playlistShareText(dbPlaylist?.playlist?.browseId, dbPlaylist?.playlist?.name))
                             }
                             context.startActivity(Intent.createChooser(intent, null))
                         }
                     ))
                 },
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
                 columns = if (isGuest) 1 else 3
             )
         }
@@ -805,7 +833,6 @@ fun PlaylistMenu(
                             add(
                                 Material3MenuItemData(
                                     title = { Text(text = stringResource(R.string.start_radio)) },
-                                    description = { Text(text = stringResource(R.string.start_radio_desc)) },
                                     icon = {
                                         Icon(
                                             painter = painterResource(R.drawable.radio),
@@ -834,7 +861,6 @@ fun PlaylistMenu(
                             add(
                                 Material3MenuItemData(
                                     title = { Text(text = stringResource(R.string.playlist_sync_now)) },
-                                    description = { Text(text = stringResource(R.string.sync_playlist_desc)) },
                                     icon = {
                                         Icon(
                                             painter = painterResource(R.drawable.sync),
@@ -878,7 +904,6 @@ fun PlaylistMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.play_next)) },
-                                description = { Text(text = stringResource(R.string.play_next_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.playlist_play),
@@ -898,7 +923,6 @@ fun PlaylistMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.add_to_queue)) },
-                                description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.queue_music),
@@ -925,7 +949,6 @@ fun PlaylistMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.edit)) },
-                                description = { Text(text = stringResource(R.string.edit_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.edit),
@@ -971,6 +994,19 @@ fun PlaylistMenu(
                             }
                         )
                     )
+                    // Biblioteca ▸ Fijados (owner 2026-10-20). Not for the automatic lists (Me gusta, Descargado…).
+                    if (autoPlaylist != true && downloadPlaylist != true) {
+                        add(
+                            playlistPinMenuItem(
+                                id = playlist.id,
+                                title = playlist.playlist.name,
+                                subtitle = null,
+                                thumbnailUrl = playlist.thumbnails.firstOrNull(),
+                                local = true,
+                                onDismiss = onDismiss,
+                            )
+                        )
+                    }
                     if (downloadPlaylist != true) {
                         add(
                             when (downloadState) {
@@ -1009,7 +1045,6 @@ fun PlaylistMenu(
                                 else -> {
                                     Material3MenuItemData(
                                         title = { Text(text = stringResource(R.string.action_download)) },
-                                        description = { Text(text = stringResource(R.string.download_desc)) },
                                         icon = {
                                             Icon(
                                                 painter = painterResource(R.drawable.download),
@@ -1118,7 +1153,6 @@ fun PlaylistMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.delete)) },
-                                description = { Text(text = stringResource(R.string.delete_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.delete),

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -45,6 +46,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -54,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.ui.component.MenuHeader
 import iad1tya.echo.music.constants.AiProviderKey
 import iad1tya.echo.music.constants.OpenRouterApiKey
 import iad1tya.echo.music.constants.OpenRouterBaseUrlKey
@@ -99,6 +102,30 @@ fun AuraMusicRequestCard(
     // EL RELEVO. En un `LaunchedEffect` y NO en el cuerpo del composable: poner una cola es un efecto,
     // y hacerlo durante la composición se volvería a ejecutar en cada recomposición antes de que
     // `reset()` cambie el estado — sonaría la misma cola dos o tres veces.
+    // PAUSA MIENTRAS SE BUSCA (dueño, 2026-10-19: «cuando pida algo y se esté reproduciendo algo, que se pause hasta que
+    // suene la canción que pedí, y que no se reanude a menos que la búsqueda se cancele»). Se pausa al empezar a buscar
+    // y la música pedida entra con `playQueue` (abajo); solo si la búsqueda termina SIN música (cancelada, sin resultado,
+    // fallida) se devuelve lo que sonaba. Es una pausa del usuario (USER_REQUEST): nada la reanuda por su cuenta.
+    var pausedForRequest by remember { mutableStateOf(false) }
+    val searching = state is MusicRequestUiState.Working
+    LaunchedEffect(searching) {
+        if (searching) {
+            // Se queda pausada MIENTRAS dure la búsqueda: si algo la reanuda (el reconocimiento de voz suelta el foco de
+            // audio al terminar de dictar y el reproductor lo recupera solo — dueño, 2026-10-19: «una vez terminado de
+            // dictar no tiene que reanudar la canción anterior»), se vuelve a pausar en el acto.
+            playerConnection.isPlaying.collect { playing ->
+                if (playing) {
+                    playerConnection.player.pause()
+                    pausedForRequest = true
+                }
+            }
+        } else if (pausedForRequest) {
+            pausedForRequest = false
+            // `Ready` lo maneja el relevo de abajo (playQueue arranca la música pedida).
+            if (state !is MusicRequestUiState.Ready) playerConnection.player.play()
+        }
+    }
+
     val ready = state as? MusicRequestUiState.Ready
     LaunchedEffect(ready) {
         val result = ready ?: return@LaunchedEffect
@@ -122,67 +149,24 @@ fun AuraMusicRequestCard(
     // Fila 361: the fill now goes straight to the service (MusicRequestFill), so it also arrives when
     // Inicio is no longer on screen — nothing to collect here any more.
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .sizeIn(minHeight = 72.dp)
-            .clip(AuraShapes.Card)
-            // Un degradado sutil en vez de un relleno plano: es lo que separa una tarjeta que INVITA
-            // de una fila más de la lista. Se queda en los colores del tema (teal → violeta del
-            // gradiente del botón de play) para no meter una paleta nueva en Inicio.
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        AuraPalette.Teal.copy(alpha = 0.18f),
-                        AuraPalette.SurfaceFill,
-                    ),
-                ),
-            )
-            .auraClickableInternal(
-                onClick = { sheetOpen = true },
-                contentDescription = stringResource(R.string.music_request_label),
-            )
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+    // La entrada de «Pedir música» ES una baldosa de acceso rápido que ocupa la fila (dueño, 2026-10-20: «el estilo de estos
+    // botones los quiero de nuevo… y ese mismo estilo para el botón de pedir música»): se dibuja con la misma pieza
+    // (`AuraBlockCard`): mismo relleno, borde, esquinas, alto, tipografía y el mismo bloque a toda altura con el degradado del
+    // botón de play, con la chispa dentro. Ver [AuraHomeInviteCard].
+    AuraHomeInviteCard(
+        title = stringResource(R.string.music_request_label),
+        subtitle = stringResource(R.string.music_request_card_subtitle),
+        loading = state is MusicRequestUiState.Working,
+        contentDescription = stringResource(R.string.music_request_label),
+        onClick = { sheetOpen = true },
+        modifier = modifier,
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(50))
-                .background(AuraPalette.Teal.copy(alpha = 0.20f)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.auto_awesome),
-                contentDescription = null,
-                tint = AuraPalette.Teal,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.music_request_label),
-                style = AuraType.RowTitle,
-                color = AuraPalette.OnGround,
-                maxLines = 1,
-                overflow = AuraDefaultOverflow,
-            )
-            Text(
-                text = stringResource(R.string.music_request_card_subtitle),
-                style = AuraType.MiniArtist,
-                color = AuraPalette.OnGroundMuted,
-                maxLines = 1,
-                overflow = AuraDefaultOverflow,
-            )
-        }
-        if (state is MusicRequestUiState.Working) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                strokeWidth = 2.dp,
-                color = AuraPalette.Teal,
-            )
-        }
+        Icon(
+            painter = painterResource(R.drawable.auto_awesome),
+            contentDescription = null,
+            tint = AuraPalette.OnAccent,
+            modifier = Modifier.size(AURA_QUICK_TILE_GLYPH),
+        )
     }
 
     if (sheetOpen) {
@@ -192,6 +176,7 @@ fun AuraMusicRequestCard(
             onSave = viewModel::saveLastAsPlaylist,
             onRemoveSong = viewModel::removeFromLast,
             onDismissLast = viewModel::dismissLast,
+            onCancel = viewModel::reset,
             onNeedAlternate = viewModel::loadAlternate,
             onSaveAlternate = viewModel::saveAlternateAsPlaylist,
             contextForAlternate = viewModel::contextForAlternate,
@@ -214,6 +199,7 @@ private fun AuraMusicRequestSheet(
     onSave: () -> Unit,
     onRemoveSong: (String) -> Unit,
     onDismissLast: () -> Unit,
+    onCancel: () -> Unit,
     onNeedAlternate: () -> Unit,
     onSaveAlternate: () -> Unit,
     contextForAlternate: () -> String?,
@@ -240,7 +226,7 @@ private fun AuraMusicRequestSheet(
             // mide su contenido".
             fullHeight = false,
         ) {
-            AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
+            AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onCancel = onCancel, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
         }
         return
     }
@@ -262,7 +248,7 @@ private fun AuraMusicRequestSheet(
             )
         },
     ) {
-        AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
+        AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onCancel = onCancel, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
     }
 }
 
@@ -273,6 +259,7 @@ private fun AuraMusicRequestSheetBody(
     onSave: () -> Unit,
     onRemoveSong: (String) -> Unit,
     onDismissLast: () -> Unit,
+    onCancel: () -> Unit,
     onNeedAlternate: () -> Unit,
     onSaveAlternate: () -> Unit,
     contextForAlternate: () -> String?,
@@ -320,33 +307,54 @@ private fun AuraMusicRequestSheetBody(
         },
     )
 
+    // LA HOJA SE DESPLAZA (dueño, 2026-10-20: «cuando entrega resultados y se expande, las letras de la parte de abajo no se
+    // ven por completo»). Esta columna no tenía desplazamiento: con un resultado se apilan el campo, la tarjeta (portadas,
+    // tres filas o TODA la lista desplegada, «Guardar como lista»), el filtro, «Pedir de nuevo» y las sugerencias, y en
+    // «Grande» o desplegada eso pasa del alto de la ventana (móvil, y en ancho el tope es el 80 %). La ventana flotante mide
+    // a su contenido pero lo recorta a su máximo, así que lo último —las sugerencias, «Pedir de nuevo», a veces el botón de
+    // guardar— quedaba cortado sin forma de llegar. Ahora el cuerpo tiene un tope (el de la ventana, nunca por debajo de la
+    // barra de estado) y se desplaza por dentro; el relleno de abajo va DENTRO del desplazamiento, así que la última fila
+    // se puede subir por encima del borde. El tope también es lo que hace seguro `verticalScroll` aquí: sin él, una
+    // restricción de alto infinita lo rompería.
+    val maxBodyHeight = (LocalConfiguration.current.screenHeightDp * MUSIC_REQUEST_BODY_MAX_HEIGHT_FRACTION).dp
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(max = maxBodyHeight)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.auto_awesome),
-                contentDescription = null,
-                tint = AuraPalette.Teal,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = stringResource(R.string.music_request_label),
-                style = AuraType.SheetTitle,
-                color = AuraPalette.OnGround,
-            )
-        }
+        // Fila 498 (dueño 2026-10-21: «Pedir música con el estilo de las opciones del menú ⋯»): la cabecera es la del menú ⋯
+        // (ficha redondeada + título), y todo lo de debajo va en losas de cristal — el campo, los selectores, el resultado, el
+        // historial — con el mismo material, filete y texto que las filas de ese menú.
+        MenuHeader(
+            title = stringResource(R.string.music_request_label),
+            thumbnail = {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(AuraPalette.Teal.copy(alpha = 0.16f))
+                        .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(14.dp)),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.auto_awesome),
+                        contentDescription = null,
+                        tint = AuraPalette.Teal,
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
+            },
+        )
 
+        AuraGlassSlab {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(end = 8.dp),
         ) {
             TextField(
                 value = prompt,
@@ -364,9 +372,9 @@ private fun AuraMusicRequestSheetBody(
                 keyboardActions = KeyboardActions(onGo = { send(prompt) }),
                 shape = AuraShapes.Card,
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = AuraPalette.SurfaceFill,
-                    unfocusedContainerColor = AuraPalette.SurfaceFill,
-                    disabledContainerColor = AuraPalette.SurfaceFill,
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
                     focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                     unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                     disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -415,6 +423,7 @@ private fun AuraMusicRequestSheetBody(
                 }
             }
         }
+        }
 
         // El resultado de la última petición: lo que está sonando, sus tres primeras canciones y guardarlo.
         if (last != null) {
@@ -431,22 +440,16 @@ private fun AuraMusicRequestSheetBody(
 
         // «Todo / Conocido / Descubrir» (YouTube Music: Familiar / Discover). Descubrir = nunca reproducidas y de
         // artistas que no conoces; Conocido = de artistas que ya escuchas.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            listOf(
-                MusicRequestFocus.All to R.string.music_request_focus_all,
-                MusicRequestFocus.Familiar to R.string.music_request_focus_familiar,
-                MusicRequestFocus.Discover to R.string.music_request_focus_discover,
-            ).forEach { (value, label) ->
-                AuraChip(
-                    text = stringResource(label),
-                    selected = mode == value,
-                    onClick = { mode = value },
-                )
-            }
-        }
+        val focusOptions = listOf(
+            MusicRequestFocus.All to R.string.music_request_focus_all,
+            MusicRequestFocus.Familiar to R.string.music_request_focus_familiar,
+            MusicRequestFocus.Discover to R.string.music_request_focus_discover,
+        )
+        AuraGlassSegmented(
+            labels = focusOptions.map { (_, label) -> stringResource(label) },
+            selected = focusOptions.indexOfFirst { it.first == mode }.coerceAtLeast(0),
+            onSelect = { mode = focusOptions[it].first },
+        )
 
         // HISTORIAL / "OTRA TANDA" (ronda 6, dueño): repetir la última petición sin reescribirla es
         // "otra tanda" (canciones distintas, gracias al TTL de MusicRequestRecents); repetir una
@@ -481,45 +484,39 @@ private fun AuraMusicRequestSheetBody(
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                 }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                ) {
-                    recentPrompts.forEach { text ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            AuraChip(
-                                text = "↻ $text",
-                                selected = false,
-                                onClick = {
-                                    prompt = text
-                                    send(text)
-                                },
-                            )
-                            // Quita SOLO esta petición: no toca las demás ni lo que ya suena.
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .auraClickableInternal(
-                                        onClick = { MusicRequestHistory.remove(text) },
-                                        contentDescription = stringResource(R.string.music_request_remove_entry),
-                                    ),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.close),
-                                    contentDescription = null,
-                                    tint = AuraPalette.OnGroundFaint,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
-                        }
+                // Una losa con una fila por petición ya completada (como las filas del menú ⋯): tocar la repite, la ✕ quita SOLO esa.
+                AuraGlassSlab {
+                    recentPrompts.forEachIndexed { index, text ->
+                        if (index > 0) AuraGlassDivider(inset = 56.dp)
+                        AuraGlassRow(
+                            title = text,
+                            icon = R.drawable.history,
+                            iconTint = AuraPalette.OnGroundMuted,
+                            onClick = {
+                                prompt = text
+                                send(text)
+                            },
+                            trailing = {
+                                // Quita SOLO esta petición: no toca las demás ni lo que ya suena.
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .auraClickableInternal(
+                                            onClick = { MusicRequestHistory.remove(text) },
+                                            contentDescription = stringResource(R.string.music_request_remove_entry),
+                                        ),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.close),
+                                        contentDescription = null,
+                                        tint = AuraPalette.OnGroundFaint,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -585,6 +582,12 @@ private fun AuraMusicRequestSheetBody(
                     style = AuraType.MiniArtist,
                     color = AuraPalette.OnGroundMuted,
                 )
+                // Cancelar la búsqueda: devuelve la música que se pausó al pedir (dueño, 2026-10-19).
+                AuraChip(
+                    text = stringResource(R.string.cancel),
+                    selected = false,
+                    onClick = onCancel,
+                )
             }
 
             is MusicRequestUiState.Empty -> Text(
@@ -638,14 +641,14 @@ private fun AuraMusicRequestResultCard(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.animateContentSize(animationSpec = REQUEST_CARD_SPRING),
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            AuraChip(text = stringResource(R.string.music_request_size_small), selected = !big, onClick = { big = false })
-            AuraChip(text = stringResource(R.string.music_request_size_big), selected = big, onClick = { big = true })
-        }
+        AuraGlassSegmented(
+            labels = listOf(
+                stringResource(R.string.music_request_size_small),
+                stringResource(R.string.music_request_size_big),
+            ),
+            selected = if (big) 1 else 0,
+            onSelect = { big = it == 1 },
+        )
         androidx.compose.foundation.pager.HorizontalPager(
             state = pagerState,
             pageSpacing = 12.dp,
@@ -791,8 +794,9 @@ private fun Modifier.auraRequestOptionSurface(): Modifier =
         .fillMaxWidth()
         // Antes del fondo: la tarjeta crece/encoge con su contenido (grande/pequeña, «+N más») sin saltos.
         .animateContentSize(animationSpec = REQUEST_CARD_SPRING)
-        .clip(AuraShapes.Card)
-        .background(Brush.verticalGradient(listOf(AuraPalette.Teal.copy(alpha = 0.10f), AuraPalette.SurfaceFill)))
+        .clip(RoundedCornerShape(AuraGlassCorner))
+        .background(AuraPalette.SurfaceFill)
+        .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(AuraGlassCorner))
         .padding(horizontal = 14.dp, vertical = 12.dp)
 
 @Composable
@@ -855,6 +859,7 @@ private fun AuraMusicRequestOptionOne(
                 ),
         ) {
             shown.forEachIndexed { index, song ->
+                if (index > 0) AuraGlassDivider(inset = if (big) 74.dp else 54.dp)
                 AuraRequestSongRow(
                     song = song,
                     big = big,
@@ -968,6 +973,7 @@ private fun AuraMusicRequestOptionTwo(
                     big = big,
                 )
                 alt.songs.take(8).forEachIndexed { index, song ->
+                    if (index > 0) AuraGlassDivider(inset = if (big) 74.dp else 54.dp)
                     AuraRequestSongRow(
                         song = song,
                         big = big,
@@ -1092,6 +1098,13 @@ private fun musicRequestSuggestions(currentArtist: String?): List<MusicRequestSu
     ).shuffled().take(6).map { MusicRequestSuggestion(it) }
     return personal + pool
 }
+
+/**
+ * How much of the window's height the body of the sheet may take before it scrolls. Below 1 so the sheet never reaches under the
+ * status bar; the wide card is capped at 0.80 by its own host ([AuraWideWindowMaxHeightFraction]), and the body takes whatever
+ * that leaves after the card's top margin (the column hands each child the room the previous ones left).
+ */
+private const val MUSIC_REQUEST_BODY_MAX_HEIGHT_FRACTION = 0.9f
 
 /** Silence after the last recognised phrase before a dictated request is sent (the dialog also has «OK»). */
 internal const val MUSIC_REQUEST_DICTATION_SETTLE_MS = 2_500L

@@ -10,10 +10,14 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
 /**
@@ -52,6 +56,12 @@ class AuraWidePlayerMode(
      * «salida de audio» y play/pausa, y anterior/siguiente quedan en el reproductor y en el deslizamiento.
      */
     val miniCompact: Boolean = false,
+    /**
+     * Insets the two cards are drawn with (status bar / navigation bar), so the player can clip ITS ground to the
+     * same card the frame cuts out — see [AuraSplitPaneCardShape]. Only meaningful when [split].
+     */
+    val cardTopInset: Dp = 0.dp,
+    val cardBottomInset: Dp = 0.dp,
 )
 
 val LocalAuraWidePlayerMode = staticCompositionLocalOf<AuraWidePlayerMode?> { null }
@@ -144,6 +154,36 @@ fun auraSplitCardRects(
 }
 
 /**
+ * The RIGHT card (the player's), in the coordinates of the player pane itself, as a clip for the player's ground.
+ *
+ * Owner 2026-10-20 (unfolded Z Fold): *«cuando expando el mini reproductor y lo minimizo se ve un pequeño destello en la
+ * parte de arriba cuando hace la animación»*. The sheet's ground layer fills the WHOLE pane, status-bar strip included,
+ * and fades in with `BottomSheetVisuals.backgroundAlpha` (reaches 1 at progress ≈ 0.6) — its bloom / wash are strongest
+ * at the TOP edge. [AuraSplitCardsFrame] only covers that strip with the plain ground from progress 0.15 to 0.75. For the
+ * middle of the flip both are translucent, so the cover's hue showed in the strip above the card and then vanished: a
+ * glint, in both directions. Clipping the ground to the card keeps the strip free of it: what is left there is the
+ * screen fading to the flat ground, monotonically.
+ *
+ * The rectangle is the card grown by one pixel on every side, so the frame's anti-aliased hole edge always overlaps
+ * the clip's and no seam of the screen behind can show through at the end of the flip.
+ */
+@Immutable
+data class AuraSplitPaneCardShape(val topInset: Dp, val bottomInset: Dp) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val d = density.density
+        val card = auraSplitCardRects(
+            width = size.width,
+            height = size.height,
+            paneWidth = size.width,
+            gap = AuraSplitCardGap.value * d,
+            top = (topInset + AuraSplitCardTopExtra).value * d,
+            bottom = (bottomInset + AuraSplitCardBottomExtra).value * d,
+        ).second
+        return Outline.Rounded(RoundRect(card.inflate(1f), CornerRadius(AuraSplitCardCorner.value * d + 1f)))
+    }
+}
+
+/**
  * Marco de las dos tarjetas del reproductor dividido (dueño, 2026-10-15, captura de Spotify: *«los bordes de las
  * divisiones… estilo tarjetas, pero que siempre se vean bien con mi diseño»*).
  *
@@ -168,7 +208,9 @@ fun AuraSplitCardsFrame(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .graphicsLayer { alpha = ((progress() - 0.15f) / 0.6f).coerceIn(0f, 1f) }
+            // No alpha layer here: a window-sized alpha layer is an OFFSCREEN buffer (≈16 MB on an
+            // unfolded Fold) re-composited on every frame of the flip. The path is ONE draw op, so its alpha goes
+            // straight into the paint, read in the draw phase — identical pixels, no buffer, no recomposition.
             .drawWithCache {
                 val (left, right) = auraSplitCardRects(
                     width = size.width,
@@ -185,7 +227,10 @@ fun AuraSplitCardsFrame(
                     addRoundRect(RoundRect(left, corner))
                     addRoundRect(RoundRect(right, corner))
                 }
-                onDrawBehind { drawPath(frame, ground) }
+                onDrawBehind {
+                    val a = ((progress() - 0.15f) / 0.6f).coerceIn(0f, 1f)
+                    if (a > 0f) drawPath(frame, ground, alpha = a)
+                }
             },
     )
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Toast tras Ajustes > Almacenamiento > Borrar caché de imágenes. %1$s = espacio liberado, ya formateado (p. ej. "312 MB"). -->
+    <string name="image_cache_cleared">Caché de imágenes borrada · %1$s liberados</string>
+</resources>

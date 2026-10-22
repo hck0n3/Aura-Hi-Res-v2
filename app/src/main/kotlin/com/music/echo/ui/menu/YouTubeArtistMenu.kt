@@ -2,6 +2,9 @@
 
 package iad1tya.echo.music.ui.menu
 
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import android.content.Intent
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,6 +35,8 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.applicationScope
+import iad1tya.echo.music.utils.toggleArtistFollow
 import iad1tya.echo.music.db.entities.SpeedDialItem
 import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.playback.queues.YouTubeQueue
@@ -54,20 +59,18 @@ fun YouTubeArtistMenu(
     val context = LocalContext.current
     val database = LocalDatabase.current
     val playerConnection = LocalPlayerConnection.current ?: return
-    val libraryArtist by database.artist(artist.id).collectAsState(initial = null)
+    // Same definition as the artist page (ArtistViewModel.isSubscribed): any spelling of the channel id counts.
+    val isSubscribed by database.isAnyArtistFollowed(iad1tya.echo.music.utils.ArtistSyncPolicy.aliasIds(artist.id))
+        .collectAsState(initial = false)
     val listenTogetherManager = LocalListenTogetherManager.current
     val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
     val isPinned by database.speedDialDao.isPinned(artist.id).collectAsState(initial = false)
     val coroutineScope = rememberCoroutineScope()
 
-    YouTubeListItem(
-        item = artist,
-        trailingContent = {},
+    MenuHeader(
+        title = artist.title,
+        thumbnail = { MenuHeaderCover(thumbnailUrl = artist.thumbnail, circle = true) },
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -91,8 +94,7 @@ fun YouTubeArtistMenu(
                                         Icon(
                                             painter = painterResource(R.drawable.radio),
                                             contentDescription = null,
-                                            modifier = Modifier.size(28.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            modifier = Modifier.size(24.dp),
                                         )
                                     },
                                     text = stringResource(R.string.start_radio),
@@ -111,8 +113,7 @@ fun YouTubeArtistMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.share),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.share),
@@ -120,7 +121,7 @@ fun YouTubeArtistMenu(
                                 val intent = Intent().apply {
                                     action = Intent.ACTION_SEND
                                     type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, artist.shareLink)
+                                    putExtra(Intent.EXTRA_TEXT, iad1tya.echo.music.utils.ShareLinks.artistShareText(artist.id, artist.title))
                                 }
                                 context.startActivity(Intent.createChooser(intent, null))
                                 onDismiss()
@@ -128,7 +129,7 @@ fun YouTubeArtistMenu(
                         )
                     )
                 },
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
                 columns = if (isGuest) 1 else 3
             )
         }
@@ -138,12 +139,12 @@ fun YouTubeArtistMenu(
                 items = listOf(
                     Material3MenuItemData(
                         title = {
-                            Text(text = if (libraryArtist?.artist?.followedByUserAt != null) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
+                            Text(text = if (isSubscribed) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
                         },
                         icon = {
                             Icon(
                                 painter = painterResource(
-                                    if (libraryArtist?.artist?.followedByUserAt != null) {
+                                    if (isSubscribed) {
                                         R.drawable.subscribed
                                     } else {
                                         R.drawable.subscribe
@@ -153,20 +154,17 @@ fun YouTubeArtistMenu(
                             )
                         },
                         onClick = {
-                            database.query {
-                                val libraryArtist = libraryArtist
-                                if (libraryArtist != null) {
-                                    update(libraryArtist.artist.toggleLike(database::confirmArtistUnsubscribed))
-                                } else {
-                                    insert(
-                                        ArtistEntity(
-                                            id = artist.id,
-                                            name = artist.title,
-                                            channelId = artist.channelId,
-                                            thumbnailUrl = artist.thumbnail,
-                                        ).toggleLike(database::confirmArtistUnsubscribed)
-                                    )
-                                }
+                            // Application scope: the menu can close right after the tap and the tap must still land.
+                            context.applicationScope.launch(Dispatchers.IO) {
+                                database.toggleArtistFollow(
+                                    artist.id,
+                                    ArtistEntity(
+                                        id = artist.id,
+                                        name = artist.title,
+                                        channelId = artist.channelId,
+                                        thumbnailUrl = artist.thumbnail,
+                                    ),
+                                )
                             }
                         }
                     ),
@@ -185,7 +183,14 @@ fun YouTubeArtistMenu(
                             }
                             onDismiss()
                         }
-                    )
+                    ),
+                    // Biblioteca ▸ Fijados (owner 2026-10-20).
+                    artistPinMenuItem(
+                        id = artist.id,
+                        name = artist.title,
+                        thumbnailUrl = artist.thumbnail,
+                        onDismiss = onDismiss,
+                    ),
                 )
             )
         }

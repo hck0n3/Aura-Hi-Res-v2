@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -224,10 +226,14 @@ fun AuraDownloadSheet(
         }
     }
 
-    AuraModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
+    // OWNER 2026-10-19: with the player full screen this sheet was «transparente pero sin blur»: a Material sheet is its own
+    // WINDOW and can never sample the app behind it, so its text sat on a see-through plate. The other floating windows are
+    // in-window glass panels (a sibling of the haze source); this one is now too, exactly as the audio-output card does it.
+    // Without the glass host (premium skin off, or opened from inside another dialog window) it stays the Material sheet.
+    val skin = rememberAuraPanelSkin()
+    val inWindowGlass = skin.enabled && skin.darkGround && LocalOverlayHazeState.current != null && auraOverlayHostAvailable()
+
+    val sheetBody: @Composable ColumnScope.() -> Unit = {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -308,7 +314,9 @@ fun AuraDownloadSheet(
                         title = stringResource(R.string.download_sheet_pick),
                         description = stringResource(R.string.download_sheet_pick_desc),
                         onClick = {
-                            picked = pool.map { it.id }.toSet()
+                            // NOTHING pre-ticked (owner 2026-10-19: «ya me salen auto-seleccionadas todas, eso no me gusta»):
+                            // every time the picker opens it starts empty; «Seleccionar todas» is one tap away.
+                            picked = emptySet()
                             step = DownloadSheetStep.Pick
                         },
                     )
@@ -318,9 +326,10 @@ fun AuraDownloadSheet(
                 DownloadSheetStep.Pick -> {
                     val pool = scopeItems(chosen)
                     SheetHeader(title = formatTitle(chosen), subtitle = title)
-                    PickRow(
-                        label = stringResource(R.string.download_sheet_select_all),
-                        checked = picked.size == pool.size,
+                    SelectAllBar(
+                        allSelected = pool.isNotEmpty() && picked.size == pool.size,
+                        selected = picked.size,
+                        total = pool.size,
                         onToggle = { picked = if (picked.size == pool.size) emptySet() else pool.map { it.id }.toSet() },
                     )
                     LazyColumn(modifier = Modifier.heightIn(max = 340.dp)) {
@@ -338,9 +347,13 @@ fun AuraDownloadSheet(
                         label = stringResource(R.string.download_sheet_start, picked.size),
                         accent = true,
                         onClick = { if (picked.isNotEmpty()) perform(chosen, pool.filter { it.id in picked }) },
-                        modifier = Modifier.fillMaxWidth(),
+                        // Disabled look with 0 picked (the click is already a no-op then).
+                        modifier = Modifier.fillMaxWidth().alpha(if (picked.isEmpty()) 0.4f else 1f),
                     )
-                    SheetBack { step = DownloadSheetStep.Scope }
+                    SheetBack {
+                        picked = emptySet()
+                        step = DownloadSheetStep.Scope
+                    }
                 }
 
                 DownloadSheetStep.ConfirmRemove -> {
@@ -362,6 +375,20 @@ fun AuraDownloadSheet(
                 }
             }
         }
+    }
+
+    if (inWindowGlass) {
+        AuraInWindowDialog(
+            visible = true,
+            onDismiss = onDismiss,
+            center = false,
+            fullHeight = false,
+        ) { sheetBody() }
+    } else {
+        AuraModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) { sheetBody() }
     }
 }
 
@@ -439,6 +466,39 @@ private fun DownloadSheetRow(
         } else {
             AuraIconGlyph(icon = AuraIcons.ChevronRight, contentDescription = null, size = 18.dp, tint = AuraPalette.OnGroundFaint)
         }
+    }
+}
+
+/**
+ * The «select all» control of the picker: a real button (not a checkbox row) whose label flips between «Seleccionar todas» and
+ * «Quitar selección», with the running count («3 de 12») on its right.
+ */
+@Composable
+private fun SelectAllBar(allSelected: Boolean, selected: Int, total: Int, onToggle: () -> Unit) {
+    val label = stringResource(if (allSelected) R.string.download_sheet_select_none else R.string.download_sheet_select_all)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(AuraPalette.SurfaceFill)
+            .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(14.dp))
+            .auraClickableInternal(onClick = onToggle, contentDescription = label)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = label,
+            style = AuraType.MenuLabel,
+            color = AuraPalette.Teal,
+            maxLines = 1,
+            overflow = AuraDefaultOverflow,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = stringResource(R.string.download_sheet_selected_count, selected, total),
+            style = AuraType.MiniArtist,
+            color = AuraPalette.OnGroundMuted,
+        )
     }
 }
 

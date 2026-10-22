@@ -78,6 +78,20 @@ class MusicRequestIntentTest {
         assertFalse(MusicRequestIntent.playlistMatches("Alabanzas de Jesús Adrián Romero", "merengue", christian = true))
         assertTrue(MusicRequestIntent.playlistMatches("Reggaeton Cristiano Mix", "reggaeton", christian = true))
     }
+
+    @Test
+    fun `a karaoke request keeps its count and its style for the engine, and a single song has neither`() {
+        val many = MusicRequestIntent.parse("pon 30 karaokes de salsa")
+        assertEquals(30, many.count)
+        assertEquals(setOf("salsa"), many.styles)
+        assertEquals("salsa", MusicRequestKaraoke.parse("pon 30 karaokes de salsa")!!.subject)
+        val single = MusicRequestIntent.parse("karaoke de Despacito")
+        assertEquals(null, single.count)
+        assertEquals(emptySet<String>(), single.styles)
+        assertEquals("despacito", MusicRequestKaraoke.parse("karaoke de Despacito")!!.subject)
+        // Una petición normal NO es un karaoke, aunque hable de cantar o de pistas de baile.
+        assertEquals(null, MusicRequestKaraoke.parse("reggaeton cristiano"))
+    }
 }
 
 class MusicRequestStyleGateTest {

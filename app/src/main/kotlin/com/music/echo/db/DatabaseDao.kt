@@ -57,6 +57,7 @@ import iad1tya.echo.music.extensions.toSQLiteQuery
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.ui.utils.resize
+import iad1tya.echo.music.utils.ArtistSyncPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.text.Collator
@@ -844,6 +845,14 @@ interface DatabaseDao {
     )
     fun artistsBookmarkedByPlayTimeAsc(): Flow<List<Artist>>
 
+    /**
+     * Every artist that merely has a song in the library (`inLibrary` / liked). NOT a Library-screen
+     * list: owner 2026-10-20, «quiero exclusivamente a lo que mi cuenta está suscrito … me salen
+     * artistas y cuando me meto me sale que no estoy suscrito». The Library «Artistas» tab, the hub
+     * and Android Auto read [artistsBookmarked] only; this one is kept for the backup export
+     * (`BackupRestoreViewModel`), where "every artist the library knows" is exactly what is wanted.
+     * `ArtistLibraryListGuardTest` fails if a screen ViewModel calls it again.
+     */
     fun artists(sortType: ArtistSortType, descending: Boolean) =
         when (sortType) {
             ArtistSortType.CREATE_DATE -> artistsByCreateDateAsc()
@@ -875,12 +884,23 @@ interface DatabaseDao {
             ArtistSortType.SONG_COUNT -> artistsBookmarkedBySongCountAsc()
             ArtistSortType.PLAY_TIME -> artistsBookmarkedByPlayTimeAsc()
         }.map { artists ->
-            artists.reversed(descending)
+            // ONE row per channel: the same channel stored as `UC…` and `MPLAUC…` is one subscription
+            // (the artist screen's `isSubscribed` already counts it as one), so it is one row and one
+            // unit of the «N artistas» counter here too.
+            artists.distinctBy { ArtistSyncPolicy.channelKey(it.artist.id) }.reversed(descending)
         }
 
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
     @Query("SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1)) AS songCount FROM artist WHERE id = :id")
     fun artist(id: String): Flow<Artist?>
+
+    /**
+     * Is ANY of these ids (the `UC…` / `MPLAUC…` spellings of one channel, see
+     * `ArtistSyncPolicy.aliasIds`) a deliberate follow? Keyed off `followedByUserAt` like every other
+     * subscription display (registry #154), never `bookmarkedAt`.
+     */
+    @Query("SELECT EXISTS(SELECT 1 FROM artist WHERE id IN (:ids) AND followedByUserAt IS NOT NULL)")
+    fun isAnyArtistFollowed(ids: List<String>): Flow<Boolean>
 
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
@@ -1314,6 +1334,23 @@ interface DatabaseDao {
     @Query("UPDATE song SET isDownloaded = :downloaded, dateDownload = :date WHERE id = :songId")
     fun updateDownloadedInfo(songId: String, downloaded: Boolean, date: LocalDateTime?)
 
+    /**
+     * Marks a song downloaded WITHOUT touching an existing [dateDownload]. [updateDownloadedInfo] stamps "now", which is
+     * right for a first download but wrong when a COMPLETED download is merely re-confirmed (a re-add that finds every
+     * byte on disk, or the startup reconcile): the "Descargadas" list is ordered by that date and every song would jump
+     * to the top.
+     */
+    @Query("UPDATE song SET isDownloaded = 1, dateDownload = COALESCE(dateDownload, :date) WHERE id = :songId")
+    fun markDownloadedKeepingDate(songId: String, date: LocalDateTime)
+
+    /** Flips ONLY the flag, keeping [dateDownload]: a song whose bytes come back is re-listed where it was. */
+    @Query("UPDATE song SET isDownloaded = :downloaded WHERE id = :songId")
+    fun setDownloadedFlag(songId: String, downloaded: Boolean)
+
+    /** Ids of the songs the library lists as downloaded — one cheap read for the startup reconcile. */
+    @Query("SELECT id FROM song WHERE isDownloaded = 1")
+    fun downloadedSongIdsOnce(): List<String>
+
     @Transaction
     @Query("SELECT * FROM song WHERE isUploaded = 1 ORDER BY dateDownload")
     fun uploadedSongsByCreateDateAsc(): Flow<List<Song>>
@@ -1702,6 +1739,35 @@ interface DatabaseDao {
 
     @Query("SELECT COUNT(*) FROM artist WHERE followedByUserAt IS NOT NULL AND ytmSyncedAt IS NOT NULL AND isLocal = 0")
     suspend fun countFollowsSyncedToYtm(): Int
+
+    /**
+     * Follows the account has been seen to hold (`ytmSyncedAt`) — the only rows a COMPLETE subscription
+     * read may judge as "gone from the account". See [ArtistSyncPolicy.followsGoneFromAccount]; the
+     * policy applies the remaining refusals, this query just narrows the scan.
+     */
+    @Query(
+        """
+        SELECT * FROM artist
+        WHERE followedByUserAt IS NOT NULL AND ytmSyncedAt IS NOT NULL AND unfollowedByUserAt IS NULL
+          AND isLocal = 0
+        """
+    )
+    suspend fun artistsFollowedAndSeenOnAccount(): List<ArtistEntity>
+
+    /**
+     * Drops the local follow of artists the account no longer lists, so the Library «Artistas» list
+     * (which is `followedByUserAt IS NOT NULL`) mirrors the account. LOCAL state only: it never queues
+     * anything for the account — `unfollowedByUserAt` stays NULL, `ytmSyncedAt` goes with the follow, so
+     * the row ends in the inert "incidental" shape. The WHERE re-checks the follow and the absence of a
+     * queued unfollow at write time, so a tap that landed after the scan wins.
+     */
+    @Query(
+        """
+        UPDATE artist SET bookmarkedAt = NULL, followedByUserAt = NULL, ytmSyncedAt = NULL
+        WHERE id IN (:ids) AND followedByUserAt IS NOT NULL AND unfollowedByUserAt IS NULL
+        """
+    )
+    suspend fun clearFollowsGoneFromAccount(ids: List<String>)
 
     /** Must stay identical to the predicate of [artistsPendingUnsubscribe] or the report lies. */
     @Query(
@@ -2258,6 +2324,10 @@ interface DatabaseDao {
     /** Song ids already played this cycle for [contextId] (persists across restarts / days). */
     @Query("SELECT songId FROM enhanced_shuffle_played WHERE contextId = :contextId")
     suspend fun playedSongIdsForContext(contextId: String): List<String>
+
+    /** Same memory as [playedSongIdsForContext] WITH when each song was heard (least-recent-first refills of the taste mix). */
+    @Query("SELECT songId, playedAt FROM enhanced_shuffle_played WHERE contextId = :contextId")
+    suspend fun playedAtForContext(contextId: String): List<iad1tya.echo.music.db.entities.EnhancedPlayedAt>
 
     /** How many songs of [contextId] have already played this cycle. */
     @Query("SELECT COUNT(*) FROM enhanced_shuffle_played WHERE contextId = :contextId")

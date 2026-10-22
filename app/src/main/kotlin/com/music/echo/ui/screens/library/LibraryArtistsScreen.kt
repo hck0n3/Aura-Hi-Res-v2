@@ -31,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,8 +51,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.ui.utils.tvFocusRestorer
 import iad1tya.echo.music.R
-import iad1tya.echo.music.constants.ArtistFilter
-import iad1tya.echo.music.constants.ArtistFilterKey
 import iad1tya.echo.music.constants.ArtistSortDescendingKey
 import iad1tya.echo.music.constants.ArtistSortType
 import iad1tya.echo.music.constants.ArtistSortTypeKey
@@ -63,7 +62,6 @@ import iad1tya.echo.music.constants.GridItemsSizeKey
 import iad1tya.echo.music.constants.GridThumbnailHeight
 import iad1tya.echo.music.constants.LibraryViewType
 import iad1tya.echo.music.constants.YtmSyncKey
-import iad1tya.echo.music.ui.component.ChipsRow
 import iad1tya.echo.music.ui.component.EmptyPlaceholder
 import iad1tya.echo.music.ui.component.LibraryArtistGridItem
 import iad1tya.echo.music.ui.component.LibraryArtistListItem
@@ -73,7 +71,7 @@ import iad1tya.echo.music.ui.component.SortHeader
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.LibraryArtistsViewModel
-import iad1tya.echo.music.ui.component.librarySectionEmptyText
+import iad1tya.echo.music.ui.component.rememberSubscribedArtistsEmpty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -89,7 +87,6 @@ fun LibraryArtistsScreen(
     val coroutineScope = rememberCoroutineScope()
     var viewType by rememberEnumPreference(ArtistViewTypeKey, LibraryViewType.GRID)
 
-    var filter by rememberEnumPreference(ArtistFilterKey, ArtistFilter.LIKED)
     val (sortType, onSortTypeChange) = rememberEnumPreference(
         ArtistSortTypeKey,
         ArtistSortType.CREATE_DATE
@@ -114,18 +111,6 @@ fun LibraryArtistsScreen(
                         Icon(painter = painterResource(R.drawable.close), contentDescription = "")
                     },
                     modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
-                ChipsRow(
-                    chips =
-                    listOf(
-                        ArtistFilter.LIKED to stringResource(R.string.filter_liked),
-                        ArtistFilter.LIBRARY to stringResource(R.string.filter_library)
-                    ),
-                    currentValue = filter,
-                    onValueUpdate = {
-                        filter = it
-                    },
-                    modifier = Modifier.weight(1f),
                 )
             }
             OutlinedTextField(
@@ -160,6 +145,7 @@ fun LibraryArtistsScreen(
     }
 
     val artists by viewModel.filteredArtists.collectAsState()
+    val subscribedEmpty = rememberSubscribedArtistsEmpty(searching = searchQuery.isNotBlank())
 
     val lazyListState = rememberLazyListState()
     val lazyGridState = rememberLazyGridState()
@@ -243,14 +229,10 @@ fun LibraryArtistsScreen(
                     artists.let { artists ->
                         if (artists.isEmpty()) {
                             item(key = "empty_placeholder") {
-                                EmptyPlaceholder(
-                                    icon = R.drawable.artist,
-                                    text = if (searchQuery.isNotBlank()) stringResource(R.string.no_results_found)
-                                    else librarySectionEmptyText(
-                                        section = { it.artists },
-                                        emptyText = stringResource(R.string.library_artist_empty),
-                                    ),
-                                    modifier = Modifier.animateItem()
+                                SubscribedArtistsEmptyState(
+                                    empty = subscribedEmpty,
+                                    onSync = { viewModel.sync() },
+                                    modifier = Modifier.animateItem(),
                                 )
                             }
                         }
@@ -305,14 +287,10 @@ fun LibraryArtistsScreen(
                     artists.let { artists ->
                         if (artists.isEmpty()) {
                             item(span = { GridItemSpan(maxLineSpan) }) {
-                                EmptyPlaceholder(
-                                    icon = R.drawable.artist,
-                                    text = if (searchQuery.isNotBlank()) stringResource(R.string.no_results_found)
-                                    else librarySectionEmptyText(
-                                        section = { it.artists },
-                                        emptyText = stringResource(R.string.library_artist_empty),
-                                    ),
-                                    modifier = Modifier.animateItem()
+                                SubscribedArtistsEmptyState(
+                                    empty = subscribedEmpty,
+                                    onSync = { viewModel.sync() },
+                                    modifier = Modifier.animateItem(),
                                 )
                             }
                         }
@@ -332,6 +310,33 @@ fun LibraryArtistsScreen(
                         }
                     }
                 }
+        }
+    }
+}
+
+/**
+ * The classic tab's empty state: the list is the account's subscriptions only, so an empty list says so,
+ * explains where artists come from and (signed in, not already syncing) offers «Sincronizar».
+ */
+@Composable
+private fun SubscribedArtistsEmptyState(
+    empty: iad1tya.echo.music.ui.component.SubscribedArtistsEmpty,
+    onSync: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        EmptyPlaceholder(icon = R.drawable.artist, text = empty.title)
+        empty.hint?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.secondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+        }
+        if (empty.canSync) {
+            TextButton(onClick = onSync) { Text(stringResource(R.string.action_sync)) }
         }
     }
 }

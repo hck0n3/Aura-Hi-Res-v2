@@ -406,12 +406,14 @@ private fun SettingDialogeBody(
             Material3SettingsGroup(
                 title = "Preferencias",
                 compact = true,
+                glass = true,
                 items = prefItems,
             )
         } else {
             Material3SettingsGroup(
                 title = "Cuenta",
                 compact = true,
+                glass = true,
                 items = listOf(
                     Material3SettingsItem(
                         title = { Text("Iniciar sesión") },
@@ -425,6 +427,7 @@ private fun SettingDialogeBody(
         Material3SettingsGroup(
             title = "App",
             compact = true,
+            glass = true,
             items = listOf(
                 Material3SettingsItem(
                     title = { Text("Actualizaciones") },

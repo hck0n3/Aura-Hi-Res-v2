@@ -237,6 +237,15 @@ object MusicStyle {
             latinNative = true, feminine = true, requestWords = listOf("polka", "polkas")),
         Style("calypso", FAMILY_REGGAE, listOf("soca", "soca music", "steelpan", "steel drum", "steel drums"),
             "soca calypso", related = listOf("reggae", "dancehall"), requestWords = listOf("calypso", "mento")),
+        // Row 493 (owner 2026-10-21: «identifica todos los géneros que existen en YouTube Music»): gaps found by probing
+        // the catalogue names a person says — Colombian carranga, tropipop, Guatemalan marimba, pasodoble, stage musicals.
+        Style("carranga", FAMILY_TROPICAL, listOf("carranga", "musica carranguera"), "carranga", latinNative = true, feminine = true),
+        Style("tropipop", FAMILY_POP, listOf("tropipop", "tropi pop"), "tropipop", latinNative = true),
+        Style("marimba", FAMILY_IBERIAN, listOf("marimba guatemalteca", "musica de marimba", "marimba de concierto"), "marimba",
+            latinNative = true, feminine = true, requestWords = listOf("marimba")),
+        Style("pasodoble", FAMILY_IBERIAN, listOf("pasodoble", "pasodobles"), "pasodoble", latinNative = true),
+        Style("musical", FAMILY_CLASSICAL, listOf("show tunes", "cast recording", "musicales de broadway", "broadway musical"),
+            "broadway musicals", requestWords = listOf("broadway", "musicales", "musical de teatro", "musicals", "teatro musical")),
         // ── África ──────────────────────────────────────────────────────────────────────────────────
         Style("kizomba", FAMILY_AFRO, listOf("kizomba", "semba", "tarraxinha"), "kizomba", related = listOf("kuduro", "kompa")),
         Style("kuduro", FAMILY_AFRO, listOf("kuduro"), "kuduro", related = listOf("kizomba", "afrobeats")),
@@ -367,6 +376,8 @@ object MusicStyle {
         "gqom" to "Gqom / Kwaito", "arabe" to "Árabe / Raï", "india" to "India / Bollywood", "celtic" to "Celta",
         "fado" to "Fado", "klezmer" to "Klezmer", "cpop" to "C-pop / Mandopop", "folk" to "Folk", "eurodance" to "Eurodance", "disco" to "Disco",
         "doowop" to "Doo-wop", "lounge" to "Lounge",
+        "carranga" to "Carranga", "tropipop" to "Tropipop", "marimba" to "Marimba", "pasodoble" to "Pasodoble",
+        "musical" to "Musicales",
     )
 
     /** Row 434: the sub-styles [id] contains ("corridos" → "tumbados"). Empty for a style that has none. */
@@ -544,6 +555,37 @@ object MusicStyle {
         val s = style(id) ?: return emptyList()
         return (s.words + s.requestWords + s.variants).distinct()
     }
+
+    /** Tails that are not the name of a sub-style ("rock en español" → "español", "salsa romántica" → "romántica"). */
+    private val NOT_SUBSTYLE_TAILS = setOf(
+        "espanol", "cristiano", "cristiana", "music", "musica", "latino", "latina", "viejo", "vieja", "romantica", "romantico",
+    )
+
+    /**
+     * Row 493: the words that only name a SUB-STYLE of a style ("villera" in «cumbia villera», "sonidera", "tecnocumbia",
+     * "doom"): what is left of a multi-word phrase once the style's own name is taken out, plus the stand-alone sub-style
+     * names. A request that is only those words is describing a style, not naming a song — pinning a track that happens to be
+     * called «Villera» was the improvisation the owner forbade.
+     */
+    private val subStyleWords: Set<String> by lazy {
+        val out = HashSet<String>()
+        fun add(phrase: String) {
+            phrase.split(' ').filter { it.length >= 4 && it !in NOT_SUBSTYLE_TAILS }.forEach { out += it }
+        }
+        for (s in ALL) {
+            val own = (s.words + s.requestWords).distinct()
+            s.variants.forEach { add(it) }
+            own.filter { it in SUBSTYLE_NAMES }.forEach { add(it) }
+            for (p in own) {
+                val base = own.filter { q -> q != p && wholeWordsIn(q, p) }.maxByOrNull { it.length } ?: continue
+                add(" $p ".replace(" $base ", " ").trim())
+            }
+        }
+        out
+    }
+
+    /** true when the folded [word] is the name of a sub-style ([subStyleWords]). */
+    fun isSubStyleWord(word: String): Boolean = fold(word) in subStyleWords
 
     /** What an iTunes primary genre says: a concrete style, or only its family, or nothing. */
     data class GenreInfo(val style: String?, val family: String?)

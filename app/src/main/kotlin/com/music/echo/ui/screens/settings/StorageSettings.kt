@@ -52,6 +52,7 @@ import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.playback.StreamCacheKeys
 import iad1tya.echo.music.R
+import iad1tya.echo.music.utils.ImageCacheCleaner
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.constants.MaxImageCacheSizeKey
 import iad1tya.echo.music.constants.MaxSongCacheSizeKey
@@ -68,7 +69,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import okio.ByteString.Companion.encodeUtf8
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -321,28 +322,30 @@ fun StorageSettings(
             title = stringResource(R.string.clear_image_cache),
             onDismiss = { clearImageCacheDialog = false },
             onConfirm = {
-                coroutineScope.launch(Dispatchers.IO) {
-                    val urlsToPreserve = mutableSetOf<String>()
-                    val downloadedSongs = try {
-                        database.downloadedSongsByNameAsc().first()
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
-                    downloadedSongs.forEach { song ->
-                        song.song.thumbnailUrl?.let { urlsToPreserve.add(it.encodeUtf8().sha256().hex()) }
-                        song.album?.thumbnailUrl?.let { urlsToPreserve.add(it.encodeUtf8().sha256().hex()) }
-                    }
-                    val directory = imageDiskCache.directory.toFile()
-                    if (directory.exists() && directory.isDirectory) {
-                        directory.listFiles()?.forEach { file ->
-                            if (file.isFile && !file.name.startsWith("journal")) {
-                                val isPreserved = urlsToPreserve.any { hash -> file.name.startsWith(hash) }
-                                if (!isPreserved) {
-                                    file.delete()
-                                }
-                            }
+                // Owner 2026-10-20: «Borrar caché de imágenes no funciona». The old body deleted the files of
+                // Coil's directory behind Coil's back, so `diskCache.size` (an in-memory counter) never dropped,
+                // the memory cache kept every cover and nothing confirmed anything. ImageCacheCleaner goes through
+                // Coil's own API (memory + disk), also empties the animated covers, and keeps only the covers of
+                // downloaded music (offline there is no way to fetch them again).
+                coroutineScope.launch {
+                    val urlsToPreserve = withContext(Dispatchers.IO) {
+                        val downloadedSongs = try {
+                            database.downloadedSongsByNameAsc().first()
+                        } catch (e: Exception) {
+                            emptyList()
+                        }
+                        downloadedSongs.flatMap { song ->
+                            listOfNotNull(song.song.thumbnailUrl, song.album?.thumbnailUrl)
                         }
                     }
+                    val freed = ImageCacheCleaner.clearAll(context, urlsToPreserve)
+                    // Refresh the label NOW instead of waiting for the next 500 ms tick.
+                    imageCacheSize = context.imageLoader.diskCache?.size ?: 0L
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.image_cache_cleared, formatFileSize(freed)),
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
                 clearImageCacheDialog = false
             },

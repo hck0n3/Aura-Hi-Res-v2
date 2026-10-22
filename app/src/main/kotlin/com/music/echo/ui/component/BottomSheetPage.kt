@@ -54,6 +54,9 @@ import iad1tya.echo.music.ui.newui.auraFloatingContentColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.ui.newui.floatingWindowGlass
+import iad1tya.echo.music.ui.newui.auraWideWindowArea
+import iad1tya.echo.music.ui.newui.auraWindowBorder
+import iad1tya.echo.music.ui.newui.auraWindowShadow
 import iad1tya.echo.music.ui.newui.rememberAuraSheetMaxHeight
 import iad1tya.echo.music.ui.newui.AuraSheetHandle
 import iad1tya.echo.music.ui.newui.auraSheetDragOffset
@@ -152,57 +155,91 @@ fun BottomSheetPage(
                 // Cerrar arrastrando la barrita (dueño, 2026-10-18). Estado propio de ESTA apertura.
                 val drag = iad1tya.echo.music.ui.newui.rememberAuraSheetDragState()
                 androidx.compose.runtime.LaunchedEffect(visible) { if (visible) drag.offsetPx = 0f }
+                // WIDE WINDOWS (owner 2026-10-19): a floating CARD instead of a sheet glued to the bottom edge — the
+                // same recipe as the menus (AuraWindowRecipe.kt). A full-screen page (the quick search) keeps its shape.
+                val wide = iad1tya.echo.music.ui.newui.rememberAuraWideWindows() && !state.fullScreen
+                val windowEnter = iad1tya.echo.music.ui.newui.rememberAuraWindowEnter(wide)
+                val windowExit = iad1tya.echo.music.ui.newui.rememberAuraWindowExit(wide)
+                val panelShape = when {
+                    state.fullScreen -> RectangleShape
+                    wide -> iad1tya.echo.music.ui.newui.AuraWindowShapeWide
+                    else -> AuraShapes.Sheet
+                }
+                val wideMaxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp *
+                    iad1tya.echo.music.ui.newui.AuraWideWindowMaxHeightFraction).dp
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (wide) Modifier.auraWideWindowArea() else Modifier),
+                ) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = visible,
-                    enter = slideInVertically(animationSpec = tween(220)) { it } +
-                        fadeIn(animationSpec = tween(180)),
-                    exit = slideOutVertically(animationSpec = tween(200)) { it } +
-                        fadeOut(animationSpec = tween(160)),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .auraSheetDragOffset(drag)
-                        // Plegable abierto / tableta: centrada con ancho máximo (ver AuraSheetMaxWidthDp).
-                        // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
-                        .widthIn(
-                            max = (
-                                if (state.fullScreen) iad1tya.echo.music.ui.newui.AuraFullScreenSheetMaxWidthDp
-                                else iad1tya.echo.music.ui.newui.AuraSheetMaxWidthDp
-                                ).dp,
-                        )
-                        .fillMaxWidth()
-                        // A pantalla completa se llena de verdad (la búsqueda rápida la pide así, con
-                        // el teclado arriba). En el resto el 85 % pasa a ser TOPE y no objetivo: una
-                        // página con poco contenido sube solo lo que necesita. Ver
-                        // [rememberAuraSheetMaxHeight].
-                        .then(
-                            if (state.fullScreen) {
-                                Modifier.fillMaxHeight()
-                            } else {
-                                Modifier.heightIn(max = sheetMaxHeight)
-                            },
+                    enter = windowEnter,
+                    exit = windowExit,
+                    modifier = (
+                        if (wide) {
+                            Modifier
+                                .align(Alignment.Center)
+                                .widthIn(max = iad1tya.echo.music.ui.newui.AuraWidePageWidthDp.dp)
+                                .fillMaxWidth()
+                                .heightIn(max = wideMaxHeight)
+                        } else {
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .auraSheetDragOffset(drag)
+                                // Plegable abierto / tableta: centrada con ancho máximo (ver AuraSheetMaxWidthDp).
+                                // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
+                                .widthIn(
+                                    max = (
+                                        if (state.fullScreen) iad1tya.echo.music.ui.newui.AuraFullScreenSheetMaxWidthDp
+                                        else iad1tya.echo.music.ui.newui.AuraSheetMaxWidthDp
+                                        ).dp,
+                                )
+                                .fillMaxWidth()
+                                // A pantalla completa se llena de verdad (la búsqueda rápida la pide así, con
+                                // el teclado arriba). En el resto el 85 % pasa a ser TOPE y no objetivo: una
+                                // página con poco contenido sube solo lo que necesita. Ver
+                                // [rememberAuraSheetMaxHeight].
+                                .then(
+                                    if (state.fullScreen) {
+                                        Modifier.fillMaxHeight()
+                                    } else {
+                                        Modifier.heightIn(max = sheetMaxHeight)
+                                    },
+                                )
+                        }
                         ),
                 ) {
                     Column(
                         modifier = Modifier
+                            // The shadow goes BEFORE the clip, or the clip would cut it.
+                            .auraWindowShadow(panelShape, enabled = wide)
                             .then(
                                 if (state.fullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth(),
                             )
                             // AUDIT P4: clip BEFORE the glass (an interior clip leaves the
                             // effect drawing with square corners over a rounded-content panel).
-                            .clip(if (state.fullScreen) RectangleShape else AuraShapes.Sheet)
+                            .clip(panelShape)
                             // Same opaque floating plate as menus and dialogs (one material everywhere).
                             .background(AuraPalette.FloatingWindowPlate)
+                            .then(if (wide) Modifier.auraWindowBorder(panelShape) else Modifier)
                             .floatingWindowGlass(shellHazeState)
                             .then(if (state.fullScreen) Modifier.statusBarsPadding() else Modifier)
                             .imePadding()
                             .navigationBarsPadding(),
                     ) {
+                        if (wide) {
+                            // A card has no drag handle (it is not a bottom sheet): it closes with the scrim, back or its
+                            // own buttons.
+                            androidx.compose.foundation.layout.Spacer(Modifier.size(width = 1.dp, height = 10.dp))
+                        } else {
                         // Drag handle — TOP CENTER (owner 2026-08-31): same fix as the menu. Draggable down to close
                         // (owner 2026-10-18).
                         AuraSheetHandle(
                             state = drag,
                             onDismiss = { focusManager.clearFocus(); state.dismiss() },
                         )
+                        }
                         CompositionLocalProvider(LocalAuraFloatingChrome provides true) {
                             Column(
                                 modifier = Modifier
@@ -214,6 +251,7 @@ fun BottomSheetPage(
                             }
                         }
                     }
+                }
                 }
             }
         }
@@ -305,7 +343,14 @@ private fun AuraSpotlightHost(
                     .imePadding()
                     .padding(horizontal = 12.dp, vertical = 12.dp),
             ) {
-                val cap = minOf(maxHeight, (screenHeightDp * 0.72f).dp)
+                // WIDE WINDOW (owner 2026-10-20, unfolded Z Fold): the card is a results + detail split (see
+                // AuraPlayerQuickSearchContent), so it grows to AuraSpotlightWideMaxWidthDp and may be as tall as any other
+                // wide floating window. Phone: unchanged (640 dp, 72 %).
+                val wideSpotlight = iad1tya.echo.music.ui.newui.rememberAuraWideWindows()
+                val cap = minOf(
+                    maxHeight,
+                    (screenHeightDp * (if (wideSpotlight) iad1tya.echo.music.ui.newui.AuraWideWindowMaxHeightFraction else 0.72f)).dp,
+                )
                 androidx.compose.animation.AnimatedVisibility(
                     visible = visible,
                     enter = slideInVertically(animationSpec = tween(200)) { -it / 4 } +
@@ -315,7 +360,7 @@ private fun AuraSpotlightHost(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
-                        .widthIn(max = 640.dp)
+                        .widthIn(max = if (wideSpotlight) iad1tya.echo.music.ui.newui.AuraSpotlightWideMaxWidthDp.dp else 640.dp)
                         .fillMaxWidth()
                         .heightIn(max = cap),
                 ) {

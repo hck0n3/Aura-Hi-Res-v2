@@ -7,7 +7,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
@@ -26,6 +25,8 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.constants.MiniPlayerHeight
 import iad1tya.echo.music.constants.NavigationBarAnimationSpec
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 
 
@@ -153,7 +155,11 @@ fun BottomSheet(
         }
 
         
-        if (!state.isCollapsed) {
+        // [BottomSheetState.contentWarm]: an expand started by a TAP composes this (heavy) tree one or two frames BEFORE
+        // the spring starts, while the sheet is still collapsed and its alpha is 0 — so the frames of the flip that the
+        // user sees are not the ones that pay for composing the whole player (owner 2026-10-19, foldable: «las
+        // animaciones … se ven muy feas, no son fluidas»). A drag still composes it on its first movement, as before.
+        if (!state.isCollapsed || state.contentWarm) {
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
@@ -217,6 +223,13 @@ class BottomSheetState(
         if (!keepOpenWhenNavigating) collapseSoft()
     }
 
+    /**
+     * true from the moment a tapped expand asks for the content until the sheet has really left the collapsed position
+     * (or went back / was dismissed). Read in composition by [BottomSheet]; it only changes twice per expand.
+     */
+    var contentWarm by mutableStateOf(false)
+        private set
+
     val dismissedBound: Dp
         get() = animatable.lowerBound!!
 
@@ -245,46 +258,67 @@ class BottomSheetState(
         onAnchorChanged(collapsedAnchor)
         coroutineScope.launch {
             animatable.animateTo(collapsedBound, animationSpec)
+            contentWarm = false
         }
     }
 
     fun expand(animationSpec: AnimationSpec<Dp>) {
         onAnchorChanged(expandedAnchor)
         coroutineScope.launch {
-            animatable.animateTo(animatable.upperBound!!, animationSpec)
+            // From the collapsed position the whole player tree is composed on the first frame of the flip, and the
+            // spring has already started its clock: the frames the user sees are skipped. Compose it first (alpha is 0
+            // there, nothing shows), give it two frames, THEN start moving. Only for a sheet that really sits collapsed:
+            // a mid-way expand (a fling released half way) already has the content.
+            try {
+                if (isCollapsed && !contentWarm) {
+                    contentWarm = true
+                    withFrameNanos { }
+                    withFrameNanos { }
+                }
+                animatable.animateTo(animatable.upperBound!!, animationSpec)
+            } finally {
+                // Also on cancellation (a drag took over, a collapse started): the flag must never outlive the expand,
+                // or a collapsed sheet would keep its whole player tree composed.
+                contentWarm = false
+            }
         }
     }
 
     private fun collapse() {
-        collapse(SpringSpec())
+        collapse(spring(stiffness = Spring.StiffnessMedium, visibilityThreshold = SHEET_VISIBILITY_THRESHOLD))
     }
 
     private fun expand() {
-        expand(SpringSpec())
+        expand(spring(stiffness = Spring.StiffnessMedium, visibilityThreshold = SHEET_VISIBILITY_THRESHOLD))
     }
 
     fun collapseSoft() {
-        collapse(spring(stiffness = Spring.StiffnessMediumLow))
+        collapse(spring(stiffness = Spring.StiffnessMediumLow, visibilityThreshold = SHEET_VISIBILITY_THRESHOLD))
     }
 
     fun expandSoft() {
-        expand(spring(stiffness = Spring.StiffnessMediumLow))
+        expand(spring(stiffness = Spring.StiffnessMediumLow, visibilityThreshold = SHEET_VISIBILITY_THRESHOLD))
     }
 
     fun dismiss() {
         onAnchorChanged(dismissedAnchor)
         coroutineScope.launch {
             animatable.animateTo(animatable.lowerBound!!)
+            contentWarm = false
         }
     }
     
     suspend fun dismissAndWait() {
         onAnchorChanged(dismissedAnchor)
         animatable.animateTo(animatable.lowerBound!!)
+        contentWarm = false
     }
 
     fun snapTo(value: Dp) {
-        coroutineScope.launch {
+        // UNDISPATCHED: the value moves inside the input event that asked for it, so the next frame draws THIS finger
+        // position and not the previous one (a plain launch posted the snap behind the event on the main dispatcher —
+        // a frame of lag on every drag delta, worst on a big foldable pane).
+        coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
             animatable.snapTo(value)
         }
     }
@@ -374,6 +408,14 @@ class BottomSheetState(
         }
 }
 
+/**
+ * A spring on a `Dp` with no threshold keeps running until it is 0.01 dp from its target — sub-pixel movement that
+ * still invalidates the sheet's layers every frame for the last fifth of a second. 0.1 dp is under a physical pixel on
+ * every density this app runs on (the same value `animateDpAsState` uses), so the flip ends when the eye can no
+ * longer tell.
+ */
+private val SHEET_VISIBILITY_THRESHOLD = 0.1.dp
+
 const val expandedAnchor = 2
 const val collapsedAnchor = 1
 const val dismissedAnchor = 0
@@ -410,7 +452,8 @@ fun rememberBottomSheetState(
 
         BottomSheetState(
             draggableState = DraggableState { delta ->
-                coroutineScope.launch {
+                // UNDISPATCHED, see [BottomSheetState.snapTo]: one drag delta = one synchronous position update.
+                coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
                     animatable.snapTo(animatable.value - with(density) { delta.toDp() })
                 }
             },

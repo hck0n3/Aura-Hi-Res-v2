@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Offline mode: its own search and the richer body (registry row for 2026-10-20). Kept in its own file. -->
+<resources>
+    <string name="offline_home_title">Offline</string>
+    <plurals name="offline_songs_available">
+        <item quantity="one">%d song available</item>
+        <item quantity="other">%d songs available</item>
+    </plurals>
+    <string name="offline_search_placeholder">Search your offline music…</string>
+    <string name="offline_search_playlists">Playlists</string>
+    <string name="offline_search_only_offline">Only what plays without a connection is searched here.</string>
+    <string name="offline_search_hint_title">Search what plays without a connection</string>
+    <string name="offline_search_hint_counts">%1$s · %2$d albums · %3$d playlists</string>
+    <string name="offline_tile_shuffle_hint">All that is available</string>
+    <string name="offline_tile_downloads">My downloads</string>
+    <string name="offline_recent_title">Played recently</string>
+    <string name="offline_empty_title">Nothing to play offline yet</string>
+    <string name="offline_empty_how">When you are back online, open the ⋯ menu of any song, album or playlist and choose Download.</string>
+    <string name="offline_empty_cta">Go online to download music</string>
+    <string name="offline_empty_auto">It comes back online by itself as soon as there is a network.</string>
+</resources>

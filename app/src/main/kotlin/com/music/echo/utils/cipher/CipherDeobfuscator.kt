@@ -10,6 +10,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.utils.sabr.EjsNTransformSolver
 import timber.log.Timber
 
 /**
@@ -148,7 +149,16 @@ object CipherDeobfuscator {
      *
      * Returns the full URL with deobfuscated signature, or null if failed.
      */
-    suspend fun deobfuscateStreamUrl(signatureCipher: String, videoId: String): String? = deobfuscateMutex.withLock {
+    suspend fun deobfuscateStreamUrl(signatureCipher: String, videoId: String): String? {
+        // 2026-10-20 (owner log: age-gated songs answered OK by the account's clients, then «No stream URL … hasCipher=true»):
+        // the player rotated to hashes this app has no entry for, and this class's own extraction found no signature function.
+        // yt-dlp's EJS solver reads the REAL player and finds the function by its shape, so it needs no per-hash entry. It goes
+        // first; the older path below stays as the fallback (and answers for players it solves).
+        EjsNTransformSolver.deobfuscateSignatureCipher(signatureCipher)?.let { return it }
+        return deobfuscateStreamUrlViaCipherWebView(signatureCipher, videoId)
+    }
+
+    private suspend fun deobfuscateStreamUrlViaCipherWebView(signatureCipher: String, videoId: String): String? = deobfuscateMutex.withLock {
         try {
             deobfuscateInternal(signatureCipher, videoId, isRetry = false)
                 ?.also {

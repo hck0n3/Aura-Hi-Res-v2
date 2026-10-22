@@ -171,6 +171,8 @@ fun AuraOnlinePlaylistScreen(
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
 
     val lazyListState = rememberLazyListState()
+    // Opens on the cover, never scrolled past it (see AuraOpenAtTop).
+    AuraOpenAtTop(lazyListState)
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { lazyListState.isScrollInProgress }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -210,6 +212,13 @@ fun AuraOnlinePlaylistScreen(
     }
     val videoPlaylist = remember(songs) {
         songs.isNotEmpty() && songs.count { it.isVideoSong } * 2 >= songs.size
+    }
+    // Wide pane only: genre column. The genre is the ARTIST's (on-device GenreCache), never guessed.
+    val trackGenres = rememberAuraTrackGenres(
+        remember(songs) { songs.mapNotNull { it.artists.firstOrNull()?.name } },
+    )
+    val showGenreColumn = remember(trackGenres, filteredSongs) {
+        trackGenres.anyKnown(filteredSongs) { (_, song) -> song.artists.map { it.name } }
     }
 
     var inSelectMode by rememberSaveable { mutableStateOf(false) }
@@ -469,6 +478,9 @@ fun AuraOnlinePlaylistScreen(
                         onSelectedChange = if (inSelectMode) onCheckedChange else null,
                         durationLabel = auraAppleDurationLabel(songItem.duration),
                         showQualityBadge = false,
+                        appleLayout = true,
+                        genre = trackGenres.of(songItem.artists.map { it.name }),
+                        showGenreColumn = showGenreColumn,
                         onClick = if (blocked) null else {
                             {
                                 when {
@@ -968,7 +980,7 @@ private fun AuraOnlinePlaylistHeader(
                         val intent = Intent().apply {
                             action = Intent.ACTION_SEND
                             type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, playlist.shareLink)
+                            putExtra(Intent.EXTRA_TEXT, iad1tya.echo.music.utils.ShareLinks.playlistShareText(playlist.id, playlist.title))
                         }
                         context.startActivity(Intent.createChooser(intent, null))
                     },

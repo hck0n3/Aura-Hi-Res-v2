@@ -434,17 +434,29 @@ class AuraAppearanceTest {
     }
 
     /**
-     * Owner 2026-10-19: the floating windows' glass was a near-black slab. Their plate is painted at
-     * [FLOATING_WINDOW_GLASS_ALPHA] over the screen, so the secondary ink must clear the text bar on the plate AS SEEN over
-     * a mid bloom, on every hue — and the window plate must still be the cover's colour, not grey.
+     * Owner 2026-10-19: the floating windows' glass did not match the app's colour. Their tint is now the cover GROUND the
+     * screens are painted with (a hair darker), painted at [FLOATING_WINDOW_GLASS_ALPHA] over the screen. Measured on every
+     * hue: the secondary ink clears the text bar over a mid bloom; over a bright (mid-grey) cover only the primary ink does —
+     * that is the price of letting the screen through, and it is the documented bad case.
      */
     @Test
-    fun `the floating window plate keeps the secondary ink legible as seen over a mid bloom`() = forEveryCoverHue { hue, _ ->
-        val plate = AuraPalette.FloatingWindowFill
-        val seen = plate.copy(alpha = FLOATING_WINDOW_GLASS_ALPHA).compositeOver(FLOATING_WINDOW_BEHIND)
-        val onSeen = contrastRatio(AuraPalette.OnGroundMuted.compositeOver(seen), seen)
-        assertTrue("hue $hue: secondary ink on the window glass as seen at $onSeen", onSeen >= 4.4f)
+    fun `the floating window glass is the app ground and keeps the ink legible over a mid bloom`() = forEveryCoverHue { hue, _ ->
+        val tint = AuraPalette.WindowGlassTint
+        val ground = AuraPalette.GroundRaised
+        // The same colour family as the screen: the ground, scaled down by the veil — nothing else mixed in.
+        assertEquals("hue $hue red", ground.red * (1f - FLOATING_WINDOW_VEIL), tint.red, 0.005f)
+        assertEquals("hue $hue green", ground.green * (1f - FLOATING_WINDOW_VEIL), tint.green, 0.005f)
+        assertEquals("hue $hue blue", ground.blue * (1f - FLOATING_WINDOW_VEIL), tint.blue, 0.005f)
+        assertEquals(tint, AuraPalette.FloatingWindowFill)
+        val seen = tint.copy(alpha = FLOATING_WINDOW_GLASS_ALPHA).compositeOver(FLOATING_WINDOW_BEHIND)
+        val muted = contrastRatio(AuraPalette.OnGroundMuted.compositeOver(seen), seen)
+        assertTrue("hue $hue: secondary ink on the window glass over a mid bloom at $muted", muted >= 4.4f)
+        // Bad case: a bright cover behind. The titles and body text (primary ink) still read; the secondary ink is not promised.
+        val bright = tint.copy(alpha = FLOATING_WINDOW_GLASS_ALPHA).compositeOver(FLOATING_WINDOW_LIGHT_BEHIND)
+        val primary = contrastRatio(AuraPalette.OnGround, bright)
+        assertTrue("hue $hue: primary ink over a bright cover at $primary", primary >= 4.5f)
         assertTrue("hue $hue: the window glass is more translucent than the bars'", FLOATING_WINDOW_GLASS_ALPHA < 0.85f)
+        assertTrue("hue $hue: the plate under it is translucent too", AuraPalette.FloatingWindowPlate.alpha < 1f)
     }
 
     /**

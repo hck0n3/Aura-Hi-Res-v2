@@ -462,7 +462,8 @@ private fun AuraStatsRangeSelector(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 shape = AuraShapes.Card,
-                containerColor = AuraPalette.FrostFill,
+                containerColor = AuraPalette.FloatingWindowPlate,
+                border = AuraMenuBorder,
             ) {
                 modes.forEach { (mode, label) ->
                     DropdownMenuItem(

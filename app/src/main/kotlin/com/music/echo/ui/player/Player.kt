@@ -206,6 +206,8 @@ import iad1tya.echo.music.listentogether.RoomRole
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.playback.ExoDownloadService
+import iad1tya.echo.music.playback.SongModeAvailability
+import iad1tya.echo.music.playback.SongModePlanning
 import iad1tya.echo.music.echomusic.getConnectedBluetoothDeviceName
 import iad1tya.echo.music.echomusic.isBuds
 import iad1tya.echo.music.echomusic.isSpeaker
@@ -705,7 +707,10 @@ fun BottomSheetPlayer(
         defaultValue = false
     )
 
-    LaunchedEffect(mediaMetadata?.id, playerBackground) {
+    // Battery/radio (audit 2026-10-20): same as Thumbnail's lookup — wait for the app to be on screen before spending
+    // the provider searches (a LaunchedEffect keeps running with the activity stopped).
+    val canvasLookupInForeground = rememberIsAppInForeground()
+    LaunchedEffect(mediaMetadata?.id, playerBackground, canvasLookupInForeground) {
         if (playerBackground != PlayerBackgroundStyle.APPLE_MUSIC || !enableCanvas) {
             canvasArtwork = null
             return@LaunchedEffect
@@ -718,7 +723,9 @@ fun BottomSheetPlayer(
             return@LaunchedEffect
         }
 
-        if (canvasFetchInFlight) return@LaunchedEffect
+        if (!canvasLookupInForeground) return@LaunchedEffect
+        // (No «already in flight» guard here: an effect never overlaps itself, and a run cancelled mid-fetch because the app left the
+        // screen would have left the flag set and blocked the retry on return.)
         canvasFetchInFlight = true
         
         withContext(Dispatchers.IO) {
@@ -864,15 +871,18 @@ fun BottomSheetPlayer(
     
     
     
-    LaunchedEffect(isPlaying, isCasting) {
-        if (!isCasting && isPlaying) {
+    // Battery/heat (audit 2026-10-20): delay()-driven, so Compose's paused frame clock does not stop it. Runs only while
+    // the app is on screen and reads before it sleeps (fresh position on return). Same change as AuraPlayer's ticker.
+    val positionTickerInForeground = rememberIsAppInForeground()
+    LaunchedEffect(isPlaying, isCasting, positionTickerInForeground) {
+        if (!isCasting && isPlaying && positionTickerInForeground) {
             while (isActive) {
-                // Perf mode: poll position half as often (1s vs 500ms) — one fewer recomposition/sec.
-                delay(if (highPerfMode) 1000L else 500L)
                 if (sliderPosition == null) {
                     position = playerConnection.player.currentPosition
                     duration = playerConnection.player.duration
                 }
+                // Perf mode: poll position half as often (1s vs 500ms) — one fewer recomposition/sec.
+                delay(if (highPerfMode) 1000L else 500L)
             }
         }
     }
@@ -1992,7 +2002,12 @@ fun BottomSheetPlayer(
                     }) {
                         Icon(painterResource(R.drawable.graphic_eq), null, tint = textButtonColor, modifier = Modifier.size(24.dp))
                     }
-                    if ((!highPerfMode || wantsHiResBackdrop) && (mediaMetadata?.hasCompatibleVideo == true || mediaMetadata?.podcastVideoUrl.isNullOrEmpty() == false)) {
+                    // Owner 2026-10-20: «Canción» is not offered for a video whose song audio is refused (SongModePlanning).
+                    val songBlockedIds by SongModeAvailability.blocked.collectAsState()
+                    val songOptionOffered = mediaMetadata?.let {
+                        SongModePlanning.offerSongOption(videoMode, it.isVideoSong, it.id in songBlockedIds)
+                    } ?: true
+                    if ((!highPerfMode || wantsHiResBackdrop) && ((mediaMetadata?.hasCompatibleVideo == true && songOptionOffered) || mediaMetadata?.podcastVideoUrl.isNullOrEmpty() == false)) {
                         PlayerActionChip(
                             label = if (videoMode) "Canción" else "Video",
                             tint = textButtonColor,
@@ -2766,11 +2781,15 @@ fun BottomSheetPlayer(
                                 Icon(painterResource(R.drawable.skip_next), null, tint = Color.White, modifier = Modifier.size(34.dp))
                             }
                             Spacer(Modifier.weight(1f))
-                            IconButton(
-                                onClick = { playerConnection.exitVideoMode() },
-                                modifier = Modifier.tvFocusable(isTvOrCar),
-                            ) {
-                                Icon(painterResource(R.drawable.music_note), null, tint = Color.White, modifier = Modifier.size(30.dp))
+                            // Owner 2026-10-20: no way back to «Canción» for a video whose song audio is refused.
+                            val lsSongBlockedIds by SongModeAvailability.blocked.collectAsState()
+                            if (mediaMetadata?.id?.let { it in lsSongBlockedIds } != true) {
+                                IconButton(
+                                    onClick = { playerConnection.exitVideoMode() },
+                                    modifier = Modifier.tvFocusable(isTvOrCar),
+                                ) {
+                                    Icon(painterResource(R.drawable.music_note), null, tint = Color.White, modifier = Modifier.size(30.dp))
+                                }
                             }
                         }
                     }

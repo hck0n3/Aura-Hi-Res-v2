@@ -43,6 +43,8 @@ object ArtistTagStyles {
 
     private val failedThisSession: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    private class TagResult(val key: String, val style: String, val christian: Boolean, val lane: TagLane)
+
     /**
      * The artist's style from its Last.fm tags, or null. Pure. Each tag is read like a title
      * ([MusicStyle.fromText]): "christian", "latin", "seen live" say no style and are ignored; the styles the
@@ -90,6 +92,69 @@ object ArtistTagStyles {
             .split(Regex("[^a-z0-9]+"))
             .filter { it.isNotBlank() }
 
+    /**
+     * Row 459 — the artist's genre FAMILY and (hint of) LANGUAGE from the same Last.fm answer, kept apart in
+     * their own file. The family is for the artists whose concrete style the tags cannot pin down (a Christian
+     * rapper tagged «christian hip hop», «reggaeton» and «latin» is «urbano» for sure and «rap» or «reggaeton»
+     * only by a coin toss): the smart queue then keeps the FAMILY instead of nothing. The language is only a
+     * HINT («spanish», «latin», «reggaeton», «cumbia»…): it ranks candidates, it never excludes one.
+     */
+    private const val LANE_PREFS = "artist_lastfm_lane"
+
+    /** A family must carry this share of the artist's style-tag weight (and [MIN_WEIGHT]) — same bar as the style. */
+    const val FAMILY_MIN_SHARE = 0.6
+
+    /** A language tag must carry at least this Last.fm weight (0-100), so one stray tag decides nothing. */
+    const val LANGUAGE_MIN_WEIGHT = 20
+
+    private val SPANISH_TAG_WORDS = setOf(
+        "spanish", "espanol", "castellano", "hispano", "hispanic", "latin", "latino", "latina", "reggaeton", "regueton",
+        "salsa", "bachata", "cumbia", "merengue", "vallenato", "ranchera", "mariachi", "norteno", "tejano", "corridos",
+        "urbano", "mexicano", "colombiano", "boricua", "dominicano", "cubano", "chileno", "argentino", "peruano",
+        "venezolano",
+    )
+
+    /** The artist's tagged genre family (see [MusicStyle.familyOf]), or null when no family clearly leads. Pure. */
+    fun familyFromTags(tags: List<Pair<String, Int>>): String? {
+        val weights = HashMap<String, Int>()
+        for ((tag, count) in tags) {
+            val family = MusicStyle.familyOf(MusicStyle.fromText(tag)) ?: continue
+            weights[family] = (weights[family] ?: 0) + count.coerceAtLeast(1)
+        }
+        val total = weights.values.sum()
+        if (total == 0) return null
+        val (best, weight) = weights.maxByOrNull { it.value } ?: return null
+        return if (weight >= MIN_WEIGHT && weight.toDouble() / total >= FAMILY_MIN_SHARE) best else null
+    }
+
+    /** [TitleLanguage.ES] when the tags say Spanish-language music (a HINT, never proof), else null. Pure. */
+    fun languageFromTags(tags: List<Pair<String, Int>>): String? =
+        if (tags.any { (tag, count) -> count >= LANGUAGE_MIN_WEIGHT && tagWords(tag).any { it in SPANISH_TAG_WORDS } }) {
+            TitleLanguage.ES
+        } else {
+            null
+        }
+
+    /** What the tags say beyond the style: the genre [family] and a [language] hint. Either may be null. */
+    data class TagLane(val family: String?, val language: String?)
+
+    private fun lanePrefs(context: Context) = context.getSharedPreferences(LANE_PREFS, Context.MODE_PRIVATE)
+
+    // "urbano|es", "|es", "rock|" — empty = nothing.
+    internal fun encodeLane(lane: TagLane): String = "${lane.family.orEmpty()}|${lane.language.orEmpty()}"
+
+    internal fun decodeLane(value: String): TagLane {
+        val i = value.indexOf('|')
+        if (i < 0) return TagLane(value.takeIf { it.isNotBlank() }, null)
+        return TagLane(value.substring(0, i).takeIf { it.isNotBlank() }, value.substring(i + 1).takeIf { it.isNotBlank() })
+    }
+
+    /** artist key → family/language hint; artists never looked up (or with nothing to say) are left out. Off the main thread. */
+    fun laneSnapshot(context: Context): Map<String, TagLane> =
+        lanePrefs(context).all.mapNotNull { (k, v) ->
+            (v as? String)?.let { decodeLane(it) }?.takeIf { it.family != null || it.language != null }?.let { k to it }
+        }.toMap()
+
     private fun christianPrefs(context: Context) = context.getSharedPreferences(CHRISTIAN_PREFS, Context.MODE_PRIVATE)
 
     /** artist key → whether Last.fm tags it Christian; artists never looked up are left out. Off the main thread. */
@@ -112,11 +177,13 @@ object ArtistTagStyles {
         if (!LastFM.isInitialized()) return@withContext
         val prefs = prefs(context)
         val christian = christianPrefs(context)
-        // Fila 365: artists looked up before the Christian flag existed are asked once more, for it.
+        val lane = lanePrefs(context)
+        // Fila 365: artists looked up before the Christian flag existed are asked once more, for it. Row 459:
+        // the same for the family / language hint (one more bounded lookup per artist, ever).
         val pending = artistNames
             .mapNotNull { ArtistStyleMemory.key(it) }
             .distinct()
-            .filter { (!prefs.contains(it) || !christian.contains(it)) && it !in failedThisSession }
+            .filter { (!prefs.contains(it) || !christian.contains(it) || !lane.contains(it)) && it !in failedThisSession }
             .take(MAX_BATCH)
         if (pending.isEmpty()) return@withContext
         val allowMobile = context.dataStore.data.first()[GenreEnrichOnMobileKey] ?: true
@@ -135,14 +202,15 @@ object ArtistTagStyles {
                             null
                         } else {
                             failures.set(0)
-                            Triple(key, styleFromTags(tags) ?: "", christianFromTags(tags))
+                            TagResult(key, styleFromTags(tags) ?: "", christianFromTags(tags), TagLane(familyFromTags(tags), languageFromTags(tags)))
                         }
                     }
                 }
             }.awaitAll().filterNotNull()
         }
         if (results.isEmpty()) return@withContext
-        prefs.edit().also { e -> results.forEach { (k, style, _) -> e.putString(k, style) } }.apply()
-        christian.edit().also { e -> results.forEach { (k, _, isChristian) -> e.putBoolean(k, isChristian) } }.apply()
+        prefs.edit().also { e -> results.forEach { e.putString(it.key, it.style) } }.apply()
+        christian.edit().also { e -> results.forEach { e.putBoolean(it.key, it.christian) } }.apply()
+        lane.edit().also { e -> results.forEach { e.putString(it.key, encodeLane(it.lane)) } }.apply()
     }
 }

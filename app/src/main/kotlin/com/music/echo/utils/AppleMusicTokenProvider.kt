@@ -21,6 +21,13 @@ object AppleMusicTokenProvider {
     private var cachedTokenExpiryMs: Long = 0L
     private val mutex = Mutex()
 
+    // Failure memory (battery/radio audit 2026-10-20). Every failed extraction costs the web player's HTML page AND its
+    // multi-MB index.js bundle, and a failure used to be forgotten at once: each album page without a description (and
+    // every other caller) re-downloaded both, 11 times in the owner's log, to fail the same way. After a failure the
+    // provider now serves the fallback straight away until [AppleTokenRetryPolicy] says it is worth trying again.
+    private var consecutiveFailures = 0
+    private var nextAttemptAtMs = 0L
+
     private val httpClient = HttpClient(OkHttp) {
         expectSuccess = true
     }
@@ -42,6 +49,8 @@ object AppleMusicTokenProvider {
             // Expired (or never fetched): clear and (re)extract.
             cachedToken = null
             cachedTokenExpiryMs = 0L
+
+            if (System.currentTimeMillis() < nextAttemptAtMs) return@withLock FALLBACK_TOKEN
 
             try {
                 // 1. Fetch main page
@@ -66,10 +75,17 @@ object AppleMusicTokenProvider {
                 val token = tokenMatch.value
                 cachedToken = token
                 cachedTokenExpiryMs = computeExpiryMs(token)
+                consecutiveFailures = 0
+                nextAttemptAtMs = 0L
                 token
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
-                    timber.log.Timber.w("Apple Music token: fetch failed (animated covers fall back): %s", privacySafeSummary(e))
+                    consecutiveFailures++
+                    nextAttemptAtMs = System.currentTimeMillis() + AppleTokenRetryPolicy.retryAfterMs(consecutiveFailures)
+                    timber.log.Timber.w(
+                        "Apple Music token: fetch failed (animated covers fall back, next try in %d min): %s",
+                        AppleTokenRetryPolicy.retryAfterMs(consecutiveFailures) / 60_000L, privacySafeSummary(e),
+                    )
                 }
                 // Fallback token if live extraction fails. It is deliberately NOT
                 // cached, so the very next call re-attempts extraction and the
@@ -92,6 +108,9 @@ object AppleMusicTokenProvider {
         mutex.withLock {
             cachedToken = null
             cachedTokenExpiryMs = 0L
+            // A revoked token is a reason to extract again NOW, not a failure to back off from.
+            consecutiveFailures = 0
+            nextAttemptAtMs = 0L
         }
     }
 
@@ -134,4 +153,23 @@ object AppleMusicTokenProvider {
     // description rather than crashing.
     private const val FALLBACK_TOKEN =
         "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IldlYlBsYXlLaWQifQ.eyJpc3MiOiJBTVBXZWJQbGF5IiwiaWF0IjoxNzc0NDU2MzgyLCJleHAiOjE3ODE3MTM5ODIsInJvb3RfaHR0cHNfb3JpZ2luIjpbImFwcGxlLmNvbSJdfQ.4n8qYF4qa18sL1E0G9A3qX35cD8wQ-IJcS9Bh8ZT8JV_yLBtVq46B-9-2ZS3EvWHuw3yK9BYFYAhAdTaDm38vQ"
+}
+
+/**
+ * How long to leave Apple's web player alone after [consecutiveFailures] failed token extractions: 5 min, 15, 45, then
+ * an hour at most. A real change on Apple's side takes longer than that to matter to a description, and a blip heals at
+ * the first retry. Pure, so a guard test pins the curve (battery/radio audit 2026-10-20).
+ */
+internal object AppleTokenRetryPolicy {
+    private const val BASE_MS = 5 * 60 * 1000L
+    private const val MAX_MS = 60 * 60 * 1000L
+
+    fun retryAfterMs(consecutiveFailures: Int): Long {
+        if (consecutiveFailures <= 0) return 0L
+        var delayMs = BASE_MS
+        repeat(consecutiveFailures - 1) {
+            delayMs = (delayMs * 3).coerceAtMost(MAX_MS)
+        }
+        return delayMs.coerceAtMost(MAX_MS)
+    }
 }

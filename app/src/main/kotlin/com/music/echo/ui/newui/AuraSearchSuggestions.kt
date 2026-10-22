@@ -1,6 +1,7 @@
 package iad1tya.echo.music.ui.newui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -12,11 +13,13 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -47,6 +50,7 @@ import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.db.entities.Album
+import iad1tya.echo.music.db.entities.LocalItem
 import iad1tya.echo.music.db.entities.Artist
 import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.Song
@@ -161,13 +165,23 @@ fun AuraOnlineSearchSuggestions(
         }
     }
 
+    // WIDE WINDOW (owner 2026-10-20, unfolded Z Fold): the top results get the same master-detail as the results route —
+    // bigger rows with a type pill, and tapping one shows its hero + its menu in the OTHER half instead of opening a
+    // floating menu or leaving the panel. Decided on the room this panel really has, so a folded phone, a phone on its
+    // side and a panel squeezed by the split player keep today's single column.
+    BoxWithConstraints(modifier.fillMaxSize()) {
+    val split = auraSearchSplitFits(maxWidth.value, maxHeight.value)
+    var picked by remember { mutableStateOf<AuraSearchPick?>(null) }
+    val detailBottom = LocalPlayerAwareWindowInsets.current
+        .only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding() + 12.dp
+    val list: @Composable () -> Unit = {
     LazyColumn(
         state = lazyListState,
         contentPadding = LocalPlayerAwareWindowInsets.current
             .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
             .asPaddingValues(),
         // Never steal focus from the search field while suggestions recompose mid-type.
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .focusProperties { canFocus = false },
     ) {
@@ -177,10 +191,12 @@ fun AuraOnlineSearchSuggestions(
             }
         }
 
-        items(viewState.history, key = { "aura_history_${it.query}" }) { history ->
+        itemsIndexed(viewState.history, key = { _, h -> "aura_history_${h.query}" }) { index, history ->
             AuraQueryRow(
                 query = history.query,
                 fromHistory = true,
+                first = index == 0,
+                last = index == viewState.history.lastIndex,
                 onClick = { onSearch(history.query) },
                 onDelete = { database.query { delete(history) } },
                 onFillTextField = {
@@ -201,10 +217,12 @@ fun AuraOnlineSearchSuggestions(
             }
         }
 
-        items(viewState.suggestions, key = { "aura_suggestion_$it" }) { suggestion ->
+        itemsIndexed(viewState.suggestions, key = { _, q -> "aura_suggestion_$q" }) { index, suggestion ->
             AuraQueryRow(
                 query = suggestion,
                 fromHistory = false,
+                first = index == 0,
+                last = index == viewState.suggestions.lastIndex,
                 onClick = { onSearch(suggestion) },
                 onDelete = null,
                 onFillTextField = {
@@ -227,7 +245,24 @@ fun AuraOnlineSearchSuggestions(
         }
 
         items(viewState.items, key = { "aura_item_${it.id}" }) { item ->
-            AuraYtItemRow(
+            if (split) {
+                AuraYtWideRow(
+                    item = item,
+                    selected = picked.isYt(item),
+                    isActive = when (item) {
+                        is SongItem -> mediaMetadata?.id == item.id
+                        is AlbumItem -> mediaMetadata?.album?.id == item.id
+                        else -> false
+                    },
+                    isPlaying = isPlaying,
+                    onClick = { picked = AuraSearchPick.Yt(item) },
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        picked = AuraSearchPick.Yt(item)
+                    },
+                    modifier = Modifier.padding(horizontal = AuraSpacing.Gutter - 8.dp),
+                )
+            } else AuraYtItemRow(
                 item = item,
                 isActive = when (item) {
                     is SongItem -> mediaMetadata?.id == item.id
@@ -275,6 +310,26 @@ fun AuraOnlineSearchSuggestions(
             Spacer(Modifier.height(24.dp))
         }
     }
+    }
+    if (split) {
+        AuraSearchSplit(
+            detailWidth = auraSearchDetailWidth(maxWidth),
+            bottomPadding = detailBottom,
+            list = list,
+            detail = {
+                AuraSearchDetailCard {
+                    AuraSearchDetailPane(
+                        pick = picked,
+                        navController = navController,
+                        afterNavigate = onDismiss,
+                    )
+                }
+            },
+        )
+    } else {
+        list()
+    }
+    }
 }
 
 /**
@@ -282,26 +337,27 @@ fun AuraOnlineSearchSuggestions(
  * classic `SuggestionItem` has — delete (history only) and "copy into the field".
  */
 @Composable
-private fun AuraQueryRow(
+internal fun AuraQueryRow(
     query: String,
     fromHistory: Boolean,
     onClick: () -> Unit,
     onDelete: (() -> Unit)?,
     onFillTextField: () -> Unit,
     modifier: Modifier = Modifier,
+    first: Boolean = true,
+    last: Boolean = true,
 ) {
-    AuraRow(
+    // Fila 498 (dueño 2026-10-21: «el historial de Buscar con el estilo de las opciones del menú ⋯»): las filas del historial
+    // (y las sugerencias) son una losa de cristal continua — el mismo material, el texto grande y los separadores finos del
+    // menú ⋯ — en vez de filas sueltas sobre el fondo. Los gestos son los de siempre: tocar busca, ✕ borra, ↖ copia al campo.
+    AuraGlassRow(
         title = query,
         onClick = onClick,
-        contentDescription = query,
-        leading = {
-            AuraIconGlyph(
-                icon = if (fromHistory) AuraIcons.History else AuraIcons.Search,
-                contentDescription = null,
-                size = 17.dp,
-                tint = AuraPalette.OnGroundDisabled,
-            )
-        },
+        icon = if (fromHistory) R.drawable.history else R.drawable.search,
+        iconTint = AuraPalette.OnGroundMuted,
+        modifier = modifier
+            .padding(horizontal = AuraSpacing.Gutter)
+            .auraGlassSegment(first = first, last = last, dividerInset = 56.dp),
         trailing = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -314,7 +370,7 @@ private fun AuraQueryRow(
                         contentDescription = stringResource(R.string.search_history_remove),
                         onClick = onDelete,
                         size = 15.dp,
-                        tint = AuraPalette.OnGroundDisabled,
+                        tint = AuraPalette.OnGroundMuted,
                         modifier = Modifier.graphicsLayer { rotationZ = 45f },
                     )
                 }
@@ -324,12 +380,11 @@ private fun AuraQueryRow(
                     contentDescription = stringResource(R.string.search_use_suggestion),
                     onClick = onFillTextField,
                     size = 16.dp,
-                    tint = AuraPalette.OnGroundDisabled,
+                    tint = AuraPalette.OnGroundMuted,
                     modifier = Modifier.graphicsLayer { rotationZ = -135f },
                 )
             }
         },
-        modifier = modifier.padding(horizontal = AuraSpacing.Gutter),
     )
 }
 
@@ -428,6 +483,16 @@ fun AuraLocalSearchResults(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     isFromCache: Boolean = false,
+    /**
+     * Wide window, the caller owns the detail half (the player's quick search keeps its card split itself): the rows are
+     * the big ones with a type pill, and a tap hands the result to [onPick] instead of opening a floating menu / leaving.
+     * Null = this panel decides on the room it has and, if it fits, draws its own results + detail side by side.
+     */
+    onPick: ((AuraSearchPick) -> Unit)? = null,
+    /** With [onPick]: use the big rows (the caller already knows the window is wide). */
+    wideRows: Boolean = false,
+    /** With [onPick]: key of the result whose detail is open ([AuraSearchPick.key]), to highlight its row. */
+    selectedKey: String? = null,
     viewModel: LocalSearchViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -456,12 +521,43 @@ fun AuraLocalSearchResults(
 
     LaunchedEffect(query) { viewModel.query.value = query }
 
+    // WIDE WINDOW (owner 2026-10-20): same master-detail as the online panel — see AuraOnlineSearchSuggestions.
+    BoxWithConstraints(modifier.fillMaxSize()) {
+    val ownSplit = onPick == null && auraSearchSplitFits(maxWidth.value, maxHeight.value)
+    val wideList = ownSplit || (onPick != null && wideRows)
+    var picked by remember { mutableStateOf<AuraSearchPick?>(null) }
+    val openKey = if (onPick != null) selectedKey else picked?.key
+    val pickLocal: (LocalItem) -> Unit = { local ->
+        val p = AuraSearchPick.Local(local)
+        if (onPick != null) {
+            onPick(p)
+        } else {
+            picked = p
+        }
+    }
+    val playSearchedSong: (Song) -> Unit = { song ->
+        val songs = result.map
+            .getOrDefault(LocalFilter.SONG, emptyList())
+            .filterIsInstance<Song>()
+            .map { it.toMediaItem() }
+        val index = songs.indexOfFirst { it.mediaId == song.id }
+        playerConnection.playQueue(
+            if (index >= 0) {
+                ListQueue(title = context.getString(R.string.queue_searched_songs), items = songs, startIndex = index)
+            } else {
+                ListQueue(title = context.getString(R.string.queue_searched_songs), items = listOf(song.toMediaItem()))
+            },
+        )
+    }
+    val detailBottom = LocalPlayerAwareWindowInsets.current
+        .only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding() + 12.dp
+    val list: @Composable () -> Unit = {
     LazyColumn(
         state = lazyListState,
         contentPadding = LocalPlayerAwareWindowInsets.current
             .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
             .asPaddingValues(),
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .focusProperties { canFocus = false },
     ) {
@@ -497,7 +593,32 @@ fun AuraLocalSearchResults(
                 items = items.distinctBy { it.id },
                 key = { "aura_local_${filter.name}_${it.id}" },
             ) { item ->
-                when (item) {
+                if (wideList) {
+                    val wideRow: @Composable () -> Unit = {
+                        AuraSearchWideRow(
+                            entry = auraLocalSearchEntry(item),
+                            selected = openKey == "local:${item.id}",
+                            isActive = when (item) {
+                                is Song -> item.id == mediaMetadata?.id
+                                is Album -> item.id == mediaMetadata?.album?.id
+                                else -> false
+                            },
+                            isPlaying = isPlaying,
+                            onClick = { pickLocal(item) },
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                pickLocal(item)
+                            },
+                            modifier = Modifier.padding(horizontal = AuraSpacing.Gutter - 8.dp),
+                        )
+                    }
+                    // The swipe-to-queue gesture of the phone row survives on library songs.
+                    if (item is Song) {
+                        AuraSwipeSongBox(mediaItem = item.toMediaItem()) { wideRow() }
+                    } else {
+                        wideRow()
+                    }
+                } else when (item) {
                     is Song -> AuraSongRow(
                         title = item.song.title,
                         subtitle = item.artists.joinToString { it.name },
@@ -644,6 +765,27 @@ fun AuraLocalSearchResults(
         item(key = "aura_local_bottom_spacer", contentType = "aura_local_bottom_spacer") {
             Spacer(Modifier.height(24.dp))
         }
+    }
+    }
+    if (ownSplit) {
+        AuraSearchSplit(
+            detailWidth = auraSearchDetailWidth(maxWidth),
+            bottomPadding = detailBottom,
+            list = list,
+            detail = {
+                AuraSearchDetailCard {
+                    AuraSearchDetailPane(
+                        pick = picked,
+                        navController = navController,
+                        afterNavigate = onDismiss,
+                        playLocalSong = playSearchedSong,
+                    )
+                }
+            },
+        )
+    } else {
+        list()
+    }
     }
 }
 

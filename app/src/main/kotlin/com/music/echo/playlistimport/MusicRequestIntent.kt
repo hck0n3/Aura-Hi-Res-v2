@@ -310,8 +310,11 @@ object MusicRequestIntent {
      * ([iad1tya.echo.music.reco.StyleContinuity.searchQuery] — "merengue cristiano", "rock en español") plus the
      * year, or "éxitos"/"clásicos"/"nuevo" when that is what was asked.
      */
-    fun styleQuery(intent: Intent, style: String): String? {
-        val base = iad1tya.echo.music.reco.StyleContinuity.searchQuery(style, intent.language, intent.christian)
+    fun styleQuery(intent: Intent, style: String, qualifiers: List<String> = emptyList()): String? {
+        // Row 493: «cumbia villera cristiana argentina» used to ask for plain «cumbia cristiana», the same as «cumbia
+        // colombiana cristiana» — the sub-style and the country go into the query too (one search word per country).
+        val words = qualifiers.map { MusicRequestRegion.searchWord(it) }.distinct()
+        val base = iad1tya.echo.music.reco.StyleContinuity.searchQuery(style, intent.language, intent.christian, words)
             ?: return null
         val suffix = when {
             intent.eraRange != null -> intent.eraRange.searchWord()
@@ -325,10 +328,17 @@ object MusicRequestIntent {
     }
 
     /** True when a playlist [title] proves it is [style] (and Christian, when that was asked). Pure. */
-    fun playlistMatches(title: String, style: String, christian: Boolean): Boolean {
+    fun playlistMatches(
+        title: String,
+        style: String,
+        christian: Boolean,
+        /** Row 493: the sub-style / country the request named; the title must prove EVERY group (any word of a group). */
+        qualifierGroups: List<List<String>> = emptyList(),
+    ): Boolean {
         if (style !in MusicStyle.stylesIn(title)) return false
-        if (!christian) return true
         val t = " ${fold(title)} "
+        if (qualifierGroups.any { group -> group.none { word -> t.contains(" $word ") } }) return false
+        if (!christian) return true
         return CHRISTIAN_WORDS.any { t.contains(" $it ") } || GenreLane.laneOf(title) == GenreLane.CHRISTIAN
     }
 

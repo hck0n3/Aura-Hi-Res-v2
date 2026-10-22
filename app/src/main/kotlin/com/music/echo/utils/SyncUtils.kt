@@ -482,6 +482,10 @@ class SyncUtils @Inject constructor(
         val updateEntities = ArrayList<SongEntity>()
         songs.forEachIndexed { offset, song ->
             try {
+                // The user unliked / disliked this song in Aura and that action has not landed on the account
+                // yet (or landed seconds ago and the list is still catching up): the account's list is the
+                // STALE side here. Re-liking it locally is what made an unlike "come back" (AccountPush).
+                if (AccountPush.suppressesRemoteSongLike(song.id)) return@forEachIndexed
                 val dbSong = existing[song.id]
                 val isVideoSong = song.isVideoSong
                 if (dbSong == null) {
@@ -527,13 +531,19 @@ class SyncUtils @Inject constructor(
         val updateEntities = ArrayList<SongEntity>()
         pageSongs.forEach { song ->
             try {
+                // A removal from the library that has not landed on the account yet must not be undone by
+                // the account's stale list (AccountPush).
+                if (AccountPush.suppressesRemoteLibraryAdd(song.id)) return@forEach
                 val dbSong = existing[song.id]
+                // syncToYouTube = false: this row IS the account's own library entry, pushing an "add" back
+                // for it only cost two requests per song (next + feedback) and could re-add a song the user
+                // had just removed.
                 if (dbSong == null) {
                     val meta = song.toMediaMetadata()
                     insertMeta.add(meta)
-                    insertEntities.add(meta.toSongEntity().toggleLibrary())
+                    insertEntities.add(meta.toSongEntity().toggleLibrary(syncToYouTube = false))
                 } else if (dbSong.inLibrary == null) {
-                    updateEntities.add(dbSong.toggleLibrary())
+                    updateEntities.add(dbSong.toggleLibrary(syncToYouTube = false))
                 }
             } catch (e: Exception) {
                 // Never swallow coroutine cancellation: doing so let the sync loop keep
@@ -1079,12 +1089,23 @@ class SyncUtils @Inject constructor(
             return@withContext
         }
 
-        withRetry {
-            YouTube.likeVideo(s.id, s.liked).getOrThrow()
-        }.onFailure { e ->
-            Timber.w("Failed to like song on YouTube: %s", privacySafeSummary(e))
+        // `s` is the snapshot taken at the tap and this op can sit behind a long sync in the serial
+        // channel, so sending `s.liked` could undo a later tap (like, unlike, ... then the stale "like"
+        // lands). SongEntity.toggleLike already pushed the tap through AccountPush; here we only make
+        // sure the CURRENT local state is on record, for callers that flip the heart without it.
+        val wantLiked = database.song(s.id).firstOrNull()?.song?.liked ?: s.liked
+        val recorded = AccountPush.currentSongRatingOp(s.id)
+        val alreadyRecorded = when (recorded) {
+            AccountPushPolicy.Op.SONG_LIKE -> wantLiked
+            AccountPushPolicy.Op.SONG_UNLIKE, AccountPushPolicy.Op.SONG_DISLIKE -> !wantLiked
+            else -> false
         }
-
+        if (!alreadyRecorded) {
+            AccountPush.submit(
+                if (wantLiked) AccountPushPolicy.Op.SONG_LIKE else AccountPushPolicy.Op.SONG_UNLIKE,
+                s.id,
+            )
+        }
 
     }
 
@@ -1229,6 +1250,8 @@ class SyncUtils @Inject constructor(
                     val updateEntities = ArrayList<SongEntity>()
                     remoteSongs.forEachIndexed { index, song ->
                         try {
+                            // Same veto as insertLikedSongsPage: a pending/just-confirmed unlike wins over the list.
+                            if (AccountPush.suppressesRemoteSongLike(song.id)) return@forEachIndexed
                             val dbSong = existing[song.id]
                             val timestamp = now.minusSeconds(index.toLong())
                             val isVideoSong = song.isVideoSong
@@ -1463,6 +1486,9 @@ class SyncUtils @Inject constructor(
 
                     remoteAlbums.forEach { album ->
                         try {
+                            // An un-save that has not landed on the account yet must not be re-saved from its
+                            // stale list (AccountPush).
+                            if (AccountPush.suppressesRemotePlaylistSave(album.playlistId)) return@forEach
                             val dbAlbum = database.album(album.id).firstOrNull()
                             if (dbAlbum == null) {
                                 // NEW album only: fetch the full page + insert. The old code called
@@ -1654,6 +1680,25 @@ class SyncUtils @Inject constructor(
                             }
                         }.onFailure { Timber.w(it, "Could not stamp subscribed artists") }
                     }
+
+                    // The other direction of the same mirror (owner 2026-10-20: the Library «Artistas» list
+                    // must be EXCLUSIVELY what the account is subscribed to). Everything above only moves a
+                    // row towards "followed", so a subscription removed on YouTube itself stayed in the list
+                    // for ever. A COMPLETE walk (`page.continuation == null`: the streaming read leaves it
+                    // non-null when the request cap, a failed page or a loop guard cut it short) is the
+                    // proof; the policy refuses anything the account never confirmed. Local state only.
+                    runCatching {
+                        val gone = ArtistSyncPolicy.followsGoneFromAccount(
+                            candidates = database.artistsFollowedAndSeenOnAccount(),
+                            remoteIds = remoteIds,
+                            readWasComplete = page.continuation == null,
+                            readStartedAt = now,
+                        )
+                        if (gone.isNotEmpty()) {
+                            gone.chunked(SQL_IN_CHUNK).forEach { database.clearFollowsGoneFromAccount(it) }
+                            Timber.i("ARTIST_FOLLOWS_GONE_FROM_ACCOUNT count=%d", gone.size)
+                        }
+                    }.onFailure { if (it is CancellationException) throw it else Timber.w(it, "Could not mirror removed subscriptions") }
 
                     // NOTE: the removed bulk follow (`followArtistsWithContent`) used to run here and
                     // subscribe every artist with ANY content in the library — playing or liking a song

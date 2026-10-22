@@ -2,6 +2,9 @@
 
 package iad1tya.echo.music.ui.menu
 
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.res.Configuration
@@ -233,69 +236,32 @@ fun YouTubeSongMenu(
         }  
     }  
 
-    ListItem(  
-        headlineContent = {
-            Text(
-                text = song.title,
-                modifier = Modifier.basicMarquee(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },  
-        supportingContent = {  
-            Text(  
-                text = joinByBullet(
-                    song.artists.joinToString { it.name },
-                    song.duration?.let { makeTimeString(it * 1000L) },
-                )
-            )  
-        },  
-        leadingContent = {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(ListThumbnailSize)
-                    .clip(RoundedCornerShape(ThumbnailCornerRadius))
-            ) {
-                AsyncImage(
-                    model = song.thumbnail,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(ThumbnailCornerRadius))
-                )
-            }
-        },
-        trailingContent = {  
-            IconButton(  
-                onClick = {  
-                    database.transaction {  
-                        librarySong.let { librarySong ->  
-                            val s: SongEntity  
-                            if (librarySong == null) {  
-                                insert(song.toMediaMetadata(), SongEntity::toggleLike)  
-                                s = song.toMediaMetadata().toSongEntity().let(SongEntity::toggleLike)  
-                            } else {  
+    MenuHeader(
+        title = song.title,
+        subtitle = song.artists.joinToString { it.name },
+        meta = song.duration?.let { makeTimeString(it * 1000L) },
+        thumbnail = { MenuHeaderCover(thumbnailUrl = song.thumbnail, isVideo = song.isVideoSong) },
+        trailing = {
+            MenuLikeButton(
+                liked = librarySong?.song?.liked == true,
+                onClick = {
+                    database.transaction {
+                        librarySong.let { librarySong ->
+                            val s: SongEntity
+                            if (librarySong == null) {
+                                insert(song.toMediaMetadata(), SongEntity::toggleLike)
+                                s = song.toMediaMetadata().toSongEntity().let(SongEntity::toggleLike)
+                            } else {
                                 s = librarySong.song.toggleLike()
                                 upsert(s) // insert-or-update so the like persists for not-yet-saved songs
-                            }  
-                            syncUtils.likeSong(s)  
-                        }  
-                    }  
-                },  
-            ) {  
-                Icon(  
-                    painter = painterResource(if (librarySong?.song?.liked == true) R.drawable.favorite else R.drawable.favorite_border),  
-                    tint = if (librarySong?.song?.liked == true) MaterialTheme.colorScheme.error else LocalContentColor.current,  
-                    contentDescription = null,  
-                )  
-            }  
-        },  
-    )  
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
+                            }
+                            syncUtils.likeSong(s)
+                        }
+                    }
+                },
+            )
+        },
+    )
 
     val bottomSheetPageState = LocalBottomSheetPageState.current
     val configuration = LocalConfiguration.current
@@ -320,8 +286,7 @@ fun YouTubeSongMenu(
                                 Icon(
                                     painter = painterResource(R.drawable.radio),
                                     contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    modifier = Modifier.size(24.dp),
                                 )
                             },
                             text = stringResource(R.string.start_radio),
@@ -336,8 +301,7 @@ fun YouTubeSongMenu(
                             Icon(
                                 painter = painterResource(R.drawable.playlist_add),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.add_to_playlist),
@@ -350,8 +314,7 @@ fun YouTubeSongMenu(
                             Icon(
                                 painter = painterResource(R.drawable.share),
                                 contentDescription = null,
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(24.dp),
                             )
                         },
                         text = stringResource(R.string.share),
@@ -373,7 +336,7 @@ fun YouTubeSongMenu(
                                 val intent = Intent().apply {
                                     action = Intent.ACTION_SEND
                                     type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, song.shareLink)
+                                    putExtra(Intent.EXTRA_TEXT, iad1tya.echo.music.utils.ShareLinks.songShareText(song.id, song.title, song.artists.map { it.name }))
                                 }
                                 context.startActivity(Intent.createChooser(intent, null))
                                 onDismiss()
@@ -382,7 +345,7 @@ fun YouTubeSongMenu(
                     )
                 ),
                 columns = 3,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 
@@ -417,7 +380,6 @@ fun YouTubeSongMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.play_next)) },
-                            description = { Text(text = stringResource(R.string.play_next_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.playlist_play),
@@ -433,7 +395,6 @@ fun YouTubeSongMenu(
                     if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.add_to_queue)) },
-                            description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.queue_music),
@@ -513,7 +474,6 @@ fun YouTubeSongMenu(
                             title = {
                                 Text(text = if (librarySong?.song?.inLibrary != null) stringResource(R.string.remove_from_library) else stringResource(R.string.add_to_library))
                             },
-                            description = { Text(text = stringResource(R.string.add_to_library_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(if (librarySong?.song?.inLibrary != null) R.drawable.library_add_check else R.drawable.library_add),
@@ -591,7 +551,6 @@ fun YouTubeSongMenu(
                         else -> {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.action_download)) },
-                                description = { Text(text = stringResource(R.string.download_desc)) },
                                 icon = {
                                     Icon(
                                         painter = painterResource(R.drawable.download),
@@ -684,6 +643,7 @@ fun YouTubeSongMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_artist)) },
+                                showChevron = true,
                                 description = { Text(text = song.artists.joinToString { it.name }) },
                                 icon = {
                                     Icon(
@@ -710,6 +670,7 @@ fun YouTubeSongMenu(
                         add(
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.view_album)) },
+                                showChevron = true,
                                 description = { Text(text = album.title) },
                                 icon = {
                                     Icon(
@@ -727,7 +688,6 @@ fun YouTubeSongMenu(
                     add(
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.details)) },
-                            description = { Text(text = stringResource(R.string.details_desc)) },
                             icon = {
                                 Icon(
                                     painter = painterResource(R.drawable.info),

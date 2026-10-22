@@ -843,7 +843,7 @@ private fun OnlinePlaylistHeader(
                         val intent = Intent().apply {
                             action = Intent.ACTION_SEND
                             type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, playlist.shareLink)
+                            putExtra(Intent.EXTRA_TEXT, iad1tya.echo.music.utils.ShareLinks.playlistShareText(playlist.id, playlist.title))
                         }
                         context.startActivity(Intent.createChooser(intent, null))
                     },

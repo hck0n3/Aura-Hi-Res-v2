@@ -2,6 +2,10 @@
 
 package iad1tya.echo.music.ui.menu
 
+import androidx.compose.ui.res.pluralStringResource
+import iad1tya.echo.music.ui.component.MenuLikeButton
+import iad1tya.echo.music.ui.component.MenuHeaderCover
+import iad1tya.echo.music.ui.component.MenuHeader
 import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.Intent
@@ -110,15 +114,11 @@ fun ArtistMenu(
         onDismiss()
     }
 
-    ArtistListItem(
-        artist = artist,
-        badges = {},
-        trailingContent = {},
+    MenuHeader(
+        title = artist.artist.name,
+        meta = pluralStringResource(R.plurals.n_song, artist.songCount, artist.songCount),
+        thumbnail = { MenuHeaderCover(thumbnailUrl = artist.artist.thumbnailUrl, circle = true) },
     )
-
-    HorizontalDivider()
-
-    Spacer(modifier = Modifier.height(12.dp))
 
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -142,8 +142,7 @@ fun ArtistMenu(
                                         Icon(
                                             painter = painterResource(R.drawable.play),
                                             contentDescription = null,
-                                            modifier = Modifier.size(28.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            modifier = Modifier.size(24.dp),
                                         )
                                     },
                                     text = stringResource(R.string.play),
@@ -174,8 +173,7 @@ fun ArtistMenu(
                                         Icon(
                                             painter = painterResource(R.drawable.shuffle),
                                             contentDescription = null,
-                                            modifier = Modifier.size(28.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            modifier = Modifier.size(24.dp),
                                         )
                                     },
                                     text = stringResource(R.string.shuffle),
@@ -192,8 +190,7 @@ fun ArtistMenu(
                                     Icon(
                                         painter = painterResource(R.drawable.share),
                                         contentDescription = null,
-                                        modifier = Modifier.size(28.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        modifier = Modifier.size(24.dp),
                                     )
                                 },
                                 text = stringResource(R.string.share),
@@ -204,7 +201,7 @@ fun ArtistMenu(
                                         type = "text/plain"
                                         putExtra(
                                             Intent.EXTRA_TEXT,
-                                            ShareLinks.channel(artist.id)
+                                            ShareLinks.artistShareText(artist.id, artist.artist.name)
                                         )
                                     }
                                     context.startActivity(Intent.createChooser(intent, null))
@@ -213,7 +210,7 @@ fun ArtistMenu(
                         )
                     }
                 },
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
                 columns = if (isGuest) 1 else 3
             )
         }
@@ -238,6 +235,21 @@ fun ArtistMenu(
                         }
                     )
                 )
+            )
+        }
+
+        // Biblioteca ▸ Fijados (owner 2026-10-20): pin the artist to the Library's lower part.
+        item { Spacer(modifier = Modifier.height(12.dp)) }
+        item {
+            Material3MenuGroup(
+                items = listOf(
+                    artistPinMenuItem(
+                        id = artist.id,
+                        name = artist.artist.name,
+                        thumbnailUrl = artist.artist.thumbnailUrl,
+                        onDismiss = onDismiss,
+                    ),
+                ),
             )
         }
     }

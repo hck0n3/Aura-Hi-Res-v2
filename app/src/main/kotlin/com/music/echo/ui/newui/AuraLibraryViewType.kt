@@ -1,6 +1,7 @@
 package iad1tya.echo.music.ui.newui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -50,18 +51,42 @@ internal fun AuraViewTypeToggle(viewType: LibraryViewType, onChange: (LibraryVie
  * Minimum cell width of the Biblioteca grids (Listas, Canciones, Álbumes, Artistas). 150 / 104 dp on a phone, as
  * always. On a window of 600 dp or more (an unfolded foldable, a tablet) the same cells came out as six tiny
  * thumbnails per row (owner screenshot 2026-10-18: «en modo plegable están muy pequeñas las miniaturas»), so there
- * they grow to 176 / 132 dp — about four per row on a Fold, still adaptive. [GridItemsSizeKey] still decides
+ * they grow to 176 / 132 dp — about three or four per row on a Fold, still adaptive. [GridItemsSizeKey] still decides
  * Grande vs Pequeño on both.
+ *
+ * Fila 496 (dueño 2026-10-21, Galaxy Tab S12 Ultra: «las listas de reproducción siguen siendo muy pequeñas»): a 14.6"
+ * tablet is ~1480 dp wide, and a cell that stopped growing at 176 dp gave seven or eight covers per row. From
+ * [AURA_LIBRARY_TABLET_MIN_DP] the number of COLUMNS is what is chosen (3 / 4 / 5 Grande, 4 / 5 / 6 Pequeño) and the cell
+ * fills its share of the pane, so the cover grows with the screen. The Fold keeps exactly what it had.
  */
 @Composable
 internal fun auraLibraryCellSize(big: Boolean): Dp {
-    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
-    return when {
-        big && wide -> 176.dp
-        big -> 150.dp
-        wide -> 132.dp
-        else -> 104.dp
+    val windowWidth = iad1tya.echo.music.ui.utils.LocalContentPaneWidth.current?.value
+        ?: androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.toFloat()
+    return auraLibraryCellDp(windowWidth, big).dp
+}
+
+/** The width from which the Biblioteca grids pick a column count instead of a fixed cell (a tablet, not a Fold). */
+internal const val AURA_LIBRARY_TABLET_MIN_DP = 900f
+
+private const val AURA_LIBRARY_GRID_GAP_DP = 11f
+
+/**
+ * Pure: the minimum cell width, in dp, for a pane [windowWidthDp] wide. Below 600 dp the phone sizes; from 600 dp the
+ * Fold sizes; from [AURA_LIBRARY_TABLET_MIN_DP] a size that makes EXACTLY the wanted number of columns fit
+ * (`GridCells.Adaptive` counts `floor((pane + gap) / (min + gap))` columns, so the minimum is the share of one column
+ * less a dp of slack for rounding).
+ */
+internal fun auraLibraryCellDp(windowWidthDp: Float, big: Boolean): Float {
+    if (windowWidthDp < 600f) return if (big) 150f else 104f
+    if (windowWidthDp < AURA_LIBRARY_TABLET_MIN_DP) return if (big) 176f else 132f
+    val columns = when {
+        windowWidthDp < 1100f -> if (big) 3 else 4
+        windowWidthDp < 1300f -> if (big) 4 else 5
+        else -> if (big) 5 else 6
     }
+    val pane = windowWidthDp - 2 * AuraSpacing.Gutter.value
+    return (pane - (columns - 1) * AURA_LIBRARY_GRID_GAP_DP) / columns - 1f
 }
 
 /** One column of full-width rows in list view; the adaptive grid otherwise. */
@@ -89,6 +114,8 @@ internal fun AuraLibraryCell(
     onPlay: (() -> Unit)? = null,
     /** Lists pass true: their name is shown in full, never cut with an ellipsis. */
     fullTitle: Boolean = false,
+    /** Grid only: drawn over the cover (the «Fijado» pin on what is already pinned to the Library). */
+    badge: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     if (viewType == LibraryViewType.LIST) {
         AuraSongRow(
@@ -120,6 +147,7 @@ internal fun AuraLibraryCell(
             onLongClick = onLongClick,
             onPlay = onPlay,
             fullTitle = fullTitle,
+            badge = badge,
         )
     }
 }

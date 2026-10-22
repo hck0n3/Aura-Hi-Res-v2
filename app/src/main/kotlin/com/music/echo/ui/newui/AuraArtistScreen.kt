@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -86,7 +87,6 @@ import iad1tya.echo.music.constants.ShowArtistDescriptionKey
 import iad1tya.echo.music.constants.ShowArtistSubscriberCountKey
 import iad1tya.echo.music.constants.ShowArtistVideoKey
 import iad1tya.echo.music.constants.ShowMonthlyListenersKey
-import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.toMediaMetadata
@@ -324,11 +324,16 @@ fun AuraArtistScreen(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .auraScreenBackground(bloom, intensity = 0.45f),
     ) {
+        // Fila 497 (dueño 2026-10-21, Galaxy Tab desplegada: «la portada del artista no se ve bien; quiero el estilo de las
+        // playlist y los álbumes»): in a wide pane the portrait was cropped into a 320 dp banner. Wide now takes the SAME top
+        // as an album / playlist ([AuraWideTop]: the square cover on the left, name and actions on its right); a narrow pane
+        // (a folded foldable, a phone, a split screen) keeps the full-bleed hero exactly as it was.
+        val wideTop = maxWidth >= AURA_WIDE_HERO_MIN_WIDTH
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -355,22 +360,12 @@ fun AuraArtistScreen(
                     }
                 }
             } else {
-                item(key = "aura_artist_hero", contentType = "aura_artist_hero") {
-                    AuraArtistHero(
-                        thumbnailUrl = artistPage?.artist?.thumbnail
-                            ?: libraryArtist?.artist?.thumbnailUrl,
-                        artistName = artistName,
-                        backgroundVideoUrl = backgroundVideoUrl,
-                        showBackgroundVideo = showArtistBackgroundVideo,
-                        listState = listState,
-                    )
-                }
-
-                item(key = "aura_artist_header", contentType = "aura_artist_header") {
+                // One header, two placements: under the full-bleed hero (narrow) or beside the cover (wide).
+                val artistHeader: @Composable (Boolean) -> Unit = { startAligned ->
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = AuraSpacing.Gutter),
+                            .padding(horizontal = if (startAligned) 0.dp else AuraSpacing.Gutter),
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -460,11 +455,13 @@ fun AuraArtistScreen(
                         Spacer(Modifier.height(18.dp))
 
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (startAligned) Modifier.widthIn(max = 560.dp) else Modifier),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val subscribed = libraryArtist?.artist?.followedByUserAt != null
+                            val subscribed by viewModel.isSubscribed.collectAsState()
                             AuraDetailActionButton(
                                 icon = if (subscribed) AuraIcons.Check else AuraIcons.Plus,
                                 label = stringResource(
@@ -472,28 +469,10 @@ fun AuraArtistScreen(
                                 ),
                                 accent = false,
                                 onClick = {
-                                    // Byte for byte the classic handler: update the existing row, or
-                                    // insert one built from the page. `confirmArtistUnsubscribed` is
-                                    // what keeps the YouTube subscription sync honest.
-                                    database.transaction {
-                                        val artist = libraryArtist?.artist
-                                        if (artist != null) {
-                                            update(
-                                                artist.toggleLike(database::confirmArtistUnsubscribed),
-                                            )
-                                        } else {
-                                            artistPage?.artist?.let {
-                                                insert(
-                                                    ArtistEntity(
-                                                        id = it.id,
-                                                        name = it.title,
-                                                        channelId = it.channelId,
-                                                        thumbnailUrl = it.thumbnail,
-                                                    ).toggleLike(database::confirmArtistUnsubscribed),
-                                                )
-                                            }
-                                        }
-                                    }
+                                    // Same toggleLike as the classic screen (live YouTube call +
+                                    // `confirmArtistUnsubscribed` write-back), now routed through the
+                                    // ViewModel so the state shown and the row toggled cannot disagree.
+                                    viewModel.toggleSubscription()
                                 },
                                 modifier = Modifier
                                     .weight(1f)
@@ -574,6 +553,44 @@ fun AuraArtistScreen(
                     }
                 }
 
+                if (wideTop) {
+                    item(key = "aura_artist_hero", contentType = "aura_artist_wide_top") {
+                        val lean = rememberLeanMode()
+                        val portrait = artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl
+                        val clip = backgroundVideoUrl
+                        AuraWideTop(
+                            thumbnailUrl = portrait,
+                            seed = portrait ?: artistName,
+                            lean = lean,
+                            // The Apple-Music background clip plays over the cover square: nothing the hero had is lost.
+                            coverOverlay = if (showArtistBackgroundVideo && clip != null) {
+                                {
+                                    ArtistVideo(
+                                        videoUrl = clip,
+                                        modifier = Modifier.fillMaxSize(),
+                                        onClick = { },
+                                    )
+                                }
+                            } else null,
+                        ) { artistHeader(true) }
+                    }
+                } else {
+                    item(key = "aura_artist_hero", contentType = "aura_artist_hero") {
+                        AuraArtistHero(
+                            thumbnailUrl = artistPage?.artist?.thumbnail
+                                ?: libraryArtist?.artist?.thumbnailUrl,
+                            artistName = artistName,
+                            backgroundVideoUrl = backgroundVideoUrl,
+                            showBackgroundVideo = showArtistBackgroundVideo,
+                            listState = listState,
+                        )
+                    }
+
+                    item(key = "aura_artist_header", contentType = "aura_artist_header") {
+                        artistHeader(false)
+                    }
+                }
+
                 if (showLocal) {
                     // Full local catalogue for play/queue; the shelf preview is only for what we DRAW.
                     val filteredLibrarySongs = if (hideExplicit) {
@@ -645,6 +662,7 @@ fun AuraArtistScreen(
                                         title = album.album.title,
                                         subtitle = album.artists.joinToString { it.name }
                                             .takeIf { it.isNotBlank() },
+                                        explicit = album.album.explicit,
                                         thumbnailUrl = album.album.thumbnailUrl,
                                         seed = album.id,
                                         width = albumW,
@@ -993,8 +1011,10 @@ fun AuraArtistScreen(
                     onClick = {
                         val artistId = viewModel.artistPage?.artist?.id
                             ?: viewModel.artistId
-                        val link = viewModel.artistPage?.artist?.shareLink
-                            ?: iad1tya.echo.music.utils.ShareLinks.channel(artistId)
+                        val link = iad1tya.echo.music.utils.ShareLinks.artistShareText(
+                            artistId,
+                            viewModel.artistPage?.artist?.title,
+                        )
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, link)
@@ -1041,11 +1061,11 @@ private fun AuraArtistHero(
         // Hoisted: inside the inner Box the closest implicit receiver is BoxScope, not
         // BoxWithConstraintsScope, so `maxWidth` cannot be reached there without an explicit receiver.
         val heroWidth = maxWidth
-        val isWideHero = heroWidth >= AURA_WIDE_HERO_MIN_WIDTH
+        // Fila 497: only a NARROW pane gets this full-bleed hero; a wide one is drawn by [AuraWideTop] (the caller).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (isWideHero) Modifier.height(320.dp) else Modifier.aspectRatio(1f))
+                .aspectRatio(1f)
                 .graphicsLayer {
                     val scrolled = if (listState.firstVisibleItemIndex == 0) {
                         listState.firstVisibleItemScrollOffset.toFloat()
@@ -1087,7 +1107,7 @@ private fun AuraArtistHero(
                     seed = thumbnailUrl ?: artistName,
                     shape = RectangleShape,
                     decodeTo = if (lean) 640 else 1200,
-                    ratio = if (isWideHero) heroWidth / 320.dp else 1f,
+                    ratio = 1f,
                 )
 
                 val videoUrl = backgroundVideoUrl
@@ -1130,7 +1150,7 @@ private fun AuraArtistHero(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((if (isWideHero) 320.dp else heroWidth) * 0.7f)
+                    .height(heroWidth * 0.7f)
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(

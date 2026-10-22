@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Biblioteca ▸ Fijados (dueño 2026-10-20). En su propio archivo para no chocar con los otros frentes que editan echo_strings.xml. -->
+<resources>
+    <string name="library_pin">Anclar en Biblioteca</string>
+    <string name="library_unpin">Quitar de Biblioteca</string>
+    <string name="library_pinned_toast">Anclado en Biblioteca</string>
+    <string name="library_unpinned_toast">Quitado de fijados</string>
+    <string name="library_pins_full">Ya tienes %1$d fijados. Quita uno para anclar otro.</string>
+    <string name="library_pins_title">Fijados</string>
+    <plurals name="library_pins_count">
+        <item quantity="one">%d elemento</item>
+        <item quantity="many">%d de elementos</item>
+        <item quantity="other">%d elementos</item>
+    </plurals>
+    <string name="library_pins_edit">Editar</string>
+    <string name="library_pins_edit_cd">Editar fijados</string>
+    <string name="library_pins_done">Listo</string>
+    <string name="library_pins_sort_manual">Mi orden</string>
+    <string name="library_pins_filter_playlists">Listas</string>
+    <string name="library_pins_empty_title">Fija lo que más escuchas</string>
+    <string name="library_pins_empty_body">Mantén pulsada una lista, un álbum o un artista y elige «Anclar en Biblioteca». Aparecerá aquí, en grande y a un toque.</string>
+    <string name="library_pins_see_all">Ver todo</string>
+    <string name="library_pins_edit_hint">Arrastra para reordenar. Para fijar más, mantén pulsada cualquier lista, álbum o artista.</string>
+    <string name="library_pins_remove_cd">Quitar de fijados</string>
+    <string name="library_pins_missing">Esa lista ya no existe</string>
+    <string name="library_pinned_cd">Fijado</string>
+</resources>

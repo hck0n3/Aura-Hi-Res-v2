@@ -69,18 +69,34 @@ fun rememberAuraRhythmLevel(
             return@LaunchedEffect
         }
         var smoothed = 0f
-        while (isActive) {
+        var settled = false
+        // Battery/heat (audit 2026-10-20): this loop asked for a frame every display refresh for as long as the player
+        // was open — also while PAUSED, when the target is 0 and nothing changes (120 main-thread wakeups a second to
+        // write the same 0f). Once paused and decayed to nothing it now ends; the effect is keyed on [playing], so it
+        // starts again the moment playback does.
+        while (isActive && !settled) {
             withFrameNanos {
                 val target = if (playing) hubLevel else 0f
                 // Fast attack, slower release — reads as rhythm without jitter.
                 smoothed += (target - smoothed) * if (target > smoothed) 0.35f else 0.12f
                 level.floatValue = smoothed.coerceIn(0f, 1f)
+                settled = auraRhythmSettled(playing, smoothed)
             }
         }
+        if (settled) level.floatValue = 0f
     }
 
     return level
 }
+
+/**
+ * Below this the smoothed level is invisible: [quantizeAuraRhythmIntensity] rounds to the bucket-0 step until the level
+ * reaches half a bucket (1/64 ≈ 0.0156), and this is a third of that. Pure and JVM-testable (battery audit 2026-10-20).
+ */
+const val AURA_RHYTHM_SETTLED_EPSILON = 0.005f
+
+/** Paused AND decayed to nothing: the per-frame smoothing loop has nothing left to animate and must stop asking for frames. */
+fun auraRhythmSettled(playing: Boolean, smoothed: Float): Boolean = !playing && smoothed < AURA_RHYTHM_SETTLED_EPSILON
 
 /**
  * Buckets for [quantizeAuraRhythmIntensity].

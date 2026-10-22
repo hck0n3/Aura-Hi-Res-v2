@@ -112,6 +112,8 @@ object PlayerJsFetcher {
                 val files = cacheDir.listFiles()
                 Timber.tag(TAG).d("Deleting ${files?.size ?: 0} cache files")
                 files?.forEach {
+                    // The EJS solver's preprocessed player is keyed by hash: it stays valid, and rebuilding it is the slow part.
+                    if (it.name.startsWith("ejs_pre_")) return@forEach
                     Timber.tag(TAG).v("Deleting: ${it.name}")
                     it.delete()
                 }
@@ -120,6 +122,24 @@ object PlayerJsFetcher {
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to invalidate cache: ${e.message}")
         }
+    }
+
+    /** The signatureTimestamp written in [playerJs] (`signatureTimestamp:20352`), or null if the file carries none. */
+    fun signatureTimestampOf(playerJs: String): Int? = PlayerSts.parse(playerJs)
+
+    @Volatile private var stsMemo: Pair<String, Int>? = null
+
+    /**
+     * The signatureTimestamp of the CURRENT cached player and its hash, read from that very file (memoized per hash), or null.
+     * The sts a player request carries must belong to the player.js its signatures are then solved against: both come from here.
+     */
+    suspend fun currentSignatureTimestamp(): Pair<Int, String>? {
+        val hash = cachedPlayerHash()
+        stsMemo?.let { if (hash != null && it.first == hash) return it.second to it.first }
+        val (js, jsHash) = getPlayerJs(forceRefresh = false) ?: return null
+        val sts = signatureTimestampOf(js) ?: return null
+        stsMemo = jsHash to sts
+        return sts to jsHash
     }
 
     /**

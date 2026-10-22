@@ -60,6 +60,9 @@ class EmbeddedPlayerWebView private constructor(
         // own challenge. blockNetworkLoads=true here would defeat the whole point.
         settings.blockNetworkLoads = false
         settings.mediaPlaybackRequiresUserGesture = false
+        // The desktop web UA: the page it gets is the one a logged-in desktop browser gets, the URL YouTube hands the player
+        // carries `c=WEB`, and the replay (MusicService) fetches with the same UA the URL was issued to.
+        settings.userAgentString = com.music.innertube.models.YouTubeClient.USER_AGENT_WEB
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
@@ -71,21 +74,39 @@ class EmbeddedPlayerWebView private constructor(
                 if (!captured &&
                     url.host?.endsWith("googlevideo.com") == true &&
                     url.path?.contains("videoplayback") == true &&
-                    isAudioOnlyItag(url.getQueryParameter("itag"))
+                    CapturedStream.isAudioOnly(url.toString())
                 ) {
                     captured = true
-                    val headers = request.requestHeaders
-                    Timber.tag(TAG).d("Captured embedded-player stream URL (itag=${url.getQueryParameter("itag")}, headers=${headers.size})")
+                    // Nothing about the URL or the headers is logged (AGENTS.md rule 4): the caller logs only the state.
+                    val headers = CapturedStream.replayHeaders(request.requestHeaders)
                     resumeSafely { it.resume(EmbeddedPlayerUrlResolver.ResolvedStream(url.toString(), headers)) }
                     return WebResourceResponse("audio/mpeg", null, 204, "No Content", emptyMap(), null)
                 }
                 return super.shouldInterceptRequest(view, request)
             }
 
+            override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                // The account is not signed in (or the session was bounced): the page went to the Google sign-in. Fail fast
+                // instead of waiting out the timeout.
+                if (url?.contains("accounts.google.com") == true) {
+                    resumeSafely { it.resumeWithException(EmbeddedPlayerException("login")) }
+                }
+            }
+
+            override fun onPageFinished(view: WebView, url: String?) {
+                // Never let the page make sound: the request is cancelled when captured, but pause whatever it started.
+                runCatching {
+                    view.evaluateJavascript(
+                        "document.querySelectorAll('video,audio').forEach(function(m){m.muted=true;});",
+                        null,
+                    )
+                }
+            }
+
             @RequiresApi(Build.VERSION_CODES.O)
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                 val didCrash = runCatching { detail.didCrash() }.getOrNull()
-                Timber.tag(TAG).w("Embedded player WebView render process gone (didCrash=$didCrash)")
+                Timber.tag(TAG).w("AGE_WEBVIEW renderer gone didCrash=$didCrash")
                 resumeSafely { it.resumeWithException(EmbeddedPlayerException("WebView render process gone (didCrash=$didCrash)")) }
                 destroyWebView()
                 return true
@@ -107,11 +128,17 @@ class EmbeddedPlayerWebView private constructor(
             if (!cookie.isNullOrBlank()) {
                 val cm = CookieManager.getInstance()
                 cm.setAcceptCookie(true)
-                cm.setCookie("https://www.youtube.com", cookie)
+                // CookieManager.setCookie takes ONE cookie per call: the whole `a=1; b=2` header used to set only the first
+                // one, so the page never saw the session. Each cookie goes to .youtube.com (the session of the account).
+                CapturedStream.splitCookies(cookie).forEach { one ->
+                    cm.setCookie("https://www.youtube.com", "$one; Domain=.youtube.com; Path=/; Secure")
+                }
                 cm.flush()
             }
-        }.onFailure { Timber.tag(TAG).d("Cookie injection skipped: ${it.message}") }
-        webView.loadUrl(EMBED_URL_TEMPLATE.format(videoId))
+        }.onFailure { Timber.tag(TAG).d("Cookie injection skipped: ${it.javaClass.simpleName}") }
+        // The WATCH page, not /embed: an age-restricted video does not play in the embed, and the watch page of a signed-in
+        // account is where YouTube's own player verifies the age with the account.
+        webView.loadUrl(WATCH_URL_TEMPLATE.format(videoId))
     }
 
     fun close() = destroyWebView()
@@ -126,20 +153,12 @@ class EmbeddedPlayerWebView private constructor(
             webView.onPause()
             webView.removeAllViews()
             webView.destroy()
-        }.onFailure { Timber.tag(TAG).w("Embedded player WebView teardown threw: $it") }
+        }.onFailure { Timber.tag(TAG).w("Embedded player WebView teardown threw: ${it.javaClass.simpleName}") }
     }
 
     companion object {
         private const val TAG = "Metrolist_EmbeddedPlayer"
-        private const val EMBED_URL_TEMPLATE = "https://www.youtube.com/embed/%s?autoplay=1&mute=1"
-
-        // Standard YouTube adaptive audio-only itags (opus webm + AAC mp4 variants). Anything else
-        // seen at /videoplayback is a muxed audio+video (or video-only) format we deliberately skip.
-        private val AUDIO_ONLY_ITAGS = setOf(
-            "139", "140", "141", "171", "172", "249", "250", "251", "256", "258",
-        )
-
-        private fun isAudioOnlyItag(itag: String?): Boolean = itag != null && itag in AUDIO_ONLY_ITAGS
+        private const val WATCH_URL_TEMPLATE = "https://www.youtube.com/watch?v=%s"
 
         suspend fun resolve(
             context: Context,
@@ -154,7 +173,9 @@ class EmbeddedPlayerWebView private constructor(
                         suspendCancellableCoroutine { cont ->
                             val wv = EmbeddedPlayerWebView(context, cont)
                             created = wv
-                            cont.invokeOnCancellation { wv.close() }
+                            // No close() on cancellation here: it runs on whatever thread cancels (the timeout's), and a WebView
+                            // only tolerates the main thread — a failed teardown would also mark it destroyed and the real one
+                            // below (on Main, NonCancellable) would be skipped, leaking a live page. That teardown always runs.
                             wv.start(videoId, cookie)
                         }
                     }

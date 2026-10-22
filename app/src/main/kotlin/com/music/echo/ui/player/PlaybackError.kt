@@ -58,7 +58,7 @@ fun PlaybackError(
 
     val errorMessage = when {
         isAgeRestricted ->
-            "This app does not support playing age-restricted songs. We are working on fixing this issue."
+            "YouTube pide confirmar la edad y Aura no pudo confirmarla con tu cuenta. Entra en youtube.com con esta misma cuenta, verifica tu edad y vuelve a intentarlo."
         isAccessOrSession ->
             "The server rejected the request for this song. Check your connection and retry — if it keeps happening, sign out and back in."
         else -> rawErrorMessage

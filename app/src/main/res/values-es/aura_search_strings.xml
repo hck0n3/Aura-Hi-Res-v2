@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aura_kind_song">CANCIÓN</string>
+    <string name="aura_kind_video">VÍDEO</string>
+    <string name="aura_kind_album">ÁLBUM</string>
+    <string name="aura_kind_single">SENCILLO</string>
+    <string name="aura_kind_ep">EP</string>
+    <string name="aura_kind_playlist">PLAYLIST</string>
+    <string name="aura_kind_artist">ARTISTA</string>
+    <string name="aura_kind_podcast">PODCAST</string>
+
+    <string name="aura_search_detail_empty_title">Selecciona un resultado</string>
+    <string name="aura_search_detail_empty_body">Aquí podrás reproducirlo, añadirlo a la cola, ver las canciones de un álbum o explorar todo un artista, sin abrir otra ventana.</string>
+    <string name="aura_search_played">Ya reproducida</string>
+
+    <string name="aura_pane_next">Siguiente</string>
+    <string name="aura_pane_queue">A la cola</string>
+    <string name="aura_pane_radio">Radio</string>
+    <string name="aura_pane_more">Más</string>
+    <string name="aura_pane_all_options">Todas las opciones</string>
+    <string name="aura_pane_open_album">Abrir página del álbum</string>
+    <string name="aura_pane_open_artist">Abrir página del artista</string>
+    <string name="aura_pane_open_playlist">Abrir la lista completa</string>
+    <string name="aura_pane_from_album">Del álbum</string>
+    <string name="aura_pane_load_failed">No se pudo cargar. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="aura_pane_added_next">Se reproducirá a continuación</string>
+    <string name="aura_pane_added_queue">Añadido a la cola</string>
+    <string name="aura_pane_dislike_done">No se recomendará más</string>
+</resources>

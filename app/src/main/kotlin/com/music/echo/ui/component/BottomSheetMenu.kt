@@ -66,6 +66,9 @@ import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.ui.newui.floatingWindowGlass
 import iad1tya.echo.music.ui.newui.shellGlassStyle
 import iad1tya.echo.music.ui.newui.rememberAuraSheetMaxHeight
+import iad1tya.echo.music.ui.newui.auraWideWindowArea
+import iad1tya.echo.music.ui.newui.auraWindowBorder
+import iad1tya.echo.music.ui.newui.auraWindowShadow
 
 val LocalMenuState = compositionLocalOf { MenuState() }
 
@@ -155,40 +158,72 @@ fun BottomSheetMenu(
                 // Cerrar arrastrando la barrita (dueño, 2026-10-18). Estado propio de ESTA apertura.
                 val drag = iad1tya.echo.music.ui.newui.rememberAuraSheetDragState()
                 androidx.compose.runtime.LaunchedEffect(visible) { if (visible) drag.offsetPx = 0f }
+                // WIDE WINDOWS (owner 2026-10-19): in an unfolded foldable the menu is a floating CARD, not a sheet
+                // glued to the bottom edge. One recipe for every floating window: see AuraWindowRecipe.kt.
+                val wide = iad1tya.echo.music.ui.newui.rememberAuraWideWindows()
+                val windowEnter = iad1tya.echo.music.ui.newui.rememberAuraWindowEnter(wide)
+                val windowExit = iad1tya.echo.music.ui.newui.rememberAuraWindowExit(wide)
+                val panelShape = if (wide) iad1tya.echo.music.ui.newui.AuraWindowShapeWide else AuraShapes.Sheet
+                val wideMaxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp *
+                    iad1tya.echo.music.ui.newui.AuraWideWindowMaxHeightFraction).dp
+                // The area the card floats in: inside the bars and the keyboard, with a margin. A no-op on a phone.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (wide) Modifier.auraWideWindowArea() else Modifier),
+                ) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = visible,
-                    enter = slideInVertically(animationSpec = tween(220)) { it } +
-                        fadeIn(animationSpec = tween(180)),
-                    exit = slideOutVertically(animationSpec = tween(200)) { it } +
-                        fadeOut(animationSpec = tween(160)),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .auraSheetDragOffset(drag)
-                        // Plegable abierto / tableta: hoja centrada con ancho máximo, no de borde a borde.
-                        // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
-                        .widthIn(max = iad1tya.echo.music.ui.newui.AuraSheetMaxWidthDp.dp)
-                        .fillMaxWidth()
-                        // TOPE, no objetivo (dueño 2026-09-17: *"la ventana se desplaza muy alto y su
-                        // contenido es poco"*). Esto pedía `fillMaxHeight(0.85f)` y dentro un
-                        // `fillMaxSize()`: el 85 % de la pantalla SIEMPRE, tuviera el menú tres
-                        // opciones o treinta. Ver [rememberAuraSheetMaxHeight].
-                        .heightIn(max = sheetMaxHeight),
+                    enter = windowEnter,
+                    exit = windowExit,
+                    modifier = (
+                        if (wide) {
+                            Modifier
+                                .align(Alignment.Center)
+                                .widthIn(max = iad1tya.echo.music.ui.newui.AuraWideMenuWidthDp.dp)
+                                .fillMaxWidth()
+                                .heightIn(max = wideMaxHeight)
+                        } else {
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .auraSheetDragOffset(drag)
+                                // Plegable abierto / tableta: hoja centrada con ancho máximo, no de borde a borde.
+                                // widthIn VA ANTES de fillMaxWidth: así fillMaxWidth llena el tope, no la ventana.
+                                .widthIn(max = iad1tya.echo.music.ui.newui.AuraSheetMaxWidthDp.dp)
+                                .fillMaxWidth()
+                                // TOPE, no objetivo (dueño 2026-09-17: *"la ventana se desplaza muy alto y su
+                                // contenido es poco"*). Esto pedía `fillMaxHeight(0.85f)` y dentro un
+                                // `fillMaxSize()`: el 85 % de la pantalla SIEMPRE, tuviera el menú tres
+                                // opciones o treinta. Ver [rememberAuraSheetMaxHeight].
+                                .heightIn(max = sheetMaxHeight)
+                        }
+                        ),
                 ) {
                     Column(
                         modifier = Modifier
+                            // The shadow goes BEFORE the clip, or the clip would cut it.
+                            .auraWindowShadow(panelShape, enabled = wide)
                             .fillMaxWidth()
                             // AUDIT P4: clip BEFORE the glass — a clip AFTER the hazeChild is
                             // interior (it trims the content, not the effect draw), leaving the
                             // panel with square top corners over a rounded-content sheet.
-                            .clip(AuraShapes.Sheet)
+                            .clip(panelShape)
                             // ONE FLOATING MATERIAL (owner 2026-09-13: "unas transparentes, otras sólidas"):
                             // the same opaque account-menu plate + hairline the dialogs use, glass on top.
                             .background(iad1tya.echo.music.ui.newui.AuraPalette.FloatingWindowPlate)
-                            .border(1.dp, iad1tya.echo.music.ui.newui.AuraPalette.SurfaceLine, AuraShapes.Sheet)
+                            .then(
+                                if (wide) Modifier.auraWindowBorder(panelShape)
+                                else Modifier.border(1.dp, iad1tya.echo.music.ui.newui.AuraPalette.SurfaceLine, AuraShapes.Sheet),
+                            )
                             .floatingWindowGlass(shellHazeState)
                             .imePadding()
                             .navigationBarsPadding(),
                     ) {
+                        if (wide) {
+                            // A card has no drag handle (it is not a bottom sheet): it closes with the scrim, back or its
+                            // own buttons. A little air on top instead, so the first row does not touch the edge.
+                            androidx.compose.foundation.layout.Spacer(Modifier.size(width = 1.dp, height = 10.dp))
+                        } else {
                         // Drag handle — TOP CENTER (owner 2026-08-31: "lo dejaste del lado derecho,
                         // tiene que estar en la parte de arriba centrado"): a Column child wraps
                         // its width to the content, so the handle sat at the start (right-edge
@@ -199,16 +234,19 @@ fun BottomSheetMenu(
                             onDismiss = { focusManager.clearFocus(); state.dismiss() },
                             barWidth = 40.dp,
                         )
+                        }
                         CompositionLocalProvider(LocalAuraFloatingChrome provides true) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 20.dp),
+                                    .padding(horizontal = 20.dp)
+                                    .then(if (wide) Modifier.padding(bottom = 12.dp) else Modifier),
                             ) {
                                 state.content(this)
                             }
                         }
                     }
+                }
                 }
             }
         }

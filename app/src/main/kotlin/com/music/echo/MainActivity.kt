@@ -453,6 +453,8 @@ class MainActivity : ComponentActivity() {
         playerConnection?.service?.onAppForegrounded()
         // Battery/heat (owner 2026-10-06): the player's audio capture only runs while the app is visible.
         iad1tya.echo.music.ui.newui.AuraVisualizerHub.setAppVisible(true)
+        // Battery/heat (audit 2026-10-20): UI-feeding loops without a frame clock (see AppForeground) park while off screen.
+        iad1tya.echo.music.utils.AppForeground.set(true)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -473,6 +475,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         iad1tya.echo.music.ui.newui.AuraVisualizerHub.setAppVisible(false)
+        iad1tya.echo.music.utils.AppForeground.set(false)
         if (isServiceBound) {
             runCatching { unbindService(serviceConnection) }
             isServiceBound = false
@@ -996,10 +999,23 @@ class MainActivity : ComponentActivity() {
                     navigationItems.map { it.route }.toSet()
                 }
 
-                val shouldShowNavigationBar = remember(currentRoute, navigationItemRoutes) {
-                    currentRoute == null ||
-                        navigationItemRoutes.contains(currentRoute) ||
-                        currentRoute!!.startsWith("search/")
+                // Fila 494 (dueño 2026-10-21, Tab S12 Ultra: «cuando el programa está recién instalado y da la bienvenida para
+                // elegir los géneros, la barra de exploración me sale encima de todo; no tiene que salir hasta que llegue a
+                // Inicio»): la bienvenida (artistas → géneros → Spotify → YouTube) es de ventana completa. La ventana ancha
+                // dibuja la cápsula en TODA ruta salvo una lista corta, y ninguna de estas estaba en ella.
+                val inOnboarding = remember(currentRoute, navBackStackEntry) {
+                    currentRoute?.startsWith("onboarding_") == true ||
+                        ((currentRoute?.startsWith("settings/spotify_import") == true ||
+                            currentRoute?.startsWith("settings/ytm_sync") == true) &&
+                            navBackStackEntry?.arguments?.getBoolean("onboarding") == true)
+                }
+
+                val shouldShowNavigationBar = remember(currentRoute, navigationItemRoutes, inOnboarding) {
+                    !inOnboarding && (
+                        currentRoute == null ||
+                            navigationItemRoutes.contains(currentRoute) ||
+                            currentRoute!!.startsWith("search/")
+                        )
                 }
 
                 // Routes whose NEW screen draws its own [AuraScreenHeader]. The render has no opaque
@@ -1045,7 +1061,7 @@ class MainActivity : ComponentActivity() {
                 // In a wide window the capsule is on every route (Spotify's is), except the screens that own the
                 // whole window. Phones keep `shouldShowNavigationBar`.
                 val navBarShown = if (auraWideBottom) {
-                    currentRoute != "update" && currentRoute != "listen_together/chat" &&
+                    !inOnboarding && currentRoute != "update" && currentRoute != "listen_together/chat" &&
                         currentRoute != "ambient_mode" && currentRoute != "login" && currentRoute != "spotify_login"
                 } else {
                     shouldShowNavigationBar
@@ -1154,12 +1170,14 @@ class MainActivity : ComponentActivity() {
                         AuraWideNavGap - iad1tya.echo.music.ui.newui.AuraFloatingInset * 2
                 }
                 val miniCompact = miniPillWidth < 460.dp
-                val widePlayerMode = remember(auraWideBottom, widePlayerSplit, miniCompact) {
+                val widePlayerMode = remember(auraWideBottom, widePlayerSplit, miniCompact, splitTopInset, bottomInset) {
                     if (auraWideBottom) {
                         AuraWidePlayerMode(
                             split = widePlayerSplit,
                             onToggle = { setWidePlayerSplit(!widePlayerSplit) },
                             miniCompact = miniCompact,
+                            cardTopInset = splitTopInset,
+                            cardBottomInset = bottomInset,
                         )
                     } else {
                         null
@@ -1173,16 +1191,13 @@ class MainActivity : ComponentActivity() {
                 // Shuffle FAB removed from the floating toolbar (0.6.92) — only the recognition mic FAB
                 // is surfaced there now, so the shuffle click handler is no longer wired.
 
-                val onMusicRecognitionClick: (() -> Unit) = remember(navController, playerBottomSheetState) {
+                val onMusicRecognitionClick: (() -> Unit) = remember {
                     {
-                        if (playerBottomSheetState.isExpanded) {
-                            playerBottomSheetState.collapseSoft()
-                        }
-                        // In-app tap starts recognizing immediately (autoStart) — the screen requests the
-                        // mic permission if missing, then begins listening, so no idle second tap is needed.
-                        navController.navigate("recognition?autoStart=true") {
-                            launchSingleTop = true
-                        }
+                        // Recognition is a FLOATING WINDOW now (owner 2026-10-20), not a route: it opens over whatever is
+                        // showing — the expanded player included, so the sheet is no longer collapsed first. In-app tap
+                        // starts recognizing immediately (autoStart) — the window requests the mic permission if
+                        // missing, then begins listening, so no idle second tap is needed.
+                        iad1tya.echo.music.ui.screens.recognition.RecognitionWindowState.open(autoStart = true)
                     }
                 }
 
@@ -1339,8 +1354,15 @@ class MainActivity : ComponentActivity() {
                         // expanden solos pudo confirmarse por lectura de código con ese dato. Log
                         // puntual (sin datos de usuario) en cada uno para que el próximo log lo
                         // pruebe en vez de seguir adivinando.
-                        Timber.tag("MainActivity").i("PLAYER_EXPAND videoModeOn route=%s", currentRoute)
-                        playerBottomSheetState.expandSoft()
+                        // Owner 2026-10-20: the AUTOMATIC fallback («this video is not available as a song», artist
+                        // Videos) enters video mode on its own — the full player must not pop open for it; the picture
+                        // is one tap on the mini player away. A tap on Video still expands as before.
+                        if (playerConnection?.service?.consumeSilentVideoEntry() == true) {
+                            Timber.tag("MainActivity").i("PLAYER_EXPAND skipped: automatic song->video fallback")
+                        } else {
+                            Timber.tag("MainActivity").i("PLAYER_EXPAND videoModeOn route=%s", currentRoute)
+                            playerBottomSheetState.expandSoft()
+                        }
                     }
                 }
 
@@ -2432,12 +2454,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
-                            val onRailSearchLongClick: () -> Unit = remember(navController) {
+                            val onRailSearchLongClick: () -> Unit = remember {
                                 {
-                                    // In-app entry (nav-rail search long-press): auto-start recognizing.
-                                    navController.navigate("recognition?autoStart=true") {
-                                        launchSingleTop = true
-                                    }
+                                    // In-app entry (nav-rail search long-press): auto-start recognizing (floating window).
+                                    iad1tya.echo.music.ui.screens.recognition.RecognitionWindowState.open(autoStart = true)
                                 }
                             }
 
@@ -2734,6 +2754,10 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // The music recognizer (Shazam-style) as a floating window, over whatever is showing. Its own host
+                    // reads the open/close switch, so this composition does not recompose when it opens.
+                    iad1tya.echo.music.ui.screens.recognition.RecognitionWindowHost(navController)
+
                     if (showSettingDialoge) {
                         SettingDialoge(
                             onDismissRequest = { showSettingDialoge = false },
@@ -2996,19 +3020,21 @@ class MainActivity : ComponentActivity() {
                 }
                 return
             }
-            runCatching {
-                navController.navigate(if (autoStart) "recognition?autoStart=true" else "recognition") {
-                    launchSingleTop = true
-                }
-            }
+            // The recognizer is a floating window composed by RecognitionWindowHost: opening it is a state change,
+            // not a navigation (the old "recognition" route remains only as a redirect to this same call).
+            iad1tya.echo.music.ui.screens.recognition.RecognitionWindowState.open(autoStart)
             return
         }
-        val uri = intent.data ?: run {
+        val uri = (intent.data ?: run {
             val sharedText = intent.extras?.getString(Intent.EXTRA_TEXT) ?: return
             // Extract first http(s) URL from shared text (message may contain extra text around the URL)
             val urlRegex = Regex("""https?://\S+""")
             val extracted = urlRegex.find(sharedText)?.value ?: return
             extracted.toUri()
+        }).let { opened ->
+            // song.link/<music.youtube.com/…>: what Aura shares for artists, playlists and albums.
+            // Unwrap to the inner YouTube Music URL so the routing below opens the item natively.
+            iad1tya.echo.music.utils.ExternalMusicLinks.songLinkWrappedYouTubeUrl(opened.toString())?.toUri() ?: opened
         }
         intent.data = null
         intent.removeExtra(Intent.EXTRA_TEXT)

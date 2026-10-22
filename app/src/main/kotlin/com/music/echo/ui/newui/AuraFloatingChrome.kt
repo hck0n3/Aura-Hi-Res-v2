@@ -219,7 +219,9 @@ fun AuraFloatingSurface(
         Box(
             Modifier
                 .matchParentSize()
-                .background(AuraPalette.FrostFill, shape),
+                // Fila 495: the SAME translucent plate as the ⋯ sheets ([AuraPalette.FloatingWindowPlate]); the opaque
+                // FrostFill made every dialog a solid slab next to them.
+                .background(AuraPalette.FloatingWindowPlate, shape),
         )
         Surface(
             modifier = Modifier.matchParentSize(),
@@ -234,6 +236,14 @@ fun AuraFloatingSurface(
         }
     }
 }
+
+/**
+ * Fila 495 — the hairline of every pop-up MENU (dropdowns), the same line the sheets and dialogs draw ([AuraPalette.SurfaceLine]).
+ * Owner 2026-10-21: *«las ventanas flotantes quiero que tengan el diseño de las opciones de los tres puntos»*: the ⋯ menu is
+ * the translucent cover-coloured plate with this line; the dropdowns still painted the opaque [AuraPalette.FrostFill] slab.
+ */
+val AuraMenuBorder: BorderStroke
+    get() = BorderStroke(1.dp, AuraPalette.SurfaceLine)
 
 @Composable
 fun auraFloatingContainerColor(): Color {

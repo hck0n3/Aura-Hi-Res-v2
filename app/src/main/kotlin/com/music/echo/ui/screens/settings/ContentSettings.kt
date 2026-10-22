@@ -71,7 +71,6 @@ import iad1tya.echo.music.constants.EnableSimpMusicKey
 import iad1tya.echo.music.constants.EnableYouLyPlusKey
 import iad1tya.echo.music.constants.EnablePaxsenixKey
 import iad1tya.echo.music.constants.UnisonLyricsEnabledKey
-import iad1tya.echo.music.constants.HideExplicitKey
 import iad1tya.echo.music.constants.HideVideoSongsKey
 import iad1tya.echo.music.constants.HideYoutubeShortsKey
 import iad1tya.echo.music.constants.LanguageCodeToName
@@ -128,7 +127,6 @@ fun ContentSettings(
     val (contentLanguage, onContentLanguageChange) = rememberPreference(key = ContentLanguageKey, defaultValue = "system")
     val (contentCountry, onContentCountryChange) = rememberPreference(key = ContentCountryKey, defaultValue = "system")
     val (suggestionRegion, onSuggestionRegionChange) = rememberPreference(key = SuggestionRegionKey, defaultValue = "system")
-    val (hideExplicit, onHideExplicitChange) = rememberPreference(key = HideExplicitKey, defaultValue = false)
     val (hideVideoSongs, onHideVideoSongsChange) = rememberPreference(key = HideVideoSongsKey, defaultValue = false)
 
     val (hideYoutubeShorts, onHideYoutubeShortsChange) = rememberPreference(key = HideYoutubeShortsKey, defaultValue = false)
@@ -708,26 +706,6 @@ fun ContentSettings(
                 Material3SettingsGroup(
                     title = null,
                     items = listOf(
-                        Material3SettingsItem(
-                            icon = painterResource(R.drawable.explicit),
-                            title = { Text(stringResource(R.string.hide_explicit)) },
-                            trailingContent = {
-                                Switch(
-                                    checked = hideExplicit,
-                                    onCheckedChange = onHideExplicitChange,
-                                    thumbContent = {
-                                        Icon(
-                                            painter = painterResource(
-                                                id = if (hideExplicit) R.drawable.check else R.drawable.close
-                                            ),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(SwitchDefaults.IconSize)
-                                        )
-                                    }
-                                )
-                            },
-                            onClick = { onHideExplicitChange(!hideExplicit) }
-                        ),
                         Material3SettingsItem(
                             icon = painterResource(R.drawable.slow_motion_video),
                             title = { Text(stringResource(R.string.hide_video_songs)) },

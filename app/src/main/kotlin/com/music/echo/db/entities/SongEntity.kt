@@ -7,10 +7,6 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.music.innertube.YouTube
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 
 @Immutable
@@ -77,9 +73,14 @@ data class SongEntity(
         // (ArtistEntity.toggleLike, LibraryUploadSync, SpotifyImportRepository — the only 3 real
         // call sites) landed at the same moment, which static reading alone could not confirm.
         timber.log.Timber.i("SONG_LIKE_TOGGLE liked=%b", !liked)
-        CoroutineScope(Dispatchers.IO).launch {
-            YouTube.likeVideo(id, !liked)
-        }
+        // The tap reaches the account NOW and survives a failure: AccountPush records it first, sends it on
+        // an application-scoped IO scope, retries it when the network is back, and makes the liked-songs
+        // sync respect it (an unlike that never landed used to be re-liked by the next sync).
+        iad1tya.echo.music.utils.AccountPush.submit(
+            if (!liked) iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_LIKE
+            else iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_UNLIKE,
+            id,
+        )
     }
 
     fun toggleLibrary(syncToYouTube: Boolean = true) = copy(
@@ -88,11 +89,12 @@ data class SongEntity(
         likedDate = if (inLibrary == null) likedDate else null
     ).also {
         if (syncToYouTube) {
-            CoroutineScope(Dispatchers.IO).launch {
-                
-                val addToLibrary = inLibrary == null
-                YouTube.toggleSongLibrary(id, addToLibrary)
-            }
+            // Same durable path as toggleLike: recorded, sent at once, retried, and honoured by the sync.
+            iad1tya.echo.music.utils.AccountPush.submit(
+                if (inLibrary == null) iad1tya.echo.music.utils.AccountPushPolicy.Op.LIBRARY_ADD
+                else iad1tya.echo.music.utils.AccountPushPolicy.Op.LIBRARY_REMOVE,
+                id,
+            )
         }
     }
 

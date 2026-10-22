@@ -21,7 +21,7 @@ object MusicRequestInstrumental {
 
     /** Words/phrases that mark a vocal-less version, folded (lowercase, no accents, single spaces). */
     private val MARKERS = listOf(
-        "instrumental", "instrumentales", "karaoke", "karaokes", "backing track", "backing tracks",
+        "instrumental", "instrumentales", "karaoke", "karaokes", "caraoke", "caraokes", "karaoki", "backing track", "backing tracks",
         "minus one", "sin voz", "sin letra", "pista musical", "pistas musicales", "pista con letra",
         "pista sin voz", "pista para cantar", "pistas para cantar", "playback",
         "multitrack", "multitracks", "type beat", "beat instrumental", "acompanamiento",
@@ -35,7 +35,7 @@ object MusicRequestInstrumental {
 
     /** What a request says when it DOES want them. */
     private val WANTS = listOf(
-        "karaoke", "karaokes", "instrumental", "instrumentales", "sin voz", "sin letra", "para cantar",
+        "karaoke", "karaokes", "caraoke", "caraokes", "karaoki", "instrumental", "instrumentales", "sin voz", "sin letra", "para cantar",
         "backing track", "backing tracks", "playback", "multitrack", "multitracks", "pista musical",
         "pistas musicales", "pista con letra", "pista para", "pistas para", "pista de la cancion",
         "piano cover", "type beat",

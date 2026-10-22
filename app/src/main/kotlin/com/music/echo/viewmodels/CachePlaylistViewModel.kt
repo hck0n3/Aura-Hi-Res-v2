@@ -76,6 +76,13 @@ class CachePlaylistViewModel @Inject constructor(
                 if (subscribers.first() == 0) {
                     subscribers.first { it > 0 }
                 }
+                // Same idea for the SCREEN: a cache list left open when the display turns off still has a
+                // subscriber, and this pass (Room relation query + two cache-key-set copies + a SimpleCache lock
+                // scan per song) ran every second for as long as the phone kept playing with the screen off.
+                // Parks (zero work) until the activity is on screen again (battery audit 2026-10-20).
+                if (!iad1tya.echo.music.utils.AppForeground.visible.value) {
+                    iad1tya.echo.music.utils.AppForeground.visible.first { it }
+                }
                 // Non-blocking suspend read of the latest preferences (no runBlocking on any thread).
                 val prefs = context.dataStore.data.first()
                 val hideExplicit = prefs[HideExplicitKey] ?: false

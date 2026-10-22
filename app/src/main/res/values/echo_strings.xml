@@ -371,7 +371,12 @@
     <string name="home_offline_no_internet">Looks like you don\'t have an internet connection.</string>
     <string name="home_offline_downloads_hint">You can keep listening to your downloaded music offline.</string>
     <string name="home_offline_continue">Continue offline</string>
-    <string name="home_quick_surprise_hint">Something from your taste</string>
+    <string name="home_quick_surprise_hint">Mix of your taste</string>
+    <string name="home_quick_surprise_fallback">Something random</string>
+    <plurals name="home_quick_surprise_built">
+        <item quantity="one">Your taste · %d new</item>
+        <item quantity="other">Your taste · %d new</item>
+    </plurals>
     <string name="home_cold_empty_title">Play something to personalize Home</string>
     <string name="home_cold_empty_hint">Search for a song, album, or artist — Home learns from what you play.</string>
     <string name="tab_novedades">New</string>
@@ -383,6 +388,16 @@
     <string name="novedades_daily_top">Daily top</string>
     <string name="novedades_everyones_listening">Everyone’s listening to</string>
     <string name="novedades_coming_soon">Coming soon</string>
+    <string name="novedades_see_all">See all</string>
+    <string name="novedades_see_less">See less</string>
+    <string name="novedades_this_month">This month</string>
+    <string name="novedades_filter_singles">Singles &amp; EPs</string>
+    <string name="novedades_type_album">Album</string>
+    <string name="novedades_type_single">Single</string>
+    <string name="novedades_type_ep">EP</string>
+    <string name="novedades_new_label">New</string>
+    <string name="novedades_more_releases">More new releases</string>
+    <string name="novedades_empty_hint">Releases from your artists will show up here.</string>
     <string name="library_recently_added">Recently added</string>
     <string name="search_top_results">Top results</string>
     <string name="action_presave">Presave</string>
@@ -1372,6 +1387,8 @@
     <string name="download_sheet_pick">Choose songs…</string>
     <string name="download_sheet_pick_desc">Tick the ones you want</string>
     <string name="download_sheet_select_all">Select all</string>
+    <string name="download_sheet_select_none">Clear selection</string>
+    <string name="download_sheet_selected_count">%1$d of %2$d</string>
     <string name="download_sheet_start">Start (%1$d)</string>
     <string name="download_sheet_back">Back</string>
     <string name="download_sheet_video_count">Only the %1$d that have a music video</string>

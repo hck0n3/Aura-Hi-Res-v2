@@ -89,6 +89,9 @@
     <!-- Library -->
     <string name="library_song_empty">Library songs will show up here</string>
     <string name="library_artist_empty">Library artists will show up here</string>
+    <string name="library_artists_subscribed_empty">No subscribed artists yet</string>
+    <string name="library_artists_subscribed_hint">Only the artists your YouTube Music account is subscribed to are listed here. Tap Sync to bring them in.</string>
+    <string name="library_artists_subscribed_hint_guest">Artists you subscribe to appear here. Sign in to YouTube Music to bring in the ones from your account.</string>
     <string name="library_album_empty">Library albums will show up here</string>
     <string name="favorite_albums">Favorite albums</string>
     <string name="library_playlist_empty">Your playlists will show up here</string>
@@ -828,4 +831,6 @@
     <string name="app_name_aura">Aura</string>
     <string name="app_name_hi_res">Hi-Res</string>
     <string name="cast_video_unavailable">This video can\u2019t be sent to the TV. Playing audio only.</string>
+    <string name="account_push_queued">Couldn\'t send that change to YouTube Music. It will be retried automatically.</string>
+    <string name="account_push_gave_up">Couldn\'t send a change to YouTube Music after several attempts.</string>
 </resources>

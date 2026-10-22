@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -184,9 +185,15 @@ fun Material3SettingsGroup(
     title: String? = null,
     compact: Boolean = false,
     scrollState: ScrollState? = null,
+    /**
+     * Row 502: draw the rows as ONE glass slab (20 dp corners, translucent plate and hairline) like the ⋯ menus. Opt-in,
+     * for the account menu; every settings screen keeps the flat sheet. Only on the dark premium ground.
+     */
+    glass: Boolean = false,
     items: List<Material3SettingsItem>
 ) {
     val skin = rememberAuraSettingsSkin()
+    val glassSlab = glass && skin.enabled && skin.darkGround
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -208,8 +215,18 @@ fun Material3SettingsGroup(
         }
 
 
+        val slabShape = RoundedCornerShape(20.dp)
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (glassSlab) {
+                        Modifier
+                            .clip(slabShape)
+                            .background(AuraPalette.SurfaceFill)
+                            .border(1.dp, AuraPalette.SurfaceLine, slabShape)
+                    } else Modifier,
+                ),
             // The redesign is a continuous sheet: the 4 dp gutter that separated the classic cards
             // would cut it back into slices.
             verticalArrangement = Arrangement.spacedBy(if (skin.enabled) 0.dp else 4.dp)

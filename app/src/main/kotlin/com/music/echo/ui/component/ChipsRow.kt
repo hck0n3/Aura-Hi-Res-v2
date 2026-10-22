@@ -227,8 +227,9 @@ fun <Int> ChoiceChipsRow(
                         expandIconDegree += 180
                     },
                     shape = if (premium) AuraShapes.Card else MaterialTheme.shapes.extraSmall,
-                    containerColor = if (premium) AuraPalette.FrostFill
+                    containerColor = if (premium) AuraPalette.FloatingWindowPlate
                     else MaterialTheme.colorScheme.surfaceContainer,
+                    border = if (premium) iad1tya.echo.music.ui.newui.AuraMenuBorder else null,
                 ) {
                     options.forEach { option ->
                         DropdownMenuItem(

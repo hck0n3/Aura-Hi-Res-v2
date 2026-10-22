@@ -123,4 +123,52 @@ class UnifiedDownloadGuardTest {
         // the video probe is shared, so the sheet and the old chooser answer the same way
         assertTrue(main("ui/utils/ExportFormatChooser.kt").contains("fun rememberExportVideoAvailability("))
     }
+
+    // ── C · the picker opens EMPTY, with a real «select all» button (owner 2026-10-19) ─────────────────
+
+    @Test
+    fun `the song picker opens with nothing ticked and has a select-all button with a counter`() {
+        val sheet = main("ui/newui/AuraDownloadSheet.kt")
+        val scope = sheet.substringAfter("DownloadSheetStep.Scope -> {").substringBefore("DownloadSheetStep.Pick -> {")
+        assertTrue("entrar a «Elegir canciones» deja la selección vacía", scope.contains("picked = emptySet()"))
+        assertFalse("nada preseleccionado al entrar", scope.contains("picked = pool.map { it.id }.toSet()"))
+        val pick = sheet.substringAfter("DownloadSheetStep.Pick -> {").substringBefore("DownloadSheetStep.ConfirmRemove -> {")
+        assertTrue("botón seleccionar todo / quitar selección con contador", pick.contains("SelectAllBar(") && pick.contains("selected = picked.size") && pick.contains("total = pool.size"))
+        assertTrue("el botón de empezar se ve deshabilitado con 0", pick.contains("alpha(if (picked.isEmpty()) 0.4f else 1f)") && pick.contains("if (picked.isNotEmpty())"))
+        assertTrue("volver atrás también vacía la selección", pick.substringAfter("SheetBack {").contains("picked = emptySet()"))
+        val bar = sheet.substringAfter("private fun SelectAllBar(").substringBefore("private fun PickRow(")
+        assertTrue(bar.contains("download_sheet_select_none") && bar.contains("download_sheet_select_all") && bar.contains("download_sheet_selected_count"))
+        for (lang in listOf("values", "values-es")) {
+            val xml = res("$lang/echo_strings.xml")
+            for (key in listOf("download_sheet_select_all", "download_sheet_select_none", "download_sheet_selected_count")) {
+                assertTrue("$lang: falta $key", xml.contains("name=\"$key\""))
+            }
+        }
+    }
+
+    @Test
+    fun `the playlist MP3 pickers open empty and show the count, and Continuar needs a selection`() {
+        for ((file, pool) in listOf(
+            "ui/menu/PlaylistMenu.kt" to "songs",
+            "ui/menu/PlaylistScreenMenus.kt" to "exportSongs",
+            "ui/menu/YouTubePlaylistMenu.kt" to "mp3SongPool",
+        )) {
+            val src = main(file)
+            assertFalse("$file: «Seleccionar» ya no marca todo", src.contains("selectedMp3Ids = $pool.map { it.id }.toSet()\n                        showMp3SelectDialog = true"))
+            assertTrue("$file: abre vacío", src.contains("selectedMp3Ids = emptySet()\n                        showMp3SelectDialog = true"))
+            assertTrue("$file: contador", src.contains("R.string.download_sheet_selected_count"))
+            assertTrue("$file: Continuar exige selección", src.contains("enabled = selectedMp3Ids.isNotEmpty()"))
+        }
+    }
+
+    // ── D · the sheet is a glass panel, not a see-through window (owner 2026-10-19) ───────────────────
+
+    @Test
+    fun `the download sheet is an in-window glass panel with the Material sheet only as fallback`() {
+        val sheet = main("ui/newui/AuraDownloadSheet.kt")
+        assertTrue("usa el panel de cristal en la ventana", sheet.contains("AuraInWindowDialog(") && sheet.contains("center = false"))
+        assertTrue("solo con fuente haze y host de overlays", sheet.contains("LocalOverlayHazeState.current != null") && sheet.contains("auraOverlayHostAvailable()"))
+        assertTrue("sin cristal, la hoja Material de siempre", sheet.contains("AuraModalBottomSheet("))
+        assertTrue("un único cuerpo para los dos contenedores", sheet.contains("val sheetBody: @Composable ColumnScope.() -> Unit"))
+    }
 }

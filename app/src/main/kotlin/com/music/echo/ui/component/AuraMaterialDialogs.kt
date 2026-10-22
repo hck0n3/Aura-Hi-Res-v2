@@ -1,5 +1,6 @@
 package iad1tya.echo.music.ui.component
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.AlertDialogDefaults
@@ -118,13 +119,25 @@ fun AuraModalBottomSheet(
 ) {
     val skin = rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
+    // Fila 495 (dueño 2026-10-21: *«las ventanas flotantes con el diseño de las opciones de los tres puntos»*): the ⋯ sheets
+    // are rounded at the top with the `AuraShapes.Sheet` radius and a hairline round them; a Material sheet that kept its
+    // stock corner and no line read as a different window. A caller that chose a shape of its own keeps it.
+    val resolvedShape = if (premium && shape == BottomSheetDefaults.ExpandedShape) {
+        iad1tya.echo.music.ui.newui.AuraShapes.Sheet
+    } else {
+        shape
+    }
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        modifier = modifier,
+        modifier = if (premium) {
+            modifier.border(1.dp, AuraPalette.SurfaceLine, resolvedShape)
+        } else {
+            modifier
+        },
         sheetState = sheetState,
         sheetMaxWidth = sheetMaxWidth,
         sheetGesturesEnabled = sheetGesturesEnabled,
-        shape = shape,
+        shape = resolvedShape,
         containerColor = if (premium) auraFloatingContainerColor() else containerColor,
         contentColor = if (premium) auraFloatingContentColor() else contentColor,
         tonalElevation = if (premium) 0.dp else tonalElevation,
