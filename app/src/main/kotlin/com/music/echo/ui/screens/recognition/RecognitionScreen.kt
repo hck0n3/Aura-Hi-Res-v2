@@ -97,6 +97,9 @@ import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
+import iad1tya.echo.music.ui.newui.AuraGlassDivider
+import iad1tya.echo.music.ui.newui.AuraGlassRow
+import iad1tya.echo.music.ui.newui.AuraGlassSlab
 import com.music.shazamkit.models.RecognitionResult
 import com.music.shazamkit.models.RecognitionStatus
 import kotlinx.coroutines.Dispatchers
@@ -955,7 +958,48 @@ private fun SuccessState(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Column(
+            // Row 502: on the premium skin the actions are the glass slab of the ⋯ menus (owner 2026-10-21), one row each; the
+            // Material buttons below stay for the classic skin. Same five actions, same enabled rules.
+            if (skin.enabled && skin.darkGround) {
+                AuraGlassSlab {
+                    AuraGlassRow(
+                        title = stringResource(R.string.play_on_app),
+                        onClick = { onPlayOnApp(result) },
+                        icon = R.drawable.play,
+                        iconTint = AuraPalette.Teal,
+                    )
+                    AuraGlassDivider(inset = 56.dp)
+                    AuraGlassRow(
+                        title = stringResource(R.string.action_like),
+                        onClick = onToggleLike,
+                        enabled = isResolved,
+                        icon = if (isLiked) R.drawable.favorite else R.drawable.favorite_border,
+                        iconTint = if (isLiked) MaterialTheme.colorScheme.error else AuraPalette.OnGround,
+                        trailing = if (isResolving) {
+                            { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp) }
+                        } else null,
+                    )
+                    AuraGlassDivider(inset = 56.dp)
+                    AuraGlassRow(
+                        title = stringResource(R.string.add_to_playlist),
+                        onClick = onAddToPlaylist,
+                        enabled = isResolved,
+                        icon = R.drawable.playlist_add,
+                    )
+                    AuraGlassDivider(inset = 56.dp)
+                    AuraGlassRow(
+                        title = stringResource(R.string.re_listen),
+                        onClick = onTryAgain,
+                        icon = R.drawable.mic,
+                    )
+                    AuraGlassDivider(inset = 56.dp)
+                    AuraGlassRow(
+                        title = stringResource(R.string.close),
+                        onClick = onClose,
+                        icon = R.drawable.close,
+                    )
+                }
+            } else Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {

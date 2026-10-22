@@ -64,4 +64,27 @@ class PlayerAndAudioSheetGlassGuardTest {
             .forEach { assertTrue(it, s.contains(it)) }
         assertTrue(main("ui/newui/AuraSearchSuggestions.kt").contains("internal fun AuraQueryRow("))
     }
+
+    // ── 502 · Reconocer música and the account menu ─────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `the recognition result keeps its five actions as glass rows`() {
+        val s = main("ui/screens/recognition/RecognitionScreen.kt")
+        val glass = s.substringAfter("if (skin.enabled && skin.darkGround) {\n                AuraGlassSlab {").substringBefore("} else Column(")
+        listOf("onPlayOnApp(result)", "onToggleLike", "onAddToPlaylist", "onTryAgain", "onClose", "enabled = isResolved").forEach {
+            assertTrue(it, glass.contains(it))
+        }
+        assertTrue("el botón Material sigue para la piel clásica", s.contains("androidx.compose.material3.ButtonDefaults.filledTonalShape"))
+    }
+
+    @Test
+    fun `the account menu groups are glass slabs and every other settings screen stays flat`() {
+        val dialog = main("ui/screens/SettingDialoge.kt")
+        assertTrue(dialog.split("glass = true,").size - 1 == 3)
+        val group = main("ui/component/Material3SettingsGroup.kt")
+        assertTrue("opt-in", group.contains("glass: Boolean = false,"))
+        assertTrue(group.contains("val glassSlab = glass && skin.enabled && skin.darkGround"))
+        listOf("Usar la cuenta para explorar", "Sincronización con YouTube Music", "Actualizaciones", "Compartir Aura Hi-Res", "Acerca de")
+            .forEach { assertTrue(it, dialog.contains(it)) }
+    }
 }

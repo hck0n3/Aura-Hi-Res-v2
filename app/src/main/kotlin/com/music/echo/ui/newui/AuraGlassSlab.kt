@@ -90,13 +90,14 @@ internal fun AuraGlassRow(
     modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null,
     iconTint: Color = AuraPalette.OnGround,
+    enabled: Boolean = true,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            .auraClickableInternal(onClick = onClick, contentDescription = title)
+            .auraClickableInternal(onClick = onClick, enabled = enabled, contentDescription = title)
             .heightIn(min = AuraGlassRowMinHeight)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
@@ -104,7 +105,7 @@ internal fun AuraGlassRow(
             Icon(
                 painter = painterResource(icon),
                 contentDescription = null,
-                tint = iconTint,
+                tint = if (enabled) iconTint else iconTint.copy(alpha = iconTint.alpha * 0.4f),
                 modifier = Modifier.size(24.dp),
             )
             Spacer(Modifier.width(16.dp))
@@ -112,7 +113,7 @@ internal fun AuraGlassRow(
         Text(
             text = title,
             style = AuraType.MenuLabel,
-            color = AuraPalette.OnGround,
+            color = AuraPalette.OnGround.copy(alpha = if (enabled) 1f else 0.4f),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),

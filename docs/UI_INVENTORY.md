@@ -4209,3 +4209,5 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Menú ⋯ del reproductor (pantalla completa) | Cabecera con portada; Ver artista, Ver álbum, Ecualizador, Sonido, Detalles y Ajustes en una losa; Reproducción, Biblioteca y Más opciones como losas desplegables con todas sus filas | 500 |
 | Dispositivos de audio y volumen | Salida conectada (nombre, estado, volumen %), lista de salidas al desplegar, control de volumen, batería Bluetooth y «Listo», con las losas del menú ⋯ | 500 |
 | Búsqueda rápida del reproductor (lupa) | Historial y sugerencias como losa continua; ✕ borra, ↖ copia al campo, «Borrar todo»; resultados sin cambios | 501 |
+| Reconocer música (resultado) | Portada, título, artista y álbum; Reproducir en la app, Me gusta, Añadir a lista, Volver a escuchar y Cerrar como filas de una losa (Me gusta y Añadir a lista esperan a que la canción se resuelva) | 502 |
+| Menú de la cuenta (avatar de Inicio) | Perfil; Usar la cuenta para explorar, Sincronización con YouTube Music (+ sincronizar ahora, programar), Actualizaciones, Reporte de errores, Ajustes, Compartir y Acerca de, cada grupo en su losa | 502 |

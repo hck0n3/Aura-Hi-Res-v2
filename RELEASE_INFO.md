@@ -30,6 +30,7 @@ Beta encima de la 2.0.66-beta7 (incluye todo lo suyo, la beta6 y las anteriores)
 - **El historial de Buscar (móvil sin desplegar)** y las sugerencias son una losa continua; la ✕ borra, la flecha copia al campo y «Borrar todo» sigue.
 - **El menú ⋯ del reproductor y la ventana de dispositivos de audio y volumen** también: sus opciones van en losas de cristal (las secciones Reproducción, Biblioteca y Más opciones se despliegan dentro de su losa) y la salida de audio, el volumen y «Listo» usan el mismo material. Todas las opciones siguen donde estaban.
 - **La búsqueda rápida del reproductor (la lupa)** muestra su historial y sugerencias como la misma losa de cristal que Buscar.
+- **Reconocer música y el menú de tu cuenta** también: las acciones del resultado (reproducir, me gusta, añadir a lista, volver a escuchar, cerrar) son filas de una losa, y los grupos del menú de la cuenta van dentro de su losa.
 
 ## Inicio
 
