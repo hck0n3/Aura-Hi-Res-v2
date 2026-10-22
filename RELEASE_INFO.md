@@ -1,6 +1,6 @@
-# Aura Hi-Res v2.0.66-beta8 — Pedir música, Añadir a lista y Buscar con el estilo del menú ⋯, botones de Inicio con más color y el país en Pedir música
+# Aura Hi-Res v2.0.66-beta9 — todas las ventanas flotantes con las losas de cristal del menú ⋯ (menú del reproductor, dispositivos de audio, lupa, Reconocer música y cuenta)
 
-Beta encima de la 2.0.66-beta7 (incluye todo lo suyo, la beta6 y las anteriores). Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.66-beta8 (incluye todo lo suyo y lo de las betas anteriores). Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
 ## Listas, álbumes y menús
 
