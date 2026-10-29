@@ -75,7 +75,7 @@ class FirstTapAndHeaderGuardTest {
         val header = c.substring(c.indexOf("fun AuraScreenHeader("), c.indexOf("private val AuraHeaderGap"))
         assertTrue("el saludo va DEBAJO del nombre", header.indexOf("text = styledTitle") < header.indexOf("AuraSectionLabel(label)"))
         assertTrue(header.contains("AuraCollapsibleHeader("))
-        for (f in listOf("AuraHomeScreen", "AuraSearchScreen", "AuraNovedadesScreen")) {
+        for (f in listOf("AuraHomeScreen", "AuraSearchScreen", "AuraNovedadesScreen", "AuraLibraryScreen")) {
             assertTrue("$f debe ocultar los botones tras el interruptor", src("app/src/main/kotlin/com/music/echo/ui/newui/$f.kt").contains("collapseTrailing = true"))
         }
     }
@@ -90,6 +90,12 @@ class FirstTapAndHeaderGuardTest {
         assertTrue(shell.contains("pointerInput(Unit) {\n        awaitEachGesture {"))
         assertTrue(shell.contains("rememberUpdatedState(onClick)"))
         assertTrue(src("app/src/main/kotlin/com/music/echo/ui/newui/AuraQueue.kt").contains("Modifier.unstealableClick(onClick)"))
-        assertTrue(src("app/src/main/kotlin/com/music/echo/ui/newui/AuraPlayer.kt").contains("Registry row 396: a thumb that rolls"))
+        val player = src("app/src/main/kotlin/com/music/echo/ui/newui/AuraPlayer.kt")
+        assertTrue(player.contains("Registry row 396: a thumb that rolls"))
+        // Row 513: the unfolded player's full-screen/split toggle and the minimise chevron fire on lift too.
+        val toggle = player.indexOf("onClick = widePlayerMode.onToggle")
+        assertTrue(toggle > 0 && player.substring(toggle, toggle + 900).contains("firstTap = true"))
+        val minimise = player.indexOf("onClick = { state.collapseSoft() }")
+        assertTrue(minimise > 0 && player.substring(minimise, minimise + 300).contains("firstTap = true"))
     }
 }

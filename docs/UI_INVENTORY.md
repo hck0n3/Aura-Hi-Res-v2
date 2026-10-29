@@ -4215,3 +4215,6 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Añadir a lista de reproducción | Cada lista que ya tiene la canción dice «Ya tiene esta canción» bajo el nombre, además del tick | 504 |
 | Listas de YouTube y de la biblioteca (Me gusta, Descargadas, Mi top, En caché) | Deslizar a la derecha = me gusta, a la izquierda = añadir a lista | 506 |
 | Búsqueda del reproductor (ventana ancha) | Tocar una pista de un álbum / artista / lista abre «reproducir · a continuación · cola · lista»; la búsqueda general sigue reproduciendo | 507 |
+| Cabecera de Biblioteca | Título + UN chevrón (y el avatar); los cinco botones (reconocer, escuchar juntos, historial, sin conexión, cuenta) detrás del chevrón, como Inicio/Buscar/Novedades — no se quitó ninguno | 513 |
+| Top diario | Estante de Inicio (cabecera → «Mi top»); ya no está en Novedades, que solo trae estrenos | 513 |
+| Reproductor desplegado: botón pantalla completa/dividida y minimizar | Disparan al levantar el dedo (como reproducir/pausa) | 513 |

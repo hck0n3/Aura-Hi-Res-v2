@@ -16,6 +16,7 @@ import com.music.innertube.models.WatchEndpoint
 import com.music.innertube.models.BrowseEndpoint
 import com.music.innertube.models.YTItem
 import com.music.innertube.models.filterExplicit
+import iad1tya.echo.music.extensions.filterExplicit as filterExplicitSongs
 import com.music.innertube.models.filterVideoSongs
 import com.music.innertube.models.filterYoutubeShorts
 import com.music.innertube.pages.ExplorePage
@@ -61,6 +62,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.async
@@ -158,6 +160,27 @@ class HomeViewModel @Inject constructor(
     val dailyMixes = MutableStateFlow<List<DailyMix>?>(null)
     // "Reproducido recientemente": strict chronological history (most recent listen first).
     val recentlyPlayed = MutableStateFlow<List<Song>?>(null)
+    // «Top diario» (owner 2026-10-29: «en el radar de novedades solo quiero los estrenos, el top diario lo quiero en el
+    // inicio»): the most-played songs, as many as «Mi top» is set to show. Straight from the database, no network, and
+    // WhileSubscribed so nothing is queried while Inicio is not on screen.
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val dailyTop: kotlinx.coroutines.flow.StateFlow<List<Song>> =
+        combine(
+            context.dataStore.data.map { it[iad1tya.echo.music.constants.TopSize] ?: "50" }.distinctUntilChanged(),
+            context.dataStore.data
+                .map { (it[HideExplicitKey] ?: false) to (it[HideVideoSongsKey] ?: false) }
+                .distinctUntilChanged(),
+        ) { size, flags -> size to flags }
+            .flatMapLatest { (size, flags) ->
+                val (hideExplicit, hideVideoSongs) = flags
+                val limit = size.toIntOrNull()?.coerceIn(1, 200) ?: 50
+                database.mostPlayedSongs(0L, limit).map { songs ->
+                    songs
+                        .let { if (hideExplicit) it.filterExplicitSongs() else it }
+                        .let { if (hideVideoSongs) it.filter { song -> !song.song.isVideo } else it }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     // "Mix de la mañana/tarde/noche": taste pool reshuffled with a time-bucket-stable seed. No network.
     val timeOfDayMix = MutableStateFlow<TimeOfDayMix?>(null)
     val forgottenFavorites = MutableStateFlow<List<Song>?>(null)

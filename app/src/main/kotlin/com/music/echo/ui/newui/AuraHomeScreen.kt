@@ -88,6 +88,7 @@ import iad1tya.echo.music.constants.GridItemsSizeKey
 import iad1tya.echo.music.constants.HighPerformanceModeKey
 import iad1tya.echo.music.constants.HomeRichLayoutKey
 import iad1tya.echo.music.constants.HomeTasteOnlyKey
+import iad1tya.echo.music.constants.TopSize
 import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.constants.RandomizeHomeOrderKey
 import iad1tya.echo.music.constants.ShowSpeedDialKey
@@ -188,6 +189,8 @@ fun AuraHomeScreen(
     val explorePage by viewModel.explorePage.collectAsState()
     val dailyMixes by viewModel.dailyMixes.collectAsState()
     val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
+    val dailyTop by viewModel.dailyTop.collectAsState()
+    val (topSize) = rememberPreference(TopSize, "50")
     val timeOfDayMix by viewModel.timeOfDayMixDisplay.collectAsState()
     val aiRecommendedPlaylist by viewModel.aiRecommendedPlaylist.collectAsState()
     val aiRecommendedSongs by viewModel.aiRecommendedSongs.collectAsState()
@@ -769,6 +772,43 @@ fun AuraHomeScreen(
                                         isActive = song.id == mediaMetadata?.id,
                                         isPlaying = isPlaying,
                                         onClick = { playSong(song) },
+                                        onLongClick = { songMenu(song) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Top diario: moved here from Novedades (owner 2026-10-29: «en el radar de novedades solo quiero los
+                // estrenos, el top diario lo quiero en el inicio»). Same songs «Mi top» lists; the header opens that screen.
+                dailyTop.takeIf { it.isNotEmpty() }?.let { all ->
+                    item(key = "aura_home_daily_top", contentType = "aura_home_daily_top") {
+                        val topTitle = stringResource(R.string.novedades_daily_top)
+                        val shown = remember(all) { all.distinctBy { it.id }.take(12) }
+                        Column(Modifier.animateItem()) {
+                            AuraSectionHeader(
+                                title = topTitle,
+                                onClick = { navController.navigate("top_playlist/$topSize") },
+                                onPlayAll = { playAllSongs(topTitle, all) },
+                            )
+                            AuraShelf {
+                                items(shown, key = { it.id }) { song ->
+                                    AuraSongShelfCard(
+                                        song = song,
+                                        cardScale = cardScale,
+                                        isActive = song.id == mediaMetadata?.id,
+                                        isPlaying = isPlaying,
+                                        onClick = {
+                                            val queue = all.distinctBy { it.id }
+                                            playerConnection.playQueue(
+                                                ListQueue(
+                                                    title = topTitle,
+                                                    items = queue.map { it.toMediaItem() },
+                                                    startIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0),
+                                                ),
+                                            )
+                                        },
                                         onLongClick = { songMenu(song) },
                                     )
                                 }

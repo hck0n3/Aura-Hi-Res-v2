@@ -15,7 +15,6 @@ import iad1tya.echo.music.constants.HideExplicitKey
 import iad1tya.echo.music.constants.HideVideoSongsKey
 import iad1tya.echo.music.constants.MyTopFilter
 import iad1tya.echo.music.constants.SpotifyAccessTokenKey
-import iad1tya.echo.music.constants.TopSize
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.ReleaseRadarItem
 import iad1tya.echo.music.db.entities.Song
@@ -80,22 +79,6 @@ constructor(
     private val hideFlags = context.dataStore.data
         .map { (it[HideExplicitKey] ?: false) to (it[HideVideoSongsKey] ?: false) }
         .distinctUntilChanged()
-
-    val topSongs: StateFlow<List<Song>> =
-        combine(
-            context.dataStore.data.map { it[TopSize] ?: "50" }.distinctUntilChanged(),
-            hideFlags,
-        ) { size, flags -> size to flags }
-            .flatMapLatest { (size, flags) ->
-                val (hideExplicit, hideVideoSongs) = flags
-                val limit = size.toIntOrNull()?.coerceIn(1, 200) ?: 50
-                database.mostPlayedSongs(0L, limit).map { songs ->
-                    songs
-                        .let { if (hideExplicit) it.filterExplicit() else it }
-                        .let { if (hideVideoSongs) it.filter { song -> !song.song.isVideo } else it }
-                }
-            }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val momentSongs: StateFlow<List<Song>> =
         hideFlags.flatMapLatest { flags ->

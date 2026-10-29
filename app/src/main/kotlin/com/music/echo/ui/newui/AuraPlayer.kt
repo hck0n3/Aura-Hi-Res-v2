@@ -1026,6 +1026,11 @@ private fun AuraPlayerShape(
                         onClick = widePlayerMode.onToggle,
                         size = 20.dp,
                         tint = AuraPalette.OnGround.copy(alpha = 0.6f),
+                        // Row 513 (owner 2026-10-29, unfolded: «el botón de arriba a la izquierda para el reproductor en
+                        // pantalla completa falla»): the header sits inside the sheet's own drag and the queue's swipe-up,
+                        // so a plain clickable is cancelled by the slightest roll of the thumb — the same «hay que tocarlo
+                        // varias veces» as play/pause (rows 372/396). It fires on lift, like them.
+                        firstTap = true,
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
                 }
@@ -1035,6 +1040,7 @@ private fun AuraPlayerShape(
                     onClick = { state.collapseSoft() },
                     size = 22.dp,
                     tint = AuraPalette.OnGround.copy(alpha = 0.6f),
+                    firstTap = true,
                     // D-pad: a remote cannot drag the sheet down, so this is the ONLY way off the player
                     // on a TV. It has to be reachable and it has to show the ring.
                     modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
