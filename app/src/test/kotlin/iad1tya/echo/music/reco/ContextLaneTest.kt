@@ -81,7 +81,8 @@ class ContextLaneTest {
     @Test
     fun `an unproven language never beats a proven one`() {
         val spanish = candidate("Mi Testimonio", learned = "rap", christian = true)
-        val unknown = candidate("Jordan", genre = "Hip-Hop/Rap")
+        // Row 503: in a Christian lane even this candidate has to be shown Christian to be eligible at all.
+        val unknown = candidate("Jordan", genre = "Hip-Hop/Rap", christian = true)
         assertEquals(0, tierOf(spanish))
         assertEquals(1, tierOf(unknown)) // eligible (#39/#41) but only as a step further down
         val kept = ContextLane.choose(
@@ -95,7 +96,7 @@ class ContextLaneTest {
 
     @Test
     fun `a spanish hint proves the language for ranking only`() {
-        val hinted = candidate("Jordan", genre = "Hip-Hop/Rap", spanishHint = true)
+        val hinted = candidate("Jordan", genre = "Hip-Hop/Rap", spanishHint = true, christian = true)
         assertEquals(0, tierOf(hinted))
         // The hint of a Spanish artist never excludes it from an ENGLISH context either.
         val english = ContextLane.Lane(TitleLanguage.EN, mixed = false, christian = false, families = emptySet())
