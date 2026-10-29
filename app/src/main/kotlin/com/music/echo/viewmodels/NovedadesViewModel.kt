@@ -76,32 +76,6 @@ constructor(
         database.upcomingReleases()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val hideFlags = context.dataStore.data
-        .map { (it[HideExplicitKey] ?: false) to (it[HideVideoSongsKey] ?: false) }
-        .distinctUntilChanged()
-
-    val momentSongs: StateFlow<List<Song>> =
-        hideFlags.flatMapLatest { flags ->
-            val (hideExplicit, hideVideoSongs) = flags
-            database.mostPlayedSongs(MyTopFilter.WEEK.toTimeMillis(), limit = 12).map { songs ->
-                songs
-                    .let { if (hideExplicit) it.filterExplicit() else it }
-                    .let { if (hideVideoSongs) it.filter { song -> !song.song.isVideo } else it }
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    private val _newAlbums = MutableStateFlow<List<AlbumItem>>(emptyList())
-    val newAlbums: StateFlow<List<AlbumItem>> = _newAlbums
-
-    private val _featuredSongs = MutableStateFlow<List<SongItem>>(emptyList())
-    val featuredSongs: StateFlow<List<SongItem>> = _featuredSongs
-
-    private val _listening = MutableStateFlow<List<YTItem>>(emptyList())
-    val listening: StateFlow<List<YTItem>> = _listening
-
-    private val _updatedPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
-    val updatedPlaylists: StateFlow<List<PlaylistItem>> = _updatedPlaylists
-
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
@@ -129,94 +103,12 @@ constructor(
         }
     }
 
-    /** How many recent events feed the taste profile — a read, not the player's full 5-signal profile
-     *  (same budget as MusicRequestViewModel.TASTE_EVENTS: enough for artist/genre affinity, not a
-     *  second copy of the heavy Home profile). */
-    private val TASTE_EVENTS = 600
-
+    // Owner 2026-10-29: «en Novedades solo quiero lo que tenga que ver con los estrenos de los artistas suscritos o
+    // seguidos». The radar (followed artists, see above) and «Próximamente» (the followed artists' announced releases) are
+    // the only sources left, so the YouTube new-albums, charts and library calls this screen used to make are gone with the
+    // shelves they fed — fewer requests per visit, and nothing here that is not about a followed artist.
     private suspend fun loadFeeds() {
-        val hideExplicit = context.dataStore.get(HideExplicitKey, false)
-        coroutineScope {
-            val albumsJob = async {
-                YouTube.newReleaseAlbums().getOrNull()
-                    ?.let { if (hideExplicit) it.filter { a -> !a.explicit } else it }
-                    .orEmpty()
-            }
-            val chartsJob = async { YouTube.getChartsPage().getOrNull() }
-            val libraryJob = async { YouTube.library("FEmusic_liked_playlists").getOrNull() }
-            val upcomingJob = async { scanUpcoming() }
-            // Ronda 2, punto 8 del dueño: el radar de Novedades solo filtraba binario (¿seguido/
-            // escuchado o no?) sin ordenar por cuánto te gusta CADA UNO dentro de ese conjunto ya
-            // filtrado. Mismo motor que "pedir música" (AffinityEngine + MusicRequestRanking: el orden
-            // de origen manda, el gusto empuja) — null si falla, y entonces el comportamiento es
-            // idéntico al de antes (orden de origen puro).
-            val tasteJob = async {
-                runCatching {
-                    val events = database.recentEventsWithSong(TASTE_EVENTS).first()
-                    // Auditoría del algoritmo (ronda 9, dueño: "vela que nada sea placebo"): mismo hueco
-                    // que en MusicRequestViewModel — sin artistGenres el bono de género de AffinityEngine
-                    // (el más grande de los tres) nunca se sumaba acá. GenreCache.snapshot es en memoria.
-                    AffinityEngine.buildProfile(
-                        events, dislikeStore.snapshot(), artistGenres = iad1tya.echo.music.reco.GenreCache.snapshot(context),
-                    )
-                }.getOrNull()
-            }
-
-            val albums = albumsJob.await()
-            // Row 431 (owner 2026-10-18: «"Lo más nuevo" no tiene nada que ver con mi biblioteca ni con lo que sigo»):
-            // the artists a release must belong to are the user's WHOLE library — subscribed, most played, liked and
-            // library songs ([tasteArtistKeys], which is what its own doc says Novedades must use) — not only the
-            // artists flagged "followed", which is empty or tiny on many accounts and left the global shelf with
-            // almost nothing of the user's.
-            val keys = database.tasteArtistKeys()
-            val taste = tasteJob.await()
-            val filteredAlbums = albums.filterToSubscribedArtists(keys)
-            // Counts only (AGENTS.md rule 4): how many of YouTube's new albums are by artists of the user's library.
-            Timber.tag("Novedades").i("NOVEDADES_NEW albums=%d fromLibrary=%d artists=%d", albums.size, filteredAlbums.size, keys.namesLower.size)
-            _newAlbums.value = MusicRequestRanking.pick(
-                candidates = filteredAlbums,
-                target = 20,
-                artistOf = { it.artists?.firstOrNull()?.name },
-                tasteOf = { item -> taste?.scoreNames(item.artists?.map { a -> a.name }.orEmpty(), item.title) ?: 0.0 },
-                avoidScore = TasteProfile.AVOID,
-            )
-
-            val charts = chartsJob.await()
-            if (charts != null) applyCharts(charts, keys, taste)
-            else {
-                _featuredSongs.value = emptyList()
-                _listening.value = emptyList()
-            }
-
-            val playlists = libraryJob.await()?.items?.filterIsInstance<PlaylistItem>().orEmpty()
-            if (playlists.isNotEmpty()) _updatedPlaylists.value = playlists.take(16)
-
-            upcomingJob.await()
-        }
-    }
-
-    private fun applyCharts(page: ChartsPage, keys: SubscribedArtistKeys, taste: TasteProfile?) {
-        val songs = page.sections
-            .flatMap { it.items }
-            .filterIsInstance<SongItem>()
-            .distinctBy { it.id }
-            .filterSongsToTasteArtists(keys)
-        _featuredSongs.value = MusicRequestRanking.pick(
-            candidates = songs,
-            target = 12,
-            artistOf = { it.artists.firstOrNull()?.name },
-            tasteOf = { item -> taste?.scoreNames(item.artists.map { a -> a.name }, item.title) ?: 0.0 },
-            avoidScore = TasteProfile.AVOID,
-        )
-        val featuredIds = _featuredSongs.value.map { it.id }.toSet()
-        val mix = page.sections
-            .firstOrNull { it.chartType == ChartsPage.ChartType.TRENDING || it.chartType == ChartsPage.ChartType.TOP }
-            ?.items
-            .orEmpty()
-            .ifEmpty { page.sections.firstOrNull()?.items.orEmpty() }
-            .filterToTasteArtists(keys)
-            .filterNot { it.id in featuredIds }
-        _listening.value = mix.take(16)
+        scanUpcoming()
     }
 
     private suspend fun scanUpcoming() {

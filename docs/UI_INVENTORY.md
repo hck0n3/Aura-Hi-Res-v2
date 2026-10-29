@@ -4219,3 +4219,5 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Top diario | Estante de Inicio (cabecera → «Mi top»); ya no está en Novedades, que solo trae estrenos | 513 |
 | Reproductor desplegado: botón pantalla completa/dividida y minimizar | Disparan al levantar el dedo (como reproducir/pausa) | 513 |
 | Reproducción en modo audio | Si YouTube rechaza las dos identidades de `/player`, el extractor NewPipe resuelve el audio antes de dar la canción por no disponible (sin cambio visible; línea `NEWPIPE_AUDIO_RESCUE` en Registros) | 514 |
+| Novedades | Solo estrenos de artistas seguidos (héroe, «Más estrenos», radar, «Próximamente»); ya no hay «Lo más nuevo», «Álbumes recién lanzados», «Canciones del momento» ni «Lo que escucha todo el mundo» (orden del dueño) | 517 |
+| Canciones del momento | Estante de Inicio (lo más reproducido en 7 días, sin repetir «Top diario») | 517 |

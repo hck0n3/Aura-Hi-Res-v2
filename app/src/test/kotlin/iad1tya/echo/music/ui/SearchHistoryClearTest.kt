@@ -28,10 +28,12 @@ class SearchHistoryClearTest {
         assertTrue(quick.contains("onClearHistory = { database.query { clearSearchHistory() } }"))
     }
 
+    // Row 517 replaces row 431's «whole library taste» shelves: Novedades is now ONLY the followed artists' releases.
     @Test
-    fun `Novedades filters the new albums by the whole library taste`() {
+    fun `Novedades reads only the followed artists' radar and upcoming releases`() {
         val vm = main("viewmodels/NovedadesViewModel.kt")
-        assertTrue(vm.contains("val keys = database.tasteArtistKeys()"))
-        assertTrue("sin datos del usuario en el log", vm.contains("NOVEDADES_NEW albums=%d fromLibrary=%d artists=%d"))
+        assertTrue(vm.contains("val radarReleases"))
+        assertTrue(vm.contains("scanUpcoming()"))
+        assertTrue("sin llamadas de YouTube para estantes que ya no existen", !vm.contains("newReleaseAlbums") && !vm.contains("getChartsPage"))
     }
 }

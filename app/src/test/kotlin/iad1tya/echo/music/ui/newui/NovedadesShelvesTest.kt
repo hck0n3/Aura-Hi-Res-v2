@@ -117,9 +117,15 @@ class NovedadesShelvesTest {
             .firstOrNull { File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")
         val src = File(root, "app/src/main/kotlin/com/music/echo/ui/newui/AuraNovedadesScreen.kt").readText()
         // Datos: las mismas siete fuentes del view-model y la deduplicación de «primer id visto gana».
-        for (flow in listOf("radarReleases", "upcoming", "newAlbums", "featuredSongs", "momentSongs", "listening")) {
+        // Fila 517: Novedades solo habla de estrenos de artistas seguidos (radar + «Próximamente»); lo demás se fue.
+        for (flow in listOf("radarReleases", "upcoming")) {
             assertTrue("falta $flow", src.contains("viewModel.$flow.collectAsState()"))
         }
+        for (gone in listOf("newAlbums", "featuredSongs", "momentSongs", "viewModel.listening", "NovedadesLocalSongCard")) {
+            assertFalse("Novedades ya no lleva $gone", src.contains(gone))
+        }
+        val homeSrc = File(root, "app/src/main/kotlin/com/music/echo/ui/newui/AuraHomeScreen.kt").readText()
+        assertTrue(homeSrc.contains("aura_home_moment") && homeSrc.contains("viewModel.momentSongs.collectAsState()"))
         assertTrue(src.contains("seen.claimUnique("))
         // Actualizar (tirar), reselección, estados, menús y navegación.
         assertTrue(src.contains("onRefresh = viewModel::refresh"))

@@ -160,6 +160,21 @@ class HomeViewModel @Inject constructor(
     val dailyMixes = MutableStateFlow<List<DailyMix>?>(null)
     // "Reproducido recientemente": strict chronological history (most recent listen first).
     val recentlyPlayed = MutableStateFlow<List<Song>?>(null)
+    // «Canciones del momento» (owner 2026-10-29: «en Novedades no quiero canciones del momento, también lo quiero en el
+    // inicio»): what was played most in the last week. Moved here from Novedades; same database read, no network.
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val momentSongs: kotlinx.coroutines.flow.StateFlow<List<Song>> =
+        context.dataStore.data
+            .map { (it[HideExplicitKey] ?: false) to (it[HideVideoSongsKey] ?: false) }
+            .distinctUntilChanged()
+            .flatMapLatest { (hideExplicit, hideVideoSongs) ->
+                database.mostPlayedSongs(iad1tya.echo.music.constants.MyTopFilter.WEEK.toTimeMillis(), limit = 12).map { songs ->
+                    songs
+                        .let { if (hideExplicit) it.filterExplicitSongs() else it }
+                        .let { if (hideVideoSongs) it.filter { song -> !song.song.isVideo } else it }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     // «Top diario» (owner 2026-10-29: «en el radar de novedades solo quiero los estrenos, el top diario lo quiero en el
     // inicio»): the most-played songs, as many as «Mi top» is set to show. Straight from the database, no network, and
     // WhileSubscribed so nothing is queried while Inicio is not on screen.

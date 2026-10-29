@@ -190,6 +190,7 @@ fun AuraHomeScreen(
     val dailyMixes by viewModel.dailyMixes.collectAsState()
     val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
     val dailyTop by viewModel.dailyTop.collectAsState()
+    val momentSongs by viewModel.momentSongs.collectAsState()
     val (topSize) = rememberPreference(TopSize, "50")
     val timeOfDayMix by viewModel.timeOfDayMixDisplay.collectAsState()
     val aiRecommendedPlaylist by viewModel.aiRecommendedPlaylist.collectAsState()
@@ -806,6 +807,41 @@ fun AuraHomeScreen(
                                                     title = topTitle,
                                                     items = queue.map { it.toMediaItem() },
                                                     startIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0),
+                                                ),
+                                            )
+                                        },
+                                        onLongClick = { songMenu(song) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Canciones del momento: moved here from Novedades (owner 2026-10-29). Nothing that «Top diario» just showed.
+                momentSongs.takeIf { it.isNotEmpty() }?.let { all ->
+                    val topIds = dailyTop.distinctBy { it.id }.take(12).map { it.id }.toSet()
+                    val shown = all.distinctBy { it.id }.filterNot { it.id in topIds }
+                    if (shown.isNotEmpty()) item(key = "aura_home_moment", contentType = "aura_home_moment") {
+                        val momentTitle = stringResource(R.string.novedades_songs_of_the_moment)
+                        Column(Modifier.animateItem()) {
+                            AuraSectionHeader(
+                                title = momentTitle,
+                                onPlayAll = { playAllSongs(momentTitle, shown) },
+                            )
+                            AuraShelf {
+                                items(shown, key = { it.id }) { song ->
+                                    AuraSongShelfCard(
+                                        song = song,
+                                        cardScale = cardScale,
+                                        isActive = song.id == mediaMetadata?.id,
+                                        isPlaying = isPlaying,
+                                        onClick = {
+                                            playerConnection.playQueue(
+                                                ListQueue(
+                                                    title = momentTitle,
+                                                    items = shown.map { it.toMediaItem() },
+                                                    startIndex = shown.indexOfFirst { it.id == song.id }.coerceAtLeast(0),
                                                 ),
                                             )
                                         },
