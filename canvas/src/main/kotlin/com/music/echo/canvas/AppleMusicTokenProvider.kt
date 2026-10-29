@@ -101,7 +101,6 @@ internal object AppleMusicTokenProvider {
                 scriptsRead++
                 findToken(body, now)?.let { return it }
             }
-            if (scripts.isNotEmpty()) break
         }
         val step = when {
             pagesRead == 0 -> "page"
@@ -121,8 +120,11 @@ internal object AppleMusicTokenProvider {
         null
     }
 
-    private fun findToken(text: String, now: Long): String? =
-        TOKEN_REGEX.findAll(text).map { it.value }.firstOrNull { isUsable(it, now) }
+    private fun findToken(text: String, now: Long): String? {
+        val usable = TOKEN_REGEX.findAll(text).map { it.value }.filter { isUsable(it, now) }.toList()
+        // The bundle carries several JWTs: the web player's own (issuer AMPWebPlay) wins over a blind first match.
+        return usable.firstOrNull { payloadOf(it)?.contains("\"iss\":\"AMPWebPlay\"") == true } ?: usable.firstOrNull()
+    }
 
     private fun scriptsOf(page: String, host: String): List<String> =
         SCRIPT_SRC.findAll(page).map { it.groupValues[1] }.map { src ->
@@ -158,10 +160,12 @@ internal object AppleMusicTokenProvider {
     private fun expSeconds(jwt: String): Long? =
         payloadOf(jwt)?.let { EXP_CLAIM.find(it)?.groupValues?.get(1)?.toLongOrNull() }
 
-    private val PLAYER_HOSTS = listOf("https://beta.music.apple.com", "https://music.apple.com")
+    private val PLAYER_HOSTS = listOf("https://music.apple.com", "https://beta.music.apple.com")
     private val SCRIPT_SRC = Regex("""src="((?:https?:)?(?://|/)[^"]*\.js)"""")
-    // «eyJhbGciOiJFUzI1NiI» = {"alg":"ES256…: the web player's own tokens, not any JWT-shaped string in a bundle.
-    private val TOKEN_REGEX = Regex("""eyJhbGciOiJFUzI1NiI[A-Za-z0-9\-_=]*\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+""")
+    // Any 3-segment JWT: the header's field order rotates between Apple's builds (SimpMusic 2.4.0 hit exactly that), so a
+    // prefix such as «eyJhbGciOiJFUzI1NiI» ({"alg":"ES256"…) would miss a token whose header starts with another field. What
+    // makes it the web player's token is its payload (`"iss":"AMPWebPlay"`), checked in [findToken].
+    private val TOKEN_REGEX = Regex("""eyJ[A-Za-z0-9\-_=]{10,}\.[A-Za-z0-9\-_=]{10,}\.[A-Za-z0-9\-_=]{10,}""")
     private val EXP_CLAIM = Regex(""""exp"\s*:\s*(\d+)""")
     private const val MAX_SCRIPTS = 4
     private const val EXPIRY_SKEW_MS = 5 * 60 * 1000L

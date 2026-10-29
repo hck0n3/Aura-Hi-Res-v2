@@ -99,8 +99,14 @@ class QueueDownloadsSwipeGuardTest {
             assertTrue(path, s.contains("cachedExpiryMs"))
             assertTrue(path, s.contains("suspend fun invalidate()"))
             assertTrue(path, s.contains("MAX_SCRIPTS"))
-            assertTrue(path, s.contains("eyJhbGciOiJFUzI1NiI"))
             assertTrue(path, s.contains("AppleCanvasDiagnostics.log("))
+            // Row 515 (SimpMusic 2.4.0, AMTokenManager): any 3-segment JWT is a candidate and the web player's own
+            // (issuer AMPWebPlay) wins — Apple rotates the header's field order, so an «eyJhbGciOiJFUzI1NiI» prefix missed it —
+            // and the regular site is read before the beta one, without stopping at the first page that lists scripts.
+            assertTrue(path, s.contains("TOKEN_REGEX = Regex(\"\"\"eyJ[A-Za-z0-9\\-_=]{10,}"))
+            assertTrue(path, s.contains("AMPWebPlay"))
+            assertTrue(path, s.contains("listOf(\"https://music.apple.com\", \"https://beta.music.apple.com\")"))
+            assertTrue(path, !s.contains("if (scripts.isNotEmpty()) break"))
             // The battery guard of row 491 stays: the back-off check is before the first download.
             assertTrue(path, s.indexOf("< RETRY_AFTER_MS") in 1 until s.indexOf("httpClient.get("))
         }

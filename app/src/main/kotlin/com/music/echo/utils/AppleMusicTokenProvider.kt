@@ -108,7 +108,6 @@ object AppleMusicTokenProvider {
                 val body = fetchText(url) ?: continue
                 findToken(body, now)?.let { return it }
             }
-            if (scripts.isNotEmpty()) break
         }
         val step = when {
             pagesRead == 0 -> "page"
@@ -126,19 +125,27 @@ object AppleMusicTokenProvider {
         null
     }
 
-    private fun findToken(text: String, now: Long): String? =
-        TOKEN_REGEX.findAll(text).map { it.value }.firstOrNull { jwt ->
-            val payload = runCatching {
-                val parts = jwt.split(".")
-                if (parts.size < 3) null else String(Base64.decode(parts[1], Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING), Charsets.UTF_8)
-            }.getOrNull()
+    private fun findToken(text: String, now: Long): String? {
+        val usable = TOKEN_REGEX.findAll(text).map { it.value }.filter { jwt ->
+            val payload = payloadOfJwt(jwt)
             payload != null && payload.contains("\"iss\"") &&
                 (parseJwtExpSeconds(jwt)?.let { it * 1000L > now } ?: true)
-        }
+        }.toList()
+        // The bundle carries several JWTs: the web player's own (issuer AMPWebPlay) wins over a blind first match.
+        return usable.firstOrNull { payloadOfJwt(it)?.contains("\"iss\":\"AMPWebPlay\"") == true } ?: usable.firstOrNull()
+    }
 
-    private val PLAYER_HOSTS = listOf("https://beta.music.apple.com", "https://music.apple.com")
+    private fun payloadOfJwt(jwt: String): String? = runCatching {
+        val parts = jwt.split(".")
+        if (parts.size < 3) null else String(Base64.decode(parts[1], Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING), Charsets.UTF_8)
+    }.getOrNull()
+
+    private val PLAYER_HOSTS = listOf("https://music.apple.com", "https://beta.music.apple.com")
     private val SCRIPT_SRC = Regex("""src="((?:https?:)?(?://|/)[^"]*\.js)"""")
-    private val TOKEN_REGEX = Regex("""eyJhbGciOiJFUzI1NiI[A-Za-z0-9\-_=]*\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+""")
+    // Any 3-segment JWT: the header's field order rotates between Apple's builds (SimpMusic 2.4.0 hit exactly that), so a
+    // prefix such as «eyJhbGciOiJFUzI1NiI» ({"alg":"ES256"…) would miss a token whose header starts with another field. What
+    // makes it the web player's token is its payload (`"iss":"AMPWebPlay"`), checked in [findToken].
+    private val TOKEN_REGEX = Regex("""eyJ[A-Za-z0-9\-_=]{10,}\.[A-Za-z0-9\-_=]{10,}\.[A-Za-z0-9\-_=]{10,}""")
     private const val MAX_SCRIPTS = 4
 
     /**
