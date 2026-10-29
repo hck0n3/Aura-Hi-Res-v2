@@ -1946,6 +1946,14 @@ class SyncUtils @Inject constructor(
                     Timber.d("syncPlaylist: Updating local playlist (remote: ${remoteIds.size}, local: ${localIds.size})")
 
                     val libraryNow = LocalDateTime.now()
+                    // Row 511 (owner 2026-10-29: «que la sincronización guarde solo los cambios que hice canción por canción, no
+                    // que reemplace las listas»): a song the USER added in the app that YouTube does not have yet (no entry id:
+                    // it was never matched with a remote entry) is that user's change, still on its way. The rebuild below used
+                    // to drop it — a failed push, an offline add — and the song silently vanished. It now stays at the end of
+                    // the list and is sent to YouTube again. Rows that DO carry an entry id and are gone remotely were removed
+                    // elsewhere: those follow the account, as before.
+                    val remoteIdSet = remoteIds.toHashSet()
+                    val pendingAdds = localRows.filter { it.map.setVideoId == null && it.song.id !in remoteIdSet }
                     // Load the songs that already exist ONCE (no per-row `song(id)` + `getSongByIdBlocking`
                     // reads inside the transaction). This whole playlist rebuild is already one transaction,
                     // so Room still emits a single time — the win here is dropping the N+1 reads.
@@ -1971,6 +1979,25 @@ class SyncUtils @Inject constructor(
                                 )
                             )
                         }
+                        pendingAdds.forEachIndexed { k, row ->
+                            database.insert(
+                                PlaylistSongMap(
+                                    songId = row.song.id,
+                                    playlistId = playlistId,
+                                    position = songs.size + k,
+                                    setVideoId = null,
+                                )
+                            )
+                        }
+                    }
+                    if (pendingAdds.isNotEmpty()) {
+                        var pushed = 0
+                        pendingAdds.forEach { row ->
+                            YouTube.addToPlaylist(browseId, row.song.id).onSuccess { pushed++ }.onFailure { e ->
+                                if (e is CancellationException) throw e
+                            }
+                        }
+                        Timber.i("syncPlaylist: kept %d local-only additions, re-sent %d to YouTube", pendingAdds.size, pushed)
                     }
                     Timber.d("syncPlaylist: Successfully synced playlist")
                 } catch (e: Exception) {

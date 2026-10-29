@@ -134,4 +134,15 @@ class QueueDownloadsSwipeGuardTest {
         val spotify = main("spotifyimport/SpotifyImportRepository.kt")
         assertFalse(spotify.lines().filterNot { it.trimStart().startsWith("//") }.joinToString("\n").contains("followArtistsWithContent("))
     }
+
+    // ── 511 · the YouTube list sync keeps what the user added ───────────────────────────────────────────────────────
+    @Test
+    fun `the list sync keeps the songs the user added that YouTube does not have yet`() {
+        val sync = main("utils/SyncUtils.kt")
+        assertTrue(sync.contains("val pendingAdds = localRows.filter { it.map.setVideoId == null && it.song.id !in remoteIdSet }"))
+        assertTrue(sync.contains("YouTube.addToPlaylist(browseId, row.song.id)"))
+        // The Spotify mirror is still never rebuilt from YouTube, and the empty / truncated-remote guards are still there.
+        assertTrue(sync.contains("if (isSpotifyMirror(playlistId))"))
+        assertTrue(sync.contains("remoteIds.size < localIds.size / 2"))
+    }
 }
