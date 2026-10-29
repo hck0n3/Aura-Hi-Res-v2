@@ -57,3 +57,43 @@ class RadioPreSeedTest {
         assertTrue(RadioQueueShaping.mayPreSeedRadio(isAuto = true, isPlaylistChanged = true))
     }
 }
+
+/**
+ * Row 503 (owner 2026-10-29: «la cola inteligente debería ya estar preparada cuando voy a cambiar la última canción»): the same
+ * seed one song EARLIER, with every restriction of the head-start above (natural advance only) plus the ones that keep the album
+ * an album: in order, repeat off, a collection with no next page, and only when the NEXT item is the last.
+ */
+class RadioEarlyPrimeTest {
+    private fun may(
+        isAuto: Boolean = true,
+        shuffle: Boolean = false,
+        repeatOff: Boolean = true,
+        isCollection: Boolean = true,
+        hasNextPage: Boolean = false,
+        itemCount: Int = 10,
+        nextIndex: Int = 9,
+    ) = RadioQueueShaping.mayPrimeEarly(isAuto, shuffle, repeatOff, isCollection, hasNextPage, itemCount, nextIndex)
+
+    @Test
+    fun `the song before the last of a finished album primes the continuation`() {
+        assertTrue(may())
+        assertTrue(may(itemCount = 2, nextIndex = 1))
+    }
+
+    @Test
+    fun `a manual jump, shuffle, repeat, a single song or an album with more pages never primes early`() {
+        assertFalse("un salto manual no es una cola terminada", may(isAuto = false))
+        assertFalse(may(shuffle = true))
+        assertFalse(may(repeatOff = false))
+        assertFalse("una canción suelta no es una colección", may(isCollection = false))
+        assertFalse("una lista con más páginas sigue paginando", may(hasNextPage = true))
+    }
+
+    @Test
+    fun `only the song right before the last one primes, never earlier and never the last itself`() {
+        assertFalse(may(nextIndex = 8))
+        assertFalse("el siguiente aún no es el último", may(nextIndex = 5))
+        assertFalse("la última canción ya la cubre el adelanto de siempre", may(nextIndex = -1))
+        assertFalse(may(itemCount = 1, nextIndex = 0))
+    }
+}

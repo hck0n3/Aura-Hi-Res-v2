@@ -1298,6 +1298,9 @@ class MusicService :
     // appended radio even though the last album/playlist song has not finished yet.
     @Volatile internal var advanceIntoRadioRequested = false
 
+    /** Row 503: the queue generation whose continuation was already primed one song early (once per queue). */
+    @Volatile internal var earlyPrimedGeneration = -1
+
     /** True while [startRadioSeamlessly] is fetching/appending — used by PlayerConnection for manual Next. */
     val isRadioSeedInFlight: Boolean get() = radioSeedInFlight
 
@@ -6323,6 +6326,9 @@ class MusicService :
             startRadioSeamlessly()
         }
 
+        // Row 503: the same seed one song EARLIER, also on a crossfade swap (CrossfadeEngine) — see [maybePrimeContinuationEarly].
+        maybePrimeContinuationEarly(isAuto = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+
 
         if (persistentQueueHint) {
             // Same content-vs-position split as onPlaybackStateChanged: an auto-advance where nothing was
@@ -6632,6 +6638,33 @@ class MusicService :
             }
         } else {
             sponsorBlock.clear()
+        }
+    }
+
+    /**
+     * Row 503: primes the continuation of a finished album / list one song before its end (see
+     * [RadioQueueShaping.mayPrimeEarly]), so «siguiente» on the last song does not wait for the fetch and the style gate.
+     * Called from the transition path (with its real reason) and from the crossfade swap (always a natural advance, and the
+     * swap never fires onMediaItemTransition). Once per queue generation.
+     */
+    internal fun maybePrimeContinuationEarly(isAuto: Boolean) {
+        if (autoLoadMoreHint &&
+            player.playWhenReady &&
+            !radioSeedInFlight &&
+            earlyPrimedGeneration != queueGeneration &&
+            !(disableLoadMoreWhenRepeatAllHint && player.repeatMode == REPEAT_MODE_ALL) &&
+            RadioQueueShaping.mayPrimeEarly(
+                isAuto = isAuto,
+                shuffle = player.shuffleModeEnabled,
+                repeatOff = player.repeatMode == Player.REPEAT_MODE_OFF,
+                isCollection = iad1tya.echo.music.reco.CollectionContinuation.isCollection(radioAnchorId != null, radioSeedPool.size),
+                hasNextPage = currentQueue.hasNextPage(),
+                itemCount = player.mediaItemCount,
+                nextIndex = player.nextMediaItemIndex,
+            )
+        ) {
+            earlyPrimedGeneration = queueGeneration
+            startRadioSeamlessly(earlyPrime = true)
         }
     }
 

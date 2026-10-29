@@ -56,6 +56,28 @@ object RadioQueueShaping {
      */
     fun mayPreSeedRadio(isAuto: Boolean, isPlaylistChanged: Boolean): Boolean = isAuto || isPlaylistChanged
 
+    /**
+     * Row 503 (owner 2026-10-29: *«cuando la última canción de una lista o álbum termina y va a empezar la cola inteligente, le
+     * cuesta reaccionar al botón de cambiar canción, se queda pensando; ya debería estar preparada»*). The head-start seed
+     * ([mayPreSeedRadio]) fires when the LAST song STARTS, and a tap on «siguiente» in its first seconds had to wait for the
+     * whole fetch + style gate. This is the same seed, one song EARLIER: when the song BEFORE the last one starts by itself, the
+     * continuation of a finished album / list is fetched and appended AFTER the last song (nothing is cut), so by the time the
+     * last song plays the queue already goes on.
+     *
+     * Deliberately narrow, because the head-start of 2026-09-17 once dirtied albums: only a natural advance (never a manual
+     * seek), in order (not shuffle), with repeat off, in a collection with no next page, and only when the NEXT item is the last.
+     */
+    fun mayPrimeEarly(
+        isAuto: Boolean,
+        shuffle: Boolean,
+        repeatOff: Boolean,
+        isCollection: Boolean,
+        hasNextPage: Boolean,
+        itemCount: Int,
+        nextIndex: Int,
+    ): Boolean = isAuto && !shuffle && repeatOff && isCollection && !hasNextPage &&
+        itemCount >= 2 && nextIndex == itemCount - 1
+
 
     /** Greedy artist-spacing: keep the incoming (taste/relatedness) order as the base, but when the next item
      *  repeats a primary artist placed in the last 2 slots, skip ahead to the best-ranked item by a different
