@@ -88,6 +88,7 @@ constructor(
     )
 
     private var alternateArgs: AlternateArgs? = null
+    private var alternateAttempts = 0
 
     /**
      * La última petición que sonó, para poder VERLA y GUARDARLA después (YouTube Music muestra la estación con
@@ -115,31 +116,50 @@ constructor(
     fun loadAlternate() {
         val args = alternateArgs ?: return
         val current = _last.value ?: return
-        if (current.contextId != args.contextId || current.alternate != AlternateOption.NotAsked) return
+        if (current.contextId != args.contextId) return
+        // Row 512: an «Empty» answer is not final — swiping back to the card asks again, up to [MAX_ALTERNATE_ATTEMPTS] times.
+        val retry = current.alternate == AlternateOption.Empty && alternateAttempts < MAX_ALTERNATE_ATTEMPTS
+        if (current.alternate != AlternateOption.NotAsked && !retry) return
+        if (current.alternate == AlternateOption.NotAsked) alternateAttempts = 0
+        alternateAttempts++
         _last.update { it?.takeIf { l -> l.contextId == args.contextId }?.copy(alternate = AlternateOption.Loading) ?: it }
         viewModelScope.launch(Dispatchers.IO) {
             val wanted = minOf(args.total, ALTERNATE_COUNT)
-            val produced = runCatching {
-                AiPlaylistGenerator.produce(
-                    database = database,
-                    prompt = args.prompt,
-                    count = MusicRequestFocusFilter.candidatesFor(args.focus, wanted),
-                    context = context,
-                    provider = args.provider,
-                    apiKey = args.apiKey,
-                    baseUrl = args.baseUrl,
-                    model = args.model,
-                    taste = args.taste,
-                )
-            }.getOrNull()
-            val firstIds = _last.value?.takeIf { it.contextId == args.contextId }?.songs?.mapTo(HashSet()) { it.id }.orEmpty()
-            val songs = produced?.songs.orEmpty()
-                .filter { it.id !in firstIds }
-                .let { MusicRequestFocusFilter.select(args.focus, it, args.isFamiliar, args.isPlayed, args.familiarity).songs }
-                .take(wanted)
+            val goodEnough = minOf(wanted, ALTERNATE_GOOD_ENOUGH)
+            var songs = emptyList<MediaMetadata>()
+            // Pass 1 as always; pass 2 (only when the first gave too few, or failed) with the memory of what was served
+            // released except for the visible first list, so a narrow request still has a pool.
+            for (pass in 0 until 2) {
+                val visibleIds = _last.value?.takeIf { it.contextId == args.contextId }?.songs?.mapTo(HashSet()) { it.id }.orEmpty()
+                if (pass == 1) iad1tya.echo.music.playlistimport.MusicRequestRecents.releaseExcept(visibleIds)
+                val produced = try {
+                    AiPlaylistGenerator.produce(
+                        database = database,
+                        prompt = args.prompt,
+                        count = MusicRequestFocusFilter.candidatesFor(args.focus, wanted),
+                        context = context,
+                        provider = args.provider,
+                        apiKey = args.apiKey,
+                        baseUrl = args.baseUrl,
+                        model = args.model,
+                        taste = args.taste,
+                    )
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+                val have = songs.mapTo(HashSet()) { it.id }
+                val more = produced?.songs.orEmpty()
+                    .filter { it.id !in visibleIds && it.id !in have }
+                    .let { MusicRequestFocusFilter.select(args.focus, it, args.isFamiliar, args.isPlayed, args.familiarity).songs }
+                songs = (songs + more).distinctBy { it.id }.take(wanted)
+                if (songs.size >= goodEnough) break
+            }
+            timber.log.Timber.i("MUSIC_REQUEST alternate pass result=%d wanted=%d attempt=%d", songs.size, wanted, alternateAttempts)
             _last.update { l ->
                 l?.takeIf { it.contextId == args.contextId }?.copy(
-                    alternate = if (songs.isEmpty()) AlternateOption.Empty else AlternateOption.Ready(songs),
+                    alternate = if (songs.size < MIN_ALTERNATE) AlternateOption.Empty else AlternateOption.Ready(songs),
                 ) ?: l
             }
         }
@@ -249,6 +269,15 @@ constructor(
 
     /** Cuántas canciones trae la segunda opción (la primera suena con el lote de siempre y se completa aparte). */
     private val ALTERNATE_COUNT = 15
+
+    /** Row 512: the second option is worth showing from this many songs; below it the card says there is no other option. */
+    private val MIN_ALTERNATE = 3
+
+    /** Row 512: a second pass (with the served-memory released) runs only while the list is shorter than this. */
+    private val ALTERNATE_GOOD_ENOUGH = 10
+
+    /** Row 512: how many times the card may ask again after an empty answer. */
+    private val MAX_ALTERNATE_ATTEMPTS = 3
 
     fun request(
         prompt: String,
