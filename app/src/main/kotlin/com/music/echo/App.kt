@@ -175,6 +175,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             Timber.plant(Timber.DebugTree())
         }
         iad1tya.echo.music.utils.AppLogger.plant(this)
+        // Row 508: the animated-cover module reports its token / HTTP outcomes (status words and counts only) to the shared log.
+        iad1tya.echo.music.canvas.AppleCanvasDiagnostics.sink = { Timber.tag("CANVAS").i(it) }
 
         // Scrobbling (Last.fm): load the API credentials once at startup so the settings-screen login and the
         // ScrobbleManager can talk to Last.fm. Keys come from BuildConfig (embedded, as Last.fm keys are meant

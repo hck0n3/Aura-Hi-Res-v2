@@ -265,12 +265,13 @@ object ContextLane {
      *
      *  - 0 — the style (or, with it unknown, the genre family) matches and the language is the lane's;
      *  - 1 — the same, with the language unproven;
-     *  - 2 — style unproven, language proven, and (in a Christian lane) provably Christian;
-     *  - 3 — style unproven, language unproven, and (in a Christian lane) provably Christian;
-     *  - 4 — everything else that is not excluded.
+     *  - 2 — style unproven, language proven;
+     *  - 3 — style unproven, language unproven;
+     *  - [MAX_TIER] (4) is no longer handed out (row 503): it was «not provably Christian in a Christian lane».
      *
      * Excluded: an OFF style verdict; strong evidence of another language (unless the lane has none, i.e. the
-     * context is unknown or MIXED); a known family outside the lane's families.
+     * context is unknown or MIXED); a known family outside the lane's families; in a Christian lane, anything not
+     * provably Christian (row 503).
      */
     fun tier(lane: Lane, c: Candidate): Int? {
         if (c.verdict == StyleContinuity.Verdict.OFF) return null
@@ -283,13 +284,18 @@ object ContextLane {
         // «Proven» = the lane asks no language, or the candidate's evidence says it. A hint of ANOTHER language
         // proves nothing either way (it never excludes), so it only keeps the candidate out of the best steps.
         val languageProven = wanted == null || code == wanted
-        val faithOk = !lane.christian || c.christian
+        // Row 503 (owner 2026-10-29: «rap cristiano… a las tres o cinco canciones empezó a poner música secular, mantuvo
+        // el género pero no la religión»): in a Christian lane FAITH IS A GATE, not a ranking. Until now a candidate
+        // that was not provably Christian fell to the catch-all step 4, and the widening ([choose]) took that whole step
+        // whenever the better ones were fewer than `enough` — so a secular Spanish rap song with the right style was
+        // admitted at step 0/1 and the rest at step 4. The context's own artists and what a Christian search brought
+        // are proven by the caller ([iad1tya.echo.music.playback.exactStyleFilter]); anything else needs evidence.
+        if (lane.christian && !c.christian) return null
         return when {
             exact && languageProven -> 0
             exact -> 1
-            languageProven && faithOk -> 2
-            faithOk -> 3
-            else -> MAX_TIER
+            languageProven -> 2
+            else -> 3
         }
     }
 

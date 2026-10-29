@@ -1237,7 +1237,7 @@
     <string name="listen_together_how_step2_desc">Escribe su código de sala para entrar en su sesión al instante.</string>
     <string name="listen_together_how_step3_title">3. Sincroniza la reproducción</string>
     <string name="listen_together_how_step3_desc">El anfitrión controla la música. ¡Todo el mundo escucha en sincronía perfecta!</string>
-    <string name="playlist_already_has_song">En lista</string>
+    <string name="playlist_already_has_song">Ya tiene esta canción</string>
     <!-- Sincronización de biblioteca como trabajo de primer plano (YtmSyncWorker) -->
     <string name="sync_channel_name">Sincronización de biblioteca</string>
     <string name="sync_notification_title">Sincronizando tu biblioteca</string>
@@ -1338,4 +1338,11 @@
     <string name="music_request_other_option_empty">No encontré una opción distinta para esta petición</string>
     <string name="music_request_other_option_loading">Buscando otra opción…</string>
     <string name="music_request_play_option">Escuchar esta opción</string>
+    <string name="download_sheet_already_title">Esta canción ya está descargada</string>
+    <string name="download_sheet_already_modes">Disponible: %1$s</string>
+    <string name="download_mode_offline">sin conexión</string>
+    <string name="download_mode_mp3">MP3</string>
+    <string name="download_mode_video">vídeo</string>
+    <string name="download_sheet_in_lists">En tus listas: %1$s</string>
+    <string name="download_sheet_in_lists_more">%1$s y %2$d más</string>
 </resources>

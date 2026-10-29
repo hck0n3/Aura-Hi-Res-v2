@@ -214,17 +214,61 @@ class ContextLaneTest {
         val unprovenChristian = candidate("Jordan", christian = true)
         val unprovenSecular = candidate("Jordan")
         assertEquals(2, tierOf(sameLanguageChristian, lane))
-        assertEquals(4, tierOf(sameLanguage, lane)) // not shown to be Christian in a Christian lane
+        // Row 503: in a Christian lane faith is a GATE — a candidate not shown to be Christian is never admitted.
+        assertNull(tierOf(sameLanguage, lane))
         assertEquals(3, tierOf(unprovenChristian, lane))
-        assertEquals(4, tierOf(unprovenSecular, lane))
+        assertNull(tierOf(unprovenSecular, lane))
 
         val items = listOf("secular", "unproven-christian", "spanish-christian", "spanish-secular")
         val tiers = listOf(tierOf(unprovenSecular), tierOf(unprovenChristian), tierOf(sameLanguageChristian), tierOf(sameLanguage))
         val faith = listOf(false, true, true, false)
         assertEquals(listOf("spanish-christian"), ContextLane.choose(items, tiers, faith, enough = 1))
         assertEquals(listOf("spanish-christian", "unproven-christian"), ContextLane.choose(items, tiers, faith, enough = 2))
-        // Only when even that is not enough do the weakest steps come in; nothing excluded is ever added.
-        assertEquals(4, ContextLane.choose(items, tiers, faith, enough = 4).size)
+        // However much is wanted, the secular ones never come in.
+        assertEquals(2, ContextLane.choose(items, tiers, faith, enough = 4).size)
+    }
+
+    // ── Row 503 (owner 2026-10-29): faith is a gate, and the relaxation keeps a fence ────────────────────────────────
+    @Test
+    fun `a secular song with the right style and language is not admitted in a christian lane`() {
+        // The leak: «rap cristiano» continued with Spanish rap that was not Christian — style and language matched, so it
+        // took step 0/1 and the faith only ordered the step.
+        val secularRap = candidate("Mi Testimonio", learned = "rap")
+        assertNull(tierOf(secularRap))
+        val christianRap = candidate("Mi Testimonio", learned = "rap", christian = true)
+        assertEquals(0, tierOf(christianRap))
+    }
+
+    @Test
+    fun `a non christian lane still admits what it cannot place - only a christian lane gates faith`() {
+        val lane = ContextLane.Lane(TitleLanguage.ES, mixed = false, christian = false, families = emptySet())
+        val target = StyleContinuity.Target(setOf("rap"), TitleLanguage.ES, christian = false)
+        val unproven = candidate("Jordan", target = target)
+        assertEquals(3, tierOf(unproven, lane)) // language unproven, nothing excludes it
+    }
+
+    @Test
+    fun `luis miguel never continues into cumbia - the neighbourhood of balada and bolero is pop and iberian`() {
+        val neighbours = MusicStyle.neighbourFamilies(setOf("bolero"))
+        assertTrue(MusicStyle.FAMILY_IBERIAN in neighbours)
+        assertTrue(MusicStyle.FAMILY_POP in neighbours)
+        assertFalse(MusicStyle.FAMILY_TROPICAL in neighbours)
+        assertEquals(neighbours, MusicStyle.neighbourFamilies(setOf("balada")))
+        // The lane the first relaxation level keeps: a cumbia (known only by its family) is out, a ballad stays.
+        val lane = ContextLane.Lane(TitleLanguage.ES, mixed = false, christian = false, families = neighbours)
+        val target = StyleContinuity.Target(null, TitleLanguage.ES, christian = false)
+        val cumbia = candidate("Mi Testimonio", learned = "cumbia", target = target)
+        val ballad = candidate("Mi Testimonio", learned = "balada", target = target)
+        assertNull(tierOf(cumbia, lane))
+        assertEquals(0, tierOf(ballad, lane))
+        assertTrue(MusicStyle.neighbourFamilies(null).isEmpty())
+    }
+
+    @Test
+    fun `a christian context with a language always has a christian search to fall back on`() {
+        assertEquals("música cristiana", StyleContinuity.christianQuery(TitleLanguage.ES))
+        assertEquals("christian music", StyleContinuity.christianQuery(TitleLanguage.EN))
+        assertNull(StyleContinuity.christianQuery(null)) // never guess a language
     }
 
     @Test
@@ -284,11 +328,26 @@ class ContextLaneTest {
     }
 
     @Test
-    fun `the engine keeps the language gate until the last relaxation level`() {
+    fun `the engine never switches the gate off - level 3 drops the family fence only`() {
         val engine = main("playback/RadioContinuationEngine.kt")
-        assertTrue(engine.contains("relaxLevel < 3"))
+        // Row 503: it used to read `relaxLevel < 3`, i.e. at the last level ANYTHING played (the cumbia after Luis Miguel).
+        assertFalse(engine.contains("keepGenreLaneHint && relaxLevel < 3"))
         assertTrue(engine.contains("languageOnly = relaxLevel >= 2"))
+        assertTrue(engine.contains("dropFamilies = relaxLevel >= 3"))
         assertTrue(engine.contains("relaxLevel = 3"))
+    }
+
+    @Test
+    fun `the gate proves faith by the context's own artists and by a christian search, and keeps searching when relaxed`() {
+        val gate = main("playback/ExactStyleGate.kt")
+        assertTrue(gate.contains("lane.christian && (ownArtist || faithSource)"))
+        assertTrue(gate.contains("faithSource: Boolean = fromSearch && gateTarget.christian"))
+        assertTrue(gate.contains("(!languageOnly || lane.christian)"))
+        assertTrue(gate.contains("StyleContinuity.christianQuery(gateTarget.language)"))
+        // A Christian context is never left to the raw list because it names no language or style.
+        assertTrue(gate.contains("!gateTarget.active && lane.families.isEmpty() && !lane.christian"))
+        assertTrue(gate.contains("target.language == null && !target.christian"))
+        assertTrue(gate.contains("target.neighbourFamilies"))
     }
 
     @Test

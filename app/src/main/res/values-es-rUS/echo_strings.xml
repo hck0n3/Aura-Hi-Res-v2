@@ -747,5 +747,12 @@
     <string name="listen_together_how_step2_desc">Escribe su código de sala para entrar en su sesión al instante.</string>
     <string name="listen_together_how_step3_title">3. Sincroniza la reproducción</string>
     <string name="listen_together_how_step3_desc">El anfitrión controla la música. ¡Todos escuchan en sincronía perfecta!</string>
-    <string name="playlist_already_has_song">En lista</string>
+    <string name="playlist_already_has_song">Ya tiene esta canción</string>
+    <string name="download_sheet_already_title">Esta canción ya está descargada</string>
+    <string name="download_sheet_already_modes">Disponible: %1$s</string>
+    <string name="download_mode_offline">sin conexión</string>
+    <string name="download_mode_mp3">MP3</string>
+    <string name="download_mode_video">vídeo</string>
+    <string name="download_sheet_in_lists">En tus listas: %1$s</string>
+    <string name="download_sheet_in_lists_more">%1$s y %2$d más</string>
 </resources>

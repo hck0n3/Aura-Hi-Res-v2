@@ -1040,6 +1040,30 @@ object AiPlaylistGenerator {
                 ?: MusicRequestArtist.confirm(MusicRequestQuery.withoutLeadIn(prompt), candidateArtists)
                 ?: soloArtist?.takeIf { MusicRequestArtist.sameName(it, residual) }
             val residualWords = MusicRequestQuery.residualWords(residual)
+            // Fila 503 (dueño 2026-10-29: «pedí lo mejor de Luis Miguel y me puso de Luis Miguel pero luego también de Cristian
+            // Castro, nada que ver»): the artist lock above needs TWO songs of that artist in the first page of the search for
+            // the WHOLE phrase («lo mejor de luis miguel»), and that page is full of compilations, tributes and covers by
+            // other people. Unlocked, every later step (lists «Lo mejor de…», the radio of a pinned song, «más del mismo
+            // artista») brings OTHER artists in. When the phrase search could not confirm it, the name is probed ALONE: the
+            // search for just «luis miguel», and the artist's own entry — which counts only with a song of theirs there.
+            val probedArtist = if (confirmedArtist == null && residualWords.isNotEmpty() && residualWords.size <= 4 &&
+                residual.length >= 4 && inBudget() &&
+                !residualWords.all { MusicRequestRegion.isRegionWord(it) || iad1tya.echo.music.reco.MusicStyle.isSubStyleWord(it) }
+            ) {
+                val alone = YouTube.search(residual, YouTube.SearchFilter.FILTER_SONG).getOrNull()
+                    ?.items?.filterIsInstance<SongItem>().orEmpty()
+                val aloneArtists = alone.map { it.artists.firstOrNull()?.name }
+                MusicRequestArtist.confirm(residual, aloneArtists)
+                    ?: aloneArtists.firstOrNull { MusicRequestArtist.sameName(it, residual) }?.let { songArtist ->
+                        YouTube.search(residual, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()
+                            ?.items?.filterIsInstance<com.music.innertube.models.ArtistItem>()
+                            ?.firstOrNull { MusicRequestArtist.sameName(it.title, residual) }
+                            ?.let { songArtist }
+                    }
+            } else {
+                null
+            }
+            val lockedArtist = confirmedArtist ?: probedArtist
             // Fila 493 (dueño 2026-10-21: «cumbia villera cristiana argentina / colombiana / mexicana» daban lo mismo): un
             // país («colombiana») o el nombre de un subgénero («villera») describe el estilo, no nombra una canción ni un
             // artista. Antes se fijaba cualquier canción que se llamara exactamente así y las tres peticiones caían en la
@@ -1053,9 +1077,9 @@ object AiPlaylistGenerator {
                     // nombran en su título lo responden (antes se fijaba cualquier canción que se llamara «Argentina»).
                     if (!parsed.preferPlaylists && intent.styles.isEmpty()) themeRequest = true
                 }
-                confirmedArtist != null -> {
+                lockedArtist != null -> {
                     artistLocked = true
-                    if (effectiveSolo == null) effectiveSolo = confirmedArtist
+                    if (effectiveSolo == null) effectiveSolo = lockedArtist
                     // Lo que el buscador devolvió para la frase entera ("hip hop de eminem") va primero: es
                     // lo más cercano a lo que pidió dentro del catálogo de ese artista.
                     absorb(christianOnly(candidates))
@@ -1166,6 +1190,36 @@ object AiPlaylistGenerator {
                     val radio = YouTube.next(WatchEndpoint(videoId = seedSong.id, playlistId = "RDAMVM${seedSong.id}"))
                         .getOrNull()?.items.orEmpty()
                     val byLike = radio.filter { song -> song.artists.any { MusicRequestArtist.sameName(it.name, like) } }
+                    // Fila 503 (dueño 2026-10-29: «escuchar algo parecido a [el artista] no es exacto, la predicción falla»):
+                    // the radio of ONE song drifts — it follows that song's mood, not the artist's public. What YouTube itself
+                    // calls similar is the «Fans might also like» shelf of the ARTIST's page, so those artists lead the
+                    // list (a few songs each, at most [SIMILAR_ARTISTS] pages), and the radio only completes it — keeping
+                    // from the radio the songs of those same artists first.
+                    val likeBrowseId = seedSong.artists.firstOrNull { MusicRequestArtist.sameName(it.name, like) }?.id
+                        ?.takeIf { it.startsWith("UC") }
+                    val similarArtists = if (likeBrowseId != null && inBudget()) {
+                        YouTube.artist(likeBrowseId).getOrNull()?.sections
+                            ?.firstOrNull { sec -> sec.items.isNotEmpty() && sec.items.all { it is com.music.innertube.models.ArtistItem } }
+                            ?.items?.filterIsInstance<com.music.innertube.models.ArtistItem>()
+                            ?.filter { it.id.startsWith("UC") && !MusicRequestArtist.sameName(it.title, like) }
+                            ?.take(SIMILAR_ARTISTS).orEmpty()
+                    } else {
+                        emptyList()
+                    }
+                    val similarSongs = ArrayList<SongItem>()
+                    for (artist in similarArtists) {
+                        if (!inBudget()) break
+                        YouTube.artist(artist.id).getOrNull()?.sections
+                            ?.firstOrNull { sec -> sec.items.isNotEmpty() && sec.items.all { it is SongItem } }
+                            ?.items?.filterIsInstance<SongItem>()?.take(SIMILAR_SONGS_PER_ARTIST)
+                            ?.let { similarSongs.addAll(it) }
+                    }
+                    val similarNames = similarArtists.map { it.title }
+                    val radioOfSimilar = radio.filter { song ->
+                        song !in byLike && song.artists.any { a -> similarNames.any { MusicRequestArtist.sameName(a.name, it) } }
+                    }
+                    absorb(christianOnly(similarSongs))
+                    absorb(christianOnly(radioOfSimilar))
                     absorb(christianOnly(radio.filterNot { it in byLike } + byLike.take(1)))
                 }
             }
@@ -1504,6 +1558,10 @@ object AiPlaylistGenerator {
 
     /** Credits searched for the primary artist before a credit is considered a "featuring" position. */
     private const val MAX_PRIMARY_CREDITS = 2
+
+    /** Fila 503: «parecido a X» — how many of YouTube's similar artists are read, and how many songs of each. */
+    private const val SIMILAR_ARTISTS = 4
+    private const val SIMILAR_SONGS_PER_ARTIST = 5
 
     /**
      * Pure, unit-testable core of the strict solo-artist gate: true when [names] (the resolved song's

@@ -54,6 +54,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.OkHttpClient
 import java.time.LocalDateTime
 import java.util.concurrent.Executor
@@ -125,6 +126,33 @@ constructor(
     fun invalidateSongUrl(songId: String) {
         songUrlCache.remove(songId)
         songUrlCache.remove(videoDownloadMediaId(songId))
+    }
+
+    /** Row 505: at most two listen-cache copies are being copied at once (a whole list asks for many). */
+    private val adoptGate = kotlinx.coroutines.sync.Semaphore(2)
+
+    /**
+     * Row 505 (owner 2026-10-29: «si la canción ya está en caché que la tome de ahí… para que no repita el proceso, no gaste
+     * doble almacenamiento y no gaste más datos»): copies the COMPLETE listen-cache copy of [songId], if there is one, into the
+     * download cache — on disk, no network — and then runs [then], which is the normal enqueue. With every byte already
+     * there Media3 completes that download without opening the network. When there is no complete copy (or anything in the
+     * way, see [ListenCacheAdoption]) it simply runs [then]: exactly the download of before. Runs on the util's own scope,
+     * so closing the sheet that asked for it never cancels it.
+     */
+    fun reuseListenCopyThen(songId: String, then: () -> Unit) {
+        scope.launch {
+            try {
+                adoptGate.withPermit {
+                    val itag = database.format(songId).first()?.itag
+                    ListenCacheAdoption.adopt(downloadCache, playerCache, songId, itag)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                timber.log.Timber.tag("DOWNLOAD").w("LISTEN_ADOPT skipped: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+            }
+            then()
+        }
     }
 
     val downloads = MutableStateFlow<Map<String, Download>>(emptyMap())

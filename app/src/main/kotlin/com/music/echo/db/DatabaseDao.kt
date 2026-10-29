@@ -1209,6 +1209,21 @@ interface DatabaseDao {
     @Query("SELECT DISTINCT playlistId from playlist_song_map WHERE songId IN (:songIds)")
     fun playlistIdsContaining(songIds: List<String>): Flow<List<String>>
 
+    /**
+     * Row 505 (owner 2026-10-29): the NAMES of the library lists that hold [songId], for the download sheet — «esta canción ya
+     * está descargada y está en estas listas». Only lists the user keeps (a removed list leaves a tombstone with a null
+     * bookmark), alphabetical.
+     */
+    @Query(
+        """
+        SELECT DISTINCT playlist.name FROM playlist
+        INNER JOIN playlist_song_map ON playlist.id = playlist_song_map.playlistId
+        WHERE playlist_song_map.songId = :songId AND playlist.bookmarkedAt IS NOT NULL AND playlist.name != ''
+        ORDER BY playlist.name COLLATE NOCASE
+        """
+    )
+    fun playlistNamesContaining(songId: String): Flow<List<String>>
+
     @Query("SELECT songId from playlist_song_map WHERE playlistId = :playlistId AND songId IN (:songIds)")
     fun playlistDuplicates(
         playlistId: String,

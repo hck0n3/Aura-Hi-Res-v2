@@ -189,6 +189,11 @@ internal suspend fun MusicService.exactStyleFilter(
     minMatches: Int,
     allowSearch: Boolean,
     languageOnly: Boolean = false,
+    /**
+     * Row 503: the LAST relaxation level — the genre-family fence of [languageOnly] comes down too. The language and,
+     * in a Christian context, the faith still hold: the gate is never switched off while the context says anything.
+     */
+    dropFamilies: Boolean = false,
 ): List<MediaItem>? = withContext(Dispatchers.IO) {
     if (!keepGenreLaneHint || exactStyle.chipSteered) return@withContext null
     val service = this@exactStyleFilter
@@ -334,14 +339,23 @@ internal suspend fun MusicService.exactStyleFilter(
         override = override,
     )
     // Row 459 — relaxation level 2 of the engine: the style stands down, the LANGUAGE still holds.
-    if (languageOnly && target.language == null) return@withContext null
+    // Row 503: ...unless the context is Christian — then the faith alone is still worth enforcing.
+    if (languageOnly && target.language == null && !target.christian) return@withContext null
     val gateTarget = if (languageOnly) StyleContinuity.Target(null, target.language, target.christian) else target
     // Row 459 — the lane: the language (null = unknown or MIXED: nothing judged), the faith and, when the concrete
     // style is unknown, the genre FAMILY (a user's «cualquier estilo» or a request's own target is never narrowed).
-    val families = if (languageOnly || requested != null || override != null) {
-        emptySet<String>()
-    } else {
-        ContextLane.familyHint(target.styles, trackFamilies)
+    // Row 503 (owner 2026-10-29: «terminó Luis Miguel, siguió con cantantes de la misma época… y de la nada cumbia»):
+    // the relaxation levels used to drop the style AND the family, leaving only the language — and every Spanish song
+    // (a cumbia included) is Spanish. The family fence now survives the first relaxation level (the families of the
+    // styles and their neighbours), and the normal levels fence a context whose styles are known too, with what is
+    // KNOWN of the candidate (its iTunes genre or Last.fm tags); a candidate nothing is known about stays eligible.
+    val families = when {
+        override != null -> emptySet<String>()
+        languageOnly -> if (dropFamilies) emptySet() else {
+            target.neighbourFamilies.ifEmpty { ContextLane.familyHint(null, trackFamilies) }
+        }
+        requested != null -> emptySet<String>()
+        else -> ContextLane.familyHint(target.styles, trackFamilies).ifEmpty { target.neighbourFamilies }
     }
     val lane = ContextLane.Lane(
         language = gateTarget.language,
@@ -349,7 +363,7 @@ internal suspend fun MusicService.exactStyleFilter(
         christian = gateTarget.christian,
         families = families,
     )
-    if (!gateTarget.active && lane.families.isEmpty()) {
+    if (!gateTarget.active && lane.families.isEmpty() && !lane.christian) {
         Timber.tag(TAG).i("STYLE_GATE %s: style and language unknown, no filter applied", site)
         return@withContext null
     }
@@ -362,7 +376,7 @@ internal suspend fun MusicService.exactStyleFilter(
         )
     }
 
-    fun judge(mi: MediaItem, fromSearch: Boolean): Judged {
+    fun judge(mi: MediaItem, fromSearch: Boolean, faithSource: Boolean = false): Judged {
         val t = mi.trackText()
         val textStyle = MusicStyle.fromText(t.text)
         val learned = artistStyle(t.primary)
@@ -393,7 +407,11 @@ internal suspend fun MusicService.exactStyleFilter(
                 ),
             )
         }
-        return Judged(verdict, ContextLane.Candidate(verdict, evidence, familyFor(t, known), christianEvidence(t)))
+        // Row 503 — faith is a GATE in a Christian lane, so what PROVES it must be generous where it is sure: the context's
+        // own artists, and the songs a Christian search ("rap cristiano en español", "música cristiana") brought.
+        val ownArtist = t.artists.any { it.trim().lowercase() in ownArtists }
+        val christian = christianEvidence(t) || (lane.christian && (ownArtist || faithSource))
+        return Judged(verdict, ContextLane.Candidate(verdict, evidence, familyFor(t, known), christian))
     }
 
     // Fits the fill may add to: a related artist the context already knows to be elsewhere is not even asked for.
@@ -416,7 +434,9 @@ internal suspend fun MusicService.exactStyleFilter(
     // Step 0 = the style (or family) AND the language proven. A candidate whose language is merely unproven (step 1)
     // is eligible but does not stop the lane fill: it is what an English song with a bare title looks like too.
     fun exactCount(): Int = judged.count { j -> ContextLane.tier(lane, j.candidate) == 0 }
-    if (allowSearch && !languageOnly && exactCount() < minMatches) {
+    // Row 503: a Christian context may still SEARCH at the relaxed levels (it asks for Christian songs, never for
+    // anything else), so the faith gate never starves the queue.
+    if (allowSearch && (!languageOnly || lane.christian) && exactCount() < minMatches) {
         val originContextId = radioOriginContextId
         val playedBefore = if (originContextId != null) {
             runCatching { database.radioContinuationPlayedIds(originContextId) }.getOrDefault(emptyList()).toHashSet()
@@ -429,7 +449,12 @@ internal suspend fun MusicService.exactStyleFilter(
             dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false)
         // Same filters for every source of extra songs: the user's own settings, then the smart queue's no-repeat
         // (this session, the persistent «already served after this list» memory, unavailable songs).
-        suspend fun admit(found: List<MediaItem>, fromSearch: Boolean, impliedStyle: String?): Int {
+        suspend fun admit(
+            found: List<MediaItem>,
+            fromSearch: Boolean,
+            impliedStyle: String?,
+            faithSource: Boolean = fromSearch && gateTarget.christian,
+        ): Int {
             val playable = found
                 .filterExplicit(hideExplicit)
                 .filterVideoSongs(hideVideos)
@@ -448,7 +473,7 @@ internal suspend fun MusicService.exactStyleFilter(
             }
             fresh.forEach { mi ->
                 all.add(mi)
-                judged.add(judge(mi, fromSearch))
+                judged.add(judge(mi, fromSearch, faithSource))
             }
             return fresh.size
         }
@@ -460,6 +485,7 @@ internal suspend fun MusicService.exactStyleFilter(
             else -> styles.random(randomSeedSource)
         }
         val query = StyleContinuity.searchQuery(style, gateTarget.language, gateTarget.christian)
+            ?: if (gateTarget.christian) StyleContinuity.christianQuery(gateTarget.language) else null
         if (query != null) {
             repeat(FILL_PAGES_PER_CALL) {
                 if (exactCount() >= minMatches) return@repeat

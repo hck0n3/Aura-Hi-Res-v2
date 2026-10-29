@@ -1347,7 +1347,7 @@
     <string name="listen_together_how_step3_title">3. Sync Playback</string>
     <string name="listen_together_how_step3_desc">The host controls the music. Everyone listens in perfect sync!</string>
     <!-- Badge on a playlist row in the "add to playlist" picker: this playlist already has the song. -->
-    <string name="playlist_already_has_song">Added</string>
+    <string name="playlist_already_has_song">Already has this song</string>
     <!-- Sincronización de biblioteca como trabajo de primer plano (YtmSyncWorker) -->
     <string name="sync_channel_name">Library sync</string>
     <string name="sync_notification_title">Syncing your library</string>
@@ -1448,4 +1448,11 @@
     <string name="music_request_other_option_empty">I could not find a different option for this request</string>
     <string name="music_request_other_option_loading">Looking for another option…</string>
     <string name="music_request_play_option">Play this option</string>
+    <string name="download_sheet_already_title">This song is already downloaded</string>
+    <string name="download_sheet_already_modes">Available as: %1$s</string>
+    <string name="download_mode_offline">offline</string>
+    <string name="download_mode_mp3">MP3</string>
+    <string name="download_mode_video">video</string>
+    <string name="download_sheet_in_lists">In your lists: %1$s</string>
+    <string name="download_sheet_in_lists_more">%1$s and %2$d more</string>
 </resources>

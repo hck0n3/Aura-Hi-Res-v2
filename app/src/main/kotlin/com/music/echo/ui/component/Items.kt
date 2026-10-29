@@ -1095,9 +1095,15 @@ fun PlaylistListItem(
     },
     trailingContent: @Composable RowScope.() -> Unit = {},
     shape: Shape = androidx.compose.ui.graphics.RectangleShape,
+    /**
+     * Row 504 (owner 2026-10-29): a short sentence after the song count («Ya tiene esta canción»). The «add to a list» picker
+     * used to say it only with a tick at the row's right edge, which, next to the download tick of a downloaded list,
+     * read as «this list is downloaded» and nothing more.
+     */
+    note: String? = null,
 ) = ListItem(
     title = playlist.playlist.name,
-    subtitle = if (autoPlaylist) {
+    subtitle = (if (autoPlaylist) {
         ""
     } else {
         if (playlist.songCount == 0 && playlist.playlist.remoteSongCount != null) {
@@ -1112,6 +1118,12 @@ fun PlaylistListItem(
                 playlist.songCount,
                 playlist.songCount
             )
+        }
+    }).let { base ->
+        when {
+            note.isNullOrBlank() -> base
+            base.isBlank() -> note
+            else -> "$base · $note"
         }
     },
     badges = badges,

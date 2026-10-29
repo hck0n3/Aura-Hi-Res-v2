@@ -796,7 +796,10 @@ private fun AuraPlayerShape(
         AuraDownloadSheet(
             songs = listOf(downloadChooserMeta.toAuraDownloadItem()),
             title = downloadChooserMeta.title,
-            offlineState = Download.STATE_STOPPED,
+            // Row 505: the REAL state. It was hard-wired to STOPPED, so the sheet never knew the song was already
+            // downloaded (no «Quitar descarga», no notice) — and the button itself removed the download on the spot.
+            offlineState = download?.state
+                ?: if (downloadChooserMeta.id in pendingDownloadIds) Download.STATE_QUEUED else Download.STATE_STOPPED,
             onDismiss = { showDownloadOrExportDialog = false },
             deferOfflineWhileLiveVideo = videoMode,
         )
@@ -1937,9 +1940,14 @@ private fun AuraPlayerShape(
                             onClick = {
                                 when {
                                     isLocalTrack -> Unit
-                                    downloadBusy || downloadDone || downloadHeld ->
-                                        removeSongDownloads(context, songId, isVideo)
                                     isExporting -> Unit
+                                    // Row 505 (owner 2026-10-29: «toco el botón de descargar por error o por capricho en una
+                                    // canción ya descargada, que me avise»): a tap on a song that is downloading, held, or
+                                    // already downloaded (offline, MP3 or video) used to REMOVE the download on the spot,
+                                    // silently. It now opens the sheet, which says what exists and in which lists the song
+                                    // is, and removes only after a confirmation.
+                                    downloadBusy || downloadDone || downloadHeld || isExported ->
+                                        showDownloadOrExportDialog = true
                                     !enableExportAsMp3 -> downloadDirectly()
                                     else -> showDownloadOrExportDialog = true
                                 }

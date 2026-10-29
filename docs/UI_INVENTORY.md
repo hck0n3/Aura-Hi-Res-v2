@@ -4211,3 +4211,7 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Búsqueda rápida del reproductor (lupa) | Historial y sugerencias como losa continua; ✕ borra, ↖ copia al campo, «Borrar todo»; resultados sin cambios | 501 |
 | Reconocer música (resultado) | Portada, título, artista y álbum; Reproducir en la app, Me gusta, Añadir a lista, Volver a escuchar y Cerrar como filas de una losa (Me gusta y Añadir a lista esperan a que la canción se resuelva) | 502 |
 | Menú de la cuenta (avatar de Inicio) | Perfil; Usar la cuenta para explorar, Sincronización con YouTube Music (+ sincronizar ahora, programar), Actualizaciones, Reporte de errores, Ajustes, Compartir y Acerca de, cada grupo en su losa | 502 |
+| Botón de descargar del reproductor | Descargando / descargada / exportada: abre la hoja (antes quitaba la descarga en silencio); la hoja avisa «ya descargada» (sin conexión · MP3 · vídeo) y las listas que la tienen; «Quitar descarga» pide confirmación | 505 |
+| Añadir a lista de reproducción | Cada lista que ya tiene la canción dice «Ya tiene esta canción» bajo el nombre, además del tick | 504 |
+| Listas de YouTube y de la biblioteca (Me gusta, Descargadas, Mi top, En caché) | Deslizar a la derecha = me gusta, a la izquierda = añadir a lista | 506 |
+| Búsqueda del reproductor (ventana ancha) | Tocar una pista de un álbum / artista / lista abre «reproducir · a continuación · cola · lista»; la búsqueda general sigue reproduciendo | 507 |

@@ -38,6 +38,8 @@ object StyleContinuity {
         val era: iad1tya.echo.music.playlistimport.MusicRequestEra.Range? = null,
     ) {
         val families: Set<String> = styles.orEmpty().mapNotNull { MusicStyle.familyOf(it) }.toSet()
+        /** Row 503: [families] plus the neighbourhood the queue may widen into ([MusicStyle.neighbourFamilies]). */
+        val neighbourFamilies: Set<String> get() = MusicStyle.neighbourFamilies(styles)
         val active: Boolean get() = !styles.isNullOrEmpty() || language != null || era != null
     }
 
@@ -206,6 +208,18 @@ object StyleContinuity {
 
     const val COLLECTION_MIN_KNOWN = 3
     const val COLLECTION_STYLE_FLOOR = 0.15
+
+    /**
+     * Row 503: what to ask YouTube when a CHRISTIAN context knows no concrete style but knows its language, so the
+     * queue always has a source of provably Christian songs ("música cristiana"). Null without a language: asking for
+     * Spanish songs to someone listening to English ones would be a guess.
+     */
+    fun christianQuery(language: String?): String? = when (language) {
+        TitleLanguage.ES -> "música cristiana"
+        TitleLanguage.EN -> "christian music"
+        TitleLanguage.PT -> "música gospel"
+        else -> null
+    }
 
     /**
      * What to ask YouTube for more songs of [style] in this context: "cumbia cristiana", "rock en español",

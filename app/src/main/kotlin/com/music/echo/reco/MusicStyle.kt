@@ -440,6 +440,26 @@ object MusicStyle {
     fun familyOf(id: String?): String? = style(id)?.family
 
     /**
+     * Row 503 — the genre families a context of [styles] may keep: the families of the styles themselves, of their parent
+     * and of the styles they are related to, plus the one neighbour that shares their public (pop ↔ the Iberian
+     * songbook: baladas, boleros, flamenco). Empty when [styles] is empty. The smart queue keeps this fence up even
+     * when it relaxes its filters: it widens WITHIN the neighbourhood and never into «cumbia after Luis Miguel».
+     */
+    fun neighbourFamilies(styles: Set<String>?): Set<String> {
+        if (styles.isNullOrEmpty()) return emptySet()
+        val out = LinkedHashSet<String>()
+        for (id in styles) {
+            val s = style(id) ?: continue
+            out += s.family
+            s.parent?.let { familyOf(it) }?.let { out += it }
+            s.related.mapNotNull { familyOf(it) }.forEach { out += it }
+        }
+        if (FAMILY_POP in out) out += FAMILY_IBERIAN
+        if (FAMILY_IBERIAN in out) out += FAMILY_POP
+        return out
+    }
+
+    /**
      * The style named by a track's own TITLE and ALBUM (never pass the artist: "Banda MS", "La Sonora
      * Dinamita"). Null when no style word appears, or two different concrete styles do.
      */

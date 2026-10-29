@@ -55,6 +55,7 @@ fun RoomyPlaylistListItem(
     modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
     shape: androidx.compose.ui.graphics.Shape = androidx.compose.ui.graphics.RectangleShape,
     trailingContent: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+    note: String? = null,
 ) {
     androidx.compose.runtime.CompositionLocalProvider(LocalListItemSizing provides roomyListItemSizing()) {
         PlaylistListItem(
@@ -62,6 +63,7 @@ fun RoomyPlaylistListItem(
             modifier = modifier,
             shape = shape,
             trailingContent = trailingContent,
+            note = note,
         )
     }
 }

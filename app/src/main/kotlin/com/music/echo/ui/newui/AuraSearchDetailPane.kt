@@ -325,6 +325,11 @@ private class PaneEnv(
     val go: (String) -> Unit,
     val openTrackMenu: (PaneTrack) -> Unit,
     val playLocalSong: ((Song) -> Unit)?,
+    /**
+     * Row 507: when set, tapping a track row ASKS first (play now / next / queue / add to a list) instead of playing it — the
+     * player's own search uses it; the general search leaves it null and plays at once, as it always did.
+     */
+    val askTrack: ((PaneTrack, () -> Unit) -> Unit)? = null,
 ) {
     fun toast(res: Int) = Toast.makeText(context, context.getString(res), Toast.LENGTH_SHORT).show()
 
@@ -652,7 +657,12 @@ private fun LazyListScope.paneTrackItems(
             downloadId = track.id,
             durationSeconds = track.durationSec,
             onClick = {
-                if (track.id == env.mediaId) env.player.togglePlayPause() else onClick(index, track)
+                val ask = env.askTrack
+                when {
+                    track.id == env.mediaId -> env.player.togglePlayPause()
+                    ask != null -> ask(track) { onClick(index, track) }
+                    else -> onClick(index, track)
+                }
             },
             onMenuClick = { env.openTrackMenu(track) },
             modifier = Modifier.padding(horizontal = 12.dp),
@@ -1371,6 +1381,8 @@ internal fun AuraSearchDetailPane(
     afterNavigate: () -> Unit = {},
     onMenuDismiss: () -> Unit = {},
     playLocalSong: ((Song) -> Unit)? = null,
+    /** Row 507: the player's search asks what to do with a tapped track (see [PaneEnv.askTrack]). */
+    askBeforePlaying: Boolean = false,
 ) {
     if (pick == null) {
         AuraSearchDetailPlaceholder(modifier)
@@ -1391,10 +1403,50 @@ internal fun AuraSearchDetailPane(
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(pick.key) { keyboard?.hide() }
 
+    var pendingAddTrack by remember { mutableStateOf<PaneTrack?>(null) }
+    AddToPlaylistDialog(
+        isVisible = pendingAddTrack != null,
+        songIdsForMembership = pendingAddTrack?.let { listOf(it.id) },
+        onGetSong = {
+            val track = pendingAddTrack ?: return@AddToPlaylistDialog emptyList()
+            track.yt?.let { yt -> database.withTransaction { insert(yt.toMediaMetadata()) } }
+            listOf(track.id)
+        },
+        onDismiss = { pendingAddTrack = null },
+    )
+
     val stack = remember(pick.key) { mutableStateListOf<PaneRoute>(PaneRoute.Entity(pick)) }
     val listStates = remember(pick.key) { HashMap<String, LazyListState>() }
     val pop: () -> Unit = { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
     BackHandler(enabled = stack.size > 1, onBack = pop)
+
+    val askTrackLambda: (PaneTrack, () -> Unit) -> Unit = { track, play ->
+            menuState.show {
+                AuraPlayerQuickSearchSongMenu(
+                    title = track.title,
+                    isGuest = isGuest,
+                    onDismiss = menuState::dismiss,
+                    onPlayNow = {
+                        menuState.dismiss()
+                        play()
+                    },
+                    onPlayNext = {
+                        menuState.dismiss()
+                        playerConnection.playNext(track.mediaItem())
+                        Toast.makeText(context, context.getString(R.string.aura_pane_added_next), Toast.LENGTH_SHORT).show()
+                    },
+                    onAddToQueue = {
+                        menuState.dismiss()
+                        playerConnection.addToQueue(track.mediaItem())
+                        Toast.makeText(context, context.getString(R.string.aura_pane_added_queue), Toast.LENGTH_SHORT).show()
+                    },
+                    onAddToPlaylist = {
+                        menuState.dismiss()
+                        pendingAddTrack = track
+                    },
+                )
+            }
+    }
 
     val env = PaneEnv(
         context = context,
@@ -1425,6 +1477,7 @@ internal fun AuraSearchDetailPane(
             }
         },
         playLocalSong = playLocalSong,
+        askTrack = if (askBeforePlaying) askTrackLambda else null,
     )
 
     val top = stack.last()

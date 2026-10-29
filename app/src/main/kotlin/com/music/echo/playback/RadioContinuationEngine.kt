@@ -750,7 +750,10 @@ fun MusicService.startRadioSeamlessly() {
             // Row 459 (owner 2026-10-20: rap cristiano en español → reggaetón → hip hop en inglés): relaxation level 2
             // no longer switches the gate OFF — the style and the genre family stand down but the LANGUAGE still
             // holds (languageOnly); only level 3 plays anything, and only after every coherent source came back empty.
-            val styled = if (contextSteerActive && keepGenreLaneHint && relaxLevel < 3) {
+            // Row 503 (owner 2026-10-29): level 3 no longer plays ANYTHING — it drops only the genre-family fence; the
+            // language and, in a Christian context, the faith still hold, and a context that says nothing at all is the
+            // only one the gate leaves alone (exactStyleFilter returns null for it).
+            val styled = if (contextSteerActive && keepGenreLaneHint) {
                 exactStyleFilter(
                     items = languageOrdered.first,
                     anchor = radioAnchorMetadata ?: currentMediaMetadata,
@@ -761,6 +764,7 @@ fun MusicService.startRadioSeamlessly() {
                     minMatches = iad1tya.echo.music.reco.StyleContinuity.MIN_MATCHES,
                     allowSearch = true,
                     languageOnly = relaxLevel >= 2,
+                    dropFamilies = relaxLevel >= 3,
                 )
             } else {
                 null
@@ -1237,7 +1241,7 @@ fun MusicService.startRadioSeamlessly() {
         if (!appended) {
             relaxLevel = 3
             appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
-            if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the style gate off")
+            if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the language and faith gates only")
         }
         // Autoplay chips: the seed just landed (appendSeed ran) → refresh the queue-footer
         // suggestions for THIS seed. Bounded: no-ops if this seed's chips are already loaded.
