@@ -76,6 +76,27 @@ fun isBenignResolveCancellation(e: Throwable?): Boolean =
 fun pickVideoExportUrl(newPipeUrl: String?, innerTubeUrl: String?): String? =
     newPipeUrl?.takeIf { it.isNotBlank() } ?: innerTubeUrl?.takeIf { it.isNotBlank() }
 
+/**
+ * Row 514: the audio-only itags NewPipe's extractor may hand over, in the order the app prefers them (the Opus family
+ * first, then AAC), or the lowest-bitrate first for [smallest]. Muxed progressives (22/18) are NOT audio-only and never
+ * come out of here: a song stream that carried a picture would be a different, heavier file. Null when the extractor
+ * returned no audio at all.
+ */
+internal fun pickNewPipeAudio(streams: List<Pair<Int, String>>, smallest: Boolean): Pair<Int, String>? {
+    val order = if (smallest) listOf(249, 139, 250, 140, 171, 251, 141, 774) else listOf(774, 251, 250, 249, 141, 140, 139, 171)
+    return order.firstNotNullOfOrNull { wanted ->
+        streams.firstOrNull { it.first == wanted && it.second.isNotBlank() }
+    }
+}
+
+/** The mime type the rest of the app expects in a [PlayerResponse.StreamingData.Format] for an audio-only [itag]. */
+internal fun mimeTypeForAudioItag(itag: Int): String = when (itag) {
+    774, 251, 250, 249 -> "audio/webm; codecs=\"opus\""
+    171 -> "audio/webm; codecs=\"vorbis\""
+    139 -> "audio/mp4; codecs=\"mp4a.40.5\""
+    else -> "audio/mp4; codecs=\"mp4a.40.2\""
+}
+
 object YTPlayerUtils {
     private const val logTag = "YTPlayerUtils"
 
@@ -439,10 +460,11 @@ object YTPlayerUtils {
         val timing = ResolveTiming(videoId)
         timing.dbMs = preResolveDbMs
         try {
-            val result = playerResponseForPlaybackImpl(
+            val inner = playerResponseForPlaybackImpl(
                 videoId, playlistId, audioQuality, connectivityManager, context,
                 knownArtist, knownTitle, knownDurationMs, isDownload, preferSmallestAudio, timing,
             )
+            val result = if (inner.isFailure) newPipeAudioRescue(videoId, inner, preferSmallestAudio, timing) ?: inner else inner
             timing.success = result.isSuccess
             return result
         } finally {
@@ -573,6 +595,80 @@ object YTPlayerUtils {
         }
         return finished
     }
+
+    /**
+     * Row 514 (owner 2026-10-29, log share_all_diagnostics_2: «en modo audio no me reproduce nada y entra en un bucle… lo cambio
+     * a vídeo y sí reproduce»). The audio path asks InnerTube /player through exactly two identities (ANDROID_VR, IOS) and, when
+     * BOTH are refused, gives up WITHOUT ever asking the extractor — 60 of 60 attempts in that log ended `UNPLAYABLE` /
+     * HTTP 400 with `url=0ms`, every song of the queue was skipped as «no disponible», and the queue ran dry. Video mode plays
+     * the very same ids because it takes its URL from NewPipe's extractor, not from /player. So when the cascade fails the
+     * extractor gets ONE try at the same song, audio-only, before the song is declared unplayable.
+     *
+     * Only a typed dead-end ([StreamResolutionException]) is rescued — never a cancellation or the user leaving. Bounded by
+     * [NEWPIPE_RESCUE_TIMEOUT_MS] so a blocked extractor cannot stretch the skip. The URL comes out of NewPipe with its `n`
+     * already deobfuscated, exactly as in [findUrlOrNull]. Logs the video id and the itag only (AGENTS.md rule 4).
+     */
+    private suspend fun newPipeAudioRescue(
+        videoId: String,
+        failed: Result<PlaybackData>,
+        preferSmallestAudio: Boolean,
+        timing: ResolveTiming,
+    ): Result<PlaybackData>? {
+        val error = failed.exceptionOrNull() as? StreamResolutionException ?: return null
+        val startedMs = SystemClock.elapsedRealtime()
+        val streams = kotlinx.coroutines.withTimeoutOrNull(NEWPIPE_RESCUE_TIMEOUT_MS) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { NewPipeExtractor.newPipePlayer(videoId) }.getOrDefault(emptyList())
+            }
+        }.orEmpty()
+        val pick = pickNewPipeAudio(streams, preferSmallestAudio)
+        val tookMs = SystemClock.elapsedRealtime() - startedMs
+        if (pick == null) {
+            Timber.tag(TAG).i("NEWPIPE_AUDIO_RESCUE id=%s none (streams=%d, %dms)", videoId, streams.size, tookMs)
+            PlaybackLogManager.log(PlaybackLogLevel.INFO, "NEWPIPE_AUDIO_RESCUE", "id=$videoId none streams=${streams.size} ${tookMs}ms")
+            return null
+        }
+        val (itag, url) = pick
+        Timber.tag(TAG).i("NEWPIPE_AUDIO_RESCUE id=%s itag=%d after '%s' (%dms)", videoId, itag, error.javaClass.simpleName, tookMs)
+        PlaybackLogManager.log(PlaybackLogLevel.INFO, "NEWPIPE_AUDIO_RESCUE", "id=$videoId itag=$itag ${tookMs}ms")
+        timing.winner = "newpipe"
+        // A success also ends the «this session is being refused» streak that [identityRejections] was counting.
+        identityRejections.recordSuccess()
+        val format = PlayerResponse.StreamingData.Format(
+            itag = itag,
+            url = url,
+            mimeType = mimeTypeForAudioItag(itag),
+            bitrate = 0,
+            width = null,
+            height = null,
+            contentLength = CapturedStream.contentLengthOf(url),
+            quality = "tiny",
+            fps = null,
+            qualityLabel = null,
+            averageBitrate = null,
+            audioQuality = null,
+            approxDurationMs = CapturedStream.durationMsOf(url),
+            audioSampleRate = null,
+            audioChannels = null,
+            loudnessDb = null,
+            lastModified = null,
+            signatureCipher = null,
+            cipher = null,
+            audioTrack = null,
+        )
+        return Result.success(
+            PlaybackData(
+                audioConfig = null,
+                videoDetails = null,
+                playbackTracking = null,
+                format = format,
+                streamUrl = url,
+                streamExpiresInSeconds = CapturedStream.expiresInSeconds(url, System.currentTimeMillis() / 1000),
+            ),
+        )
+    }
+
+    private const val NEWPIPE_RESCUE_TIMEOUT_MS = 12_000L
 
     /**
      * Called exactly ONCE per [playerResponseForPlaybackImpl] call, only at its true last-resort

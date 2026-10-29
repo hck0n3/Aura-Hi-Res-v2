@@ -4218,3 +4218,4 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Cabecera de Biblioteca | Título + UN chevrón (y el avatar); los cinco botones (reconocer, escuchar juntos, historial, sin conexión, cuenta) detrás del chevrón, como Inicio/Buscar/Novedades — no se quitó ninguno | 513 |
 | Top diario | Estante de Inicio (cabecera → «Mi top»); ya no está en Novedades, que solo trae estrenos | 513 |
 | Reproductor desplegado: botón pantalla completa/dividida y minimizar | Disparan al levantar el dedo (como reproducir/pausa) | 513 |
+| Reproducción en modo audio | Si YouTube rechaza las dos identidades de `/player`, el extractor NewPipe resuelve el audio antes de dar la canción por no disponible (sin cambio visible; línea `NEWPIPE_AUDIO_RESCUE` en Registros) | 514 |
