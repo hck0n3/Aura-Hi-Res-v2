@@ -41,22 +41,11 @@ internal object AppleMusicTokenProvider {
             // A failed extraction costs the page and several multi-MB bundles: after one, leave Apple alone for a while.
             if (lastFailureAtMs != 0L && now - lastFailureAtMs < RETRY_AFTER_MS) return@withLock FALLBACK_TOKEN
             try {
-                val page = httpClient.get(PLAYER_URL).bodyAsText()
-                val scripts = SCRIPT_SRC.findAll(page).map { it.groupValues[1] }.distinct().toList()
-                    .sortedBy { if (it.contains("index")) 0 else 1 }
-                    .take(MAX_SCRIPTS)
-                if (scripts.isEmpty()) throw IllegalStateException("no scripts in the web player page")
-                var found: String? = null
-                for (uri in scripts) {
-                    val body = httpClient.get("$PLAYER_URL$uri").bodyAsText()
-                    found = TOKEN_REGEX.findAll(body).map { it.value }.firstOrNull { isUsable(it, now) }
-                    if (found != null) break
-                }
-                val token = found ?: throw IllegalStateException("no usable token in ${scripts.size} scripts")
+                val token = extract(now)
                 cachedToken = token
                 cachedExpiryMs = expiryOf(token, now)
                 lastFailureAtMs = 0L
-                AppleCanvasDiagnostics.log("APPLE_TOKEN live scripts=${scripts.size}")
+                AppleCanvasDiagnostics.log("APPLE_TOKEN live")
                 token
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -80,12 +69,69 @@ internal object AppleMusicTokenProvider {
             val now = System.currentTimeMillis()
             if (now - lastInvalidateAtMs < INVALIDATE_EVERY_MS) return@withLock
             lastInvalidateAtMs = now
+            // Only a LIVE token that Apple rejected earns a new extraction right away; a 401 for the (expired) fallback
+            // token is the expected answer while extraction keeps failing, and must not undo the back-off.
+            if (cachedToken != null) lastFailureAtMs = 0L
             cachedToken = null
             cachedExpiryMs = 0L
-            lastFailureAtMs = 0L
             AppleCanvasDiagnostics.log("APPLE_TOKEN dropped (rejected by Apple)")
         }
     }
+
+    /**
+     * Looks for the token where Apple has kept it: in the page itself (the web player used to carry it percent-encoded in a
+     * `<meta>` tag), then in the scripts the page loads (the `index` ones first). Two hosts are tried for the PAGE (beta, then
+     * the regular site); the scripts are read from the first page that lists any, at most [MAX_SCRIPTS]. The failure says
+     * which step came up empty — «page» (no answer), «scripts» (the page lists none) or «token» (none of them has one).
+     */
+    private suspend fun extract(now: Long): String {
+        var pagesRead = 0
+        var scriptsListed = 0
+        var scriptsRead = 0
+        for (host in PLAYER_HOSTS) {
+            val page = fetch(host) ?: continue
+            pagesRead++
+            findToken(page, now)?.let { return it }
+            val decoded = runCatching { java.net.URLDecoder.decode(page, "UTF-8") }.getOrNull()
+            if (decoded != null) findToken(decoded, now)?.let { return it }
+            val scripts = scriptsOf(page, host).sortedBy { if (it.contains("index")) 0 else 1 }.take(MAX_SCRIPTS)
+            scriptsListed += scripts.size
+            for (url in scripts) {
+                val body = fetch(url) ?: continue
+                scriptsRead++
+                findToken(body, now)?.let { return it }
+            }
+            if (scripts.isNotEmpty()) break
+        }
+        val step = when {
+            pagesRead == 0 -> "page"
+            scriptsListed == 0 -> "scripts"
+            else -> "token"
+        }
+        AppleCanvasDiagnostics.log("APPLE_TOKEN failed step=$step pages=$pagesRead scripts=$scriptsListed read=$scriptsRead")
+        throw IllegalStateException("no usable token (step=$step)")
+    }
+
+    /** One page or script as text, null when it did not answer (a cancelled lookup is never swallowed). */
+    private suspend fun fetch(url: String): String? = try {
+        httpClient.get(url).bodyAsText()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun findToken(text: String, now: Long): String? =
+        TOKEN_REGEX.findAll(text).map { it.value }.firstOrNull { isUsable(it, now) }
+
+    private fun scriptsOf(page: String, host: String): List<String> =
+        SCRIPT_SRC.findAll(page).map { it.groupValues[1] }.map { src ->
+            when {
+                src.startsWith("http") -> src
+                src.startsWith("//") -> "https:$src"
+                else -> "$host$src"
+            }
+        }.distinct().toList()
 
     /** An ES256 web-player token, readable, that has not expired. */
     private fun isUsable(jwt: String, now: Long): Boolean {
@@ -112,8 +158,8 @@ internal object AppleMusicTokenProvider {
     private fun expSeconds(jwt: String): Long? =
         payloadOf(jwt)?.let { EXP_CLAIM.find(it)?.groupValues?.get(1)?.toLongOrNull() }
 
-    private const val PLAYER_URL = "https://beta.music.apple.com"
-    private val SCRIPT_SRC = Regex("""src="(/assets/[^"]+\.js)"""")
+    private val PLAYER_HOSTS = listOf("https://beta.music.apple.com", "https://music.apple.com")
+    private val SCRIPT_SRC = Regex("""src="((?:https?:)?(?://|/)[^"]*\.js)"""")
     // «eyJhbGciOiJFUzI1NiI» = {"alg":"ES256…: the web player's own tokens, not any JWT-shaped string in a bundle.
     private val TOKEN_REGEX = Regex("""eyJhbGciOiJFUzI1NiI[A-Za-z0-9\-_=]*\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+""")
     private val EXP_CLAIM = Regex(""""exp"\s*:\s*(\d+)""")

@@ -53,26 +53,7 @@ object AppleMusicTokenProvider {
             if (System.currentTimeMillis() < nextAttemptAtMs) return@withLock FALLBACK_TOKEN
 
             try {
-                // 1. Fetch main page
-                val htmlResponse = httpClient.get("https://beta.music.apple.com")
-                val htmlBody = htmlResponse.bodyAsText()
-
-                // 2. Find index.js URI
-                val indexJsRegex = Regex("""src="(/assets/index-[^"]+\.js)"""")
-                val match = indexJsRegex.find(htmlBody)
-                    ?: throw Exception("Could not find index.js in Apple Music web player")
-                val indexJsUri = match.groupValues[1]
-
-                // 3. Fetch index.js
-                val indexJsResponse = httpClient.get("https://beta.music.apple.com$indexJsUri")
-                val indexJsBody = indexJsResponse.bodyAsText()
-
-                // 4. Extract JWT token using the updated regex
-                val tokenRegex = Regex("""eyJ[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+""")
-                val tokenMatch = tokenRegex.find(indexJsBody)
-                    ?: throw Exception("Could not find token in index.js")
-
-                val token = tokenMatch.value
+                val token = extract(System.currentTimeMillis())
                 cachedToken = token
                 cachedTokenExpiryMs = computeExpiryMs(token)
                 consecutiveFailures = 0
@@ -83,8 +64,10 @@ object AppleMusicTokenProvider {
                     consecutiveFailures++
                     nextAttemptAtMs = System.currentTimeMillis() + AppleTokenRetryPolicy.retryAfterMs(consecutiveFailures)
                     timber.log.Timber.w(
-                        "Apple Music token: fetch failed (animated covers fall back, next try in %d min): %s",
+                        "Apple Music token: fetch failed (animated covers fall back, next try in %d min): %s [%s]",
                         AppleTokenRetryPolicy.retryAfterMs(consecutiveFailures) / 60_000L, privacySafeSummary(e),
+                        // Only the step and counters of [extract] (page / scripts / token) — never a URL or a body.
+                        (e as? IllegalStateException)?.message.orEmpty(),
                     )
                 }
                 // Fallback token if live extraction fails. It is deliberately NOT
@@ -99,6 +82,66 @@ object AppleMusicTokenProvider {
     }
 
     /**
+     * Row 508: looks for the token in the page itself (percent-encoded in a `<meta>` tag, as the web player used to carry it)
+     * and then in the scripts the page loads, on the beta host and the regular one — the old code read only
+     * `/assets/index-<hash>.js` and failed for good when Apple moved the token (owner's log 2026-10-27:
+     * «Apple Music token: fetch failed» three times in 40 s). Only an ES256 token that has not expired is taken.
+     */
+    private suspend fun extract(now: Long): String {
+        var pagesRead = 0
+        var scriptsListed = 0
+        for (host in PLAYER_HOSTS) {
+            val page = fetchText(host) ?: continue
+            pagesRead++
+            findToken(page, now)?.let { return it }
+            runCatching { java.net.URLDecoder.decode(page, "UTF-8") }.getOrNull()
+                ?.let { decoded -> findToken(decoded, now)?.let { return it } }
+            val scripts = SCRIPT_SRC.findAll(page).map { it.groupValues[1] }.map { src ->
+                when {
+                    src.startsWith("http") -> src
+                    src.startsWith("//") -> "https:$src"
+                    else -> "$host$src"
+                }
+            }.distinct().toList().sortedBy { if (it.contains("index")) 0 else 1 }.take(MAX_SCRIPTS)
+            scriptsListed += scripts.size
+            for (url in scripts) {
+                val body = fetchText(url) ?: continue
+                findToken(body, now)?.let { return it }
+            }
+            if (scripts.isNotEmpty()) break
+        }
+        val step = when {
+            pagesRead == 0 -> "page"
+            scriptsListed == 0 -> "scripts"
+            else -> "token"
+        }
+        throw IllegalStateException("no usable token (step=$step pages=$pagesRead scripts=$scriptsListed)")
+    }
+
+    private suspend fun fetchText(url: String): String? = try {
+        httpClient.get(url).bodyAsText()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun findToken(text: String, now: Long): String? =
+        TOKEN_REGEX.findAll(text).map { it.value }.firstOrNull { jwt ->
+            val payload = runCatching {
+                val parts = jwt.split(".")
+                if (parts.size < 3) null else String(Base64.decode(parts[1], Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING), Charsets.UTF_8)
+            }.getOrNull()
+            payload != null && payload.contains("\"iss\"") &&
+                (parseJwtExpSeconds(jwt)?.let { it * 1000L > now } ?: true)
+        }
+
+    private val PLAYER_HOSTS = listOf("https://beta.music.apple.com", "https://music.apple.com")
+    private val SCRIPT_SRC = Regex("""src="((?:https?:)?(?://|/)[^"]*\.js)"""")
+    private val TOKEN_REGEX = Regex("""eyJhbGciOiJFUzI1NiI[A-Za-z0-9\-_=]*\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+""")
+    private const val MAX_SCRIPTS = 4
+
+    /**
      * Drop the currently cached token so the next [getToken] re-extracts a fresh one.
      * Intended for the API call site to invoke when Apple rejects the cached token with
      * a 401/403 (revoked before its `exp`). Best-effort and safe to call at any time:
@@ -106,11 +149,15 @@ object AppleMusicTokenProvider {
      */
     suspend fun invalidate() {
         mutex.withLock {
+            // A LIVE token that Apple revoked is a reason to extract again NOW. A 401 for the (expired) fallback token is the
+            // expected answer while extraction keeps failing: it must not undo the back-off (owner's log 2026-10-27: three
+            // failed downloads of the web player in 40 s, each «next try in 5 min»).
+            if (cachedToken != null) {
+                consecutiveFailures = 0
+                nextAttemptAtMs = 0L
+            }
             cachedToken = null
             cachedTokenExpiryMs = 0L
-            // A revoked token is a reason to extract again NOW, not a failure to back off from.
-            consecutiveFailures = 0
-            nextAttemptAtMs = 0L
         }
     }
 
