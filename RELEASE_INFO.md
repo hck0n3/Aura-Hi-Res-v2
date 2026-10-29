@@ -1,10 +1,10 @@
-# Aura Hi-Res v2.0.67-beta1 — el modo audio vuelve a reproducir, cola inteligente que respeta estilo y fe, descargas que avisan, y arreglos de Inicio, Biblioteca y plegable
+# Aura Hi-Res v2.0.67-beta2 — el modo audio reproduce aunque YouTube rechace el audio suelto, portadas animadas con la llave de Apple renovada, cola inteligente, descargas y arreglos de Inicio, Biblioteca y plegable
 
-Beta encima de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.67-beta1 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
 ## Reproducción
 
-- **Modo audio que no reproducía nada:** cuando YouTube rechazaba las dos vías habituales, la app saltaba toda la cola como «no disponible» y no dejaba hacer nada hasta pasar a vídeo. Ahora, antes de rendirse, pide la canción al extractor que usa el modo vídeo. En Ajustes ▸ Registros aparece una línea `NEWPIPE_AUDIO_RESCUE` cuando se usa.
+- **Modo audio que no reproducía nada:** cuando YouTube rechazaba las dos vías habituales, la app saltaba toda la cola como «no disponible» y no dejaba hacer nada hasta pasar a vídeo. Ahora, antes de rendirse, pide la canción al extractor que usa el modo vídeo y, si solo trae el vídeo con sonido, reproduce su sonido (sin enseñar la imagen). En Ajustes ▸ Registros aparece una línea `NEWPIPE_AUDIO_RESCUE` con lo que pasó.
 - **Cola inteligente:** mantiene el estilo, la época y la fe (música cristiana se queda cristiana) y deja de saltar a cumbia, reguetón o banda sin venir a cuento. Prepara lo siguiente una canción antes de que acabe un álbum o una lista, para que el botón de siguiente responda al momento.
 
 ## Descargas y listas
@@ -26,4 +26,4 @@ Beta encima de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: 
 - **Plegable desplegado:** el botón de arriba a la izquierda (pantalla completa / dividida) y el de minimizar responden al primer toque.
 - **Biblioteca:** los botones de la cabecera vuelven a estar ocultos tras una flecha, como en Inicio, Buscar y Novedades.
 - **Top diario** pasa de Novedades a Inicio; Novedades queda solo con estrenos.
-- **Portadas animadas:** la app busca de nuevo la llave de Apple y deja en el registro (etiqueta CANVAS) qué paso falla si no la encuentra.
+- **Portadas animadas de artistas y álbumes:** la app busca de nuevo la llave de Apple primero en music.apple.com, acepta el formato nuevo de la llave y, si falla, deja en el registro (etiqueta CANVAS) qué paso falló.

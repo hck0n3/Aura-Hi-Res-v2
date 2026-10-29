@@ -18,11 +18,20 @@ class NewPipeAudioRescueTest {
     )
 
     @Test
-    fun `picks the Opus family first and never a muxed or video-only itag`() {
+    fun `picks the Opus family first and never a video-only itag`() {
         assertEquals(251, pickNewPipeAudio(streams, smallest = false)?.first)
         assertEquals(140, pickNewPipeAudio(streams.filter { it.first in setOf(18, 22, 140, 139) }, false)?.first)
-        assertNull(pickNewPipeAudio(listOf(18 to "u", 22 to "u", 137 to "u"), false))
+        assertNull(pickNewPipeAudio(listOf(137 to "u", 136 to "u"), false))
         assertNull(pickNewPipeAudio(emptyList(), false))
+    }
+
+    // Row 516: the owner's log showed `streams=1` on every song — the muxed progressive that video mode plays.
+    @Test
+    fun `when only the muxed progressive is left it is the last rung, 18 before 22`() {
+        assertEquals(18, pickNewPipeAudio(listOf(22 to "u22", 18 to "u18", 137 to "u"), false)?.first)
+        assertEquals(22, pickNewPipeAudio(listOf(22 to "u22", 137 to "u"), false)?.first)
+        assertEquals(18, pickNewPipeAudio(listOf(18 to "u18"), smallest = true)?.first)
+        assertTrue(mimeTypeForAudioItag(18).startsWith("video/mp4"))
     }
 
     @Test

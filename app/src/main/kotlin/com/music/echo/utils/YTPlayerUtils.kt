@@ -78,22 +78,27 @@ fun pickVideoExportUrl(newPipeUrl: String?, innerTubeUrl: String?): String? =
 
 /**
  * Row 514: the audio-only itags NewPipe's extractor may hand over, in the order the app prefers them (the Opus family
- * first, then AAC), or the lowest-bitrate first for [smallest]. Muxed progressives (22/18) are NOT audio-only and never
- * come out of here: a song stream that carried a picture would be a different, heavier file. Null when the extractor
- * returned no audio at all.
+ * first, then AAC), or the lowest-bitrate first for [smallest].
+ *
+ * Row 516 (owner's log after 2.0.67-beta1: `NEWPIPE_AUDIO_RESCUE … none (streams=1)` on 17 of 17 songs): when YouTube
+ * refuses the audio renditions, the extractor hands over ONE stream — the MUXED progressive (picture and sound in one file,
+ * itag 18/22) that video mode plays. A song with a picture it will not show still plays; silence does not. So the muxed
+ * itags are the LAST rung, 18 (360p, the lightest) before 22. Null when the extractor returned nothing usable at all.
  */
 internal fun pickNewPipeAudio(streams: List<Pair<Int, String>>, smallest: Boolean): Pair<Int, String>? {
-    val order = if (smallest) listOf(249, 139, 250, 140, 171, 251, 141, 774) else listOf(774, 251, 250, 249, 141, 140, 139, 171)
+    val order = (if (smallest) listOf(249, 139, 250, 140, 171, 251, 141, 774) else listOf(774, 251, 250, 249, 141, 140, 139, 171)) +
+        listOf(18, 22)
     return order.firstNotNullOfOrNull { wanted ->
         streams.firstOrNull { it.first == wanted && it.second.isNotBlank() }
     }
 }
 
-/** The mime type the rest of the app expects in a [PlayerResponse.StreamingData.Format] for an audio-only [itag]. */
+/** The mime type the rest of the app expects in a [PlayerResponse.StreamingData.Format] for an [itag]. */
 internal fun mimeTypeForAudioItag(itag: Int): String = when (itag) {
     774, 251, 250, 249 -> "audio/webm; codecs=\"opus\""
     171 -> "audio/webm; codecs=\"vorbis\""
     139 -> "audio/mp4; codecs=\"mp4a.40.5\""
+    18, 22 -> "video/mp4; codecs=\"avc1.42001E, mp4a.40.2\""
     else -> "audio/mp4; codecs=\"mp4a.40.2\""
 }
 
@@ -624,8 +629,10 @@ object YTPlayerUtils {
         val pick = pickNewPipeAudio(streams, preferSmallestAudio)
         val tookMs = SystemClock.elapsedRealtime() - startedMs
         if (pick == null) {
-            Timber.tag(TAG).i("NEWPIPE_AUDIO_RESCUE id=%s none (streams=%d, %dms)", videoId, streams.size, tookMs)
-            PlaybackLogManager.log(PlaybackLogLevel.INFO, "NEWPIPE_AUDIO_RESCUE", "id=$videoId none streams=${streams.size} ${tookMs}ms")
+            // The itags (numbers, never the URLs) say WHAT the extractor did hand over when it is not audio.
+            val itags = streams.map { it.first }
+            Timber.tag(TAG).i("NEWPIPE_AUDIO_RESCUE id=%s none (itags=%s, %dms)", videoId, itags, tookMs)
+            PlaybackLogManager.log(PlaybackLogLevel.INFO, "NEWPIPE_AUDIO_RESCUE", "id=$videoId none itags=$itags ${tookMs}ms")
             return null
         }
         val (itag, url) = pick
