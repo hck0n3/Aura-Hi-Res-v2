@@ -685,6 +685,9 @@ class MusicService :
     @DownloadCache
     lateinit var downloadCache: SimpleCache
 
+    @Inject
+    lateinit var downloadUtil: DownloadUtil
+
     lateinit var player: ExoPlayer
         internal set // the crossfade swap (CrossfadeEngine.kt) promotes the secondary player
     internal var secondaryPlayer: ExoPlayer? = null
@@ -2387,6 +2390,8 @@ class MusicService :
         scope.launch {
             connectivityObserver.networkStatus.collect { isConnected ->
                 isNetworkConnected.value = isConnected
+                // Row 519: songs liked on mobile data wait for an unmetered network; this is that moment.
+                if (isConnected) downloadUtil.flushPendingLikeDownloads()
                 // INSTANT VIDEO SWAP: speculative buffering is unmetered-only. On ANY network change,
                 // re-check — connection lost or now metered → drop the pre-player (no-op when idle).
                 if (!isConnected ||
@@ -5347,34 +5352,25 @@ class MusicService :
                 val toggledFinal =
                     if (meta.isVideoSong && !toggled.isVideo) toggled.copy(isVideo = true) else toggled
                 upsert(toggledFinal) // insert-or-update so the like always persists
-                syncUtils.likeSong(toggledFinal)
-
-                if (dataStore.get(AutoDownloadOnLikeKey, true) && toggledFinal.liked) {
-                    // Guard the auto-download: DownloadService.sendAddDownload(foreground=false) throws
-                    // IllegalStateException on Android 8+ when started from the background, and an uncaught throw
-                    // here would abort the whole query block — rolling back the like. Never let the optional
-                    // download break the like itself.
-                    //
-                    // While THIS track is in video mode, defer the WHOLE offline download
-                    // (audio+video). Audio-only enqueue still races the live mux → hitch/403.
-                    // Flushed in exitVideoMode.
+                // Row 519: the download decision (listen-cache adoption, Wi-Fi rule, pending list) lives in DownloadUtil.
+                // It runs BEFORE syncUtils.likeSong, which calls it too for the menus' likes: the first call of a tap wins, and
+                // this one knows whether the song is playing in video mode (defer the whole download then; flushed in
+                // exitVideoMode, as before). Never let the optional download break the like itself.
+                if (toggledFinal.liked) {
                     val watchingThisInVideo =
                         _videoMode.value && currentlyPlayingId == toggledFinal.id
                     try {
-                        enqueueSongDownloads(
-                            this@MusicService,
+                        downloadUtil.downloadOnLike(
                             toggledFinal.id,
                             toggledFinal.title,
                             isVideoSong = meta.isVideoSong,
                             deferWhileLiveVideo = watchingThisInVideo,
-                            // HALLAZGO-037 / cache audit: the AUTOMATIC path never burns mobile
-                            // data — it waits for WiFi. Explicit menu downloads are unaffected.
-                            wifiOnly = true,
                         )
                     } catch (e: Exception) {
                         Timber.tag(TAG).e(e, "auto-download on like failed (non-fatal)")
                     }
                 }
+                syncUtils.likeSong(toggledFinal)
             }
             currentMediaMetadata.value = player.currentMetadata
         }

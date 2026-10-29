@@ -188,6 +188,7 @@ class SyncUtils @Inject constructor(
     @ApplicationContext private val context: Context,
     private val database: MusicDatabase,
     private val libraryUploadSync: LibraryUploadSync,
+    private val downloadUtil: dagger.Lazy<iad1tya.echo.music.playback.DownloadUtil>,
 ) {
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         if (throwable !is CancellationException) {
@@ -800,6 +801,12 @@ class SyncUtils @Inject constructor(
     }
 
     fun likeSong(s: SongEntity) {
+        // Row 519: every like path (the player heart, the song/queue/selection menus) ends here. A song that just became
+        // liked is downloaded for offline (or adopted from the listen cache). The player heart already asked, with its
+        // video-mode knowledge; the second ask for the same tap is dropped inside DownloadUtil.
+        if (s.liked) {
+            runCatching { downloadUtil.get().downloadOnLike(s.id, s.title, s.isVideo) }
+        }
         syncScope.launch {
             syncChannel.send(SyncOperation.LikeSong(s))
         }

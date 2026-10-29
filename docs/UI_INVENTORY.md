@@ -4222,3 +4222,4 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Novedades | Solo estrenos de artistas seguidos (héroe, «Más estrenos», radar, «Próximamente»); ya no hay «Lo más nuevo», «Álbumes recién lanzados», «Canciones del momento» ni «Lo que escucha todo el mundo» (orden del dueño) | 517 |
 | Canciones del momento | Estante de Inicio (lo más reproducido en 7 días, sin repetir «Top diario») | 517 |
 | Pantallas de Explorar (estados de ánimo y géneros, listas de una categoría, nuevos lanzamientos, explorar) | El contenido empieza debajo del título; antes la primera fila quedaba tapada por la barra | 518 |
+| «Me gusta» (corazón y menús) | Descarga la canción para usarla sin conexión: adopta la copia de la caché de escucha (también con datos), descarga con Wi-Fi o espera a Wi-Fi; sin cambio visible | 519 |
