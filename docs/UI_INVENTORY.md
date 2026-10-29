@@ -4221,3 +4221,4 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Reproducción en modo audio | Si YouTube rechaza las dos identidades de `/player`, el extractor NewPipe resuelve el audio antes de dar la canción por no disponible (sin cambio visible; línea `NEWPIPE_AUDIO_RESCUE` en Registros) | 514 |
 | Novedades | Solo estrenos de artistas seguidos (héroe, «Más estrenos», radar, «Próximamente»); ya no hay «Lo más nuevo», «Álbumes recién lanzados», «Canciones del momento» ni «Lo que escucha todo el mundo» (orden del dueño) | 517 |
 | Canciones del momento | Estante de Inicio (lo más reproducido en 7 días, sin repetir «Top diario») | 517 |
+| Pantallas de Explorar (estados de ánimo y géneros, listas de una categoría, nuevos lanzamientos, explorar) | El contenido empieza debajo del título; antes la primera fila quedaba tapada por la barra | 518 |

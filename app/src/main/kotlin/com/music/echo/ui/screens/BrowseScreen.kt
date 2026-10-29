@@ -63,7 +63,9 @@ package iad1tya.echo.music.ui.screens
  
      LazyVerticalGrid(
          columns = GridCells.Adaptive(minSize = GridThumbnailHeight + if (gridItemSize == GridItemSize.BIG) 24.dp else (-24).dp),
-         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
+         contentPadding = LocalPlayerAwareWindowInsets.current
+            .add(androidx.compose.foundation.layout.WindowInsets(top = iad1tya.echo.music.constants.AppBarHeight))
+            .asPaddingValues()
      ) {
          items?.let { items ->
              items(
