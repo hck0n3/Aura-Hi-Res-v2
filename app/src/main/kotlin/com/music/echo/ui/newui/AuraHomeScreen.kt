@@ -927,6 +927,7 @@ fun AuraHomeScreen(
                                             // un súper espacio inutilizado"). This is the shelf the user curates
                                             // by hand, so it is the one that is short most often.
                                             itemCount = items.size,
+                                            cardWidth = pinW,
                                         ) {
                                             lazyGridItems(items, key = { it.id }) { item ->
                                                 AuraTypedYtCoverCard(
@@ -1156,6 +1157,7 @@ fun AuraHomeScreen(
                                         AuraDoubleRowShelf(
                                             rowHeight = auraShelfCardStackHeight(playlistW),
                                             itemCount = uniquePlaylists.size,
+                                            cardWidth = playlistW,
                                         ) {
                                             lazyGridItems(uniquePlaylists, key = { it.id }) { item ->
                                                 AuraTypedYtCoverCard(
@@ -1641,6 +1643,8 @@ private fun AuraGroupedYtItemShelves(
                         val w = visual.shelfWidth * scale
                         AuraDoubleRowShelf(
                             rowHeight = auraShelfCardStackHeight(w, visual.ratio),
+                            itemCount = group.size,
+                            cardWidth = w,
                         ) {
                             lazyGridItems(group, key = { it.id }) { item ->
                                 AuraTypedYtCoverCard(

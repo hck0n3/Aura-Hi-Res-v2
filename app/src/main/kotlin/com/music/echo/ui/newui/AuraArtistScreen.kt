@@ -651,6 +651,7 @@ fun AuraArtistScreen(
                             AuraDoubleRowShelf(
                                 rowHeight = auraShelfCardStackHeight(albumW),
                                 itemCount = filteredLibraryAlbums.size,
+                                cardWidth = albumW,
                                 modifier = Modifier.animateItem(),
                             ) {
                                 items(
@@ -921,6 +922,7 @@ fun AuraArtistScreen(
                                 AuraDoubleRowShelf(
                                     rowHeight = auraShelfCardStackHeight(cardW),
                                     itemCount = sectionItems.size,
+                                    cardWidth = cardW,
                                     modifier = Modifier.animateItem(),
                                 ) {
                                     items(

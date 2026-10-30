@@ -195,6 +195,13 @@ internal fun calculateThumbnailDimensions(
 private val WIDE_MAX_THUMBNAIL_SIZE = 420.dp
 
 /**
+ * Row 522 (owner 2026-10-29, Galaxy Tab S12 Ultra: «cuando está en esta pantalla puedes hacer la portada más grande de lo que
+ * se está reproduciendo»): from this window width (dp) the 420 dp ceiling above is lifted and the cover takes the whole height
+ * of its slot (still never wider than the pane). A foldable's unfolded window is ~700–930 dp, so it keeps the #50 ceiling.
+ */
+internal const val TABLET_COVER_MIN_WINDOW_DP = 1000
+
+/**
  * Breathing room left around the artwork of an [ThumbnailHost.OPAQUE_DARK] host when its slot is SHORTER
  * than it is wide, so the elevation below has somewhere to fall. Classic hosts never see it.
  */
@@ -392,6 +399,9 @@ fun Thumbnail(
     // #50 — cap the cover on big screens ONLY. Width-based (never [rememberIsTvOrCar]): this is a pure layout
     // question, and using the D-pad gate here would light the TV focus ring on a wide phone (registry #12/#26).
     val isWideLayout = rememberIsWideLayout()
+    // Row 522: a TABLET window (Galaxy Tab S12 Ultra ~1 600 dp wide) is not an unfolded foldable: the 420 dp ceiling below was
+    // made for the fold (#50) and left a small cover in a huge pane. See [TABLET_COVER_MIN_WINDOW_DP].
+    val isTabletWindow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= TABLET_COVER_MIN_WINDOW_DP
 
     
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -652,7 +662,7 @@ fun Thumbnail(
                 ) {
                     
                     val dimensions = remember(
-                        maxWidth, maxHeight, isLandscape, thumbnailCornerRadius, isWideLayout, host,
+                        maxWidth, maxHeight, isLandscape, thumbnailCornerRadius, isWideLayout, isTabletWindow, host,
                         appleMusicCoverStyle,
                     ) {
                         calculateThumbnailDimensions(
@@ -702,7 +712,7 @@ fun Thumbnail(
                                 // #50 unchanged: on a wide screen the 420 dp ceiling still applies — it is
                                 // now simply the SMALLER of the two caps, because a 420 dp square in a
                                 // 300 dp-tall slot letterboxes exactly the same way.
-                                if (isWideLayout) minOf(WIDE_MAX_THUMBNAIL_SIZE, slotCap) else slotCap
+                                if (isWideLayout && !isTabletWindow) minOf(WIDE_MAX_THUMBNAIL_SIZE, slotCap) else slotCap
                             }
                         )
                     }

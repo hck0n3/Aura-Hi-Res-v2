@@ -1395,27 +1395,53 @@ internal fun AuraDoubleRowShelf(
      * that cannot be filled. `null` keeps two rows — for callers that cannot count what they emit.
      */
     itemCount: Int? = null,
+    /**
+     * The width of one card, when the caller knows it. With [itemCount] it lets a WIDE pane (a tablet) choose one row over two
+     * when two would leave the right half of the screen empty — see [auraShelfRows].
+     */
+    cardWidth: Dp? = null,
     content: LazyGridScope.() -> Unit,
 ) {
     val gap = AuraSpacing.ShelfItemGap
-    val rows = if (itemCount != null && itemCount < AURA_SHELF_MIN_ITEMS_FOR_TWO_ROWS) 1 else 2
     val gridState = rememberLazyGridState()
     val fling = rememberSnapFlingBehavior(lazyGridState = gridState)
-    LazyHorizontalGrid(
-        rows = GridCells.Fixed(rows),
-        state = gridState,
-        flingBehavior = fling,
-        contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
-        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.ShelfItemGap),
-        verticalArrangement = Arrangement.spacedBy(gap),
-        modifier = modifier
-            .padding(top = AuraSpacing.SectionGap)
-            .height(rowHeight * rows + if (rows > 1) gap else 0.dp)
-            .passVerticalToParent(gridState)
-            .tvFocusRestorer(),
-        content = content,
-    )
+    BoxWithConstraints(modifier = modifier) {
+        val rows = auraShelfRows(itemCount, maxWidth, cardWidth, gap, AuraSpacing.Gutter)
+        LazyHorizontalGrid(
+            rows = GridCells.Fixed(rows),
+            state = gridState,
+            flingBehavior = fling,
+            contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.ShelfItemGap),
+            verticalArrangement = Arrangement.spacedBy(gap),
+            modifier = Modifier
+                .padding(top = AuraSpacing.SectionGap)
+                .height(rowHeight * rows + if (rows > 1) gap else 0.dp)
+                .passVerticalToParent(gridState)
+                .tvFocusRestorer(),
+            content = content,
+        )
+    }
 }
+
+/**
+ * Row 522 (owner 2026-10-29, Galaxy Tab S12 Ultra: «sobra del lado derecho… reordenar el contenido para dispositivos de gran
+ * tamaño»): a two-row shelf fills COLUMN by column, so ten albums made five columns and the right 40 % of a 1 300 dp pane stayed
+ * empty. On a pane that fits more than [AURA_SHELF_WIDE_COLUMNS] cards, two rows are kept only while they still fill at least
+ * [AURA_SHELF_FILL] of the width; otherwise the shelf is ONE row, which scrolls sideways if it needs to. A phone or a fold (up
+ * to [AURA_SHELF_WIDE_COLUMNS] cards across) is exactly what it was. Pure, for test.
+ */
+internal fun auraShelfRows(itemCount: Int?, availableWidth: Dp, cardWidth: Dp?, gap: Dp, gutter: Dp): Int {
+    if (itemCount != null && itemCount < AURA_SHELF_MIN_ITEMS_FOR_TWO_ROWS) return 1
+    if (itemCount == null || cardWidth == null || cardWidth <= 0.dp) return 2
+    val fit = (availableWidth - gutter * 2 + gap) / (cardWidth + gap)
+    if (fit <= AURA_SHELF_WIDE_COLUMNS) return 2
+    val columnsWithTwoRows = (itemCount + 1) / 2
+    return if (columnsWithTwoRows >= fit * AURA_SHELF_FILL) 2 else 1
+}
+
+internal const val AURA_SHELF_WIDE_COLUMNS = 3.5f
+internal const val AURA_SHELF_FILL = 0.8f
 
 /**
  * How many items a two-row shelf needs before the second row earns its height.
