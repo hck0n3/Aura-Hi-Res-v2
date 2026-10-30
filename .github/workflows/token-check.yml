@@ -28,9 +28,7 @@ jobs:
             OUT=$(gh api -X POST "repos/$REPO/releases" -f tag_name=$T -f target_commitish=859b19c785808e0574a1d718acf55c19feb7083e \
               -F draft=true -F prerelease=true -f name=token-check -f body="check" 2>&1)
             echo "$OUT" | cut -c1-250
-            ID=$(echo "$OUT" | python3 -c 'import sys,json
-try: print(json.loads(sys.stdin.read().split("gh: ")[0]).get("id",""))
-except Exception: print("")')
+            ID=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
             [ -n "$ID" ] && gh api -X DELETE "repos/$REPO/releases/$ID" && echo "deleted draft $ID"
           done
           echo "--- existing releases (incl. drafts) mentioning beta7"
