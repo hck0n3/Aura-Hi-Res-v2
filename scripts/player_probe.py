@@ -51,23 +51,27 @@ def main():
         print(f"[{h}] size={len(js)} sts_in_file={sts.group(1) if sts else None} sts_expected={e.get('signatureTimestamp')}")
         sig = e.get("sigJsExpression") or ""
         print(f"[{h}] sig expression: {sig}")
-        for name in dict.fromkeys(idents(sig)):
-            for pat in (f"{name}=function(", f"function {name}(", f",{name}=function(", f"var {name}="):
-                ctx = around(js, pat)
-                if ctx:
-                    print(f"[{h}]   def of {name} via '{pat}': ...{ctx}...")
-                    break
-            else:
-                print(f"[{h}]   def of {name}: NOT FOUND by simple patterns")
+        # WHERE is the known expression USED in the real file? (the extractor has to find this without knowing the names)
+        pat = re.escape(sig).replace("INPUT", r"([\w$.\[\]]+)")
+        pat = pat.replace(r"\(", r"\(").replace(r"\,", ",")
+        uses = [m for m in re.finditer(pat, js)]
+        print(f"[{h}]   uses of the known sig expression in the file: {len(uses)}")
+        for m in uses[:2]:
+            print(f"[{h}]     ...{js[max(0, m.start() - 160): m.end() + 120]}...".replace("\n", " "))
+        generic = re.findall(r"([\w$]+)\((\d+),(\d+),([\w$]+)\((\d+),(\d+),([\w$.]+)\)\)", js)
+        print(f"[{h}]   generic nested-call pattern matches in the file: {len(generic)}; first 6: {generic[:6]}")
         nexpr = e.get("nJsExpression") or ""
         cls = re.search(r"new g\.([\w$]+)\(", nexpr)
         if cls:
-            ctx = around(js, f"g.{cls.group(1)}=")
-            print(f"[{h}]   n class g.{cls.group(1)}: {'...' + ctx + '...' if ctx else 'definition NOT FOUND'}")
-        use = re.search(r'\.get\("n"\)\)&&\(([\w$]+)=new g\.([\w$]+)', js)
-        print(f"[{h}]   n use site in file: {use.group(0) if use else 'not found'}")
-        dec = around(js, "decodeURIComponent(", 120, 160)
-        print(f"[{h}]   first decodeURIComponent context: ...{dec}...")
+            c = cls.group(1)
+            sites = [m.start() for m in re.finditer(r"new g\." + re.escape(c) + r"\(", js)]
+            print(f"[{h}]   'new g.{c}(' sites: {len(sites)}")
+            for i in sites[:3]:
+                print(f"[{h}]     ...{js[max(0, i - 120): i + 140]}...".replace("\n", " "))
+        gets = [m.start() for m in re.finditer(r'\.get\("n"\)', js)]
+        print(f"[{h}]   '.get(\"n\")' sites: {len(gets)}")
+        for i in gets[:3]:
+            print(f"[{h}]     ...{js[max(0, i - 140): i + 140]}...".replace("\n", " "))
     return 0
 
 
