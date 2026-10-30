@@ -208,6 +208,8 @@ jobs:
           mkdir -p app/build/outputs/apk/release-artifacts
           python3 scripts/release_changelog.py RELEASE_INFO.md app/build/outputs/apk/release-artifacts/changelog.json
 
+      # GitHub only lets this token create the release/tag when the built commit is still the TIP of its
+      # branch (registry row 550): never push to the branch while a beta is building.
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || env.DISPATCH_BETA_TAG != '' || env.DISPATCH_STABLE_TAG != ''
         uses: softprops/action-gh-release@v3
