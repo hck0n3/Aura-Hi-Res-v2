@@ -1163,9 +1163,24 @@ private fun ThumbnailItem(
                 // player left open and the screen off, every track change woke the radio for artwork nobody could see.
                 // It waits for the app to be on screen (the key restarts it on return, for whatever is playing then).
                 val canvasInForeground = iad1tya.echo.music.ui.utils.rememberIsAppInForeground()
+                val memoContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
                 LaunchedEffect(item.mediaId, canvasInForeground) {
                     CanvasArtworkPlaybackCache.get(item.mediaId)?.let { cached ->
                         canvasArtwork = cached
+                        return@LaunchedEffect
+                    }
+
+                    // Row 523: one answer per ALBUM, shared by every song of it and kept across restarts.
+                    val memoKey = CanvasAlbumMemo.key(
+                        artist = item.mediaMetadata.artist?.toString(),
+                        album = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString(),
+                        song = item.mediaMetadata.title?.toString(),
+                    )
+                    val memo = memoKey?.let { CanvasAlbumMemo.lookup(memoContext, it) }
+                    if (memo is CanvasAlbumMemo.Answer.Hit) {
+                        timber.log.Timber.tag("CANVAS").i("CANVAS_MEMO hit (no lookup)")
+                        canvasArtwork = memo.artwork
+                        CanvasArtworkPlaybackCache.put(item.mediaId, memo.artwork)
                         return@LaunchedEffect
                     }
 
@@ -1176,7 +1191,11 @@ private fun ThumbnailItem(
 
                     // Overall cap: a slow/hanging canvas provider used to leave canvasFetchInFlight stuck
                     // true forever (had to leave/re-enter to retry). The timeout guarantees it resets.
-                    val fetched = withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
+                    var lookupAnswered = false
+                    val fetched = if (memo is CanvasAlbumMemo.Answer.None) {
+                        timber.log.Timber.tag("CANVAS").i("CANVAS_MEMO none (no lookup)")
+                        null
+                    } else withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
                         val metadata = item.metadata
                         val albumName = (metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString()
                         val duration = metadata?.duration
@@ -1202,7 +1221,7 @@ private fun ThumbnailItem(
                             null
                         }
 
-                        spotifyCanvas ?: linkedSetOf(
+                        (spotifyCanvas ?: linkedSetOf(
                             songTitle to artistName,
                             songTitleRaw to artistName,
                             songTitle to artistNameRaw,
@@ -1230,7 +1249,7 @@ private fun ThumbnailItem(
                                         album = albumName,
                                         storefront = storefront
                                     )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-                            }
+                            }).also { lookupAnswered = true }
                     } }
 
 
@@ -1297,6 +1316,11 @@ private fun ThumbnailItem(
                         }
                     }
                     
+                    // The chain ANSWERED (it did not time out): keep the album's answer for its other songs.
+                    if (memoKey != null && memo == null && lookupAnswered) {
+                        CanvasAlbumMemo.remember(memoContext, memoKey, validated)
+                    }
+
                     // Fallback: when no per-song/album canvas passed validation, use the artist's
                     // motion backdrop (same logic as Player.kt ~747-755) so the player still shows
                     // a moving background. Cached inside AppleMusicArtistBackgroundProvider (24 h).

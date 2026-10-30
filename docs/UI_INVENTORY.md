@@ -4226,3 +4226,4 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | «Compartir» de una canción (reproductor, menú ⋯, cola) | Ventana que pregunta Enlace · MP3 · Vídeo (si lo tiene); lo no guardado se guarda al elegir y luego se abre el menú de compartir del sistema | 520 |
 | Portada del reproductor | Sombreado suave detrás de la portada para que parezca adelantada (sin quitar nada) | 521 |
 | Tablet (≥ 1000 dp): estantes, canciones populares y portada del reproductor | Los estantes de dos filas pasan a una fila si dos no llenan el ancho; las páginas de canciones se ven varias a la vez; la portada del reproductor ocupa toda la altura de su hueco. Teléfono y plegable sin cambios | 522 |
+| Portadas animadas de álbumes y canciones | Una sola búsqueda por álbum para todas sus canciones (guardada 7 días); en la página del álbum se mueven sin pulsar play | 523 |

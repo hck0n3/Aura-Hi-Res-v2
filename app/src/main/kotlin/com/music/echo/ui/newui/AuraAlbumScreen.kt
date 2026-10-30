@@ -366,7 +366,11 @@ fun AuraAlbumScreen(
                                     CanvasArtworkPlayer(
                                         primaryUrl = canvasArtwork?.animated,
                                         fallbackUrl = canvasArtwork?.videoUrl,
-                                        isPlaying = isPlaying,
+                                        // Row 523 (owner 2026-10-29: «las portadas animadas de los álbumes solo se reproducen
+                                        // cuando doy play, eso no me gusta en los álbumes»): on the album's own page the cover
+                                        // moves whenever it is on screen; the player still waits for the app to be in the
+                                        // foreground and stops when the item leaves the screen.
+                                        isPlaying = true,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
@@ -838,9 +842,11 @@ internal fun AuraAlbumHero(
                     CanvasArtworkPlayer(
                         primaryUrl = canvasPrimaryUrl,
                         fallbackUrl = canvasFallbackUrl,
-                        // HALLAZGO-059: this was hardcoded to `true`, so the canvas ExoPlayer kept
-                        // decoding video while the music was paused. The video must pause with the music.
-                        isPlaying = isPlaying,
+                        // HALLAZGO-059 made this follow the music; row 523 (owner 2026-10-29: «solo se reproducen cuando doy
+                        // play, eso no me gusta en los álbumes») reverts it HERE ONLY: the album's own page is the one place
+                        // the cover is the content. The full player (Thumbnail) still pauses with the music, and
+                        // CanvasArtworkPlayer already stops with the app in the background.
+                        isPlaying = true,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
