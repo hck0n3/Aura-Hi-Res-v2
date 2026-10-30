@@ -1,7 +1,17 @@
 // Pruebas del Worker de licencia (fila 530): `node --test docs/worker/license-test/license.test.mjs`
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { decideBinding, parseBinding } from "../worker.js";
+import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+// worker.js se despliega TAL CUAL en Cloudflare (sin `export` extra que pueda rechazar). Para probar sus funciones internas se
+// copia a un archivo temporal con un export añadido al final; el original no se toca.
+const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker.js"), "utf8");
+const dir = mkdtempSync(join(tmpdir(), "aura-license-"));
+writeFileSync(join(dir, "worker.mjs"), src + "\nexport { decideBinding, parseBinding };\n");
+const { default: worker, decideBinding, parseBinding } = await import(pathToFileURL(join(dir, "worker.mjs")).href);
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = 1_800_000_000_000;

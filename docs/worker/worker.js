@@ -237,5 +237,3 @@ async function verifyGumroad(productId, licenseKey) {
   }
 }
 
-// Para las pruebas (docs/worker/test). Cloudflare solo usa el export por defecto.
-export { decideBinding, parseBinding, normalizeEmail, parseMaxDevices };
