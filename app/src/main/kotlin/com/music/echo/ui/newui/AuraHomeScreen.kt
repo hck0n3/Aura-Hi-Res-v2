@@ -1617,8 +1617,9 @@ private fun AuraGroupedYtItemShelves(
 ) {
     val groups = remember(items) { items.groupedByAuraKind { auraContentKind(it) } }
     val showGroupLabels = groups.size > 1
+    BoxWithConstraints(modifier = modifier) {
+    val paneWidth = maxWidth
     Column(
-        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         groups.forEach { (kind, group) ->
@@ -1634,7 +1635,17 @@ private fun AuraGroupedYtItemShelves(
                 )
             }
             val visual = auraTypeVisual(kind)
-            val scale = if (kind == AuraContentKind.Video) cardScale * 1.12f else cardScale
+            val baseScale = if (kind == AuraContentKind.Video) cardScale * 1.12f else cardScale
+            // Row 522 (owner 2026-10-29, Galaxy Tab S12 Ultra: «lo mismo pasa en la pantalla de inicio»): a shelf of five
+            // albums or artists drew five phone-sized cards and left 40 % of a tablet row empty. On a wide pane the cards
+            // of a SHORT shelf grow (up to 1.5×) until the row fills; a phone and a long shelf are exactly as before.
+            val shelfBoost = when (kind) {
+                AuraContentKind.Album, AuraContentKind.Ep, AuraContentKind.Single,
+                AuraContentKind.Playlist, AuraContentKind.Artist, AuraContentKind.Podcast,
+                -> auraWideShelfBoost(group.size, paneWidth, visual.shelfWidth * baseScale)
+                else -> 1f
+            }
+            val scale = baseScale * shelfBoost
             when (kind) {
                 AuraContentKind.Album, AuraContentKind.Ep, AuraContentKind.Single,
                 AuraContentKind.Playlist, AuraContentKind.Artist, AuraContentKind.Podcast,
@@ -1696,7 +1707,27 @@ private fun AuraGroupedYtItemShelves(
             }
         }
     }
+    }
 }
+
+/**
+ * How much a SHORT shelf's cards grow on a wide pane so the row fills (1 = unchanged). 1 on a phone/fold (under
+ * [AURA_WIDE_SHELF_MIN_WIDTH]) and for a shelf that already fills the pane; at most [AURA_WIDE_SHELF_MAX_BOOST]. Pure, for test.
+ */
+internal fun auraWideShelfBoost(
+    itemCount: Int,
+    availableWidth: androidx.compose.ui.unit.Dp,
+    cardWidth: androidx.compose.ui.unit.Dp,
+    gap: androidx.compose.ui.unit.Dp = AuraSpacing.ShelfItemGap,
+    gutter: androidx.compose.ui.unit.Dp = AuraSpacing.Gutter,
+): Float {
+    if (itemCount <= 0 || cardWidth <= 0.dp || availableWidth < AURA_WIDE_SHELF_MIN_WIDTH) return 1f
+    val fill = (availableWidth - gutter * 2 + gap) / ((cardWidth + gap) * itemCount)
+    return fill.coerceIn(1f, AURA_WIDE_SHELF_MAX_BOOST)
+}
+
+internal val AURA_WIDE_SHELF_MIN_WIDTH = 800.dp
+internal const val AURA_WIDE_SHELF_MAX_BOOST = 1.5f
 
 /** The render's horizontal shelf: gutter-aligned, 8 px gaps, sitting under a section rule. */
 @Composable

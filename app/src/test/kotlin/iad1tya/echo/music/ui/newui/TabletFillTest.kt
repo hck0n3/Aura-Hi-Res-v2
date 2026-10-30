@@ -46,6 +46,21 @@ class TabletFillTest {
     }
 
     @Test
+    fun `a short shelf grows its cards on a wide pane until the row fills, and never on a phone`() {
+        val w = 140.dp
+        // five albums on a ~1 300 dp tablet pane: capped at 1.5x
+        assertEquals(1.5f, auraWideShelfBoost(5, 1300.dp, w), 0.001f)
+        // eight cards almost fill it already: a small growth only
+        val eight = auraWideShelfBoost(8, 1300.dp, w)
+        assertTrue(eight > 1f && eight < 1.15f)
+        // a long shelf, a phone and a fold are untouched
+        assertEquals(1f, auraWideShelfBoost(12, 1300.dp, w), 0f)
+        assertEquals(1f, auraWideShelfBoost(5, 400.dp, w), 0f)
+        assertEquals(1f, auraWideShelfBoost(5, 780.dp, w), 0f)
+        assertEquals(1f, auraWideShelfBoost(0, 1300.dp, w), 0f)
+    }
+
+    @Test
     fun `the player cover lifts its 420 dp ceiling on a tablet window only`() {
         val root = generateSequence(File("").absoluteFile) { it.parentFile }
             .firstOrNull { File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")
