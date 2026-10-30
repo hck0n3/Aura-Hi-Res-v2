@@ -9,6 +9,7 @@ on:
       - 'scripts/player_probe.py'
       - 'scripts/player_extract.py'
       - 'scripts/player_validate.py'
+      - 'scripts/verify/**'
       - '.github/workflows/player-probe.yml'
 
 permissions:
@@ -19,4 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: cd scripts && python3 player_validate.py 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: cd scripts/verify && npm install --no-audit --no-fund --silent
+      - run: cd scripts && python3 player_validate.py 8 --verify

@@ -4,7 +4,9 @@ An extractor is only trusted with a NEW player once it gets the known ones right
 """
 import json
 import os
+import subprocess
 import sys
+import tempfile
 
 import player_extract as px
 import player_probe as probe
@@ -12,8 +14,25 @@ import player_probe as probe
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
 
+VERIFY = os.path.join(ROOT, "scripts", "verify", "player_verify.mjs")
+
+
+def run_verifier(js, entry):
+    """Runs the REAL player with [entry] (stage 3) and returns the verifier's one-line verdict."""
+    with tempfile.TemporaryDirectory() as tmp:
+        jp, cp = os.path.join(tmp, "player.js"), os.path.join(tmp, "cand.json")
+        with open(jp, "w", encoding="utf-8") as f:
+            f.write(js)
+        with open(cp, "w", encoding="utf-8") as f:
+            json.dump(entry, f)
+        r = subprocess.run(["node", VERIFY, jp, cp], capture_output=True, text=True, timeout=120, cwd=os.path.dirname(VERIFY))
+        return (r.stdout.strip() or r.stderr.strip()[-300:]), r.returncode == 0
+
+
 def main():
-    limit = int(sys.argv[1]) if len(sys.argv) > 1 else 8
+    verify = "--verify" in sys.argv
+    argv = [a for a in sys.argv[1:] if not a.startswith("--")]
+    limit = int(argv[0]) if argv else 8
     with open(os.path.join(ROOT, "player_configs.json"), encoding="utf-8") as f:
         entries = [e for e in json.load(f) if e.get("sigFuncName") == "_expr_sig"][:limit]
     ok = bad = skipped = 0
@@ -35,6 +54,11 @@ def main():
             print(f"[{h}] FAIL extractor: {why}")
             bad += 1
             continue
+        if verify:
+            known_line, known_ok = run_verifier(js, e)
+            cand_line, cand_ok = run_verifier(js, cand)
+            print(f"[{h}]   RUN known entry:      {'OK' if known_ok else 'NO'}  {known_line}")
+            print(f"[{h}]   RUN extracted entry:  {'OK' if cand_ok else 'NO'}  {cand_line}")
         diffs = [k for k in ("signatureTimestamp", "sigJsExpression", "nJsExpression") if cand[k] != e.get(k)]
         if diffs:
             print(f"[{h}] DIFF in {diffs}")
