@@ -218,15 +218,18 @@ private val OPAQUE_DARK_COVER_ELEVATION = 16.dp
 /**
  * Row 521 (owner 2026-10-29: «las portadas cuando estoy reproduciendo algo quiero que tengan una especie de sombreado que a la
  * vista parezca que están adelante de la interfaz»). The platform elevation above is a thin black shadow that disappears on
- * this dark ground, so the cover looked pasted on. This is a wide, soft, layered shadow drawn BEHIND the cover — nine rounded
+ * this dark ground, so the cover looked pasted on. This is a thin, soft, layered shadow drawn BEHIND the cover — a few rounded
  * rectangles, each a little bigger than the last, a little darker where they pile up — dropped [COVER_SHADOW_DROP] below it, so
  * the ground darkens around the cover and the cover reads as lifted in front of it. Plain draw calls, no blur or render effect
  * (nothing is sampled per frame: the layer is drawn once and cached with the cover).
  */
-private val COVER_SHADOW_SPREAD = 5.dp
-private val COVER_SHADOW_DROP = 20.dp
-private const val COVER_SHADOW_LAYERS = 9
-private const val COVER_SHADOW_LAYER_ALPHA = 0.085f
+// Row 521b (owner 2026-10-30: «muy pronunciada… apenas que se viera en las orillas, más minimalista, más pro»): the first take
+// (9 layers, 5 dp spread, 20 dp drop, 0.085 alpha) darkened a 22 dp halo. Now a hairline that only shows at the cover's edges:
+// 5 layers growing 1 dp each (≈5 dp at most), 3 dp drop, 0.05 alpha → about 23 % black right at the edge, fading to nothing.
+private val COVER_SHADOW_SPREAD = 2.dp
+private val COVER_SHADOW_DROP = 3.dp
+private const val COVER_SHADOW_LAYERS = 5
+private const val COVER_SHADOW_LAYER_ALPHA = 0.05f
 
 private fun Modifier.coverDropShadow(cornerRadius: androidx.compose.ui.unit.Dp): Modifier = drawBehind {
     val spreadPx = COVER_SHADOW_SPREAD.toPx()
