@@ -53,6 +53,14 @@ object DeviceSyncHub {
 
     fun serverNow(): Long = System.currentTimeMillis() + serverOffsetMs
 
+    /**
+     * True while the library (likes, dislikes, playlists) is kept equal between the user's devices through the Worker and the room
+     * has answered once: YouTube's PULL syncs of likes and playlists stay out of the way then (row 536). Pushes of the user's own
+     * actions to their YouTube account are not affected.
+     */
+    @Volatile
+    var libraryOwnedByDevices: Boolean = false
+
     /** How this device got paired: the screens say it in words. */
     enum class PairedBy { None, License, Code }
 

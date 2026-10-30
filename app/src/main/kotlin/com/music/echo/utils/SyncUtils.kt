@@ -335,6 +335,18 @@ class SyncUtils @Inject constructor(
         }
     }
 
+    /**
+     * Row 536 (owner 2026-10-30: *«que cuando esté conectado entre dispositivos la sincronización a la nube de YouTube no
+     * intervenga»*): while the library is kept equal between the user's devices through the Worker, YouTube's PULL passes for likes
+     * and playlists are skipped — two sources of truth is what duplicated and overwrote things. The pushes of the user's own actions
+     * to their YouTube account are NOT affected.
+     */
+    private fun libraryOwnedByDevices(pass: String): Boolean {
+        if (!iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) return false
+        Timber.i("LIB_SYNC YouTube pull skipped (library synced between devices): %s", pass)
+        return true
+    }
+
     private suspend fun processOperation(operation: SyncOperation) {
         when (operation) {
             // PULL ops run single-flight (HALLAZGO-056): the channel is serial with ITSELF, but the
@@ -350,7 +362,8 @@ class SyncUtils @Inject constructor(
             is SyncOperation.AutoSyncPlaylists -> singleFlightOp(OP_AUTO_SYNC_PLAYLISTS) { executeSyncAutoSyncPlaylists() }
             // WRITE / targeted ops are NEVER coalesced: they carry deliberate user actions (a like,
             // one playlist, a mirror, a wipe) that must run exactly as requested.
-            is SyncOperation.SinglePlaylist -> executeSyncPlaylist(operation.browseId, operation.playlistId)
+            is SyncOperation.SinglePlaylist ->
+                if (!libraryOwnedByDevices("playlist")) executeSyncPlaylist(operation.browseId, operation.playlistId)
             is SyncOperation.LikeSong -> executeLikeSong(operation.song)
             is SyncOperation.CleanupDuplicates -> executeCleanupDuplicatePlaylists()
             is SyncOperation.ClearAllSynced -> executeClearAllSyncedContent()
@@ -941,6 +954,7 @@ class SyncUtils @Inject constructor(
 
     fun syncPlaylist(browseId: String, playlistId: String) {
         syncScope.launch {
+            if (libraryOwnedByDevices("playlist")) return@launch
             executeSyncPlaylist(browseId, playlistId)
         }
     }
@@ -1119,6 +1133,7 @@ class SyncUtils @Inject constructor(
     }
 
     private suspend fun executeSyncLikedSongs() = withContext(Dispatchers.IO) {
+        if (libraryOwnedByDevices("likedSongs")) return@withContext
         if (!isLoggedIn()) {
             Timber.w("Skipping syncLikedSongs - user not logged in")
             return@withContext
@@ -1783,6 +1798,7 @@ class SyncUtils @Inject constructor(
     }
 
     private suspend fun executeSyncSavedPlaylists() = withContext(Dispatchers.IO) {
+        if (libraryOwnedByDevices("savedPlaylists")) return@withContext
         if (!isLoggedIn()) {
             Timber.w("Skipping syncSavedPlaylists - user not logged in")
             return@withContext
@@ -1834,6 +1850,7 @@ class SyncUtils @Inject constructor(
     }
 
     private suspend fun executeSyncAutoSyncPlaylists() = withContext(Dispatchers.IO) {
+        if (libraryOwnedByDevices("autoSyncPlaylists")) return@withContext
         if (!isLoggedIn()) {
             Timber.w("Skipping syncAutoSyncPlaylists - user not logged in")
             return@withContext

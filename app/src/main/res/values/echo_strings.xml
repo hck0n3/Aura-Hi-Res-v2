@@ -1518,4 +1518,6 @@
     <string name="device_sync_auto_need_email">Type the purchase email when you activate your license to pair automatically, or use a code</string>
     <string name="device_sync_server_default">Aura\'s server (default)</string>
     <string name="device_sync_continue_here">Continue here</string>
+    <string name="device_sync_library">Sync likes, dislikes and playlists</string>
+    <string name="device_sync_library_desc">Kept equal on your devices through the server, in real time or when they connect. While they are connected, YouTube does not sync them</string>
 </resources>

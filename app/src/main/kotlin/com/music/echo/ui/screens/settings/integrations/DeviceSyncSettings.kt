@@ -50,6 +50,7 @@ import iad1tya.echo.music.devicesync.DeviceSyncCodeKey
 import iad1tya.echo.music.devicesync.DeviceSyncDeviceNameKey
 import iad1tya.echo.music.devicesync.DeviceSyncHandoffKey
 import iad1tya.echo.music.devicesync.DeviceSyncHub
+import iad1tya.echo.music.devicesync.DeviceSyncLibraryKey
 import iad1tya.echo.music.devicesync.DeviceSyncServerKey
 import iad1tya.echo.music.devicesync.DeviceSyncShuffleKey
 import iad1tya.echo.music.devicesync.SyncCode
@@ -84,6 +85,7 @@ fun DeviceSyncSettings(
     var shuffle by rememberPreference(DeviceSyncShuffleKey, true)
     var handoff by rememberPreference(DeviceSyncHandoffKey, true)
     var auto by rememberPreference(DeviceSyncAutoKey, true)
+    var library by rememberPreference(DeviceSyncLibraryKey, true)
 
     val connection by DeviceSyncHub.connection.collectAsState()
     val devices by DeviceSyncHub.devices.collectAsState()
@@ -281,6 +283,12 @@ fun DeviceSyncSettings(
                             description = stringResource(R.string.device_sync_handoff_desc),
                             checked = handoff,
                             onChange = { handoff = it },
+                        ),
+                        switchItem(
+                            title = stringResource(R.string.device_sync_library),
+                            description = stringResource(R.string.device_sync_library_desc),
+                            checked = library,
+                            onChange = { library = it },
                         ),
                     ),
                 )

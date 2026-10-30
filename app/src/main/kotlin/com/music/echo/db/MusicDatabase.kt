@@ -60,6 +60,10 @@ class MusicDatabase(
     val openHelper: SupportSQLiteOpenHelper
         get() = delegate.openHelper
 
+    /** Row 536: lets the library sync notice that likes or playlists changed, whoever changed them. */
+    val invalidationTracker: androidx.room.InvalidationTracker
+        get() = delegate.invalidationTracker
+
     fun query(block: MusicDatabase.() -> Unit) =
         with(delegate) {
             queryExecutor.execute {

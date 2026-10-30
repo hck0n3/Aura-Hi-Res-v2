@@ -16,3 +16,6 @@ val DeviceSyncAutoKey = booleanPreferencesKey("deviceSyncAuto")
 
 /** Aura's own sync Worker. The user never has to know it exists; the field in Ajustes is only for someone who runs their own. */
 const val DEVICE_SYNC_DEFAULT_SERVER = "https://aura-sync.toberto4000.workers.dev"
+
+/** Row 536 — keep likes, dislikes and playlists equal between the user's devices through the Worker. On by default. */
+val DeviceSyncLibraryKey = booleanPreferencesKey("deviceSyncLibrary")

@@ -66,6 +66,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     @Volatile private var serverOffsetMs = 0L
     @Volatile private var shuffleEnabled = true
     @Volatile private var handoffEnabled = true
+    @Volatile private var libraryEnabled = true
+    private var library: LibrarySync? = null
     @Volatile private var everPlayed = false
     private var lastSignature = ""
     private var lastPublishedAt = 0L
@@ -79,8 +81,14 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     fun start() {
         DeviceSyncHub.controller = this
         loadPushedEpochs()
+        val dislikeStore = iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(appContext)
+        library = LibrarySync(appContext, service.database, dislikeStore, dislikeStore.disliked, scope, { client.send(it) }, { libraryEnabled })
+            .also { it.start() }
         scope.launch {
-            client.state.collect { DeviceSyncHub.connection.value = it }
+            client.state.collect {
+                DeviceSyncHub.connection.value = it
+                if (it !is DeviceSyncHub.Connection.Connected) library?.onDisconnected()
+            }
         }
         scope.launch { client.messages.collect { runCatching { handle(it) }.onFailure { e -> Timber.tag(TAG).w("handle failed: %s", e.javaClass.simpleName) } } }
         scope.launch { configLoop() }
@@ -89,6 +97,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     fun stop() {
         if (DeviceSyncHub.controller === this) DeviceSyncHub.controller = null
+        library?.stop()
+        library = null
         client.stop()
         DeviceSyncHub.devices.value = emptyList()
         DeviceSyncHub.remoteNow.value = null
@@ -109,12 +119,15 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                     (it[DeviceSyncHandoffKey] ?: true).toString(),
                     (it[DeviceSyncAutoKey] ?: true).toString(),
                     SyncCode.autoGroupId(identity?.first, identity?.second).orEmpty(),
+                    (it[DeviceSyncLibraryKey] ?: true).toString(),
                 )
             }
             .distinctUntilChanged()
             .collectLatest { cfg ->
                 val server = cfg[0]; val code = cfg[1]; val name = cfg[2]
                 val shuffle = cfg[3]; val handoff = cfg[4]; val auto = cfg[5]; val autoGroup = cfg[6]
+                libraryEnabled = cfg[7].toBoolean()
+                if (!libraryEnabled) DeviceSyncHub.libraryOwnedByDevices = false
                 shuffleEnabled = shuffle.toBoolean()
                 handoffEnabled = handoff.toBoolean()
                 deviceName = name.ifBlank { Build.MODEL.orEmpty().ifBlank { "Aura" } }.take(40)
@@ -160,6 +173,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     // ── incoming ───────────────────────────────────────────────────────────────────────────────────
 
     private suspend fun handle(msg: JsonObject) {
+        if (library?.handle(msg) == true) return
         when (msg.str("t")) {
             "hello_ok" -> {
                 msg.long("serverTime")?.let { serverOffsetMs = it - System.currentTimeMillis(); DeviceSyncHub.serverOffsetMs = serverOffsetMs }
@@ -187,6 +201,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             "cmd" -> runCommand(msg.str("from").orEmpty(), msg.str("cmd").orEmpty(), msg["args"] as? JsonObject ?: JsonObject(emptyMap()))
             "cmd_fail" -> DeviceSyncHub.notice("Ese dispositivo no está conectado ahora.")
             "library" -> {
+                // Row 536: with the library synced through the room there is nothing to ask YouTube for.
+                if (libraryEnabled) return
                 Timber.tag(TAG).i("DEVICE_SYNC library ping kind=%s", msg.str("what").orEmpty())
                 val what = msg.str("what").orEmpty()
                 withContext(Dispatchers.Main) {
@@ -338,6 +354,12 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     }
 
     override fun libraryChanged(what: String) {
+        // Row 536: the room carries the change itself; the old «go and ask YouTube» ping is only for when this is switched off.
+        val lib = library
+        if (libraryEnabled && lib != null) {
+            lib.kick(fast = true)
+            return
+        }
         libraryPing?.cancel()
         libraryPing = scope.launch {
             delay(LIBRARY_DEBOUNCE_MS)
@@ -348,6 +370,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     // ── what this device plays ─────────────────────────────────────────────────────────────────────
 
     private suspend fun onConnected() {
+        library?.onConnected()
         lastSignature = ""
         publishNow(force = true)
         if (shuffleEnabled) {

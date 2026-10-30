@@ -4234,3 +4234,4 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Ajustes ▸ Sincronizar dispositivos: «Emparejamiento» y «Emparejar con mi licencia» | Dice si el equipo está emparejado por licencia, por código o sin emparejar; el servidor pasa a «avanzado» y vale el de Aura por defecto | 531 |
 | Tarjeta «Continuar aquí» (arriba, sobre cualquier pantalla) | Aparece sola cuando otro dispositivo emparejado está sonando y este no; «Continuar aquí» trae la reproducción desde el mismo segundo, ✕ la oculta | 533 |
 | Tarjeta «Continuar aquí» como control remoto | Muestra la canción y la línea de tiempo del otro dispositivo (avanza sola); play/pausa, anterior, siguiente y arrastrar la barra se envían al que suena; tocar la tarjeta la despliega | 534 |
+| Ajustes ▸ Sincronizar dispositivos: «Sincronizar me gusta, no me gusta y listas» | Interruptor (activo por defecto); mientras los dispositivos están conectados, YouTube no sincroniza me gusta ni listas | 536 |

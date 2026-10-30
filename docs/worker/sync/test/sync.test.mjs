@@ -162,3 +162,100 @@ test("mergeShuffle rules", () => {
   assert.equal(capped.state.ids.length, 3000);
   assert.equal(capped.state.ids[0], "id500");
 });
+
+// ── library registers (row 536) ──────────────────────────────────────────────────────────────────────────────────────────────
+const libGroup = createHash("sha256").update("library-room").digest("hex");
+
+test("library: a push reaches the other device as a signal and a pull returns it; the sender gets an ack", async () => {
+  const a = await connect(libGroup, phone);
+  const b = await connect(libGroup, tablet);
+  await a.next((m) => m.t === "hello_ok");
+  await b.next((m) => m.t === "hello_ok");
+
+  a.send({ t: "lib_push", ops: [["lk:song1", 1000, "1"], ["dk:song:bad1", 1000, "1"], ["pl:LPabc", 1000, '{"n":"Gym"}']] });
+  const ack = await a.next((m) => m.t === "lib_ack");
+  assert.equal(ack.accepted, 3);
+  const signal = await b.next((m) => m.t === "lib_ops");
+  assert.equal(signal.seq, 3);
+
+  b.send({ t: "lib_pull", since: 0 });
+  const state = await b.next((m) => m.t === "lib_state");
+  assert.deepEqual(state.items.map((i) => i[0]).sort(), ["dk:song:bad1", "lk:song1", "pl:LPabc"]);
+  assert.equal(state.more, false);
+  assert.equal(state.seq, 3);
+  a.ws.close();
+  b.ws.close();
+});
+
+test("library: the latest timestamp wins, an older one is ignored, a tie settles on the larger value", async () => {
+  const g = createHash("sha256").update("library-lww").digest("hex");
+  const a = await connect(g, phone);
+  await a.next((m) => m.t === "hello_ok");
+  a.send({ t: "lib_push", ops: [["lk:x", 1000, "1"]] });
+  assert.equal((await a.next((m) => m.t === "lib_ack")).accepted, 1);
+  // unlike later → accepted
+  a.send({ t: "lib_push", ops: [["lk:x", 2000, "0"]] });
+  assert.equal((await a.next((m) => m.t === "lib_ack")).accepted, 1);
+  // a stale like (older than the unlike) → ignored
+  a.send({ t: "lib_push", ops: [["lk:x", 1500, "1"]] });
+  assert.equal((await a.next((m) => m.t === "lib_ack")).accepted, 0);
+  // the same op again → ignored (idempotent)
+  a.send({ t: "lib_push", ops: [["lk:x", 2000, "0"]] });
+  assert.equal((await a.next((m) => m.t === "lib_ack")).accepted, 0);
+  // a tie with a larger value wins
+  a.send({ t: "lib_push", ops: [["lk:x", 2000, "1"]] });
+  assert.equal((await a.next((m) => m.t === "lib_ack")).accepted, 1);
+
+  a.send({ t: "lib_pull", since: 0 });
+  const state = await a.next((m) => m.t === "lib_state");
+  // one entry per item: the log keeps only the current value of lk:x
+  assert.deepEqual(state.items, [["lk:x", 2000, "1"]]);
+  a.ws.close();
+});
+
+test("library: pulling «since» returns only what changed, in pages, and a client ahead of the room starts over", async () => {
+  const g = createHash("sha256").update("library-pages").digest("hex");
+  const a = await connect(g, phone);
+  await a.next((m) => m.t === "hello_ok");
+  const ops = Array.from({ length: 400 }, (_, i) => [`lk:s${i}`, 1000 + i, "1"]);
+  a.send({ t: "lib_push", ops });
+  assert.equal((await a.next((m) => m.t === "lib_ack")).accepted, 400);
+  a.send({ t: "lib_push", ops: [["lk:extra", 5000, "1"]] });
+  assert.equal((await a.next((m) => m.t === "lib_ack")).seq, 401);
+
+  a.send({ t: "lib_pull", since: 0 });
+  const first = await a.next((m) => m.t === "lib_state");
+  assert.equal(first.items.length, 400);
+  assert.equal(first.more, true);
+  a.send({ t: "lib_pull", since: first.seq });
+  const second = await a.next((m) => m.t === "lib_state");
+  assert.deepEqual(second.items, [["lk:extra", 5000, "1"]]);
+  assert.equal(second.more, false);
+
+  a.send({ t: "lib_pull", since: 999999 });
+  const reset = await a.next((m) => m.t === "lib_state");
+  assert.equal(reset.reset, true);
+  assert.equal(reset.items.length, 400);
+  a.ws.close();
+});
+
+test("library: bad input is dropped, rooms are isolated, and nothing works before hello", async () => {
+  const g1 = createHash("sha256").update("library-iso-1").digest("hex");
+  const g2 = createHash("sha256").update("library-iso-2").digest("hex");
+  const a = await connect(g1, phone);
+  const b = await connect(g2, tablet);
+  await a.next((m) => m.t === "hello_ok");
+  await b.next((m) => m.t === "hello_ok");
+  a.send({ t: "lib_push", ops: [["lk:ok", 1, "1"], ["", 1, "1"], ["k".repeat(200), 1, "1"], ["lk:nan", "x", "1"], "junk", ["lk:long", 1, "v".repeat(500)]] });
+  assert.equal((await a.next((m) => m.t === "lib_ack")).accepted, 1);
+  b.send({ t: "lib_pull", since: 0 });
+  assert.deepEqual((await b.next((m) => m.t === "lib_state")).items, []);
+  const stranger = await connect(g1);
+  stranger.send({ t: "lib_pull", since: 0 });
+  stranger.send({ t: "ping" });
+  assert.equal((await stranger.next((m) => m.t === "pong")).t, "pong");
+  assert.equal(stranger.inbox.some((m) => m.t === "lib_state"), false);
+  a.ws.close();
+  b.ws.close();
+  stranger.ws.close();
+});

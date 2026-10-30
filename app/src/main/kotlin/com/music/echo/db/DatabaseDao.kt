@@ -2493,7 +2493,85 @@ interface DatabaseDao {
 
     @Query("DELETE FROM album_artist_map WHERE albumId IN (:albumIds)")
     fun deleteAlbumArtistMapsByAlbumIds(albumIds: List<String>)
+
+    // ---- Library sync between the user's devices (registry row 536) ----------------------------------------------------------
+    // The reads say what this device has; the writes apply what the others changed. Plain SQL on purpose: nothing here may go
+    // through the paths that push to the YouTube account (a change that CAME from another device must not be sent back there).
+
+    /** The playlists the library sync carries: the user's own (kept in the library and editable), never the special or generated ones. */
+    @Query(
+        """
+        SELECT id, name, browseId FROM playlist
+        WHERE bookmarkedAt IS NOT NULL AND isEditable = 1
+          AND id NOT IN ('LP_LIKED', 'LP_DOWNLOADED', 'AURA_AI_RECS')
+        """
+    )
+    suspend fun syncPlaylistRows(): List<SyncPlaylistRow>
+
+    @Query(
+        """
+        SELECT m.playlistId AS playlistId, m.songId AS songId FROM playlist_song_map m
+        JOIN playlist p ON p.id = m.playlistId
+        JOIN song s ON s.id = m.songId
+        WHERE p.bookmarkedAt IS NOT NULL AND p.isEditable = 1
+          AND p.id NOT IN ('LP_LIKED', 'LP_DOWNLOADED', 'AURA_AI_RECS')
+          AND s.isLocal = 0
+        """
+    )
+    suspend fun syncMemberRows(): List<SyncMemberRow>
+
+    /** Title, first artist and cover of songs, for the ones another device may never have seen. */
+    @Query(
+        """
+        SELECT s.id AS id, s.title AS title, s.thumbnailUrl AS thumbnailUrl,
+          (SELECT a.name FROM song_artist_map sam JOIN artist a ON a.id = sam.artistId
+           WHERE sam.songId = s.id ORDER BY sam.position LIMIT 1) AS artist
+        FROM song s WHERE s.id IN (:ids)
+        """
+    )
+    suspend fun syncSongRows(ids: List<String>): List<SyncSongRow>
+
+    @Query("SELECT COUNT(*) FROM song WHERE id = :id")
+    suspend fun syncSongExists(id: String): Int
+
+    @Query(
+        """
+        UPDATE song SET liked = :liked, likedDate = :date,
+          inLibrary = CASE WHEN :liked = 1 AND inLibrary IS NULL THEN :date ELSE inLibrary END
+        WHERE id = :id
+        """
+    )
+    suspend fun syncSetLiked(id: String, liked: Boolean, date: java.time.LocalDateTime?)
+
+    /** The local playlist for a sync key: the key IS its id (local-only lists) or its browseId (lists linked to YouTube). */
+    @Query("SELECT id FROM playlist WHERE id = :key OR browseId = :key LIMIT 1")
+    suspend fun syncPlaylistIdFor(key: String): String?
+
+    @Query("UPDATE playlist SET name = :name, lastUpdateTime = :at WHERE id = :id AND name != :name")
+    suspend fun syncRenamePlaylist(id: String, name: String, at: java.time.LocalDateTime)
+
+    /** Members go with it (foreign key cascade). */
+    @Query("DELETE FROM playlist WHERE id = :id")
+    suspend fun syncDeletePlaylist(id: String)
+
+    @Query("SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = :playlistId AND songId = :songId")
+    suspend fun syncMemberCount(playlistId: String, songId: String): Int
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM playlist_song_map WHERE playlistId = :playlistId")
+    suspend fun syncMaxPosition(playlistId: String): Int
+
+    @Query("DELETE FROM playlist_song_map WHERE playlistId = :playlistId AND songId = :songId")
+    suspend fun syncRemoveMember(playlistId: String, songId: String)
 }
+
+/** One playlist as the library sync reads it. */
+data class SyncPlaylistRow(val id: String, val name: String, val browseId: String?)
+
+/** One song of one playlist. */
+data class SyncMemberRow(val playlistId: String, val songId: String)
+
+/** What the library sync tells another device about a song. */
+data class SyncSongRow(val id: String, val title: String, val thumbnailUrl: String?, val artist: String?)
 
 /** One row of [DatabaseDao.recentPlayedTitleArtists]: what the song is called and who sings it (null = unknown). */
 data class PlayedTitleArtist(val title: String, val artist: String?)

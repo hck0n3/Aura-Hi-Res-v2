@@ -11,6 +11,7 @@ Un Worker **aparte** del de la licencia (no lo toca y no usa sus claves). Una sa
 
 ## Privacidad
 - El grupo es el **SHA-256 de un código secreto** que solo conocen tus dispositivos: el Worker no ve el código ni tu cuenta.
+- **Biblioteca (me gusta, no me gusta, listas):** guarda ids de canciones, los **nombres de tus listas** y, de cada canción que otro dispositivo pueda no tener, **título, artista y portada**. Es lo que hace falta para mostrarlas en el otro dispositivo; nunca cuentas ni cookies. Límite de 150 000 elementos por grupo; una biblioteca grande de golpe consume escrituras del plan gratuito de Durable Objects (100 000 filas al día), pero solo la primera vez.
 - Guarda los ids de canciones del aleatorio, los nombres de tus dispositivos y el estado «sonando ahora», que **sí lleva títulos, artistas y enlaces de portada** (hace falta para mostrar y retomar la cola en otro dispositivo). Nunca cuentas, cookies ni el código.
 
 ## Despliegue (una vez, lo haces tú con tu cuenta de Cloudflare)
@@ -38,4 +39,6 @@ aleatorio, estado «sonando ahora», comandos entre dispositivos y aislamiento e
 | `{t:"now", state:{queue,index,positionMs,playing,…}}` | a los demás `now` |
 | `{t:"cmd", to, cmd, args}` | al dispositivo `to`: `cmd {from, cmd, args}`; si no está: `cmd_fail` |
 | `{t:"library", what}` | a los demás `library` |
+| `{t:"lib_push", ops:[[key, ts, value]…]}` | `lib_ack {seq, accepted}`; a los demás `lib_ops {seq}` (solo la señal). Gana el `ts` más reciente (empate: el valor mayor). Hasta 400 por mensaje |
+| `{t:"lib_pull", since}` | `lib_state {items, seq, head, more, reset}`: lo que cambió desde `since`, en páginas de 400; `reset` si el cliente va por delante de la sala |
 | `{t:"ping"}` | `pong` |

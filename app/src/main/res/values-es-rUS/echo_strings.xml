@@ -818,4 +818,6 @@
     <string name="device_sync_auto_need_email">Escribe el correo de la compra al activar tu licencia para emparejar solo, o usa un código</string>
     <string name="device_sync_server_default">Servidor de Aura (predeterminado)</string>
     <string name="device_sync_continue_here">Continuar aquí</string>
+    <string name="device_sync_library">Sincronizar me gusta, no me gusta y listas</string>
+    <string name="device_sync_library_desc">Se mantienen iguales en tus dispositivos por el servidor, al momento o cuando se conecten. Mientras estén conectados, YouTube no los sincroniza</string>
 </resources>
