@@ -201,6 +201,9 @@ internal suspend fun MusicService.exactStyleFilter(
     val pool = if (collection) radioSeedPool else emptyList()
     if (!collection && anchor == null) return@withContext null
     val genres = runCatching { GenreCache.snapshot(service) }.getOrDefault(emptyMap())
+    // Row 525: artists the user skipped quickly in the songs a smart queue added, in earlier queues too (30 days).
+    val persistedRejected = runCatching { iad1tya.echo.music.reco.ContinuationSkipMemory.rejectedArtists(service) }.getOrDefault(emptySet())
+    if (persistedRejected.isNotEmpty()) Timber.tag(TAG).i("STYLE_GATE remembered skips apply: artists=%d", persistedRejected.size)
 
     // LEARN first, from everything in view: the collection and this batch (own words only).
     fun learnFrom(tracks: List<TrackText>, impliedStyle: String? = null) {
@@ -385,6 +388,8 @@ internal suspend fun MusicService.exactStyleFilter(
         val genre = MusicStyle.fromGenre(GenreLane.lookupGenre(genres, t.primary))
         val known = textStyle ?: learned ?: genre.style
         val rejected = ArtistStyleMemory.key(t.primary)?.let { it in st.skippedArtists } == true ||
+            (ArtistStyleMemory.key(t.primary)?.let { it in persistedRejected } == true &&
+                !t.artists.any { it.trim().lowercase() in ownArtists }) ||
             (!languageOnly && known != null && known !in target.styles.orEmpty() && known !in st.confirmedStyles &&
                 (st.skippedStyles[known] ?: 0) >= STYLE_SKIPS_TO_REJECT)
         val evidence = languageEvidence(t)
@@ -432,7 +437,7 @@ internal suspend fun MusicService.exactStyleFilter(
     // Fits the fill may add to: a related artist the context already knows to be elsewhere is not even asked for.
     fun relatedOk(name: String): Boolean {
         val key = ArtistStyleMemory.key(name) ?: return false
-        if (key in st.skippedArtists) return false
+        if (key in st.skippedArtists || key in persistedRejected) return false
         val language = ArtistLanguageMemory.languageOf(langMemory, name)
         if (lane.language != null && language != null && language != lane.language) return false
         val style = artistStyle(name)
@@ -681,13 +686,20 @@ internal fun MusicService.exactStyleOnTransition(newItem: MediaItem?, reason: In
     when (reason) {
         Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> if ((now - startedAt) in 0L until QUICK_SKIP_MS) {
             ArtistStyleMemory.key(t.primary)?.let { st.skippedArtists.add(it) }
+            // Row 525: and for the next queues too (only songs the smart queue added reach this branch).
+            val skippedKey = ArtistStyleMemory.key(t.primary)
+            scope.launch(Dispatchers.IO) { iad1tya.echo.music.reco.ContinuationSkipMemory.recordSkip(this@exactStyleOnTransition, skippedKey) }
             ownStyle?.let { st.skippedStyles.merge(it, 1, Int::plus) }
             Timber.tag(TAG).i(
                 "STYLE_GATE quick skip learned: artists=%d styles=%d",
                 st.skippedArtists.size, st.skippedStyles.size,
             )
         }
-        Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> ownStyle?.let { st.confirmedStyles.add(it) }
+        Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> {
+            ownStyle?.let { st.confirmedStyles.add(it) }
+            val heardKey = ArtistStyleMemory.key(t.primary)
+            scope.launch(Dispatchers.IO) { iad1tya.echo.music.reco.ContinuationSkipMemory.forgive(this@exactStyleOnTransition, heardKey) }
+        }
     }
 }
 
