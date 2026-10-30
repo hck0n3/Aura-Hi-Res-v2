@@ -170,13 +170,15 @@ object LicenseManager {
             val key = rawKey.trim()
             if (key.isEmpty()) return@withContext LicenseStatus.INVALID_KEY
             val email = rawEmail?.trim()?.takeIf { it.isNotEmpty() }
-            val status = backend.verify(key, DeviceId.get(context), email)
-            if (status == LicenseStatus.ACTIVE) {
+            val result = backend.verifyDetailed(key, DeviceId.get(context), email)
+            if (result.status == LicenseStatus.ACTIVE) {
                 val now = System.currentTimeMillis()
                 save(context, LicenseLogic.withSubscriptionKey(load(context), key, now))
-                saveEmail(context, email)
+                // Only an email the Worker CONFIRMED against the purchase is kept. A master key (or an old Worker) never confirms
+                // one, so it never pairs devices by itself and is never limited.
+                saveEmail(context, email.takeIf { result.emailVerified })
             }
-            status
+            result.status
         }
 
     /** Re-checks the stored subscription (used by the renew / "ya pagué" screen). */

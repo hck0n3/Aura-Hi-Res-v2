@@ -123,3 +123,17 @@ test("verify: ended and invalid are untouched", async () => {
   globalThis.fetch = async () => ({ json: async () => ({ success: false }) });
   assert.equal((await verify(env(), { license_key: "K", device_id: "a" })).status, "invalid");
 });
+
+test("verify: email_ok only when the purchase email was confirmed; master keys never carry it and have no limit", async () => {
+  gumroad({ email: "buyer@mail.com" });
+  const e = env({ MASTER_KEYS: "MASTERKEY" });
+  const ok = await verify(e, { license_key: "K", device_id: "a", email: "buyer@mail.com" });
+  assert.equal(ok.email_ok, true);
+  const noEmail = await verify(e, { license_key: "K", device_id: "a" });
+  assert.equal(noEmail.email_ok, undefined);
+  for (const id of ["m1", "m2", "m3", "m4", "m5"]) {
+    const m = await verify(e, { license_key: "MASTERKEY", device_id: id, email: "buyer@mail.com" });
+    assert.deepEqual(m, { status: "active" }, id);
+  }
+  assert.equal(e.store.size, 1); // only K was stored; the master key leaves no trace
+});

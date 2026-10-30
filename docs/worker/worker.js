@@ -83,7 +83,9 @@ export default {
       const decision = decideBinding(parseBinding(raw), deviceId, now, emailOk ? maxDevices : 1);
       if (decision.allowed) {
         await env.LICENSES.put(licenseKey, JSON.stringify(decision.binding));
-        return json({ status: "active" });
+        // email_ok: la app solo empareja sola los equipos del comprador cuando ESTE Worker confirmó su correo contra Gumroad.
+        // Las claves maestras salen antes (arriba), sin esta marca: nunca se emparejan solas ni tienen límite.
+        return json(emailOk ? { status: "active", email_ok: true } : { status: "active" });
       }
       return json({ status: "device_mismatch" });
     } catch (e) {

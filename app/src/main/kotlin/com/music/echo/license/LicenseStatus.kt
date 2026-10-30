@@ -19,6 +19,14 @@ object LicenseStatusParser {
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** True when the Worker confirmed the typed email against the Gumroad purchase (`email_ok`). Master keys never carry it. */
+    fun emailVerified(body: String): Boolean =
+        try {
+            json.parseToJsonElement(body).jsonObject["email_ok"]?.jsonPrimitive?.contentOrNull == "true"
+        } catch (e: Exception) {
+            false
+        }
+
     fun parse(body: String): LicenseStatus =
         try {
             when (json.parseToJsonElement(body).jsonObject["status"]?.jsonPrimitive?.contentOrNull) {

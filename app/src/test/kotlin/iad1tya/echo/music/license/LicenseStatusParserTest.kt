@@ -38,4 +38,12 @@ class LicenseStatusParserTest {
             LicenseStatusParser.parse("""{"status":"email_mismatch"}"""),
         )
     }
+
+    @Test fun emailVerifiedOnlyWhenTheWorkerSaysSo() {
+        assertEquals(true, LicenseStatusParser.emailVerified("""{"status":"active","email_ok":true}"""))
+        // a master key, an old Worker, no email typed, or garbage: never verified
+        assertEquals(false, LicenseStatusParser.emailVerified("""{"status":"active"}"""))
+        assertEquals(false, LicenseStatusParser.emailVerified("""{"status":"active","email_ok":false}"""))
+        assertEquals(false, LicenseStatusParser.emailVerified("<html>502</html>"))
+    }
 }

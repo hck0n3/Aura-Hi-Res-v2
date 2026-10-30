@@ -23,11 +23,17 @@ import kotlinx.serialization.json.put
 class LicenseBackendClient(
     private val http: HttpClient = HttpClient(OkHttp),
 ) {
+    /** A verification plus whether the Worker confirmed the typed email (row 531: only then do the buyer's devices pair by themselves). */
+    data class Result(val status: LicenseStatus, val emailVerified: Boolean)
+
     /**
      * [email] is the purchase email, optional: with it (and when it matches the one on the Gumroad purchase) the Worker lets
      * the same key run on up to its device limit; without it the key keeps working on ONE device, exactly as before.
      */
     suspend fun verify(licenseKey: String, deviceId: String, email: String? = null): LicenseStatus =
+        verifyDetailed(licenseKey, deviceId, email).status
+
+    suspend fun verifyDetailed(licenseKey: String, deviceId: String, email: String? = null): Result =
         try {
             val payload = buildJsonObject {
                 put("license_key", licenseKey)
@@ -37,9 +43,10 @@ class LicenseBackendClient(
             val body = http.post(VERIFY_URL) {
                 setBody(TextContent(payload, ContentType.Application.Json))
             }.bodyAsText()
-            LicenseStatusParser.parse(body)
+            val status = LicenseStatusParser.parse(body)
+            Result(status, status == LicenseStatus.ACTIVE && LicenseStatusParser.emailVerified(body))
         } catch (e: Exception) {
-            LicenseStatus.NETWORK_ERROR
+            Result(LicenseStatus.NETWORK_ERROR, false)
         }
 
     /**
