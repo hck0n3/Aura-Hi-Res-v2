@@ -63,6 +63,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
@@ -204,6 +208,34 @@ private val TIDAL_COVER_SIDE_PADDING = 24.dp
 
 /** Elevation of the artwork card on an [ThumbnailHost.OPAQUE_DARK] host. */
 private val OPAQUE_DARK_COVER_ELEVATION = 16.dp
+
+/**
+ * Row 521 (owner 2026-10-29: «las portadas cuando estoy reproduciendo algo quiero que tengan una especie de sombreado que a la
+ * vista parezca que están adelante de la interfaz»). The platform elevation above is a thin black shadow that disappears on
+ * this dark ground, so the cover looked pasted on. This is a wide, soft, layered shadow drawn BEHIND the cover — nine rounded
+ * rectangles, each a little bigger than the last, a little darker where they pile up — dropped [COVER_SHADOW_DROP] below it, so
+ * the ground darkens around the cover and the cover reads as lifted in front of it. Plain draw calls, no blur or render effect
+ * (nothing is sampled per frame: the layer is drawn once and cached with the cover).
+ */
+private val COVER_SHADOW_SPREAD = 5.dp
+private val COVER_SHADOW_DROP = 20.dp
+private const val COVER_SHADOW_LAYERS = 9
+private const val COVER_SHADOW_LAYER_ALPHA = 0.085f
+
+private fun Modifier.coverDropShadow(cornerRadius: androidx.compose.ui.unit.Dp): Modifier = drawBehind {
+    val spreadPx = COVER_SHADOW_SPREAD.toPx()
+    val dropPx = COVER_SHADOW_DROP.toPx()
+    val radiusPx = cornerRadius.toPx()
+    for (layer in COVER_SHADOW_LAYERS downTo 1) {
+        val grow = layer * spreadPx / 2f
+        drawRoundRect(
+            color = Color.Black.copy(alpha = COVER_SHADOW_LAYER_ALPHA),
+            topLeft = Offset(-grow, -grow * 0.4f + dropPx),
+            size = Size(size.width + 2f * grow, size.height + 2f * grow),
+            cornerRadius = CornerRadius(radiusPx + grow),
+        )
+    }
+}
 
 /**
  * Scale the artwork of an [ThumbnailHost.OPAQUE_DARK] host starts from when the track changes, before it
@@ -1056,8 +1088,12 @@ private fun ThumbnailItem(
                 .then(
                     if (useCardChrome) {
                         Modifier
+                            .coverDropShadow(dimensions.cornerRadius)
                             .shadow(OPAQUE_DARK_COVER_ELEVATION, coverShape, clip = false)
                             .border(1.dp, Color.White.copy(alpha = 0.07f), coverShape)
+                    } else if (isOpaqueDark) {
+                        // «Inspirado en Apple Music»: no card chrome, but the same lift off the ground.
+                        Modifier.coverDropShadow(dimensions.cornerRadius)
                     } else Modifier
                 )
                 .clip(coverShape)
