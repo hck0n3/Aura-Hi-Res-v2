@@ -220,6 +220,7 @@ fun AuraQueue(
     val haptic = LocalHapticFeedback.current
     val menuState = LocalMenuState.current
     val bottomSheetPageState = LocalBottomSheetPageState.current
+    val pairedBy by iad1tya.echo.music.devicesync.DeviceSyncHub.pairedBy.collectAsState()
 
     var showAudioDeviceBottomSheet by remember { mutableStateOf(false) }
 
@@ -402,6 +403,14 @@ fun AuraQueue(
                 onOpenQueue = { state.expandSoft() },
                 isBluetoothConnected = isBluetoothConnected,
                 onAudioOutput = { showAudioDeviceBottomSheet = true },
+                // Row 528 / 535 (owner 2026-10-30): the device switcher lives in THIS row, in the style of its buttons — the
+                // quick-access row above the transport was already crowded. Shown only while this device is paired.
+                showDevices = pairedBy != iad1tya.echo.music.devicesync.DeviceSyncHub.PairedBy.None,
+                onDevices = {
+                    bottomSheetPageState.show {
+                        AuraDevicesSheetContent(navController = navController, onDismiss = bottomSheetPageState::dismiss)
+                    }
+                },
                 showInlineLyrics = showInlineLyrics,
                 onToggleLyrics = onToggleLyrics,
                 showCommentButton = showCommentButton,
@@ -1184,6 +1193,8 @@ private fun AuraQueueBar(
     onOpenQueue: () -> Unit,
     isBluetoothConnected: Boolean,
     onAudioOutput: () -> Unit,
+    showDevices: Boolean,
+    onDevices: () -> Unit,
     showInlineLyrics: Boolean,
     onToggleLyrics: () -> Unit,
     showCommentButton: Boolean,
@@ -1245,6 +1256,19 @@ private fun AuraQueueBar(
                 tint = tint,
                 modifier = Modifier.size(21.dp),
             )
+        }
+
+        // Mis dispositivos (row 535): hand over what plays or take it from another paired device.
+        if (showDevices) {
+            AuraBarButton(
+                interactive = interactive,
+                contentDescription = stringResource(R.string.device_sync_sheet_title),
+                active = false,
+                onClick = onDevices,
+                contentColor = contentColor,
+                activeContainerColor = activeContainerColor,
+                activeContentColor = activeContentColor,
+            ) { tint -> AuraIconGlyph(AuraIcons.Device, null, size = 21.dp, tint = tint) }
         }
 
         AuraBarButton(

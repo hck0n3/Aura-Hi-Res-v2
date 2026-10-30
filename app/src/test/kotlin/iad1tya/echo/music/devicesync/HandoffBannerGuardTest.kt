@@ -55,4 +55,13 @@ class HandoffBannerGuardTest {
         val s = read("app/src/main/kotlin/com/music/echo/ui/newui/AuraHandoffBanner.kt")
         assertTrue(s.contains("while (state.playing)"))
     }
+
+    @Test
+    fun `the device switcher button sits in the bottom bar, not in the crowded quick-access row (owner 2026-10-30)`() {
+        val queue = read("app/src/main/kotlin/com/music/echo/ui/newui/AuraQueue.kt")
+        val player = read("app/src/main/kotlin/com/music/echo/ui/newui/AuraPlayer.kt")
+        assertTrue(queue.contains("AuraIconGlyph(AuraIcons.Device, null, size = 21.dp, tint = tint)"))
+        assertTrue("solo aparece con el dispositivo emparejado", queue.contains("showDevices = pairedBy != iad1tya.echo.music.devicesync.DeviceSyncHub.PairedBy.None"))
+        assertTrue("ya no está arriba", !player.contains("AuraIcons.Device"))
+    }
 }
