@@ -51,6 +51,10 @@ jobs:
       - name: Worker edge tests
         run: cd docs/worker/edge && npm install --no-audit --no-fund --silent && npm test
 
+      # Vigilante del reproductor de YouTube (fila 548): sus reglas de lectura, sobre los archivos reales del repositorio.
+      - name: Player watch tests
+        run: cd scripts && python3 -m unittest test_player_watch -v
+
       # Worker de salas (fila 547): Escuchar juntos propio, sobre workerd real.
       - name: Worker rooms tests
         run: cd docs/worker/rooms && npm install --no-audit --no-fund --silent && npm test

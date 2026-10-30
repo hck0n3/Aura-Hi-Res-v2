@@ -1,0 +1,73 @@
+# Vigilante de reproductor de YouTube (etapa 2 de la reparación semiautomática; orden del dueño 2026-10-30).
+# SOLO OBSERVA: avisa por Telegram cuando YouTube trae un reproductor que la app no conoce y deja el archivo descargado.
+# No escribe player_configs.json ni publica nada (AGENTS.md: jamás valores adivinados, solo con orden del dueño).
+name: Player watch
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Mandar el aviso por Telegram aunque el reproductor ya sea conocido (prueba)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Look at YouTube's player
+        id: watch
+        run: python3 scripts/player_watch.py
+
+      - name: Was this player already announced?
+        id: seen
+        if: steps.watch.outputs.covered == 'false' || inputs.force == true
+        uses: actions/cache/restore@v4
+        with:
+          path: .player-seen
+          key: player-announced-${{ steps.watch.outputs.hash }}${{ inputs.force == true && format('-test-{0}', github.run_id) || '' }}
+
+      - name: Keep the downloaded player for 14 days
+        if: steps.watch.outputs.covered == 'false' && steps.seen.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-${{ steps.watch.outputs.hash }}
+          path: player-${{ steps.watch.outputs.hash }}.js
+          retention-days: 14
+
+      - name: Tell the owner on Telegram
+        if: (steps.watch.outputs.covered == 'false' || inputs.force == true) && steps.seen.outputs.cache-hit != 'true'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT: ${{ secrets.TELEGRAM_CHAT }}
+          HASH: ${{ steps.watch.outputs.hash }}
+          COVERED: ${{ steps.watch.outputs.covered }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$COVERED" = "true" ]; then
+            TEXT="Prueba del vigilante: el reproductor actual de YouTube es $HASH y la app ya lo conoce. Todo bien."
+          else
+            TEXT="YouTube trae un reproductor nuevo que la app NO conoce: $HASH. Las canciones pueden fallar hasta publicar su arreglo. Ya lo descargué: $RUN_URL . Avísale a Claude."
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT}" --data-urlencode "text=${TEXT}")
+          echo "Telegram answered $code"
+          [ "$code" = "200" ]
+
+      - name: Remember that it was announced
+        if: (steps.watch.outputs.covered == 'false' || inputs.force == true) && steps.seen.outputs.cache-hit != 'true'
+        run: mkdir -p .player-seen && echo "${{ steps.watch.outputs.hash }}" > .player-seen/hash
+
+      - name: Save the memory
+        if: (steps.watch.outputs.covered == 'false' || inputs.force == true) && steps.seen.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .player-seen
+          key: player-announced-${{ steps.watch.outputs.hash }}${{ inputs.force == true && format('-test-{0}', github.run_id) || '' }}
