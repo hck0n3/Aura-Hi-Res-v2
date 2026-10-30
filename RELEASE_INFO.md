@@ -8,9 +8,9 @@ Beta encima de la 2.0.67-beta5 (incluye todo lo suyo) y de la 2.0.66 estable. Co
 - **Tus «me gusta» y «no me gusta» llegan también a tu cuenta de YouTube:** si el dispositivo donde los diste no pudo enviarlos (sin sesión o sin red), el que los recibe por tu servidor los manda. Solo cuando son pocos; una sincronización grande no se reenvía una a una.
 - El registro de la aplicación explica ahora por qué un cambio no salió (solo contadores, nunca títulos ni nombres).
 
-## Servicios Aura (nuevo, apagado hasta que pongas una dirección)
+## Servicios Aura (nuevo)
 
-- **Ajustes ▸ Servicios Aura:** interruptor general, dirección del servidor, clave de verificación, estado y «Comprobar ahora». Sin dirección no se contacta con nada y todo sigue encendido como siempre.
+- **Ajustes ▸ Servicios Aura:** interruptor general, estado y «Comprobar ahora». Ya viene configurado de fábrica con el servidor de Aura; no hay que escribir nada. Si no hay red o el servidor no contesta, todo sigue encendido como siempre. Se consulta como mucho una vez cada 6 horas y solo pide una configuración pública; no envía nada tuyo. Puedes apagarlo con el interruptor general.
 - **Interruptores remotos y avisos:** desde tu servidor puedes apagar o encender una función que ya está en la app (cola inteligente, portadas animadas, letras…) y mostrar un aviso, sin publicar versión. Lo que no venga firmado por tu servidor se ignora. La reproducción y la licencia no se pueden apagar desde fuera.
 - **Enviar registro:** un botón que sube el mismo registro que compartirías a mano y te da un código corto para pasarlo. Solo se envía cuando lo pulsas.
 

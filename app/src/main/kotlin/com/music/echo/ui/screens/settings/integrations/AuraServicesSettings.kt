@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.R
+import iad1tya.echo.music.edge.EDGE_DEFAULT_URL
 import iad1tya.echo.music.edge.EDGE_PUBLIC_KEY
 import iad1tya.echo.music.edge.EdgeClient
 import iad1tya.echo.music.edge.EdgeEnabledKey
@@ -153,7 +154,7 @@ fun AuraServicesSettings(
                                 title = { Text(stringResource(R.string.aura_services_address)) },
                                 description = {
                                     Text(
-                                        address.ifBlank { stringResource(R.string.aura_services_address_none) },
+                                        address.ifBlank { EDGE_DEFAULT_URL },
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
