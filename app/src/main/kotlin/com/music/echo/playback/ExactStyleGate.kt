@@ -213,13 +213,21 @@ internal suspend fun MusicService.exactStyleFilter(
     // LEARN first, from everything in view: the collection and this batch (own words only).
     fun learnFrom(tracks: List<TrackText>, impliedStyle: String? = null) {
         if (st.learnedIds.size > LEARNED_IDS_CAP) st.learnedIds.clear()
+        // Counted only to tell, in the log, how much of what the queue «learns» comes from the songs' own words and how much
+        // from the style the search ASKED for (owner 2026-10-30: the queue drifts after several songs, not at the end of the
+        // context — the suspect is a style learned from the question rather than from the answer, then used as evidence).
+        var fromOwnWords = 0
+        var fromImplied = 0
         val observations = tracks.mapNotNull { t ->
             val id = t.id ?: return@mapNotNull null
             val artist = t.primary ?: return@mapNotNull null
-            val style = MusicStyle.fromText(t.text) ?: impliedStyle ?: return@mapNotNull null
+            val own = MusicStyle.fromText(t.text)
+            val style = own ?: impliedStyle ?: return@mapNotNull null
             if (!st.learnedIds.add(id)) return@mapNotNull null
+            if (own != null) fromOwnWords++ else fromImplied++
             artist to style
         }
+        if (fromOwnWords + fromImplied > 0) Timber.tag(TAG).i("STYLE_GATE_LEARN own=%d implied=%d", fromOwnWords, fromImplied)
         runCatching { ArtistStyleMemory.learn(service, observations) }
         // Row 459 — and the artist's LANGUAGE, from the track's own words (a title's language never changes, so
         // an undecided title is remembered as seen too and is not re-read on every batch).
