@@ -125,9 +125,9 @@ suspend fun lookupExportedFileUri(context: Context, songId: String): String? {
  * reproductor a pantalla completa (2026-09-17): duplicar el cuerpo habría dejado dos comportamientos
  * que se separan a la primera corrección — uno mandando el fichero y el otro el enlace.
  *
- * El orden importa y es el que ya tenía el menú: un tema LOCAL se comparte como fichero de audio; una
- * canción EXPORTADA, como el fichero exportado (con su mime real, vídeo o audio); y cualquier otra,
- * como enlace de YouTube. Solo se cae al enlace cuando el fichero no se puede mandar.
+ * Un tema LOCAL se comparte como fichero de audio. Cualquier otra canción abre la ventana de elección
+ * (fila 520): enlace, MP3 y —si tiene vídeo— vídeo; lo ya guardado se manda al momento y lo que no, se
+ * guarda al elegirlo y luego se abre el menú de compartir del sistema.
  *
  * @return true si se abrió un selector de compartir.
  */
@@ -139,23 +139,24 @@ suspend fun shareSong(
     isLocalTrack: Boolean,
     isExported: Boolean,
     isExportedVideo: Boolean,
+    album: String = "",
+    thumbnailUrl: String = "",
+    hasVideo: Boolean = isExportedVideo,
 ): Boolean {
     if (songId.isBlank()) return false
     if (isLocalTrack && shareLocalAudio(context, songId)) return true
-    if (isExported) {
-        val uri = lookupExportedFileUri(context, songId)
-        if (uri != null &&
-            shareContentUri(context, uri, if (isExportedVideo) "video/mp4" else "audio/mpeg")
-        ) {
-            return true
-        }
-    }
-    val intent = Intent().apply {
-        action = Intent.ACTION_SEND
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, ShareLinks.songShareText(songId, title, artists))
-    }
-    context.startActivity(Intent.createChooser(intent, null))
+    // Row 520 (owner 2026-10-29): the choice — link, MP3, and video when the song has one — is asked EVERY time, here, for
+    // every caller. [isExported] / [isExportedVideo] are only hints now: the sheet reads what is saved by itself.
+    iad1tya.echo.music.ui.newui.ShareChoiceState.open(
+        iad1tya.echo.music.ui.newui.ShareSongRequest(
+            songId = songId,
+            title = title,
+            artists = artists,
+            album = album,
+            thumbnailUrl = thumbnailUrl,
+            hasVideo = hasVideo,
+        ),
+    )
     return true
 }
 

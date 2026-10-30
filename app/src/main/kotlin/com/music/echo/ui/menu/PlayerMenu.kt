@@ -420,29 +420,18 @@ fun PlayerMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            // Row 520: link / MP3 / video, asked every time (the choice window saves what is missing).
                             coroutineScope.launch {
-                                if (isExported) {
-                                    val uri = lookupExportedFileUri(context, mediaMetadata.id)
-                                    if (uri != null &&
-                                        shareContentUri(
-                                            context,
-                                            uri,
-                                            if (isExportedVideo) "video/mp4" else "audio/mpeg",
-                                        )
-                                    ) {
-                                        onDismiss()
-                                        return@launch
-                                    }
-                                }
-                                val intent = android.content.Intent().apply {
-                                    action = android.content.Intent.ACTION_SEND
-                                    type = "text/plain"
-                                    putExtra(
-                                        android.content.Intent.EXTRA_TEXT,
-                                        ShareLinks.songShareText(mediaMetadata.id, mediaMetadata.title, mediaMetadata.artists.map { it.name })
-                                    )
-                                }
-                                context.startActivity(android.content.Intent.createChooser(intent, null))
+                                iad1tya.echo.music.ui.newui.ShareChoiceState.open(
+                                    iad1tya.echo.music.ui.newui.ShareSongRequest(
+                                        songId = mediaMetadata.id,
+                                        title = mediaMetadata.title,
+                                        artists = mediaMetadata.artists.map { it.name },
+                                        album = mediaMetadata.album?.title.orEmpty(),
+                                        thumbnailUrl = mediaMetadata.thumbnailUrl.orEmpty(),
+                                        hasVideo = mediaMetadata.isVideoSong,
+                                    ),
+                                )
                                 onDismiss()
                             }
                         }

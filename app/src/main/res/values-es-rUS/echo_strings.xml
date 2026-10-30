@@ -755,4 +755,18 @@
     <string name="download_mode_video">vídeo</string>
     <string name="download_sheet_in_lists">En tus listas: %1$s</string>
     <string name="download_sheet_in_lists_more">%1$s y %2$d más</string>
+    <string name="share_choice_title">Compartir</string>
+    <string name="share_choice_link">Enlace</string>
+    <string name="share_choice_link_desc">Envía el enlace de la canción</string>
+    <string name="share_choice_mp3">MP3</string>
+    <string name="share_choice_mp3_desc">Se guarda como MP3 y luego eliges con quién compartirlo</string>
+    <string name="share_choice_video">Vídeo</string>
+    <string name="share_choice_video_desc">Se guarda el vídeo y luego eliges con quién compartirlo</string>
+    <string name="share_choice_saved_desc">Ya está guardado: se abre el menú de compartir al momento</string>
+    <string name="share_preparing_mp3">Preparando el MP3…</string>
+    <string name="share_preparing_video">Preparando el vídeo…</string>
+    <string name="share_preparing_wait">Empezando…</string>
+    <string name="share_preparing_desc">Cuando esté listo se abre solo el menú de compartir</string>
+    <string name="share_preparing_hide">Seguir en segundo plano</string>
+    <string name="share_export_timeout">Tardó demasiado. El archivo sigue guardándose en segundo plano; compártelo de nuevo cuando esté listo.</string>
 </resources>

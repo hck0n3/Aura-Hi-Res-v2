@@ -1455,4 +1455,18 @@
     <string name="download_mode_video">video</string>
     <string name="download_sheet_in_lists">In your lists: %1$s</string>
     <string name="download_sheet_in_lists_more">%1$s and %2$d more</string>
+    <string name="share_choice_title">Share</string>
+    <string name="share_choice_link">Link</string>
+    <string name="share_choice_link_desc">Send the link to the song</string>
+    <string name="share_choice_mp3">MP3</string>
+    <string name="share_choice_mp3_desc">Save it as an MP3 now, then choose who to share it with</string>
+    <string name="share_choice_video">Video</string>
+    <string name="share_choice_video_desc">Save the music video now, then choose who to share it with</string>
+    <string name="share_choice_saved_desc">Already saved — it opens the share menu right away</string>
+    <string name="share_preparing_mp3">Preparing the MP3…</string>
+    <string name="share_preparing_video">Preparing the video…</string>
+    <string name="share_preparing_wait">Starting…</string>
+    <string name="share_preparing_desc">When it is ready the share menu opens by itself</string>
+    <string name="share_preparing_hide">Keep working in the background</string>
+    <string name="share_export_timeout">It took too long. The file keeps saving in the background; share it again when it is ready.</string>
 </resources>

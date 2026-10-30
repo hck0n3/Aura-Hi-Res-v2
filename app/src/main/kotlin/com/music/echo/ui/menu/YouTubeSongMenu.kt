@@ -319,26 +319,18 @@ fun YouTubeSongMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            // Row 520: link / MP3 / video, asked every time (the choice window saves what is missing).
                             coroutineScope.launch {
-                                if (isExported) {
-                                    val uri = lookupExportedFileUri(context, song.id)
-                                    if (uri != null &&
-                                        shareContentUri(
-                                            context,
-                                            uri,
-                                            if (isExportedVideo) "video/mp4" else "audio/mpeg",
-                                        )
-                                    ) {
-                                        onDismiss()
-                                        return@launch
-                                    }
-                                }
-                                val intent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, iad1tya.echo.music.utils.ShareLinks.songShareText(song.id, song.title, song.artists.map { it.name }))
-                                }
-                                context.startActivity(Intent.createChooser(intent, null))
+                                iad1tya.echo.music.ui.newui.ShareChoiceState.open(
+                                    iad1tya.echo.music.ui.newui.ShareSongRequest(
+                                        songId = song.id,
+                                        title = song.title,
+                                        artists = song.artists.map { it.name },
+                                        album = song.album?.name.orEmpty(),
+                                        thumbnailUrl = song.thumbnail,
+                                        hasVideo = song.isVideoSong,
+                                    ),
+                                )
                                 onDismiss()
                             }
                         }

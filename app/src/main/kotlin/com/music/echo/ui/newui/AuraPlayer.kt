@@ -2023,6 +2023,9 @@ private fun AuraPlayerShape(
                                     isExported = exportedSongIds.split(',').any { it.trim() == meta.id } ||
                                         exportedVideoIds.split(',').any { it.trim() == meta.id },
                                     isExportedVideo = exportedVideoIds.split(',').any { it.trim() == meta.id },
+                                    album = meta.album?.title.orEmpty(),
+                                    thumbnailUrl = meta.thumbnailUrl.orEmpty(),
+                                    hasVideo = meta.isVideoSong,
                                 )
                             }
                         },

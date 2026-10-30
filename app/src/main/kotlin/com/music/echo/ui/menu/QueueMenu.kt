@@ -292,16 +292,18 @@ fun QueueMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            // Row 520: link / MP3 / video, asked every time.
                             onDismiss()
-                            val intent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                type = "text/plain"
-                                putExtra(
-                                    Intent.EXTRA_TEXT,
-                                    ShareLinks.songShareText(mediaMetadata.id, mediaMetadata.title, mediaMetadata.artists.map { it.name })
-                                )
-                            }
-                            context.startActivity(Intent.createChooser(intent, null))
+                            iad1tya.echo.music.ui.newui.ShareChoiceState.open(
+                                iad1tya.echo.music.ui.newui.ShareSongRequest(
+                                    songId = mediaMetadata.id,
+                                    title = mediaMetadata.title,
+                                    artists = mediaMetadata.artists.map { it.name },
+                                    album = mediaMetadata.album?.title.orEmpty(),
+                                    thumbnailUrl = mediaMetadata.thumbnailUrl.orEmpty(),
+                                    hasVideo = mediaMetadata.isVideoSong,
+                                ),
+                            )
                         }
                     )
                 ),

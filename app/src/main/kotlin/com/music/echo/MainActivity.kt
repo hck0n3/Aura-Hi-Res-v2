@@ -2758,6 +2758,9 @@ class MainActivity : ComponentActivity() {
                     // reads the open/close switch, so this composition does not recompose when it opens.
                     iad1tya.echo.music.ui.screens.recognition.RecognitionWindowHost(navController)
 
+                    // «Compartir» of a song: link / MP3 / video (row 520). A floating window like the recognizer's.
+                    iad1tya.echo.music.ui.newui.ShareChoiceHost()
+
                     if (showSettingDialoge) {
                         SettingDialoge(
                             onDismissRequest = { showSettingDialoge = false },

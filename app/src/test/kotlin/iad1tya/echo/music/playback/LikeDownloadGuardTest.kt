@@ -22,7 +22,9 @@ class LikeDownloadGuardTest {
         assertTrue(fn.indexOf("ListenCacheAdoption.adopt(") in 1 until fn.indexOf("if (!adopted && metered)"))
         assertTrue("sin copia y con datos: espera a Wi-Fi, no se pierde", fn.contains("PendingLikeDownloads.add("))
         assertTrue("el segundo aviso del mismo toque se ignora", fn.contains("LIKE_DEDUPE_MS"))
-        assertTrue("el registro no lleva títulos", !fn.contains("Tag(\"DOWNLOAD\").i(\"LIKE_DOWNLOAD", ignoreCase = false) || !fn.contains("title)"))
+        // AGENTS.md rule 4: the LIKE_DOWNLOAD log lines carry flags and counts, never a title or an id.
+        assertTrue(!Regex("""LIKE_DOWNLOAD[^
+]*(title|songId)""").containsMatchIn(fn.replace("flushing", "")))
         assertTrue(main("utils/SyncUtils.kt").contains("downloadUtil.get().downloadOnLike(s.id, s.title, s.isVideo)"))
         val svc = main("playback/MusicService.kt")
         assertTrue(svc.contains("downloadUtil.downloadOnLike("))

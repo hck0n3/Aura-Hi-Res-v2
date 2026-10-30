@@ -1946,12 +1946,17 @@ fun BottomSheetPlayer(
                         Icon(painterResource(R.drawable.playlist_add), null, tint = textButtonColor, modifier = Modifier.size(24.dp))
                     }
                     PlayerActionChip("Compartir", textButtonColor, chipBg, {
-                        val intent = Intent().apply {
-                            action = Intent.ACTION_SEND
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, iad1tya.echo.music.utils.ShareLinks.songShareText(mediaMetadata.id, mediaMetadata.title, mediaMetadata.artists.map { it.name }))
-                        }
-                        context.startActivity(Intent.createChooser(intent, null))
+                        // Row 520: link / MP3 / video, asked every time.
+                        iad1tya.echo.music.ui.newui.ShareChoiceState.open(
+                            iad1tya.echo.music.ui.newui.ShareSongRequest(
+                                songId = mediaMetadata.id,
+                                title = mediaMetadata.title,
+                                artists = mediaMetadata.artists.map { it.name },
+                                album = mediaMetadata.album?.title.orEmpty(),
+                                thumbnailUrl = mediaMetadata.thumbnailUrl.orEmpty(),
+                                hasVideo = mediaMetadata.isVideoSong,
+                            ),
+                        )
                     }) {
                         Icon(painterResource(R.drawable.share), null, tint = textButtonColor, modifier = Modifier.size(24.dp))
                     }

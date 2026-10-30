@@ -708,6 +708,9 @@ fun AuraPlayerMenu(
                                 isLocalTrack = isLocalTrack,
                                 isExported = isExported,
                                 isExportedVideo = isExportedVideo,
+                                album = mediaMetadata.album?.title.orEmpty(),
+                                thumbnailUrl = mediaMetadata.thumbnailUrl.orEmpty(),
+                                hasVideo = mediaMetadata.isVideoSong,
                             )
                             onDismiss()
                         }

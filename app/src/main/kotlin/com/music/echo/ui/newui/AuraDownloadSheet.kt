@@ -483,7 +483,7 @@ private fun formatTitle(format: ExportFormat): String = stringResource(
 )
 
 @Composable
-private fun SheetHeader(title: String, subtitle: String) {
+internal fun SheetHeader(title: String, subtitle: String) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Text(text = title, style = AuraType.RowTitle, color = AuraPalette.OnGround, maxLines = 1, overflow = AuraDefaultOverflow)
         if (subtitle.isNotBlank()) {
@@ -506,7 +506,7 @@ private fun SheetBack(onClick: () -> Unit) {
 }
 
 @Composable
-private fun DownloadSheetRow(
+internal fun DownloadSheetRow(
     icon: ImageVector,
     title: String,
     description: String,

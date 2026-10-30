@@ -354,15 +354,17 @@ fun OldPlayerMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
-                            val intent = android.content.Intent().apply {
-                                action = android.content.Intent.ACTION_SEND
-                                type = "text/plain"
-                                putExtra(
-                                    android.content.Intent.EXTRA_TEXT,
-                                    ShareLinks.songShareText(mediaMetadata.id, mediaMetadata.title, mediaMetadata.artists.map { it.name })
-                                )
-                            }
-                            context.startActivity(android.content.Intent.createChooser(intent, null))
+                            // Row 520: link / MP3 / video, asked every time.
+                            iad1tya.echo.music.ui.newui.ShareChoiceState.open(
+                                iad1tya.echo.music.ui.newui.ShareSongRequest(
+                                    songId = mediaMetadata.id,
+                                    title = mediaMetadata.title,
+                                    artists = mediaMetadata.artists.map { it.name },
+                                    album = mediaMetadata.album?.title.orEmpty(),
+                                    thumbnailUrl = mediaMetadata.thumbnailUrl.orEmpty(),
+                                    hasVideo = mediaMetadata.isVideoSong,
+                                ),
+                            )
                             onDismiss()
                         }
                     )

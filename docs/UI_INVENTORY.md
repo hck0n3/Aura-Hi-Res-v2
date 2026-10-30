@@ -4223,3 +4223,4 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Canciones del momento | Estante de Inicio (lo más reproducido en 7 días, sin repetir «Top diario») | 517 |
 | Pantallas de Explorar (estados de ánimo y géneros, listas de una categoría, nuevos lanzamientos, explorar) | El contenido empieza debajo del título; antes la primera fila quedaba tapada por la barra | 518 |
 | «Me gusta» (corazón y menús) | Descarga la canción para usarla sin conexión: adopta la copia de la caché de escucha (también con datos), descarga con Wi-Fi o espera a Wi-Fi; sin cambio visible | 519 |
+| «Compartir» de una canción (reproductor, menú ⋯, cola) | Ventana que pregunta Enlace · MP3 · Vídeo (si lo tiene); lo no guardado se guarda al elegir y luego se abre el menú de compartir del sistema | 520 |
