@@ -1,8 +1,23 @@
-# Aura Hi-Res v2.0.67-beta6 — la biblioteca sincroniza sin repetir descargas, tus «me gusta» llegan también a YouTube y nacen los Servicios Aura
+# Aura Hi-Res v2.0.67-beta7 — copia de seguridad cifrada en la nube de Aura, portadas animadas y estilos compartidos, y registros más completos
 
-Beta encima de la 2.0.67-beta5 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.67-beta6 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Antes de probar la copia en la nube haz una copia de seguridad local (Ajustes ▸ Copia de seguridad).
 
-## Sincronización de la biblioteca
+## Copia de seguridad en la nube de Aura
+
+- **Ajustes ▸ Copia de seguridad ▸ «Guardar copia en la nube de Aura»** y **«Restaurar la última copia de la nube»**: la misma copia de tu biblioteca de siempre (sin tu sesión de YouTube ni tu licencia), cifrada en tu móvil antes de salir. El servidor solo guarda bytes que no puede leer. Se conservan las últimas 3 copias y el máximo es de 24 MB cada una.
+- La clave sale de tu código de emparejamiento o de tu licencia y correo de compra. Si se prueba con otra clave, o la copia está dañada, no se restaura nada y la app te lo dice. Restaurar pide confirmación porque reemplaza tu biblioteca y reinicia la app.
+
+## Portadas animadas y estilos de la cola inteligente, compartidos
+
+- **Portadas animadas:** si otro usuario de Aura ya encontró la portada animada de un álbum, tu app la toma de un lugar común en vez de repetir la búsqueda larga. Solo se comparten direcciones de sitios conocidos y solo si de verdad son de ese álbum. Menos consultas, menos calor y menos batería.
+- **Estilos de la cola inteligente:** las etiquetas de estilo de cada artista se consultan una vez para todos. Si el servidor no contesta en un instante, la app pregunta como siempre.
+
+## Registros más completos
+
+- **«Enviar registro»** ahora sube también la parte anterior del registro, donde queda lo que pasó al conectar los dispositivos. Sigue enviándose solo cuando lo pulsas.
+- **Cola infinita:** nueva línea de diagnóstico (solo números, nunca nombres) que dice cuánto de lo que la cola aprende viene de las palabras de la propia canción y cuánto del estilo que se pidió. Sirve para encontrar por qué la cola a veces se va desviando después de varias canciones.
+
+## Sincronización de la biblioteca (de la beta 6)
 
 - **Se acabó la tormenta de descargas:** cuando un dispositivo subía una biblioteca grande, el otro pedía la misma lista una y otra vez (en un registro se vieron 1656 descargas en 5 segundos). Gastaba batería, calentaba y dejaba la sincronización sin cerrar, y mientras no cerraba, los cambios de ese dispositivo no salían. Ahora pide una sola vez y repite solo si hubo novedades.
 - **Tus «me gusta» y «no me gusta» llegan también a tu cuenta de YouTube:** si el dispositivo donde los diste no pudo enviarlos (sin sesión o sin red), el que los recibe por tu servidor los manda. Solo cuando son pocos; una sincronización grande no se reenvía una a una.
