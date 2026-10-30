@@ -1,0 +1,33 @@
+name: Token check
+
+# Diagnostic only: shows what the workflow token can really do in this repository, in seconds,
+# instead of discovering it at the end of a 25-minute release build. Touches nothing that reaches
+# users: it creates a DRAFT release and a throwaway non-"v" tag, and deletes both right away.
+on:
+  push:
+    branches: [claude/cool-carson-qwc210]
+    paths: ['.github/workflows/token-check.yml']
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Show token permissions and try a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set +e
+          echo "--- draft release"
+          gh api -X POST "repos/$REPO/releases" -f tag_name=zz-token-check -f target_commitish="$SHA" \
+            -F draft=true -f name=token-check -i 2>&1 | sed -n '1p;/^{/,$p' | cut -c1-300
+          ID=$(gh api "repos/$REPO/releases" --jq '.[] | select(.tag_name=="zz-token-check") | .id' 2>/dev/null | head -1)
+          [ -n "$ID" ] && gh api -X DELETE "repos/$REPO/releases/$ID" && echo "draft deleted"
+          echo "--- throwaway tag"
+          gh api -X POST "repos/$REPO/git/refs" -f ref=refs/tags/zz-token-check -f sha="$SHA" 2>&1 | cut -c1-300
+          gh api -X DELETE "repos/$REPO/git/refs/tags/zz-token-check" 2>&1 | cut -c1-200
+          echo "--- repo workflow permission defaults"
+          gh api "repos/$REPO/actions/permissions/workflow" 2>&1 | cut -c1-300
