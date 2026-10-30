@@ -26,4 +26,6 @@
     <string name="aura_services_diag_done">Log sent. Your code: %1$s (kept 7 days)</string>
     <string name="aura_services_diag_failed">Could not send the log</string>
     <string name="aura_services_diag_no_address">Set the server address in Settings ▸ Aura services first</string>
+    <string name="listen_together_aura_rooms">Aura rooms</string>
+    <string name="listen_together_aura_rooms_desc">Use Aura\'s own rooms: faster and private, but only with other Aura users. Off keeps the shared server that other apps also use.</string>
 </resources>

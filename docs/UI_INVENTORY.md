@@ -3139,6 +3139,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/integrations/Li
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Usuarios bloqueados — desc. «%d usuario(s) bloqueado(s)» / «No hay usuarios bloqueados» (grupo «Ajustes») | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:347 | navegación (diálogo) | rara | siempre |
+| **Salas de Aura** — desc. «Usa las salas propias de Aura… solo con otros usuarios de Aura» (beta 8, por defecto apagado: con el apagado todo sigue como antes, servidor compartido) | Ajustes > Escuchar juntos | ListenTogetherSettings.kt (fila antes de «URL del servidor») | conmutador | rara | bloqueado mientras se está en una sala |
 | URL del servidor — desc. valor o «No establecido» | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:362 | navegación (diálogo «Elegir servidor») | rara | siempre |
 | Nombre de usuario | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:376 | navegación (diálogo con campo) | rara | bloqueado con «No se puede editar el nombre de usuario mientras se está en una sala» |
 | Aprobar automáticamente solicitudes de conexión — desc. «…en lugar de revisarlas manualmente» | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:388 (Switch 393) | conmutador | rara | siempre |

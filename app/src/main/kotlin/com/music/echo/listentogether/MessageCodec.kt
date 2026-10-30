@@ -5,6 +5,13 @@
 package iad1tya.echo.music.listentogether
 
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.protobuf.ProtoBuf
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -24,6 +31,13 @@ import java.util.zip.GZIPOutputStream
 @OptIn(ExperimentalSerializationApi::class)
 internal class MessageCodec(
     private val compressionEnabled: Boolean = true,
+    /**
+     * Aura's own rooms (aura-rooms Worker) speak JSON text frames: `{"type":…,"payload":{…}}` with the
+     * very same field names as these classes. Everything above this codec — which payload class a type
+     * decodes to, the byte arrays handed around — stays identical; only the serialisation changes, and
+     * the "bytes" of a payload are then the UTF-8 of its JSON. Never gzipped.
+     */
+    private val json: Boolean = false,
 ) {
     /**
      * `encodeDefaults = false` is not a preference — it is what proto3 means.
@@ -37,12 +51,22 @@ internal class MessageCodec(
      */
     private val proto = ProtoBuf { encodeDefaults = false }
 
+    /** Defaults ARE written (a 0 position or an empty queue is information for the JSON server); unknown keys are ignored. */
+    private val wireJson = Json { encodeDefaults = true; ignoreUnknownKeys = true; explicitNulls = true }
+
+    private fun <T> enc(serializer: KSerializer<T>, value: T): ByteArray =
+        if (json) wireJson.encodeToString(serializer, value).encodeToByteArray() else proto.encodeToByteArray(serializer, value)
+
     /** Encodes one message into a complete frame. */
     fun encode(
         msgType: String,
         payload: Any?,
     ): ByteArray {
         val payloadBytes = payload?.let { encodePayload(it) } ?: ByteArray(0)
+        if (json) {
+            val body = if (payloadBytes.isEmpty()) JsonObject(emptyMap()) else wireJson.parseToJsonElement(payloadBytes.decodeToString())
+            return JsonObject(mapOf("type" to JsonPrimitive(msgType), "payload" to body)).toString().encodeToByteArray()
+        }
         // Below the threshold gzip reliably makes the frame LARGER — its header alone is 10 bytes,
         // and most of these messages are a handful of fields.
         val compress = compressionEnabled && payloadBytes.size > COMPRESSION_THRESHOLD
@@ -60,6 +84,11 @@ internal class MessageCodec(
      * the sender, and a frame we cannot inflate is more likely mislabelled than fatal.
      */
     fun decode(data: ByteArray): Pair<String, ByteArray> {
+        if (json) {
+            val root = wireJson.parseToJsonElement(data.decodeToString()).jsonObject
+            val type = root["type"]?.jsonPrimitive?.contentOrNull ?: ""
+            return type to (root["payload"]?.toString() ?: "{}").encodeToByteArray()
+        }
         val envelope = proto.decodeFromByteArray(Envelope.serializer(), data)
         val body = if (envelope.compressed) gunzip(envelope.payload) ?: envelope.payload else envelope.payload
         return envelope.type to body
@@ -120,21 +149,21 @@ internal class MessageCodec(
 
     private fun encodePayload(payload: Any): ByteArray =
         when (payload) {
-            is CreateRoomPayload -> proto.encodeToByteArray(CreateRoomPayload.serializer(), payload)
-            is JoinRoomPayload -> proto.encodeToByteArray(JoinRoomPayload.serializer(), payload)
+            is CreateRoomPayload -> enc(CreateRoomPayload.serializer(), payload)
+            is JoinRoomPayload -> enc(JoinRoomPayload.serializer(), payload)
             is LeaveRoomPayload -> ByteArray(0)
-            is ApproveJoinPayload -> proto.encodeToByteArray(ApproveJoinPayload.serializer(), payload)
-            is RejectJoinPayload -> proto.encodeToByteArray(RejectJoinPayload.serializer(), payload)
-            is PlaybackActionPayload -> proto.encodeToByteArray(PlaybackActionPayload.serializer(), payload)
-            is PingPayload -> proto.encodeToByteArray(PingPayload.serializer(), payload)
-            is BufferReadyPayload -> proto.encodeToByteArray(BufferReadyPayload.serializer(), payload)
-            is KickUserPayload -> proto.encodeToByteArray(KickUserPayload.serializer(), payload)
-            is TransferHostPayload -> proto.encodeToByteArray(TransferHostPayload.serializer(), payload)
-            is SuggestTrackPayload -> proto.encodeToByteArray(SuggestTrackPayload.serializer(), payload)
-            is ApproveSuggestionPayload -> proto.encodeToByteArray(ApproveSuggestionPayload.serializer(), payload)
-            is RejectSuggestionPayload -> proto.encodeToByteArray(RejectSuggestionPayload.serializer(), payload)
-            is ReconnectPayload -> proto.encodeToByteArray(ReconnectPayload.serializer(), payload)
-            is ClientCapabilities -> proto.encodeToByteArray(ClientCapabilities.serializer(), payload)
+            is ApproveJoinPayload -> enc(ApproveJoinPayload.serializer(), payload)
+            is RejectJoinPayload -> enc(RejectJoinPayload.serializer(), payload)
+            is PlaybackActionPayload -> enc(PlaybackActionPayload.serializer(), payload)
+            is PingPayload -> enc(PingPayload.serializer(), payload)
+            is BufferReadyPayload -> enc(BufferReadyPayload.serializer(), payload)
+            is KickUserPayload -> enc(KickUserPayload.serializer(), payload)
+            is TransferHostPayload -> enc(TransferHostPayload.serializer(), payload)
+            is SuggestTrackPayload -> enc(SuggestTrackPayload.serializer(), payload)
+            is ApproveSuggestionPayload -> enc(ApproveSuggestionPayload.serializer(), payload)
+            is RejectSuggestionPayload -> enc(RejectSuggestionPayload.serializer(), payload)
+            is ReconnectPayload -> enc(ReconnectPayload.serializer(), payload)
+            is ClientCapabilities -> enc(ClientCapabilities.serializer(), payload)
             else -> ByteArray(0)
         }
 
@@ -142,7 +171,9 @@ internal class MessageCodec(
         serializer: kotlinx.serialization.DeserializationStrategy<T>,
         bytes: ByteArray,
     ): T? =
-        runCatching { proto.decodeFromByteArray(serializer, bytes) }.getOrNull()
+        runCatching {
+            if (json) wireJson.decodeFromString(serializer, bytes.decodeToString()) else proto.decodeFromByteArray(serializer, bytes)
+        }.getOrNull()
 
     private fun gzip(data: ByteArray): ByteArray {
         val output = ByteArrayOutputStream()

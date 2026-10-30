@@ -1,13 +1,9 @@
 // Aura Hi-Res «Escuchar juntos»: one Durable Object per room, JSON text frames, hibernating WebSockets.
-// Only between Aura clients (owner 2026-10-30), so the protocol is plain JSON that keeps the message NAMES of the existing
-// Listen Together protocol (create_room, join_request, sync_playback, buffer_wait…) so the app can map one onto the other.
+// Only between Aura clients (owner 2026-10-30). The wire is `{type, payload}` where `payload` has EXACTLY the field names of the
+// app's own protocol classes (app/.../listentogether/Protocol.kt: CreateRoomPayload, PlaybackActionPayload, RoomState…), so the app
+// only swaps its binary codec for JSON. Inside the room the logic keeps short internal names; `fromWire` / `toWire` are the only
+// places that know the two spellings.
 // The room holds ids and display metadata of tracks (videoId, title, artist…), never audio and never an account.
-//
-// Client → server: create_room, join_room, approve_join, reject_join, leave_room, kick_user, transfer_host, playback_action,
-//   buffer_ready, request_sync, reconnect, ping, chat, suggest_track, approve_suggestion, reject_suggestion.
-// Server → client: room_created, join_pending, join_request, join_approved, join_rejected, user_joined, user_left, host_changed,
-//   kicked, sync_playback, sync_state, buffer_wait, buffer_complete, reconnected, user_reconnected, user_disconnected,
-//   suggestion_received, suggestion_approved, suggestion_rejected, chat, pong, error.
 
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const MAX_USERS = 12;
@@ -19,8 +15,66 @@ const EMPTY_ROOM_MS = 5 * 60_000;
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json" } });
 const rid = (n = 8) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => ALPHABET[b % ALPHABET.length]).join("");
-const send = (ws, msg) => { try { ws.send(JSON.stringify(msg)); } catch { /* closing */ } };
+const send = (ws, msg) => { try { ws.send(JSON.stringify(toWire(msg))); } catch { /* closing */ } };
 const clip = (v, n) => String(v ?? "").slice(0, n);
+
+const ERROR_TEXT = {
+  no_such_room: "Esa sala no existe o ya terminó", room_full: "La sala está llena", host_only: "Solo el anfitrión puede hacer eso",
+  not_in_room: "No estás en la sala", bad_token: "Tu sesión de la sala ya no es válida", bad_track: "Esa canción no es válida",
+  too_big: "Mensaje demasiado grande", bad_json: "Mensaje ilegible", unknown_message_type: "Mensaje desconocido", bad_state: "No se puede hacer eso ahora",
+  no_such_user: "Esa persona ya no está", no_such_request: "Esa solicitud ya no existe", no_such_suggestion: "Esa sugerencia ya no existe",
+  unknown_action: "Acción desconocida", server: "Error del servidor",
+};
+
+/** App spelling → internal message. `p` is the payload object; unknown/absent fields fall back to harmless defaults. */
+export function fromWire(type, p) {
+  p = p && typeof p === "object" ? p : {};
+  switch (type) {
+    case "create_room": case "join_room": return { t: type, username: p.username };
+    case "approve_join": return { t: type, userId: p.userId };
+    case "reject_join": case "kick_user": return { t: type, userId: p.userId, reason: p.reason };
+    case "transfer_host": return { t: type, userId: p.newHostId };
+    case "playback_action": return { t: type, action: p.action, trackId: p.trackId, positionMs: p.position, track: p.trackInfo, queue: p.queue, insertNext: !!p.insertNext, volume: p.volume };
+    case "buffer_ready": return { t: type, trackId: p.trackId };
+    case "ping": return { t: type, clientTime: p.clientTime, sequence: p.sequence };
+    case "suggest_track": return { t: type, track: p.trackInfo };
+    case "approve_suggestion": return { t: type, suggestionId: p.suggestionId };
+    case "reject_suggestion": return { t: type, suggestionId: p.suggestionId, reason: p.reason };
+    case "reconnect": { const [userId, ...rest] = String(p.sessionToken || "").split("."); return { t: type, userId, token: rest.join(".") }; }
+    case "client_capabilities": return { t: "noop" };
+    default: return { ...p, t: type };
+  }
+}
+
+/** Internal message → app spelling `{type, payload}`. */
+export function toWire(m) {
+  const now = Date.now();
+  switch (m.t) {
+    case "server_capabilities": return { type: m.t, payload: { supportsProtobuf: false, supportsCompression: false, serverVersion: "aura-rooms-1" } };
+    case "room_created": return { type: m.t, payload: { roomCode: m.roomCode, userId: m.userId, sessionToken: m.sessionToken } };
+    case "join_request": case "user_joined": case "user_left": case "user_reconnected": case "user_disconnected":
+      return { type: m.t, payload: { userId: m.userId, username: m.username || "" } };
+    case "join_approved": return { type: m.t, payload: { roomCode: m.roomCode, userId: m.userId, sessionToken: m.sessionToken, state: m.state } };
+    case "join_rejected": return { type: m.t, payload: { reason: m.reason } };
+    case "host_changed": return { type: m.t, payload: { newHostId: m.hostId, newHostName: m.username || "" } };
+    case "kicked": return { type: m.t, payload: { reason: m.reason } };
+    case "buffer_wait": return { type: m.t, payload: { trackId: m.trackId || "", waitingFor: m.waitingFor || [] } };
+    case "buffer_complete": return { type: m.t, payload: { trackId: m.trackId || "" } };
+    case "error": return { type: m.t, payload: { code: m.code, message: ERROR_TEXT[m.code] || m.code } };
+    case "pong": return { type: m.t, payload: { clientTime: m.clientTime, serverReceiveTime: m.receivedAt, serverSendTime: now, sequence: m.sequence } };
+    case "reconnected": return { type: m.t, payload: { roomCode: m.state.roomCode, userId: m.userId, state: m.state, isHost: m.userId === m.state.hostId } };
+    case "sync_state": return { type: m.t, payload: { currentTrack: m.state.currentTrack, isPlaying: m.state.isPlaying, position: m.state.position, lastUpdate: m.state.lastUpdate, queue: m.state.queue, volume: m.state.volume, revision: m.state.revision } };
+    case "sync_playback": return { type: m.t, payload: {
+      action: m.action, trackId: m.trackId || (m.track && m.track.id) || "", position: m.positionMs || 0, trackInfo: m.track || null,
+      insertNext: !!m.insertNext, queue: m.queue || [], queueTitle: "", volume: m.volume ?? 0, serverTime: m.serverTime || now, revision: m.revision || 0,
+      capturedAtServerTime: m.serverTime || now,
+    } };
+    case "suggestion_received": return { type: m.t, payload: { suggestionId: m.suggestionId, fromUserId: m.userId, fromUsername: m.username, trackInfo: m.track } };
+    case "suggestion_approved": return { type: m.t, payload: { suggestionId: m.suggestionId, trackInfo: m.track } };
+    case "suggestion_rejected": return { type: m.t, payload: { suggestionId: m.suggestionId, reason: m.reason || "" } };
+    default: return { type: m.t, payload: m };
+  }
+}
 
 export function cleanTrack(t) {
   if (!t || typeof t !== "object" || !t.id) return null;
@@ -59,6 +113,8 @@ export class Room {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ id: rid(8), code, mode, role: "new" });
+    // The app's handshake expects the server's capabilities first; this server speaks JSON only, no compression.
+    send(server, { t: "server_capabilities" });
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -79,7 +135,7 @@ export class Room {
     }
   }
   publicUsers() {
-    return Object.entries(this.room.users).map(([id, u]) => ({ userId: id, username: u.name, isHost: id === this.room.hostId, connected: !!u.connected }));
+    return Object.entries(this.room.users).map(([id, u]) => ({ userId: id, username: u.name, isHost: id === this.room.hostId, isConnected: !!u.connected }));
   }
   position(now = Date.now()) {
     const r = this.room;
@@ -87,17 +143,23 @@ export class Room {
   }
   publicState(now = Date.now()) {
     const r = this.room;
-    return { track: r.track, queue: r.queue, playing: r.playing, positionMs: Math.max(0, Math.round(this.position(now))), volume: r.volume, serverTime: now };
+    return {
+      roomCode: r.code, hostId: r.hostId, users: this.publicUsers(), currentTrack: r.track, isPlaying: r.playing,
+      position: Math.max(0, Math.round(this.position(now))), lastUpdate: now, volume: r.volume, queue: r.queue, revision: r.revision || 0,
+    };
   }
 
   // ── messages ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
   async webSocketMessage(ws, data) {
     const text = typeof data === "string" ? data : new TextDecoder().decode(data);
     if (text.length > MAX_FRAME) return send(ws, { t: "error", code: "too_big" });
-    let msg;
-    try { msg = JSON.parse(text); } catch { return send(ws, { t: "error", code: "bad_json" }); }
+    const receivedAt = Date.now();
+    let env;
+    try { env = JSON.parse(text); } catch { return send(ws, { t: "error", code: "bad_json" }); }
     const a = ws.deserializeAttachment() || {};
-    const t = msg && msg.t;
+    const msg = fromWire(String((env && env.type) || ""), env && env.payload);
+    msg.receivedAt = receivedAt;
+    const t = msg.t;
     await this.load();
     const handler = this["on_" + t];
     if (typeof handler !== "function" || !/^[a-z_]+$/.test(String(t))) return send(ws, { t: "error", code: "unknown_message_type" });
@@ -118,20 +180,22 @@ export class Room {
     return true;
   }
 
-  async on_ping(ws, a, m) { send(ws, { t: "pong", t0: Number(m.t0) || 0, serverTime: Date.now() }); }
+  async on_noop() { /* client_capabilities: nothing to negotiate */ }
+
+  async on_ping(ws, a, m) { send(ws, { t: "pong", clientTime: Number(m.clientTime) || 0, receivedAt: m.receivedAt, sequence: Number(m.sequence) || 0 }); }
 
   async on_create_room(ws, a, m) {
     if (a.mode !== "create" || this.room) return send(ws, { t: "error", code: "bad_state" });
     const token = rid(24);
     const now = Date.now();
     this.room = {
-      code: a.code, hostId: a.id, createdAt: now, track: null, queue: [], playing: false, positionMs: 0, anchorAt: now, volume: 1,
+      code: a.code, hostId: a.id, createdAt: now, track: null, queue: [], playing: false, positionMs: 0, anchorAt: now, volume: 1, revision: 0,
       users: { [a.id]: { name: clip(m.username || "Anfitrión", 40), token, connected: true, joinedAt: now } },
       pending: {}, suggestions: {}, buffering: null, hostGraceAt: 0, dieAt: 0,
     };
     ws.serializeAttachment({ ...a, role: "member" });
     await this.save();
-    send(ws, { t: "room_created", roomCode: a.code, userId: a.id, token, serverTime: now });
+    send(ws, { t: "room_created", roomCode: a.code, userId: a.id, sessionToken: `${a.id}.${token}` });
   }
 
   async on_join_room(ws, a, m) {
@@ -140,7 +204,6 @@ export class Room {
     this.room.pending[a.id] = { name: clip(m.username || "Invitado", 40), at: Date.now() };
     ws.serializeAttachment({ ...a, role: "pending" });
     await this.save();
-    send(ws, { t: "join_pending", userId: a.id });
     const host = this.socketOf(this.room.hostId);
     if (host) send(host, { t: "join_request", userId: a.id, username: this.room.pending[a.id].name });
   }
@@ -157,8 +220,8 @@ export class Room {
     guest.serializeAttachment({ ...(guest.deserializeAttachment() || {}), role: "member" });
     this.room.dieAt = 0;
     await this.save();
-    send(guest, { t: "join_approved", roomCode: this.room.code, userId: id, token, hostId: this.room.hostId, state: this.publicState(), users: this.publicUsers() });
-    this.broadcast({ t: "user_joined", user: { userId: id, username: p.name, isHost: false, connected: true } }, id);
+    send(guest, { t: "join_approved", roomCode: this.room.code, userId: id, sessionToken: `${id}.${token}`, state: this.publicState() });
+    this.broadcast({ t: "user_joined", userId: id, username: p.name }, id);
   }
 
   async on_reject_join(ws, a, m) {
@@ -174,9 +237,10 @@ export class Room {
     const r = this.room;
     if (!r || !r.users[id]) return;
     const wasHost = id === r.hostId;
+    const name = r.users[id].name;
     delete r.users[id];
     delete r.suggestions[id];
-    this.broadcast({ t: "user_left", userId: id, reason: why });
+    this.broadcast({ t: "user_left", userId: id, username: name, reason: why });
     if (wasHost) await this.passHost();
     if (r.buffering) { r.buffering.waiting = r.buffering.waiting.filter((u) => u !== id); await this.maybeCompleteBuffer(); }
     if (!Object.keys(r.users).length) { this.room = null; }
@@ -225,7 +289,8 @@ export class Room {
     const r = this.room;
     const now = Date.now();
     const action = String(m.action || "");
-    const out = { t: "sync_playback", action, serverTime: now };
+    r.revision = (r.revision || 0) + 1;
+    const out = { t: "sync_playback", action, serverTime: now, revision: r.revision };
     switch (action) {
       case "play": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = true; r.anchorAt = now; break;
       case "pause": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = false; r.anchorAt = now; break;
@@ -233,12 +298,14 @@ export class Room {
       case "change_track": {
         const tr = cleanTrack(m.track);
         if (!tr) return send(ws, { t: "error", code: "bad_track" });
-        r.track = tr; r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = now; r.playing = m.play !== false;
-        out.track = tr;
+        r.track = tr; r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = now; r.playing = true;
+        // The queue travels on the SAME message as the track (the app relies on it): keep it and echo it.
+        if (Array.isArray(m.queue) && m.queue.length) r.queue = m.queue.map(cleanTrack).filter(Boolean).slice(0, MAX_QUEUE);
+        out.track = tr; out.queue = r.queue;
         break;
       }
       case "skip_next": case "skip_prev": break;
-      case "queue_add": { const tr = cleanTrack(m.track); if (!tr || r.queue.length >= MAX_QUEUE) return send(ws, { t: "error", code: "bad_track" }); r.queue.push(tr); out.track = tr; break; }
+      case "queue_add": { const tr = cleanTrack(m.track); if (!tr || r.queue.length >= MAX_QUEUE) return send(ws, { t: "error", code: "bad_track" }); r.queue.push(tr); out.track = tr; out.insertNext = !!m.insertNext; break; }
       case "queue_remove": r.queue = r.queue.filter((x) => x.id !== String(m.trackId || "")); out.trackId = String(m.trackId || ""); break;
       case "queue_clear": r.queue = []; break;
       case "sync_queue": r.queue = (Array.isArray(m.queue) ? m.queue : []).map(cleanTrack).filter(Boolean).slice(0, MAX_QUEUE); out.queue = r.queue; break;
@@ -246,27 +313,32 @@ export class Room {
       default: return send(ws, { t: "error", code: "unknown_action" });
     }
     out.positionMs = Math.max(0, Math.round(this.position(now)));
-    out.playing = r.playing;
+    out.volume = r.volume;
     // A new track or a jump makes everyone fetch audio: wait for the slowest (or 10 s) before playing together.
     if ((action === "change_track" || action === "seek") && r.playing) {
       const waiting = Object.entries(r.users).filter(([id, u]) => id !== a.id && u.connected).map(([id]) => id);
       if (waiting.length) {
-        r.buffering = { waiting, until: now + BUFFER_TIMEOUT_MS, trackId: r.track ? r.track.id : "" };
+        r.buffering = { waiting, until: now + BUFFER_TIMEOUT_MS, trackId: r.track ? r.track.id : "", all: waiting.slice() };
         await this.ctx.storage.setAlarm(now + BUFFER_TIMEOUT_MS);
         out.bufferWait = true;
       }
     }
     await this.save();
     this.broadcast(out, a.id);
-    if (out.bufferWait) this.broadcast({ t: "buffer_wait", trackId: r.buffering.trackId, waiting: r.buffering.waiting.length });
+    if (out.bufferWait) this.broadcast({ t: "buffer_wait", trackId: r.buffering.trackId, waitingFor: r.buffering.waiting.slice() });
   }
 
   async maybeCompleteBuffer() {
     const r = this.room;
     if (!r || !r.buffering || r.buffering.waiting.length) return;
+    const trackId = r.buffering.trackId;
     r.buffering = null;
+    r.revision = (r.revision || 0) + 1;
     await this.save();
-    this.broadcast({ t: "buffer_complete", serverTime: Date.now(), positionMs: Math.round(this.position()), playing: r.playing });
+    const now = Date.now();
+    this.broadcast({ t: "buffer_complete", trackId });
+    // Everybody (the host too) starts from the same spot on the server's clock.
+    if (r.playing) this.broadcast({ t: "sync_playback", action: "play", serverTime: now, revision: r.revision, positionMs: Math.round(this.position(now)), track: r.track });
   }
 
   async on_buffer_ready(ws, a) {
@@ -278,7 +350,7 @@ export class Room {
 
   async on_request_sync(ws, a) {
     if (!this.requireMember(ws, a)) return;
-    send(ws, { t: "sync_state", state: this.publicState(), users: this.publicUsers(), hostId: this.room.hostId });
+    send(ws, { t: "sync_state", state: this.publicState() });
   }
 
   async on_chat(ws, a, m) {
@@ -336,8 +408,8 @@ export class Room {
     this.room.dieAt = 0;
     if (id === this.room.hostId) this.room.hostGraceAt = 0;
     await this.save();
-    send(ws, { t: "reconnected", userId: id, hostId: this.room.hostId, state: this.publicState(), users: this.publicUsers() });
-    this.broadcast({ t: "user_reconnected", userId: id }, id);
+    send(ws, { t: "reconnected", userId: id, state: this.publicState() });
+    this.broadcast({ t: "user_reconnected", userId: id, username: u.name }, id);
   }
 
   // ── sockets going away, and timed work ────────────────────────────────────────────────────────────────────────────────────
@@ -352,7 +424,7 @@ export class Room {
     if (this.socketOf(a.id) && this.socketOf(a.id) !== ws) return;
     u.connected = false;
     const now = Date.now();
-    this.broadcast({ t: "user_disconnected", userId: a.id }, a.id);
+    this.broadcast({ t: "user_disconnected", userId: a.id, username: u.name }, a.id);
     if (a.id === this.room.hostId) { this.room.hostGraceAt = now + HOST_GRACE_MS; await this.ctx.storage.setAlarm(now + HOST_GRACE_MS); }
     if (!Object.values(this.room.users).some((x) => x.connected)) { this.room.dieAt = now + EMPTY_ROOM_MS; await this.ctx.storage.setAlarm(now + EMPTY_ROOM_MS); }
     if (this.room.buffering) { this.room.buffering.waiting = this.room.buffering.waiting.filter((x) => x !== a.id); await this.maybeCompleteBuffer(); }

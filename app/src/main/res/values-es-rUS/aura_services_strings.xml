@@ -26,4 +26,6 @@
     <string name="aura_services_diag_done">Registro enviado. Tu código: %1$s (se guarda 7 días)</string>
     <string name="aura_services_diag_failed">No se pudo enviar el registro</string>
     <string name="aura_services_diag_no_address">Primero define la dirección del servidor en Ajustes ▸ Servicios Aura</string>
+    <string name="listen_together_aura_rooms">Salas de Aura</string>
+    <string name="listen_together_aura_rooms_desc">Usa las salas propias de Aura: más rápidas y privadas, pero solo con otros usuarios de Aura. Apagado mantiene el servidor compartido que también usan otras apps.</string>
 </resources>
