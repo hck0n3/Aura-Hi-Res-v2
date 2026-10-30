@@ -140,3 +140,11 @@ test("alert through Telegram: bot URL, chat id, text; it wins over ntfy", async 
   assert.equal(info.telegramStatus, 200);
   assert.equal(await sendAlert({ TELEGRAM_TOKEN: "x", TELEGRAM_CHAT: "1" }, "s", "b", async () => ({ ok: false, status: 401 })), false);
 });
+
+test("secrets with a trailing line break (PowerShell pipe) still build a clean URL", async () => {
+  let seen;
+  const fakeFetch = async (url, init) => { seen = { url, body: JSON.parse(init.body) }; return { ok: true, status: 200 }; };
+  assert.equal(await sendAlert({ TELEGRAM_TOKEN: "123:abc\r\n", TELEGRAM_CHAT: "42\r\n" }, "A", "B", fakeFetch), true);
+  assert.equal(seen.url, "https://api.telegram.org/bot123:abc/sendMessage");
+  assert.equal(seen.body.chat_id, "42");
+});

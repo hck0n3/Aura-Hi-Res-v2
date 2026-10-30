@@ -179,12 +179,15 @@ export async function watchYoutube(env, doFetch = fetch, notify = sendAlert) {
  */
 export async function sendAlert(env, subject, text, doFetch = fetch, info = {}) {
   const to = env.ALERT_TO || "aurahires@gmail.com";
-  if (env.TELEGRAM_TOKEN && env.TELEGRAM_CHAT) {
+  // Secrets put through a PowerShell pipe keep a trailing line break: trim every one that goes into a URL or header.
+  const token = String(env.TELEGRAM_TOKEN || "").trim();
+  const chat = String(env.TELEGRAM_CHAT || "").trim();
+  if (token && chat) {
     try {
-      const res = await doFetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`, {
+      const res = await doFetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT, text: `${subject}\n\n${text}` }),
+        body: JSON.stringify({ chat_id: chat, text: `${subject}\n\n${text}` }),
       });
       info.telegramStatus = res.status;
       return res.ok;
@@ -203,10 +206,11 @@ export async function sendAlert(env, subject, text, doFetch = fetch, info = {}) 
       return false;
     }
   }
-  if (env.NTFY_TOPIC) {
+  const topic = String(env.NTFY_TOPIC || "").trim();
+  if (topic) {
     try {
       const ascii = (v) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7e]/g, "");
-      const res = await doFetch("https://ntfy.sh/" + encodeURIComponent(env.NTFY_TOPIC), {
+      const res = await doFetch("https://ntfy.sh/" + encodeURIComponent(topic), {
         method: "POST",
         headers: { Title: ascii(subject), Email: to, Priority: "high", Tags: "warning" },
         body: text,
