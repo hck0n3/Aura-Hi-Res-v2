@@ -1,29 +1,34 @@
-# Aura Hi-Res v2.0.67-beta2 — el modo audio reproduce aunque YouTube rechace el audio suelto, portadas animadas con la llave de Apple renovada, cola inteligente, descargas y arreglos de Inicio, Biblioteca y plegable
+# Aura Hi-Res v2.0.67-beta3 — compartir con enlace, MP3 o vídeo, «me gusta» descarga la canción, tablet aprovechada, sincronización entre tus dispositivos y licencia en varios equipos
 
-Beta encima de la 2.0.67-beta1 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+Beta encima de la 2.0.67-beta2 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
 
-## Reproducción
+## Tus dispositivos
 
-- **Modo audio que no reproducía nada:** cuando YouTube rechazaba las dos vías habituales, la app saltaba toda la cola como «no disponible» y no dejaba hacer nada hasta pasar a vídeo. Ahora, antes de rendirse, pide la canción al extractor que usa el modo vídeo y, si solo trae el vídeo con sonido, reproduce su sonido (sin enseñar la imagen). En Ajustes ▸ Registros aparece una línea `NEWPIPE_AUDIO_RESCUE` con lo que pasó.
-- **Cola inteligente:** mantiene el estilo, la época y la fe (música cristiana se queda cristiana) y deja de saltar a cumbia, reguetón o banda sin venir a cuento. Prepara lo siguiente una canción antes de que acabe un álbum o una lista, para que el botón de siguiente responda al momento.
+- **Sincronizar dispositivos (Ajustes):** empareja tus móviles y tablets con un código. El aleatorio recuerda lo ya sonado en todos, y los cambios de «me gusta» y de listas avisan a los demás al momento. Necesita tu propio servidor (guía en `docs/worker/sync`); sin configurarlo no hace nada ni gasta batería.
+- **Seguir donde lo dejaste:** el botón «Mis dispositivos» del reproductor trae aquí lo que suena en otro dispositivo, o envía lo tuyo a otro. También pausa y pasa de canción en el que suena.
+- **Licencia en varios equipos:** escribe el correo con el que compraste al activar y la misma licencia funciona en hasta 3 equipos. Sin correo, todo sigue como antes: un equipo por clave.
 
-## Descargas y listas
+## Compartir y descargar
 
-- **Descargar ya no quita en silencio:** si la canción ya está descargada (sin conexión, MP3 o vídeo), la ventana lo dice y muestra en qué listas está.
-- **Reutiliza lo que ya escuchaste:** si la canción está completa en la memoria de escucha, la descarga la toma de ahí en vez de bajarla otra vez.
-- **Añadir a lista** dice «Ya tiene esta canción» bajo cada lista que la contiene.
-- **Deslizar canciones** (me gusta, añadir a lista) también en las listas fijadas y en las de YouTube, con la app desplegada.
-- **Sincronizar listas de YouTube** conserva las canciones que añadiste y que YouTube aún no tiene.
+- **Compartir pregunta cómo:** enlace, MP3 o vídeo (si la canción lo tiene). Lo que no está guardado se guarda al elegir y después se abre el menú de compartir.
+- **«Me gusta» descarga la canción:** reutiliza la copia de la memoria de escucha si ya la oíste completa; si no, la baja con Wi-Fi o espera a tenerlo.
 
-## Pedir música y búsqueda
+## Portadas
 
-- **«Lo mejor de» un artista** ya no mezcla a otros artistas, y «escuchar algo parecido a» usa los artistas parecidos de YouTube.
-- **La segunda opción** se cumple siempre: vuelve a intentar con otra tanda distinta si la primera no alcanza.
-- **Búsqueda del reproductor (desplegado):** al tocar una pista pregunta si reproducir, poner a continuación, añadir a la cola o a una lista. La búsqueda general sigue reproduciendo directo.
+- **Sombreado en la portada del reproductor** para que parezca adelantada.
+- **Portadas animadas:** se busca una sola vez por álbum para todas sus canciones (se guarda 7 días) y, en la página del álbum, se mueven sin pulsar play.
 
-## Pantallas
+## Tablet y pantallas grandes
 
-- **Plegable desplegado:** el botón de arriba a la izquierda (pantalla completa / dividida) y el de minimizar responden al primer toque.
-- **Biblioteca:** los botones de la cabecera vuelven a estar ocultos tras una flecha, como en Inicio, Buscar y Novedades.
-- **Top diario** pasa de Novedades a Inicio; Novedades queda solo con estrenos.
-- **Portadas animadas de artistas y álbumes:** la app busca de nuevo la llave de Apple primero en music.apple.com, acepta el formato nuevo de la llave y, si falla, deja en el registro (etiqueta CANVAS) qué paso falló.
+- **Se aprovecha el ancho:** los estantes de dos filas pasan a una cuando dos no llenan la pantalla, las canciones populares se ven varias páginas a la vez y la portada del reproductor ocupa toda la altura de su hueco. Teléfono y plegable no cambian.
+- **Explorar (estados de ánimo y géneros, listas de una categoría):** el contenido empieza debajo del título; antes la primera fila quedaba tapada.
+
+## Cola inteligente y sugerencias
+
+- **Canciones sugeridas que encajan con la lista:** una lista de salsa deja de recibir reggaetón y una cristiana, canciones seculares. Lo que no encaja pasa al final, nunca desaparece.
+- **Cola inteligente más fiel al estilo:** si el álbum no trae estilo, usa el que domina las primeras canciones de la tanda, y recuerda las canciones que saltaste enseguida para no volver a ponerlas. En Ajustes ▸ Registros aparece la línea `STYLE_GATE_BASIS` (solo recuentos) para entender qué decidió.
+
+## Inicio y Novedades
+
+- **Novedades:** solo estrenos de artistas que sigues.
+- **Inicio:** estante «Canciones del momento» (lo más reproducido en 7 días), sin repetir el «Top diario».
