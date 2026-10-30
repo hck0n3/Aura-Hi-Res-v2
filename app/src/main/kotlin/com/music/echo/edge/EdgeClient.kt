@@ -121,13 +121,13 @@ object EdgeClient {
         if (!s.enabled || s.base.isBlank()) return@withContext Result.failure(IllegalStateException("no-address"))
         var conn: HttpURLConnection? = null
         try {
-            val file = AppLogger.logFile(context)
-            if (!file.exists() || file.length() == 0L) return@withContext Result.failure(IllegalStateException("empty"))
-            val bytes = file.inputStream().use { input ->
-                val skip = (file.length() - MAX_DIAG_BYTES).coerceAtLeast(0L)
-                input.skip(skip)
-                input.readBytes()
-            }
+            // The log rotates: what happened a few minutes ago may already be in the backup file, so send both, oldest first
+            // (owner 2026-10-30: the first upload held 9 minutes and missed the library sync that had run before).
+            val files = listOf(AppLogger.backupFile(context), AppLogger.logFile(context)).filter { it.exists() && it.length() > 0L }
+            if (files.isEmpty()) return@withContext Result.failure(IllegalStateException("empty"))
+            val all = ByteArrayOutputStream()
+            files.forEach { all.write(it.readBytes()) }
+            val bytes = all.toByteArray().let { if (it.size > MAX_DIAG_BYTES) it.copyOfRange(it.size - MAX_DIAG_BYTES, it.size) else it }
             conn = (URL("${s.base}/v1/diag").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = TIMEOUT_MS
