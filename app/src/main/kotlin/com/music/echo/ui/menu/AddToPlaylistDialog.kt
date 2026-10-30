@@ -346,6 +346,9 @@ fun AddToPlaylistDialog(
                                             if (e !is kotlinx.coroutines.CancellationException) {
                                                 timber.log.Timber.w("PLAYLIST_REMOTE_add failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
                                             }
+                                        }.onSuccess {
+                                            // Row 529: the user's other devices pull this list at once.
+                                            iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("playlists")
                                         }
                                     }
                                 }
@@ -394,6 +397,9 @@ fun AddToPlaylistDialog(
                                             if (e !is kotlinx.coroutines.CancellationException) {
                                                 timber.log.Timber.w("PLAYLIST_REMOTE_add failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
                                             }
+                                        }.onSuccess {
+                                            // Row 529: the user's other devices pull this list at once.
+                                            iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("playlists")
                                         }
                                     }
                                 }
@@ -421,6 +427,9 @@ fun AddToPlaylistDialog(
                                             if (e !is kotlinx.coroutines.CancellationException) {
                                                 timber.log.Timber.w("PLAYLIST_REMOTE_add failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
                                             }
+                                        }.onSuccess {
+                                            // Row 529: the user's other devices pull this list at once.
+                                            iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("playlists")
                                         }
                                     }
                                 }

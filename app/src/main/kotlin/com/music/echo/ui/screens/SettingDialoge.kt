@@ -442,6 +442,18 @@ private fun SettingDialogeBody(
                     onClick = { onNavigate("settings/update") },
                 ),
                 Material3SettingsItem(
+                    title = { Text(stringResource(R.string.device_sync_title)) },
+                    description = {
+                        Text(
+                            stringResource(R.string.device_sync_shuffle_desc),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    icon = painterResource(R.drawable.sync),
+                    onClick = { onNavigate("settings/device_sync") },
+                ),
+                Material3SettingsItem(
                     title = { Text(stringResource(R.string.feedback_title)) },
                     description = {
                         Text(

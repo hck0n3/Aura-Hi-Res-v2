@@ -691,6 +691,7 @@ class MusicService :
     lateinit var player: ExoPlayer
         internal set // the crossfade swap (CrossfadeEngine.kt) promotes the secondary player
     internal var secondaryPlayer: ExoPlayer? = null
+    internal var deviceSync: iad1tya.echo.music.devicesync.DeviceSyncEngine? = null
     internal var fadingPlayer: ExoPlayer? = null
     internal var isCrossfading = false
     // Read-only OBSERVATION flag only. Mirrors the plain [isCrossfading] boolean so the UI can observe a
@@ -2109,6 +2110,8 @@ class MusicService :
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        // Row 528: the user's devices in step (only does anything while the app is paired in Ajustes ▸ Sincronizar dispositivos).
+        deviceSync = iad1tya.echo.music.devicesync.DeviceSyncEngine(this).also { it.start() }
         // The Cast handler OBJECT exists from the start; only its initialize() (GMS listeners) waits for the first real
         // playback (initializeCast). It used to be created there, so everything that captured `castConnectionHandler` earlier
         // — PlayerConnection.isEffectivelyPlaying at construction, the player/mini/queue composables with
@@ -10215,6 +10218,8 @@ class MusicService :
 
     override fun onDestroy() {
         isRunning = false
+        runCatching { deviceSync?.stop() }
+        deviceSync = null
         musicRequestFillJob?.cancel()
         musicRequestFillJob = null
         playbackKeepAlive.release()

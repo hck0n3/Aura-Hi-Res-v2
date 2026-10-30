@@ -534,6 +534,10 @@ fun NavGraphBuilder.navigationBuilder(
         ListenTogetherSettings(navController, scrollBehavior)
     }
 
+    composable(route = "settings/device_sync") {
+        iad1tya.echo.music.ui.screens.settings.integrations.DeviceSyncSettings(navController, scrollBehavior)
+    }
+
     composable("settings/about") {
         AboutScreen(navController, scrollBehavior)
     }

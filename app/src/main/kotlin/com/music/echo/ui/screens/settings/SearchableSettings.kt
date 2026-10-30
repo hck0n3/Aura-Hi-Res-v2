@@ -492,6 +492,12 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.update_notifications_subtitle), "Actualización", "settings/update"),
             Triple(stringResource(R.string.clear_downloaded_updates), "Actualización", "settings/update"),
             Triple(stringResource(R.string.clear_downloaded_updates_desc), "Actualización", "settings/update"),
+            // --- Sincronizar dispositivos (settings/device_sync) ---
+            Triple(stringResource(R.string.device_sync_title), "Sincronizar dispositivos", "settings/device_sync"),
+            Triple(stringResource(R.string.device_sync_shuffle), "Sincronizar dispositivos", "settings/device_sync"),
+            Triple(stringResource(R.string.device_sync_handoff), "Sincronizar dispositivos", "settings/device_sync"),
+            Triple(stringResource(R.string.device_sync_code), "Sincronizar dispositivos", "settings/device_sync"),
+            Triple(stringResource(R.string.device_sync_server), "Sincronizar dispositivos", "settings/device_sync"),
             // --- Listen Together (settings/integrations/listen_together) : 31 ---
             Triple(stringResource(R.string.listen_together_username), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_blocked_users), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),

@@ -11,7 +11,7 @@ Un Worker **aparte** del de la licencia (no lo toca y no usa sus claves). Una sa
 
 ## Privacidad
 - El grupo es el **SHA-256 de un código secreto** que solo conocen tus dispositivos: el Worker no ve el código ni tu cuenta.
-- Solo guarda ids de canciones, el estado «sonando ahora» y los nombres de tus dispositivos. Nada de títulos, artistas ni cookies.
+- Guarda los ids de canciones del aleatorio, los nombres de tus dispositivos y el estado «sonando ahora», que **sí lleva títulos, artistas y enlaces de portada** (hace falta para mostrar y retomar la cola en otro dispositivo). Nunca cuentas, cookies ni el código.
 
 ## Despliegue (una vez, lo haces tú con tu cuenta de Cloudflare)
 ```bash

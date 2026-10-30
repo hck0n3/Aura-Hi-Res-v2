@@ -1,0 +1,46 @@
+package iad1tya.echo.music.devicesync
+
+import java.security.MessageDigest
+import java.security.SecureRandom
+
+/**
+ * The secret that pairs a user's devices (row 528). It is typed or pasted from one device into the others, never sent anywhere:
+ * what the Worker sees is its SHA-256 ([groupId]), which cannot be turned back into the code and names the room.
+ *
+ * 20 characters of a 31-letter alphabet without the look-alikes (no 0/O, 1/I/L) ≈ 99 bits, written in groups of four.
+ */
+object SyncCode {
+    private const val ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+    const val LENGTH = 20
+
+    fun generate(random: SecureRandom = SecureRandom()): String =
+        buildString { repeat(LENGTH) { append(ALPHABET[random.nextInt(ALPHABET.length)]) } }.chunked(4).joinToString("-")
+
+    /** The code as it is compared and hashed (upper case, only the alphabet), or null when it is not a full code. */
+    fun normalize(input: String): String? {
+        val clean = input.uppercase().filter { it in ALPHABET }
+        return if (clean.length == LENGTH) clean else null
+    }
+
+    /** `AAAA-BBBB-…` for showing a normalized code. */
+    fun pretty(normalized: String): String = normalized.chunked(4).joinToString("-")
+
+    /** The room id: SHA-256 (hex) of the normalized code, with a domain prefix so it can never collide with another use of the code. */
+    fun groupId(normalized: String): String =
+        MessageDigest.getInstance("SHA-256").digest("aura-sync:$normalized".toByteArray()).joinToString("") { "%02x".format(it) }
+
+    /** `wss://host/sync?g=<groupId>` from whatever the user pasted (https://…, wss://…, bare host, with or without `/sync`). */
+    fun socketUrl(server: String, groupId: String): String? {
+        var s = server.trim().removeSuffix("/")
+        if (s.isEmpty()) return null
+        s = s.removeSuffix("/sync").removeSuffix("/")
+        val base = when {
+            s.startsWith("wss://") || s.startsWith("ws://") -> s
+            s.startsWith("https://") -> "wss://" + s.removePrefix("https://")
+            s.startsWith("http://") -> "ws://" + s.removePrefix("http://")
+            else -> "wss://$s"
+        }
+        if (base.length < 8 || base.contains(' ')) return null
+        return "$base/sync?g=$groupId"
+    }
+}

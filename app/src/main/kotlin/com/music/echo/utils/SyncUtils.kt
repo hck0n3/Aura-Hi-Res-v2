@@ -807,6 +807,8 @@ class SyncUtils @Inject constructor(
         if (s.liked) {
             runCatching { downloadUtil.get().downloadOnLike(s.id, s.title, s.isVideo) }
         }
+        // Row 528: the user's other devices refresh their likes at once.
+        runCatching { iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("likes") }
         syncScope.launch {
             syncChannel.send(SyncOperation.LikeSong(s))
         }

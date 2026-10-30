@@ -2360,6 +2360,14 @@ interface DatabaseDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertEnhancedPlayed(entity: EnhancedShufflePlayedEntity)
 
+    /** Row 528 (device sync): the rows written after [since], oldest first — what has not been reported to the room yet. */
+    @Query("SELECT * FROM enhanced_shuffle_played WHERE playedAt > :since ORDER BY playedAt ASC LIMIT :limit")
+    suspend fun enhancedPlayedSince(since: Long, limit: Int): List<EnhancedShufflePlayedEntity>
+
+    /** Row 528 (device sync): every context's cursor and cycle counter. */
+    @Query("SELECT * FROM enhanced_shuffle_context")
+    suspend fun allEnhancedContexts(): List<EnhancedShuffleContextEntity>
+
     /** Wipe a context's played-set so the next cycle starts fresh (called on cycle completion). */
     @Query("DELETE FROM enhanced_shuffle_played WHERE contextId = :contextId")
     suspend fun clearEnhancedContext(contextId: String)

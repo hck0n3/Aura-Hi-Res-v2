@@ -2033,6 +2033,22 @@ private fun AuraPlayerShape(
                         tint = AuraPalette.OnGround.copy(alpha = 0.7f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
+                    // Row 528: the user's other devices — hand over what plays, or take it from them.
+                    AuraIconButton(
+                        icon = AuraIcons.Device,
+                        contentDescription = stringResource(R.string.device_sync_sheet_title),
+                        onClick = {
+                            bottomSheetPageState.show {
+                                AuraDevicesSheetContent(
+                                    navController = navController,
+                                    onDismiss = bottomSheetPageState::dismiss,
+                                )
+                            }
+                        },
+                        size = quickAccessGlyph,
+                        tint = AuraPalette.OnGround.copy(alpha = 0.7f),
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                    )
                 }
             }
         }
