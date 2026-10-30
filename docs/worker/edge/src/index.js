@@ -190,6 +190,13 @@ export async function sendAlert(env, subject, text, doFetch = fetch, info = {}) 
         body: JSON.stringify({ chat_id: chat, text: `${subject}\n\n${text}` }),
       });
       info.telegramStatus = res.status;
+      if (!res.ok) {
+        // Never the secret itself: only its shape and Telegram's own reason.
+        const raw = String(env.TELEGRAM_TOKEN || "");
+        info.tokenShape = { length: raw.length, trimmedLength: token.length, colonAt: token.indexOf(":"), nonPrintable: [...raw].filter((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) > 126).length };
+        info.chatShape = { length: chat.length, digitsOnly: /^-?\d+$/.test(chat) };
+        try { info.telegramReason = String((await res.json()).description || "").slice(0, 80); } catch { /* no body */ }
+      }
       return res.ok;
     } catch {
       info.telegramStatus = "network-error";
