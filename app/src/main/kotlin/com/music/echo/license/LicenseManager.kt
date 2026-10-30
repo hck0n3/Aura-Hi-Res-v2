@@ -174,8 +174,8 @@ object LicenseManager {
             if (result.status == LicenseStatus.ACTIVE) {
                 val now = System.currentTimeMillis()
                 save(context, LicenseLogic.withSubscriptionKey(load(context), key, now))
-                // Only an email the Worker CONFIRMED against the purchase is kept. A master key (or an old Worker) never confirms
-                // one, so it never pairs devices by itself and is never limited.
+                // The email is kept only when the Worker accepted it (`email_ok`): confirmed against the Gumroad purchase, or, for a
+                // master key, typed by its user. With an old Worker or no email nothing is kept, so nothing pairs by itself.
                 saveEmail(context, email.takeIf { result.emailVerified })
             }
             result.status

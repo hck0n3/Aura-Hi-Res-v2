@@ -64,7 +64,14 @@ export default {
     if (!licenseKey || !deviceId) return json({ status: "invalid" }, 400);
 
     const masterKeys = (env.MASTER_KEYS || "").split(",").map((s) => s.trim()).filter(Boolean);
-    if (masterKeys.includes(licenseKey)) return json({ status: "active" });
+    if (masterKeys.includes(licenseKey)) {
+      // Clave maestra: sin límite de equipos y sin Gumroad (no hay compra, así que no hay correo que comparar). Si el usuario
+      // escribió SU correo, se acepta tal cual para que sus equipos se emparejen entre sí: cada correo distinto = grupo distinto.
+      // OJO: ese correo no está comprobado; quien conozca la clave maestra y el correo de otro podría entrar en su grupo.
+      // Para algo realmente privado, el usuario usa un código escrito (20 caracteres al azar) en vez del correo.
+      const typed = normalizeEmail(body && body.email);
+      return json(typed.includes("@") ? { status: "active", email_ok: true } : { status: "active" });
+    }
 
     const gum = await verifyGumroad(env.PRODUCT_ID, licenseKey);
     if (gum.status === "invalid") return json({ status: "invalid" });

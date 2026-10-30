@@ -124,16 +124,20 @@ test("verify: ended and invalid are untouched", async () => {
   assert.equal((await verify(env(), { license_key: "K", device_id: "a" })).status, "invalid");
 });
 
-test("verify: email_ok only when the purchase email was confirmed; master keys never carry it and have no limit", async () => {
+test("verify: master key is unlimited; with an email it pairs by that email, without one it never pairs", async () => {
   gumroad({ email: "buyer@mail.com" });
   const e = env({ MASTER_KEYS: "MASTERKEY" });
-  const ok = await verify(e, { license_key: "K", device_id: "a", email: "buyer@mail.com" });
-  assert.equal(ok.email_ok, true);
-  const noEmail = await verify(e, { license_key: "K", device_id: "a" });
-  assert.equal(noEmail.email_ok, undefined);
   for (const id of ["m1", "m2", "m3", "m4", "m5"]) {
-    const m = await verify(e, { license_key: "MASTERKEY", device_id: id, email: "buyer@mail.com" });
-    assert.deepEqual(m, { status: "active" }, id);
+    const m = await verify(e, { license_key: "MASTERKEY", device_id: id, email: "friend@mail.com" });
+    assert.deepEqual(m, { status: "active", email_ok: true }, id);
   }
-  assert.equal(e.store.size, 1); // only K was stored; the master key leaves no trace
+  assert.deepEqual(await verify(e, { license_key: "MASTERKEY", device_id: "m1" }), { status: "active" });
+  assert.deepEqual(await verify(e, { license_key: "MASTERKEY", device_id: "m1", email: "no-at-sign" }), { status: "active" });
+  assert.equal(e.store.size, 0); // the master key leaves no trace in KV
+});
+test("verify: email_ok on a normal purchase only when the email matched Gumroad", async () => {
+  gumroad({ email: "buyer@mail.com" });
+  const e = env();
+  assert.equal((await verify(e, { license_key: "K", device_id: "a", email: "buyer@mail.com" })).email_ok, true);
+  assert.equal((await verify(e, { license_key: "K", device_id: "a" })).email_ok, undefined);
 });
