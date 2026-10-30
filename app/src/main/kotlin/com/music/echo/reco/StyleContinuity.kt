@@ -64,6 +64,23 @@ object StyleContinuity {
 
     enum class Verdict { MATCH, UNKNOWN, OFF }
 
+    /**
+     * Row 524: WHICH evidence decided [verdict] for [c] — a label for the diagnostic log only (counts, never a name). Mirrors the
+     * order of [verdict]: the track's own words, then the context's own artist, then a search for the style, then what is known
+     * of the artist (learned in this queue, or the genre tags), then only the family. `known` is the genre tag alone: the
+     * weakest proof of a style, and the one worth looking at when a queue «changes genre».
+     */
+    fun basis(target: Target, c: Candidate): String = when {
+        !target.active -> "inactive"
+        c.rejected -> "rejected"
+        c.textStyle != null && !target.styles.isNullOrEmpty() -> "text"
+        c.ownArtist -> "own"
+        c.fromSearch -> "search"
+        c.learnedStyle != null -> "learned"
+        c.genre.style != null -> "tag"
+        else -> "family"
+    }
+
     /** True when [style] is the parent of, or a style related to, one of the requested [styles] (row 434). */
     private fun isParentOf(style: String, styles: Set<String>): Boolean =
         styles.any { requested -> MusicStyle.style(requested)?.let { it.parent == style || style in it.related } == true }

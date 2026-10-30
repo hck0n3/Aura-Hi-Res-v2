@@ -376,6 +376,8 @@ internal suspend fun MusicService.exactStyleFilter(
         )
     }
 
+    val basisById = HashMap<String, String>()
+
     fun judge(mi: MediaItem, fromSearch: Boolean, faithSource: Boolean = false): Judged {
         val t = mi.trackText()
         val textStyle = MusicStyle.fromText(t.text)
@@ -411,6 +413,19 @@ internal suspend fun MusicService.exactStyleFilter(
         // own artists, and the songs a Christian search ("rap cristiano en español", "música cristiana") brought.
         val ownArtist = t.artists.any { it.trim().lowercase() in ownArtists }
         val christian = christianEvidence(t) || (lane.christian && (ownArtist || faithSource))
+        // Row 524: remember what proved this candidate, for the summary line (counts only).
+        basisById[mi.mediaId] = StyleContinuity.basis(
+            gateTarget,
+            StyleContinuity.Candidate(
+                textStyle = textStyle,
+                learnedStyle = learned,
+                genre = genre,
+                language = null,
+                ownArtist = ownArtist,
+                fromSearch = fromSearch,
+                rejected = rejected,
+            ),
+        )
         return Judged(verdict, ContextLane.Candidate(verdict, evidence, familyFor(t, known), christian))
     }
 
@@ -505,6 +520,7 @@ internal suspend fun MusicService.exactStyleFilter(
     if (st.gatedIds.size > GATED_IDS_CAP) st.gatedIds.clear()
     kept.forEach { st.gatedIds.add(it.mediaId) }
     // Counts and style/family ids only — never a title, artist or id (AGENTS.md rule 4).
+    Timber.tag(TAG).i("STYLE_GATE_BASIS %s: kept by %s", site, kept.groupingBy { basisById[it.mediaId] ?: "?" }.eachCount().entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${it.value}" }.ifEmpty { "nothing" })
     Timber.tag(TAG).i(
         "STYLE_GATE %s: styles=%s lang=%s christian=%b override=%s match=%d unknown=%d off=%d fetched=%d kept=%d " +
             "mixed=%b families=%s steps=%s never=%d only=%b",
