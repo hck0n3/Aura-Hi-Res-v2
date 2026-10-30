@@ -174,6 +174,96 @@ object EdgeClient {
         }
     }
 
+    // ── Function 5: encrypted cloud backup ─────────────────────────────────────────────────────────────────────────────────────
+
+    /** What the user's account of copies holds: how many, and when the newest was made (epoch ms). */
+    data class BackupInfo(val copies: Int, val newestAtMs: Long, val newestSize: Long)
+
+    private const val BACKUP_MAX_BYTES = 24 * 1024 * 1024
+    private const val BACKUP_TIMEOUT_MS = 60_000
+
+    /** Encrypts [plain] with [secret] (see [BackupCrypto]) and stores it as the newest copy. Failure reasons: no-address, too-big, status-N. */
+    suspend fun backupUpload(context: Context, secret: String, plain: java.io.File): Result<Int> = withContext(Dispatchers.IO) {
+        val s = settings(context)
+        if (!s.enabled || s.base.isBlank()) return@withContext Result.failure(IllegalStateException("no-address"))
+        var conn: HttpURLConnection? = null
+        try {
+            if (plain.length() > BACKUP_MAX_BYTES - 1024) return@withContext Result.failure(IllegalStateException("too-big"))
+            val bytes = BackupCrypto.encrypt(secret, plain.readBytes())
+            conn = (URL("${s.base}/v1/backup/${BackupCrypto.backupId(secret)}").openConnection() as HttpURLConnection).apply {
+                requestMethod = "PUT"
+                connectTimeout = TIMEOUT_MS
+                readTimeout = BACKUP_TIMEOUT_MS
+                doOutput = true
+                setRequestProperty("Content-Type", "application/octet-stream")
+                setFixedLengthStreamingMode(bytes.size)
+            }
+            conn.outputStream.use { it.write(bytes) }
+            val code = conn.responseCode
+            Timber.tag(TAG).i("EDGE backup upload status=%d bytes=%d", code, bytes.size)
+            if (code == 200) Result.success(bytes.size) else Result.failure(IllegalStateException("status-$code"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** The newest copy, decrypted into [out]. Failure reasons: no-address, no-backup, wrong-secret (or a damaged copy), status-N. */
+    suspend fun backupDownload(context: Context, secret: String, out: java.io.File): Result<Unit> = withContext(Dispatchers.IO) {
+        val s = settings(context)
+        if (!s.enabled || s.base.isBlank()) return@withContext Result.failure(IllegalStateException("no-address"))
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("${s.base}/v1/backup/${BackupCrypto.backupId(secret)}").openConnection() as HttpURLConnection).apply {
+                connectTimeout = TIMEOUT_MS
+                readTimeout = BACKUP_TIMEOUT_MS
+            }
+            val code = conn.responseCode
+            if (code == 404) return@withContext Result.failure(IllegalStateException("no-backup"))
+            if (code != 200) return@withContext Result.failure(IllegalStateException("status-$code"))
+            val all = ByteArrayOutputStream()
+            conn.inputStream.use { input ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    all.write(buf, 0, n)
+                    if (all.size() > BACKUP_MAX_BYTES + 1024) return@withContext Result.failure(IllegalStateException("too-big"))
+                }
+            }
+            val plain = BackupCrypto.decrypt(secret, all.toByteArray()) ?: return@withContext Result.failure(IllegalStateException("wrong-secret"))
+            out.writeBytes(plain)
+            Timber.tag(TAG).i("EDGE backup download ok bytes=%d", plain.size)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    suspend fun backupInfo(context: Context, secret: String): BackupInfo? = withContext(Dispatchers.IO) {
+        val s = settings(context)
+        if (!s.enabled || s.base.isBlank()) return@withContext null
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("${s.base}/v1/backup/${BackupCrypto.backupId(secret)}/list").openConnection() as HttpURLConnection).apply {
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+            }
+            if (conn.responseCode != 200) return@withContext null
+            val copies = Json.parseToJsonElement(readCapped(conn, 4096) ?: return@withContext null).jsonObject["copies"] as? kotlinx.serialization.json.JsonArray
+            val first = copies?.firstOrNull() as? kotlinx.serialization.json.JsonObject ?: return@withContext BackupInfo(0, 0L, 0L)
+            fun num(k: String) = (first[k] as? JsonPrimitive)?.contentOrNull?.toLongOrNull() ?: 0L
+            BackupInfo(copies.size, num("at"), num("size"))
+        } catch (_: Exception) {
+            null
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
     /** Function 3: the shared motion cover of an album (key = [iad1tya.echo.music.ui.player.CanvasAlbumMemo.key]), or null → the provider chain as before. */
     suspend fun canvasLookup(context: Context, key: String): iad1tya.echo.music.canvas.CanvasArtwork? = withContext(Dispatchers.IO) {
         val s = settings(context)

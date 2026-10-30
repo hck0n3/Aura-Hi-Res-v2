@@ -347,6 +347,80 @@ export async function canvasPut(env, k, art) {
   return { status: 200, body: { stored: true } };
 }
 
+// ── 5) Encrypted cloud backup ────────────────────────────────────────────────────────────────────────────────────────────────
+
+const BACKUP_MAX = 24 * 1024 * 1024; // under KV's 25 MiB value limit, so the same copy fits either store
+const BACKUP_COPIES = 3;
+const BACKUP_WRITES_PER_HOUR = 60;
+const BACKUP_MAGIC = "AURAB1"; // the app's own header; the Worker never reads past it (everything after is ciphertext)
+const BACKUP_ID = /^[0-9a-f]{64}$/;
+
+// R2 when the account has it bound as BACKUPS, KV otherwise: same calls, nothing changes in the app.
+async function bkPut(env, name, bytes) {
+  if (env.BACKUPS) await env.BACKUPS.put(name, bytes);
+  else await env.EDGE.put(name, bytes);
+}
+async function bkGet(env, name) {
+  if (env.BACKUPS) {
+    const o = await env.BACKUPS.get(name);
+    return o ? await o.arrayBuffer() : null;
+  }
+  return await env.EDGE.get(name, "arrayBuffer");
+}
+async function bkDelete(env, name) {
+  if (env.BACKUPS) await env.BACKUPS.delete(name);
+  else await env.EDGE.delete(name);
+}
+
+async function bkIndex(env, id) {
+  const raw = await env.EDGE.get("bki:" + id);
+  try { return raw ? JSON.parse(raw) : []; } catch { return []; }
+}
+
+/** Stores one encrypted copy for [id] (newest first, at most BACKUP_COPIES; older ones are deleted for good). */
+export async function backupPut(env, id, bytes) {
+  if (!BACKUP_ID.test(String(id))) return { status: 400, body: { error: "id" } };
+  if (!bytes || bytes.byteLength < 40) return { status: 400, body: { error: "empty" } };
+  if (bytes.byteLength > BACKUP_MAX) return { status: 413, body: { error: "too big" } };
+  const head = new TextDecoder().decode(new Uint8Array(bytes.slice(0, BACKUP_MAGIC.length)));
+  if (head !== BACKUP_MAGIC) return { status: 400, body: { error: "not an Aura backup" } };
+  const hour = Math.floor(Date.now() / 3_600_000);
+  const budgetKey = "rate:backup:" + hour;
+  const used = Number((await env.EDGE.get(budgetKey)) || 0);
+  if (used >= BACKUP_WRITES_PER_HOUR) return { status: 429, body: { error: "slow down" } };
+  await env.EDGE.put(budgetKey, String(used + 1), { expirationTtl: 3700 });
+  const index = await bkIndex(env, id);
+  const n = (index.length ? Math.max(...index.map((e) => e.n)) : 0) + 1;
+  await bkPut(env, `bk:${id}:${n}`, bytes);
+  index.unshift({ n, size: bytes.byteLength, at: Date.now() });
+  const dropped = index.splice(BACKUP_COPIES);
+  await env.EDGE.put("bki:" + id, JSON.stringify(index));
+  for (const old of dropped) await bkDelete(env, `bk:${id}:${old.n}`);
+  return { status: 200, body: { stored: true, copies: index.length, n } };
+}
+
+export async function backupList(env, id) {
+  if (!BACKUP_ID.test(String(id))) return { status: 400, body: { error: "id" } };
+  return { status: 200, body: { copies: await bkIndex(env, id) } };
+}
+
+/** The newest copy, or copy [n]. Returns {status, bytes?, body?}. */
+export async function backupGet(env, id, n) {
+  if (!BACKUP_ID.test(String(id))) return { status: 400, body: { error: "id" } };
+  const index = await bkIndex(env, id);
+  const entry = n ? index.find((e) => e.n === Number(n)) : index[0];
+  if (!entry) return { status: 404, body: { error: "no backup" } };
+  const bytes = await bkGet(env, `bk:${id}:${entry.n}`);
+  return bytes ? { status: 200, bytes } : { status: 404, body: { error: "no backup" } };
+}
+
+export async function backupDelete(env, id) {
+  if (!BACKUP_ID.test(String(id))) return { status: 400, body: { error: "id" } };
+  for (const e of await bkIndex(env, id)) await bkDelete(env, `bk:${id}:${e.n}`);
+  await env.EDGE.delete("bki:" + id);
+  return { status: 200, body: { deleted: true } };
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -369,6 +443,28 @@ export default {
         try { input = JSON.parse(text); } catch { return json({ error: "bad json" }, 400); }
         const r = await canvasPut(env, input && input.k, input && input.artwork);
         return json(r.body, r.status);
+      }
+      const bk = /^\/v1\/backup\/([0-9a-f]{64})(\/list)?$/.exec(p);
+      if (bk) {
+        const id = bk[1];
+        if (req.method === "PUT" && !bk[2]) {
+          const len = Number(req.headers.get("content-length") || 0);
+          if (len > BACKUP_MAX) return json({ error: "too big" }, 413);
+          const r = await backupPut(env, id, await req.arrayBuffer());
+          return json(r.body, r.status);
+        }
+        if (req.method === "GET" && bk[2]) {
+          const r = await backupList(env, id);
+          return json(r.body, r.status);
+        }
+        if (req.method === "GET") {
+          const r = await backupGet(env, id, url.searchParams.get("n"));
+          return r.bytes ? new Response(r.bytes, { headers: { "content-type": "application/octet-stream" } }) : json(r.body, r.status);
+        }
+        if (req.method === "DELETE") {
+          const r = await backupDelete(env, id);
+          return json(r.body, r.status);
+        }
       }
       if (req.method === "GET" && p === "/v1/pubkey") return json({ publicKey: await publicKeySpki(env) });
       if (req.method === "POST" && p === "/v1/admin/test-alert") {

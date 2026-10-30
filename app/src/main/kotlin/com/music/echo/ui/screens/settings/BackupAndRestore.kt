@@ -59,6 +59,8 @@ import iad1tya.echo.music.viewmodels.ConvertedSongLog
 import iad1tya.echo.music.viewmodels.CsvImportState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import iad1tya.echo.music.utils.dataStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -99,6 +101,45 @@ fun BackupAndRestore(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val database = iad1tya.echo.music.LocalDatabase.current
+
+    var cloudStatus by remember { mutableStateOf("") }
+    var showCloudRestoreConfirm by rememberSaveable { mutableStateOf(false) }
+    if (showCloudRestoreConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showCloudRestoreConfirm = false },
+            title = { Text("Restaurar desde la nube") },
+            text = { Text("Se reemplazará tu biblioteca actual por la de la última copia y la app se reiniciará. ¿Continuar?") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showCloudRestoreConfirm = false
+                    coroutineScope.launch {
+                        val secret = cloudSecret(context)
+                        if (secret == null) {
+                            android.widget.Toast.makeText(context, "Primero activa tu licencia o crea un código en Sincronizar dispositivos", android.widget.Toast.LENGTH_LONG).show()
+                            return@launch
+                        }
+                        val tmp = java.io.File(context.cacheDir, "cloud_restore_${System.currentTimeMillis()}.zip")
+                        iad1tya.echo.music.edge.EdgeClient.backupDownload(context, secret, tmp).fold(
+                            onSuccess = { viewModel.restore(context, android.net.Uri.fromFile(tmp)) },
+                            onFailure = {
+                                tmp.delete()
+                                val msg = when (it.message) {
+                                    "no-backup" -> "No hay ninguna copia en la nube para tu cuenta"
+                                    "wrong-secret" -> "La copia no se pudo abrir con tu código o licencia actuales"
+                                    "no-address" -> "Los servicios de Aura están apagados (Ajustes ▸ Servicios Aura)"
+                                    else -> "No se pudo descargar la copia"
+                                }
+                                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                            },
+                        )
+                    }
+                }) { Text("Restaurar") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showCloudRestoreConfirm = false }) { Text("Cancelar") }
+            },
+        )
+    }
 
     val importJrLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -265,6 +306,55 @@ fun BackupAndRestore(
                                     },
                                     icon = painterResource(R.drawable.backup),
                                     onClick = { showSelectiveExportDialog = true },
+                                ),
+                            ),
+                        )
+                        Spacer(modifier = Modifier.padding(8.dp))
+
+                        // Function 5 of the Worker plan: the same ZIP, encrypted on this phone, kept on Aura's server (last 3 copies).
+                        Material3SettingsGroup(
+                            items = listOf(
+                                Material3SettingsItem(
+                                    title = { Text("Guardar copia en la nube de Aura") },
+                                    description = { Text(cloudStatus.ifBlank { "Cifrada en tu móvil: el servidor solo guarda bytes que no puede leer. Se conservan las últimas 3." }) },
+                                    icon = painterResource(R.drawable.backup),
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            val secret = cloudSecret(context)
+                                            if (secret == null) {
+                                                android.widget.Toast.makeText(context, "Primero activa tu licencia o crea un código en Sincronizar dispositivos", android.widget.Toast.LENGTH_LONG).show()
+                                                return@launch
+                                            }
+                                            cloudStatus = "Guardando…"
+                                            val tmp = java.io.File(context.cacheDir, "cloud_backup_${System.currentTimeMillis()}.zip")
+                                            val made = kotlinx.coroutines.CompletableDeferred<Boolean>()
+                                            viewModel.backup(context, android.net.Uri.fromFile(tmp)) { made.complete(it) }
+                                            val result = if (made.await()) iad1tya.echo.music.edge.EdgeClient.backupUpload(context, secret, tmp)
+                                            else Result.failure(IllegalStateException("zip"))
+                                            tmp.delete()
+                                            cloudStatus = ""
+                                            result.fold(
+                                                onSuccess = {
+                                                    android.widget.Toast.makeText(context, "Copia guardada en la nube de Aura", android.widget.Toast.LENGTH_LONG).show()
+                                                    cloudStatus = cloudInfoText(context, secret)
+                                                },
+                                                onFailure = {
+                                                    val msg = when (it.message) {
+                                                        "too-big" -> "La copia es demasiado grande para la nube (máximo 24 MB)"
+                                                        "no-address" -> "Los servicios de Aura están apagados (Ajustes ▸ Servicios Aura)"
+                                                        else -> "No se pudo guardar la copia"
+                                                    }
+                                                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                                                },
+                                            )
+                                        }
+                                    },
+                                ),
+                                Material3SettingsItem(
+                                    title = { Text("Restaurar la última copia de la nube") },
+                                    description = { Text("Reemplaza tu biblioteca por la de la copia y reinicia la app") },
+                                    icon = painterResource(R.drawable.restore),
+                                    onClick = { showCloudRestoreConfirm = true },
                                 ),
                             ),
                         )
@@ -545,3 +635,18 @@ private fun SelectiveExportDialog(
     )
 }
 
+/** The secret behind the user's cloud copies: the typed pairing code, else the license key + purchase email; null when there is none. */
+private suspend fun cloudSecret(context: android.content.Context): String? {
+    val code = iad1tya.echo.music.devicesync.SyncCode.normalize(
+        context.dataStore.data.first()[iad1tya.echo.music.devicesync.DeviceSyncCodeKey].orEmpty(),
+    )
+    val identity = iad1tya.echo.music.license.LicenseManager.purchaseIdentity(context)
+    return iad1tya.echo.music.edge.BackupCrypto.secretFor(code, identity?.first, identity?.second)
+}
+
+private suspend fun cloudInfoText(context: android.content.Context, secret: String): String {
+    val info = iad1tya.echo.music.edge.EdgeClient.backupInfo(context, secret) ?: return ""
+    if (info.copies == 0) return ""
+    val whenText = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(info.newestAtMs))
+    return "Última copia: $whenText · ${info.copies} guardadas"
+}

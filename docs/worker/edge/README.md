@@ -50,6 +50,15 @@ Sin dominio (lo normal): **ntfy.sh**. `npx wrangler secret put NTFY_TOPIC` con u
 
 Sin respuesta del Worker, la app sigue con su cadena de siempre: estas cachés solo ahorran peticiones y calor.
 
+## Fase D — copia de seguridad cifrada
+| Ruta | Qué |
+|---|---|
+| `PUT /v1/backup/<id>` | guarda una copia (≤ 24 MB, empieza por `AURAB1`); se conservan las **3** últimas y las anteriores se borran de verdad; tope de 60 escrituras por hora |
+| `GET /v1/backup/<id>` (`?n=`) / `/list` | la última (o la n) / el índice (tamaño y fecha) |
+| `DELETE /v1/backup/<id>` | borra todas las copias de ese id |
+
+`<id>` = SHA-256 de un secreto que solo tiene el usuario (su código de emparejamiento, o licencia + correo) con prefijo propio: no revela el secreto y **no es** el id de la sala de sincronización. La app cifra el ZIP en el móvil (AES-256-GCM, clave PBKDF2 del mismo secreto): el Worker solo guarda bytes que no puede leer. Guarda en **R2** si enlazas un bucket como `BACKUPS` (`[[r2_buckets]] binding = "BACKUPS"` en `wrangler.toml`) y en **KV** si no; la app no cambia.
+
 ## Privacidad
 Se guarda: la configuración que tú pones, los registros que el usuario decide enviar (7 días) y el último id del reproductor de YouTube. No se guarda IP (solo un contador por hash de IP durante una hora).
 

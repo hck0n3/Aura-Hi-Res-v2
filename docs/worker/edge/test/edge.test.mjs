@@ -5,7 +5,7 @@ import { Miniflare } from "miniflare";
 import { webcrypto as c } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, artistTags, normalizeArtist, sanitizeCanvas, canvasGet, canvasPut, validCanvasKey, FLAGS } from "../src/index.js";
+import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, artistTags, normalizeArtist, sanitizeCanvas, canvasGet, canvasPut, validCanvasKey, backupPut, backupGet, backupList, backupDelete, FLAGS } from "../src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const b64 = (buf) => Buffer.from(buf).toString("base64");
@@ -231,4 +231,64 @@ test("canvas: routes answer, refuse junk and respect the write budget", async ()
   let last;
   for (let i = 0; i < 305; i++) last = await canvasPut(env, `al|artista${i}|album${i}`, { artist: "artista" + i, albumName: "album" + i, animated: "https://a.mzstatic.com/" + i + ".m3u8" });
   assert.equal(last.status, 429);
+});
+
+const bkId = "a".repeat(64);
+const bkBytes = (tag) => new TextEncoder().encode("AURAB1" + tag.padEnd(60, "x")).buffer;
+function r2Mock() {
+  const m = new Map();
+  return { m, async put(k, v) { m.set(k, v); }, async get(k) { return m.has(k) ? { arrayBuffer: async () => m.get(k) } : null; }, async delete(k) { m.delete(k); } };
+}
+function kvEnv() {
+  const env = memEnv();
+  const raw = env.EDGE;
+  raw.get = async (k, type) => raw.m.get(k) ?? null; // arrayBuffer reads come back as stored
+  raw.delete = async (k) => { raw.m.delete(k); };
+  return env;
+}
+
+for (const [label, make] of [["KV", () => kvEnv()], ["R2", () => ({ ...kvEnv(), BACKUPS: r2Mock() })]]) {
+  test(`backup (${label}): stores, keeps the last 3 and drops older ones for good`, async () => {
+    const env = make();
+    for (const tag of ["uno", "dos", "tres", "cuatro"]) assert.equal((await backupPut(env, bkId, bkBytes(tag))).status, 200);
+    const list = (await backupList(env, bkId)).body.copies;
+    assert.deepEqual(list.map((e) => e.n), [4, 3, 2]);
+    const store = env.BACKUPS ? env.BACKUPS.m : env.EDGE.m;
+    assert.ok(![...store.keys()].some((k) => k === `bk:${bkId}:1`), "the oldest copy is gone");
+    const latest = await backupGet(env, bkId);
+    assert.match(new TextDecoder().decode(latest.bytes), /^AURAB1cuatro/);
+    assert.match(new TextDecoder().decode((await backupGet(env, bkId, 3)).bytes), /^AURAB1tres/);
+    assert.equal((await backupDelete(env, bkId)).status, 200);
+    assert.equal((await backupGet(env, bkId)).status, 404);
+  });
+}
+
+test("backup: only Aura-shaped, bounded, well-addressed copies", async () => {
+  const env = kvEnv();
+  assert.equal((await backupPut(env, "short", bkBytes("a"))).status, 400);
+  assert.equal((await backupPut(env, bkId, new TextEncoder().encode("PK-not-aura-" + "x".repeat(80)).buffer)).status, 400);
+  assert.equal((await backupPut(env, bkId, new ArrayBuffer(10))).status, 400);
+  assert.equal((await backupPut(env, bkId, new ArrayBuffer(25 * 1024 * 1024))).status, 413);
+  assert.equal((await backupGet(env, "b".repeat(64))).status, 404);
+});
+
+test("backup: the write budget protects KV", async () => {
+  const env = kvEnv();
+  let last;
+  for (let i = 0; i < 62; i++) last = await backupPut(env, bkId, bkBytes("n" + i));
+  assert.equal(last.status, 429);
+});
+
+test("backup route: end to end on workerd", async () => {
+  const id = "c".repeat(64);
+  const body = new TextEncoder().encode("AURAB1" + "z".repeat(80));
+  const put = await mf.dispatchFetch("http://x/v1/backup/" + id, { method: "PUT", body });
+  assert.equal(put.status, 200);
+  const got = await mf.dispatchFetch("http://x/v1/backup/" + id);
+  assert.equal(got.status, 200);
+  assert.equal(Buffer.from(await got.arrayBuffer()).toString(), Buffer.from(body).toString());
+  const list = await (await mf.dispatchFetch("http://x/v1/backup/" + id + "/list")).json();
+  assert.equal(list.copies.length, 1);
+  assert.equal((await mf.dispatchFetch("http://x/v1/backup/" + id, { method: "DELETE" })).status, 200);
+  assert.equal((await mf.dispatchFetch("http://x/v1/backup/not-an-id")).status, 404);
 });
