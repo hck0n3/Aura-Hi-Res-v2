@@ -72,6 +72,11 @@ class LibrarySync(
     @Volatile private var connected = false
     @Volatile private var pulledOnce = false
 
+    /** One `lib_pull` at a time: a big push makes the room send one `lib_ops` per batch, and a pull per signal is a storm (beta 4: 1656 pages in 5 s). */
+    private val pullLock = Any()
+    private var pullInFlight = false
+    private var pullAgain = false
+
     fun start() {
         stopWatching = watchChanges { fast -> kick(fast) }
     }
@@ -92,6 +97,7 @@ class LibrarySync(
     fun onConnected(serverLib: Int) {
         connected = true
         pulledOnce = false
+        synchronized(pullLock) { pullInFlight = false; pullAgain = false }
         inFlight.clear()
         sentKeys.clear()
         if (!isEnabled()) {
@@ -112,6 +118,7 @@ class LibrarySync(
     fun onDisconnected() {
         connected = false
         pulledOnce = false
+        synchronized(pullLock) { pullInFlight = false; pullAgain = false }
         pullWatchdog?.cancel()
         DeviceSyncHub.libraryOwnedByDevices = false
         if (isEnabled()) DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Waiting
@@ -155,20 +162,43 @@ class LibrarySync(
     }
 
     private fun requestPull() {
+        synchronized(pullLock) {
+            if (pullInFlight) {
+                // Something new was announced while a pull is on its way: ask once more when it lands, not now.
+                pullAgain = true
+                return
+            }
+            pullInFlight = true
+        }
+        sendPull()
+    }
+
+    private fun sendPull() {
         DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Syncing
         if (!sendMessage(buildJsonObject { put("t", "lib_pull"); put("since", since) })) {
+            synchronized(pullLock) { pullInFlight = false; pullAgain = false }
             DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed("sin conexión")
+            Timber.tag(TAG).w("LIB_SYNC pull not sent: no connection")
             return
         }
         // A server that does not answer is a server that does not understand: do not wait for ever in silence.
         pullWatchdog?.cancel()
         pullWatchdog = scope.launch {
             delay(timing.pullTimeoutMs)
+            synchronized(pullLock) { pullInFlight = false } // a lost answer must not block every later pull
             if (DeviceSyncHub.libraryStatus.value == DeviceSyncHub.LibraryStatus.Syncing && !pulledOnce) {
                 DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed("el servidor no responde")
                 Timber.tag(TAG).w("LIB_SYNC no answer to lib_pull")
             }
         }
+    }
+
+    /** The pull in flight was answered; true when another one must follow right away. */
+    private fun pullLanded(more: Boolean): Boolean = synchronized(pullLock) {
+        val again = more || pullAgain
+        pullAgain = false
+        pullInFlight = again
+        again
     }
 
     // ── incoming ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -211,13 +241,16 @@ class LibrarySync(
         sinceStore.put(since)
         Timber.tag(TAG).i("LIB_SYNC pulled items=%d applied=%d unresolved=%d", incoming.size, result.applied, result.unresolved)
 
-        if ((msg["more"] as? JsonPrimitive)?.booleanOrNull == true) {
-            requestPull()
-            return
+        val more = (msg["more"] as? JsonPrimitive)?.booleanOrNull == true
+        if (pullLanded(more)) {
+            // More pages, or the room announced new changes while this one was on its way: the next pull goes out now.
+            sendPull()
+            if (more) return
         }
         // Caught up: from here the room is the source of truth between the devices, and what is different HERE goes out.
         pulledOnce = true
         pullWatchdog?.cancel()
+        Timber.tag(TAG).i("LIB_SYNC caught up since=%d known=%d", since, ledger.size)
         DeviceSyncHub.libraryOwnedByDevices = connected && isEnabled()
         pushDiffLocked()
         publishStatusLocked()
@@ -253,7 +286,11 @@ class LibrarySync(
     // ── outgoing ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     private suspend fun pushDiffLocked() {
-        if (!connected || !isEnabled() || !pulledOnce) return
+        if (!connected || !isEnabled() || !pulledOnce) {
+            // The first thing to look for in a log when a change «did not go out»: it was waiting for the first full pull.
+            Timber.tag(TAG).i("LIB_SYNC diff held: connected=%b enabled=%b caughtUp=%b", connected, isEnabled(), pulledOnce)
+            return
+        }
         val ledger = ledger()
         val current = adapter.readLocal { key -> ledger.containsKey(key) }
         val fresh = LibrarySyncCore.localOps(current, ledger, clock())

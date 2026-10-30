@@ -60,6 +60,7 @@ class LibrarySyncSimulationTest {
         private var seq = 0L
         private val inboxes = LinkedHashMap<String, Channel<JsonObject>>()
         @Volatile var pushes = 0
+        @Volatile var pulls = 0
 
         @Synchronized
         fun join(id: String, inbox: Channel<JsonObject>) {
@@ -96,6 +97,7 @@ class LibrarySyncSimulationTest {
                     if (accepted > 0) inboxes.keys.filter { it != from }.forEach { deliver(it, buildJsonObject { put("t", "lib_ops"); put("seq", seq) }) }
                 }
                 "lib_pull" -> {
+                    pulls++
                     var since = (msg["since"] as JsonPrimitive).longOrNull ?: 0L
                     val reset = since > seq
                     if (reset) since = 0
@@ -244,6 +246,22 @@ class LibrarySyncSimulationTest {
         eventually("tablet has the playlist and its song") { tablet.backend.playlists["LPabcdefgh"] == "Gym" && ("LPabcdefgh" to "s3") in tablet.backend.members }
         assertTrue("the song's title came with it", tablet.backend.songs["s1"]?.title == "Título s1")
         assertTrue(("song" to "bad1") in tablet.backend.dislikes)
+    }
+
+    @Test
+    fun `a big library pushed in many batches does not make the other device pull it over and over`() {
+        val phone = Device("phone")
+        for (i in 1..7_000) phone.backend.like("big$i")
+        val tablet = Device("tablet")
+        tablet.connect() // already in the room while the phone sends everything: it gets one «lib_ops» per batch
+        phone.connect()
+        eventually("the tablet has every like", ms = 20_000) { tablet.backend.likes.size == 7_000 }
+        settle()
+        val pages = 14_000 / 400 + 1
+        assertTrue("the tablet asked ${room.pulls} times for ~$pages pages of data", room.pulls <= pages * 4)
+        // And once caught up it can send: a like made on the tablet reaches the phone.
+        tablet.backend.addSong("fresh"); tablet.backend.like("fresh"); tablet.changed()
+        eventually("the phone gets the like the tablet made after catching up", ms = 10_000) { "fresh" in phone.backend.likes }
     }
 
     @Test

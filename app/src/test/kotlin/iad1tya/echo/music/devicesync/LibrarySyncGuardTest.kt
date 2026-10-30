@@ -37,8 +37,9 @@ class LibrarySyncGuardTest {
     @Test
     fun `a pull is never sent before the room has answered, and registers go out parents first`() {
         val l = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
-        assertTrue(l.contains("if (!connected || !isEnabled() || !pulledOnce) return"))
+        assertTrue(l.contains("if (!connected || !isEnabled() || !pulledOnce) {"))
         assertTrue(l.contains("sortedBy { rank(it.key) }"))
+        assertTrue("una sola descarga a la vez (tormenta de la beta 4)", l.contains("if (pullInFlight)"))
         assertEquals("sg < pl < pm < lk < resto", 5, Regex("\"(sg|pl|pm|lk)\" -> \\d").findAll(l).count() + 1)
     }
 
