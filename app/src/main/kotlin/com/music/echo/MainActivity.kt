@@ -2704,6 +2704,9 @@ class MainActivity : ComponentActivity() {
                     // and a sibling of the haze source so their glass samples like the mini pill's.
                     iad1tya.echo.music.ui.newui.AuraOverlayOutlet(auraOverlayHost)
 
+                    // Row 533: «Continuar aquí» when another paired device is playing and this one is silent.
+                    iad1tya.echo.music.ui.newui.AuraHandoffBanner(modifier = Modifier.align(Alignment.TopCenter))
+
                     // PICTURE-IN-PICTURE: cover everything with JUST the video so the floating window is a
                     // clean fullscreen video (no title bar / Home / playlist behind it). The NavHost stays
                     // composed underneath (no teardown → no freeze, unlike the old early-return). The sheet's

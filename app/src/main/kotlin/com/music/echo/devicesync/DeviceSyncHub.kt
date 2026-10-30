@@ -45,6 +45,12 @@ object DeviceSyncHub {
     val remoteNow = MutableStateFlow<NowState?>(null)
     val thisDeviceId = MutableStateFlow("")
 
+    /** Server clock minus this device's clock, from the last `hello_ok`; lets a screen tell how old a published state is. */
+    @Volatile
+    var serverOffsetMs: Long = 0L
+
+    fun serverNow(): Long = System.currentTimeMillis() + serverOffsetMs
+
     /** How this device got paired: the screens say it in words. */
     enum class PairedBy { None, License, Code }
 

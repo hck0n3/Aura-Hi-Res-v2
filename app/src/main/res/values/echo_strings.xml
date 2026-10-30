@@ -1517,4 +1517,5 @@
     <string name="device_sync_auto_desc">Devices with the same license and purchase email pair by themselves</string>
     <string name="device_sync_auto_need_email">Type the purchase email when you activate your license to pair automatically, or use a code</string>
     <string name="device_sync_server_default">Aura\'s server (default)</string>
+    <string name="device_sync_continue_here">Continue here</string>
 </resources>

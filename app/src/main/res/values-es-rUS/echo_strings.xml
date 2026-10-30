@@ -817,4 +817,5 @@
     <string name="device_sync_auto_desc">Los dispositivos con la misma licencia y el mismo correo de compra se emparejan solos</string>
     <string name="device_sync_auto_need_email">Escribe el correo de la compra al activar tu licencia para emparejar solo, o usa un código</string>
     <string name="device_sync_server_default">Servidor de Aura (predeterminado)</string>
+    <string name="device_sync_continue_here">Continuar aquí</string>
 </resources>
