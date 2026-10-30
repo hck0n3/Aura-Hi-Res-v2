@@ -1,20 +1,24 @@
-# Aura Hi-Res v2.0.67-beta4 — me gusta, no me gusta y listas iguales en todos tus dispositivos, control remoto estilo Spotify, portada con sombra de luz y botón de dispositivos abajo
+# Aura Hi-Res v2.0.67-beta5 — tus dispositivos dejan de confundirse entre sí, el reproductor controla al otro dispositivo como Spotify, la biblioteca se sincroniza y la portada ya no se corta
 
-Beta encima de la 2.0.67-beta3 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Antes de probar la sincronización de biblioteca, haz una copia de seguridad (Ajustes ▸ Copia de seguridad).
+Beta encima de la 2.0.67-beta4 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Antes de probar la sincronización de biblioteca haz una copia de seguridad (Ajustes ▸ Copia de seguridad) y vuelve a desplegar tu servidor de sincronización (`npx wrangler deploy`): su dirección `/health` debe responder `"lib":2`.
 
-## Tu biblioteca en todos tus dispositivos
+## Por qué fallaba la sincronización
 
-- **Me gusta, no me gusta y listas se sincronizan por tu servidor:** lo que cambies en un dispositivo (dar me gusta, quitarlo, crear, renombrar o borrar una lista, añadir o quitar canciones, un «no me gusta») llega a los demás en segundos, o al conectarse si estaban apagados. Gana siempre el cambio más reciente, así no se duplica ni se pisa.
-- **YouTube no interviene mientras estén conectados:** mientras tus dispositivos están emparejados y conectados, la sincronización con YouTube deja de bajar tus me gusta y tus listas. Lo que haces hacia tu cuenta de YouTube no cambia.
-- **Freno de seguridad:** si de golpe llegaran muchísimos borrados, la app los retiene, conserva lo añadido y te avisa.
-- **Interruptor en Ajustes ▸ Sincronizar dispositivos** para apagarlo. El orden de las canciones dentro de una lista no se sincroniza.
+- **Cada dispositivo ahora tiene su propia identidad:** el identificador con el que un dispositivo se presenta a tu servidor salía de los ajustes de la app, y los ajustes se copian al restaurar una copia de seguridad o al pasar datos de un móvil a una tablet. Dos aparatos acababan siendo «el mismo» para el servidor: se echaban uno al otro, el contador saltaba entre 2 y 3, las órdenes llegaban al aparato equivocado (uno empezaba a sonar solo, el otro no se detenía) y la biblioteca no se igualaba. Ahora el identificador sale del propio aparato y no se puede copiar.
+- **Ajustes ▸ Sincronizar dispositivos** muestra los últimos 4 caracteres de cada dispositivo para distinguirlos, y una fila **«Biblioteca»** con el estado real (al día, esperando, servidor desactualizado, fallo). Tócala para sincronizar ahora.
+- **Si tu servidor es viejo, la app lo dice** en vez de quedarse callada.
 
-## Continuar en otro dispositivo, como Spotify
+## El reproductor controla al otro dispositivo, como Spotify
 
-- **Tarjeta «Continuar aquí»:** cuando otro de tus dispositivos está sonando y este no, aparece arriba con la canción. «Continuar aquí» la trae desde el mismo segundo.
-- **Control remoto:** la tarjeta muestra la línea de tiempo del otro dispositivo moviéndose sola, y desde ahí puedes pausar, reanudar, pasar de canción y arrastrar la barra. Tócala para desplegar todos los controles.
-- **Botón «Mis dispositivos» en la barra de abajo del reproductor**, con el estilo de sus vecinos. Solo aparece con el dispositivo emparejado.
+- Sin tarjeta flotante. Cuando otro de tus dispositivos suena y este no, **tu reproductor muestra esa canción**: arriba de la portada aparece «Sonando en <dispositivo> · Continuar aquí».
+- **La barra de tiempo avanza con la del otro dispositivo** y **play y pausa, anterior, siguiente y arrastrar la barra** (en el reproductor y en el mini reproductor) controlan a donde se está reproduciendo, sin controles duplicados.
+- **«Continuar aquí»** trae la canción desde el mismo segundo; el otro dispositivo se pausa. Si no contesta, se le manda una pausa para que no suenen los dos. Un traspaso viejo ya no puede empezar a sonar un dispositivo por sí solo.
+
+## Biblioteca (me gusta, no me gusta y listas)
+
+- Se sincroniza por tu servidor, al momento o al conectarse, y mientras estén conectados YouTube no la sincroniza. Freno de seguridad si llegaran muchos borrados de golpe. El orden de las canciones dentro de una lista no se sincroniza.
 
 ## Portada del reproductor
 
-- **Sombra rediseñada:** un filo de luz que se ve incluso en portadas oscuras, una sombra corta y un resplandor suave del color de la propia portada. Sustituye al sombreado ancho.
+- **La sombra ya no se corta en recuadro** en los móviles normales: la portada deja margen para que se desvanezca. En tablets y plegables no cambia.
+- El botón «Mis dispositivos» está en la barra de abajo del reproductor, con el estilo de sus vecinos.
