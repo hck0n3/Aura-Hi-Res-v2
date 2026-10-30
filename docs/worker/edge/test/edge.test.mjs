@@ -126,5 +126,5 @@ test("alert through ntfy: topic in the URL, e-mail header, ASCII title; nothing 
 test("the test-alert route is admin only", async () => {
   assert.equal((await mf.dispatchFetch("http://x/v1/admin/test-alert", { method: "POST" })).status, 403);
   const r = await mf.dispatchFetch("http://x/v1/admin/test-alert", { method: "POST", headers: { authorization: "Bearer " + ADMIN } });
-  assert.deepEqual(await r.json(), { sent: false });
+  assert.deepEqual(await r.json(), { sent: false, ntfyTopicSet: false, emailBindingSet: false });
 });

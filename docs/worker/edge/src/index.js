@@ -176,7 +176,7 @@ export async function watchYoutube(env, doFetch = fetch, notify = sendAlert) {
  *  - ntfy.sh (`NTFY_TOPIC` secret): no domain needed; ntfy forwards the message to [ALERT_TO] by e-mail. The topic is the secret, so
  *    make it long and random. The message carries no user data (only the old and new player ids of YouTube).
  */
-export async function sendAlert(env, subject, text, doFetch = fetch) {
+export async function sendAlert(env, subject, text, doFetch = fetch, info = {}) {
   const to = env.ALERT_TO || "aurahires@gmail.com";
   if (env.ALERT && env.ALERT_FROM) {
     try {
@@ -196,8 +196,10 @@ export async function sendAlert(env, subject, text, doFetch = fetch) {
         headers: { Title: ascii(subject), Email: to, Priority: "high", Tags: "warning" },
         body: text,
       });
+      info.ntfyStatus = res.status;
       return res.ok;
     } catch {
+      info.ntfyStatus = "network-error";
       return false;
     }
   }
@@ -214,7 +216,9 @@ export default {
       if (req.method === "GET" && p === "/v1/pubkey") return json({ publicKey: await publicKeySpki(env) });
       if (req.method === "POST" && p === "/v1/admin/test-alert") {
         if (!isAdmin(req, env)) return json({ error: "forbidden" }, 403);
-        return json({ sent: await sendAlert(env, "Aviso de prueba de Aura", "Si lees esto, los avisos del vigilante de YouTube llegan.") });
+        const info = {};
+        const sent = await sendAlert(env, "Aviso de prueba de Aura", "Si lees esto, los avisos del vigilante de YouTube llegan.", fetch, info);
+        return json({ sent, ntfyTopicSet: !!env.NTFY_TOPIC, emailBindingSet: !!(env.ALERT && env.ALERT_FROM), ...info });
       }
       if (req.method === "PUT" && p === "/v1/admin/config") return await handleAdminConfig(req, env);
       if (req.method === "POST" && p === "/v1/diag") return await handleDiagPost(req, env);
