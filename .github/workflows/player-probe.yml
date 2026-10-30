@@ -1,0 +1,20 @@
+# Sonda de solo lectura (etapa 4 del arreglo semiautomático de YouTube): descarga reproductores YA resueltos a mano y muestra
+# cómo están hechos, para escribir el extractor contra datos reales. No escribe nada ni avisa a nadie.
+name: Player probe
+
+on:
+  push:
+    branches: ['claude/**']
+    paths:
+      - 'scripts/player_probe.py'
+      - '.github/workflows/player-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/player_probe.py 4
