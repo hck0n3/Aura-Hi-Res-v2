@@ -223,10 +223,10 @@ class LibrarySync(
         }
         var accepted = LibrarySyncCore.acceptedFrom(ledger, incoming)
         var plan = LibrarySyncCore.plan(accepted)
-        val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !it.key.startsWith("sg:") }
+        val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
         if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
             // A pile of removals at once is not a person tidying up. Keep every addition, hold every removal, and say so.
-            val held = accepted.filter { it.value == LibrarySyncCore.OFF && !it.key.startsWith("sg:") }
+            val held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
             accepted = accepted - held.toSet()
             plan = LibrarySyncCore.plan(accepted)
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
@@ -260,7 +260,7 @@ class LibrarySync(
         val ledger = ledgerMap ?: return
         DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Synced(
             atMs = System.currentTimeMillis(),
-            known = ledger.values.count { it.value != LibrarySyncCore.OFF && !it.key.startsWith("sg:") },
+            known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) },
             pending = ledger.values.count { it.pending },
         )
     }
@@ -324,9 +324,9 @@ class LibrarySync(
     }
 
     private fun rank(key: String) = when (key.substringBefore(':')) {
-        "sg" -> 0
+        "sg", "ag" -> 0
         "pl" -> 1
-        "pm" -> 2
+        "pm", "ab" -> 2
         "lk" -> 3
         else -> 4
     }

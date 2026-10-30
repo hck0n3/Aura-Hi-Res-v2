@@ -131,7 +131,14 @@ class LibrarySyncSimulationTest {
         val dislikes = HashSet<Pair<String, String>>()
         val playlists = LinkedHashMap<String, String>()
         val members = LinkedHashSet<Pair<String, String>>()
+        val albums = HashMap<String, LibrarySyncCore.AlbumMeta>()
+        val savedAlbums = HashSet<String>()
         var applied = 0
+
+        fun saveAlbum(id: String) = synchronized(lock) {
+            albums.getOrPut(id) { LibrarySyncCore.AlbumMeta("Álbum $id", "http://c/$id", "OLAK$id", 2020, 10, 2400) }
+            savedAlbums += id
+        }
 
         fun addSong(id: String, title: String = "Título $id") = synchronized(lock) {
             songs[id] = LibrarySyncCore.SongMeta(title, "Artista", "http://c/$id")
@@ -151,6 +158,10 @@ class LibrarySyncSimulationTest {
             playlists.forEach { (k, n) -> facts[LibrarySyncCore.playlistKey(k)] = LibrarySyncCore.encodePlaylistName(n) }
             members.forEach { (p, s) -> if (p in playlists) { facts[LibrarySyncCore.memberKey(p, s)] = "1"; referenced += s } }
             dislikes.forEach { (set, id) -> facts[LibrarySyncCore.dislikeKey(set, id)] = "1" }
+            savedAlbums.forEach { id ->
+                facts[LibrarySyncCore.albumKey(id)] = "1"
+                if (!songMetaKnown(LibrarySyncCore.albumMetaKey(id))) albums[id]?.let { facts[LibrarySyncCore.albumMetaKey(id)] = LibrarySyncCore.encodeAlbum(it) }
+            }
             referenced.filter { !songMetaKnown(LibrarySyncCore.songKey(it)) }.forEach { id ->
                 songs[id]?.let { facts[LibrarySyncCore.songKey(id)] = LibrarySyncCore.encodeSong(it) }
             }
@@ -164,6 +175,8 @@ class LibrarySyncSimulationTest {
             for ((p, s) in plan.memberAdds) if (p in playlists && s in songs) members += p to s else unresolved++
             for ((id, on) in plan.likes) if (on) { if (id in songs) likes += id else unresolved++ } else likes -= id
             for ((set, id, on) in plan.dislikes) if (on) dislikes += set to id else dislikes -= set to id
+            for ((id, meta) in plan.albums) albums.putIfAbsent(id, meta)
+            for ((id, on) in plan.albumSaves) if (on) { if (id in albums) savedAlbums += id else unresolved++ } else savedAlbums -= id
             for ((p, s) in plan.memberRemovals) members -= p to s
             for (p in plan.playlistRemovals) { playlists -= p; members.removeAll { it.first == p } }
             applied++
@@ -262,6 +275,25 @@ class LibrarySyncSimulationTest {
         // And once caught up it can send: a like made on the tablet reaches the phone.
         tablet.backend.addSong("fresh"); tablet.backend.like("fresh"); tablet.changed()
         eventually("the phone gets the like the tablet made after catching up", ms = 10_000) { "fresh" in phone.backend.likes }
+    }
+
+    @Test
+    fun `a saved album travels as the album only, never as likes of its songs, and an unsave travels too`() {
+        val phone = Device("phone")
+        phone.backend.saveAlbum("MPREb_one")
+        phone.backend.like("solo") // a song liked on its own
+        phone.connect()
+        settle()
+        val tablet = Device("tablet")
+        tablet.connect()
+        eventually("the tablet has the saved album with its details") {
+            "MPREb_one" in tablet.backend.savedAlbums && tablet.backend.albums["MPREb_one"]?.title == "Álbum MPREb_one"
+        }
+        assertEquals("the album's songs are NOT liked on the other device", setOf("solo"), tablet.backend.likes)
+        phone.backend.savedAlbums -= "MPREb_one"; phone.changed()
+        eventually("the unsave reaches the tablet") { "MPREb_one" !in tablet.backend.savedAlbums }
+        tablet.backend.saveAlbum("MPREb_two"); tablet.changed()
+        eventually("an album saved on the tablet reaches the phone") { "MPREb_two" in phone.backend.savedAlbums }
     }
 
     @Test

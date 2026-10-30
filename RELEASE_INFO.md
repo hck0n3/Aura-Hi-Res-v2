@@ -6,6 +6,7 @@ Beta encima de la 2.0.67-beta5 (incluye todo lo suyo) y de la 2.0.66 estable. Co
 
 - **Se acabó la tormenta de descargas:** cuando un dispositivo subía una biblioteca grande, el otro pedía la misma lista una y otra vez (en un registro se vieron 1656 descargas en 5 segundos). Gastaba batería, calentaba y dejaba la sincronización sin cerrar, y mientras no cerraba, los cambios de ese dispositivo no salían. Ahora pide una sola vez y repite solo si hubo novedades.
 - **Tus «me gusta» y «no me gusta» llegan también a tu cuenta de YouTube:** si el dispositivo donde los diste no pudo enviarlos (sin sesión o sin red), el que los recibe por tu servidor los manda. Solo cuando son pocos; una sincronización grande no se reenvía una a una.
+- **Los álbumes guardados también se sincronizan entre tus dispositivos** (el corazón de la página del álbum): se guarda el álbum, no sus canciones. Los «me gusta» de las canciones siguen siendo tuyos, canción por canción.
 - El registro de la aplicación explica ahora por qué un cambio no salió (solo contadores, nunca títulos ni nombres).
 
 ## Servicios Aura (nuevo)

@@ -13,6 +13,8 @@ package iad1tya.echo.music.devicesync
  *  · `pl:<playlistKey>`         a playlist and its name         value `{"n":"name"}` / "0"
  *  · `pm:<playlistKey>:<songId>` a song in a playlist           "1" / "0"
  *  · `sg:<songId>`              title / artist / cover of a song the other device may never have seen; create-only
+ *  · `ab:<albumId>`             an album saved to the library (the heart on the album page)   "1" / "0" — NOT its songs' likes
+ *  · `ag:<albumId>`             title / cover / year / size of a saved album the other device may never have seen; create-only
  * The playlist key is the playlist's `browseId` when it has one (the same on every device), else its own id.
  */
 object LibrarySyncCore {
@@ -22,7 +24,7 @@ object LibrarySyncCore {
     /** One register as it travels and as the local ledger remembers it. [pending] = not yet acknowledged by the room. */
     data class Reg(val key: String, val ts: Long, val value: String, val pending: Boolean = false)
 
-    enum class Kind { LIKE, DISLIKE, PLAYLIST, MEMBER, SONG }
+    enum class Kind { LIKE, DISLIKE, PLAYLIST, MEMBER, SONG, ALBUM, ALBUM_META }
 
     sealed interface Key {
         val kind: Kind
@@ -31,6 +33,8 @@ object LibrarySyncCore {
         data class Playlist(val playlistKey: String) : Key { override val kind get() = Kind.PLAYLIST }
         data class Member(val playlistKey: String, val songId: String) : Key { override val kind get() = Kind.MEMBER }
         data class Song(val songId: String) : Key { override val kind get() = Kind.SONG }
+        data class Album(val albumId: String) : Key { override val kind get() = Kind.ALBUM }
+        data class AlbumMeta(val albumId: String) : Key { override val kind get() = Kind.ALBUM_META }
     }
 
     /** The six dislike sets of `DislikeStore`, by their short names in the key. */
@@ -41,6 +45,11 @@ object LibrarySyncCore {
     fun playlistKey(playlistKey: String) = "pl:$playlistKey"
     fun memberKey(playlistKey: String, songId: String) = "pm:$playlistKey:$songId"
     fun songKey(songId: String) = "sg:$songId"
+    fun albumKey(albumId: String) = "ab:$albumId"
+    fun albumMetaKey(albumId: String) = "ag:$albumId"
+
+    /** `sg:` and `ag:` registers only describe something so another device can show it: sent once, never changed, never removed. */
+    fun isMeta(key: String) = key.startsWith("sg:") || key.startsWith("ag:")
 
     /** True when an id can be part of a key (non-empty, no colon, not absurdly long). */
     fun syncableId(id: String) = id.isNotEmpty() && ':' !in id && id.length <= 80
@@ -52,6 +61,8 @@ object LibrarySyncCore {
         return when (key.substring(0, colon)) {
             "lk" -> rest.takeIf { it.isNotEmpty() }?.let(Key::Like)
             "sg" -> rest.takeIf { it.isNotEmpty() }?.let(Key::Song)
+            "ab" -> rest.takeIf { it.isNotEmpty() && ':' !in it }?.let(Key::Album)
+            "ag" -> rest.takeIf { it.isNotEmpty() && ':' !in it }?.let(Key::AlbumMeta)
             "pl" -> rest.takeIf { it.isNotEmpty() && ':' !in it }?.let(Key::Playlist)
             "dk" -> {
                 val i = rest.indexOf(':')
@@ -80,14 +91,14 @@ object LibrarySyncCore {
         val ops = ArrayList<Reg>()
         for ((key, value) in current) {
             val known = ledger[key]
-            if (key.startsWith("sg:")) {
+            if (isMeta(key)) {
                 if (known == null) ops += Reg(key, now, value, pending = true)
                 continue
             }
             if (known == null || known.value != value) ops += Reg(key, maxOf(now, (known?.ts ?: 0L) + 1), value, pending = true)
         }
         for ((key, known) in ledger) {
-            if (key.startsWith("sg:") || known.value == OFF || key in current) continue
+            if (isMeta(key) || known.value == OFF || key in current) continue
             ops += Reg(key, maxOf(now, known.ts + 1), OFF, pending = true)
         }
         return ops
@@ -112,12 +123,18 @@ object LibrarySyncCore {
         val memberRemovals: List<Pair<String, String>>,
         val likes: List<Pair<String, Boolean>>,
         val dislikes: List<Triple<String, String, Boolean>>,
+        val albums: List<Pair<String, AlbumMeta>> = emptyList(),
+        val albumSaves: List<Pair<String, Boolean>> = emptyList(),
     ) {
         val removalCount: Int
-            get() = playlistRemovals.size + memberRemovals.size + likes.count { !it.second } + dislikes.count { !it.third }
+            get() = playlistRemovals.size + memberRemovals.size + likes.count { !it.second } + dislikes.count { !it.third } +
+                albumSaves.count { !it.second }
     }
 
     data class SongMeta(val title: String, val artist: String, val cover: String)
+
+    /** What another device needs to show an album it has never opened: the album page itself loads the songs from YouTube. */
+    data class AlbumMeta(val title: String, val cover: String, val playlistId: String, val year: Int?, val songCount: Int, val duration: Int)
 
     fun plan(accepted: List<Reg>): Plan {
         val songs = ArrayList<Pair<String, SongMeta>>()
@@ -127,9 +144,13 @@ object LibrarySyncCore {
         val memberRemovals = ArrayList<Pair<String, String>>()
         val likes = ArrayList<Pair<String, Boolean>>()
         val dislikes = ArrayList<Triple<String, String, Boolean>>()
+        val albums = ArrayList<Pair<String, AlbumMeta>>()
+        val albumSaves = ArrayList<Pair<String, Boolean>>()
         for (reg in accepted) {
             when (val k = parse(reg.key)) {
                 is Key.Song -> decodeSong(reg.value)?.let { songs += k.songId to it }
+                is Key.AlbumMeta -> decodeAlbum(reg.value)?.let { albums += k.albumId to it }
+                is Key.Album -> if (reg.value == ON || reg.value == OFF) albumSaves += k.albumId to (reg.value == ON)
                 is Key.Playlist ->
                     if (reg.value == OFF) plRemovals += k.playlistKey else decodePlaylistName(reg.value)?.let { upserts += k.playlistKey to it }
                 is Key.Member -> if (reg.value == ON) adds += k.playlistKey to k.songId else if (reg.value == OFF) memberRemovals += k.playlistKey to k.songId
@@ -138,7 +159,7 @@ object LibrarySyncCore {
                 null -> Unit
             }
         }
-        return Plan(songs, upserts, plRemovals, adds, memberRemovals, likes, dislikes)
+        return Plan(songs, upserts, plRemovals, adds, memberRemovals, likes, dislikes, albums, albumSaves)
     }
 
     // ── values ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -152,6 +173,22 @@ object LibrarySyncCore {
     fun decodeSong(value: String): SongMeta? {
         val t = field(value, "t") ?: return null
         return SongMeta(t, field(value, "a").orEmpty(), field(value, "c").orEmpty())
+    }
+
+    fun encodeAlbum(meta: AlbumMeta) =
+        "{\"t\":${quote(meta.title.take(100))},\"c\":${quote(meta.cover.take(150))},\"p\":${quote(meta.playlistId.take(60))}," +
+            "\"y\":${quote(meta.year?.toString().orEmpty())},\"n\":${quote(meta.songCount.toString())},\"d\":${quote(meta.duration.toString())}}"
+
+    fun decodeAlbum(value: String): AlbumMeta? {
+        val t = field(value, "t") ?: return null
+        return AlbumMeta(
+            title = t,
+            cover = field(value, "c").orEmpty(),
+            playlistId = field(value, "p").orEmpty(),
+            year = field(value, "y")?.toIntOrNull(),
+            songCount = field(value, "n")?.toIntOrNull() ?: 0,
+            duration = field(value, "d")?.toIntOrNull() ?: 0,
+        )
     }
 
     /** JSON string literal with the escapes the Worker and Android's parser both accept. */

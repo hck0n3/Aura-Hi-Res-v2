@@ -40,7 +40,7 @@ class LibrarySyncGuardTest {
         assertTrue(l.contains("if (!connected || !isEnabled() || !pulledOnce) {"))
         assertTrue(l.contains("sortedBy { rank(it.key) }"))
         assertTrue("una sola descarga a la vez (tormenta de la beta 4)", l.contains("if (pullInFlight)"))
-        assertEquals("sg < pl < pm < lk < resto", 5, Regex("\"(sg|pl|pm|lk)\" -> \\d").findAll(l).count() + 1)
+        for (rank in listOf("\"sg\", \"ag\" -> 0", "\"pl\" -> 1", "\"pm\", \"ab\" -> 2", "\"lk\" -> 3")) assertTrue(rank, l.contains(rank))
     }
 
     @Test

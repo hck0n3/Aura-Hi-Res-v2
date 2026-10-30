@@ -1488,6 +1488,7 @@ class SyncUtils @Inject constructor(
     }
 
     private suspend fun executeSyncLikedAlbums() = withContext(Dispatchers.IO) {
+        if (libraryOwnedByDevices("likedAlbums")) return@withContext
         if (!isLoggedIn()) {
             Timber.w("Skipping syncLikedAlbums - user not logged in")
             return@withContext

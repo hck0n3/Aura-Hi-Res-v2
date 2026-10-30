@@ -1,6 +1,7 @@
 package iad1tya.echo.music.devicesync
 
 import iad1tya.echo.music.db.MusicDatabase
+import iad1tya.echo.music.db.entities.AlbumEntity
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.devicesync.LibrarySyncCore.ON
@@ -47,6 +48,17 @@ class LibrarySyncAdapter(
             referenced += row.songId
         }
 
+        for (row in database.syncSavedAlbumRows()) {
+            if (!LibrarySyncCore.syncableId(row.id)) continue
+            facts[LibrarySyncCore.albumKey(row.id)] = ON
+            val metaKey = LibrarySyncCore.albumMetaKey(row.id)
+            if (!songMetaKnown(metaKey)) {
+                facts[metaKey] = LibrarySyncCore.encodeAlbum(
+                    LibrarySyncCore.AlbumMeta(row.title, row.thumbnailUrl.orEmpty(), row.playlistId.orEmpty(), row.year, row.songCount, row.duration),
+                )
+            }
+        }
+
         val d = dislikes.snapshot()
         fun add(set: String, ids: Set<String>) = ids.filter(LibrarySyncCore::syncableId).forEach { facts[LibrarySyncCore.dislikeKey(set, it)] = ON }
         add("song", d.songs)
@@ -76,6 +88,23 @@ class LibrarySyncAdapter(
             val artists = if (meta.artist.isBlank()) emptyList() else listOf(MediaMetadata.Artist(id = null, name = meta.artist))
             database.insert(
                 MediaMetadata(id = id, title = meta.title, artists = artists, duration = -1, thumbnailUrl = meta.cover.ifBlank { null }),
+            )
+            applied++
+        }
+
+        // 1b. Albums another device saved and we have never seen: create the shell (the album page loads its songs from YouTube).
+        for ((id, meta) in plan.albums) {
+            if (database.syncAlbumExists(id) > 0) continue
+            database.insert(
+                AlbumEntity(
+                    id = id,
+                    playlistId = meta.playlistId.ifBlank { null },
+                    title = meta.title,
+                    year = meta.year,
+                    thumbnailUrl = meta.cover.ifBlank { null },
+                    songCount = meta.songCount,
+                    duration = meta.duration,
+                ),
             )
             applied++
         }
@@ -127,6 +156,19 @@ class LibrarySyncAdapter(
         }
         mirrorLikesToAccount(changedLikes)
 
+        // 4b. Saved albums.
+        val changedAlbums = ArrayList<Pair<String, Boolean>>()
+        for ((id, saved) in plan.albumSaves) {
+            if (saved && database.syncAlbumExists(id) == 0) {
+                unresolved++
+                continue
+            }
+            if (database.syncIsAlbumSaved(id) != saved) changedAlbums += id to saved
+            database.syncSetAlbumSaved(id, if (saved) now else null)
+            applied++
+        }
+        mirrorAlbumsToAccount(changedAlbums)
+
         // 5. Dislikes.
         for ((set, id, on) in plan.dislikes) {
             when (set) {
@@ -172,6 +214,19 @@ class LibrarySyncAdapter(
             )
         }
         Timber.tag("DeviceSync").i("LIB_SYNC likes mirrored to account=%d", changed.size)
+    }
+
+    /** Same as [mirrorLikesToAccount] for saved albums: the account save/unsave for the few that changed, when the other device could not send it. */
+    private suspend fun mirrorAlbumsToAccount(changed: List<Pair<String, Boolean>>) {
+        if (changed.isEmpty() || changed.size > MIRROR_MAX) return
+        for ((id, saved) in changed) {
+            val playlistId = database.syncAlbumPlaylistId(id) ?: continue
+            iad1tya.echo.music.utils.AccountPush.submit(
+                if (saved) iad1tya.echo.music.utils.AccountPushPolicy.Op.PLAYLIST_SAVE else iad1tya.echo.music.utils.AccountPushPolicy.Op.PLAYLIST_UNSAVE,
+                playlistId,
+            )
+        }
+        Timber.tag("DeviceSync").i("LIB_SYNC albums mirrored to account=%d", changed.size)
     }
 
     /** `LP` + 8 letters is how this app names a playlist that lives only on the device; anything else is a YouTube browseId. */

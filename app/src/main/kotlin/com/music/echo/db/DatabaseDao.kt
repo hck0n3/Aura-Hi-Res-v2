@@ -2534,6 +2534,22 @@ interface DatabaseDao {
     @Query("SELECT COUNT(*) FROM song WHERE id = :id")
     suspend fun syncSongExists(id: String): Int
 
+    // Saved albums (the heart on the album page): only the album, never its songs' likes.
+    @Query("SELECT id, playlistId, title, year, thumbnailUrl, songCount, duration FROM album WHERE bookmarkedAt IS NOT NULL AND isLocal = 0 AND isUploaded = 0")
+    suspend fun syncSavedAlbumRows(): List<SyncAlbumRow>
+
+    @Query("SELECT COUNT(*) FROM album WHERE id = :id")
+    suspend fun syncAlbumExists(id: String): Int
+
+    @Query("SELECT bookmarkedAt IS NOT NULL FROM album WHERE id = :id")
+    suspend fun syncIsAlbumSaved(id: String): Boolean?
+
+    @Query("UPDATE album SET bookmarkedAt = :date WHERE id = :id")
+    suspend fun syncSetAlbumSaved(id: String, date: java.time.LocalDateTime?)
+
+    @Query("SELECT playlistId FROM album WHERE id = :id")
+    suspend fun syncAlbumPlaylistId(id: String): String?
+
     /** Whether the song is liked here right now (null = no such song). */
     @Query("SELECT liked FROM song WHERE id = :id")
     suspend fun syncIsLiked(id: String): Boolean?
@@ -2573,6 +2589,9 @@ data class SyncPlaylistRow(val id: String, val name: String, val browseId: Strin
 
 /** One song of one playlist. */
 data class SyncMemberRow(val playlistId: String, val songId: String)
+
+/** What the library sync tells another device about a saved album. */
+data class SyncAlbumRow(val id: String, val playlistId: String?, val title: String, val year: Int?, val thumbnailUrl: String?, val songCount: Int, val duration: Int)
 
 /** What the library sync tells another device about a song. */
 data class SyncSongRow(val id: String, val title: String, val thumbnailUrl: String?, val artist: String?)

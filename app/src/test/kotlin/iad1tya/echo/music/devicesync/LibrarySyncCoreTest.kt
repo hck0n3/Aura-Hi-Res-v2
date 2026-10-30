@@ -132,4 +132,30 @@ class LibrarySyncCoreTest {
         assertTrue(LibrarySyncCore.brakeTrips(removals = 300, known = 500))
         assertTrue(LibrarySyncCore.brakeTrips(removals = 26, known = 60))
     }
+
+    @Test
+    fun `album registers parse, encode and plan as the album only`() {
+        assertEquals(Key.Album("MPREb_x"), LibrarySyncCore.parse("ab:MPREb_x"))
+        assertEquals(Key.AlbumMeta("MPREb_x"), LibrarySyncCore.parse("ag:MPREb_x"))
+        assertTrue(LibrarySyncCore.isMeta("ag:MPREb_x"))
+        val meta = LibrarySyncCore.AlbumMeta("Título \"raro\"", "http://c", "OLAKabc", 2019, 12, 3000)
+        assertEquals(meta, LibrarySyncCore.decodeAlbum(LibrarySyncCore.encodeAlbum(meta)))
+        assertEquals(null, LibrarySyncCore.decodeAlbum(LibrarySyncCore.encodeAlbum(meta.copy(year = null)))?.year)
+        val plan = LibrarySyncCore.plan(
+            listOf(Reg("ag:A", 1, LibrarySyncCore.encodeAlbum(meta)), Reg("ab:A", 2, "1"), Reg("ab:B", 3, "0")),
+        )
+        assertEquals(listOf("A"), plan.albums.map { it.first })
+        assertEquals(listOf("A" to true, "B" to false), plan.albumSaves)
+        assertTrue("no song like comes out of an album", plan.likes.isEmpty())
+        assertEquals("an unsave counts for the mass-deletion brake", 1, plan.removalCount)
+    }
+
+    @Test
+    fun `album details are create-only like song details`() {
+        val ledger = mapOf("ag:A" to Reg("ag:A", 5, "{}"), "ab:A" to Reg("ab:A", 5, "1"))
+        val ops = LibrarySyncCore.localOps(mapOf("ag:A" to "{\"t\":\"changed\"}", "ab:A" to "1"), ledger, 100)
+        assertTrue(ops.isEmpty())
+        val gone = LibrarySyncCore.localOps(emptyMap(), ledger, 100)
+        assertEquals(listOf("ab:A"), gone.map { it.key })
+    }
 }
