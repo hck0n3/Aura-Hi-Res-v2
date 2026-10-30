@@ -17,14 +17,14 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Probe draft releases at each commit since beta 6
+      - name: Probe draft releases at each recent commit
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
         run: |
           set +e
-          for C in $(git rev-list --reverse cf1ce29..HEAD); do
+          for C in $(git rev-list --reverse 868bca9..HEAD); do
             OUT=$(gh api -X POST "repos/$REPO/releases" -f tag_name=zz-token-check -f target_commitish=$C \
               -F draft=true -F prerelease=true -f name=token-check -f body="check" 2>&1)
             ID=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
