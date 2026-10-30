@@ -1,0 +1,5 @@
+{
+  "name": "aura-license-worker",
+  "private": true,
+  "type": "module"
+}

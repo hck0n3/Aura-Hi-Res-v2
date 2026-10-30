@@ -20,6 +20,7 @@ object LicenseManager {
     private const val KEY_DEMO_STARTED = "demo_started_at"
     private const val KEY_LAST_SEEN = "last_seen_at"
     private const val KEY_LAST_STATE = "last_state"
+    private const val KEY_EMAIL = "purchase_email"
 
     /** Last resolved gate state, cached so re-verification can happen in the background without
      *  flashing the "verificando licencia" screen every time the app opens. */
@@ -44,6 +45,30 @@ object LicenseManager {
             demoStartedAt = p.getLong(KEY_DEMO_STARTED, 0L),
             lastSeenAt = p.getLong(KEY_LAST_SEEN, 0L),
         )
+    }
+
+    /** The stored key, to prefill the entry screen when a blocked device is asked for the purchase email. */
+    fun storedKey(context: Context): String? = load(context).subscriptionKey
+
+    /** The purchase email typed at activation (row 530), or null. Kept next to the key; never logged. */
+    private fun storedEmail(context: Context): String? =
+        prefs(context).getString(KEY_EMAIL, null)?.takeIf { it.isNotBlank() }
+
+    private fun saveEmail(context: Context, email: String?) {
+        prefs(context).edit().apply {
+            if (email.isNullOrBlank()) remove(KEY_EMAIL) else putString(KEY_EMAIL, email.trim())
+        }.apply()
+    }
+
+    /**
+     * Verifies with the stored email when there is one. If the Worker says the email no longer matches (the buyer changed the
+     * email on Gumroad), fall back to the key alone: the device keeps the ONE-device behavior of always instead of getting
+     * locked out for a thing the user cannot see.
+     */
+    private suspend fun verifyStored(context: Context, key: String): LicenseStatus {
+        val email = storedEmail(context)
+        val status = backend.verify(key, DeviceId.get(context), email)
+        return if (status == LicenseStatus.EMAIL_MISMATCH) backend.verify(key, DeviceId.get(context), null) else status
     }
 
     private fun save(context: Context, state: LicenseLogic.State) {
@@ -85,6 +110,9 @@ object LicenseManager {
         when (status) {
             LicenseStatus.ACTIVE -> LicenseLogic.VerifyOutcome.ACTIVE
             LicenseStatus.ENDED, LicenseStatus.INVALID_KEY -> LicenseLogic.VerifyOutcome.ENDED
+            // Cannot reach here from verifyStored (it falls back to the key alone); if it ever did, the safe reading is
+            // the one-device rule, not "unverified" (which would hand out the offline grace window).
+            LicenseStatus.EMAIL_MISMATCH -> LicenseLogic.VerifyOutcome.DEVICE_MISMATCH
             LicenseStatus.DEVICE_MISMATCH -> LicenseLogic.VerifyOutcome.DEVICE_MISMATCH
             LicenseStatus.NETWORK_ERROR -> LicenseLogic.VerifyOutcome.UNVERIFIED
         }
@@ -117,7 +145,7 @@ object LicenseManager {
         }
 
         val outcome = if (isOnline(context)) {
-            val status = backend.verify(key, DeviceId.get(context))
+            val status = verifyStored(context, key)
             if (status == LicenseStatus.ACTIVE) {
                 state = LicenseLogic.withVerifiedNow(state, now)
                 save(context, state)
@@ -130,14 +158,16 @@ object LicenseManager {
     }
 
     /** Called from the "Ya me suscribí" entry screen. Saves the key only when verification is ACTIVE. */
-    suspend fun activateSubscription(context: Context, rawKey: String): LicenseStatus =
+    suspend fun activateSubscription(context: Context, rawKey: String, rawEmail: String? = null): LicenseStatus =
         withContext(Dispatchers.IO) {
             val key = rawKey.trim()
             if (key.isEmpty()) return@withContext LicenseStatus.INVALID_KEY
-            val status = backend.verify(key, DeviceId.get(context))
+            val email = rawEmail?.trim()?.takeIf { it.isNotEmpty() }
+            val status = backend.verify(key, DeviceId.get(context), email)
             if (status == LicenseStatus.ACTIVE) {
                 val now = System.currentTimeMillis()
                 save(context, LicenseLogic.withSubscriptionKey(load(context), key, now))
+                saveEmail(context, email)
             }
             status
         }
@@ -147,7 +177,7 @@ object LicenseManager {
         withContext(Dispatchers.IO) {
             val state = load(context)
             val key = state.subscriptionKey ?: return@withContext LicenseStatus.INVALID_KEY
-            val status = backend.verify(key, DeviceId.get(context))
+            val status = verifyStored(context, key)
             if (status == LicenseStatus.ACTIVE) {
                 save(context, LicenseLogic.withVerifiedNow(state, System.currentTimeMillis()))
             }

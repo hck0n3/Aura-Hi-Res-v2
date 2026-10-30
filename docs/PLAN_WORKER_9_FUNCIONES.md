@@ -57,7 +57,8 @@ Por qué separados: cada uno se despliega, se apaga y se factura por separado, y
 - **Riesgo**: que un flag mal puesto apague algo importante → los flags tienen lista cerrada y la reproducción y la licencia **no tienen flag**.
 
 ### 2) Vigilante de YouTube · Fase B · esfuerzo S
-- **Worker**: Cron cada 30 min: descarga la página del player, extrae la URL de `base.js`, guarda su hash en KV; si cambia, **te avisa** (canal a elegir, ver preguntas).
+- **Worker**: Cron cada 30 min: descarga la página del player, extrae la URL de `base.js`, guarda su hash en KV; si cambia, **te avisa por correo al buzón de Aura** (`aurahires@gmail.com`, el mismo de `SupportContact`). *Decisión del dueño 2026-10-30.*
+- **Cómo se envía el correo**: Cloudflare Email Routing con un Email Worker (`send_email`), que solo puede escribir a una dirección **verificada** en tu cuenta: la verificas una vez desde el panel. Un solo aviso por cambio (no uno cada 30 min) y un resumen si pasa un día sin cambios cuando antes había uno pendiente.
 - **App**: nada. Es solo para ti.
 - **Límite deliberado**: solo detecta. Los valores `sig`/`n` siguen verificándose ejecutando el `base.js` real antes de publicar en `player_configs.json` (regla absoluta de AGENTS.md).
 - **Extra opcional** (después): el Worker guarda el `base.js` nuevo para que lo verifiques sin buscarlo.
@@ -76,6 +77,7 @@ Por qué separados: cada uno se despliega, se apaga y se factura por separado, y
 - **Honestidad**: acelera y abarata; **no arregla por sí sola** el caso de «estilo no detectado». Eso depende del `STYLE_GATE_BASIS` que salga del log de la beta 3.
 
 ### 5) Copia de seguridad en la nube · Fase D · esfuerzo L
+- **Decisión (me la dejaste a mí, 2026-10-30): R2 como destino, con KV como respaldo automático.** R2 es lo correcto para archivos (10 GB gratis, sin cargos de salida), pero Cloudflare pide una tarjeta para activarlo. Por eso el Worker funciona **sin R2 desde el primer día**: si no hay R2 enlazado, guarda copias pequeñas (ajustes, me gusta, listas, hasta ~20 MB) en KV; cuando enlaces R2, las copias grandes (con historial) se activan solas. Nada cambia en la app.
 - **Worker**: `PUT/GET /v1/backup/<id>` con R2 (o KV si es pequeño). El `<id>` sale del código de sincronización (hash distinto al del grupo de sync).
 - **Cifrado en el móvil**: la app cifra el ZIP con una clave derivada del código; **el Worker solo ve bytes cifrados**.
 - **Contenido** (heredado de `DRIVE_BACKUP_PLAN.md`): ZIP **sin secretos** (sin cookie de YouTube ni tokens), **sin licencia**, base de datos con `VACUUM INTO`.
@@ -126,14 +128,20 @@ Cada fase termina en rama, con tests verdes en CI y filas en el registro. **Ning
 - R2 (función 5) necesita activarse en tu cuenta de Cloudflare.
 - Cada función incluye su **medida de coste** en el registro: peticiones por usuario y día.
 
-## 5. Preguntas para ti (las que cambian lo que construyo)
-1. **¿Dónde alojamos la URL por defecto?** (ver cimientos): ¿la dejo en blanco y la pones tú en Ajustes mientras pruebas?
-2. **¿Cómo quieres que te avise el vigilante de YouTube** (función 2)? Opciones simples: Telegram, ntfy (app gratuita) o correo.
-3. **¿Activas R2** en Cloudflare para las copias (función 5)? Si no, la copia queda limitada a datos pequeños (ajustes, me gusta y listas).
-4. **«Escuchar juntos» propio (función 6):** ¿interoperable con el protocolo actual (más trabajo) o solo entre usuarios de Aura (más simple)?
-5. **¿Empiezo por la Fase A y B** cuando termine la beta 3?
+## 5. Decisiones del dueño y lo que sigue
+**Contestadas (2026-10-30):**
+1. Vigilante de YouTube → **correo al buzón de Aura** (función 2).
+2. Copias → **R2 con respaldo en KV** (función 5; decido yo, ver arriba).
 
-## 6. Qué NO cubre este plan (a propósito)
-- Cualquier cambio en `license/` o en su Worker.
+**Siguen abiertas (no bloquean la Fase A):**
+1. **URL por defecto** del Worker para las funciones de todos los usuarios: ¿en blanco y la pones tú en Ajustes mientras pruebas?
+2. **Escuchar juntos propio (función 6):** ¿compatible con el protocolo actual (más trabajo) o solo entre usuarios de Aura (más simple)?
+3. ¿Empiezo por las fases A y B cuando termine la beta 3?
+
+## 6. Licencia en varios equipos (fuera de las 9, pedido el 2026-10-30)
+Hecho en la rama como fila 530 (ver el registro). Es **el único cambio en `license/` y en su Worker**, pedido expresamente por el dueño; sigue sin tocarse el modo demo, la clave maestra ni el periodo de gracia.
+
+## 7. Qué NO cubre este plan (a propósito)
+- Cualquier OTRO cambio en `license/` o en su Worker.
 - Publicar `player_configs.json` o ninguna versión: eso sigue siendo orden tuya en ese momento.
 - Registrar lo que escucha cada usuario: ninguna función lo necesita.

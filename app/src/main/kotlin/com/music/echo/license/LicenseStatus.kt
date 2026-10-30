@@ -6,7 +6,13 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /** Result of a license check performed by the backend Worker. */
-enum class LicenseStatus { ACTIVE, ENDED, INVALID_KEY, DEVICE_MISMATCH, NETWORK_ERROR }
+enum class LicenseStatus {
+    ACTIVE, ENDED, INVALID_KEY, DEVICE_MISMATCH, NETWORK_ERROR,
+
+    /** The email typed in the app is not the one that bought the license (row 530). Only a Worker that knows about
+     *  emails answers this, and only to a request that carried one. */
+    EMAIL_MISMATCH,
+}
 
 /** Pure parser of the Worker's `{ "status": "..." }` JSON. Unit-testable with plain JUnit. */
 object LicenseStatusParser {
@@ -19,6 +25,7 @@ object LicenseStatusParser {
                 "active" -> LicenseStatus.ACTIVE
                 "ended" -> LicenseStatus.ENDED
                 "device_mismatch" -> LicenseStatus.DEVICE_MISMATCH
+                "email_mismatch" -> LicenseStatus.EMAIL_MISMATCH
                 "invalid" -> LicenseStatus.INVALID_KEY
                 else -> LicenseStatus.NETWORK_ERROR
             }

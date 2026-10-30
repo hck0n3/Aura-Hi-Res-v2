@@ -43,6 +43,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v7
 
+      # Worker de licencia (fila 530): JS puro, sin dependencias; corre en segundos y falla antes que Gradle.
+      - name: Worker license tests
+        run: node --test docs/worker/license-test/license.test.mjs
+
       - name: Set up JDK 21
         uses: actions/setup-java@v6
         with:

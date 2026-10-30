@@ -37,7 +37,11 @@ fun LicenseGate(appContent: @Composable () -> Unit) {
     LaunchedEffect(Unit) { refresh() }
 
     if (showEntry) {
-        SubscriptionEntryScreen(onActivated = { refresh() }, onBack = { showEntry = false })
+        SubscriptionEntryScreen(
+            onActivated = { refresh() },
+            onBack = { showEntry = false },
+            initialKey = LicenseManager.storedKey(context).orEmpty(),
+        )
         return
     }
 
@@ -64,6 +68,6 @@ fun LicenseGate(appContent: @Composable () -> Unit) {
         )
         AppState.SUBSCRIPTION_EXPIRED -> RenewScreen(onActivated = { refresh() })
         AppState.NEEDS_CONNECTION -> NeedsConnectionScreen(onRetry = { refresh() })
-        AppState.DEVICE_BLOCKED -> DeviceBlockedScreen(onRetry = { refresh() })
+        AppState.DEVICE_BLOCKED -> DeviceBlockedScreen(onRetry = { refresh() }, onEnterEmail = { showEntry = true })
     }
 }

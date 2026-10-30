@@ -17,17 +17,22 @@ import kotlinx.serialization.json.put
 
 /**
  * Talks to the Aura Hi-Res Player license Worker, which verifies the Gumroad subscription and enforces one
- * device per key. Any network/parse failure maps to [LicenseStatus.NETWORK_ERROR] so the caller can
+ * device per key (or several, when the purchase email is sent along). Any network/parse failure maps to [LicenseStatus.NETWORK_ERROR] so the caller can
  * fall back to the offline grace window.
  */
 class LicenseBackendClient(
     private val http: HttpClient = HttpClient(OkHttp),
 ) {
-    suspend fun verify(licenseKey: String, deviceId: String): LicenseStatus =
+    /**
+     * [email] is the purchase email, optional: with it (and when it matches the one on the Gumroad purchase) the Worker lets
+     * the same key run on up to its device limit; without it the key keeps working on ONE device, exactly as before.
+     */
+    suspend fun verify(licenseKey: String, deviceId: String, email: String? = null): LicenseStatus =
         try {
             val payload = buildJsonObject {
                 put("license_key", licenseKey)
                 put("device_id", deviceId)
+                if (!email.isNullOrBlank()) put("email", email.trim())
             }.toString()
             val body = http.post(VERIFY_URL) {
                 setBody(TextContent(payload, ContentType.Application.Json))

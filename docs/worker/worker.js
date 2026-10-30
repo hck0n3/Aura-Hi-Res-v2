@@ -3,6 +3,10 @@
 // AÑADIDO: binding Workers AI "AI" para la ruta /ai (AI Playlists sin clave).
 const GUMROAD_VERIFY = "https://api.gumroad.com/v2/licenses/verify";
 const INACTIVITY_MS = 2 * 24 * 60 * 60 * 1000; // auto-release after 2 days idle
+// Varios equipos con el MISMO correo de la compra (pedido del dueño 2026-10-30, fila 530). Solo cuenta cuando la app manda
+// `email` y coincide con el de Gumroad; sin correo todo sigue como antes (UN equipo por clave). Se cambia con la variable
+// MAX_DEVICES del Worker, sin tocar la app.
+const DEFAULT_MAX_DEVICES = 3;
 // Lista de modelos en orden de CALIDAD, no de disponibilidad a secas (reporte del dueño
 // 2026-09-04: "la IA crea las playlists más RÁPIDO pero NADA QUE VER con lo que pido").
 // Probes en vivo con el payload exacto de la app: cuando el 70B intermite (capacidad de
@@ -63,18 +67,22 @@ export default {
     if (masterKeys.includes(licenseKey)) return json({ status: "active" });
 
     const gum = await verifyGumroad(env.PRODUCT_ID, licenseKey);
-    if (gum === "invalid") return json({ status: "invalid" });
-    if (gum === "ended") return json({ status: "ended" });
-    if (gum === "error") return json({ status: "error" });
+    if (gum.status === "invalid") return json({ status: "invalid" });
+    if (gum.status === "ended") return json({ status: "ended" });
+    if (gum.status === "error") return json({ status: "error" });
+
+    // Correo opcional: lo manda la app nueva cuando el usuario lo escribe. Se COMPARA con el de la compra y no se guarda.
+    const sentEmail = normalizeEmail(body && body.email);
+    const emailOk = sentEmail !== "" && sentEmail === normalizeEmail(gum.email);
+    if (sentEmail !== "" && !emailOk) return json({ status: "email_mismatch" });
 
     try {
       const now = Date.now();
       const raw = await env.LICENSES.get(licenseKey);
-      const binding = raw ? JSON.parse(raw) : null;
-      const owned = !binding || binding.device_id === deviceId;
-      const released = binding && now - binding.last_seen > INACTIVITY_MS;
-      if (owned || released) {
-        await env.LICENSES.put(licenseKey, JSON.stringify({ device_id: deviceId, last_seen: now }));
+      const maxDevices = parseMaxDevices(env.MAX_DEVICES);
+      const decision = decideBinding(parseBinding(raw), deviceId, now, emailOk ? maxDevices : 1);
+      if (decision.allowed) {
+        await env.LICENSES.put(licenseKey, JSON.stringify(decision.binding));
         return json({ status: "active" });
       }
       return json({ status: "device_mismatch" });
@@ -83,6 +91,42 @@ export default {
     }
   },
 };
+
+function normalizeEmail(v) {
+  return typeof v === "string" ? v.trim().toLowerCase() : "";
+}
+
+function parseMaxDevices(v) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n >= 1 && n <= 10 ? n : DEFAULT_MAX_DEVICES;
+}
+
+// El registro de una clave en KV. Formato antiguo: {device_id, last_seen}. Formato nuevo: {devices:[{id,last_seen}]} y
+// ADEMÁS device_id/last_seen del equipo más reciente, para que un Worker antiguo (si algún día se vuelve atrás) siga
+// entendiéndolo: ese equipo seguiría entrando y los demás esperarían a que pasen los 2 días de inactividad.
+function parseBinding(raw) {
+  if (!raw) return [];
+  try {
+    const b = JSON.parse(raw);
+    if (Array.isArray(b.devices)) {
+      return b.devices.filter((d) => d && d.id && Number.isFinite(d.last_seen));
+    }
+    if (b.device_id && Number.isFinite(b.last_seen)) return [{ id: b.device_id, last_seen: b.last_seen }];
+  } catch (e) { /* registro ilegible: se trata como vacío */ }
+  return [];
+}
+
+// Pura (se prueba sola). Con limit = 1 es EXACTAMENTE la regla de siempre: entra el equipo que ya estaba, o cualquiera si
+// el anterior lleva más de 2 días sin conectarse. Con limit > 1 caben hasta `limit` equipos activos a la vez.
+function decideBinding(devices, deviceId, now, limit) {
+  const live = devices.filter((d) => d.id === deviceId || now - d.last_seen <= INACTIVITY_MS);
+  const mine = live.find((d) => d.id === deviceId);
+  if (!mine && live.length >= limit) return { allowed: false };
+  const next = live.filter((d) => d.id !== deviceId);
+  next.push({ id: deviceId, last_seen: now });
+  // Los equipos inactivos se sueltan; los activos se conservan (un equipo que entra SIN correo no echa a los demás).
+  return { allowed: true, binding: { devices: next.slice(-10), device_id: deviceId, last_seen: now } };
+}
 
 async function handleAi(request, env) {
   // Rate limit por IP y día: clave KV `ai:<ip>:<yyyymmdd>` (no colisiona con licencias/demo).
@@ -173,7 +217,7 @@ async function verifyGumroad(productId, licenseKey) {
       body: form.toString(),
     });
     const data = await res.json();
-    if (!data || data.success !== true) return "invalid";
+    if (!data || data.success !== true) return { status: "invalid" };
     const p = data.purchase || {};
 
     // Access follows the PAID period, automatically:
@@ -187,8 +231,11 @@ async function verifyGumroad(productId, licenseKey) {
       return Number.isFinite(ms) ? ms <= now : true;
     };
     const ended = isPast(p.subscription_ended_at) || isPast(p.subscription_failed_at);
-    return ended ? "ended" : "active";
+    return { status: ended ? "ended" : "active", email: p.email };
   } catch (e) {
-    return "error";
+    return { status: "error" };
   }
 }
+
+// Para las pruebas (docs/worker/test). Cloudflare solo usa el export por defecto.
+export { decideBinding, parseBinding, normalizeEmail, parseMaxDevices };

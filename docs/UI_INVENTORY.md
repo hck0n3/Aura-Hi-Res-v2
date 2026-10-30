@@ -4229,3 +4229,5 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Portadas animadas de álbumes y canciones | Una sola búsqueda por álbum para todas sus canciones (guardada 7 días); en la página del álbum se mueven sin pulsar play | 523 |
 | Ajustes ▸ «Sincronizar dispositivos» (`settings/device_sync`, también en Ajustes clásicos y en el buscador de ajustes) | Estado, servidor (tu Worker), código de emparejamiento (crear / escribir / copiar / desemparejar), nombre del dispositivo, interruptores de aleatorio y de continuar en otro dispositivo, lista de dispositivos | 528 |
 | Reproductor ▸ botón «Mis dispositivos» (fila de accesos rápidos) | Ventana con tus otros dispositivos: reproducir aquí lo que suena en otro, play/pausa/siguiente remotos y enviar lo mío a otro | 528 |
+| Activar suscripción ▸ campo «Correo de la compra (opcional)» | Con el correo de la compra la misma licencia funciona en hasta 3 equipos; sin él, un equipo como siempre | 530 |
+| Pantalla «Suscripción en otro equipo» | Nuevo botón «Escribir el correo de la compra» (abre la pantalla de activar con la clave ya puesta); «Reintentar» pasa a secundario | 530 |

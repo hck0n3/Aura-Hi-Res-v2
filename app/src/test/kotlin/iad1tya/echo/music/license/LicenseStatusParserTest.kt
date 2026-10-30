@@ -31,4 +31,11 @@ class LicenseStatusParserTest {
     @Test fun garbageBodyIsNetworkError() {
         assertEquals(LicenseStatus.NETWORK_ERROR, LicenseStatusParser.parse("<html>502</html>"))
     }
+
+    @Test fun emailMismatch() {
+        assertEquals(
+            LicenseStatus.EMAIL_MISMATCH,
+            LicenseStatusParser.parse("""{"status":"email_mismatch"}"""),
+        )
+    }
 }
