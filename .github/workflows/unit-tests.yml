@@ -51,6 +51,10 @@ jobs:
       - name: Worker edge tests
         run: cd docs/worker/edge && npm install --no-audit --no-fund --silent && npm test
 
+      # Worker de salas (fila 547): Escuchar juntos propio, sobre workerd real.
+      - name: Worker rooms tests
+        run: cd docs/worker/rooms && npm install --no-audit --no-fund --silent && npm test
+
       - name: Set up JDK 21
         uses: actions/setup-java@v6
         with:
