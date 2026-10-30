@@ -172,12 +172,27 @@ export async function watchYoutube(env, doFetch = fetch, notify = sendAlert) {
 
 /**
  * Sends the watcher's alert. Two ways, first that is configured wins:
+ *  - Telegram (`TELEGRAM_TOKEN` + `TELEGRAM_CHAT` secrets): a bot the owner creates with @BotFather; no domain, no shared rate limit.
  *  - Cloudflare Email Routing (`ALERT` binding + `ALERT_FROM`): needs a domain on the account.
  *  - ntfy.sh (`NTFY_TOPIC` secret): no domain needed; ntfy forwards the message to [ALERT_TO] by e-mail. The topic is the secret, so
  *    make it long and random. The message carries no user data (only the old and new player ids of YouTube).
  */
 export async function sendAlert(env, subject, text, doFetch = fetch, info = {}) {
   const to = env.ALERT_TO || "aurahires@gmail.com";
+  if (env.TELEGRAM_TOKEN && env.TELEGRAM_CHAT) {
+    try {
+      const res = await doFetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT, text: `${subject}\n\n${text}` }),
+      });
+      info.telegramStatus = res.status;
+      return res.ok;
+    } catch {
+      info.telegramStatus = "network-error";
+      return false;
+    }
+  }
   if (env.ALERT && env.ALERT_FROM) {
     try {
       const { EmailMessage } = await import("cloudflare:email");
@@ -218,7 +233,7 @@ export default {
         if (!isAdmin(req, env)) return json({ error: "forbidden" }, 403);
         const info = {};
         const sent = await sendAlert(env, "Aviso de prueba de Aura", "Si lees esto, los avisos del vigilante de YouTube llegan.", fetch, info);
-        return json({ sent, ntfyTopicSet: !!env.NTFY_TOPIC, emailBindingSet: !!(env.ALERT && env.ALERT_FROM), ...info });
+        return json({ sent, telegramSet: !!(env.TELEGRAM_TOKEN && env.TELEGRAM_CHAT), ntfyTopicSet: !!env.NTFY_TOPIC, emailBindingSet: !!(env.ALERT && env.ALERT_FROM), ...info });
       }
       if (req.method === "PUT" && p === "/v1/admin/config") return await handleAdminConfig(req, env);
       if (req.method === "POST" && p === "/v1/diag") return await handleDiagPost(req, env);

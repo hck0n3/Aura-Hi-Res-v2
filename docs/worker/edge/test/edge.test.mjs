@@ -126,5 +126,17 @@ test("alert through ntfy: topic in the URL, e-mail header, ASCII title; nothing 
 test("the test-alert route is admin only", async () => {
   assert.equal((await mf.dispatchFetch("http://x/v1/admin/test-alert", { method: "POST" })).status, 403);
   const r = await mf.dispatchFetch("http://x/v1/admin/test-alert", { method: "POST", headers: { authorization: "Bearer " + ADMIN } });
-  assert.deepEqual(await r.json(), { sent: false, ntfyTopicSet: false, emailBindingSet: false });
+  assert.deepEqual(await r.json(), { sent: false, telegramSet: false, ntfyTopicSet: false, emailBindingSet: false });
+});
+
+test("alert through Telegram: bot URL, chat id, text; it wins over ntfy", async () => {
+  let seen;
+  const fakeFetch = async (url, init) => { seen = { url, body: JSON.parse(init.body) }; return { ok: true, status: 200 }; };
+  const info = {};
+  assert.equal(await sendAlert({ TELEGRAM_TOKEN: "123:abc", TELEGRAM_CHAT: "42", NTFY_TOPIC: "t" }, "Asunto", "Cuerpo", fakeFetch, info), true);
+  assert.equal(seen.url, "https://api.telegram.org/bot123:abc/sendMessage");
+  assert.equal(seen.body.chat_id, "42");
+  assert.match(seen.body.text, /Asunto/);
+  assert.equal(info.telegramStatus, 200);
+  assert.equal(await sendAlert({ TELEGRAM_TOKEN: "x", TELEGRAM_CHAT: "1" }, "s", "b", async () => ({ ok: false, status: 401 })), false);
 });

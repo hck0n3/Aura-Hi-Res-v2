@@ -32,7 +32,10 @@ curl -X PUT https://TU-WORKER/v1/admin/config -H "Authorization: Bearer $ADMIN_T
 ```
 Flags válidos: `cola_inteligente, portadas_animadas, pedir_musica, letras, sync_dispositivos, sync_biblioteca, radar_lanzamientos, copia_nube`. **La reproducción y la licencia no tienen flag.**
 
-## Correo del vigilante
+## Aviso del vigilante por Telegram (recomendado)
+Crea un bot con `@BotFather` (`/newbot`), escríbele un mensaje, y guarda `TELEGRAM_TOKEN` y `TELEGRAM_CHAT` (tu id de chat) con `npx wrangler secret put`. `POST /v1/admin/test-alert` debe responder `"sent":true` y llegarte el mensaje al móvil.
+
+## Correo del vigilante (alternativas)
 Sin dominio (lo normal): **ntfy.sh**. `npx wrangler secret put NTFY_TOPIC` con una cadena larga y aleatoria (el tema ES el secreto) y vuelve a desplegar; ntfy reenvía el aviso por correo a `aurahires@gmail.com`. Para comprobarlo: `curl.exe -X POST https://TU-WORKER/v1/admin/test-alert -H "Authorization: Bearer $t"` debe responder `{"sent":true}` y llegar un correo. Con dominio propio, la alternativa es Cloudflare Email Routing (`[[send_email]]` y `ALERT_FROM` en `wrangler.toml`). Sin ninguna de las dos el cambio queda pendiente y se reintenta (no se pierde).
 
 ## Clave pública
