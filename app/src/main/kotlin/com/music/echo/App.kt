@@ -142,6 +142,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // PackageManager query, on the path to the first frame, for the sake of one log line. On a slow phone that is
         // tens of milliseconds of a frozen splash; the line only moves a few ms later in app.log.
         applicationScope.launch(Dispatchers.IO) { logBootDiagnostics() }
+        // Phase A of the Worker plan: install the last good signed config, refresh it at most every 6 h. With no address set
+        // (the default) this contacts nothing.
+        applicationScope.launch(Dispatchers.IO) { runCatching { iad1tya.echo.music.edge.EdgeClient.start(this@App) } }
 
         // NOTE: do NOT add a destructive deleteDatabase("song.db") on startup. The Room schema has
         // complete migration coverage (see MusicDatabase), so wiping the DB only erases the user's

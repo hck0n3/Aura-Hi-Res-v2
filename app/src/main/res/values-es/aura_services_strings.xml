@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aura_services_title">Servicios Aura</string>
+    <string name="aura_services_intro">Extras opcionales que da el servidor propio de Aura: interruptores remotos, avisos y diagnóstico con un toque. Todo está apagado hasta que haya una dirección y puedes apagarlo cuando quieras.</string>
+    <string name="aura_services_enable">Usar los servicios Aura</string>
+    <string name="aura_services_enable_desc">Interruptor general. Apagado = la app nunca contacta con el servidor.</string>
+    <string name="aura_services_address">Dirección del servidor</string>
+    <string name="aura_services_address_none">Sin definir (servicios apagados)</string>
+    <string name="aura_services_address_help">La dirección del Worker «edge» de Aura. Déjala en blanco para mantener los servicios apagados.</string>
+    <string name="aura_services_key">Clave de verificación</string>
+    <string name="aura_services_key_set">Definida</string>
+    <string name="aura_services_key_none">Sin definir (no se confía en nada de lo que diga el servidor)</string>
+    <string name="aura_services_key_help">Clave pública que demuestra que un mensaje viene de verdad del servidor de Aura.</string>
+    <string name="aura_services_status">Estado</string>
+    <string name="aura_services_state_off">Apagado</string>
+    <string name="aura_services_state_no_address">Esperando la dirección del servidor</string>
+    <string name="aura_services_state_no_key">Esperando la clave de verificación</string>
+    <string name="aura_services_state_never">Aún sin comprobar</string>
+    <string name="aura_services_state_ok">Conectado y verificado</string>
+    <string name="aura_services_state_failed">No se pudo comprobar (la app sigue funcionando igual)</string>
+    <string name="aura_services_check_now">Comprobar ahora</string>
+    <string name="aura_services_notice">Aviso de Aura</string>
+    <string name="aura_services_notice_dismiss">Descartar</string>
+    <string name="aura_services_diag_send">Enviar registro</string>
+    <string name="aura_services_diag_desc">Sube el mismo registro que compartirías a mano y te da un código corto para pasarlo. Solo cuando lo pulsas.</string>
+    <string name="aura_services_diag_done">Registro enviado. Tu código: %1$s (se guarda 7 días)</string>
+    <string name="aura_services_diag_failed">No se pudo enviar el registro</string>
+    <string name="aura_services_diag_no_address">Primero define la dirección del servidor en Ajustes ▸ Servicios Aura</string>
+</resources>

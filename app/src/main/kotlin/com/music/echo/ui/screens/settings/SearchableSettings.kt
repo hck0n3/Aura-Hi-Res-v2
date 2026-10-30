@@ -498,6 +498,8 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.device_sync_handoff), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_code), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_server), "Sincronizar dispositivos", "settings/device_sync"),
+            Triple(stringResource(R.string.aura_services_title), "Servicios Aura", "settings/aura_services"),
+            Triple(stringResource(R.string.aura_services_diag_send), "Servicios Aura", "settings/aura_services"),
             // --- Listen Together (settings/integrations/listen_together) : 31 ---
             Triple(stringResource(R.string.listen_together_username), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_blocked_users), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),

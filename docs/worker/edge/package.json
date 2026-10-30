@@ -1,0 +1,14 @@
+{
+  "name": "aura-edge-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/edge.test.mjs",
+    "keygen": "node scripts/keygen.mjs",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "miniflare": "^3.20241106.0",
+    "wrangler": "^3.90.0"
+  }
+}

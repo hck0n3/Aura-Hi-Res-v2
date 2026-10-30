@@ -454,6 +454,11 @@ private fun SettingDialogeBody(
                     onClick = { onNavigate("settings/device_sync") },
                 ),
                 Material3SettingsItem(
+                    title = { Text(stringResource(R.string.aura_services_title)) },
+                    icon = painterResource(R.drawable.cloud),
+                    onClick = { onNavigate("settings/aura_services") },
+                ),
+                Material3SettingsItem(
                     title = { Text(stringResource(R.string.feedback_title)) },
                     description = {
                         Text(

@@ -1,0 +1,24 @@
+# Aura Hi-Res — «edge» Worker: remote switches + notices (1), YouTube watcher (2), one-tap diagnostics (8).
+# Separate from the license Worker and from aura-sync: it never touches licences and holds no user account.
+name = "aura-edge"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# wrangler kv namespace create EDGE   → paste the id here
+[[kv_namespaces]]
+binding = "EDGE"
+id = "REPLACE_WITH_KV_ID"
+
+# Every 30 minutes: has YouTube changed its player?
+[triggers]
+crons = ["*/30 * * * *"]
+
+# Secrets (wrangler secret put …):
+#   SIGNING_KEY  PKCS8 private key printed by `npm run keygen`
+#   ADMIN_TOKEN  a long random string only you know
+# Optional email alert (verify the address once in Cloudflare ▸ Email Routing, then uncomment):
+# [[send_email]]
+# name = "ALERT"
+# destination_address = "aurahires@gmail.com"
+# [vars]
+# ALERT_FROM = "watcher@YOUR-DOMAIN"

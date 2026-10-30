@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aura_services_title">Aura services</string>
+    <string name="aura_services_intro">Optional extras served by Aura\'s own server: remote switches, notices and one-tap diagnostics. Everything here is off until an address is set, and you can switch it off at any time.</string>
+    <string name="aura_services_enable">Use Aura services</string>
+    <string name="aura_services_enable_desc">Master switch. Off = the app never contacts the server.</string>
+    <string name="aura_services_address">Server address</string>
+    <string name="aura_services_address_none">Not set (services off)</string>
+    <string name="aura_services_address_help">The address of Aura\'s edge Worker. Leave blank to keep the services off.</string>
+    <string name="aura_services_key">Verification key</string>
+    <string name="aura_services_key_set">Set</string>
+    <string name="aura_services_key_none">Not set (nothing the server says is trusted)</string>
+    <string name="aura_services_key_help">Public key that proves a message really comes from Aura\'s server.</string>
+    <string name="aura_services_status">Status</string>
+    <string name="aura_services_state_off">Off</string>
+    <string name="aura_services_state_no_address">Waiting for a server address</string>
+    <string name="aura_services_state_no_key">Waiting for the verification key</string>
+    <string name="aura_services_state_never">Not checked yet</string>
+    <string name="aura_services_state_ok">Connected and verified</string>
+    <string name="aura_services_state_failed">Could not check (the app keeps working as usual)</string>
+    <string name="aura_services_check_now">Check now</string>
+    <string name="aura_services_notice">Notice from Aura</string>
+    <string name="aura_services_notice_dismiss">Dismiss</string>
+    <string name="aura_services_diag_send">Send log</string>
+    <string name="aura_services_diag_desc">Uploads the same log you would share by hand and gives you a short code to hand over. Only when you press it.</string>
+    <string name="aura_services_diag_done">Log sent. Your code: %1$s (kept 7 days)</string>
+    <string name="aura_services_diag_failed">Could not send the log</string>
+    <string name="aura_services_diag_no_address">Set the server address in Settings ▸ Aura services first</string>
+</resources>
