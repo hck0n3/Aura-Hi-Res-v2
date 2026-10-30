@@ -63,7 +63,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
@@ -212,39 +211,37 @@ private val OPAQUE_DARK_COVER_INSET = 8.dp
  */
 private val TIDAL_COVER_SIDE_PADDING = 24.dp
 
-/** Elevation of the artwork card on an [ThumbnailHost.OPAQUE_DARK] host. */
-private val OPAQUE_DARK_COVER_ELEVATION = 16.dp
-
 /**
- * Row 521 (owner 2026-10-29: «las portadas cuando estoy reproduciendo algo quiero que tengan una especie de sombreado que a la
- * vista parezca que están adelante de la interfaz»). The platform elevation above is a thin black shadow that disappears on
- * this dark ground, so the cover looked pasted on. This is a thin, soft, layered shadow drawn BEHIND the cover — a few rounded
- * rectangles, each a little bigger than the last, a little darker where they pile up — dropped [COVER_SHADOW_DROP] below it, so
- * the ground darkens around the cover and the cover reads as lifted in front of it. Plain draw calls, no blur or render effect
- * (nothing is sampled per frame: the layer is drawn once and cached with the cover).
+ * Row 521 → 532 (owner 2026-10-29/30). The cover must read as lifted in front of the ground, but a BLACK shadow cannot show on this
+ * near-black ground (#060A12) and the stacked-rectangle version banded and looked ugly. The owner picked option **F** from a
+ * side-by-side of six (2026-10-30): three smooth, GPU-drawn parts, no stacked layers, no blur or render effect:
+ *  · a LIGHT RIM — a 1 dp stroke brighter at the top-left and fading to nearly nothing at the bottom-right, so the edge exists on a
+ *    dark cover too;
+ *  · a SHORT soft shadow just below the cover ([COVER_LIFT_ELEVATION]);
+ *  · a soft GLOW in the cover's own colour ([COVER_GLOW_ELEVATION], tinted with the colour [AuraBloomCache] already extracted for
+ *    the ambient wash — no extra decode). Until that colour exists, or on API < 28 where the platform ignores shadow colours, only
+ *    the rim and the short shadow show.
+ * Platform shadows are drawn once with the cover; nothing is sampled per frame (AGENTS rule 7).
  */
-// Row 521b (owner 2026-10-30: «muy pronunciada… apenas que se viera en las orillas, más minimalista, más pro»): the first take
-// (9 layers, 5 dp spread, 20 dp drop, 0.085 alpha) darkened a 22 dp halo. Now a hairline that only shows at the cover's edges:
-// 5 layers growing 1 dp each (≈5 dp at most), 3 dp drop, 0.05 alpha → about 23 % black right at the edge, fading to nothing.
-private val COVER_SHADOW_SPREAD = 2.dp
-private val COVER_SHADOW_DROP = 3.dp
-private const val COVER_SHADOW_LAYERS = 5
-private const val COVER_SHADOW_LAYER_ALPHA = 0.05f
+private val COVER_LIFT_ELEVATION = 6.dp
+private val COVER_GLOW_ELEVATION = 24.dp
+private const val COVER_GLOW_ALPHA = 0.55f
+private val COVER_RIM_BRUSH = androidx.compose.ui.graphics.Brush.linearGradient(
+    listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.06f)),
+)
 
-private fun Modifier.coverDropShadow(cornerRadius: androidx.compose.ui.unit.Dp): Modifier = drawBehind {
-    val spreadPx = COVER_SHADOW_SPREAD.toPx()
-    val dropPx = COVER_SHADOW_DROP.toPx()
-    val radiusPx = cornerRadius.toPx()
-    for (layer in COVER_SHADOW_LAYERS downTo 1) {
-        val grow = layer * spreadPx / 2f
-        drawRoundRect(
-            color = Color.Black.copy(alpha = COVER_SHADOW_LAYER_ALPHA),
-            topLeft = Offset(-grow, -grow * 0.4f + dropPx),
-            size = androidx.compose.ui.geometry.Size(size.width + 2f * grow, size.height + 2f * grow),
-            cornerRadius = CornerRadius(radiusPx + grow),
+private fun Modifier.coverLift(shape: androidx.compose.ui.graphics.Shape, glow: Color?): Modifier =
+    this
+        .then(
+            if (glow != null) {
+                Modifier.shadow(
+                    COVER_GLOW_ELEVATION, shape, clip = false,
+                    ambientColor = glow.copy(alpha = COVER_GLOW_ALPHA), spotColor = glow.copy(alpha = COVER_GLOW_ALPHA),
+                )
+            } else Modifier
         )
-    }
-}
+        .shadow(COVER_LIFT_ELEVATION, shape, clip = false)
+        .border(1.dp, COVER_RIM_BRUSH, shape)
 
 /**
  * Scale the artwork of an [ThumbnailHost.OPAQUE_DARK] host starts from when the track changes, before it
@@ -930,7 +927,8 @@ private fun ThumbnailItem(
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val isCurrentItem = item.mediaId == currentMediaId
     val isOpaqueDark = host == ThumbnailHost.OPAQUE_DARK
-    val useCardChrome = isOpaqueDark && !appleMusicCoverStyle
+    // The colour the ambient wash already extracted for this cover (snapshot-aware: appears when the extraction lands).
+    val coverGlow = if (isOpaqueDark) iad1tya.echo.music.ui.newui.AuraBloomCache.accentSeed(item.mediaId) else null
     
     // HALLAZGO-059: the old code created an InfiniteTransition for EVERY ThumbnailItem
     // unconditionally; with rotation off (the default) each carousel item still ticked the
@@ -1098,15 +1096,8 @@ private fun ThumbnailItem(
                 // ("Radio de las esquinas de la portada", presets 0/8/16/24/32/40 → doubled), and
                 // overriding it here would make that control dead in the new player.
                 .then(
-                    if (useCardChrome) {
-                        Modifier
-                            .coverDropShadow(dimensions.cornerRadius)
-                            .shadow(OPAQUE_DARK_COVER_ELEVATION, coverShape, clip = false)
-                            .border(1.dp, Color.White.copy(alpha = 0.07f), coverShape)
-                    } else if (isOpaqueDark) {
-                        // «Inspirado en Apple Music»: no card chrome, but the same lift off the ground.
-                        Modifier.coverDropShadow(dimensions.cornerRadius)
-                    } else Modifier
+                    // Row 532 (option F): the same lift for the card style and for «Inspirado en Apple Music».
+                    if (isOpaqueDark) Modifier.coverLift(coverShape, coverGlow) else Modifier
                 )
                 .clip(coverShape)
                 .graphicsLayer {
