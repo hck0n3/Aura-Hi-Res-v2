@@ -250,6 +250,16 @@ object ContextLane {
         val extra: Boolean get() = language != null || families.isNotEmpty()
     }
 
+    /**
+     * Row 527: the family that leads [known] (the families of a batch's known songs, in batch order) when there are at least
+     * [minKnown] of them and one holds [share] of them; otherwise none. Pure.
+     */
+    fun consensusFamilies(known: List<String>, minKnown: Int, share: Double): Set<String> {
+        if (known.size < minKnown) return emptySet()
+        val top = known.groupingBy { it }.eachCount().maxByOrNull { it.value } ?: return emptySet()
+        return if (top.value.toDouble() / known.size >= share) setOf(top.key) else emptySet()
+    }
+
     /** One candidate as the lane sees it: the style verdict plus language, family and faith evidence. */
     data class Candidate(
         val verdict: StyleContinuity.Verdict,

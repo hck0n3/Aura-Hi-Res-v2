@@ -136,6 +136,11 @@ private const val QUICK_SKIP_MS = 30_000L
 /** A style skipped this many times (and never listened through) in a queue is out for that queue. */
 private const val STYLE_SKIPS_TO_REJECT = 2
 
+// Row 527: how much of the batch's head is read for a family when the context names none, and how clear the lead must be.
+private const val CONSENSUS_WINDOW = 15
+private const val CONSENSUS_MIN_KNOWN = 4
+private const val CONSENSUS_SHARE = 0.6
+
 private class TrackText(val id: String?, val primary: String?, val artists: List<String>, val text: String)
 
 private val ARTIST_SPLIT = Regex(",|;| & | feat\\.? | ft\\.? | x | con | y ", RegexOption.IGNORE_CASE)
@@ -352,7 +357,7 @@ internal suspend fun MusicService.exactStyleFilter(
     // (a cumbia included) is Spanish. The family fence now survives the first relaxation level (the families of the
     // styles and their neighbours), and the normal levels fence a context whose styles are known too, with what is
     // KNOWN of the candidate (its iTunes genre or Last.fm tags); a candidate nothing is known about stays eligible.
-    val families = when {
+    val baseFamilies = when {
         override != null -> emptySet<String>()
         languageOnly -> if (dropFamilies) emptySet() else {
             target.neighbourFamilies.ifEmpty { ContextLane.familyHint(null, trackFamilies) }
@@ -360,6 +365,25 @@ internal suspend fun MusicService.exactStyleFilter(
         requested != null -> emptySet<String>()
         else -> ContextLane.familyHint(target.styles, trackFamilies).ifEmpty { target.neighbourFamilies }
     }
+    // Row 527 (owner 2026-10-29: «después de la salsa me puso rap»): a Christian salsa album has NO style and NO family the
+    // tags can name (iTunes says «Christian & Gospel»), so the lane asked only for Spanish + faith and every Spanish Christian
+    // song — a rap included — was a match. When the context itself says nothing, what the queue's OWN first candidates
+    // say is the best hint left: if most of the batch's known songs belong to one family, that family leads. It only ever
+    // narrows (a candidate nothing is known about stays eligible) and never overrides what the context or the user decided.
+    fun consensusFamilies(batch: List<MediaItem>): Set<String> {
+        val known = batch.take(CONSENSUS_WINDOW).mapNotNull { mi ->
+            val t = mi.trackText()
+            familyFor(t, styleOf(t))
+        }
+        return ContextLane.consensusFamilies(known, CONSENSUS_MIN_KNOWN, CONSENSUS_SHARE)
+    }
+    val inferredFamilies = if (baseFamilies.isEmpty() && override == null && requested == null && !languageOnly &&
+        target.styles.isNullOrEmpty()
+    ) consensusFamilies(items) else emptySet()
+    if (inferredFamilies.isNotEmpty()) {
+        Timber.tag(TAG).i("STYLE_GATE %s: no style known — the batch's own family leads: families=%s", site, inferredFamilies.sorted().joinToString("+"))
+    }
+    val families = baseFamilies.ifEmpty { inferredFamilies }
     val lane = ContextLane.Lane(
         language = gateTarget.language,
         mixed = laneMixed && requested == null,
