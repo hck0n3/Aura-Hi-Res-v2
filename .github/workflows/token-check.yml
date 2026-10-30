@@ -21,13 +21,19 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           set +e
-          echo "--- draft release"
-          gh api -X POST "repos/$REPO/releases" -f tag_name=zz-token-check -f target_commitish="$SHA" \
-            -F draft=true -f name=token-check -i 2>&1 | sed -n '1p;/^{/,$p' | cut -c1-300
-          ID=$(gh api "repos/$REPO/releases" --jq '.[] | select(.tag_name=="zz-token-check") | .id' 2>/dev/null | head -1)
-          [ -n "$ID" ] && gh api -X DELETE "repos/$REPO/releases/$ID" && echo "draft deleted"
-          echo "--- throwaway tag"
-          gh api -X POST "repos/$REPO/git/refs" -f ref=refs/tags/zz-token-check -f sha="$SHA" 2>&1 | cut -c1-300
-          gh api -X DELETE "repos/$REPO/git/refs/tags/zz-token-check" 2>&1 | cut -c1-200
-          echo "--- repo workflow permission defaults"
-          gh api "repos/$REPO/actions/permissions/workflow" 2>&1 | cut -c1-300
+          # remove the draft the first check left behind
+          gh api -X DELETE "repos/$REPO/releases/429520271" 2>&1 | cut -c1-200 && echo "old draft removed"
+          for T in zz-token-check v2.0.67-beta7; do
+            echo "--- draft for $T at the beta 7 commit"
+            OUT=$(gh api -X POST "repos/$REPO/releases" -f tag_name=$T -f target_commitish=859b19c785808e0574a1d718acf55c19feb7083e \
+              -F draft=true -F prerelease=true -f name=token-check -f body="check" 2>&1)
+            echo "$OUT" | cut -c1-250
+            ID=$(echo "$OUT" | python3 -c 'import sys,json
+try: print(json.loads(sys.stdin.read().split("gh: ")[0]).get("id",""))
+except Exception: print("")')
+            [ -n "$ID" ] && gh api -X DELETE "repos/$REPO/releases/$ID" && echo "deleted draft $ID"
+          done
+          echo "--- existing releases (incl. drafts) mentioning beta7"
+          gh api "repos/$REPO/releases?per_page=10" --jq '.[] | "\(.id) \(.tag_name) draft=\(.draft) pre=\(.prerelease)"' 2>&1 | cut -c1-200
+          echo "--- tag refs"
+          gh api "repos/$REPO/git/matching-refs/tags/v2.0.67" --jq '.[].ref' 2>&1 | cut -c1-200
