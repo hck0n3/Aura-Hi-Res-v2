@@ -64,7 +64,7 @@ private const val SHEET_SUGGESTIONS = 20
 class LocalPlaylistViewModel
 @Inject
 constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     private val database: MusicDatabase,
     private val syncUtils: SyncUtils,
     savedStateHandle: SavedStateHandle,
@@ -201,6 +201,12 @@ constructor(
             .songsByCreateDateAsc()
             .map { it.asReversed().take(50) }
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    /** The playlist's songs as [iad1tya.echo.music.reco.SuggestionFit] reads them (row 526). Empty until the list has loaded. */
+    private fun playlistEntriesForFit(@Suppress("UNUSED_PARAMETER") songIds: List<String>): List<iad1tya.echo.music.reco.SuggestionFit.Entry> =
+        playlistSongs.value.map { ps ->
+            iad1tya.echo.music.reco.SuggestionFit.Entry(ps.song.song.title, ps.song.artists.map { it.name }, ps.song.album?.title)
+        }
 
     /** Larger suggested list (~20) for the Add-Music sheet; the footer's 5 are derived from this so the
      *  (network-touching) computation runs ONCE, not twice. */
@@ -699,6 +705,34 @@ constructor(
             ranked
         }
 
+        // Row 526 (owner 2026-10-29: «mejora las canciones sugeridas»): what plainly does not belong to the playlist — another
+        // style, another language, secular songs in a Christian list — goes behind everything that fits. Same ranking otherwise.
+        val fitProfile = runCatching {
+            val playlistEntries = playlistEntriesForFit(songIds)
+            iad1tya.echo.music.reco.SuggestionFit.profileOf(
+                playlistEntries,
+                iad1tya.echo.music.reco.GenreCache.snapshot(context),
+            )
+        }.getOrNull()
+        val fitted = if (fitProfile == null) ordered else iad1tya.echo.music.reco.SuggestionFit.order(fitProfile, ordered) { id ->
+            localById[id]?.let { song ->
+                iad1tya.echo.music.reco.SuggestionFit.Entry(song.song.title, song.artists.map { it.name }, song.album?.title)
+            } ?: onlineById[id]?.let { item ->
+                iad1tya.echo.music.reco.SuggestionFit.Entry(item.title, item.artists.map { it.name }, item.album?.name)
+            }
+        }
+        if (fitProfile != null && fitProfile.active) {
+            // Counts only (AGENTS.md rule 4).
+            timber.log.Timber.tag("SUGGEST").i(
+                "SUGGEST_FIT styles=%s lang=%s christian=%b moved=%d of %d",
+                fitProfile.target.styles?.sorted()?.joinToString("+") ?: "unknown",
+                fitProfile.target.language ?: "unknown",
+                fitProfile.target.christian,
+                fitted.indices.count { fitted[it] != ordered[it] },
+                ordered.size,
+            )
+        }
+
         // 5. Artist-diversity pass: greedy max 2 per primary artist; overflow appended at the tail.
         fun primaryArtist(id: String): String =
             localById[id]?.artists?.firstOrNull()?.id
@@ -707,7 +741,7 @@ constructor(
         val perArtist = HashMap<String, Int>()
         val head = ArrayList<String>()
         val overflow = ArrayList<String>()
-        for (id in ordered) {
+        for (id in fitted) {
             val key = primaryArtist(id)
             val n = perArtist[key] ?: 0
             if (n < 2) {
