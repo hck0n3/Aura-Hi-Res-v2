@@ -85,7 +85,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         DeviceSyncHub.controller = this
         loadPushedEpochs()
         val dislikeStore = iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(appContext)
-        library = LibrarySync(appContext, service.database, dislikeStore, dislikeStore.disliked, scope, { client.send(it) }, { libraryEnabled })
+        library = LibrarySyncAndroid.create(appContext, service.database, dislikeStore, dislikeStore.disliked, scope, { client.send(it) }, { libraryEnabled })
             .also { it.start() }
         scope.launch {
             client.state.collect {
@@ -162,8 +162,20 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     }
 
     private suspend fun ensureDeviceId(): String {
-        val existing = appContext.dataStore.data.first()[DeviceSyncDeviceIdKey]
-        if (!existing.isNullOrBlank()) return existing
+        val stored = appContext.dataStore.data.first()[DeviceSyncDeviceIdKey]
+        // Row 540: the id comes from this hardware. A stored id that is different was COPIED here (backup, device transfer) or is the old
+        // random one: replace it, so two devices can never share one.
+        val hardware = DeviceIdentity.fromHardware(
+            runCatching { android.provider.Settings.Secure.getString(appContext.contentResolver, android.provider.Settings.Secure.ANDROID_ID) }.getOrNull(),
+        )
+        if (hardware != null) {
+            if (stored != hardware) {
+                appContext.dataStore.edit { it[DeviceSyncDeviceIdKey] = hardware }
+                if (!stored.isNullOrBlank()) Timber.tag(TAG).i("DEVICE_SYNC device id re-derived from this hardware (it was copied or old)")
+            }
+            return hardware
+        }
+        if (!stored.isNullOrBlank()) return stored
         val alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
         val random = SecureRandom()
         val fresh = "d" + buildString { repeat(19) { append(alphabet[random.nextInt(alphabet.length)]) } }
@@ -380,7 +392,11 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             }
             "take" -> if (handoffEnabled) {
                 pendingTake?.cancel()
-                (args["state"] as? JsonObject)?.let { parseNow(it) }?.let { play(it) }
+                // A state that is old is not a request to start playing NOW (a delayed or misrouted message must never make a device
+                // start by itself — owner 2026-10-30: «de la nada me empezó a reproducir»).
+                (args["state"] as? JsonObject)?.let { parseNow(it) }
+                    ?.takeIf { serverNow() - it.atMs <= TAKE_MAX_AGE_MS }
+                    ?.let { play(it) }
             }
         }
     }
@@ -431,6 +447,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 delay(TAKE_FALLBACK_MS)
                 if (fallback != null) {
                     play(fallback)
+                    // The other device never answered the hand-over: make sure it stops if it IS reachable, so both do not play.
+                    client.send(buildJsonObject { put("t", "cmd"); put("to", deviceId); put("cmd", "pause") })
                 } else {
                     DeviceSyncHub.notice("No se pudo traer la reproducción de ese dispositivo.")
                 }
@@ -653,6 +671,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         const val TICK_MS = 4_000L
         const val HEARTBEAT_MS = 20_000L
         const val TAKE_FALLBACK_MS = 2_500L
+        const val TAKE_MAX_AGE_MS = 30_000L
         const val RESPOND_AFTER_COMMAND_MS = 600L
         const val LIBRARY_DEBOUNCE_MS = 3_000L
         const val WINDOW_BEHIND = 5

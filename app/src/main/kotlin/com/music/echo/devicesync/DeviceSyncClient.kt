@@ -61,6 +61,11 @@ class DeviceSyncClient(private val scope: CoroutineScope) {
                         }
 
                         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                            // The room closes a connection with «replaced» when ANOTHER one says hello with the same device id. If it is
+                            // not this device's own reconnect, two pieces of hardware share an id (a copied backup): say it, do not loop.
+                            if (reason == "replaced" && socket === webSocket) {
+                                DeviceSyncHub.notice("Otro dispositivo usa el mismo identificador de sincronización. Reinicia la app en los dos.")
+                            }
                             closed.complete(true)
                         }
 

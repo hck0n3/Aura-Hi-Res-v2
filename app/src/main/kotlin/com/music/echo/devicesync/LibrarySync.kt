@@ -1,16 +1,9 @@
 package iad1tya.echo.music.devicesync
 
-import android.content.Context
-import androidx.room.InvalidationTracker
-import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.devicesync.LibrarySyncCore.Reg
-import iad1tya.echo.music.dislike.DislikeStore
-import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -43,47 +36,49 @@ import timber.log.Timber
  * in a fixed order (songs, playlists, members, likes, dislikes); the log carries counts only (AGENTS rule 4).
  */
 class LibrarySync(
-    private val context: Context,
-    private val database: MusicDatabase,
-    dislikes: DislikeStore,
-    private val dislikeFlow: kotlinx.coroutines.flow.Flow<*>,
+    /** What the sync reads from and writes to the app (the database and the dislike store; a fake in tests). */
+    private val adapter: LibraryBackend,
+    /** The memory of what was last agreed (a file; a fake in tests). */
+    private val store: LedgerPersistence,
+    /** The last sequence number seen from the room. */
+    private val sinceStore: SinceStore,
     private val scope: CoroutineScope,
     private val sendMessage: (JsonObject) -> Boolean,
     private val isEnabled: () -> Boolean,
+    /** Starts whatever notices local changes (the database, the dislike store) and calls [kick]; returns how to stop it. */
+    private val watchChanges: (kick: (fast: Boolean) -> Unit) -> () -> Unit = { {} },
+    private val clock: () -> Long = { DeviceSyncHub.serverNow() },
+    private val timing: Timing = Timing(),
 ) {
-    private val adapter = LibrarySyncAdapter(database, dislikes)
-    private val store = LibraryLedgerStore(File(context.filesDir, "device_sync/library_ledger.tsv"))
-    private val prefs = context.getSharedPreferences("device_sync_state", Context.MODE_PRIVATE)
+    /** Delays, in one place so a test can make them tiny. */
+    data class Timing(
+        val fastDelayMs: Long = 800L,
+        val slowDelayMs: Long = 4_000L,
+        val minIntervalMs: Long = 30_000L,
+        val pullTimeoutMs: Long = 12_000L,
+    )
+
     private val mutex = Mutex()
 
     private var ledgerMap: HashMap<String, Reg>? = null
-    private var since = prefs.getLong(PREF_SINCE, 0L)
+    private var since = sinceStore.get()
     private val inFlight = ArrayDeque<List<Reg>>()
     private val sentKeys = HashSet<String>()
     private var kickJob: Job? = null
     private var pullWatchdog: Job? = null
     private var lastDiffAt = 0L
+    private var stopWatching: (() -> Unit)? = null
 
     @Volatile private var connected = false
     @Volatile private var pulledOnce = false
 
-    private val observer = object : InvalidationTracker.Observer("song", "playlist", "playlist_song_map") {
-        override fun onInvalidated(tables: Set<String>) {
-            kick(fast = false)
-        }
-    }
-
-    @OptIn(kotlinx.coroutines.FlowPreview::class)
     fun start() {
-        runCatching { database.invalidationTracker.addObserver(observer) }
-        scope.launch {
-            // The dislike sets live in a preferences file, not in the database: watch them separately.
-            dislikeFlow.drop(1).debounce(1_000L).collect { kick(fast = true) }
-        }
+        stopWatching = watchChanges { fast -> kick(fast) }
     }
 
     fun stop() {
-        runCatching { database.invalidationTracker.removeObserver(observer) }
+        runCatching { stopWatching?.invoke() }
+        stopWatching = null
         connected = false
         pulledOnce = false
         DeviceSyncHub.libraryOwnedByDevices = false
@@ -134,7 +129,7 @@ class LibrarySync(
         if (!fast && kickJob?.isActive == true) return // an observer storm collapses into one pass
         if (fast) kickJob?.cancel()
         kickJob = scope.launch {
-            val wait = if (fast) FAST_DELAY_MS else maxOf(SLOW_DELAY_MS, MIN_INTERVAL_MS - (System.currentTimeMillis() - lastDiffAt))
+            val wait = if (fast) timing.fastDelayMs else maxOf(timing.slowDelayMs, timing.minIntervalMs - (System.currentTimeMillis() - lastDiffAt))
             delay(wait)
             mutex.withLock {
                 lastDiffAt = System.currentTimeMillis()
@@ -168,7 +163,7 @@ class LibrarySync(
         // A server that does not answer is a server that does not understand: do not wait for ever in silence.
         pullWatchdog?.cancel()
         pullWatchdog = scope.launch {
-            delay(PULL_TIMEOUT_MS)
+            delay(timing.pullTimeoutMs)
             if (DeviceSyncHub.libraryStatus.value == DeviceSyncHub.LibraryStatus.Syncing && !pulledOnce) {
                 DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed("el servidor no responde")
                 Timber.tag(TAG).w("LIB_SYNC no answer to lib_pull")
@@ -213,7 +208,7 @@ class LibrarySync(
         store.append(stored)
         store.compactIfBloated(ledger)
         since = maxOf(since, (msg["seq"] as? JsonPrimitive)?.longOrNull ?: since)
-        prefs.edit().putLong(PREF_SINCE, since).apply()
+        sinceStore.put(since)
         Timber.tag(TAG).i("LIB_SYNC pulled items=%d applied=%d unresolved=%d", incoming.size, result.applied, result.unresolved)
 
         if ((msg["more"] as? JsonPrimitive)?.booleanOrNull == true) {
@@ -261,7 +256,7 @@ class LibrarySync(
         if (!connected || !isEnabled() || !pulledOnce) return
         val ledger = ledger()
         val current = adapter.readLocal { key -> ledger.containsKey(key) }
-        val fresh = LibrarySyncCore.localOps(current, ledger, DeviceSyncHub.serverNow())
+        val fresh = LibrarySyncCore.localOps(current, ledger, clock())
         fresh.forEach { ledger[it.key] = it }
         store.append(fresh)
 
@@ -304,12 +299,30 @@ class LibrarySync(
 
     private companion object {
         const val TAG = "DeviceSync"
-        const val PREF_SINCE = "libSince"
         const val BATCH = 200
-        const val FAST_DELAY_MS = 800L
-        const val SLOW_DELAY_MS = 4_000L
-        const val MIN_INTERVAL_MS = 30_000L
-        const val PULL_TIMEOUT_MS = 12_000L
         const val MIN_SERVER_LIB = 2
     }
+}
+
+/** What an [LibraryBackend.apply] did: changes made, and registers it could not apply (a playlist or a song this device does not have). */
+data class ApplyResult(val applied: Int, val unresolved: Int)
+
+/** What [LibrarySync] needs from the app: the present facts, and a way to write what other devices changed. */
+interface LibraryBackend {
+    suspend fun readLocal(songMetaKnown: (String) -> Boolean): Map<String, String>
+    suspend fun apply(plan: LibrarySyncCore.Plan): ApplyResult
+}
+
+/** The ledger's storage. */
+interface LedgerPersistence {
+    fun load(): HashMap<String, Reg>
+    fun append(regs: Collection<Reg>)
+    fun compactIfBloated(map: Map<String, Reg>): Boolean
+    fun rewrite(map: Map<String, Reg>)
+}
+
+/** Where the last seen sequence number lives. */
+interface SinceStore {
+    fun get(): Long
+    fun put(value: Long)
 }

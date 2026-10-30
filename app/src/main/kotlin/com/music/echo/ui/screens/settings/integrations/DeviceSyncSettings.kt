@@ -318,9 +318,12 @@ fun DeviceSyncSettings(
                             IntegrationCardItem(
                                 icon = painterResource(R.drawable.cast),
                                 title = { Text(d.name) },
-                                description = if (d.id == thisId) {
-                                    { Text(stringResource(R.string.device_sync_this_device)) }
-                                } else null,
+                                description = {
+                                    Text(
+                                        (if (d.id == thisId) stringResource(R.string.device_sync_this_device) + " · " else "") +
+                                            "…" + iad1tya.echo.music.devicesync.DeviceIdentity.shortTag(d.id),
+                                    )
+                                },
                             )
                         },
                     )

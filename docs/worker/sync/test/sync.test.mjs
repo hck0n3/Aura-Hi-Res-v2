@@ -297,3 +297,23 @@ test("a device that reconnects is listed ONCE, never next to its own stale socke
   first.ws.close();
   second.ws.close();
 });
+
+test("an order for a device that reconnected reaches its NEW connection, and the old one hears nothing", async () => {
+  const g = createHash("sha256").update("order-to-newest").digest("hex");
+  const tab = await connect(g, tablet);
+  await tab.next((m) => m.t === "hello_ok");
+  const oldPhone = await connect(g, phone);
+  await oldPhone.next((m) => m.t === "hello_ok");
+  // the phone reconnects with a new socket while the old one is still around
+  const newPhone = await connect(g, phone);
+  await newPhone.next((m) => m.t === "hello_ok");
+
+  tab.send({ t: "cmd", to: "phone-0001", cmd: "handoff", args: { to: "tablet-0001" } });
+  const got = await newPhone.next((m) => m.t === "cmd");
+  assert.equal(got.cmd, "handoff");
+  assert.equal(got.args.to, "tablet-0001");
+  assert.equal(oldPhone.inbox.some((m) => m.t === "cmd"), false, "the stale socket must not get the order");
+  tab.ws.close();
+  oldPhone.ws.close();
+  newPhone.ws.close();
+});

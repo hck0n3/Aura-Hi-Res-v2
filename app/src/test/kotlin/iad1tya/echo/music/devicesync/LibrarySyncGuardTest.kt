@@ -29,7 +29,7 @@ class LibrarySyncGuardTest {
     fun `the engine gives the library its messages first and stops the old ping when the library goes through the room`() {
         val e = read("app/src/main/kotlin/com/music/echo/devicesync/DeviceSyncEngine.kt")
         assertTrue(e.contains("if (library?.handle(msg) == true) return"))
-        assertTrue(e.contains("library?.onConnected()"))
+        assertTrue(e.contains("library?.onConnected(helloLib)"))
         assertTrue(e.contains("if (libraryEnabled && lib != null)"))
         assertTrue("con la biblioteca por el servidor un aviso «library» no consulta a YouTube", e.contains("if (libraryEnabled) return"))
     }

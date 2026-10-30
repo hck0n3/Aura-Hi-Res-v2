@@ -120,6 +120,13 @@ export class SyncRoom {
     // One live socket per device: a reconnect replaces its own stale one.
     for (const other of this.ctx.getWebSockets()) {
       if (other !== ws && (other.deserializeAttachment() || {}).id === id) {
+        // A reconnecting device leaves its old socket «closing» for a while (a dead peer answers the close late, or never). Until
+        // then it still sat in getWebSockets(): orders for this device (pause, take over…) found IT first and went nowhere, and the
+        // device list counted it twice (owner 2026-10-30: «continuar no detiene la canción en el otro dispositivo», «dice tres, luego
+        // dos»). Strip its identity FIRST so every lookup ignores it, then close it.
+        try {
+          other.serializeAttachment({ id: null, name: "", kind: "", joinedAt: 0 });
+        } catch {}
         try {
           other.close(1000, "replaced");
         } catch {}
@@ -248,7 +255,17 @@ export class SyncRoom {
     const target = String(msg.to || "");
     const cmd = String(msg.cmd || "").slice(0, 24);
     if (!target || !cmd) return;
-    const dest = this.ctx.getWebSockets().find((s) => (s.deserializeAttachment() || {}).id === target);
+    // The newest OPEN socket of the target (never a stale one that is still closing).
+    let dest = null;
+    let destSince = -1;
+    for (const s of this.ctx.getWebSockets()) {
+      if (s.readyState !== undefined && s.readyState !== 1) continue;
+      const a = s.deserializeAttachment() || {};
+      if (a.id === target && (a.joinedAt || 0) >= destSince) {
+        dest = s;
+        destSince = a.joinedAt || 0;
+      }
+    }
     if (!dest) {
       send(ws, { t: "cmd_fail", to: target, cmd });
       return;

@@ -18,12 +18,12 @@ import timber.log.Timber
 class LibrarySyncAdapter(
     private val database: MusicDatabase,
     private val dislikes: DislikeStore,
-) {
+): LibraryBackend {
     /**
      * The present facts: key → value ("1" / the playlist's name as JSON). [songMetaKnown] says whether a song's `sg:` register is
      * already in the ledger, so metadata is read only for songs the others have never been told about.
      */
-    suspend fun readLocal(songMetaKnown: (String) -> Boolean): Map<String, String> {
+    override suspend fun readLocal(songMetaKnown: (String) -> Boolean): Map<String, String> {
         val facts = LinkedHashMap<String, String>()
         val referenced = LinkedHashSet<String>()
 
@@ -66,10 +66,7 @@ class LibrarySyncAdapter(
         return facts
     }
 
-    /** What could not be applied (a member whose playlist or song this device does not have), by register key, for the log. */
-    data class Result(val applied: Int, val unresolved: Int)
-
-    suspend fun apply(plan: Plan): Result {
+    override suspend fun apply(plan: Plan): ApplyResult {
         var applied = 0
         var unresolved = 0
 
@@ -154,7 +151,7 @@ class LibrarySyncAdapter(
         }
 
         if (unresolved > 0) Timber.tag("DeviceSync").w("LIB_SYNC apply unresolved=%d", unresolved)
-        return Result(applied, unresolved)
+        return ApplyResult(applied, unresolved)
     }
 
     /** `LP` + 8 letters is how this app names a playlist that lives only on the device; anything else is a YouTube browseId. */
