@@ -66,7 +66,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
@@ -238,7 +237,7 @@ private fun Modifier.coverDropShadow(cornerRadius: androidx.compose.ui.unit.Dp):
         drawRoundRect(
             color = Color.Black.copy(alpha = COVER_SHADOW_LAYER_ALPHA),
             topLeft = Offset(-grow, -grow * 0.4f + dropPx),
-            size = Size(size.width + 2f * grow, size.height + 2f * grow),
+            size = androidx.compose.ui.geometry.Size(size.width + 2f * grow, size.height + 2f * grow),
             cornerRadius = CornerRadius(radiusPx + grow),
         )
     }
