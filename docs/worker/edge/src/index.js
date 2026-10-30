@@ -33,6 +33,19 @@ async function signingKey(env) {
   return crypto.subtle.importKey("pkcs8", unb64(env.SIGNING_KEY), { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
 }
 
+/** The public half of SIGNING_KEY as SPKI base64 — what the app embeds. Public by nature; derived so the owner never has to keep a copy. */
+export async function publicKeySpki(env) {
+  const priv = await crypto.subtle.importKey("pkcs8", unb64(env.SIGNING_KEY), { name: "ECDSA", namedCurve: "P-256" }, true, ["sign"]);
+  const jwk = await crypto.subtle.exportKey("jwk", priv);
+  const header = Uint8Array.from([0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00, 0x04]);
+  const fromB64Url = (v) => unb64(v.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (v.length % 4)) % 4));
+  const out = new Uint8Array(header.length + 64);
+  out.set(header, 0);
+  out.set(fromB64Url(jwk.x), header.length);
+  out.set(fromB64Url(jwk.y), header.length + 32);
+  return b64(out);
+}
+
 /** Signs [payload] (a string) → base64 of the raw r||s signature (what WebCrypto produces; the app converts it). */
 export async function sign(env, payload) {
   const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, await signingKey(env), new TextEncoder().encode(payload));
@@ -157,17 +170,38 @@ export async function watchYoutube(env, doFetch = fetch, notify = sendAlert) {
   return prev ? "changed" : "first";
 }
 
-async function sendAlert(env, subject, text) {
-  if (!env.ALERT || !env.ALERT_FROM) return false; // not configured: the change stays pending and is retried
-  try {
-    const { EmailMessage } = await import("cloudflare:email");
-    const to = env.ALERT_TO || "aurahires@gmail.com";
-    const raw = `From: Aura watcher <${env.ALERT_FROM}>\r\nTo: ${to}\r\nSubject: ${subject}\r\nMessage-ID: <${crypto.randomUUID()}@aura>\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${text}\r\n`;
-    await env.ALERT.send(new EmailMessage(env.ALERT_FROM, to, raw));
-    return true;
-  } catch {
-    return false;
+/**
+ * Sends the watcher's alert. Two ways, first that is configured wins:
+ *  - Cloudflare Email Routing (`ALERT` binding + `ALERT_FROM`): needs a domain on the account.
+ *  - ntfy.sh (`NTFY_TOPIC` secret): no domain needed; ntfy forwards the message to [ALERT_TO] by e-mail. The topic is the secret, so
+ *    make it long and random. The message carries no user data (only the old and new player ids of YouTube).
+ */
+export async function sendAlert(env, subject, text, doFetch = fetch) {
+  const to = env.ALERT_TO || "aurahires@gmail.com";
+  if (env.ALERT && env.ALERT_FROM) {
+    try {
+      const { EmailMessage } = await import("cloudflare:email");
+      const raw = `From: Aura watcher <${env.ALERT_FROM}>\r\nTo: ${to}\r\nSubject: ${subject}\r\nMessage-ID: <${crypto.randomUUID()}@aura>\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${text}\r\n`;
+      await env.ALERT.send(new EmailMessage(env.ALERT_FROM, to, raw));
+      return true;
+    } catch {
+      return false;
+    }
   }
+  if (env.NTFY_TOPIC) {
+    try {
+      const ascii = (v) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7e]/g, "");
+      const res = await doFetch("https://ntfy.sh/" + encodeURIComponent(env.NTFY_TOPIC), {
+        method: "POST",
+        headers: { Title: ascii(subject), Email: to, Priority: "high", Tags: "warning" },
+        body: text,
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+  return false; // not configured: the change stays pending and is retried
 }
 
 export default {
@@ -177,6 +211,11 @@ export default {
     try {
       if (req.method === "GET" && p === "/health") return json({ ok: true, edge: 1 });
       if (req.method === "GET" && p === "/v1/config") return await handleConfig(req, env);
+      if (req.method === "GET" && p === "/v1/pubkey") return json({ publicKey: await publicKeySpki(env) });
+      if (req.method === "POST" && p === "/v1/admin/test-alert") {
+        if (!isAdmin(req, env)) return json({ error: "forbidden" }, 403);
+        return json({ sent: await sendAlert(env, "Aviso de prueba de Aura", "Si lees esto, los avisos del vigilante de YouTube llegan.") });
+      }
       if (req.method === "PUT" && p === "/v1/admin/config") return await handleAdminConfig(req, env);
       if (req.method === "POST" && p === "/v1/diag") return await handleDiagPost(req, env);
       const m = /^\/v1\/diag\/([A-Za-z0-9]{8})$/.exec(p);

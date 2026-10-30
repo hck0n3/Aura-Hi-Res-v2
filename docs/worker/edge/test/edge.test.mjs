@@ -5,7 +5,7 @@ import { Miniflare } from "miniflare";
 import { webcrypto as c } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { extractPlayerId, sanitizeConfig, watchYoutube, FLAGS } from "../src/index.js";
+import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, FLAGS } from "../src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const b64 = (buf) => Buffer.from(buf).toString("base64");
@@ -101,4 +101,30 @@ test("watcher: a failed alert is retried, an unreachable page is not a change", 
   assert.equal(env.EDGE.m.get("yt:player"), "aaaaaaaa", "kept so the next run alerts again");
   assert.equal(await watchYoutube(env, async () => { throw new Error("down"); }, async () => true), "unreachable");
   assert.equal(extractPlayerId("nothing"), null);
+});
+
+test("/v1/pubkey returns exactly the public key that verifies the signatures", async () => {
+  const { publicKey } = await (await mf.dispatchFetch("http://x/v1/pubkey")).json();
+  assert.equal(publicKey, Buffer.from(await c.subtle.exportKey("spki", pub)).toString("base64"));
+  await put({ flags: { letras: true } });
+  const got = await (await mf.dispatchFetch("http://x/v1/config")).json();
+  const key = await c.subtle.importKey("spki", Buffer.from(publicKey, "base64"), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  assert.ok(await c.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, Buffer.from(got.sig, "base64"), new TextEncoder().encode(got.payload)));
+});
+
+test("alert through ntfy: topic in the URL, e-mail header, ASCII title; nothing configured = false", async () => {
+  let seen;
+  const fakeFetch = async (url, init) => { seen = { url, init }; return { ok: true }; };
+  assert.equal(await sendAlert({}, "YouTube cambió su reproductor", "x", fakeFetch), false);
+  assert.equal(await sendAlert({ NTFY_TOPIC: "secreto-largo" }, "YouTube cambió su reproductor", "Antes: a", fakeFetch), true);
+  assert.equal(seen.url, "https://ntfy.sh/secreto-largo");
+  assert.equal(seen.init.headers.Email, "aurahires@gmail.com");
+  assert.equal(seen.init.headers.Title, "YouTube cambio su reproductor");
+  assert.equal(await sendAlert({ NTFY_TOPIC: "t" }, "s", "x", async () => ({ ok: false })), false);
+});
+
+test("the test-alert route is admin only", async () => {
+  assert.equal((await mf.dispatchFetch("http://x/v1/admin/test-alert", { method: "POST" })).status, 403);
+  const r = await mf.dispatchFetch("http://x/v1/admin/test-alert", { method: "POST", headers: { authorization: "Bearer " + ADMIN } });
+  assert.deepEqual(await r.json(), { sent: false });
 });
