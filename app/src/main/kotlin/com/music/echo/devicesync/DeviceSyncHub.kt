@@ -19,6 +19,8 @@ data class NowState(
     val deviceId: String,
     val deviceName: String,
     val atMs: Long,
+    /** Length of the current song, or 0 when the player does not know it yet. */
+    val durationMs: Long = 0L,
 ) {
     val current: NowItem? get() = items.getOrNull(index)
 
@@ -67,8 +69,8 @@ object DeviceSyncHub {
     }
 
     interface Controller {
-        /** play / pause / next / prev to [deviceId]. */
-        fun control(deviceId: String, command: String)
+        /** play / pause / next / prev / seek (with [positionMs]) to [deviceId]. */
+        fun control(deviceId: String, command: String, positionMs: Long? = null)
 
         /** Bring what [deviceId] is playing to THIS device and carry on from where it was. */
         fun takeOverFrom(deviceId: String)

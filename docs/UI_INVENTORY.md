@@ -4233,3 +4233,4 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Pantalla «Suscripción en otro equipo» | Nuevo botón «Escribir el correo de la compra» (abre la pantalla de activar con la clave ya puesta); «Reintentar» pasa a secundario | 530 |
 | Ajustes ▸ Sincronizar dispositivos: «Emparejamiento» y «Emparejar con mi licencia» | Dice si el equipo está emparejado por licencia, por código o sin emparejar; el servidor pasa a «avanzado» y vale el de Aura por defecto | 531 |
 | Tarjeta «Continuar aquí» (arriba, sobre cualquier pantalla) | Aparece sola cuando otro dispositivo emparejado está sonando y este no; «Continuar aquí» trae la reproducción desde el mismo segundo, ✕ la oculta | 533 |
+| Tarjeta «Continuar aquí» como control remoto | Muestra la canción y la línea de tiempo del otro dispositivo (avanza sola); play/pausa, anterior, siguiente y arrastrar la barra se envían al que suena; tocar la tarjeta la despliega | 534 |

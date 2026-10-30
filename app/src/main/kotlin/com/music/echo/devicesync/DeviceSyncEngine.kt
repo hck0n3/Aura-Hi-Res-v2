@@ -69,6 +69,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     @Volatile private var everPlayed = false
     private var lastSignature = ""
     private var lastPublishedAt = 0L
+    private var lastPublishedPosition = 0L
+    private var lastPublishedPlaying = false
     private var pendingTake: Job? = null
     private var libraryPing: Job? = null
     private val pushedEpoch = HashMap<String, Int>()
@@ -229,6 +231,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             deviceId = o.str("deviceId").orEmpty(),
             deviceName = o.str("deviceName").orEmpty(),
             atMs = o.long("at") ?: serverNow(),
+            durationMs = o.long("durationMs") ?: 0L,
         )
     }
 
@@ -236,6 +239,14 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)
+        if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek") {
+            // The device that sent the order is showing OUR timeline: tell it the new state as soon as the player has settled,
+            // not at the next heartbeat (row 534).
+            scope.launch {
+                delay(RESPOND_AFTER_COMMAND_MS)
+                runCatching { publishNow(force = true) }
+            }
+        }
         when (cmd) {
             "play" -> onMain { service.player.play() }
             "pause" -> onMain { service.player.pause() }
@@ -276,9 +287,13 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
     }
 
-    override fun control(deviceId: String, command: String) {
+    override fun control(deviceId: String, command: String, positionMs: Long?) {
         scope.launch {
-            if (!client.send(buildJsonObject { put("t", "cmd"); put("to", deviceId); put("cmd", command) })) {
+            val sent = client.send(buildJsonObject {
+                put("t", "cmd"); put("to", deviceId); put("cmd", command)
+                if (positionMs != null) put("args", buildJsonObject { put("positionMs", positionMs.coerceAtLeast(0L)) })
+            })
+            if (!sent) {
                 DeviceSyncHub.notice("Sin conexión con la sincronización.")
             }
         }
@@ -369,6 +384,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             put("items", items)
             put("index", index - start)
             put("positionMs", p.currentPosition)
+            p.duration.takeIf { it > 0L }?.let { put("durationMs", it) }
             put("playing", p.playWhenReady && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED)
             put("at", serverNow())
         }
@@ -401,12 +417,17 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         val currentId = ((state["items"] as? JsonArray)?.getOrNull(state.int("index") ?: 0) as? JsonObject)?.str("id").orEmpty()
         val signature = "$currentId|$playing"
         val now = System.currentTimeMillis()
-        val changed = signature != lastSignature
+        val position = state.long("positionMs") ?: 0L
+        // A seek (here or from another device) changes neither the song nor play/pause, so it would only reach the others at the
+        // next heartbeat: compare the position with where it should be by now.
+        val changed = signature != lastSignature || NowSync.jumped(lastPublishedPosition, lastPublishedAt, lastPublishedPlaying, position, now)
         val due = playing && now - lastPublishedAt >= HEARTBEAT_MS
         if (!force && !changed && !due) return
         if (!everPlayed) return
         lastSignature = signature
         lastPublishedAt = now
+        lastPublishedPosition = position
+        lastPublishedPlaying = playing
         client.send(buildJsonObject { put("t", "now"); put("state", state) })
     }
 
@@ -501,6 +522,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         const val TICK_MS = 4_000L
         const val HEARTBEAT_MS = 20_000L
         const val TAKE_FALLBACK_MS = 2_500L
+        const val RESPOND_AFTER_COMMAND_MS = 600L
         const val LIBRARY_DEBOUNCE_MS = 3_000L
         const val WINDOW_BEHIND = 5
         const val WINDOW_AHEAD = 60
