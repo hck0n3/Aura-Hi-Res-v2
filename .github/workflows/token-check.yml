@@ -14,22 +14,21 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Show token permissions and try a draft release
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Probe draft releases at each commit since beta 6
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
         run: |
           set +e
-          # remove the draft the first check left behind
-          gh api -X DELETE "repos/$REPO/releases/429520271" 2>&1 | cut -c1-200 && echo "old draft removed"
-          for T in zz-token-check v2.0.67-beta7; do
-            echo "--- draft for $T at the beta 7 commit"
-            OUT=$(gh api -X POST "repos/$REPO/releases" -f tag_name=$T -f target_commitish=859b19c785808e0574a1d718acf55c19feb7083e \
+          for C in $(git rev-list --reverse cf1ce29..HEAD); do
+            OUT=$(gh api -X POST "repos/$REPO/releases" -f tag_name=zz-token-check -f target_commitish=$C \
               -F draft=true -F prerelease=true -f name=token-check -f body="check" 2>&1)
-            echo "$OUT" | cut -c1-250
             ID=$(echo "$OUT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
-            [ -n "$ID" ] && gh api -X DELETE "repos/$REPO/releases/$ID" && echo "deleted draft $ID"
+            if [ -n "$ID" ]; then echo "$C OK"; gh api -X DELETE "repos/$REPO/releases/$ID"; else echo "$C 403"; fi
           done
           echo "--- existing releases (incl. drafts) mentioning beta7"
           gh api "repos/$REPO/releases?per_page=10" --jq '.[] | "\(.id) \(.tag_name) draft=\(.draft) pre=\(.prerelease)"' 2>&1 | cut -c1-200
