@@ -1,6 +1,18 @@
-# Aura Hi-Res v2.0.67-beta5 — tus dispositivos dejan de confundirse entre sí, el reproductor controla al otro dispositivo como Spotify, la biblioteca se sincroniza y la portada ya no se corta
+# Aura Hi-Res v2.0.67-beta6 — la biblioteca sincroniza sin repetir descargas, tus «me gusta» llegan también a YouTube y nacen los Servicios Aura
 
-Beta encima de la 2.0.67-beta4 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Antes de probar la sincronización de biblioteca haz una copia de seguridad (Ajustes ▸ Copia de seguridad) y vuelve a desplegar tu servidor de sincronización (`npx wrangler deploy`): su dirección `/health` debe responder `"lib":2`.
+Beta encima de la 2.0.67-beta5 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma.
+
+## Sincronización de la biblioteca
+
+- **Se acabó la tormenta de descargas:** cuando un dispositivo subía una biblioteca grande, el otro pedía la misma lista una y otra vez (en un registro se vieron 1656 descargas en 5 segundos). Gastaba batería, calentaba y dejaba la sincronización sin cerrar, y mientras no cerraba, los cambios de ese dispositivo no salían. Ahora pide una sola vez y repite solo si hubo novedades.
+- **Tus «me gusta» y «no me gusta» llegan también a tu cuenta de YouTube:** si el dispositivo donde los diste no pudo enviarlos (sin sesión o sin red), el que los recibe por tu servidor los manda. Solo cuando son pocos; una sincronización grande no se reenvía una a una.
+- El registro de la aplicación explica ahora por qué un cambio no salió (solo contadores, nunca títulos ni nombres).
+
+## Servicios Aura (nuevo, apagado hasta que pongas una dirección)
+
+- **Ajustes ▸ Servicios Aura:** interruptor general, dirección del servidor, clave de verificación, estado y «Comprobar ahora». Sin dirección no se contacta con nada y todo sigue encendido como siempre.
+- **Interruptores remotos y avisos:** desde tu servidor puedes apagar o encender una función que ya está en la app (cola inteligente, portadas animadas, letras…) y mostrar un aviso, sin publicar versión. Lo que no venga firmado por tu servidor se ignora. La reproducción y la licencia no se pueden apagar desde fuera.
+- **Enviar registro:** un botón que sube el mismo registro que compartirías a mano y te da un código corto para pasarlo. Solo se envía cuando lo pulsas.
 
 ## Por qué fallaba la sincronización
 
