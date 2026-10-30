@@ -232,6 +232,121 @@ export async function sendAlert(env, subject, text, doFetch = fetch, info = {}) 
   return false; // not configured: the change stays pending and is retried
 }
 
+// ── 4) Last.fm style tags, shared ────────────────────────────────────────────────────────────────────────────────────────────
+
+const TAGS_TTL = 30 * 24 * 3600;
+const TAGS_EMPTY_TTL = 7 * 24 * 3600;
+const TAGS_MISSES_PER_HOUR = 200; // a global ceiling on what the Worker will ask Last.fm (and write to KV) per hour
+
+/** The same normalisation the app uses for its own artist keys: lower case, single spaces, bounded. */
+export function normalizeArtist(name) {
+  return String(name || "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+/**
+ * Tags of one artist: from KV when known; otherwise ONE Last.fm lookup (the key lives in the Worker, never in a response) that is
+ * stored for everyone. Only the artist name travels — no user, no session. Returns {status, body}:
+ * 200 {tags:[[name,count],…]} (an empty list is a definitive «Last.fm has none»), 502 when Last.fm failed (nothing is stored),
+ * 429 when the hourly budget of misses is spent, 400 without a usable name, 503 when the Worker has no Last.fm key.
+ */
+export async function artistTags(env, artist, doFetch = fetch) {
+  const key = normalizeArtist(artist);
+  if (!key) return { status: 400, body: { error: "artist" } };
+  const cached = await env.EDGE.get("tags:" + key);
+  if (cached != null) return { status: 200, body: JSON.parse(cached) };
+  if (!env.LASTFM_KEY) return { status: 503, body: { error: "no key" } };
+  const hour = Math.floor(Date.now() / 3_600_000);
+  const budgetKey = "rate:tags:" + hour;
+  const used = Number((await env.EDGE.get(budgetKey)) || 0);
+  if (used >= TAGS_MISSES_PER_HOUR) return { status: 429, body: { error: "slow down" } };
+  await env.EDGE.put(budgetKey, String(used + 1), { expirationTtl: 3700 });
+  let root;
+  try {
+    const url = "https://ws.audioscrobbler.com/2.0/?method=artist.getTopTags&autocorrect=1&format=json&artist=" + encodeURIComponent(key) + "&api_key=" + encodeURIComponent(String(env.LASTFM_KEY).trim());
+    const res = await doFetch(url, { headers: { "user-agent": "AuraHiRes (https://github.com/hck0n3)" } });
+    if (res.status >= 500) return { status: 502, body: { error: "upstream" } };
+    root = await res.json();
+  } catch {
+    return { status: 502, body: { error: "upstream" } };
+  }
+  if (root && root.error != null && Number(root.error) !== 6) return { status: 502, body: { error: "upstream" } };
+  const raw = root && root.toptags && root.toptags.tag;
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const tags = list
+    .map((t) => [String((t && t.name) || "").trim().slice(0, 40), Number(t && t.count) || 0])
+    .filter((t) => t[0])
+    .slice(0, 30);
+  const body = { tags };
+  await env.EDGE.put("tags:" + key, JSON.stringify(body), { expirationTtl: tags.length ? TAGS_TTL : TAGS_EMPTY_TTL });
+  return { status: 200, body };
+}
+
+// ── 3) Shared animated covers ────────────────────────────────────────────────────────────────────────────────────────────────
+
+const CANVAS_TTL = 7 * 24 * 3600;
+const CANVAS_WRITES_PER_HOUR = 300;
+const CANVAS_MAX_BODY = 4 * 1024;
+// Where the app's providers serve motion covers from. A URL anywhere else is not shared (the app still uses it for itself).
+const CANVAS_HOSTS = [".mzstatic.com", ".apple.com", ".tidal.com", ".monochrome.tf", ".boidu.dev"];
+
+const normLetters = (v) => String(v || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
+/** Same key the app builds (CanvasAlbumMemo.key): `al|artist|album` or `so|artist|song`, letters and digits only. */
+export function validCanvasKey(k) {
+  return typeof k === "string" && k.length <= 160 && /^(al|so)\|[^|]+\|[^|]+$/u.test(k);
+}
+
+function safeAnimationUrl(u) {
+  try {
+    const url = new URL(String(u));
+    if (url.protocol !== "https:" || String(u).length > 400) return false;
+    return CANVAS_HOSTS.some((h) => url.hostname === h.slice(1) || url.hostname.endsWith(h));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What a client may share: https on a known host, bounded, and the artwork must actually be about the key it is filed under
+ * (its artist equals the key's artist and its album / title equals the key's) so one client cannot put someone else's cover under
+ * an album. Returns the sanitized artwork or null.
+ */
+export function sanitizeCanvas(k, art) {
+  if (!validCanvasKey(k) || !art || typeof art !== "object") return null;
+  const [, keyArtist, keyThing] = k.split("|");
+  if (normLetters(art.artist) !== keyArtist) return null;
+  const subject = k.startsWith("al|") ? art.albumName || art.name : art.name;
+  if (normLetters(subject) !== keyThing) return null;
+  const out = {};
+  for (const f of ["name", "artist", "albumId", "albumName"]) if (typeof art[f] === "string") out[f] = art[f].slice(0, 120);
+  for (const f of ["static", "animated", "videoUrl"]) {
+    if (art[f] == null) continue;
+    if (!safeAnimationUrl(art[f])) return null;
+    out[f] = String(art[f]);
+  }
+  if (!out.animated && !out.videoUrl) return null;
+  return out;
+}
+
+export async function canvasGet(env, k) {
+  if (!validCanvasKey(k)) return { status: 400, body: { error: "key" } };
+  const v = await env.EDGE.get("canvas:" + k);
+  return v == null ? { status: 404, body: { miss: true } } : { status: 200, body: { artwork: JSON.parse(v) } };
+}
+
+export async function canvasPut(env, k, art) {
+  const clean = sanitizeCanvas(k, art);
+  if (!clean) return { status: 400, body: { error: "rejected" } };
+  if ((await env.EDGE.get("canvas:" + k)) != null) return { status: 200, body: { stored: false } }; // first answer wins until it expires
+  const hour = Math.floor(Date.now() / 3_600_000);
+  const budgetKey = "rate:canvas:" + hour;
+  const used = Number((await env.EDGE.get(budgetKey)) || 0);
+  if (used >= CANVAS_WRITES_PER_HOUR) return { status: 429, body: { error: "slow down" } };
+  await env.EDGE.put(budgetKey, String(used + 1), { expirationTtl: 3700 });
+  await env.EDGE.put("canvas:" + k, JSON.stringify(clean), { expirationTtl: CANVAS_TTL });
+  return { status: 200, body: { stored: true } };
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -239,6 +354,22 @@ export default {
     try {
       if (req.method === "GET" && p === "/health") return json({ ok: true, edge: 1 });
       if (req.method === "GET" && p === "/v1/config") return await handleConfig(req, env);
+      if (req.method === "GET" && p === "/v1/tags") {
+        const r = await artistTags(env, url.searchParams.get("artist"));
+        return json(r.body, r.status, r.status === 200 ? { "cache-control": "public, max-age=86400" } : {});
+      }
+      if (req.method === "GET" && p === "/v1/canvas") {
+        const r = await canvasGet(env, url.searchParams.get("k"));
+        return json(r.body, r.status, r.status === 200 ? { "cache-control": "public, max-age=3600" } : {});
+      }
+      if (req.method === "PUT" && p === "/v1/canvas") {
+        const text = await readBody(req, CANVAS_MAX_BODY);
+        if (text == null) return json({ error: "too big" }, 413);
+        let input;
+        try { input = JSON.parse(text); } catch { return json({ error: "bad json" }, 400); }
+        const r = await canvasPut(env, input && input.k, input && input.artwork);
+        return json(r.body, r.status);
+      }
       if (req.method === "GET" && p === "/v1/pubkey") return json({ publicKey: await publicKeySpki(env) });
       if (req.method === "POST" && p === "/v1/admin/test-alert") {
         if (!isAdmin(req, env)) return json({ error: "forbidden" }, 403);

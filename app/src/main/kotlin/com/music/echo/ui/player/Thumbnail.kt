@@ -1192,6 +1192,17 @@ private fun ThumbnailItem(
                         return@LaunchedEffect
                     }
 
+                    // Function 3 of the Worker plan: before searching, ask the shared cache (1.5 s at most; no answer = the chain as before).
+                    if (memoKey != null && memo == null) {
+                        iad1tya.echo.music.edge.EdgeClient.canvasLookup(memoContext, memoKey)?.let { shared ->
+                            timber.log.Timber.tag("CANVAS").i("CANVAS_SHARED hit (no lookup)")
+                            CanvasAlbumMemo.remember(memoContext, memoKey, shared)
+                            canvasArtwork = shared
+                            CanvasArtworkPlaybackCache.put(item.mediaId, shared)
+                            return@LaunchedEffect
+                        }
+                    }
+
                     if (!canvasInForeground) return@LaunchedEffect
                     // (No «already in flight» guard here: an effect never overlaps itself, and a run cancelled mid-fetch because the app left the
                     // screen would have left the flag set and blocked the retry on return.)
@@ -1327,6 +1338,8 @@ private fun ThumbnailItem(
                     // The chain ANSWERED (it did not time out): keep the album's answer for its other songs.
                     if (memoKey != null && memo == null && lookupAnswered) {
                         CanvasAlbumMemo.remember(memoContext, memoKey, validated)
+                        // Function 3: what this search found helps everyone else (the cache refuses anything off-key or off-host).
+                        if (validated != null) iad1tya.echo.music.edge.EdgeClient.canvasShare(memoContext, memoKey, validated)
                     }
 
                     // Fallback: when no per-song/album canvas passed validation, use the artist's

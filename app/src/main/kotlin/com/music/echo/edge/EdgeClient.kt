@@ -24,6 +24,7 @@ object EdgeClient {
     private const val PREFS = "aura_edge"
     private const val CHECK_EVERY_MS = 6 * 3600_000L
     private const val TIMEOUT_MS = 5_000
+    private const val TAGS_TIMEOUT_MS = 1_500
     private const val MAX_CONFIG_BYTES = 16 * 1024
     private const val MAX_DIAG_BYTES = 900 * 1024
 
@@ -145,6 +146,72 @@ object EdgeClient {
             if (id.isNullOrBlank()) Result.failure(IllegalStateException("bad-answer")) else Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /**
+     * Function 4: the style tags of one artist from the shared cache of the Worker, or null — no address, switched off, slow
+     * (1.5 s), not found, anything — and the caller then asks Last.fm directly, exactly as before. Only the artist NAME travels (the
+     * same thing the app already sends to Last.fm); it is never written to the log.
+     */
+    suspend fun artistTags(context: Context, artist: String): List<Pair<String, Int>>? = withContext(Dispatchers.IO) {
+        val s = settings(context)
+        if (!s.enabled || s.base.isBlank() || artist.isBlank()) return@withContext null
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("${s.base}/v1/tags?artist=" + java.net.URLEncoder.encode(artist.take(80), "UTF-8")).openConnection() as HttpURLConnection).apply {
+                connectTimeout = TAGS_TIMEOUT_MS
+                readTimeout = TAGS_TIMEOUT_MS
+            }
+            if (conn.responseCode != 200) return@withContext null
+            readCapped(conn, MAX_CONFIG_BYTES)?.let(EdgeTags::parse)
+        } catch (_: Exception) {
+            null
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** Function 3: the shared motion cover of an album (key = [iad1tya.echo.music.ui.player.CanvasAlbumMemo.key]), or null → the provider chain as before. */
+    suspend fun canvasLookup(context: Context, key: String): iad1tya.echo.music.canvas.CanvasArtwork? = withContext(Dispatchers.IO) {
+        val s = settings(context)
+        if (!s.enabled || s.base.isBlank() || key.isBlank()) return@withContext null
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("${s.base}/v1/canvas?k=" + java.net.URLEncoder.encode(key, "UTF-8")).openConnection() as HttpURLConnection).apply {
+                connectTimeout = TAGS_TIMEOUT_MS
+                readTimeout = TAGS_TIMEOUT_MS
+            }
+            if (conn.responseCode != 200) return@withContext null
+            readCapped(conn, MAX_CONFIG_BYTES)?.let(EdgeCanvas::parse)
+        } catch (_: Exception) {
+            null
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** Function 3: tell the cache what the provider chain found, so nobody else repeats the search. Best effort, once, never for «none». */
+    suspend fun canvasShare(context: Context, key: String, artwork: iad1tya.echo.music.canvas.CanvasArtwork) = withContext(Dispatchers.IO) {
+        val s = settings(context)
+        if (!s.enabled || s.base.isBlank() || key.isBlank() || artwork.preferredAnimationUrl.isNullOrBlank()) return@withContext
+        var conn: HttpURLConnection? = null
+        try {
+            val bytes = EdgeCanvas.body(key, artwork).toByteArray(Charsets.UTF_8)
+            conn = (URL("${s.base}/v1/canvas").openConnection() as HttpURLConnection).apply {
+                requestMethod = "PUT"
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setFixedLengthStreamingMode(bytes.size)
+            }
+            conn.outputStream.use { it.write(bytes) }
+            Timber.tag(TAG).i("EDGE canvas shared status=%d", conn.responseCode)
+        } catch (_: Exception) {
+            // Sharing is a courtesy: a failure changes nothing for this user.
         } finally {
             conn?.disconnect()
         }

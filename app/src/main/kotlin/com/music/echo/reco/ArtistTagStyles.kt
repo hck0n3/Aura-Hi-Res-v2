@@ -195,7 +195,8 @@ object ArtistTagStyles {
                 async {
                     sem.withPermit {
                         if (failures.get() >= MAX_CONSECUTIVE_FAILURES) return@withPermit null
-                        val tags = LastFM.getArtistTopTags(key)
+                        // Function 4 of the Worker plan: the shared cache first (1.5 s at most), Last.fm directly as always when it has nothing.
+                        val tags = iad1tya.echo.music.edge.EdgeClient.artistTags(context, key) ?: LastFM.getArtistTopTags(key)
                         if (tags == null) {
                             failedThisSession.add(key)
                             failures.incrementAndGet()

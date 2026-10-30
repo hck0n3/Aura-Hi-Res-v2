@@ -68,4 +68,25 @@ class RemoteConfigTest {
         assertEquals(0x30, der[0].toInt())
         assertEquals(der.size - 2, der[1].toInt())
     }
+
+    @Test
+    fun `the worker's tag answer becomes the same list Last_fm gives, and junk is not an answer`() {
+        assertEquals(listOf("cumbia" to 100, "latin" to 55), EdgeTags.parse("{\"tags\":[[\"cumbia\",100],[\"latin\",55]]}"))
+        assertEquals(emptyList<Pair<String, Int>>(), EdgeTags.parse("{\"tags\":[]}"))
+        assertNull(EdgeTags.parse("{\"error\":\"upstream\"}"))
+        assertNull(EdgeTags.parse("not json"))
+        assertEquals(listOf("rock" to 0), EdgeTags.parse("{\"tags\":[[\"rock\"],[\"\",5],7]}"))
+    }
+
+    @Test
+    fun `a shared motion cover round-trips between the app and the worker format`() {
+        val art = iad1tya.echo.music.canvas.CanvasArtwork(name = "Abbey Road", artist = "The Beatles", albumName = "Abbey Road", animated = "https://mvod.itunes.apple.com/x.m3u8")
+        val body = EdgeCanvas.body("al|thebeatles|abbeyroad", art)
+        assertTrue(body.startsWith("{\"k\":\"al|thebeatles|abbeyroad\",\"artwork\":{"))
+        val answer = "{\"artwork\":" + body.substringAfter("\"artwork\":").dropLast(1) + "}"
+        assertEquals(art, EdgeCanvas.parse(answer))
+        assertNull("a miss", EdgeCanvas.parse("{\"miss\":true}"))
+        assertNull("nothing animated", EdgeCanvas.parse("{\"artwork\":{\"name\":\"x\"}}"))
+        assertNull(EdgeCanvas.parse("junk"))
+    }
 }

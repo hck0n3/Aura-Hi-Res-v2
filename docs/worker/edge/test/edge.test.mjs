@@ -5,7 +5,7 @@ import { Miniflare } from "miniflare";
 import { webcrypto as c } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, FLAGS } from "../src/index.js";
+import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, artistTags, normalizeArtist, sanitizeCanvas, canvasGet, canvasPut, validCanvasKey, FLAGS } from "../src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const b64 = (buf) => Buffer.from(buf).toString("base64");
@@ -147,4 +147,88 @@ test("secrets with a trailing line break (PowerShell pipe) still build a clean U
   assert.equal(await sendAlert({ TELEGRAM_TOKEN: "123:abc\r\n", TELEGRAM_CHAT: "42\r\n" }, "A", "B", fakeFetch), true);
   assert.equal(seen.url, "https://api.telegram.org/bot123:abc/sendMessage");
   assert.equal(seen.body.chat_id, "42");
+});
+
+function memEnv(extra = {}) {
+  const m = new Map();
+  return { EDGE: { m, async get(k) { return m.get(k) ?? null; }, async put(k, v) { m.set(k, v); } }, LASTFM_KEY: "k", ...extra };
+}
+const lastfm = (tags) => async () => ({ status: 200, json: async () => ({ toptags: { tag: tags } }) });
+
+test("tags: one Last.fm lookup per artist for everyone, then straight from KV", async () => {
+  const env = memEnv();
+  let calls = 0;
+  const f = async (...a) => { calls++; return lastfm([{ name: "cumbia", count: 100 }, { name: "latin", count: "55" }])(...a); };
+  const first = await artistTags(env, "  Los  Ángeles Azules ", f);
+  assert.equal(first.status, 200);
+  assert.deepEqual(first.body.tags, [["cumbia", 100], ["latin", 55]]);
+  const again = await artistTags(env, "los ángeles azules", f);
+  assert.deepEqual(again.body, first.body);
+  assert.equal(calls, 1);
+  assert.equal(normalizeArtist("  A   B "), "a b");
+});
+
+test("tags: a definitive miss is stored, a failure is not, no key / no name are refused", async () => {
+  const env = memEnv();
+  const notFound = async () => ({ status: 200, json: async () => ({ error: 6, message: "not found" }) });
+  assert.deepEqual((await artistTags(env, "nadie", notFound)).body, { tags: [] });
+  assert.ok(env.EDGE.m.has("tags:nadie"));
+  const outage = async () => ({ status: 503, json: async () => ({}) });
+  assert.equal((await artistTags(env, "otro", outage)).status, 502);
+  assert.ok(!env.EDGE.m.has("tags:otro"));
+  const transient = async () => ({ status: 200, json: async () => ({ error: 29 }) });
+  assert.equal((await artistTags(env, "otro", transient)).status, 502);
+  assert.equal((await artistTags(memEnv({ LASTFM_KEY: undefined }), "x", outage)).status, 503);
+  assert.equal((await artistTags(env, "   ", outage)).status, 400);
+});
+
+test("tags: the hourly budget of lookups protects Last.fm and the KV writes", async () => {
+  const env = memEnv();
+  const f = lastfm([{ name: "rock", count: 1 }]);
+  let last;
+  for (let i = 0; i < 205; i++) last = await artistTags(env, "artista " + i, f);
+  assert.equal(last.status, 429);
+});
+
+test("tags route answers JSON and never leaks the key", async () => {
+  const r = await mf.dispatchFetch("http://x/v1/tags?artist=");
+  assert.equal(r.status, 400);
+  const body = await (await mf.dispatchFetch("http://x/v1/tags?artist=abc")).text();
+  assert.ok(!/api_key|LASTFM/i.test(body));
+});
+
+const goodArt = { name: "Abbey Road", artist: "The Beatles", albumName: "Abbey Road", animated: "https://mvod.itunes.apple.com/x/y.m3u8", static: "https://is1-ssl.mzstatic.com/a.jpg" };
+const goodKey = "al|thebeatles|abbeyroad";
+
+test("canvas: a cover about the key, on a known host, is shared once and served to others", async () => {
+  const env = memEnv();
+  assert.equal((await canvasGet(env, goodKey)).status, 404);
+  assert.deepEqual((await canvasPut(env, goodKey, goodArt)).body, { stored: true });
+  assert.deepEqual((await canvasPut(env, goodKey, { ...goodArt, animated: "https://a.mzstatic.com/other.m3u8" })).body, { stored: false });
+  const got = await canvasGet(env, goodKey);
+  assert.equal(got.status, 200);
+  assert.equal(got.body.artwork.animated, goodArt.animated);
+});
+
+test("canvas: nothing is shared that could hurt the next listener", () => {
+  assert.ok(sanitizeCanvas(goodKey, goodArt));
+  assert.equal(sanitizeCanvas(goodKey, { ...goodArt, animated: "http://mvod.itunes.apple.com/x.m3u8" }), null, "plain http");
+  assert.equal(sanitizeCanvas(goodKey, { ...goodArt, animated: "https://evil.example.com/x.mp4" }), null, "unknown host");
+  assert.equal(sanitizeCanvas(goodKey, { ...goodArt, animated: "https://apple.com.evil.io/x.mp4" }), null, "look-alike host");
+  assert.equal(sanitizeCanvas(goodKey, { ...goodArt, artist: "Someone Else" }), null, "another artist's cover under this key");
+  assert.equal(sanitizeCanvas(goodKey, { ...goodArt, albumName: "Let It Be", name: "Let It Be" }), null, "another album's cover");
+  assert.equal(sanitizeCanvas(goodKey, { ...goodArt, animated: undefined }), null, "nothing animated to share");
+  assert.equal(sanitizeCanvas("al|x", goodArt), null);
+  assert.ok(!validCanvasKey("al|" + "a".repeat(200) + "|b"));
+});
+
+test("canvas: routes answer, refuse junk and respect the write budget", async () => {
+  const miss = await mf.dispatchFetch("http://x/v1/canvas?k=" + encodeURIComponent("al|nadie|nada"));
+  assert.equal(miss.status, 404);
+  const bad = await mf.dispatchFetch("http://x/v1/canvas", { method: "PUT", body: JSON.stringify({ k: goodKey, artwork: { ...goodArt, animated: "https://evil.example.com/x" } }) });
+  assert.equal(bad.status, 400);
+  const env = memEnv();
+  let last;
+  for (let i = 0; i < 305; i++) last = await canvasPut(env, `al|artista${i}|album${i}`, { artist: "artista" + i, albumName: "album" + i, animated: "https://a.mzstatic.com/" + i + ".m3u8" });
+  assert.equal(last.status, 429);
 });

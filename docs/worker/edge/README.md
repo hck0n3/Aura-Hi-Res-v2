@@ -41,6 +41,15 @@ Sin dominio (lo normal): **ntfy.sh**. `npx wrangler secret put NTFY_TOPIC` con u
 ## Clave pública
 `GET /v1/pubkey` devuelve la mitad pública de `SIGNING_KEY` (la que va en `EDGE_PUBLIC_KEY`). Es pública por naturaleza.
 
+## Fase C — cachés compartidas
+| Ruta | Quién | Qué |
+|---|---|---|
+| `GET /v1/tags?artist=` | la app | etiquetas de Last.fm del artista: de KV (30 días) o **una** consulta a Last.fm para todos. Solo viaja el nombre del artista. Tope global de 200 consultas nuevas por hora. Necesita el secreto `LASTFM_KEY` (tu clave de la API de Last.fm: `npx wrangler secret put LASTFM_KEY`). |
+| `GET /v1/canvas?k=` | la app | portada animada ya encontrada para `al\|artista\|album` (7 días) o `{miss:true}` |
+| `PUT /v1/canvas` | la app, solo cuando su cadena **encontró** una | se guarda si el vídeo es `https` de un dominio conocido (apple/mzstatic/tidal/monochrome/boidu) y la portada es **del álbum de esa clave**; la primera respuesta gana; tope 300 escrituras por hora |
+
+Sin respuesta del Worker, la app sigue con su cadena de siempre: estas cachés solo ahorran peticiones y calor.
+
 ## Privacidad
 Se guarda: la configuración que tú pones, los registros que el usuario decide enviar (7 días) y el último id del reproductor de YouTube. No se guarda IP (solo un contador por hash de IP durante una hora).
 

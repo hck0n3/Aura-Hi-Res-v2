@@ -37,4 +37,11 @@ class EdgeGuardTest {
         assertTrue(client.contains("s.key.isBlank() -> State.NoKey"))
         assertFalse("la dirección del servidor no se escribe en el registro", Regex("Timber[^\\n]*(s\\.base|s\\.key)").containsMatchIn(client))
     }
+
+    @Test
+    fun `the artist name never reaches the log`() {
+        val client = File(root, "app/src/main/kotlin/com/music/echo/edge/EdgeClient.kt").readText()
+        val body = client.substringAfter("suspend fun artistTags").substringBefore("private fun readCapped")
+        assertFalse(Regex("Timber[^\\n]*artist").containsMatchIn(body))
+    }
 }
