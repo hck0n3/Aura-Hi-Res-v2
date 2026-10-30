@@ -45,6 +45,14 @@ object DeviceSyncHub {
     val remoteNow = MutableStateFlow<NowState?>(null)
     val thisDeviceId = MutableStateFlow("")
 
+    /** How this device got paired: the screens say it in words. */
+    enum class PairedBy { None, License, Code }
+
+    val pairedBy = MutableStateFlow(PairedBy.None)
+
+    /** Bumped when the license changes (activation) so the engine re-reads who it is paired with. */
+    val pairingRefresh = MutableStateFlow(0)
+
     /** Short messages for the screen to show once (a device that is not there, a hand-over that did not arrive). */
     val notices: SharedFlow<String> get() = _notices
     private val _notices = MutableSharedFlow<String>(extraBufferCapacity = 4)

@@ -47,6 +47,13 @@ object LicenseManager {
         )
     }
 
+    /** Key + purchase email when BOTH are stored, else null. Read-only: lets device sync pair the buyer's devices on its own (row 531). */
+    fun purchaseIdentity(context: Context): Pair<String, String>? {
+        val key = load(context).subscriptionKey ?: return null
+        val email = storedEmail(context) ?: return null
+        return key to email
+    }
+
     /** The stored key, to prefill the entry screen when a blocked device is asked for the purchase email. */
     fun storedKey(context: Context): String? = load(context).subscriptionKey
 

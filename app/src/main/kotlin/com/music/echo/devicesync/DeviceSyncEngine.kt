@@ -44,7 +44,7 @@ import timber.log.Timber
 
 /**
  * Row 528 — the user's devices, in step. Lives inside the playback service (it needs the player and the database) and only does
- * anything while the app is PAIRED (a code and a server address in Ajustes ▸ Sincronizar dispositivos).
+ * anything while the app is PAIRED: by the license (purchase email typed at activation — nothing to configure) or by a code typed in Ajustes ▸ Sincronizar dispositivos.
  *
  *  · Shuffle progress: the songs already played in each shuffled list are reported to the room and the other devices' reports are
  *    merged into the local `enhanced_shuffle_played` memory ([ShuffleMerge]).
@@ -96,31 +96,43 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     // ── configuration ──────────────────────────────────────────────────────────────────────────────
 
     private suspend fun configLoop() {
-        appContext.dataStore.data
+        kotlinx.coroutines.flow.combine(appContext.dataStore.data, DeviceSyncHub.pairingRefresh) { prefs, _ -> prefs }
             .map {
+                val identity = iad1tya.echo.music.license.LicenseManager.purchaseIdentity(appContext)
                 listOf(
                     it[DeviceSyncServerKey].orEmpty(),
                     it[DeviceSyncCodeKey].orEmpty(),
                     it[DeviceSyncDeviceNameKey].orEmpty(),
                     (it[DeviceSyncShuffleKey] ?: true).toString(),
                     (it[DeviceSyncHandoffKey] ?: true).toString(),
+                    (it[DeviceSyncAutoKey] ?: true).toString(),
+                    SyncCode.autoGroupId(identity?.first, identity?.second).orEmpty(),
                 )
             }
             .distinctUntilChanged()
-            .collectLatest { (server, code, name, shuffle, handoff) ->
+            .collectLatest { cfg ->
+                val server = cfg[0]; val code = cfg[1]; val name = cfg[2]
+                val shuffle = cfg[3]; val handoff = cfg[4]; val auto = cfg[5]; val autoGroup = cfg[6]
                 shuffleEnabled = shuffle.toBoolean()
                 handoffEnabled = handoff.toBoolean()
                 deviceName = name.ifBlank { Build.MODEL.orEmpty().ifBlank { "Aura" } }.take(40)
                 client.stop()
                 DeviceSyncHub.devices.value = emptyList()
                 DeviceSyncHub.remoteNow.value = null
+                // A typed code wins; otherwise the license pairs the buyer's devices on its own.
                 val normalized = SyncCode.normalize(code)
-                val url = normalized?.let { SyncCode.socketUrl(server, SyncCode.groupId(it)) }
+                val (groupId, by) = when {
+                    normalized != null -> SyncCode.groupId(normalized) to DeviceSyncHub.PairedBy.Code
+                    auto.toBoolean() && autoGroup.isNotEmpty() -> autoGroup to DeviceSyncHub.PairedBy.License
+                    else -> null to DeviceSyncHub.PairedBy.None
+                }
+                DeviceSyncHub.pairedBy.value = by
+                val url = groupId?.let { SyncCode.socketUrl(server.ifBlank { DEVICE_SYNC_DEFAULT_SERVER }, it) }
                 if (url == null) return@collectLatest
                 deviceId = ensureDeviceId()
                 DeviceSyncHub.thisDeviceId.value = deviceId
                 client.start(url) { hello() }
-                Timber.tag(TAG).i("DEVICE_SYNC paired, connecting")
+                Timber.tag(TAG).i("DEVICE_SYNC paired by=%s, connecting", by.name)
             }
     }
 

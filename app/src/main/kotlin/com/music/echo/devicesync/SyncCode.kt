@@ -22,6 +22,19 @@ object SyncCode {
         return if (clean.length == LENGTH) clean else null
     }
 
+    /**
+     * The room of a user who needs no code (row 531): their own license key + purchase email, both typed at activation. The key is
+     * secret and high-entropy, so the hash cannot be guessed or reversed; two devices of the same buyer get the same room without
+     * the user doing anything. Null when either is missing — then only a typed code can pair.
+     */
+    fun autoGroupId(licenseKey: String?, email: String?): String? {
+        val key = licenseKey?.trim().orEmpty()
+        val mail = email?.trim()?.lowercase().orEmpty()
+        if (key.isEmpty() || mail.isEmpty()) return null
+        return MessageDigest.getInstance("SHA-256").digest("aura-sync-auto:$key|$mail".toByteArray())
+            .joinToString("") { "%02x".format(it) }
+    }
+
     /** `AAAA-BBBB-…` for showing a normalized code. */
     fun pretty(normalized: String): String = normalized.chunked(4).joinToString("-")
 

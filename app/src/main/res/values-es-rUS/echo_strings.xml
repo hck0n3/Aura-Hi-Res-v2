@@ -770,12 +770,12 @@
     <string name="share_preparing_hide">Seguir en segundo plano</string>
     <string name="share_export_timeout">Tardó demasiado. El archivo sigue guardándose en segundo plano; compártelo de nuevo cuando esté listo.</string>
     <string name="device_sync_title">Sincronizar dispositivos</string>
-    <string name="device_sync_intro">Empareja tus dispositivos con un solo código. El aleatorio, los me gusta y las listas se actualizan en todos a la vez, y puedes seguir con lo que suena desde otro dispositivo.</string>
-    <string name="device_sync_server">Servidor (tu Worker)</string>
+    <string name="device_sync_intro">Tus dispositivos con la misma licencia se emparejan solos. El aleatorio, los me gusta y las listas se actualizan en todos a la vez, y puedes seguir con lo que suena desde otro dispositivo.</string>
+    <string name="device_sync_server">Servidor (avanzado)</string>
     <string name="device_sync_server_unset">Sin configurar</string>
     <string name="device_sync_server_hint">https://tu-worker.workers.dev</string>
     <string name="device_sync_server_help">La dirección de tu Worker de sincronización. Despliégalo una vez (mira docs/worker/sync) y pega aquí su dirección.</string>
-    <string name="device_sync_code">Código de emparejamiento</string>
+    <string name="device_sync_code">Código (alternativa)</string>
     <string name="device_sync_code_none">Aún no hay código</string>
     <string name="device_sync_code_create">Crear un código nuevo</string>
     <string name="device_sync_code_enter">Escribir el código de otro dispositivo</string>
@@ -799,7 +799,7 @@
     <string name="device_sync_this_device">Este dispositivo</string>
     <string name="device_sync_privacy">El código nunca sale de este dispositivo: el servidor solo ve una huella suya. Mientras estés emparejado, el servidor sí ve lo que suena (títulos, artistas y portadas).</string>
     <string name="device_sync_sheet_title">Mis dispositivos</string>
-    <string name="device_sync_sheet_empty">Empareja tus dispositivos en Ajustes ▸ Sincronizar dispositivos</string>
+    <string name="device_sync_sheet_empty">Activa tu licencia con el correo de la compra, o empareja con un código en Ajustes ▸ Sincronizar dispositivos</string>
     <string name="device_sync_sheet_open_settings">Abrir ajustes</string>
     <string name="device_sync_playing_on">Sonando en %1$s</string>
     <string name="device_sync_paused_on">En pausa en %1$s</string>
@@ -809,4 +809,12 @@
     <string name="device_sync_next">Siguiente</string>
     <string name="device_sync_previous">Anterior</string>
     <string name="device_sync_nothing_playing">No suena nada</string>
+    <string name="device_sync_paired_title">Emparejamiento</string>
+    <string name="device_sync_paired_license">Emparejado con tu licencia</string>
+    <string name="device_sync_paired_code">Emparejado con un código</string>
+    <string name="device_sync_paired_none">Sin emparejar</string>
+    <string name="device_sync_auto">Emparejar con mi licencia</string>
+    <string name="device_sync_auto_desc">Los dispositivos con la misma licencia y el mismo correo de compra se emparejan solos</string>
+    <string name="device_sync_auto_need_email">Escribe el correo de la compra al activar tu licencia para emparejar solo, o usa un código</string>
+    <string name="device_sync_server_default">Servidor de Aura (predeterminado)</string>
 </resources>

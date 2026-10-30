@@ -4,7 +4,7 @@ Beta encima de la 2.0.67-beta2 (incluye todo lo suyo) y de la 2.0.66 estable. Co
 
 ## Tus dispositivos
 
-- **Sincronizar dispositivos (Ajustes):** empareja tus móviles y tablets con un código. El aleatorio recuerda lo ya sonado en todos, y los cambios de «me gusta» y de listas avisan a los demás al momento. Necesita tu propio servidor (guía en `docs/worker/sync`); sin configurarlo no hace nada ni gasta batería.
+- **Tus dispositivos se emparejan solos:** si activaste la licencia con el correo de la compra, tus móviles y tablets con esa misma licencia quedan emparejados sin hacer nada (o usa un código en Ajustes ▸ Sincronizar dispositivos). El aleatorio recuerda lo ya sonado en todos, y los cambios de «me gusta» y de listas avisan a los demás al momento.
 - **Seguir donde lo dejaste:** el botón «Mis dispositivos» del reproductor trae aquí lo que suena en otro dispositivo, o envía lo tuyo a otro. También pausa y pasa de canción en el que suena.
 - **Licencia en varios equipos:** escribe el correo con el que compraste al activar y la misma licencia funciona en hasta 3 equipos. Sin correo, todo sigue como antes: un equipo por clave.
 

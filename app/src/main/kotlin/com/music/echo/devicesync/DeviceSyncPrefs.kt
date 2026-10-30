@@ -10,3 +10,9 @@ val DeviceSyncDeviceIdKey = stringPreferencesKey("deviceSyncDeviceId")
 val DeviceSyncDeviceNameKey = stringPreferencesKey("deviceSyncDeviceName")
 val DeviceSyncShuffleKey = booleanPreferencesKey("deviceSyncShuffle")
 val DeviceSyncHandoffKey = booleanPreferencesKey("deviceSyncHandoff")
+
+/** Row 531 — pair by the license (no code to type). On by default; the typed code, when there is one, wins. */
+val DeviceSyncAutoKey = booleanPreferencesKey("deviceSyncAuto")
+
+/** Aura's own sync Worker. The user never has to know it exists; the field in Ajustes is only for someone who runs their own. */
+const val DEVICE_SYNC_DEFAULT_SERVER = "https://aura-sync.toberto4000.workers.dev"

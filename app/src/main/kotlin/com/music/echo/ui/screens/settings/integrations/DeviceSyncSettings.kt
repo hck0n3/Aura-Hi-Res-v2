@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.R
+import iad1tya.echo.music.devicesync.DeviceSyncAutoKey
 import iad1tya.echo.music.devicesync.DeviceSyncCodeKey
 import iad1tya.echo.music.devicesync.DeviceSyncDeviceNameKey
 import iad1tya.echo.music.devicesync.DeviceSyncHandoffKey
@@ -82,10 +83,12 @@ fun DeviceSyncSettings(
     var deviceName by rememberPreference(DeviceSyncDeviceNameKey, "")
     var shuffle by rememberPreference(DeviceSyncShuffleKey, true)
     var handoff by rememberPreference(DeviceSyncHandoffKey, true)
+    var auto by rememberPreference(DeviceSyncAutoKey, true)
 
     val connection by DeviceSyncHub.connection.collectAsState()
     val devices by DeviceSyncHub.devices.collectAsState()
     val thisId by DeviceSyncHub.thisDeviceId.collectAsState()
+    val pairedBy by DeviceSyncHub.pairedBy.collectAsState()
 
     var showServer by rememberSaveable { mutableStateOf(false) }
     var showName by rememberSaveable { mutableStateOf(false) }
@@ -139,6 +142,12 @@ fun DeviceSyncSettings(
         is DeviceSyncHub.Connection.Retrying -> stringResource(R.string.device_sync_status_retrying, c.inSeconds)
     }
     val codeCopied = stringResource(R.string.device_sync_code_copied)
+    val pairedText = when (pairedBy) {
+        DeviceSyncHub.PairedBy.License -> stringResource(R.string.device_sync_paired_license)
+        DeviceSyncHub.PairedBy.Code -> stringResource(R.string.device_sync_paired_code)
+        DeviceSyncHub.PairedBy.None ->
+            if (auto) stringResource(R.string.device_sync_auto_need_email) else stringResource(R.string.device_sync_paired_none)
+    }
 
     Box(
         Modifier
@@ -176,11 +185,26 @@ fun DeviceSyncSettings(
                         )
                         add(
                             IntegrationCardItem(
+                                icon = painterResource(R.drawable.person),
+                                title = { Text(stringResource(R.string.device_sync_paired_title)) },
+                                description = { Text(pairedText) },
+                            )
+                        )
+                        add(
+                            switchItem(
+                                title = stringResource(R.string.device_sync_auto),
+                                description = stringResource(R.string.device_sync_auto_desc),
+                                checked = auto,
+                                onChange = { auto = it },
+                            )
+                        )
+                        add(
+                            IntegrationCardItem(
                                 icon = painterResource(R.drawable.cloud),
                                 title = { Text(stringResource(R.string.device_sync_server)) },
                                 description = {
                                     Text(
-                                        server.ifBlank { stringResource(R.string.device_sync_server_unset) },
+                                        server.ifBlank { stringResource(R.string.device_sync_server_default) },
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )

@@ -68,4 +68,21 @@ class DeviceSyncPureTest {
         // never reported before: everything
         assertEquals(0 to listOf("a", "b"), ShuffleMerge.outgoing(0, null, listOf("a", "b"), listOf("b")))
     }
+
+    @Test
+    fun `the buyer's devices get the same room from the license without typing anything`() {
+        val a = SyncCode.autoGroupId("KEY-123", "Buyer@Mail.com")
+        assertTrue(Regex("[a-f0-9]{64}").matches(a!!))
+        // same key + same email in any case, with stray spaces → same room on every device
+        assertEquals(a, SyncCode.autoGroupId(" KEY-123 ", " buyer@mail.COM "))
+        // another key or another email → another room
+        assertNotEquals(a, SyncCode.autoGroupId("KEY-124", "buyer@mail.com"))
+        assertNotEquals(a, SyncCode.autoGroupId("KEY-123", "other@mail.com"))
+        // either piece missing → no automatic room (only a typed code can pair)
+        assertNull(SyncCode.autoGroupId(null, "buyer@mail.com"))
+        assertNull(SyncCode.autoGroupId("KEY-123", ""))
+        assertNull(SyncCode.autoGroupId("", null))
+        // neither the key nor the email is readable in the id
+        assertTrue(!a.contains("key-123") && !a.contains("buyer"))
+    }
 }

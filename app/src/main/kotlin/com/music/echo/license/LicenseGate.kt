@@ -31,7 +31,11 @@ fun LicenseGate(appContent: @Composable () -> Unit) {
 
     fun refresh() {
         showEntry = false
-        scope.launch { appState = LicenseManager.evaluate(context) }
+        scope.launch {
+            appState = LicenseManager.evaluate(context)
+            // The buyer's devices pair by the license (row 531): tell device sync the license may have changed.
+            iad1tya.echo.music.devicesync.DeviceSyncHub.pairingRefresh.value++
+        }
     }
 
     LaunchedEffect(Unit) { refresh() }

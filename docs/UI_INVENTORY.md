@@ -4231,3 +4231,4 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Reproductor ▸ botón «Mis dispositivos» (fila de accesos rápidos) | Ventana con tus otros dispositivos: reproducir aquí lo que suena en otro, play/pausa/siguiente remotos y enviar lo mío a otro | 528 |
 | Activar suscripción ▸ campo «Correo de la compra (opcional)» | Con el correo de la compra la misma licencia funciona en hasta 3 equipos; sin él, un equipo como siempre | 530 |
 | Pantalla «Suscripción en otro equipo» | Nuevo botón «Escribir el correo de la compra» (abre la pantalla de activar con la clave ya puesta); «Reintentar» pasa a secundario | 530 |
+| Ajustes ▸ Sincronizar dispositivos: «Emparejamiento» y «Emparejar con mi licencia» | Dice si el equipo está emparejado por licencia, por código o sin emparejar; el servidor pasa a «avanzado» y vale el de Aura por defecto | 531 |
