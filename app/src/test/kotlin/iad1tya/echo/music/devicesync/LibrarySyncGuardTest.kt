@@ -44,6 +44,14 @@ class LibrarySyncGuardTest {
     }
 
     @Test
+    fun `likes that arrive through the room are also sent to the YouTube account, a few at a time`() {
+        val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAdapter.kt")
+        assertTrue(a.contains("mirrorLikesToAccount(changedLikes)"))
+        assertTrue(a.contains("AccountPushPolicy.Op.SONG_LIKE"))
+        assertTrue("una sincronización inicial grande no se reenvía una a una a YouTube", a.contains("changed.size > MIRROR_MAX"))
+    }
+
+    @Test
     fun `the worker README says what is stored`() {
         val r = read("docs/worker/sync/README.md")
         assertTrue(r.contains("lib_push"))

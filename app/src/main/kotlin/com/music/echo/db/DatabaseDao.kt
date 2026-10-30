@@ -2534,6 +2534,10 @@ interface DatabaseDao {
     @Query("SELECT COUNT(*) FROM song WHERE id = :id")
     suspend fun syncSongExists(id: String): Int
 
+    /** Whether the song is liked here right now (null = no such song). */
+    @Query("SELECT liked FROM song WHERE id = :id")
+    suspend fun syncIsLiked(id: String): Boolean?
+
     @Query(
         """
         UPDATE song SET liked = :liked, likedDate = :date,

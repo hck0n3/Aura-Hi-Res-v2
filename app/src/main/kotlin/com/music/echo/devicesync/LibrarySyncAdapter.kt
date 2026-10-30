@@ -115,14 +115,17 @@ class LibrarySyncAdapter(
 
         // 4. Likes.
         val now = LocalDateTime.now()
+        val changedLikes = ArrayList<Pair<String, Boolean>>()
         for ((id, liked) in plan.likes) {
             if (liked && database.syncSongExists(id) == 0) {
                 unresolved++
                 continue
             }
+            if (database.syncIsLiked(id) != liked) changedLikes += id to liked
             database.syncSetLiked(id, liked, if (liked) now else null)
             applied++
         }
+        mirrorLikesToAccount(changedLikes)
 
         // 5. Dislikes.
         for ((set, id, on) in plan.dislikes) {
@@ -154,6 +157,27 @@ class LibrarySyncAdapter(
         return ApplyResult(applied, unresolved)
     }
 
+    /**
+     * Owner 2026-10-30: «todo lo que me gusta que aparezca de inmediato también en YouTube». The device where the like was made
+     * already sent it; this covers the case where THAT device could not (signed out of YouTube, no network at that moment) and this
+     * one can. YouTube ignores a like that is already there. A first sync that brings thousands of likes is NOT replayed against the
+     * account one by one (that is the YouTube sync's job): only the few changes a person makes live.
+     */
+    private fun mirrorLikesToAccount(changed: List<Pair<String, Boolean>>) {
+        if (changed.isEmpty() || changed.size > MIRROR_MAX) return
+        for ((id, liked) in changed) {
+            iad1tya.echo.music.utils.AccountPush.submit(
+                if (liked) iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_LIKE else iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_UNLIKE,
+                id,
+            )
+        }
+        Timber.tag("DeviceSync").i("LIB_SYNC likes mirrored to account=%d", changed.size)
+    }
+
     /** `LP` + 8 letters is how this app names a playlist that lives only on the device; anything else is a YouTube browseId. */
     private fun isOwnPlaylistId(key: String) = key.length == 10 && key.startsWith("LP") && key.drop(2).all { it.isLetter() }
+
+    private companion object {
+        const val MIRROR_MAX = 25
+    }
 }
