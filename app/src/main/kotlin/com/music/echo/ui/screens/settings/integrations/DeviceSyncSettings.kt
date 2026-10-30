@@ -91,6 +91,7 @@ fun DeviceSyncSettings(
     val devices by DeviceSyncHub.devices.collectAsState()
     val thisId by DeviceSyncHub.thisDeviceId.collectAsState()
     val pairedBy by DeviceSyncHub.pairedBy.collectAsState()
+    val libraryStatus by DeviceSyncHub.libraryStatus.collectAsState()
 
     var showServer by rememberSaveable { mutableStateOf(false) }
     var showName by rememberSaveable { mutableStateOf(false) }
@@ -144,6 +145,14 @@ fun DeviceSyncSettings(
         is DeviceSyncHub.Connection.Retrying -> stringResource(R.string.device_sync_status_retrying, c.inSeconds)
     }
     val codeCopied = stringResource(R.string.device_sync_code_copied)
+    val libraryText = when (val s = libraryStatus) {
+        DeviceSyncHub.LibraryStatus.Off -> stringResource(R.string.device_sync_lib_off)
+        DeviceSyncHub.LibraryStatus.Waiting -> stringResource(R.string.device_sync_lib_waiting)
+        DeviceSyncHub.LibraryStatus.ServerOutdated -> stringResource(R.string.device_sync_lib_outdated)
+        DeviceSyncHub.LibraryStatus.Syncing -> stringResource(R.string.device_sync_lib_syncing)
+        is DeviceSyncHub.LibraryStatus.Synced -> stringResource(R.string.device_sync_lib_synced, s.known, s.pending)
+        is DeviceSyncHub.LibraryStatus.Failed -> stringResource(R.string.device_sync_lib_failed, s.reason)
+    }
     val pairedText = when (pairedBy) {
         DeviceSyncHub.PairedBy.License -> stringResource(R.string.device_sync_paired_license)
         DeviceSyncHub.PairedBy.Code -> stringResource(R.string.device_sync_paired_code)
@@ -190,6 +199,14 @@ fun DeviceSyncSettings(
                                 icon = painterResource(R.drawable.person),
                                 title = { Text(stringResource(R.string.device_sync_paired_title)) },
                                 description = { Text(pairedText) },
+                            )
+                        )
+                        add(
+                            IntegrationCardItem(
+                                icon = painterResource(R.drawable.sync),
+                                title = { Text(stringResource(R.string.device_sync_lib_title)) },
+                                description = { Text(libraryText) },
+                                onClick = { DeviceSyncHub.controller?.syncLibraryNow() },
                             )
                         )
                         add(

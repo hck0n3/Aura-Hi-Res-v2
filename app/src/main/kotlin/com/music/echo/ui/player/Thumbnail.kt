@@ -223,9 +223,19 @@ private val TIDAL_COVER_SIDE_PADDING = 24.dp
  *    the rim and the short shadow show.
  * Platform shadows are drawn once with the cover; nothing is sampled per frame (AGENTS rule 7).
  */
-private val COVER_LIFT_ELEVATION = 6.dp
-private val COVER_GLOW_ELEVATION = 24.dp
-private const val COVER_GLOW_ALPHA = 0.55f
+private val COVER_LIFT_ELEVATION = 4.dp
+private val COVER_GLOW_ELEVATION = 12.dp
+private const val COVER_GLOW_ALPHA = 0.50f
+
+/**
+ * Row 538 (owner 2026-10-30, on a regular phone: «se ve un recuadro abajo, la sombra se ve cuadrada, tiene que ser degradada para que
+ * no se vea el corte»). On a phone the cover takes the WHOLE height of its slot, and a shadow is drawn OUTSIDE the cover: the slot
+ * (the carousel and the animated-content container around it) clips whatever leaves it, so the glow ended in a straight line under
+ * the cover. A tablet or an unfolded foldable has spare height, which is why it only showed on regular phones. The cover now leaves
+ * this much room above and below it, and the glow's elevation ([COVER_GLOW_ELEVATION]) fits inside it, so the shadow fades out
+ * before the clip instead of being cut by it.
+ */
+private val COVER_SHADOW_ROOM = 14.dp
 private val COVER_RIM_BRUSH = androidx.compose.ui.graphics.Brush.linearGradient(
     listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.06f)),
 )
@@ -707,7 +717,12 @@ fun Thumbnail(
                                 // TIDAL-SIZED COVER (owner 2026-09-13, measured on the Galaxy: 320 dp vs
                                 // TIDAL's ~352 dp): the new player's cover uses the slot's full height —
                                 // the 8 dp elevation inset was what kept it height-capped below TIDAL's size.
-                                val slotCap = maxHeight
+                                // Row 538: the new player's cover leaves room for its shadow (see [COVER_SHADOW_ROOM]).
+                                val slotCap = if (host == ThumbnailHost.OPAQUE_DARK) {
+                                    (maxHeight - COVER_SHADOW_ROOM * 2).coerceAtLeast(0.dp)
+                                } else {
+                                    maxHeight
+                                }
                                 // #50 unchanged: on a wide screen the 420 dp ceiling still applies — it is
                                 // now simply the SMALLER of the two caps, because a 420 dp square in a
                                 // 300 dp-tall slot letterboxes exactly the same way.

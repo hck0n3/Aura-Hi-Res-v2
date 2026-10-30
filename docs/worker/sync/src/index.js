@@ -18,18 +18,21 @@ const MAX_MESSAGE_BYTES = 128 * 1024;
 const MAX_NOW_BYTES = 24 * 1024;
 const MAX_DEVICES = 8;
 // Library registers (row 536): likes, dislikes and playlists, one last-writer-wins register per item.
+// Bumped whenever the library protocol changes. The app asks for it in `hello_ok` and says so when the deployed Worker is older.
+const LIB_VERSION = 2;
 const LIB_PAGE = 400; // items per `lib_state` page
 const LIB_PUSH_MAX = 400; // ops per `lib_push`
 const LIB_CHUNK = 50; // ops per storage write batch (each accepted op writes 2 keys; storage.put takes ≤128)
 const LIB_MAX_KEY = 120;
-const LIB_MAX_VALUE = 400;
+const LIB_MAX_VALUE = 800;
 const LIB_MAX_KEYS = 150000;
 const pad = (n) => String(n).padStart(12, "0");
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === "/health") return json({ ok: true });
+    // `lib` tells the app (and the owner, in a browser) whether this deployment understands the library registers (row 536).
+    if (url.pathname === "/health") return json({ ok: true, lib: LIB_VERSION });
     if (url.pathname !== "/sync") return json({ error: "not_found" }, 404);
     const group = url.searchParams.get("g") || "";
     if (!/^[a-f0-9]{64}$/.test(group)) return json({ error: "bad_group" }, 400);
@@ -129,7 +132,7 @@ export class SyncRoom {
       joinedAt: Date.now(),
     });
     const now = (await this.ctx.storage.get("now")) || null;
-    send(ws, { t: "hello_ok", serverTime: Date.now(), devices: this.devices(), now });
+    send(ws, { t: "hello_ok", serverTime: Date.now(), devices: this.devices(), now, lib: LIB_VERSION });
     this.broadcastDevices(null, ws);
   }
 
@@ -253,13 +256,22 @@ export class SyncRoom {
     send(dest, { t: "cmd", from: me.id, fromName: me.name, cmd, args: msg.args && typeof msg.args === "object" ? msg.args : {} });
   }
 
+  /**
+   * The devices in the room, ONE per device id. A device that reconnects leaves its old socket «closing» for a moment next to the
+   * new one; listing both made the count flip between N and N+1 (owner 2026-10-30: «dice tres, de la nada dos, y así alternando»).
+   * A socket that is not open any more is not listed, and when two sockets carry the same id the newest one wins.
+   */
   devices(exclude) {
-    return this.ctx
-      .getWebSockets()
-      .filter((s) => s !== exclude)
-      .map((s) => s.deserializeAttachment() || {})
-      .filter((d) => d.id)
-      .map((d) => ({ id: d.id, name: d.name, kind: d.kind, since: d.joinedAt }));
+    const byId = new Map();
+    for (const s of this.ctx.getWebSockets()) {
+      if (s === exclude) continue;
+      if (s.readyState !== undefined && s.readyState !== 1) continue; // 1 = OPEN
+      const d = s.deserializeAttachment() || {};
+      if (!d.id) continue;
+      const seen = byId.get(d.id);
+      if (!seen || (d.joinedAt || 0) >= (seen.since || 0)) byId.set(d.id, { id: d.id, name: d.name, kind: d.kind, since: d.joinedAt });
+    }
+    return [...byId.values()];
   }
 
   /** Tell everyone who is in the room. [closing] is a socket on its way out (not listed); [skip] is not written to. */

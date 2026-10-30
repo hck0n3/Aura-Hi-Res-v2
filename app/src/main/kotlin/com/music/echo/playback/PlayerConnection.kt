@@ -543,6 +543,7 @@ class PlayerConnection(
     
     fun togglePlayPause() {
         try {
+            if (iad1tya.echo.music.devicesync.RemotePlayback.toggle()) return
             val castHandler = service.castConnectionHandler
             // Registry row 473: proves that a tap REACHED the player and from which state (INFO = in the shared log;
             // booleans and ints only, no title / artist / id). A tap that never shows here was lost in the UI.
@@ -569,6 +570,7 @@ class PlayerConnection(
     
     fun play() {
         try {
+            if (iad1tya.echo.music.devicesync.RemotePlayback.play()) return
             val castHandler = service.castConnectionHandler
             if (castHandler?.isCasting?.value == true) {
                 castHandler.play()
@@ -586,6 +588,7 @@ class PlayerConnection(
     
     fun pause() {
         try {
+            if (iad1tya.echo.music.devicesync.RemotePlayback.pause()) return
             val castHandler = service.castConnectionHandler
             if (castHandler?.isCasting?.value == true) {
                 castHandler.pause()
@@ -600,6 +603,7 @@ class PlayerConnection(
     
     fun seekTo(position: Long) {
         try {
+            if (iad1tya.echo.music.devicesync.RemotePlayback.seekTo(position)) return
             val castHandler = service.castConnectionHandler
             if (castHandler?.isCasting?.value == true) {
                 castHandler.seekTo(position)
@@ -613,6 +617,7 @@ class PlayerConnection(
 
     fun seekToNextOrStartRadio() {
         try {
+            if (iad1tya.echo.music.devicesync.RemotePlayback.next()) return
             val castHandler = service.castConnectionHandler
             if (castHandler?.isCasting?.value == true) {
                 castHandler.skipToNext()
@@ -671,7 +676,7 @@ class PlayerConnection(
 
     fun seekToPrevious() {
         try {
-            
+            if (iad1tya.echo.music.devicesync.RemotePlayback.previous()) return
             val castHandler = service.castConnectionHandler
             if (castHandler?.isCasting?.value == true) {
                 castHandler.skipToPrevious()

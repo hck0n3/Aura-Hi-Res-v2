@@ -1,6 +1,6 @@
 package iad1tya.echo.music.devicesync
 
-import iad1tya.echo.music.ui.newui.clock
+import iad1tya.echo.music.devicesync.clock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

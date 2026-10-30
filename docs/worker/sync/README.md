@@ -24,7 +24,7 @@ npx wrangler deploy        # crea el Worker «aura-sync» y su Durable Object (p
 Te da una dirección tipo `https://aura-sync.<tu-usuario>.workers.dev`. En la app: **Ajustes ▸ Sincronizar dispositivos ▸ Servidor**
 pegas esa dirección (sin `/sync`) en cada dispositivo, creas el grupo en uno y metes el código en los demás.
 
-Comprobar: `https://aura-sync.<tu-usuario>.workers.dev/health` debe responder `{"ok":true}`.
+Comprobar: `https://aura-sync.<tu-usuario>.workers.dev/health` debe responder `{"ok":true,"lib":2}`. Si responde solo `{"ok":true}`, sigue desplegada una versión vieja que no entiende la sincronización de biblioteca: vuelve a ejecutar `npx wrangler deploy` desde la carpeta con el código nuevo.
 
 ## Pruebas
 `npm test` ejecuta el Worker de verdad (workerd, vía Miniflare) con varios dispositivos conectados: presencia, unión y reinicio del

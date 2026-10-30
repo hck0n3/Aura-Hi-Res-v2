@@ -17,6 +17,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import iad1tya.echo.music.devicesync.RemotePlayback
 import iad1tya.echo.music.echomusic.AudioDeviceBottomSheet
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -964,8 +965,14 @@ fun AuraMiniPlayer(
     val castHandler = remember(playerConnection) {
         runCatching { playerConnection.service.castConnectionHandler }.getOrNull()
     }
-    val isCasting by castHandler?.isCasting?.collectAsState() ?: remember { mutableStateOf(false) }
-    val castIsPlaying by castHandler?.castIsPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
+    val castingReal by castHandler?.isCasting?.collectAsState() ?: remember { mutableStateOf(false) }
+    val castIsPlayingReal by castHandler?.castIsPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
+    // Row 537: playing on another of the user's devices counts as «casting» for this pill, like in the full player.
+    val remoteTarget by RemotePlayback.target.collectAsState()
+    val remotePlaying by RemotePlayback.playing.collectAsState()
+    val remoteActive = remoteTarget != null
+    val isCasting = castingReal || remoteActive
+    val castIsPlaying = if (remoteActive) remotePlaying else castIsPlayingReal
     val effectiveIsPlaying = if (isCasting) castIsPlaying else isPlaying
 
     val listenTogetherManager = iad1tya.echo.music.LocalListenTogetherManager.current
@@ -1336,7 +1343,7 @@ fun AuraMiniPlayer(
                     onClick = {
                         when {
                             isListenTogetherGuest -> playerConnection.toggleMute()
-                            isCasting -> if (castIsPlaying) castHandler?.pause() else castHandler?.play()
+                            isCasting -> if (remoteActive) RemotePlayback.toggle() else if (castIsPlaying) castHandler?.pause() else castHandler?.play()
                             playbackState == Player.STATE_ENDED -> {
                                 playerConnection.player.seekTo(0, 0)
                                 playerConnection.player.playWhenReady = true

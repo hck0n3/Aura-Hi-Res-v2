@@ -1520,4 +1520,12 @@
     <string name="device_sync_continue_here">Continue here</string>
     <string name="device_sync_library">Sync likes, dislikes and playlists</string>
     <string name="device_sync_library_desc">Kept equal on your devices through the server, in real time or when they connect. While they are connected, YouTube does not sync them</string>
+    <string name="device_sync_lib_title">Library (tap to sync now)</string>
+    <string name="device_sync_lib_off">Off</string>
+    <string name="device_sync_lib_waiting">Waiting for the server…</string>
+    <string name="device_sync_lib_outdated">The server is out of date: deploy it again (npx wrangler deploy)</string>
+    <string name="device_sync_lib_syncing">Syncing…</string>
+    <string name="device_sync_lib_synced">Up to date · %1$d items · %2$d waiting to send</string>
+    <string name="device_sync_lib_failed">Could not sync (%1$s). Tap to retry</string>
+    <string name="device_sync_remote_chip">Playing on %1$s · Continue here</string>
 </resources>

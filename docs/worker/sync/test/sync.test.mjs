@@ -246,7 +246,7 @@ test("library: bad input is dropped, rooms are isolated, and nothing works befor
   const b = await connect(g2, tablet);
   await a.next((m) => m.t === "hello_ok");
   await b.next((m) => m.t === "hello_ok");
-  a.send({ t: "lib_push", ops: [["lk:ok", 1, "1"], ["", 1, "1"], ["k".repeat(200), 1, "1"], ["lk:nan", "x", "1"], "junk", ["lk:long", 1, "v".repeat(500)]] });
+  a.send({ t: "lib_push", ops: [["lk:ok", 1, "1"], ["", 1, "1"], ["k".repeat(200), 1, "1"], ["lk:nan", "x", "1"], "junk", ["lk:long", 1, "v".repeat(900)]] });
   assert.equal((await a.next((m) => m.t === "lib_ack")).accepted, 1);
   b.send({ t: "lib_pull", since: 0 });
   assert.deepEqual((await b.next((m) => m.t === "lib_state")).items, []);
@@ -258,4 +258,42 @@ test("library: bad input is dropped, rooms are isolated, and nothing works befor
   a.ws.close();
   b.ws.close();
   stranger.ws.close();
+});
+
+test("health says which protocol this deployment speaks, and hello_ok repeats it", async () => {
+  const res = await mf.dispatchFetch("http://x/health");
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.ok(body.lib >= 2);
+  const g = createHash("sha256").update("health-version").digest("hex");
+  const a = await connect(g, phone);
+  assert.equal((await a.next((m) => m.t === "hello_ok")).lib, body.lib);
+  a.ws.close();
+});
+
+test("a device that reconnects is listed ONCE, never next to its own stale socket (the 2-3-2-3 counter)", async () => {
+  const g = createHash("sha256").update("dedupe-devices").digest("hex");
+  const tabletConn = await connect(g, tablet);
+  await tabletConn.next((m) => m.t === "hello_ok");
+  const first = await connect(g, phone);
+  await first.next((m) => m.t === "hello_ok");
+  // the phone reconnects (a new socket, the old one not closed by the client)
+  const second = await connect(g, phone);
+  const ok = await second.next((m) => m.t === "hello_ok");
+  assert.deepEqual(ok.devices.map((d) => d.id).sort(), ["phone-0001", "tablet-0001"]);
+  // and everyone who hears a `devices` update hears two, never three
+  const heard = [];
+  for (let i = 0; i < 3; i++) {
+    try {
+      const m = await tabletConn.next((x) => x.t === "devices", 400);
+      heard.push(m.devices.length);
+    } catch {
+      break;
+    }
+  }
+  assert.ok(heard.length > 0);
+  assert.ok(heard.every((n) => n === 2), `device counts heard: ${heard}`);
+  tabletConn.ws.close();
+  first.ws.close();
+  second.ws.close();
 });

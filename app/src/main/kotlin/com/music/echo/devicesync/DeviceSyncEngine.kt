@@ -68,6 +68,9 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     @Volatile private var handoffEnabled = true
     @Volatile private var libraryEnabled = true
     private var library: LibrarySync? = null
+    @Volatile private var helloLib = 0
+    private var remoteTick: Job? = null
+    private var playerListenerAttached = false
     @Volatile private var everPlayed = false
     private var lastSignature = ""
     private var lastPublishedAt = 0L
@@ -87,7 +90,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         scope.launch {
             client.state.collect {
                 DeviceSyncHub.connection.value = it
-                if (it !is DeviceSyncHub.Connection.Connected) library?.onDisconnected()
+                if (it !is DeviceSyncHub.Connection.Connected) {
+                    library?.onDisconnected()
+                    RemotePlayback.update(null, 0L)
+                }
             }
         }
         scope.launch { client.messages.collect { runCatching { handle(it) }.onFailure { e -> Timber.tag(TAG).w("handle failed: %s", e.javaClass.simpleName) } } }
@@ -99,6 +105,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         if (DeviceSyncHub.controller === this) DeviceSyncHub.controller = null
         library?.stop()
         library = null
+        RemotePlayback.update(null, 0L)
         client.stop()
         DeviceSyncHub.devices.value = emptyList()
         DeviceSyncHub.remoteNow.value = null
@@ -127,7 +134,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 val server = cfg[0]; val code = cfg[1]; val name = cfg[2]
                 val shuffle = cfg[3]; val handoff = cfg[4]; val auto = cfg[5]; val autoGroup = cfg[6]
                 libraryEnabled = cfg[7].toBoolean()
-                if (!libraryEnabled) DeviceSyncHub.libraryOwnedByDevices = false
+                if (!libraryEnabled) {
+                    DeviceSyncHub.libraryOwnedByDevices = false
+                    DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Off
+                }
                 shuffleEnabled = shuffle.toBoolean()
                 handoffEnabled = handoff.toBoolean()
                 deviceName = name.ifBlank { Build.MODEL.orEmpty().ifBlank { "Aura" } }.take(40)
@@ -176,6 +186,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         if (library?.handle(msg) == true) return
         when (msg.str("t")) {
             "hello_ok" -> {
+                helloLib = msg.int("lib") ?: 0
                 msg.long("serverTime")?.let { serverOffsetMs = it - System.currentTimeMillis(); DeviceSyncHub.serverOffsetMs = serverOffsetMs }
                 DeviceSyncHub.devices.value = parseDevices(msg["devices"])
                 (msg["now"] as? JsonObject)?.let { setRemoteNow(it) }
@@ -224,6 +235,94 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     private fun setRemoteNow(state: JsonObject) {
         val now = parseNow(state) ?: return
         DeviceSyncHub.remoteNow.value = if (now.deviceId == deviceId) null else now
+        scope.launch { runCatching { evaluateRemote() } }
+    }
+
+    // ── remote control: this device's own player shows and controls the other one (row 537) ───────────────────────────────────
+
+    /** Decide whether the player is in «remote» mode, and keep the mirror and the timeline moving while it is. */
+    private suspend fun evaluateRemote() {
+        val remote = DeviceSyncHub.remoteNow.value
+        val localPlaying = onMain {
+            val p = playerOrNull()
+            p != null && p.playWhenReady && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED
+        }
+        val active = RemotePlayback.shouldBeActive(
+            remote = remote,
+            thisDeviceId = deviceId,
+            handoffEnabled = handoffEnabled,
+            connected = DeviceSyncHub.connection.value is DeviceSyncHub.Connection.Connected,
+            localPlaying = localPlaying,
+            controllingRecently = RemotePlayback.controllingRecently(),
+            serverNowMs = serverNow(),
+        )
+        if (!active || remote == null) {
+            if (RemotePlayback.active) {
+                RemotePlayback.update(null, serverNow())
+                remoteTick?.cancel()
+                remoteTick = null
+                Timber.tag(TAG).i("DEVICE_SYNC remote control off")
+            }
+            return
+        }
+        if (!RemotePlayback.active) Timber.tag(TAG).i("DEVICE_SYNC remote control on")
+        RemotePlayback.update(remote, serverNow())
+        mirrorRemote(remote)
+        if (remote.playing && remoteTick?.isActive != true) {
+            // One tick a second, only while the other device plays and this player is showing it.
+            remoteTick = scope.launch {
+                while (isActive && RemotePlayback.active && RemotePlayback.playing.value) {
+                    delay(1_000L)
+                    RemotePlayback.tick(serverNow())
+                }
+            }
+        }
+    }
+
+    /**
+     * So this device's player has something to show — the other device's song, with its cover, title and lyrics — load its queue
+     * window WITHOUT preparing or playing it (the same «restore» path the app uses at boot): nothing is downloaded and nothing sounds.
+     */
+    private suspend fun mirrorRemote(state: NowState) {
+        val current = state.current ?: return
+        onMain {
+            val p = playerOrNull() ?: return@onMain
+            if (p.currentMediaItem?.mediaId == current.id) return@onMain
+            for (i in 0 until p.mediaItemCount) {
+                if (p.getMediaItemAt(i).mediaId == current.id) {
+                    p.seekTo(i, 0L)
+                    return@onMain
+                }
+            }
+            val items = state.items.map { item ->
+                MediaMetadata(
+                    id = item.id,
+                    title = item.title,
+                    artists = listOf(MediaMetadata.Artist(id = null, name = item.artist)),
+                    duration = 0,
+                    thumbnailUrl = item.cover.ifBlank { null },
+                ).toMediaItem()
+            }
+            service.playQueue(
+                ListQueue(title = state.deviceName.ifBlank { null }, items = items, startIndex = state.index, position = 0L),
+                playWhenReady = false,
+                isRestore = true,
+            )
+        }
+    }
+
+    /** Re-evaluate the instant THIS device starts or stops playing, not at the next 4 s tick. */
+    private suspend fun attachPlayerListener() {
+        if (playerListenerAttached) return
+        onMain {
+            val p = playerOrNull() ?: return@onMain
+            p.addListener(object : Player.Listener {
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                    scope.launch { runCatching { evaluateRemote() } }
+                }
+            })
+            playerListenerAttached = true
+        }
     }
 
     private fun parseDevices(el: JsonElement?): List<SyncDevice> =
@@ -353,6 +452,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
     }
 
+    override fun syncLibraryNow() {
+        library?.resync()
+    }
+
     override fun libraryChanged(what: String) {
         // Row 536: the room carries the change itself; the old «go and ask YouTube» ping is only for when this is switched off.
         val lib = library
@@ -370,7 +473,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     // ── what this device plays ─────────────────────────────────────────────────────────────────────
 
     private suspend fun onConnected() {
-        library?.onConnected()
+        library?.onConnected(helloLib)
         lastSignature = ""
         publishNow(force = true)
         if (shuffleEnabled) {
@@ -384,6 +487,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             delay(TICK_MS)
             if (DeviceSyncHub.connection.value !is DeviceSyncHub.Connection.Connected) continue
             runCatching {
+                attachPlayerListener()
+                evaluateRemote()
                 publishNow(force = false)
                 if (shuffleEnabled) pushShuffle()
             }.onFailure { Timber.tag(TAG).w("tick failed: %s", it.javaClass.simpleName) }
@@ -433,6 +538,9 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     /** Publish while this device plays, once more when it stops, and never before it has played anything (a restored queue says nothing). */
     private suspend fun publishNow(force: Boolean) {
+        // While this player is only SHOWING the other device's playback it must not announce it as its own (it would overwrite
+        // the real state in the room and the two devices would fight over who is playing).
+        if (RemotePlayback.active) return
         val state = buildNow() ?: return
         val playing = (state["playing"] as? JsonPrimitive)?.booleanOrNull == true
         if (playing) everPlayed = true

@@ -61,6 +61,7 @@ class LibrarySync(
     private val inFlight = ArrayDeque<List<Reg>>()
     private val sentKeys = HashSet<String>()
     private var kickJob: Job? = null
+    private var pullWatchdog: Job? = null
     private var lastDiffAt = 0L
 
     @Volatile private var connected = false
@@ -89,20 +90,42 @@ class LibrarySync(
         kickJob?.cancel()
     }
 
-    /** The socket is up and the room said hello: ask for what changed while this device was away. */
-    fun onConnected() {
+    /**
+     * The socket is up and the room said hello: ask for what changed while this device was away. [serverLib] is the library protocol
+     * version the deployed Worker announced in `hello_ok` (0 when it announced none = an older deployment that ignores `lib_pull`).
+     */
+    fun onConnected(serverLib: Int) {
         connected = true
         pulledOnce = false
         inFlight.clear()
         sentKeys.clear()
-        if (!isEnabled()) return
+        if (!isEnabled()) {
+            DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Off
+            return
+        }
+        if (serverLib < MIN_SERVER_LIB) {
+            // Without this the sync would sit silent forever and look like «never works»: say what is wrong.
+            DeviceSyncHub.libraryOwnedByDevices = false
+            DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.ServerOutdated
+            Timber.tag(TAG).w("LIB_SYNC server is older than this app (lib=%d)", serverLib)
+            DeviceSyncHub.notice("El servidor de sincronización está desactualizado: vuelve a desplegarlo para sincronizar la biblioteca.")
+            return
+        }
         requestPull()
     }
 
     fun onDisconnected() {
         connected = false
         pulledOnce = false
+        pullWatchdog?.cancel()
         DeviceSyncHub.libraryOwnedByDevices = false
+        if (isEnabled()) DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Waiting
+    }
+
+    /** «Sincronizar ahora»: pull again, and the pull answer pushes whatever is different here. */
+    fun resync() {
+        if (!connected || !isEnabled()) return
+        requestPull()
     }
 
     /** Called by the user's own actions (a like, a playlist edit): look for differences very soon. */
@@ -123,7 +146,12 @@ class LibrarySync(
     /** Handles the library messages of the room. True when [msg] was one of them. */
     suspend fun handle(msg: JsonObject): Boolean {
         when ((msg["t"] as? JsonPrimitive)?.contentOrNull) {
-            "lib_state" -> if (isEnabled()) mutex.withLock { runCatching { onStateLocked(msg) }.onFailure { Timber.tag(TAG).w("LIB_SYNC state failed: %s", it.javaClass.simpleName) } }
+            "lib_state" -> if (isEnabled()) mutex.withLock {
+                runCatching { onStateLocked(msg) }.onFailure {
+                    Timber.tag(TAG).w("LIB_SYNC state failed: %s", it.javaClass.simpleName)
+                    DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed(it.javaClass.simpleName)
+                }
+            }
             "lib_ops" -> if (isEnabled()) requestPull()
             "lib_ack" -> mutex.withLock { onAckLocked() }
             else -> return false
@@ -132,7 +160,20 @@ class LibrarySync(
     }
 
     private fun requestPull() {
-        sendMessage(buildJsonObject { put("t", "lib_pull"); put("since", since) })
+        DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Syncing
+        if (!sendMessage(buildJsonObject { put("t", "lib_pull"); put("since", since) })) {
+            DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed("sin conexión")
+            return
+        }
+        // A server that does not answer is a server that does not understand: do not wait for ever in silence.
+        pullWatchdog?.cancel()
+        pullWatchdog = scope.launch {
+            delay(PULL_TIMEOUT_MS)
+            if (DeviceSyncHub.libraryStatus.value == DeviceSyncHub.LibraryStatus.Syncing && !pulledOnce) {
+                DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed("el servidor no responde")
+                Timber.tag(TAG).w("LIB_SYNC no answer to lib_pull")
+            }
+        }
     }
 
     // ── incoming ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -181,8 +222,19 @@ class LibrarySync(
         }
         // Caught up: from here the room is the source of truth between the devices, and what is different HERE goes out.
         pulledOnce = true
+        pullWatchdog?.cancel()
         DeviceSyncHub.libraryOwnedByDevices = connected && isEnabled()
         pushDiffLocked()
+        publishStatusLocked()
+    }
+
+    private fun publishStatusLocked() {
+        val ledger = ledgerMap ?: return
+        DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Synced(
+            atMs = System.currentTimeMillis(),
+            known = ledger.values.count { it.value != LibrarySyncCore.OFF && !it.key.startsWith("sg:") },
+            pending = ledger.values.count { it.pending },
+        )
     }
 
     private suspend fun onAckLocked() {
@@ -200,6 +252,7 @@ class LibrarySync(
             }
         }
         store.append(settled)
+        if (pulledOnce) publishStatusLocked()
     }
 
     // ── outgoing ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -256,5 +309,7 @@ class LibrarySync(
         const val FAST_DELAY_MS = 800L
         const val SLOW_DELAY_MS = 4_000L
         const val MIN_INTERVAL_MS = 30_000L
+        const val PULL_TIMEOUT_MS = 12_000L
+        const val MIN_SERVER_LIB = 2
     }
 }

@@ -170,6 +170,7 @@ import iad1tya.echo.music.playback.videoDownloadMediaId
 import iad1tya.echo.music.ui.component.BottomSheet
 import iad1tya.echo.music.ui.component.BottomSheetState
 import iad1tya.echo.music.ui.component.CAST_TOUCH_TARGET
+import iad1tya.echo.music.devicesync.RemotePlayback
 import iad1tya.echo.music.ui.component.CastButton
 import iad1tya.echo.music.ui.component.ListDialog
 import iad1tya.echo.music.ui.component.LocalBottomSheetPageState
@@ -480,11 +481,26 @@ private fun AuraPlayerShape(
     val castHandler = remember(playerConnection) {
         runCatching { playerConnection.service.castConnectionHandler }.getOrNull()
     }
-    val isCasting by castHandler?.isCasting?.collectAsState() ?: remember { mutableStateOf(false) }
-    val castPosition by castHandler?.castPosition?.collectAsState() ?: remember { mutableLongStateOf(0L) }
-    val castDuration by castHandler?.castDuration?.collectAsState() ?: remember { mutableLongStateOf(0L) }
-    val castIsPlaying by castHandler?.castIsPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
+    val castingReal by castHandler?.isCasting?.collectAsState() ?: remember { mutableStateOf(false) }
+    val castPositionReal by castHandler?.castPosition?.collectAsState() ?: remember { mutableLongStateOf(0L) }
+    val castDurationReal by castHandler?.castDuration?.collectAsState() ?: remember { mutableLongStateOf(0L) }
+    val castIsPlayingReal by castHandler?.castIsPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
+    // Row 537 (owner 2026-10-30, «como lo hace Spotify»): when ANOTHER of the user's devices is playing and this one is silent, THIS
+    // player shows and controls that playback exactly like it does for Cast — same timeline, same buttons, no second set of
+    // controls. The remote's flows take the place of the cast ones below; every `isCasting` branch of this screen then just works.
+    val remoteTarget by RemotePlayback.target.collectAsState()
+    val remoteActive = remoteTarget != null
+    val remotePosition by RemotePlayback.position.collectAsState()
+    val remoteDuration by RemotePlayback.duration.collectAsState()
+    val remotePlaying by RemotePlayback.playing.collectAsState()
+    val isCasting = castingReal || remoteActive
+    val castPosition = if (remoteActive) remotePosition else castPositionReal
+    val castDuration = if (remoteActive) remoteDuration else castDurationReal
+    val castIsPlaying = if (remoteActive) remotePlaying else castIsPlayingReal
     val effectiveIsPlaying = if (isCasting) castIsPlaying else isPlaying
+    fun outsidePlay() { if (remoteActive) RemotePlayback.play() else castHandler?.play() }
+    fun outsidePause() { if (remoteActive) RemotePlayback.pause() else castHandler?.pause() }
+    fun outsideSeek(ms: Long) { if (remoteActive) RemotePlayback.seekTo(ms) else castHandler?.seekTo(ms) }
 
     val highPerfMode by rememberPreference(HighPerformanceModeKey, false)
     // Only term of the CLASSIC video gate that is not already read here (Player.kt:1944). Read
@@ -1074,6 +1090,21 @@ private fun AuraPlayerShape(
                             else AuraPalette.OnGroundFaint,
                         )
                     }
+                    // Row 537: above the cover — «Sonando en <dispositivo> · Continuar aquí». The timeline and the buttons below
+                    // already control that device; this brings the playback to THIS one, from the same second.
+                    remoteTarget?.let { remote ->
+                        AuraTechnicalText(
+                            text = stringResource(
+                                R.string.device_sync_remote_chip,
+                                remote.deviceName.ifBlank { "—" },
+                            ).uppercase(),
+                            color = AuraPalette.Teal,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { RemotePlayback.continueHere() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
                 }
                 if (showInlineLyrics) {
                     // §2.1 — the lyrics header controls only exist while the lyrics are open.
@@ -1626,7 +1657,7 @@ private fun AuraPlayerShape(
                             sliderPosition?.let {
                                 if (isCasting) {
                                     lastManualSeekTime = System.currentTimeMillis()
-                                    castHandler?.seekTo(it)
+                                    outsideSeek(it)
                                 } else {
                                     playerConnection.player.seekTo(it)
                                 }
@@ -1746,7 +1777,7 @@ private fun AuraPlayerShape(
                                 // Same three branches the classic transport has: guest = mute,
                                 // casting = the remote device, ENDED = restart, otherwise play/pause.
                                 isListenTogetherGuest -> playerConnection.toggleMute()
-                                isCasting -> if (castIsPlaying) castHandler?.pause() else castHandler?.play()
+                                isCasting -> if (castIsPlaying) outsidePause() else outsidePlay()
                                 playbackState == Player.STATE_ENDED -> {
                                     playerConnection.player.seekTo(0, 0)
                                     playerConnection.player.playWhenReady = true
@@ -2075,7 +2106,7 @@ private fun AuraPlayerShape(
                     onPlayPause = {
                         when {
                             isListenTogetherGuest -> playerConnection.toggleMute()
-                            isCasting -> if (castIsPlaying) castHandler?.pause() else castHandler?.play()
+                            isCasting -> if (castIsPlaying) outsidePause() else outsidePlay()
                             else -> playerConnection.togglePlayPause()
                         }
                     },

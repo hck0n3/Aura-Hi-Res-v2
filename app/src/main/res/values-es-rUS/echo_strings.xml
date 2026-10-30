@@ -820,4 +820,12 @@
     <string name="device_sync_continue_here">Continuar aquí</string>
     <string name="device_sync_library">Sincronizar me gusta, no me gusta y listas</string>
     <string name="device_sync_library_desc">Se mantienen iguales en tus dispositivos por el servidor, al momento o cuando se conecten. Mientras estén conectados, YouTube no los sincroniza</string>
+    <string name="device_sync_lib_title">Biblioteca (toca para sincronizar ahora)</string>
+    <string name="device_sync_lib_off">Apagada</string>
+    <string name="device_sync_lib_waiting">Esperando al servidor…</string>
+    <string name="device_sync_lib_outdated">El servidor está desactualizado: vuelve a desplegarlo (npx wrangler deploy)</string>
+    <string name="device_sync_lib_syncing">Sincronizando…</string>
+    <string name="device_sync_lib_synced">Al día · %1$d elementos · %2$d por enviar</string>
+    <string name="device_sync_lib_failed">No se pudo sincronizar (%1$s). Toca para reintentar</string>
+    <string name="device_sync_remote_chip">Sonando en %1$s · Continuar aquí</string>
 </resources>

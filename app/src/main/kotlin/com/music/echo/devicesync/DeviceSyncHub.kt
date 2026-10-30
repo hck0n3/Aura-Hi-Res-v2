@@ -61,6 +61,20 @@ object DeviceSyncHub {
     @Volatile
     var libraryOwnedByDevices: Boolean = false
 
+    /** What the library sync (likes, dislikes, playlists) is doing, for Ajustes — so «nunca funciona» is never a mystery (row 536). */
+    sealed interface LibraryStatus {
+        data object Off : LibraryStatus
+        data object Waiting : LibraryStatus
+
+        /** The deployed Worker does not speak the library protocol (older than this app): it must be deployed again. */
+        data object ServerOutdated : LibraryStatus
+        data object Syncing : LibraryStatus
+        data class Synced(val atMs: Long, val known: Int, val pending: Int) : LibraryStatus
+        data class Failed(val reason: String) : LibraryStatus
+    }
+
+    val libraryStatus = MutableStateFlow<LibraryStatus>(LibraryStatus.Off)
+
     /** How this device got paired: the screens say it in words. */
     enum class PairedBy { None, License, Code }
 
@@ -88,6 +102,9 @@ object DeviceSyncHub {
 
         /** The library changed here (likes, lists): tell the others so they refresh at once. */
         fun libraryChanged(what: String)
+
+        /** «Sincronizar ahora» of the library: pull what changed, then push what is different here. */
+        fun syncLibraryNow()
     }
 
     @Volatile

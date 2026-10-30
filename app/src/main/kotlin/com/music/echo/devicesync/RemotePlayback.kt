@@ -1,0 +1,111 @@
+package iad1tya.echo.music.devicesync
+
+import kotlinx.coroutines.flow.MutableStateFlow
+
+/**
+ * Row 534/537 — the other device's playback, shown and controlled by THIS device's own player, the way Cast and Spotify Connect do
+ * (owner 2026-10-30: *«que arriba de la portada aparezca continuar desde aquí… que en la misma barra de tiempo vaya avanzando… y que
+ * los controles de mi reproductor controlen a donde se está reproduciendo, para que no haya redundancia, como lo hace Spotify»*).
+ *
+ * The player already knows how to be a remote: for Cast it swaps its position, duration and play/pause state for the cast ones and
+ * routes the transport buttons to the cast device. This object offers the SAME shape ([position], [duration], [playing], and
+ * commands), so the player treats "playing on another of my devices" exactly like "casting", with no second set of controls.
+ *
+ * It is active only while another paired device is playing (or was just controlled from here) and THIS device is silent; the engine
+ * decides ([shouldBeActive]) and keeps the flows moving. No flow runs while it is inactive (AGENTS rule 7).
+ */
+object RemotePlayback {
+    /** How long a PAUSED remote stays «ours» after the last order sent from here, so it can be resumed from here. */
+    const val CONTROL_HOLD_MS = 10 * 60_000L
+
+    /** A playing remote must have spoken within this long (it heartbeats every 20 s); three missed beats and it is gone. */
+    const val FRESH_MS = 70_000L
+
+    /** The device being shown and controlled, with its last published state; null = this device plays for itself. */
+    val target = MutableStateFlow<NowState?>(null)
+    val position = MutableStateFlow(0L)
+    val duration = MutableStateFlow(0L)
+    val playing = MutableStateFlow(false)
+
+    @Volatile
+    private var lastControlAt = 0L
+
+    val active: Boolean get() = target.value != null
+
+    fun controllingRecently(nowMs: Long = System.currentTimeMillis()): Boolean =
+        lastControlAt > 0L && nowMs - lastControlAt < CONTROL_HOLD_MS
+
+    // ── commands (what the player's buttons call while [active]) ─────────────────────────────────────────────────────────────
+
+    fun play(): Boolean = send("play", optimisticPlaying = true)
+    fun pause(): Boolean = send("pause", optimisticPlaying = false)
+    fun toggle(): Boolean = if (playing.value) pause() else play()
+    fun next(): Boolean = send("next")
+    fun previous(): Boolean = send("prev")
+
+    fun seekTo(positionMs: Long): Boolean {
+        val t = target.value ?: return false
+        lastControlAt = System.currentTimeMillis()
+        position.value = positionMs.coerceAtLeast(0L)
+        DeviceSyncHub.controller?.control(t.deviceId, "seek", positionMs)
+        return true
+    }
+
+    /** «Continuar aquí»: bring the playback to THIS device from the same second, and the other one pauses. */
+    fun continueHere(): Boolean {
+        val t = target.value ?: return false
+        lastControlAt = 0L
+        DeviceSyncHub.controller?.takeOverFrom(t.deviceId)
+        return true
+    }
+
+    private fun send(command: String, optimisticPlaying: Boolean? = null): Boolean {
+        val t = target.value ?: return false
+        lastControlAt = System.currentTimeMillis()
+        // The button answers at once; the other device's real state arrives within a second and overwrites this.
+        if (optimisticPlaying != null) playing.value = optimisticPlaying
+        DeviceSyncHub.controller?.control(t.deviceId, command)
+        return true
+    }
+
+    // ── state, fed by the engine ─────────────────────────────────────────────────────────────────────────────────────────────
+
+    /** Make [state] (or nothing) the remote being shown. Keeps the optimistic play state while the user is mid-command. */
+    fun update(state: NowState?, serverNowMs: Long) {
+        target.value = state
+        if (state == null) {
+            playing.value = false
+            position.value = 0L
+            duration.value = 0L
+            return
+        }
+        playing.value = state.playing
+        duration.value = state.durationMs
+        position.value = state.estimatedPositionMs(serverNowMs).coerceIn(0L, if (state.durationMs > 0) state.durationMs else Long.MAX_VALUE)
+    }
+
+    /** One tick of the timeline (the engine calls it once a second, only while the remote plays). */
+    fun tick(serverNowMs: Long) {
+        val s = target.value ?: return
+        if (!playing.value) return
+        position.value = s.estimatedPositionMs(serverNowMs).coerceIn(0L, if (s.durationMs > 0) s.durationMs else Long.MAX_VALUE)
+    }
+
+    /**
+     * Pure: should THIS device show and control [remote]? Another device, that is playing and recently heard — or paused but just
+     * controlled from here — while this device is silent, connected, and the user allows handing over.
+     */
+    fun shouldBeActive(
+        remote: NowState?,
+        thisDeviceId: String,
+        handoffEnabled: Boolean,
+        connected: Boolean,
+        localPlaying: Boolean,
+        controllingRecently: Boolean,
+        serverNowMs: Long,
+    ): Boolean {
+        if (remote == null || !handoffEnabled || !connected || localPlaying) return false
+        if (remote.deviceId.isBlank() || remote.deviceId == thisDeviceId || remote.current == null) return false
+        return if (remote.playing) serverNowMs - remote.atMs <= FRESH_MS else controllingRecently
+    }
+}

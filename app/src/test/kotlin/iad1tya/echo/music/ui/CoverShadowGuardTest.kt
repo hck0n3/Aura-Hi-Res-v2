@@ -42,4 +42,14 @@ class CoverShadowGuardTest {
         assertTrue("resplandor ≤ 28 dp", dp(s, "COVER_GLOW_ELEVATION") <= 28f)
         assertTrue("filo de 1 dp", s.contains(".border(1.dp, COVER_RIM_BRUSH, shape)"))
     }
+
+    @Test
+    fun `the cover leaves room for its shadow so the slot never clips it into a square edge (row 538)`() {
+        val s = source
+        val room = dp(s, "COVER_SHADOW_ROOM")
+        val glow = dp(s, "COVER_GLOW_ELEVATION")
+        assertTrue("el resplandor cabe en el margen reservado (con holgura)", glow <= room)
+        assertTrue(s.contains("(maxHeight - COVER_SHADOW_ROOM * 2).coerceAtLeast(0.dp)"))
+        assertTrue("solo el reproductor nuevo reserva; el clásico queda igual", s.contains("val slotCap = if (host == ThumbnailHost.OPAQUE_DARK) {"))
+    }
 }
