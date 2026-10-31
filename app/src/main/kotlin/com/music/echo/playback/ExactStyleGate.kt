@@ -605,6 +605,35 @@ internal suspend fun MusicService.exactStyleFilter(
             fetched += admit(laneFillPage(seedArtists) { relatedOk(it) }, fromSearch = false, impliedStyle = null)
         }
     }
+    // Row 606 (owner 2026-10-31: «la cola inteligente falla con cualquier estilo, nunca lo mantiene»): the filter judges by LABELS, and what no
+    // label can place used to be admitted «just in case». Those doubtful songs (steps 1-3: the style or the language is not proven) get a second
+    // opinion from the AI of the Aura server; the ones it does not keep leave. Titles and artists only. Any failure (switch off, no network, slow,
+    // quota) returns null and the queue goes on exactly as before, so the AI can only ever REMOVE a doubtful song, never add one.
+    run {
+        if (languageOnly || requested?.let { it.styles.isNullOrEmpty() && it.language == null } == true) return@run
+        val doubtful = judged.indices.filter { i ->
+            val step = ContextLane.tier(lane, judged[i].candidate)
+            step != null && step >= 1
+        }.take(iad1tya.echo.music.edge.EdgeJudge.MAX_CANDIDATES)
+        if (doubtful.isEmpty()) return@run
+        val context = (if (collection) poolTexts.take(iad1tya.echo.music.edge.EdgeJudge.MAX_CONTEXT) else listOfNotNull(anchor?.trackText()))
+            .mapNotNull { t ->
+                val title = t.text.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                iad1tya.echo.music.edge.EdgeJudge.Song(title, t.primary.orEmpty())
+            }
+        val asked = doubtful.map { i -> all[i].let { mi -> iad1tya.echo.music.edge.EdgeJudge.Song(mi.metadata?.title ?: mi.mediaMetadata.title?.toString().orEmpty(), mi.trackText().primary.orEmpty()) } }
+        val kept = iad1tya.echo.music.edge.EdgeClient.judgeQueue(
+            context, asked, gateTarget.styles.orEmpty().sorted(), gateTarget.language, gateTarget.christian,
+        ) ?: return@run
+        var dropped = 0
+        doubtful.forEachIndexed { n, i ->
+            if (n !in kept) {
+                judged[i] = Judged(StyleContinuity.Verdict.OFF, judged[i].candidate.copy(verdict = StyleContinuity.Verdict.OFF))
+                dropped++
+            }
+        }
+        Timber.tag(TAG).i("STYLE_GATE %s: AI second opinion asked=%d dropped=%d", site, doubtful.size, dropped)
+    }
     val tiers = judged.map { ContextLane.tier(lane, it.candidate) }
     // With the second-to-last relaxation (languageOnly) every non-excluded candidate is welcome, best step first.
     val enough = if (languageOnly) Int.MAX_VALUE else minOf(minMatches, StyleContinuity.ENOUGH_TO_DROP_UNKNOWN)

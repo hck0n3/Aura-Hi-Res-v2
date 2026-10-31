@@ -571,6 +571,8 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.ytm_upload_run_now_desc), "Sincronización con la cuenta", "settings/ytm_sync"),
             Triple(stringResource(R.string.aura_services_enable), "Servicios Aura", "settings/aura_services"),
             Triple(stringResource(R.string.aura_services_enable_desc), "Servicios Aura", "settings/aura_services"),
+            Triple(stringResource(R.string.queue_ai_judge), "Servicios Aura", "settings/aura_services"),
+            Triple(stringResource(R.string.queue_ai_judge_desc), "Servicios Aura", "settings/aura_services"),
             Triple(stringResource(R.string.aura_services_address), "Servicios Aura", "settings/aura_services"),
             Triple(stringResource(R.string.aura_services_key), "Servicios Aura", "settings/aura_services"),
             Triple(stringResource(R.string.aura_services_status), "Servicios Aura", "settings/aura_services"),

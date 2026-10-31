@@ -108,7 +108,7 @@ fun ListenTogetherSettings(
     var serverUrl by rememberPreference(ListenTogetherServerUrlKey, "")
     var username by rememberPreference(ListenTogetherUsernameKey, "")
     var autoApproval by rememberPreference(ListenTogetherAutoApprovalKey, false)
-    var auraRooms by rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, false)
+    var auraRooms by rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
 
     var showServerUrlDialog by rememberSaveable { mutableStateOf(false) }
     var showUsernameDialog by rememberSaveable { mutableStateOf(false) }

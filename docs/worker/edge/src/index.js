@@ -465,6 +465,97 @@ export async function backupDelete(env, id) {
   return { status: 200, body: { deleted: true } };
 }
 
+
+// ───────────────────────────── queue judge (smart queue second opinion) ─────────────────────────────
+// POST /v1/judge  {ctx:[{t,a}], cand:[{i,t,a}], hint:{styles,lang,faith}}  →  {keep:[i…]}
+// The app asks ONLY about songs its own filter could not classify. Plain titles and artists, no ids, no account; nothing is stored
+// (not even the IP beyond a per-day counter that expires). Workers AI binding `AI` is needed; without it the answer is 503 and the app
+// goes on with its own filter.
+const JUDGE_MAX_BODY = 12 * 1024;
+const JUDGE_MAX_CTX = 10;
+const JUDGE_MAX_CAND = 24;
+const JUDGE_DAILY_PER_IP = 400;
+const JUDGE_MODELS = ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-4-scout-17b-16e-instruct"];
+
+const clip = (v, n) => String(v == null ? "" : v).replace(/[\u0000-\u001f]+/g, " ").trim().slice(0, n);
+
+/** Only plain bounded {t,a} pairs; null when there is nothing to judge or nothing to compare with. */
+export function sanitizeJudge(input) {
+  if (!input || !Array.isArray(input.ctx) || !Array.isArray(input.cand)) return null;
+  const ctx = input.ctx.slice(0, JUDGE_MAX_CTX).map((x) => ({ t: clip(x && x.t, 80), a: clip(x && x.a, 60) })).filter((x) => x.t || x.a);
+  const cand = [];
+  for (const x of input.cand.slice(0, JUDGE_MAX_CAND)) {
+    const i = Number(x && x.i);
+    if (!Number.isInteger(i) || i < 0 || i > 999) continue;
+    const t = clip(x.t, 80), a = clip(x.a, 60);
+    if (t || a) cand.push({ i, t, a });
+  }
+  if (ctx.length === 0 || cand.length === 0) return null;
+  const h = input.hint || {};
+  const hint = {
+    styles: Array.isArray(h.styles) ? h.styles.slice(0, 4).map((x) => clip(x, 24)).filter(Boolean) : [],
+    lang: clip(h.lang, 8),
+    faith: h.faith === true,
+  };
+  return { ctx, cand, hint };
+}
+
+export function judgeMessages(c) {
+  const line = (x) => (x.a ? x.a + " — " : "") + x.t;
+  const hint = [
+    c.hint.styles.length ? "style: " + c.hint.styles.join(", ") : "",
+    c.hint.lang ? "language: " + c.hint.lang : "",
+    c.hint.faith ? "Christian music context" : "",
+  ].filter(Boolean).join("; ");
+  return [
+    {
+      role: "system",
+      content:
+        "You curate a continuous radio queue. You get the songs the listener is hearing now (CONTEXT) and candidate songs (CANDIDATES). " +
+        "Keep a candidate ONLY if someone enjoying the context would accept it next: same genre and sub-genre, similar mood, era and language, " +
+        "and the same religious or secular character. Reject children's music unless the context is children's music. Reject a different genre " +
+        "even when the language is the same. If you do not recognise a song or artist, REJECT it. Answer ONLY with JSON: {\"keep\":[ids]}.",
+    },
+    {
+      role: "user",
+      content:
+        "CONTEXT" + (hint ? " (" + hint + ")" : "") + ":\n" + c.ctx.map(line).join("\n") +
+        "\n\nCANDIDATES:\n" + c.cand.map((x) => x.i + ": " + line(x)).join("\n"),
+    },
+  ];
+}
+
+/** The ids the model kept, restricted to the ids it was asked about; null when the answer is not the JSON asked for. */
+export function parseJudge(text, ids) {
+  const m = /\{[\s\S]*\}/.exec(String(text || ""));
+  if (!m) return null;
+  let o;
+  try { o = JSON.parse(m[0]); } catch { return null; }
+  if (!o || !Array.isArray(o.keep)) return null;
+  const allowed = new Set(ids);
+  return [...new Set(o.keep.map(Number).filter((n) => allowed.has(n)))];
+}
+
+export async function judgeRun(env, input, ip) {
+  const clean = sanitizeJudge(input);
+  if (!clean) return { status: 400, body: { error: "rejected" } };
+  if (!env.AI) return { status: 503, body: { error: "no ai" } };
+  const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const key = "rate:judge:" + (ip || "unknown") + ":" + day;
+  const used = Number((await env.EDGE.get(key)) || 0);
+  if (used >= JUDGE_DAILY_PER_IP) return { status: 429, body: { error: "slow down" } };
+  await env.EDGE.put(key, String(used + 1), { expirationTtl: 172800 });
+  const ids = clean.cand.map((x) => x.i);
+  for (const model of JUDGE_MODELS) {
+    try {
+      const r = await env.AI.run(model, { messages: judgeMessages(clean), max_tokens: 160, temperature: 0 });
+      const keep = parseJudge(r && r.response, ids);
+      if (keep) return { status: 200, body: { keep } };
+    } catch { /* next model */ }
+  }
+  return { status: 502, body: { error: "ai failed" } };
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -491,6 +582,14 @@ export default {
       if (req.method === "GET" && p === "/v1/ask") {
         const r = await askGet(env, url.searchParams.get("k"));
         return json(r.body, r.status, r.status === 200 ? { "cache-control": "public, max-age=600" } : {});
+      }
+      if (req.method === "POST" && p === "/v1/judge") {
+        const text = await readBody(req, JUDGE_MAX_BODY);
+        if (text == null) return json({ error: "too big" }, 413);
+        let input;
+        try { input = JSON.parse(text); } catch { return json({ error: "bad json" }, 400); }
+        const r = await judgeRun(env, input, req.headers.get("CF-Connecting-IP"));
+        return json(r.body, r.status);
       }
       if (req.method === "PUT" && p === "/v1/ask") {
         const text = await readBody(req, ASK_MAX_BODY);

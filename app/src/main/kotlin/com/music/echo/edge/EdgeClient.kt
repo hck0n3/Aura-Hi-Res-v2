@@ -25,6 +25,7 @@ object EdgeClient {
     private const val CHECK_EVERY_MS = 6 * 3600_000L
     private const val TIMEOUT_MS = 5_000
     private const val TAGS_TIMEOUT_MS = 1_500
+    private const val JUDGE_TIMEOUT_MS = 6_000
     private const val MAX_CONFIG_BYTES = 16 * 1024
     private const val MAX_DIAG_BYTES = 900 * 1024
 
@@ -352,6 +353,48 @@ object EdgeClient {
             Timber.tag(TAG).i("EDGE ask shared status=%d tracks=%d", conn.responseCode, tracks.size)
         } catch (_: Exception) {
             // Sharing is a courtesy: a failure changes nothing for this user.
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /**
+     * Row 606: the AI's second opinion on the songs the smart queue's own filter could not classify. Returns the positions (in [candidates])
+     * the AI would keep, or null on ANY problem (switch off, no network, slow, 503/429, junk) — the queue then goes on exactly as before.
+     * Counts only in the log: never a title, an artist or an id (AGENTS.md rule 4).
+     */
+    suspend fun judgeQueue(
+        context: List<EdgeJudge.Song>,
+        candidates: List<EdgeJudge.Song>,
+        styles: List<String>,
+        language: String?,
+        faith: Boolean,
+    ): Set<Int>? = withContext(Dispatchers.IO) {
+        val app = appContext ?: return@withContext null
+        val s = settings(app)
+        if (!s.enabled || s.base.isBlank() || context.isEmpty() || candidates.isEmpty()) return@withContext null
+        if (app.dataStore.data.first()[QueueAiJudgeKey] == false) return@withContext null
+        var conn: HttpURLConnection? = null
+        try {
+            val bytes = EdgeJudge.body(context, candidates, styles, language, faith).toByteArray(Charsets.UTF_8)
+            conn = (URL("${s.base}/v1/judge").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = JUDGE_TIMEOUT_MS
+                readTimeout = JUDGE_TIMEOUT_MS
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setFixedLengthStreamingMode(bytes.size)
+            }
+            conn.outputStream.use { it.write(bytes) }
+            if (conn.responseCode != 200) {
+                Timber.tag(TAG).i("EDGE judge status=%d asked=%d", conn.responseCode, candidates.size)
+                return@withContext null
+            }
+            val kept = readCapped(conn, MAX_CONFIG_BYTES)?.let { EdgeJudge.parse(it, minOf(candidates.size, EdgeJudge.MAX_CANDIDATES)) }
+            Timber.tag(TAG).i("EDGE judge asked=%d kept=%s", candidates.size, kept?.size?.toString() ?: "-")
+            kept
+        } catch (_: Exception) {
+            null
         } finally {
             conn?.disconnect()
         }

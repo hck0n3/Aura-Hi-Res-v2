@@ -73,6 +73,7 @@ fun AuraServicesSettings(
     val ground = if (skin.enabled && skin.darkGround) AuraPalette.Ground else MaterialTheme.colorScheme.surface
 
     var enabled by rememberPreference(EdgeEnabledKey, true)
+    var queueAiJudge by rememberPreference(iad1tya.echo.music.edge.QueueAiJudgeKey, true)
     var address by rememberPreference(EdgeUrlKey, "")
     var publicKey by rememberPreference(EdgePublicKeyKey, "")
     var state by rememberSaveable { mutableStateOf(EdgeClient.lastState) }
@@ -146,6 +147,27 @@ fun AuraServicesSettings(
                                     )
                                 },
                                 onClick = { enabled = !enabled },
+                            ),
+                        )
+                        add(
+                            IntegrationCardItem(
+                                icon = painterResource(R.drawable.sync),
+                                title = { Text(stringResource(R.string.queue_ai_judge)) },
+                                description = { Text(stringResource(R.string.queue_ai_judge_desc)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = queueAiJudge,
+                                        onCheckedChange = { queueAiJudge = it },
+                                        thumbContent = {
+                                            Icon(
+                                                painter = painterResource(id = if (queueAiJudge) R.drawable.check else R.drawable.close),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(SwitchDefaults.IconSize),
+                                            )
+                                        },
+                                    )
+                                },
+                                onClick = { queueAiJudge = !queueAiJudge },
                             ),
                         )
                         add(

@@ -5,7 +5,7 @@ import { Miniflare } from "miniflare";
 import { webcrypto as c } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, artistTags, normalizeArtist, sanitizeCanvas, canvasGet, canvasPut, validCanvasKey, askGet, askPut, sanitizeAsk, validAskKey, backupPut, backupGet, backupList, backupDelete, FLAGS } from "../src/index.js";
+import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, artistTags, normalizeArtist, sanitizeCanvas, canvasGet, canvasPut, validCanvasKey, askGet, askPut, sanitizeAsk, validAskKey, backupPut, backupGet, backupList, backupDelete, sanitizeJudge, judgeMessages, parseJudge, judgeRun, FLAGS } from "../src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const b64 = (buf) => Buffer.from(buf).toString("base64");
@@ -314,4 +314,28 @@ test("ask: only plain bounded title/artist pairs are kept, tiny answers are not 
   assert.equal(mixed.length, 4);
   assert.deepEqual(Object.keys(mixed[3]), ["title", "artist"]);
   assert.equal(mixed[3].title.length, 120);
+});
+
+test("judge: only plain bounded pairs are accepted, and an answer is read only as the JSON asked for", () => {
+  assert.equal(sanitizeJudge({ ctx: [], cand: [{ i: 1, t: "x", a: "y" }] }), null);
+  assert.equal(sanitizeJudge({ ctx: [{ t: "a", a: "b" }], cand: [] }), null);
+  const c = sanitizeJudge({ ctx: [{ t: "A".repeat(500), a: "b" }], cand: [{ i: 3, t: "x", a: "y" }, { i: "z", t: "q" }, { i: 5000, t: "q" }], hint: { styles: ["pop"], lang: "es", faith: true } });
+  assert.equal(c.ctx[0].t.length, 80);
+  assert.deepEqual(c.cand.map((x) => x.i), [3]);
+  assert.match(judgeMessages(c)[1].content, /Christian music context/);
+  assert.deepEqual(parseJudge('ok {"keep":[3, 9, 3]}', [3, 4]), [3]);
+  assert.equal(parseJudge("no json", [3]), null);
+  assert.equal(parseJudge('{"keep":"all"}', [3]), null);
+});
+
+test("judge: asks the AI, budget per IP and day, and 503 without the AI binding", async () => {
+  const env = { EDGE: kv, AI: { run: async () => ({ response: '{"keep":[1]}' }) } };
+  const input = { ctx: [{ t: "a", a: "b" }], cand: [{ i: 1, t: "x", a: "y" }, { i: 2, t: "p", a: "q" }] };
+  assert.deepEqual((await judgeRun(env, input, "1.2.3.4")).body, { keep: [1] });
+  assert.equal((await judgeRun({ EDGE: kv }, input, "1.2.3.4")).status, 503);
+  assert.equal((await judgeRun(env, { ctx: [], cand: [] }, "1.2.3.4")).status, 400);
+  const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  await kv.put("rate:judge:9.9.9.9:" + day, "400");
+  assert.equal((await judgeRun(env, input, "9.9.9.9")).status, 429);
+  assert.equal((await judgeRun({ EDGE: kv, AI: { run: async () => ({ response: "rubbish" }) } }, input, "5.5.5.5")).status, 502);
 });

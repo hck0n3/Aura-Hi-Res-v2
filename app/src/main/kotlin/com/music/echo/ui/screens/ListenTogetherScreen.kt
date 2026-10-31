@@ -1022,7 +1022,7 @@ private fun JoinCreateRoomSection(
     // metroserver caps usernames at 50 and mints 8-char uppercase room codes.
     fun onUsernameChangeCapped(value: String) = onUsernameChange(value.take(50))
     // Row 601: the code length follows the rooms in use (Aura's own rooms are 6 characters, the shared server's 8).
-    val auraRooms by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, false)
+    val auraRooms by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
     fun onRoomCodeChangeNormalized(value: String) =
         onRoomCodeChange(iad1tya.echo.music.listentogether.RoomCodes.normalize(value, auraRooms))
 

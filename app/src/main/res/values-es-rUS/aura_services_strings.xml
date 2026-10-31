@@ -30,4 +30,6 @@
     <string name="listen_together_aura_rooms_desc">Usa las salas propias de Aura: más rápidas y privadas, pero solo con otros usuarios de Aura. Apagado mantiene el servidor compartido que también usan otras apps.</string>
     <string name="device_sync_battery_title">Permitir reproducir en segundo plano</string>
     <string name="device_sync_battery_desc">La optimización de batería puede impedir que este dispositivo reproduzca cuando llega una orden de tu otro dispositivo con la pantalla apagada. Toca para quitársela a Aura.</string>
+    <string name="queue_ai_judge">Cola inteligente: segunda opinión con IA</string>
+    <string name="queue_ai_judge_desc">Cuando la cola inteligente no sabe si una canción encaja, le pregunta a la IA del servidor de Aura. Solo envía el título y el artista de lo que suena y de las canciones dudosas, nunca tu cuenta.</string>
 </resources>

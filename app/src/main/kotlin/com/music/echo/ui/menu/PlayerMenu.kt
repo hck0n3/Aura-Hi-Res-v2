@@ -1111,7 +1111,7 @@ fun ListenTogetherDialog(
     
     var savedUsername by rememberPreference(iad1tya.echo.music.constants.ListenTogetherUsernameKey, "")
     var roomCodeInput by rememberSaveable { mutableStateOf("") }
-    val auraRoomsMenu by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, false)
+    val auraRoomsMenu by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
     var usernameInput by rememberSaveable { mutableStateOf(savedUsername) }
 
     

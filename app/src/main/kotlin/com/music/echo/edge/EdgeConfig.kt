@@ -21,3 +21,9 @@ val EdgePublicKeyKey = stringPreferencesKey("edgePublicKey")
 
 /** The user's own master switch for every «Servicios Aura» function: always theirs to turn off. */
 val EdgeEnabledKey = booleanPreferencesKey("edgeEnabled")
+
+/**
+ * Row 606: the smart queue's second opinion by AI (`POST /v1/judge`). ON by default (owner 2026-10-31); it sends the title and artist of what
+ * is playing and of the doubtful candidates, nothing else, and only while [EdgeEnabledKey] is also on.
+ */
+val QueueAiJudgeKey = booleanPreferencesKey("queueAiJudge")
