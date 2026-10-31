@@ -194,3 +194,14 @@ class MirrorStaleReportTest {
         org.junit.Assert.assertTrue(RemotePlayback.shouldMirrorQueue(remote(false, 1_000L), lastControlServerMs = 0L))
     }
 }
+
+/** Registry row 596 — a remote «play» must actually make a paused, idle or ended player sound. */
+class RemoteResumeTest {
+    @org.junit.Test
+    fun `an idle player is prepared, an ended one is rewound, a ready one is just played`() {
+        org.junit.Assert.assertEquals(RemotePlayback.ResumeStep.PREPARE, RemotePlayback.resumeStep(androidx.media3.common.Player.STATE_IDLE))
+        org.junit.Assert.assertEquals(RemotePlayback.ResumeStep.RESTART, RemotePlayback.resumeStep(androidx.media3.common.Player.STATE_ENDED))
+        org.junit.Assert.assertEquals(RemotePlayback.ResumeStep.NONE, RemotePlayback.resumeStep(androidx.media3.common.Player.STATE_READY))
+        org.junit.Assert.assertEquals(RemotePlayback.ResumeStep.NONE, RemotePlayback.resumeStep(androidx.media3.common.Player.STATE_BUFFERING))
+    }
+}

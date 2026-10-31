@@ -205,6 +205,21 @@ object RemotePlayback {
 
     const val MIRROR_SLACK_MS = 1_500L
 
+    /** What a player needs before `play()` can make it sound. */
+    enum class ResumeStep { NONE, PREPARE, RESTART }
+
+    /**
+     * Row 596 (owner 2026-10-31: «después de la pausa le di play varias veces y la canción nunca volvió a sonar»): `play()` only sets
+     * play-when-ready. A player left IDLE (a restored queue is never prepared, and a device whose queue was replaced by the other's report
+     * is exactly that) or ENDED stays silent however many times it is pressed. [playbackState] is media3's `Player.STATE_*` (1 idle,
+     * 4 ended). Pure.
+     */
+    fun resumeStep(playbackState: Int): ResumeStep = when (playbackState) {
+        1 -> ResumeStep.PREPARE
+        4 -> ResumeStep.RESTART
+        else -> ResumeStep.NONE
+    }
+
     /** An order from another device that arrived this recently explains why this device just started playing: it is not a user's tap here. */
     const val COMMAND_GRACE_MS = 5_000L
 

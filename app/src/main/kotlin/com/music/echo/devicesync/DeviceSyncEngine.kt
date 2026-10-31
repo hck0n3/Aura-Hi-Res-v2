@@ -362,6 +362,16 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
     }
 
+    /** Starts playing for real: prepares an idle player and rewinds an ended one before `play()` (see [RemotePlayback.resumeStep]). */
+    private fun resumePlayback(p: androidx.media3.exoplayer.ExoPlayer) {
+        when (RemotePlayback.resumeStep(p.playbackState)) {
+            RemotePlayback.ResumeStep.PREPARE -> p.prepare()
+            RemotePlayback.ResumeStep.RESTART -> p.seekTo(p.currentMediaItemIndex.coerceAtLeast(0), 0L)
+            RemotePlayback.ResumeStep.NONE -> Unit
+        }
+        p.play()
+    }
+
     /** Re-evaluate the instant THIS device starts or stops playing, not at the next 4 s tick. */
     private suspend fun attachPlayerListener() {
         if (playerListenerAttached) return
@@ -418,7 +428,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             }
         }
         when (cmd) {
-            "play" -> onMain { service.player.play() }
+            // Row 596: a paused player may be IDLE (a restored/mirrored queue is never prepared) or ENDED, and play() alone does nothing then.
+            "play" -> onMain { resumePlayback(service.player) }
             "pause" -> onMain { service.player.pause() }
             "next" -> onMain {
                 val p = service.player
@@ -451,7 +462,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                     for (i in 0 until p.mediaItemCount) {
                         if (p.getMediaItemAt(i).mediaId == id) {
                             p.seekTo(i, 0L)
-                            p.play()
+                            resumePlayback(p)
                             found = true
                             break
                         }
