@@ -223,8 +223,9 @@ class LibrarySyncAdapter(
         }
 
         // 7. Pins (Biblioteca ▸ Fijados and «Fijadas en inicio»): after the playlists, so a pinned playlist already exists here.
-        if (pins != null && (plan.pinUpserts.isNotEmpty() || plan.pinRemovals.isNotEmpty())) {
-            val result = runCatching { pins.apply(plan.pinUpserts, plan.pinRemovals) }.getOrNull()
+        val pinsBackend = pins
+        if (pinsBackend != null && (plan.pinUpserts.isNotEmpty() || plan.pinRemovals.isNotEmpty())) {
+            val result = runCatching { pinsBackend.applyPins(plan.pinUpserts, plan.pinRemovals) }.getOrNull()
             if (result != null) {
                 applied += result.applied
                 unresolved += result.unresolved
@@ -282,5 +283,5 @@ interface PinsBackend {
     suspend fun readLocal(): Map<String, String>
 
     /** Writes what other devices pinned and unpinned. Returns how many it applied and how many it could not place yet. */
-    suspend fun apply(upserts: List<Pair<LibrarySyncCore.PinRef, LibrarySyncCore.PinMeta>>, removals: List<LibrarySyncCore.PinRef>): ApplyResult
+    suspend fun applyPins(upserts: List<Pair<LibrarySyncCore.PinRef, LibrarySyncCore.PinMeta>>, removals: List<LibrarySyncCore.PinRef>): ApplyResult
 }

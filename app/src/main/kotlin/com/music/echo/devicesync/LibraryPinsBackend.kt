@@ -51,7 +51,7 @@ class LibraryPinsBackend(
         return facts
     }
 
-    override suspend fun apply(upserts: List<Pair<PinRef, PinMeta>>, removals: List<PinRef>): ApplyResult {
+    override suspend fun applyPins(upserts: List<Pair<PinRef, PinMeta>>, removals: List<PinRef>): ApplyResult {
         var applied = 0
         var unresolved = 0
 
