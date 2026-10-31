@@ -514,6 +514,8 @@ fun AuraHomeScreen(
                         // Modo sin conexión and Cuenta — live here now; see [LocalAuraTopActions].
                         trailing = { AuraTopActions() },
                         collapseTrailing = true,
+                        // Row 579: the unfolded buttons in the glass capsule Biblioteca already has (owner 2026-10-31).
+                        glassActions = true,
                     )
                 }
 

@@ -263,6 +263,7 @@ fun AuraSearchScreen(
                 title = stringResource(R.string.search),
                 trailing = { AuraTopActions() },
                 collapseTrailing = true,
+                glassActions = true,
             )
 
             AuraSearchInputBar(
