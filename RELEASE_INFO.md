@@ -1,7 +1,39 @@
-# Aura Hi-Res v2.0.67-beta8 — «Escuchar juntos» propio de Aura, el control remoto obedece al dispositivo que suena, historial sincronizado y portada con relieve
+# Aura Hi-Res v2.0.67-beta9 — control remoto corregido, Biblioteca con botones de cristal, sin pantallas repetidas, búsqueda de Ajustes completa y portadas animadas que sí se animan
 
-Beta encima de la 2.0.67-beta7 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Si quieres probar «Escuchar juntos» de Aura, vuelve a desplegar tu servidor de salas (`npx wrangler deploy` en `docs/worker/rooms`) y activa el interruptor en Ajustes ▸ Escuchar juntos ▸ Salas de Aura.
-## «Escuchar juntos» propio de Aura
+Beta encima de la 2.0.67-beta8 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Para que «Pedir música» comparta respuestas hay que volver a desplegar el servidor `docs/worker/edge`; sin eso la app funciona igual que antes.
+
+## Control remoto: arreglos sobre la beta 8
+
+- **El control remoto vuelve a funcionar:** en la beta 8, tras pausar aquí dejaba de aparecer «Continuar aquí» y los controles del otro dispositivo. Ahora solo se retiene tu canción cuando el otro dispositivo está parado y su estado es viejo (hasta 10 minutos tras tu pausa); si el otro suena, siempre ves su canción y sus controles.
+- **Tocar una canción de la cola mientras controlas la tablet suena en la tablet** y ya no corta la conexión ni empieza a sonar en el cel.
+- **El traspaso ya no deja sin música:** el dispositivo que cede solo se pausa si la orden de «tomar» se envió de verdad. Si no se pudo enviar, sigue sonando.
+- **Recordatorio de batería en Sincronizar dispositivos:** si el ahorro de batería puede dormir la reproducción en segundo plano, una fila te lo dice y te lleva a quitar la restricción. Las órdenes remotas que se ignoran ahora dejan su motivo en el registro.
+
+## Biblioteca más limpia y sin repetidos
+
+- **Todos los botones de Biblioteca con el mismo material de cristal,** las acciones de arriba agrupadas en una sola cápsula, las etiquetas de los atajos se leen enteras (hasta 3 líneas) y hay respiro inferior.
+- **Quitado lo repetido:** el atajo «Novedades» de Biblioteca (abría lo mismo que la pestaña Novedades de la barra) y el chip «Local» (abría la misma lista que su atajo). Nada se pierde: sigues llegando a lo mismo por un solo camino.
+- **Novedades es la única puerta del radar:** al deslizar para actualizar también corre el radar, y al abrirla las filas se marcan como vistas.
+
+## Ajustes: la búsqueda lo encuentra todo
+
+- **La búsqueda de Ajustes ahora indexa todo lo que se lee en las pantallas de Ajustes:** Liquid Glass completo, Servicios Aura, Sincronizar dispositivos, Spotify Canvas y letras, volumen del reproductor, modo offline automático, song.link, listas fijadas en Inicio, métricas a Google, salas de Aura y más. Antes se buscaban y no salían.
+
+## Pedir música
+
+- **Respuestas compartidas:** si otro usuario de Aura ya pidió lo mismo, la app reutiliza la lista que la IA propuso y se ahorra la espera. Solo viaja una huella del pedido, nunca lo que escribiste. Gobierna el interruptor general de Servicios Aura.
+
+## Letras y portadas animadas
+
+- **La traducción de letras ya no falla en silencio:** las respuestas cortas o dudosas no se guardan, se prueba el siguiente traductor de la cadena y queda en el registro (solo números) por qué falló.
+- **La portada animada del álbum ahora se anima en el reproductor,** compartida con la página del álbum por artista principal y álbum, sin descargar de nuevo por cada canción del mismo álbum.
+
+## Otros arreglos
+
+- **Cambio automático de formato de vídeo:** si un formato de vídeo falla y la app prueba otro sola, ya no abre el reproductor grande.
+- **Menos ruido en GitHub:** quitada una referencia rota (`src/graphify`) que avisaba en cada compilación.
+
+## De la beta 8: «Escuchar juntos» propio de Aura
 
 - **Salas de Aura (nuevo, apagado por defecto):** Ajustes ▸ Escuchar juntos ▸ **Salas de Aura**. Las salas viven en tu propio servidor, solo entre usuarios de Aura, con el código de 6 letras de siempre. Apagado, todo sigue como antes con el servidor compartido que también usan otras apps. No se puede cambiar mientras estás en una sala.
 - Sin sala no hay conexión: la pantalla queda lista y el socket se abre al crear o unirse. Si se cae la conexión, vuelve a la misma sala sola; al salir de la sala se cierra todo.
