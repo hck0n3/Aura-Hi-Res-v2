@@ -436,6 +436,13 @@ internal suspend fun MusicService.exactStyleFilter(
 
     val basisById = HashMap<String, String>()
 
+    // Row 592 (owner 2026-10-31: «la cola inteligente falla, después de las 10 canciones cambia»; his own log: 7 songs skipped in 20 s, 14 of 15
+    // «kept by search=14», STYLE_GATE_LEARN own=0 implied=13). A song that merely CAME from a search for the style was trusted whole when
+    // nothing was known about it, and then its artist was TAUGHT that style from the question alone, so the next batch found it «learned» and
+    // proven: the queue vouched for itself. Only a request the user typed («Pedir música») is a question worth trusting; everywhere else a
+    // search result is judged by what is known of the song, like any other.
+    fun trustSearch(fromSearch: Boolean): Boolean = fromSearch && requested != null
+
     fun judge(mi: MediaItem, fromSearch: Boolean, faithSource: Boolean = false): Judged {
         val t = mi.trackText()
         val textStyle = MusicStyle.fromText(t.text)
@@ -461,7 +468,7 @@ internal suspend fun MusicService.exactStyleFilter(
                     // Only STRONG evidence may call a candidate «another language»; a hint never does.
                     language = evidence.code.takeIf { evidence.strong },
                     ownArtist = t.artists.any { it.trim().lowercase() in ownArtists },
-                    fromSearch = fromSearch,
+                    fromSearch = trustSearch(fromSearch),
                     rejected = rejected,
                     year = if (gateTarget.era == null) null else iad1tya.echo.music.playlistimport.MusicRequestEraYears.yearOf(
                         mi.mediaId, mi.metadata?.album?.id, mi.metadata?.album?.title,
@@ -482,7 +489,7 @@ internal suspend fun MusicService.exactStyleFilter(
                 genre = genre,
                 language = null,
                 ownArtist = ownArtist,
-                fromSearch = fromSearch,
+                fromSearch = trustSearch(fromSearch),
                 rejected = rejected,
             ),
         )
@@ -539,7 +546,8 @@ internal suspend fun MusicService.exactStyleFilter(
                     playable.mapNotNull { it.metadata?.album?.id }, ERA_PREFETCH_MS,
                 )
             }
-            learnFrom(playable.map { it.trackText() }, impliedStyle = impliedStyle)
+            // Row 592: the style a search ASKED for is only taught to the artists when the user's own request asked it.
+            learnFrom(playable.map { it.trackText() }, impliedStyle = impliedStyle.takeIf { requested != null })
             val fresh = playable.filter { mi ->
                 seen.add(mi.mediaId) &&
                     mi.mediaId !in sessionPlayedIds && mi.dedupKeyOrNull() !in sessionPlayedDedupKeys &&
