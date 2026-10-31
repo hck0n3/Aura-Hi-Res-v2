@@ -2135,7 +2135,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                     iad1tya.echo.music.utils.DiagnosticHeader.Settings(
                         crossfadeEnabled = it[iad1tya.echo.music.constants.CrossfadeEnabledKey] ?: true,
                         crossfadeSeconds = it[iad1tya.echo.music.constants.CrossfadeDurationKey] ?: iad1tya.echo.music.constants.CrossfadeDefaultSeconds,
-                        enhancedShuffle = it[iad1tya.echo.music.constants.EnhancedShuffleKey] ?: false,
+                        // Row 585: the real default of the setting is ON (PlayerSettings, MusicService); reading it as OFF made every shared log say
+                        // «enhancedShuffle=OFF» for a device that never touched it.
+                        enhancedShuffle = it[iad1tya.echo.music.constants.EnhancedShuffleKey] ?: true,
                         safeVolume = it[iad1tya.echo.music.constants.SafeVolumeEnabledKey] ?: false,
                         audioOffload = it[iad1tya.echo.music.constants.AudioOffload] ?: false,
                         loggedIn = !it[InnerTubeCookieKey].isNullOrBlank(),
