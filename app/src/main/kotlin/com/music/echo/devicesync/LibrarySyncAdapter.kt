@@ -21,6 +21,8 @@ import timber.log.Timber
 class LibrarySyncAdapter(
     private val database: MusicDatabase,
     private val dislikes: DislikeStore,
+    /** Row 584: the two places things are pinned (Biblioteca ▸ Fijados, «Fijadas en inicio»); null = pins are not synced (tests). */
+    private val pins: PinsBackend? = null,
 ): LibraryBackend {
     /**
      * The present facts: key → value ("1" / the playlist's name as JSON). [songMetaKnown] says whether a song's `sg:` register is
@@ -68,6 +70,8 @@ class LibrarySyncAdapter(
             facts[LibrarySyncCore.playKey(row.songId, row.timestamp.toEpochSecond(ZoneOffset.UTC))] = ON
             referenced += row.songId
         }
+
+        pins?.let { runCatching { it.readLocal() }.onSuccess { facts.putAll(it) } }
 
         val d = dislikes.snapshot()
         fun add(set: String, ids: Set<String>) = ids.filter(LibrarySyncCore::syncableId).forEach { facts[LibrarySyncCore.dislikeKey(set, it)] = ON }
@@ -218,6 +222,15 @@ class LibrarySyncAdapter(
             applied++
         }
 
+        // 7. Pins (Biblioteca ▸ Fijados and «Fijadas en inicio»): after the playlists, so a pinned playlist already exists here.
+        if (pins != null && (plan.pinUpserts.isNotEmpty() || plan.pinRemovals.isNotEmpty())) {
+            val result = runCatching { pins.apply(plan.pinUpserts, plan.pinRemovals) }.getOrNull()
+            if (result != null) {
+                applied += result.applied
+                unresolved += result.unresolved
+            }
+        }
+
         if (unresolved > 0) Timber.tag("DeviceSync").w("LIB_SYNC apply unresolved=%d", unresolved)
         return ApplyResult(applied, unresolved)
     }
@@ -261,4 +274,13 @@ class LibrarySyncAdapter(
         /** How many of the latest listens are offered to the other devices; older ones already went out when they were new. */
         const val PLAY_SYNC_LIMIT = 300
     }
+}
+
+/** Row 584 — what the library sync needs from the two pin stores; the Android side is [LibraryPinsBackend]. */
+interface PinsBackend {
+    /** Every pin here as a register fact: `pn:…` key → [LibrarySyncCore.encodePin]. */
+    suspend fun readLocal(): Map<String, String>
+
+    /** Writes what other devices pinned and unpinned. Returns how many it applied and how many it could not place yet. */
+    suspend fun apply(upserts: List<Pair<LibrarySyncCore.PinRef, LibrarySyncCore.PinMeta>>, removals: List<LibrarySyncCore.PinRef>): ApplyResult
 }

@@ -15,6 +15,8 @@ package iad1tya.echo.music.devicesync
  *  · `sg:<songId>`              title / artist / cover of a song the other device may never have seen; create-only
  *  · `ab:<albumId>`             an album saved to the library (the heart on the album page)   "1" / "0" — NOT its songs' likes
  *  · `ag:<albumId>`             title / cover / year / size of a saved album the other device may never have seen; create-only
+ *  · `pn:<scope>:<code>:<id>`   something pinned: scope `l` = Biblioteca ▸ Fijados, `h` = «Fijadas en inicio»; the code is the kind
+ *                               (P playlist, A album, R artist, S song); value = the snapshot to draw it ({"t","s","c","l","x","at"}) / "0"
  *  · `hv:<songId>:<second>`     one listen in the History screen (the second is the wall-clock time read as UTC, so every device
  *                               rebuilds the same moment); create-only, value "1", never removed (clearing the history is local)
  * The playlist key is the playlist's `browseId` when it has one (the same on every device), else its own id.
@@ -26,7 +28,7 @@ object LibrarySyncCore {
     /** One register as it travels and as the local ledger remembers it. [pending] = not yet acknowledged by the room. */
     data class Reg(val key: String, val ts: Long, val value: String, val pending: Boolean = false)
 
-    enum class Kind { LIKE, DISLIKE, PLAYLIST, MEMBER, SONG, ALBUM, ALBUM_META, PLAY }
+    enum class Kind { LIKE, DISLIKE, PLAYLIST, MEMBER, SONG, ALBUM, ALBUM_META, PLAY, PIN }
 
     sealed interface Key {
         val kind: Kind
@@ -38,7 +40,24 @@ object LibrarySyncCore {
         data class Album(val albumId: String) : Key { override val kind get() = Kind.ALBUM }
         data class AlbumMeta(val albumId: String) : Key { override val kind get() = Kind.ALBUM_META }
         data class Play(val songId: String, val second: Long) : Key { override val kind get() = Kind.PLAY }
+        data class Pin(val ref: PinRef) : Key { override val kind get() = Kind.PIN }
     }
+
+    /** Where a pin lives: `l` = Biblioteca ▸ Fijados, `h` = «Fijadas en inicio». */
+    val PIN_SCOPES = setOf("l", "h")
+
+    /** One pinned thing, by where it is pinned, what kind it is (P/A/R/S) and its id. */
+    data class PinRef(val scope: String, val code: String, val id: String)
+
+    /** What another device needs to draw a pin it never made: the snapshot of the item. */
+    data class PinMeta(
+        val title: String,
+        val subtitle: String = "",
+        val cover: String = "",
+        val local: Boolean = false,
+        val extra: String = "",
+        val at: Long = 0L,
+    )
 
     /** The six dislike sets of `DislikeStore`, by their short names in the key. */
     val DISLIKE_SETS = listOf("song", "artist", "album", "playlist", "softsong", "softartist")
@@ -51,6 +70,7 @@ object LibrarySyncCore {
     fun albumKey(albumId: String) = "ab:$albumId"
     fun albumMetaKey(albumId: String) = "ag:$albumId"
     fun playKey(songId: String, second: Long) = "hv:$songId:$second"
+    fun pinKey(ref: PinRef) = "pn:${ref.scope}:${ref.code}:${ref.id}"
 
     /** `sg:` and `ag:` registers only describe something so another device can show it: sent once, never changed, never removed. */
     fun isMeta(key: String) = key.startsWith("sg:") || key.startsWith("ag:") || key.startsWith("hv:")
@@ -73,6 +93,14 @@ object LibrarySyncCore {
                 if (second == null || second < 0 || ':' in rest.substring(0, i)) null else Key.Play(rest.substring(0, i), second)
             }
             "pl" -> rest.takeIf { it.isNotEmpty() && ':' !in it }?.let(Key::Playlist)
+            "pn" -> {
+                // `l:P:<id>`: scope, code, then the id (no colon).
+                if (rest.length < 5 || rest[1] != ':' || rest[3] != ':') null
+                else {
+                    val ref = PinRef(rest.substring(0, 1), rest.substring(2, 3), rest.substring(4))
+                    if (ref.scope in PIN_SCOPES && ref.id.isNotEmpty() && ':' !in ref.id) Key.Pin(ref) else null
+                }
+            }
             "dk" -> {
                 val i = rest.indexOf(':')
                 if (i <= 0 || i == rest.lastIndex) null
@@ -135,10 +163,12 @@ object LibrarySyncCore {
         val albums: List<Pair<String, AlbumMeta>> = emptyList(),
         val albumSaves: List<Pair<String, Boolean>> = emptyList(),
         val plays: List<Pair<String, Long>> = emptyList(),
+        val pinUpserts: List<Pair<PinRef, PinMeta>> = emptyList(),
+        val pinRemovals: List<PinRef> = emptyList(),
     ) {
         val removalCount: Int
             get() = playlistRemovals.size + memberRemovals.size + likes.count { !it.second } + dislikes.count { !it.third } +
-                albumSaves.count { !it.second }
+                albumSaves.count { !it.second } + pinRemovals.size
     }
 
     data class SongMeta(val title: String, val artist: String, val cover: String)
@@ -157,12 +187,15 @@ object LibrarySyncCore {
         val albums = ArrayList<Pair<String, AlbumMeta>>()
         val albumSaves = ArrayList<Pair<String, Boolean>>()
         val plays = ArrayList<Pair<String, Long>>()
+        val pinUpserts = ArrayList<Pair<PinRef, PinMeta>>()
+        val pinRemovals = ArrayList<PinRef>()
         for (reg in accepted) {
             when (val k = parse(reg.key)) {
                 is Key.Song -> decodeSong(reg.value)?.let { songs += k.songId to it }
                 is Key.AlbumMeta -> decodeAlbum(reg.value)?.let { albums += k.albumId to it }
                 is Key.Album -> if (reg.value == ON || reg.value == OFF) albumSaves += k.albumId to (reg.value == ON)
                 is Key.Play -> if (reg.value == ON) plays += k.songId to k.second
+                is Key.Pin -> if (reg.value == OFF) pinRemovals += k.ref else decodePin(reg.value)?.let { pinUpserts += k.ref to it }
                 is Key.Playlist ->
                     if (reg.value == OFF) plRemovals += k.playlistKey else decodePlaylistName(reg.value)?.let { upserts += k.playlistKey to it }
                 is Key.Member -> if (reg.value == ON) adds += k.playlistKey to k.songId else if (reg.value == OFF) memberRemovals += k.playlistKey to k.songId
@@ -171,7 +204,7 @@ object LibrarySyncCore {
                 null -> Unit
             }
         }
-        return Plan(songs, upserts, plRemovals, adds, memberRemovals, likes, dislikes, albums, albumSaves, plays)
+        return Plan(songs, upserts, plRemovals, adds, memberRemovals, likes, dislikes, albums, albumSaves, plays, pinUpserts, pinRemovals)
     }
 
     // ── values ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -185,6 +218,23 @@ object LibrarySyncCore {
     fun decodeSong(value: String): SongMeta? {
         val t = field(value, "t") ?: return null
         return SongMeta(t, field(value, "a").orEmpty(), field(value, "c").orEmpty())
+    }
+
+    /** A pin's snapshot. Fields are cut so the register stays far under the room's 800-character limit. */
+    fun encodePin(meta: PinMeta) =
+        "{\"t\":${quote(meta.title.take(100))},\"s\":${quote(meta.subtitle.take(80))},\"c\":${quote(meta.cover.take(150))}," +
+            "\"l\":${quote(if (meta.local) "1" else "")},\"x\":${quote(meta.extra.take(60))},\"at\":${quote(meta.at.toString())}}"
+
+    fun decodePin(value: String): PinMeta? {
+        val t = field(value, "t")?.takeIf { it.isNotBlank() } ?: return null
+        return PinMeta(
+            title = t,
+            subtitle = field(value, "s").orEmpty(),
+            cover = field(value, "c").orEmpty(),
+            local = field(value, "l") == "1",
+            extra = field(value, "x").orEmpty(),
+            at = field(value, "at")?.toLongOrNull() ?: 0L,
+        )
     }
 
     fun encodeAlbum(meta: AlbumMeta) =
