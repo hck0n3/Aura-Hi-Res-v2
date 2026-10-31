@@ -683,7 +683,11 @@ public:
         glueCompressor->inputGainDb = 0.0f;
         glueCompressor->outputGainDb = 0.0f;
         glueCompressor->wet = 1.0f;
-        glueCompressor->hpCutOffHz = 1.0f;
+        // Row 610 (owner 2026-10-31: «los bajos me ocultan la voz; cuando no hay bajos las voces se suben»): the detector's KEY high-pass was
+        // 1 Hz, so every bass note over the -12 dB threshold pulled the WHOLE mix down (the voice with it) for the 200 ms release, and the voice
+        // came back up when the bass left. The key high-pass only shapes what the detector HEARS, not the audio that comes out: at 200 Hz the
+        // bass no longer decides how much the voice is compressed, the voice and the mids do.
+        glueCompressor->hpCutOffHz = 200.0f;
         glueCompressor->enabled = true;
 
         // SPEAKER SUB-BASS PROTECTION — a phone speaker cannot reproduce ~31 Hz; boosting it only
