@@ -1,5 +1,6 @@
 # Sonda de solo lectura (etapa 4 del arreglo semiautomático de YouTube): descarga reproductores YA resueltos a mano y muestra
 # cómo están hechos, para escribir el extractor contra datos reales. No escribe nada ni avisa a nadie.
+# (Relanzada tras corregir los permisos de Actions: el primer intento con el verificador no llegó a arrancar.)
 name: Player probe
 
 on:
