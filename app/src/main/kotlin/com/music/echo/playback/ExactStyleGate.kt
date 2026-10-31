@@ -80,6 +80,12 @@ internal class ExactStyleState {
 
     // Fila 356, punto 3 — what the user skipped quickly in THIS queue, and what the gate let through.
     val gatedIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
+
+    // Row 555 — HOW each song got in («t2/own» = admitted at step 2 on the strength of its own artist), and the target it was judged
+    // against. Kept so that when the owner dislikes a song that drifted out of the queue's style, the log says why the gate let it in
+    // (no title, no artist: ids and counters only).
+    val admissions: ConcurrentHashMap<String, String> = ConcurrentHashMap()
+    @Volatile var lastTarget = ""
     val skippedArtists: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
     val skippedStyles: ConcurrentHashMap<String, Int> = ConcurrentHashMap()
     val confirmedStyles: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
@@ -99,6 +105,8 @@ internal class ExactStyleState {
         override = null
         follow.value = null
         gatedIds.clear()
+        admissions.clear()
+        lastTarget = ""
         skippedArtists.clear()
         skippedStyles.clear()
         confirmedStyles.clear()
@@ -561,6 +569,11 @@ internal suspend fun MusicService.exactStyleFilter(
     val kept = ContextLane.choose(all, tiers, judged.map { lane.christian && it.candidate.christian }, enough)
     if (st.gatedIds.size > GATED_IDS_CAP) st.gatedIds.clear()
     kept.forEach { st.gatedIds.add(it.mediaId) }
+    if (st.admissions.size > GATED_IDS_CAP) st.admissions.clear()
+    val tierById = HashMap<String, Int?>()
+    all.forEachIndexed { i, mi -> tierById[mi.mediaId] = tiers.getOrNull(i) }
+    kept.forEach { st.admissions[it.mediaId] = "t${tierById[it.mediaId] ?: "-"}/${basisById[it.mediaId] ?: "?"}" }
+    st.lastTarget = "styles=${gateTarget.styles?.sorted()?.joinToString("+") ?: "unknown"} lang=${gateTarget.language ?: "unknown"} christian=${gateTarget.christian}"
     // Counts and style/family ids only — never a title, artist or id (AGENTS.md rule 4).
     Timber.tag(TAG).i("STYLE_GATE_BASIS %s: kept by %s", site, kept.groupingBy { basisById[it.mediaId] ?: "?" }.eachCount().entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${it.value}" }.ifEmpty { "nothing" })
     Timber.tag(TAG).i(
@@ -700,6 +713,13 @@ private suspend fun MusicService.styleSearchPage(query: String): List<MediaItem>
  * and, after [STYLE_SKIPS_TO_REJECT], its style — out for the rest of this queue; a song heard to its end
  * confirms its style so it is never rejected afterwards. Counts only in the log.
  */
+/** Why the gate let [mediaId] into this queue, for the log: «t2/own target=styles=rap lang=es christian=false», or «not-gated». */
+internal fun MusicService.styleAdmissionOf(mediaId: String?): String {
+    val st = exactStyle
+    val how = mediaId?.let { st.admissions[it] } ?: return "not-gated"
+    return "$how target=${st.lastTarget}"
+}
+
 internal fun MusicService.exactStyleOnTransition(newItem: MediaItem?, reason: Int) {
     val st = exactStyle
     val previous = st.currentItem

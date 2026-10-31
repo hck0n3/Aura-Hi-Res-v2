@@ -5434,7 +5434,7 @@ class MusicService :
         scope.launch {
             // See the matching comment on SongEntity.toggleLike: timestamp only, for correlating
             // against a possible subscribeChannel call if the owner's report reproduces.
-            Timber.i("SONG_DISLIKE_TOGGLE")
+            Timber.i("SONG_DISLIKE_TOGGLE admitted=%s", styleAdmissionOf(mediaId))
             runCatching { dislikeStore.dislikeSong(mediaId) }.onFailure {
                 // C3 — the song is still skipped and purged below, but it would NOT be remembered (row 285).
                 if (it is CancellationException) throw it
