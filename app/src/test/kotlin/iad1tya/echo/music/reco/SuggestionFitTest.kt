@@ -57,7 +57,10 @@ class SuggestionFitTest {
         val root = generateSequence(File("").absoluteFile) { it.parentFile }
             .firstOrNull { File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")
         val s = File(root, "app/src/main/kotlin/com/music/echo/viewmodels/LocalPlaylistViewModel.kt").readText()
-        assertTrue(s.indexOf("SuggestionFit.order(") in 1 until s.indexOf("for (id in fitted)"))
+        assertTrue(s.indexOf("SuggestionFit.order(") in 1 until s.indexOf("for (id in fittedForPicking)"))
+        // Row 586: what plainly does not fit is left out of the picks and of both backfills, not only moved behind.
+        assertTrue(s.contains("val fittedForPicking = if (fittingOnly.isNotEmpty()) fittingOnly else fitted"))
+        assertTrue(s.contains("fitsPlaylist(it)"))
         assertFalse(Regex("""SUGGEST_FIT[^\n]*(title|artist\b)""").containsMatchIn(s))
     }
 }
