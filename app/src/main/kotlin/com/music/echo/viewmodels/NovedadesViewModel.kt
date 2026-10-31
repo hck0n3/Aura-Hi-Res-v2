@@ -82,6 +82,19 @@ constructor(
     init {
         refresh()
         ReleaseRadarWorker.refreshIfStale(context)
+        // Row 571: what the classic radar screen did on entry that this tab did not — opening the radar marks its rows as seen. (Nothing else
+        // reads the flag yet; it keeps the table's meaning the same whichever screen is the radar's door.)
+        viewModelScope.launch { runCatching { database.markAllReleasesSeen() } }
+    }
+
+    /**
+     * Pull-to-refresh, done BY THE USER: the feeds as before AND the radar itself (the classic radar screen had a refresh button that ran the radar
+     * worker; this tab only reloaded the YouTube feeds, so the followed-artists radar could not be refreshed by hand). The worker is
+     * unique-work with KEEP, so repeated pulls never stack; the automatic entry refresh stays behind its 6 h staleness gate.
+     */
+    fun refreshByUser() {
+        ReleaseRadarWorker.runNow(context)
+        refresh()
     }
 
     fun refresh() {

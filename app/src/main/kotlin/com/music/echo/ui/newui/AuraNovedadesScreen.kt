@@ -334,7 +334,7 @@ fun AuraNovedadesScreen(
         PullToRefreshBox(
             state = pullRefreshState,
             isRefreshing = isRefreshing,
-            onRefresh = viewModel::refresh,
+            onRefresh = viewModel::refreshByUser,
             indicator = {
                 AuraPullRefreshIndicator(state = pullRefreshState, isRefreshing = isRefreshing)
             },
