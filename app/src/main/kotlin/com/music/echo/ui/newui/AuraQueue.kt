@@ -1101,18 +1101,9 @@ fun AuraQueue(
                                         }
                                     }
 
-                                    itemsIndexed(items = automix, key = { _, it -> "aura_automix_${it.mediaId}" }) { _, item ->
-                                        Column {
-                                            Spacer(Modifier.height(AuraSpacing.RowGap))
-                                            AuraAutomixRow(
-                                                item = item,
-                                                isListenTogetherGuest = isListenTogetherGuest,
-                                                isCasting = isCasting,
-                                                navController = navController,
-                                                playerBottomSheetState = playerBottomSheetState,
-                                            )
-                                        }
-                                    }
+                                    // Row 581 (owner 2026-10-31: «no quiero nada repetido en Aura»): the automix preview rows that were listed
+                                    // here are the SAME pool the RELACIONADOS tab shows, with the same row; they are gone from this footer. What stays
+                                    // is what only this footer offers: the title, «Siguiendo: …» (correctable) and the steering chips.
                                 }
                             }
                         }

@@ -233,31 +233,20 @@ private fun AuraLibraryShortcutTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Row 582 (owner 2026-10-31: «los botones que quería que cambiaras eran los de Canciones que me gustan, Álbumes favoritos…»):
+    // the same glass capsule as the header actions he likes (rounded to the pill, one hairline), the icon bare in the live accent —
+    // no gradient chip inside a second plate — so the shortcuts and the buttons above read as one family.
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = modifier
-            .clip(AuraShapes.Card)
+            .clip(RoundedCornerShape(26.dp))
             .background(AuraPalette.SurfaceFill)
-            .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
+            .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(26.dp))
             .auraClickableInternal(onClick = onClick, contentDescription = label)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        // The chip follows the cover (Teal / Blue are the live accents) at low alpha: tinted, never a block of colour — the
-        // gradient plate stays the privilege of the play button and the primary actions.
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(AuraPalette.Teal.copy(alpha = 0.34f), AuraPalette.Blue.copy(alpha = 0.16f)),
-                    ),
-                ),
-        ) {
-            AuraIconGlyph(icon = icon, contentDescription = null, size = 19.dp, tint = AuraPalette.Teal)
-        }
+        AuraIconGlyph(icon = icon, contentDescription = null, size = 22.dp, tint = AuraPalette.Teal)
         Text(
             text = label,
             style = AuraType.MiniTitle,

@@ -51,7 +51,10 @@ constructor(
     private val _scanState = MutableStateFlow(LocalSongsScanState())
     val scanState = _scanState.asStateFlow()
 
-    val songs = database.localSongs().stateIn(
+    // Row 583 (owner 2026-10-31: «videos importados… están apartados en Local y ahí está lo que ya está en otro lado»): a scanned VIDEO file is
+    // registered under Biblioteca ▸ «Vídeos exportados» by the scanner itself, so listing it here too showed the same file twice. Local keeps
+    // the audio; the videos stay one tap away in their own shortcut.
+    val songs = database.localSongs().map { list -> list.filterNot { it.song.isVideo } }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         emptyList(),

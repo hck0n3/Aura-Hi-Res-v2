@@ -714,6 +714,7 @@ distintos para la misma función.)*
 | Interruptor de reproducción automática | Cola > Siguiente > pie | `ui/player/Queue.kt:1505-1513` | conmutador | ocasional | solo si no eres invitado. **Es la MISMA preferencia que Ajustes → «Cargar más canciones automáticamente»** |
 | Chips de orientación del autoplay *(etiquetas dinámicas del servicio)* | Cola > Siguiente > pie | `ui/player/Queue.kt:1523-1530` | conmutador / filtro | ocasional | solo si no eres invitado, autoplay ON y hay chips |
 | «Las canciones relacionadas aparecerán aquí cuando la reproducción automática las cargue» | Cola > Relacionados (vacío) | `ui/player/Queue.kt:1227` | informativo | ocasional | solo si el automix está vacío |
+| *(Interfaz nueva, fila 581)* Filas de vista previa del automix bajo «Reproducción automática» | Cola > Siguiente > pie | `ui/newui/AuraQueue.kt` | **QUITADAS por repetidas**: son el mismo conjunto y la misma fila de la pestaña RELACIONADOS. El título, «Siguiendo: …» y los chips se conservan | — | — |
 | Reproducir a continuación *(icono `playlist_play`)* | Cola > Relacionados > fila | `ui/player/Queue.kt:1614-1626` | acción primaria | ocasional | solo si no eres invitado |
 | Añadir a la cola *(icono `queue_music`)* | Cola > Relacionados > fila | `ui/player/Queue.kt:1627-1639` | acción primaria | ocasional | solo si no eres invitado |
 
