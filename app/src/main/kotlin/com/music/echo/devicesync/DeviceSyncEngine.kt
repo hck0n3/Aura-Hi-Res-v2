@@ -265,9 +265,19 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         // le dije que hiciera eso». Pausing HERE made this device look «silent», so it switched to showing the other device and replaced
         // its own queue with that one. A device that was playing a moment ago and was paused keeps its own song: the remote is shown
         // only to a device that has been idle (or after the user acts on a device from here).
-        val justPaused = !localPlaying && !RemotePlayback.active && nowMs - lastLocalPlayingAt < LOCAL_PAUSE_GRACE_MS
-        if (justPaused && remote != null && remote.playing) Timber.tag(TAG).i("DEVICE_SYNC remote control held back: paused here a moment ago")
-        val active = !justPaused && RemotePlayback.shouldBeActive(
+        // Row 563 (owner 2026-10-31, beta 8: «el control remoto ya no funciona… no me sale Continuar desde aquí, la línea de tiempo no se registra, no aparece
+        // el volumen»): beta 8 held the remote back after ANY pause here, which also switched off «Continuar aquí», the timeline and the volume while
+        // the other device was PLAYING. The hold-back is only for the case that hurt: a remote that is NOT playing (shown only because this device
+        // controlled it a while ago, so what it published is stale) must not replace the song this device was just playing.
+        val heldBack = RemotePlayback.holdBack(
+            localPlaying = localPlaying,
+            remotePlaying = remote?.playing == true,
+            remoteActive = RemotePlayback.active,
+            sinceLocalPlayedMs = nowMs - lastLocalPlayingAt,
+            graceMs = LOCAL_PAUSE_GRACE_MS,
+        )
+        if (heldBack && remote != null) Timber.tag(TAG).i("DEVICE_SYNC remote control held back: stale paused remote, paused here a moment ago")
+        val active = !heldBack && RemotePlayback.shouldBeActive(
             remote = remote,
             thisDeviceId = deviceId,
             handoffEnabled = handoffEnabled,

@@ -12,7 +12,7 @@ Beta encima de la 2.0.67-beta7 (incluye todo lo suyo) y de la 2.0.66 estable. Co
 - **El volumen del menú del reproductor mueve el volumen del dispositivo que está sonando** y muestra su nivel real.
 - **Lo que reproduces en el cel mientras controlas la tablet suena en la tablet,** como en Spotify. Si no se puede enviar, suena en el cel.
 - **«Siguiente» ya no se pierde al final de la cola:** si la cola inteligente aún está buscando más canciones, el «siguiente» espera y salta en cuanto llegan (hasta 3 toques, 30 segundos).
-- **Pausar aquí ya no te cambia la canción:** pausar el dispositivo que sonaba hacía que cargara la cola del otro y te cambiaba la canción de la nada. Ahora, tras una pausa tuya, conserva tu canción durante 10 minutos.
+- **Pausar aquí ya no te cambia la canción:** pausar el dispositivo que sonaba hacía que cargara la cola del otro y te cambiaba la canción de la nada. Ahora, si lo que muestra del otro dispositivo es un estado viejo (el otro NO está sonando), tu canción se conserva durante 10 minutos tras tu pausa; si el otro sí suena, siempre ves su canción y sus controles.
 - **«Continuar aquí» ya no repone una cola vieja** cuando el otro dispositivo dejó de contestar: avisa «Ese dispositivo no responde».
 
 ## Historial y cola inteligente

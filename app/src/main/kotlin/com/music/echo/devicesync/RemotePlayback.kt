@@ -148,6 +148,14 @@ object RemotePlayback {
     }
 
     /**
+     * Pure (row 563): true when showing the other device would REPLACE the song this one was just playing with an old one. That is only the
+     * case for a remote that is not playing (it is shown only because this device controlled it recently, so its state is stale), while this
+     * device is silent after playing within [graceMs] and is not already controlling it. A remote that is PLAYING is always shown.
+     */
+    fun holdBack(localPlaying: Boolean, remotePlaying: Boolean, remoteActive: Boolean, sinceLocalPlayedMs: Long, graceMs: Long): Boolean =
+        !localPlaying && !remotePlaying && !remoteActive && sinceLocalPlayedMs in 0 until graceMs
+
+    /**
      * Pure: should THIS device show and control [remote]? Another device, that is playing and recently heard — or paused but just
      * controlled from here — while this device is silent, connected, and the user allows handing over.
      */

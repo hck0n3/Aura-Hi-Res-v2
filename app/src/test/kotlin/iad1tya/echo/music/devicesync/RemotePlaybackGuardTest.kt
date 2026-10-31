@@ -115,4 +115,19 @@ class RemotePlaybackGuardTest {
         assertTrue("solo aparece con el dispositivo emparejado", queue.contains("showDevices = pairedBy != iad1tya.echo.music.devicesync.DeviceSyncHub.PairedBy.None"))
         assertTrue("ya no está arriba", !player.contains("AuraIcons.Device"))
     }
+
+    // Row 563 — beta 8 held the remote back after ANY pause here and switched off «Continuar aquí», the timeline and the volume.
+    @Test
+    fun `a remote that is playing is never held back by a pause here`() {
+        assertFalse(RemotePlayback.holdBack(localPlaying = false, remotePlaying = true, remoteActive = false, sinceLocalPlayedMs = 1_000, graceMs = 600_000))
+    }
+
+    @Test
+    fun `a stale paused remote does not replace the song just paused here`() {
+        assertTrue(RemotePlayback.holdBack(localPlaying = false, remotePlaying = false, remoteActive = false, sinceLocalPlayedMs = 4_000, graceMs = 600_000))
+        // …but only for a while, and never once it is already being controlled from here, and never while this device plays.
+        assertFalse(RemotePlayback.holdBack(false, false, false, sinceLocalPlayedMs = 600_000, graceMs = 600_000))
+        assertFalse(RemotePlayback.holdBack(false, false, true, 4_000, 600_000))
+        assertFalse(RemotePlayback.holdBack(true, false, false, 4_000, 600_000))
+    }
 }
