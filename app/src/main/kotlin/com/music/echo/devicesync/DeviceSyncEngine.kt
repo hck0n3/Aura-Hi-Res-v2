@@ -259,7 +259,15 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             val p = playerOrNull()
             p != null && p.playWhenReady && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED
         }
-        val active = RemotePlayback.shouldBeActive(
+        val nowMs = System.currentTimeMillis()
+        if (localPlaying) lastLocalPlayingAt = nowMs
+        // Owner 2026-10-31: «cuando le puse pausa, de la nada me cambió la canción y me puso lo que se escuchaba en la Galaxy Tab, yo no
+        // le dije que hiciera eso». Pausing HERE made this device look «silent», so it switched to showing the other device and replaced
+        // its own queue with that one. A device that was playing a moment ago and was paused keeps its own song: the remote is shown
+        // only to a device that has been idle (or after the user acts on a device from here).
+        val justPaused = !localPlaying && !RemotePlayback.active && nowMs - lastLocalPlayingAt < LOCAL_PAUSE_GRACE_MS
+        if (justPaused && remote != null && remote.playing) Timber.tag(TAG).i("DEVICE_SYNC remote control held back: paused here a moment ago")
+        val active = !justPaused && RemotePlayback.shouldBeActive(
             remote = remote,
             thisDeviceId = deviceId,
             handoffEnabled = handoffEnabled,
@@ -423,6 +431,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     // find the next songs, and a `next` in that gap did nothing — six taps in a row, only the seventh (after the refill) skipped. A
     // `next` that finds no next song now waits for the refill and skips as soon as one arrives (row 554). Taps while waiting count
     // (up to 3), the wait gives up after 30 s.
+    @Volatile private var lastLocalPlayingAt = 0L
+
     private var pendingNexts = 0
     private var pendingNextListener: Player.Listener? = null
     private var pendingNextTimeout: Job? = null
@@ -776,6 +786,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         const val TAKE_MAX_AGE_MS = 30_000L
         const val RESPOND_AFTER_COMMAND_MS = 600L
         const val LIBRARY_DEBOUNCE_MS = 3_000L
+        /** After pausing here, the other device is not shown (and this queue is not replaced) for this long. */
+        const val LOCAL_PAUSE_GRACE_MS = 10 * 60_000L
         const val WINDOW_BEHIND = 5
         const val WINDOW_AHEAD = 60
         const val PUSH_BATCH = 2_000
