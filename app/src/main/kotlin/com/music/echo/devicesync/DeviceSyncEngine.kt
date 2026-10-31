@@ -301,6 +301,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             localPlaying = localPlaying,
             controllingRecently = RemotePlayback.controllingRecently(),
             serverNowMs = serverNow(),
+            inListenRoom = runCatching { service.listenTogetherManager.isInRoom }.getOrDefault(false),
         )
         if (!active || remote == null) {
             if (RemotePlayback.active) {

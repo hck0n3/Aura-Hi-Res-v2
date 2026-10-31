@@ -291,7 +291,14 @@ object RemotePlayback {
         localPlaying: Boolean,
         controllingRecently: Boolean,
         serverNowMs: Long,
+        /**
+         * Row 617 (owner 2026-10-31: «parece que un dispositivo en remoto no puede usar Escuchar juntos»): inside a Listen Together room the
+         * local player belongs to the room (the host's state is applied to it), so it cannot ALSO be the mirror of another device. The
+         * room wins; the remote control comes back when the user leaves it.
+         */
+        inListenRoom: Boolean = false,
     ): Boolean {
+        if (inListenRoom) return false
         if (remote == null || !handoffEnabled || !connected || localPlaying) return false
         if (remote.deviceId.isBlank() || remote.deviceId == thisDeviceId || remote.current == null) return false
         return if (remote.playing) serverNowMs - remote.atMs <= FRESH_MS else controllingRecently
