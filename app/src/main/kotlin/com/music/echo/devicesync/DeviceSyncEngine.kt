@@ -442,10 +442,14 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 val to = args.str("to") ?: from
                 val state = buildNow()
                 if (state != null && to.isNotBlank()) {
-                    client.send(buildJsonObject {
+                    val sent = client.send(buildJsonObject {
                         put("t", "cmd"); put("to", to); put("cmd", "take"); put("args", buildJsonObject { put("state", state) })
                     })
-                    onMain { service.player.pause() }
+                    // Row 569 (owner 2026-10-31: «la tablet me dijo sin conexión y paró la canción y no la volvió a reproducir»): this device paused
+                    // itself even when the hand-over never left (the sync link was down), so the song stopped on BOTH devices. It only gives way
+                    // when the other one has really been told to take over; otherwise it keeps playing.
+                    if (sent) onMain { service.player.pause() }
+                    else Timber.tag(TAG).w("DEVICE_SYNC hand-over not sent (no link) — keeps playing here")
                 }
             }
             "take" -> if (handoffEnabled) {
