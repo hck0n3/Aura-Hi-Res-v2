@@ -35,6 +35,13 @@ object SyncCode {
             .joinToString("") { "%02x".format(it) }
     }
 
+    /**
+     * Row 609 (owner 2026-10-31: «al escribir el código que se pongan los guiones solos»): what the field shows while a code is TYPED or
+     * pasted — upper case, only the alphabet, at most [LENGTH] characters, a dash every four. Pasting an already dashed code gives the same text.
+     */
+    fun typing(input: String): String =
+        input.uppercase().filter { it in ALPHABET }.take(LENGTH).chunked(4).joinToString("-")
+
     /** `AAAA-BBBB-…` for showing a normalized code. */
     fun pretty(normalized: String): String = normalized.chunked(4).joinToString("-")
 

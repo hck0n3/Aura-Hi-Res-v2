@@ -130,6 +130,7 @@ fun DeviceSyncSettings(
             initial = "",
             label = stringResource(R.string.device_sync_code_dialog_hint),
             help = null,
+            transform = SyncCode::typing,
             onSave = { typed ->
                 val normalized = SyncCode.normalize(typed)
                 if (normalized == null) {
@@ -426,6 +427,8 @@ private fun TextFieldDialog(
     help: String?,
     onSave: (String) -> Unit,
     onDismiss: () -> Unit,
+    /** Reshapes what is typed (the pairing code gets its dashes); null = free text. */
+    transform: ((String) -> String)? = null,
 ) {
     var text by rememberSaveable(initial) { mutableStateOf(initial) }
     DefaultDialog(
@@ -447,7 +450,7 @@ private fun TextFieldDialog(
         }
         OutlinedTextField(
             value = text,
-            onValueChange = { text = it.take(200) },
+            onValueChange = { text = transform?.invoke(it) ?: it.take(200) },
             label = { Text(label) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
