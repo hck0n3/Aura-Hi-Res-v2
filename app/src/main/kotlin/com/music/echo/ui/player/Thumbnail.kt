@@ -1369,12 +1369,15 @@ private fun ThumbnailItem(
                     // Row 598 — the album page's own search, as a second chance. The song-level chain above found nothing (or its check rejected
                     // it), but the page of this album may well find it: it searches by ALBUM, over four spellings, with TIDAL as a fallback. Both call the
                     // same function, so from here on «the page animates and the player does not» cannot happen for the same album and first artist.
+                    var albumRetryRan = false
                     val validated = validatedBySong ?: run {
                         val albumForPage = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString().orEmpty()
                         val artistForPage = CanvasAlbumMemo.firstArtist(item.mediaMetadata.artist?.toString())
-                        if (albumForPage.isBlank() || artistForPage.isBlank() || !canvasInForeground) {
+                        // Not while the album is already remembered as «none» (that answer is kept 20 minutes): one retry per album, not one per song.
+                        if (albumForPage.isBlank() || artistForPage.isBlank() || !canvasInForeground || memo is CanvasAlbumMemo.Answer.None) {
                             null
                         } else {
+                            albumRetryRan = true
                             val viaAlbum = withTimeoutOrNull(14_000L) {
                                 iad1tya.echo.music.ui.screens.resolveAlbumCanvas(
                                     albumTitle = albumForPage,
@@ -1391,7 +1394,7 @@ private fun ThumbnailItem(
                     // The chain ANSWERED (it did not time out): keep the album's answer for its other songs.
                     // A cover the providers DID return but this check rejected is not «there is none» (row 578): remembering it as none
                     // froze the player for 20 minutes while the album page, which accepts it, kept animating.
-                    if (memoKey != null && memo == null && lookupAnswered && (validated != null || fetched == null)) {
+                    if (memoKey != null && memo == null && lookupAnswered && (validated != null || fetched == null || albumRetryRan)) {
                         CanvasAlbumMemo.remember(memoContext, memoKey, validated)
                         // Function 3: what this search found helps everyone else (the cache refuses anything off-key or off-host).
                         if (validated != null) iad1tya.echo.music.edge.EdgeClient.canvasShare(memoContext, memoKey, validated)
