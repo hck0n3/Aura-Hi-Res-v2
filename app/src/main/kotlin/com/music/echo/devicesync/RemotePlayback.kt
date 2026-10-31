@@ -42,6 +42,9 @@ object RemotePlayback {
     @Volatile
     private var lastControlAt = 0L
 
+    /** When (device clock) this device last sent an order to the other one. */
+    val lastControlAtMs: Long get() = lastControlAt
+
     @Volatile
     private var lastVolumeAt = 0L
     private var lastVolumeSentAt = 0L
@@ -190,6 +193,40 @@ object RemotePlayback {
      */
     fun holdBack(localPlaying: Boolean, remotePlaying: Boolean, remoteActive: Boolean, sinceLocalPlayedMs: Long, graceMs: Long): Boolean =
         !localPlaying && !remotePlaying && !remoteActive && sinceLocalPlayedMs in 0 until graceMs
+
+    /**
+     * Row 595 (owner 2026-10-31: «cuando le di pausa a los dos, los dos dispositivos volvieron a la cola anterior… se puso otra canción en
+     * pausa»): the other device's queue replaces this device's own only while what it published is NEWER than the last order sent from here
+     * ([lastControlServerMs], the same moment on the room's clock) or while it is actually playing. A paused report published before our last
+     * order is the old queue; mirroring it swapped the queues of two paused devices. Pure.
+     */
+    fun shouldMirrorQueue(remote: NowState, lastControlServerMs: Long, slackMs: Long = MIRROR_SLACK_MS): Boolean =
+        remote.playing || lastControlServerMs <= 0L || remote.atMs + slackMs >= lastControlServerMs
+
+    const val MIRROR_SLACK_MS = 1_500L
+
+    /** An order from another device that arrived this recently explains why this device just started playing: it is not a user's tap here. */
+    const val COMMAND_GRACE_MS = 5_000L
+
+    /**
+     * Row 594 (owner 2026-10-31: «si está en remoto solo uno de los dos dispositivos debe mandar audio y obedecer al otro»): the device the
+     * user just started playing on is the one that sounds. True when THIS device has just started playing by its own user's action while
+     * ANOTHER device was audibly playing (fresh report), so the other must be told to pause. Orders that arrived from the other device a
+     * moment ago ([msSinceOrderHere] under [COMMAND_GRACE_MS]: «continuar aquí», a queue sent here, a play) are not a tap and never trigger
+     * it, so two devices cannot pause each other. Pure.
+     */
+    fun shouldPauseOther(
+        localStartedNow: Boolean,
+        remote: NowState?,
+        thisDeviceId: String,
+        handoffEnabled: Boolean,
+        connected: Boolean,
+        msSinceOrderHere: Long,
+        serverNowMs: Long,
+    ): Boolean =
+        localStartedNow && handoffEnabled && connected && remote != null &&
+            remote.deviceId.isNotBlank() && remote.deviceId != thisDeviceId && remote.playing &&
+            serverNowMs - remote.atMs <= FRESH_MS && msSinceOrderHere > COMMAND_GRACE_MS
 
     /**
      * Pure: should THIS device show and control [remote]? Another device, that is playing and recently heard — or paused but just

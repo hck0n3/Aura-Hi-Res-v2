@@ -261,6 +261,22 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
         val nowMs = System.currentTimeMillis()
         if (localPlaying) lastLocalPlayingAt = nowMs
+        // Row 594: only ONE device sounds. The one the user just started playing on wins; the other is asked to pause.
+        val startedNow = localPlaying && !wasLocalPlaying
+        wasLocalPlaying = localPlaying
+        if (RemotePlayback.shouldPauseOther(
+                localStartedNow = startedNow,
+                remote = remote,
+                thisDeviceId = deviceId,
+                handoffEnabled = handoffEnabled,
+                connected = DeviceSyncHub.connection.value is DeviceSyncHub.Connection.Connected,
+                msSinceOrderHere = nowMs - lastOrderHereAt,
+                serverNowMs = serverNow(),
+            )
+        ) {
+            Timber.tag(TAG).i("DEVICE_SYNC started playing here while another device was playing: asked it to pause")
+            remote?.let { control(it.deviceId, "pause") }
+        }
         // Owner 2026-10-31: «cuando le puse pausa, de la nada me cambió la canción y me puso lo que se escuchaba en la Galaxy Tab, yo no
         // le dije que hiciera eso». Pausing HERE made this device look «silent», so it switched to showing the other device and replaced
         // its own queue with that one. A device that was playing a moment ago and was paused keeps its own song: the remote is shown
@@ -297,7 +313,12 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
         if (!RemotePlayback.active) Timber.tag(TAG).i("DEVICE_SYNC remote control on")
         RemotePlayback.update(remote, serverNow())
-        mirrorRemote(remote)
+        // Row 595: a stale paused report must not replace this device's own queue (see RemotePlayback.shouldMirrorQueue).
+        if (RemotePlayback.shouldMirrorQueue(remote, RemotePlayback.lastControlAtMs + serverOffsetMs)) {
+            mirrorRemote(remote)
+        } else {
+            Timber.tag(TAG).i("DEVICE_SYNC mirror skipped: the paused report is older than our last order")
+        }
         if (remote.playing && remoteTick?.isActive != true) {
             // One tick a second, only while the other device plays and this player is showing it.
             remoteTick = scope.launch {
@@ -387,6 +408,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)
+        lastOrderHereAt = System.currentTimeMillis()
         if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like" || cmd == "playitem" || cmd == "volume" || cmd == "shuffle") {
             // The device that sent the order is showing OUR timeline: tell it the new state as soon as the player has settled,
             // not at the next heartbeat (row 534).
@@ -473,6 +495,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     // `next` that finds no next song now waits for the refill and skips as soon as one arrives (row 554). Taps while waiting count
     // (up to 3), the wait gives up after 30 s.
     @Volatile private var lastLocalPlayingAt = 0L
+    @Volatile private var wasLocalPlaying = false
+    @Volatile private var lastOrderHereAt = 0L
 
     private var pendingNexts = 0
     private var pendingNextListener: Player.Listener? = null

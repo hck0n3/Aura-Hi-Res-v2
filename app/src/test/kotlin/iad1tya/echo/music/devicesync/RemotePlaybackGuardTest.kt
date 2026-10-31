@@ -131,3 +131,66 @@ class RemotePlaybackGuardTest {
         assertFalse(RemotePlayback.holdBack(true, false, false, 4_000, 600_000))
     }
 }
+
+/** Registry row 594 — only one device sounds: the one the user just started playing on. */
+class SingleAudioOutputTest {
+    private fun remote(playing: Boolean = true, id: String = "tablet", atMs: Long = 1_000_000L) =
+        NowState(listOf(NowItem("a", "t", "x", "")), 0, 0L, playing, id, "Tab", atMs)
+
+    private fun pause(
+        started: Boolean = true,
+        remote: NowState? = remote(),
+        sinceOrder: Long = 60_000L,
+        handoff: Boolean = true,
+        connected: Boolean = true,
+        now: Long = 1_010_000L,
+    ) = RemotePlayback.shouldPauseOther(started, remote, "phone", handoff, connected, sinceOrder, now)
+
+    @org.junit.Test
+    fun `starting here while the other plays pauses the other`() {
+        org.junit.Assert.assertTrue(pause())
+    }
+
+    @org.junit.Test
+    fun `nothing happens unless this device JUST started, the other is another device that is playing and recently heard`() {
+        org.junit.Assert.assertFalse(pause(started = false))
+        org.junit.Assert.assertFalse(pause(remote = null))
+        org.junit.Assert.assertFalse(pause(remote = remote(playing = false)))
+        org.junit.Assert.assertFalse(pause(remote = remote(id = "phone")))
+        org.junit.Assert.assertFalse(pause(now = 1_000_000L + RemotePlayback.FRESH_MS + 1))
+    }
+
+    @org.junit.Test
+    fun `an order that arrived here a moment ago is not a tap, so two devices never pause each other`() {
+        org.junit.Assert.assertFalse(pause(sinceOrder = 1_000L))
+        org.junit.Assert.assertTrue(pause(sinceOrder = RemotePlayback.COMMAND_GRACE_MS + 1))
+    }
+
+    @org.junit.Test
+    fun `it respects the handoff switch and the connection`() {
+        org.junit.Assert.assertFalse(pause(handoff = false))
+        org.junit.Assert.assertFalse(pause(connected = false))
+    }
+}
+
+/** Registry row 595 — a stale paused report never swaps the queue of a device that has just given an order. */
+class MirrorStaleReportTest {
+    private fun remote(playing: Boolean, atMs: Long) =
+        NowState(listOf(NowItem("a", "t", "x", "")), 0, 0L, playing, "tablet", "Tab", atMs)
+
+    @org.junit.Test
+    fun `a playing remote is always mirrored`() {
+        org.junit.Assert.assertTrue(RemotePlayback.shouldMirrorQueue(remote(true, 1_000L), lastControlServerMs = 9_000L))
+    }
+
+    @org.junit.Test
+    fun `a paused report older than our last order is the old queue and is not mirrored`() {
+        org.junit.Assert.assertFalse(RemotePlayback.shouldMirrorQueue(remote(false, 5_000L), lastControlServerMs = 9_000L))
+    }
+
+    @org.junit.Test
+    fun `the report that answers our order is mirrored, and so is any report when nothing was ordered`() {
+        org.junit.Assert.assertTrue(RemotePlayback.shouldMirrorQueue(remote(false, 9_400L), lastControlServerMs = 9_000L))
+        org.junit.Assert.assertTrue(RemotePlayback.shouldMirrorQueue(remote(false, 1_000L), lastControlServerMs = 0L))
+    }
+}
