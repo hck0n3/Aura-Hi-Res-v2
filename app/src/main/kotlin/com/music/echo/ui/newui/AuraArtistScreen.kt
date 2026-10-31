@@ -751,7 +751,7 @@ fun AuraArtistScreen(
                             )
                             libraryPreviewAdded = true
                         }
-                        val sectionItems = section.items.distinctBy { it.id }
+                        val sectionItems = iad1tya.echo.music.ui.screens.artist.ArtistDiscography.dedupe(section.items)
                         if (sectionItems.isEmpty()) return@forEachIndexed
 
                         item(key = "aura_artist_section_${sectionIndex}_label", contentType = "aura_artist_section__label") {
