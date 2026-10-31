@@ -1021,8 +1021,10 @@ private fun JoinCreateRoomSection(
     // The SimpMusic input rules, applied at the edge so the protocol never has to reject:
     // metroserver caps usernames at 50 and mints 8-char uppercase room codes.
     fun onUsernameChangeCapped(value: String) = onUsernameChange(value.take(50))
+    // Row 601: the code length follows the rooms in use (Aura's own rooms are 6 characters, the shared server's 8).
+    val auraRooms by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, false)
     fun onRoomCodeChangeNormalized(value: String) =
-        onRoomCodeChange(value.uppercase().filter { it.isLetterOrDigit() }.take(8))
+        onRoomCodeChange(iad1tya.echo.music.listentogether.RoomCodes.normalize(value, auraRooms))
 
     AuraPanel(
         skin = skin,
@@ -1210,7 +1212,7 @@ private fun JoinCreateRoomSection(
             }
 
             val hasUsername = usernameInput.trim().isNotBlank() || savedUsername.isNotBlank()
-            val hasRoomCode = roomCodeInput.length == 8
+            val hasRoomCode = iad1tya.echo.music.listentogether.RoomCodes.isComplete(roomCodeInput, auraRooms)
             // SimpMusic gates both buttons on a live socket: sending create_room with no server is
             // a message that goes nowhere, and the room state never changes.
             val canAct = hasUsername && isConnected

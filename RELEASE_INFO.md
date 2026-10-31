@@ -11,6 +11,10 @@ Beta encima de la 2.0.67-beta10 (incluye todo lo suyo) y de la 2.0.66 estable. C
 - **Volumen del otro dispositivo en «Mis dispositivos»**, junto a sus controles, y el menú «⋯» dice de qué aparato es la barra.
 - **«Ir a la lista» también cuando el cel envía la cola a la tablet:** la cola viaja con su lista de origen.
 
+## Salas de Aura (Escuchar juntos)
+
+- **El botón «Unirse» ya se activa con las salas de Aura:** pedía un código de 8 caracteres, y las salas de Aura usan 6, así que desde el segundo dispositivo nunca se habilitaba. Ahora la pantalla y el menú del reproductor piden 6 (salas de Aura) u 8 (servidor compartido) según lo que tengas activado.
+
 ## Aleatorio
 
 - **«Iniciar desde cero» empieza de cero de verdad:** el contador ya cuenta solo la memoria del aleatorio. Antes sumaba todo lo que habías oído alguna vez, que nunca se borra, y volvía a mostrar «26 de 29».

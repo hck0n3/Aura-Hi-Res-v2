@@ -1111,6 +1111,7 @@ fun ListenTogetherDialog(
     
     var savedUsername by rememberPreference(iad1tya.echo.music.constants.ListenTogetherUsernameKey, "")
     var roomCodeInput by rememberSaveable { mutableStateOf("") }
+    val auraRoomsMenu by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, false)
     var usernameInput by rememberSaveable { mutableStateOf(savedUsername) }
 
     
@@ -2022,12 +2023,12 @@ fun ListenTogetherDialog(
                         
                         OutlinedTextField(
                             value = roomCodeInput,
-                            onValueChange = { roomCodeInput = it.uppercase().filter { c -> c.isLetterOrDigit() }.take(8) },
+                            onValueChange = { roomCodeInput = iad1tya.echo.music.listentogether.RoomCodes.normalize(it, auraRoomsMenu) },
                             label = { Text(stringResource(R.string.room_code)) },
-                            placeholder = { Text("ABCD1234") },
+                            placeholder = { Text(iad1tya.echo.music.listentogether.RoomCodes.placeholder(auraRoomsMenu)) },
                             supportingText = {
                                 Text(
-                                    text = "${roomCodeInput.length}/8",
+                                    text = "${roomCodeInput.length}/${iad1tya.echo.music.listentogether.RoomCodes.length(auraRoomsMenu)}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -2152,7 +2153,7 @@ fun ListenTogetherDialog(
                         }
                         
                         
-                        if (roomCodeInput.length == 8) {
+                        if (iad1tya.echo.music.listentogether.RoomCodes.isComplete(roomCodeInput, auraRoomsMenu)) {
                             Button(
                                 onClick = {
                                     val username = usernameInput.takeIf { it.isNotBlank() } ?: savedUsername
