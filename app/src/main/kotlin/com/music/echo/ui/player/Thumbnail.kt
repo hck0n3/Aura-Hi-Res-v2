@@ -1320,7 +1320,11 @@ private fun ThumbnailItem(
                         
                         
                         
-                        val requestedAlbum = item.mediaMetadata.albumTitle?.toString() ?: ""
+                        // Row 578: the SAME album the lookup searched with. The lookup falls back to the song entity's album when the
+                        // media item carries none; validating against the item's field alone left this blank for those songs, the check
+                        // then compared the ALBUM-level cover's name with the SONG title, rejected it, and the player stayed still on an
+                        // album whose page animates (the page validates by artist only).
+                        val requestedAlbum = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString() ?: ""
                         val canvasAlbumName = artwork.albumName
                         val canvasSongName = artwork.name
 
@@ -1363,7 +1367,9 @@ private fun ThumbnailItem(
                     }
                     
                     // The chain ANSWERED (it did not time out): keep the album's answer for its other songs.
-                    if (memoKey != null && memo == null && lookupAnswered) {
+                    // A cover the providers DID return but this check rejected is not «there is none» (row 578): remembering it as none
+                    // froze the player for 20 minutes while the album page, which accepts it, kept animating.
+                    if (memoKey != null && memo == null && lookupAnswered && (validated != null || fetched == null)) {
                         CanvasAlbumMemo.remember(memoContext, memoKey, validated)
                         // Function 3: what this search found helps everyone else (the cache refuses anything off-key or off-host).
                         if (validated != null) iad1tya.echo.music.edge.EdgeClient.canvasShare(memoContext, memoKey, validated)
