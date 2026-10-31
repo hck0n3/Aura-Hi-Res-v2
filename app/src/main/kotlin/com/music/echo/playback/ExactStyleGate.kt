@@ -576,12 +576,17 @@ internal suspend fun MusicService.exactStyleFilter(
     val tiers = judged.map { ContextLane.tier(lane, it.candidate) }
     // With the second-to-last relaxation (languageOnly) every non-excluded candidate is welcome, best step first.
     val enough = if (languageOnly) Int.MAX_VALUE else minOf(minMatches, StyleContinuity.ENOUGH_TO_DROP_UNKNOWN)
-    val kept = ContextLane.choose(all, tiers, judged.map { lane.christian && it.candidate.christian }, enough)
+    val tierById = HashMap<String, Int?>()
+    all.forEachIndexed { i, mi -> tierById[mi.mediaId] = tiers.getOrNull(i) }
+    // Row 588: the style-unproven songs (tiers 2-3) are only the filler up to `enough`, not the whole step.
+    val kept = ContextLane.capUnproven(
+        ContextLane.choose(all, tiers, judged.map { lane.christian && it.candidate.christian }, enough),
+        { tierById[it.mediaId] },
+        enough,
+    )
     if (st.gatedIds.size > GATED_IDS_CAP) st.gatedIds.clear()
     kept.forEach { st.gatedIds.add(it.mediaId) }
     if (st.admissions.size > GATED_IDS_CAP) st.admissions.clear()
-    val tierById = HashMap<String, Int?>()
-    all.forEachIndexed { i, mi -> tierById[mi.mediaId] = tiers.getOrNull(i) }
     kept.forEach { st.admissions[it.mediaId] = "t${tierById[it.mediaId] ?: "-"}/${basisById[it.mediaId] ?: "?"}" }
     st.lastTarget = "styles=${gateTarget.styles?.sorted()?.joinToString("+") ?: "unknown"} lang=${gateTarget.language ?: "unknown"} christian=${gateTarget.christian}"
     // Counts and style/family ids only — never a title, artist or id (AGENTS.md rule 4).

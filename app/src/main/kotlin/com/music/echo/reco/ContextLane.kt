@@ -322,6 +322,22 @@ object ContextLane {
      * non-excluded candidate when there are fewer). Best step first; inside a step the caller's order is kept,
      * except that in a Christian lane provably Christian candidates lead their step.
      */
+    /**
+     * Row 588 — the widening of [choose] takes the WHOLE next step, so a handful of proven songs plus a big step of style-unproven ones
+     * (tiers 2 and 3) let in every one of them (15% of what the queue admitted in the owner's logs). Unproven songs are only the FILLER
+     * that brings the total up to [enough]: the proven ones (tiers 0 and 1) all stay, and as many unproven as are still missing, best
+     * first. [kept] must already be in tier order ([choose] returns it that way). Pure.
+     */
+    fun <T> capUnproven(kept: List<T>, tierOf: (T) -> Int?, enough: Int): List<T> {
+        val proven = kept.count { (tierOf(it) ?: 0) <= 1 }
+        var room = (enough - proven).coerceAtLeast(0)
+        return kept.filter { item ->
+            if ((tierOf(item) ?: 0) <= 1) true
+            else if (room > 0) { room--; true }
+            else false
+        }
+    }
+
     fun <T> choose(items: List<T>, tiers: List<Int?>, christianFirst: List<Boolean>, enough: Int): List<T> {
         require(items.size == tiers.size && items.size == christianFirst.size)
         var cutoff = 0

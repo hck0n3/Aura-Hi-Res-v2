@@ -43,3 +43,27 @@ class LockedConsensusTest {
         org.junit.Assert.assertEquals(setOf("pop"), ContextLane.lockedConsensus(emptySet(), setOf("pop")))
     }
 }
+
+class CapUnprovenTest {
+    private val tier = mapOf("a" to 0, "b" to 1, "c" to 2, "d" to 2, "e" to 3, "f" to 3)
+    private fun cap(items: List<String>, enough: Int) = ContextLane.capUnproven(items, { tier[it] }, enough)
+
+    @org.junit.Test
+    fun `proven songs all stay and the unproven ones only fill what is missing`() {
+        val kept = listOf("a", "b", "c", "d", "e", "f")
+        org.junit.Assert.assertEquals(listOf("a", "b", "c", "d"), cap(kept, enough = 4))
+        org.junit.Assert.assertEquals(listOf("a", "b", "c"), cap(kept, enough = 3))
+        org.junit.Assert.assertEquals(listOf("a", "b"), cap(kept, enough = 2))
+    }
+
+    @org.junit.Test
+    fun `with no proven song the unproven ones still bring the queue up to enough`() {
+        org.junit.Assert.assertEquals(listOf("c", "d", "e"), cap(listOf("c", "d", "e", "f"), enough = 3))
+    }
+
+    @org.junit.Test
+    fun `an unlimited need keeps everything (the relaxed levels)`() {
+        val all = listOf("a", "c", "e", "f")
+        org.junit.Assert.assertEquals(all, cap(all, enough = Int.MAX_VALUE))
+    }
+}
