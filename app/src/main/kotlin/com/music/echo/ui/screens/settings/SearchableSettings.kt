@@ -522,6 +522,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.listen_together_custom_server), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_use_custom_server), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.unblock), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
+            Triple(stringResource(R.string.logs_delete_all), "Registros", "settings/logs"),
             // --- Beta 9 completeness pass: every visible row of these screens is searchable ---
             Triple(stringResource(R.string.global_haptics_desc), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.apple_music_inspired), "Apariencia", "settings/appearance"),
