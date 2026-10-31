@@ -38,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -102,6 +103,7 @@ fun DeviceSyncSettings(
     var showServer by rememberSaveable { mutableStateOf(false) }
     var showName by rememberSaveable { mutableStateOf(false) }
     var showEnterCode by rememberSaveable { mutableStateOf(false) }
+    var showQr by rememberSaveable { mutableStateOf(false) }
 
     if (showServer) {
         TextFieldDialog(
@@ -145,6 +147,24 @@ fun DeviceSyncSettings(
     }
 
     val normalizedCode = SyncCode.normalize(code)
+    if (showQr && normalizedCode != null) {
+        iad1tya.echo.music.ui.component.DefaultDialog(
+            onDismiss = { showQr = false },
+            title = { Text(stringResource(R.string.qr_pair_show)) },
+            buttons = { TextButton(onClick = { showQr = false }) { Text(stringResource(android.R.string.ok)) } },
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                iad1tya.echo.music.ui.component.QrImage(text = SyncCode.pairLink(normalizedCode), size = 220.dp)
+                Text(
+                    stringResource(R.string.qr_pair_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        }
+    }
     val statusText = when (val c = connection) {
         DeviceSyncHub.Connection.Off -> stringResource(R.string.device_sync_status_off)
         DeviceSyncHub.Connection.Connecting -> stringResource(R.string.device_sync_status_connecting)
@@ -294,6 +314,13 @@ fun DeviceSyncSettings(
                             )
                         )
                         if (normalizedCode != null) {
+                            add(
+                                IntegrationCardItem(
+                                    icon = painterResource(R.drawable.link),
+                                    title = { Text(stringResource(R.string.qr_pair_show)) },
+                                    onClick = { showQr = true },
+                                )
+                            )
                             add(
                                 IntegrationCardItem(
                                     icon = painterResource(R.drawable.close),

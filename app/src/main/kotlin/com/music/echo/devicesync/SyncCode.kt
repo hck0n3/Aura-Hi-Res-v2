@@ -42,6 +42,15 @@ object SyncCode {
     fun typing(input: String): String =
         input.uppercase().filter { it in ALPHABET }.take(LENGTH).chunked(4).joinToString("-")
 
+    /** Row 615: what the QR of a pairing code carries; any camera app opens it in Aura (`echomusic://pair`, AndroidManifest). */
+    fun pairLink(normalized: String): String = "echomusic://pair?code=" + pretty(normalized)
+
+    /** The normalized code inside a pairing link, or null when [link] is not one (or its code is not a full code). */
+    fun fromPairLink(link: String): String? {
+        val m = Regex("^echomusic://pair\\?code=([A-Za-z0-9-]+)$").find(link.trim()) ?: return null
+        return normalize(m.groupValues[1])
+    }
+
     /** `AAAA-BBBB-…` for showing a normalized code. */
     fun pretty(normalized: String): String = normalized.chunked(4).joinToString("-")
 

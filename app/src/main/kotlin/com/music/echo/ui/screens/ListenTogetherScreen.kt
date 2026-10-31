@@ -641,6 +641,19 @@ private fun RoomStatusCard(
                         Text(stringResource(R.string.copy_code))
                     }
                 }
+                // Row 615: the same invite as a QR — the other device points its camera at it and the app opens already joining
+                // (the echomusic://listen deep link, the one the copied link uses).
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                    iad1tya.echo.music.ui.component.QrImage(text = inviteLink, size = 168.dp)
+                }
+                Text(
+                    text = stringResource(R.string.qr_scan_hint),
+                    style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodySmall,
+                    color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                )
             }
         }
     }

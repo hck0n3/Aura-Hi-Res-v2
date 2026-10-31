@@ -3055,6 +3055,21 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        // Row 615: the QR of a pairing code (echomusic://pair?code=AAAA-BBBB-…) read by any camera app: the code is adopted and the engine,
+        // which watches DeviceSyncCodeKey, pairs this device by itself. Only a FULL code counts; anything else is told, never half-applied.
+        if (uri.scheme == "echomusic" && uri.host.equals("pair", ignoreCase = true)) {
+            val normalized = iad1tya.echo.music.devicesync.SyncCode.fromPairLink(uri.toString())
+            if (normalized == null) {
+                android.widget.Toast.makeText(this, R.string.qr_pair_invalid, android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                lifecycle.coroutineScope.launch {
+                    this@MainActivity.dataStore.edit { it[iad1tya.echo.music.devicesync.DeviceSyncCodeKey] = normalized }
+                    android.widget.Toast.makeText(this@MainActivity, R.string.qr_pair_done, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            return
+        }
+
         val coroutineScope = lifecycle.coroutineScope
 
         // Local audio files (content:// or file://) opened from file manager, downloads, or external apps

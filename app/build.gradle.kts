@@ -664,6 +664,8 @@ dependencies {
 
     coreLibraryDesugaring(libs.desugaring)
     implementation(libs.timber)
+    // Row 615: draws the QR of a pairing code / room invite (pure Java, no camera, no Google services).
+    implementation(libs.zxing.core)
     // Reliable cold app-restart (used after Google login) — replaces the flaky AlarmManager relaunch.
     implementation("com.jakewharton:process-phoenix:3.0.0")
     // In-app browser (Chrome Custom Tabs) for the in-app Gumroad checkout (no leaving the app).

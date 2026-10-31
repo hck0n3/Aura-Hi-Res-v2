@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="qr_pair_show">Show QR code</string>
+    <string name="qr_pair_hint">Point the camera of your other device at this code: Aura opens and pairs by itself.</string>
+    <string name="qr_pair_done">Device paired</string>
+    <string name="qr_pair_invalid">That QR is not an Aura pairing code.</string>
+    <string name="qr_scan_hint">Scan it with the camera of the other device and Aura opens already joining.</string>
+</resources>
