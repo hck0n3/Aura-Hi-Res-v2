@@ -1,8 +1,42 @@
-# Aura Hi-Res v2.0.67-beta11 — un solo dispositivo da audio, el play remoto por fin suena, la cola inteligente deja de creerse las búsquedas y la portada animada usa la búsqueda del álbum
+# Aura Hi-Res v2.0.67-beta12 — la cola inteligente pide una segunda opinión a la IA, QR para emparejar, el bajo ya no esconde la voz y el control remoto llega a todos los botones
 
-Beta encima de la 2.0.67-beta10 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Instálala en los dos aparatos (cel y tablet): el control remoto y la sincronización necesitan la versión nueva en ambos lados.
+Beta encima de la 2.0.67-beta11 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Instálala en los dos aparatos (cel y tablet): el control remoto y la sincronización necesitan la versión nueva en ambos. Para que la segunda opinión con IA funcione hay que volver a desplegar el servidor `aura-edge` con la IA activada (la app sigue igual sin eso).
 
-## Control remoto
+## Cola inteligente
+
+- **Segunda opinión con IA para las canciones dudosas:** cuando el filtro no sabe si una canción encaja (estilo o idioma sin comprobar), la app le pregunta a la IA del servidor de Aura y deja fuera las que no encajan. La IA solo puede quitar canciones, nunca agregar. Solo envía el título y el artista de lo que suena y de las canciones dudosas, nunca tu cuenta. Está **encendida por defecto** y se apaga en Ajustes ▸ Servicios Aura.
+- **La música infantil ya no entra a una cola que no es infantil** (pasaba de clásica cristiana a cristiana de niños).
+- **Se borra una vez lo que la app había aprendido mal de cada artista** en las betas anteriores; se vuelve a aprender de las propias canciones.
+
+## Sonido
+
+- **El bajo ya no esconde la voz y la voz ya no «sube» cuando no hay bajo:** el compresor suave escuchaba también los graves y bajaba toda la mezcla con cada nota grave. Ahora su detector ignora lo que está por debajo de 200 Hz. Si lo notas igual, apaga «compresor suave» en Ajustes ▸ Sonido para comparar y cuéntame.
+
+## Control remoto y Escuchar juntos
+
+- **Siguiente y anterior del mini reproductor, de los deslizamientos de la portada y del modo ambiente** ahora mandan la orden al otro dispositivo (antes movían el tuyo y se devolvía a la canción que sonaba).
+- **El control de volumen del botón de salida de audio** mueve el volumen del otro dispositivo cuando lo controlas en remoto, y lo dice.
+- **Las salas de Aura vienen encendidas por defecto.**
+- **QR para Escuchar juntos y para emparejar:** la sala que organizas muestra un QR; en Sincronizar dispositivos hay «Mostrar código QR». Se lee con la cámara del otro dispositivo y Aura se abre ya uniéndose o emparejada. Sin permiso de cámara nuevo.
+- **El código de emparejamiento pone los guiones solo** al escribirlo o pegarlo.
+- **Escuchar juntos: el invitado salta al instante a la canción nueva** si ya la tenía cargada (antes reconstruía todo y empezaba tarde).
+- **Dentro de una sala el control remoto se apaga:** la sala manda sobre el reproductor.
+
+## Búsqueda, artistas y micrófono
+
+- **Las discografías ya no repiten álbumes** (misma edición limpia/explícita con otro identificador).
+- **La lista «Canciones» del artista agrega las que faltaban** y una búsqueda sí encuentra, solo si están acreditadas a ese artista.
+- **«Pedir música» por voz:** envía 1,6 s después de callarte (antes 2,5 s) y un toque doble ya no arranca el micrófono dos veces.
+- **Resultados de búsqueda:** vuelven a mostrarse desde arriba cuando llega un conjunto nuevo.
+
+## Para que lo pruebes y me cuentes
+
+- No pude probar nada de esto en un aparato; todo pasa las pruebas automáticas. Si algo falla, manda el registro desde Ajustes ▸ Registros con la canción y la hora: para la cola busca `STYLE_GATE` y `AI second opinion`; para el sonido, di la canción y el preset; para las salas, `Guest advanced in place`.
+- Sigue sin cubrirse del todo: «Pedir música» con un artista (como Luis Miguel) que se desvía a otros artistas parecidos cuando termina la lista; la segunda opinión con IA debería ayudar pero no la pude probar. Tampoco las canciones que faltan en las páginas de ÁLBUM (la lista de pistas del disco la manda YouTube) y el historial del aleatorio con prioridad al aparato con más reproducciones (ya se unen los historiales; revisado, no es un fallo).
+
+
+
+## De la beta 11: control remoto
 
 - **Solo un dispositivo da audio:** el que tú pones a sonar. Si empiezas a reproducir en uno mientras el otro suena, el otro recibe una pausa. Las órdenes que llegan del otro aparato (continuar aquí, una cola enviada, un play) no cuentan como toque, así que no se pausan entre sí.
 - **«Play» después de una pausa ahora hace sonar:** una cola copiada o restaurada quedaba «en reposo» y el play remoto no la preparaba, así que por más veces que lo tocaras no sonaba. Ahora la prepara.
@@ -11,33 +45,27 @@ Beta encima de la 2.0.67-beta10 (incluye todo lo suyo) y de la 2.0.66 estable. C
 - **Volumen del otro dispositivo en «Mis dispositivos»**, junto a sus controles, y el menú «⋯» dice de qué aparato es la barra.
 - **«Ir a la lista» también cuando el cel envía la cola a la tablet:** la cola viaja con su lista de origen.
 
-## Salas de Aura (Escuchar juntos)
+## De la beta 11: salas de Aura
 
 - **El botón «Unirse» ya se activa con las salas de Aura:** pedía un código de 8 caracteres, y las salas de Aura usan 6, así que desde el segundo dispositivo nunca se habilitaba. Ahora la pantalla y el menú del reproductor piden 6 (salas de Aura) u 8 (servidor compartido) según lo que tengas activado.
 
-## Aleatorio
+## De la beta 11: aleatorio
 
 - **El progreso del aleatorio de una lista de YouTube enlazada ya se encuentra entre tus aparatos:** cada aparato le daba un identificador distinto y por eso no coincidía; ahora viaja con la identidad de sincronización de la lista.
 - **«Iniciar desde cero» empieza de cero de verdad:** el contador ya cuenta solo la memoria del aleatorio. Antes sumaba todo lo que habías oído alguna vez, que nunca se borra, y volvía a mostrar «26 de 29».
 
-## Cola inteligente y Reproducción automática
+## De la beta 11: cola inteligente
 
 - **La cola ya no se cree las canciones solo porque vengan de una búsqueda del estilo:** en tu registro, 14 de 15 canciones entraron así y las saltaste. Ahora una canción de búsqueda se juzga por lo que se sabe de ella, y a su artista ya no se le enseña el estilo solo por haberlo buscado. (Lo que pides tú en «Pedir música» sigue funcionando igual.)
 - **El estilo que guía la cola queda fijo** en cuanto se conoce, hasta que pongas otra canción, álbum o lista; si no se conoce, lo toma de las canciones que escuchaste hasta el final y coinciden.
 - **La fila «Siguiendo: …» ya no se esconde cuando el estilo es desconocido:** dice «Detectando estilo…» y puedes corregirlo con el mismo menú.
 
-## Portada animada
+## De la beta 11: portada animada
 
 - **El reproductor usa la misma búsqueda que la página del álbum** cuando la suya no encuentra nada, una vez por álbum. Si la página anima un álbum, el reproductor también debe animarlo. En el registro verás `CANVAS_ALBUM_RETRY`.
 
-## Para que lo pruebes y me cuentes
-
-- No pude probar nada de esto en un aparato; todo pasa las pruebas automáticas. Si algo falla, manda el registro desde Ajustes ▸ Registros con la canción y la hora: para la portada busca `CANVAS_MEMO` y `CANVAS_ALBUM_RETRY`; para la cola, `STYLE_GATE`.
-- Sin resolver: «siguiente» que no cambiaba en remoto (en los registros sí cambia) y el historial del aleatorio entre aparatos (no se vio un fallo concreto).
-
 ## De la beta 10: aleatorio y control remoto
 
-- **«Empezar desde cero» del aleatorio ya empieza de cero en todos tus dispositivos:** antes solo borraba en el aparato donde lo tocabas y el otro devolvía lo que ya había escuchado («26 de 29» recién reiniciado).
 - **El interruptor de aleatorio manda sobre el dispositivo que suena:** si controlas la tablet desde el cel, el aleatorio se activa en la tablet y el interruptor muestra su estado real, en el reproductor nuevo y también en la cola y el menú clásicos. Antes solo reordenaba la cola del cel.
 - **El volumen remoto ya no vuelve solo al valor viejo:** el dispositivo que suena avisa de su nuevo volumen en cuanto lo recibe.
 - **Tocar el nombre del artista mientras controlas otro dispositivo** ofrece «Ir a la lista» de donde suena.
