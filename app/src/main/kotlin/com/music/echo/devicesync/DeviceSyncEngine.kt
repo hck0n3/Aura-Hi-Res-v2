@@ -378,7 +378,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         when (cmd) {
             "play" -> onMain { service.player.play() }
             "pause" -> onMain { service.player.pause() }
-            "next" -> onMain { service.player.seekToNext() }
+            "next" -> onMain {
+                val p = service.player
+                if (p.hasNextMediaItem()) p.seekToNext() else armPendingNext(p)
+            }
             "prev" -> onMain { service.player.seekToPrevious() }
             "seek" -> args.long("positionMs")?.let { p -> onMain { service.player.seekTo(p) } }
             // Owner 2026-10-31: «toqué el no me gusta en mi cel mientras sonaba en la tablet… la tablet registró el no me gusta pero no
@@ -414,6 +417,47 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                     ?.let { play(it) }
             }
         }
+    }
+
+    // Owner log 2026-10-30 (tablet): «toqué siguiente y la tablet no cambiaba». At the end of the queue the smart queue takes ~10 s to
+    // find the next songs, and a `next` in that gap did nothing — six taps in a row, only the seventh (after the refill) skipped. A
+    // `next` that finds no next song now waits for the refill and skips as soon as one arrives (row 554). Taps while waiting count
+    // (up to 3), the wait gives up after 30 s.
+    private var pendingNexts = 0
+    private var pendingNextListener: Player.Listener? = null
+    private var pendingNextTimeout: Job? = null
+
+    private fun armPendingNext(p: androidx.media3.exoplayer.ExoPlayer) {
+        pendingNexts = (pendingNexts + 1).coerceAtMost(3)
+        if (pendingNextListener == null) {
+            val l = object : Player.Listener {
+                override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                    if (pendingNexts > 0 && p.hasNextMediaItem()) {
+                        pendingNexts--
+                        p.seekToNext()
+                        Timber.tag(TAG).i("DEVICE_SYNC next applied after the queue grew")
+                        scope.launch { delay(RESPOND_AFTER_COMMAND_MS); runCatching { publishNow(force = true) } }
+                    }
+                    if (pendingNexts == 0) disarmPendingNext(p)
+                }
+            }
+            pendingNextListener = l
+            p.addListener(l)
+        }
+        pendingNextTimeout?.cancel()
+        pendingNextTimeout = scope.launch {
+            delay(30_000L)
+            onMain { disarmPendingNext(p) }
+        }
+        Timber.tag(TAG).i("DEVICE_SYNC next waits for the queue (pending=%d)", pendingNexts)
+    }
+
+    private fun disarmPendingNext(p: androidx.media3.exoplayer.ExoPlayer) {
+        pendingNexts = 0
+        pendingNextListener?.let { p.removeListener(it) }
+        pendingNextListener = null
+        pendingNextTimeout?.cancel()
+        pendingNextTimeout = null
     }
 
     private suspend fun play(state: NowState) {

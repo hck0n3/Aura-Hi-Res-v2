@@ -304,8 +304,12 @@ internal suspend fun MusicService.exactStyleFilter(
     var laneMixed = false
     if (collection && pool.isNotEmpty()) {
         val nameStyle = MusicStyle.fromText(radioSeedTitle)
-        val christianTracks = pool.count { mm ->
-            GenreLane.laneOfTrack(genres, mm.artists.firstOrNull()?.name, mm.title, mm.album?.title) == GenreLane.CHRISTIAN
+        // Row 554: the faith of the context also counts what is KNOWN of the artist (Last.fm tags learned before), not only the words
+        // of the title/album. A Christian rapper whose song titles say nothing about it made the target «not Christian», and the
+        // queue drifted to secular rap (owner log 2026-10-30).
+        val christianTracks = pool.withIndex().count { (i, mm) ->
+            GenreLane.laneOfTrack(genres, mm.artists.firstOrNull()?.name, mm.title, mm.album?.title) == GenreLane.CHRISTIAN ||
+                christianEvidence(poolTexts[i])
         }
         val trackStyles = poolTexts.map { styleOf(it) }
         // Row 459: a SHORT collection (a single, an EP) has fewer than the 3 known styles / 4 decided titles the
@@ -334,7 +338,8 @@ internal suspend fun MusicService.exactStyleFilter(
         detected = StyleContinuity.Target(
             styles = styleOf(t)?.let { setOf(it) },
             language = contextLanguage.code,
-            christian = GenreLane.laneOfTrack(genres, t.primary, anchor.title, anchor.album?.title) == GenreLane.CHRISTIAN,
+            christian = GenreLane.laneOfTrack(genres, t.primary, anchor.title, anchor.album?.title) == GenreLane.CHRISTIAN ||
+                christianEvidence(t),
         )
         trackFamilies = listOf(familyFor(t, styleOf(t)))
         ownArtists = t.artists.map { it.trim().lowercase() }.toHashSet()
