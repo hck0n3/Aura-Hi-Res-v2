@@ -28,4 +28,6 @@
     <string name="aura_services_diag_no_address">Set the server address in Settings ▸ Aura services first</string>
     <string name="listen_together_aura_rooms">Aura rooms</string>
     <string name="listen_together_aura_rooms_desc">Use Aura\'s own rooms: faster and private, but only with other Aura users. Off keeps the shared server that other apps also use.</string>
+    <string name="device_sync_battery_title">Allow background playback</string>
+    <string name="device_sync_battery_desc">Battery optimisation can stop this device from playing when an order arrives from your other device with the screen off. Tap to remove it for Aura.</string>
 </resources>

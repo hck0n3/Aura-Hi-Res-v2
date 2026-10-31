@@ -406,7 +406,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             // hizo lo que hace». The song is judged where it PLAYS: this device does the whole thing (remember it, drop it from the
             // queue, skip), but only if it is still the song the other device was looking at.
             "dislike" -> args.str("trackId")?.let { id ->
-                onMain { if (service.player.currentMediaItem?.mediaId == id) service.dislikeCurrentSong() }
+                onMain {
+                    if (service.player.currentMediaItem?.mediaId == id) service.dislikeCurrentSong()
+                    else Timber.tag(TAG).i("DEVICE_SYNC command dislike ignored: the song is no longer the current one")
+                }
             }
             // The volume slider of the device that CONTROLS reaches the one that plays (owner 2026-10-31). It is this app's own volume
             // (the same one the in-app slider sets), 0..1000 per mille.
@@ -417,17 +420,23 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             "playitem" -> args.str("trackId")?.let { id ->
                 onMain {
                     val p = service.player
+                    var found = false
                     for (i in 0 until p.mediaItemCount) {
                         if (p.getMediaItemAt(i).mediaId == id) {
                             p.seekTo(i, 0L)
                             p.play()
+                            found = true
                             break
                         }
                     }
+                    if (!found) Timber.tag(TAG).i("DEVICE_SYNC command playitem ignored: the song is not in this queue")
                 }
             }
             "like" -> args.str("trackId")?.let { id ->
-                onMain { if (service.player.currentMediaItem?.mediaId == id) service.toggleLike() }
+                onMain {
+                    if (service.player.currentMediaItem?.mediaId == id) service.toggleLike()
+                    else Timber.tag(TAG).i("DEVICE_SYNC command like ignored: the song is no longer the current one")
+                }
             }
             "handoff" -> if (handoffEnabled) {
                 val to = args.str("to") ?: from

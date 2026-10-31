@@ -31,9 +31,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -42,6 +44,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.R
@@ -61,6 +66,7 @@ import iad1tya.echo.music.ui.component.IntegrationCardItem
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraPanelSkin
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
+import iad1tya.echo.music.utils.BackgroundReliability
 import iad1tya.echo.music.utils.rememberPreference
 
 /**
@@ -160,6 +166,18 @@ fun DeviceSyncSettings(
             if (auto) stringResource(R.string.device_sync_auto_need_email) else stringResource(R.string.device_sync_paired_none)
     }
 
+    // Row 565: battery optimisation lets the system refuse to start playback when an order arrives from the other device with the screen off
+    // («Foreground service start refused», tablet log 2026-10-30). Read again when the user comes back from the system screen.
+    var batteryExempt by remember { mutableStateOf(BackgroundReliability.isIgnoringBatteryOptimizations(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) batteryExempt = BackgroundReliability.isIgnoringBatteryOptimizations(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -194,6 +212,16 @@ fun DeviceSyncSettings(
                                 description = { Text(statusText) },
                             )
                         )
+                        if (!batteryExempt) {
+                            add(
+                                IntegrationCardItem(
+                                    icon = painterResource(R.drawable.sync),
+                                    title = { Text(stringResource(R.string.device_sync_battery_title)) },
+                                    description = { Text(stringResource(R.string.device_sync_battery_desc)) },
+                                    onClick = { BackgroundReliability.requestIgnoreBatteryOptimizations(context) },
+                                )
+                            )
+                        }
                         add(
                             IntegrationCardItem(
                                 icon = painterResource(R.drawable.person),

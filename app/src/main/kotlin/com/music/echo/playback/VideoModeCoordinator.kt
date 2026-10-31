@@ -782,6 +782,10 @@ class VideoModeCoordinator(private val service: MusicService) {
         // infinito de su log — al agotarse la escalera y salir a audio, el sticky volvía a armar vídeo
         // enseguida. El sticky existe para que una pista intermedia SIN vídeo no rompa la cadena de
         // una lista de vídeos; no tiene nada que ver con reintentar la MISMA pista, que es lo de aquí.
+        // Row 566: a retry with another format is automatic, so it must not pop the full player open again (owner 2026-10-31: «de la nada
+        // se abre el reproductor»; tablet/phone log: four PLAYER_EXPAND videoModeOn in six seconds inside a video-fallback loop). The user's
+        // own tap on Video already opened it once.
+        service.silentVideoEntry = true
         service._videoMode.value = true
         service._videoUrl.value = null
         val generation = videoSwapGeneration.incrementAndGet()
