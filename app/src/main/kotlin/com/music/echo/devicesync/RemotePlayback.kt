@@ -157,7 +157,7 @@ object RemotePlayback {
         // The button answers at once; the other device's real state arrives within a second and overwrites this.
         if (optimisticPlaying != null) playing.value = optimisticPlaying
         DeviceSyncHub.controller?.control(t.deviceId, command)
-        if (optimisticPlaying != null) watchAnswer(t)
+        watchAnswer(t) // Row 602: next/previous too — a command nobody obeys is no longer silent.
         return true
     }
 

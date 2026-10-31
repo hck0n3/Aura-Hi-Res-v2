@@ -17,6 +17,7 @@ Beta encima de la 2.0.67-beta10 (incluye todo lo suyo) y de la 2.0.66 estable. C
 
 ## Aleatorio
 
+- **El progreso del aleatorio de una lista de YouTube enlazada ya se encuentra entre tus aparatos:** cada aparato le daba un identificador distinto y por eso no coincidía; ahora viaja con la identidad de sincronización de la lista.
 - **«Iniciar desde cero» empieza de cero de verdad:** el contador ya cuenta solo la memoria del aleatorio. Antes sumaba todo lo que habías oído alguna vez, que nunca se borra, y volvía a mostrar «26 de 29».
 
 ## Cola inteligente y Reproducción automática

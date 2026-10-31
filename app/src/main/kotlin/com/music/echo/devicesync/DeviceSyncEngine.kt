@@ -776,8 +776,28 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     // ── shuffle progress ───────────────────────────────────────────────────────────────────────────
 
-    private suspend fun applyShuffle(ctx: String, epoch: Int, ids: List<String>, last: String?) {
-        if (!shuffleEnabled || ctx.isBlank()) return
+    /**
+     * Row 602 — a YouTube-linked playlist has a DIFFERENT local id on every device (each one generates its own when the list arrives), and the
+     * no-repeat memory is filed under `PL:<local id>`, so the same list was two unrelated contexts and its shuffle progress never met. Over the
+     * wire a playlist context travels under the playlist's SYNC key (its browseId, or its own id) and is mapped back to the local id on arrival.
+     * Albums, online lists and the library tabs already share one id everywhere.
+     */
+    private suspend fun contextToWire(ctx: String): String {
+        if (!ctx.startsWith("PL:")) return ctx
+        val localId = ctx.substring(3)
+        val key = service.database.syncPlaylistRows().firstOrNull { it.id == localId }?.let { it.browseId ?: it.id } ?: localId
+        return "PL:$key"
+    }
+
+    private suspend fun contextFromWire(ctx: String): String {
+        if (!ctx.startsWith("PL:")) return ctx
+        val key = ctx.substring(3)
+        return "PL:" + (service.database.syncPlaylistIdFor(key) ?: key)
+    }
+
+    private suspend fun applyShuffle(wireCtx: String, epoch: Int, ids: List<String>, last: String?) {
+        if (!shuffleEnabled || wireCtx.isBlank()) return
+        val ctx = contextFromWire(wireCtx)
         val db = service.database
         val local = db.getEnhancedContext(ctx)
         val plan = ShuffleMerge.plan(local?.cycleCount ?: 0, db.playedSongIdsForContext(ctx).toHashSet(), epoch, ids)
@@ -816,9 +836,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 val all = if (pushed == null || epoch > pushed) db.playedSongIdsForContext(ctx) else emptyList()
                 val (outEpoch, outIds) = ShuffleMerge.outgoing(epoch, pushed, all, byContext[ctx].orEmpty().map { it.songId }) ?: continue
                 val chunks = if (outIds.isEmpty()) listOf(emptyList()) else outIds.chunked(CHUNK_IDS)
+                val wireCtx = contextToWire(ctx)
                 for (chunk in chunks) {
                     val ok = client.send(buildJsonObject {
-                        put("t", "shuffle"); put("ctx", ctx); put("epoch", outEpoch)
+                        put("t", "shuffle"); put("ctx", wireCtx); put("epoch", outEpoch)
                         put("add", JsonArray(chunk.map { JsonPrimitive(it) }))
                         contexts[ctx]?.lastSongId?.let { put("last", it) }
                     })

@@ -215,3 +215,16 @@ class RemoteAnswerTest {
         org.junit.Assert.assertFalse(RemotePlayback.answered(reportAtSent = 2_000L, latestReportAt = 1_000L))
     }
 }
+
+/** Registry row 602 — a YouTube-linked playlist is ONE shuffle context on every device. */
+class ShuffleContextOnTheWireTest {
+    @org.junit.Test
+    fun `playlist contexts travel under the sync key and every other context travels as it is`() {
+        val root = generateSequence(java.io.File("").absoluteFile) { it.parentFile }.first { java.io.File(it, "settings.gradle.kts").isFile }
+        val engine = java.io.File(root, "app/src/main/kotlin/com/music/echo/devicesync/DeviceSyncEngine.kt").readText()
+        org.junit.Assert.assertTrue(engine.contains("put(\"ctx\", wireCtx)"))
+        org.junit.Assert.assertTrue(engine.contains("val ctx = contextFromWire(wireCtx)"))
+        org.junit.Assert.assertTrue(engine.contains("browseId ?: it.id"))
+        org.junit.Assert.assertTrue(engine.contains("service.database.syncPlaylistIdFor(key)"))
+    }
+}
