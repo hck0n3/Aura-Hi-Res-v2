@@ -1,39 +1,33 @@
 package iad1tya.echo.music
 
 import java.io.File
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Row 620: the launcher icon has a light (default) and a dark (-night) adaptive version, each with its own layers and a themed layer. */
+/** Row 620: the launcher icon is the owner's liquid-glass artwork (one look in light and dark), with a themed silhouette layer. */
 class LauncherIconThemeTest {
     private fun xml(path: String) = File("src/main/res/$path").readText()
 
     @Test
-    fun lightIsTheDefaultAndDarkIsTheNightVariant() {
-        for (name in listOf("ic_launcher", "ic_launcher_round")) {
-            val light = xml("mipmap-anydpi-v26/$name.xml")
-            val dark = xml("mipmap-night-anydpi-v26/$name.xml")
-            assertTrue(light.contains("@drawable/ic_launcher_bg_light") && light.contains("@drawable/ic_launcher_mark_light"))
-            assertTrue(dark.contains("@drawable/ic_launcher_bg_dark") && dark.contains("@drawable/ic_launcher_mark_dark"))
-            assertTrue(light.contains("<monochrome") && dark.contains("<monochrome"))
+    fun everyAdaptiveIconUsesTheOwnersArtworkAndTheSilhouette() {
+        val files = listOf(
+            "mipmap-anydpi-v26/ic_launcher.xml", "mipmap-anydpi-v26/ic_launcher_round.xml",
+            "mipmap-anydpi/ic_launcher_static.xml", "mipmap-anydpi/ic_launcher_static_round.xml",
+        )
+        for (f in files) {
+            val x = xml(f)
+            assertTrue("$f background", x.contains("@drawable/ic_launcher_art"))
+            assertTrue("$f themed layer", x.contains("<monochrome android:drawable=\"@drawable/ic_launcher_mark_mono\""))
         }
     }
 
     @Test
-    fun theStaticAliasFollowsTheSameThemes() {
-        for (name in listOf("ic_launcher_static", "ic_launcher_static_round")) {
-            assertTrue(xml("mipmap-anydpi/$name.xml").contains("ic_launcher_mark_light"))
-            assertTrue(xml("mipmap-night-anydpi/$name.xml").contains("ic_launcher_mark_dark"))
+    fun theArtworkAndTheSilhouetteExistAndNoNightVariantOverridesThem() {
+        assertTrue(File("src/main/res/drawable-nodpi/ic_launcher_art.webp").length() > 10_000)
+        assertTrue(File("src/main/res/drawable-nodpi/ic_launcher_mark_mono.png").length() > 500)
+        for (d in listOf("mipmap-night-anydpi-v26", "mipmap-night-anydpi")) {
+            assertTrue("$d would replace the artwork in dark mode", !File("src/main/res/$d").exists())
         }
-    }
-
-    @Test
-    fun everyLayerTheIconNamesExists() {
-        for (f in listOf("drawable-nodpi/ic_launcher_mark_light.png", "drawable-nodpi/ic_launcher_mark_dark.png", "drawable-nodpi/ic_launcher_mark_mono.png",
-            "drawable-nodpi/ic_launcher_bg_light.png", "drawable-nodpi/ic_launcher_bg_dark.png")) {
-            assertTrue("$f missing", File("src/main/res/$f").length() > 0)
-        }
-        assertEquals(true, File("src/main/AndroidManifest.xml").readText().contains("android:icon=\"@mipmap/ic_launcher\""))
+        assertTrue(File("src/main/AndroidManifest.xml").readText().contains("android:icon=\"@mipmap/ic_launcher\""))
     }
 }

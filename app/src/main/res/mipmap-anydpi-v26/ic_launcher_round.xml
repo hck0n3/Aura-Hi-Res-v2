@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Row 620: Aura launcher icon in the new glass style, LIGHT mode (the default). The -night variant is the dark one; the themed (Android 13+) icon uses the monochrome layer. -->
+<!-- Row 620: Aura launcher icon = the owner's liquid-glass artwork, identical (cropped square, tile centred inside the safe zone). One look for
+     light and dark mode; the Android 13+ themed icon uses the monochrome silhouette. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_bg_light" />
-    <foreground android:drawable="@drawable/ic_launcher_mark_light" />
+    <background android:drawable="@drawable/ic_launcher_art" />
+    <foreground android:drawable="@android:color/transparent" />
     <monochrome android:drawable="@drawable/ic_launcher_mark_mono" />
 </adaptive-icon>

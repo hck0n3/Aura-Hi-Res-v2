@@ -24,7 +24,7 @@ Beta encima de la 2.0.67-beta11 (incluye todo lo suyo) y de la 2.0.66 estable. C
 
 ## Icono
 
-- **Icono de Aura en cristal líquido (liquid glass), en modo claro y modo oscuro:** la misma cinta en forma de A con el triángulo de reproducir, ahora como vidrio translúcido con brillos y luz de borde. Claro por defecto y oscuro cuando el teléfono está en modo oscuro; el icono de tema de Android 13+ también cambia. Según tu launcher puede mostrar siempre el claro: dime cómo lo ves.
+- **Icono nuevo de Aura:** la A de cristal líquido con luz de colores, tal cual tu diseño. Es el mismo en modo claro y modo oscuro; el icono de tema de Android 13+ (una sola tinta) usa una silueta de la A con el triángulo.
 
 ## Búsqueda, artistas y micrófono
 
