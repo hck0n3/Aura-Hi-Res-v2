@@ -365,6 +365,15 @@ internal suspend fun MusicService.exactStyleFilter(
     }
     // Fila 361: a "Pedir música" queue continues what was ASKED (styles, language, faith), not a guess.
     val requested = iad1tya.echo.music.reco.RequestStyleTargets.get(radioOriginContextId)
+    // Row 605: a context that is itself children's music (a third of its songs say so, or the song it continues, or the user asked for it)
+    // keeps taking children's songs; any other context leaves them out.
+    val contextKids = "infantil" in (requested?.styles.orEmpty()) || (
+        if (collection && pool.isNotEmpty()) {
+            poolTexts.count { MusicStyle.isKidsContent(it.text) } * 3 >= pool.size
+        } else {
+            anchor != null && MusicStyle.isKidsContent(anchor.trackText().text)
+        }
+    )
     // Row 599 (owner 2026-10-31: «la cola cambia después de las 10 canciones»): the styles that lead the queue are decided once and then kept,
     // so a later batch (or a song whose tags arrived late) cannot move them; with none known yet, the styles of the songs HEARD TO THE END in
     // this queue stand in once they agree on one. A request the user typed and an explicit override keep deciding as before.
@@ -462,7 +471,9 @@ internal suspend fun MusicService.exactStyleFilter(
         val learned = artistStyle(t.primary)
         val genre = MusicStyle.fromGenre(GenreLane.lookupGenre(genres, t.primary))
         val known = textStyle ?: learned ?: genre.style
-        val rejected = ArtistStyleMemory.key(t.primary)?.let { it in st.skippedArtists } == true ||
+        val rejected = (!contextKids && MusicStyle.isKidsContent(t.text) && "infantil" !in target.styles.orEmpty() &&
+            !t.artists.any { it.trim().lowercase() in ownArtists }) ||
+            ArtistStyleMemory.key(t.primary)?.let { it in st.skippedArtists } == true ||
             (ArtistStyleMemory.key(t.primary)?.let { it in persistedRejected } == true &&
                 !t.artists.any { it.trim().lowercase() in ownArtists }) ||
             (!languageOnly && known != null && known !in target.styles.orEmpty() && known !in st.confirmedStyles &&

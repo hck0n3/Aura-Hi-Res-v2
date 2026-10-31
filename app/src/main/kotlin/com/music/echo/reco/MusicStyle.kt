@@ -676,6 +676,26 @@ object MusicStyle {
         }
     }
 
+    /**
+     * Row 605 (owner 2026-10-31, tablet: «escuchaba clásica cristiana y pasó a cristiana de niños»): children's music has no style the gate can
+     * see (a Christian kids' album carries no «infantil» word in a title, and iTunes calls it «Christian & Gospel» like the rest), so it passed
+     * the faith and language lanes as «unknown». Its OWN words say it plainly («para niños», «for kids», «escuela dominical»…), and a queue
+     * that is not for children must not take it. Whole words only, folded (accents/case).
+     */
+    fun isKidsContent(text: String?): Boolean {
+        if (text.isNullOrBlank()) return false
+        val padded = " ${fold(text)} "
+        return KIDS_PHRASES.any { padded.contains(" $it ") }
+    }
+
+    // Multi-word or unambiguous phrases only: «Baby», «Kids» (MGMT), «Children» (Robert Miles) or «Lullaby» are ordinary song titles.
+    private val KIDS_PHRASES = listOf(
+        "infantil", "infantiles", "para ninos", "para ninas", "para bebes", "para peques", "canciones de cuna", "cantos para ninos",
+        "nursery rhymes", "for kids", "for children", "kids songs", "kids music", "kids praise", "kids worship", "worship for kids",
+        "children s songs", "children s music", "childrens songs", "lullabies", "escuela dominical", "sunday school",
+        "ministerio infantil", "baby songs", "toddler songs", "preschool songs",
+    )
+
     internal fun fold(value: String): String =
         Normalizer.normalize(value.lowercase(), Normalizer.Form.NFD)
             .replace(Regex("\\p{Mn}+"), "")
