@@ -157,8 +157,35 @@ object RemotePlayback {
         // The button answers at once; the other device's real state arrives within a second and overwrites this.
         if (optimisticPlaying != null) playing.value = optimisticPlaying
         DeviceSyncHub.controller?.control(t.deviceId, command)
+        if (optimisticPlaying != null) watchAnswer(t)
         return true
     }
+
+    private var answerWatch: Job? = null
+
+    /**
+     * Row 597 (owner 2026-10-31: «me decía que estaba sonando en la tablet y la tablet no sonaba hasta que la desbloqueé… y empezó a
+     * reproducir en mi cel»): a sleeping device (locked screen, app dozed) never receives the order, yet the button had already said
+     * «sonando». Every order a device obeys is answered by a fresh report from it within a second ([DeviceSyncEngine] republishes after each
+     * command); if none arrives, the button goes back to the real state and the user is told, instead of pressing play again and again
+     * until the controller falls back to playing here.
+     */
+    private fun watchAnswer(sent: NowState) {
+        answerWatch?.cancel()
+        answerWatch = volumeScope.launch {
+            delay(ANSWER_WAIT_MS)
+            val now = target.value ?: return@launch
+            if (!answered(sent.atMs, now.atMs)) {
+                playing.value = now.playing
+                DeviceSyncHub.notice("${sent.deviceName.ifBlank { "El otro dispositivo" }} no responde: puede tener la pantalla bloqueada o la app dormida. Desbloquéalo, o toca «Continuar aquí» para seguir en este.")
+            }
+        }
+    }
+
+    const val ANSWER_WAIT_MS = 5_000L
+
+    /** True when the other device has published something NEWER than the report we acted on. Pure. */
+    fun answered(reportAtSent: Long, latestReportAt: Long): Boolean = latestReportAt > reportAtSent
 
     // ── state, fed by the engine ─────────────────────────────────────────────────────────────────────────────────────────────
 

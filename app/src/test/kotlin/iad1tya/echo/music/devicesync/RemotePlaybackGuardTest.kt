@@ -205,3 +205,13 @@ class RemoteResumeTest {
         org.junit.Assert.assertEquals(RemotePlayback.ResumeStep.NONE, RemotePlayback.resumeStep(androidx.media3.common.Player.STATE_BUFFERING))
     }
 }
+
+/** Registry row 597 — the play button may not claim «sonando» for a device that never answered. */
+class RemoteAnswerTest {
+    @org.junit.Test
+    fun `a newer report is an answer, the same report is not`() {
+        org.junit.Assert.assertTrue(RemotePlayback.answered(reportAtSent = 1_000L, latestReportAt = 1_800L))
+        org.junit.Assert.assertFalse(RemotePlayback.answered(reportAtSent = 1_000L, latestReportAt = 1_000L))
+        org.junit.Assert.assertFalse(RemotePlayback.answered(reportAtSent = 2_000L, latestReportAt = 1_000L))
+    }
+}
