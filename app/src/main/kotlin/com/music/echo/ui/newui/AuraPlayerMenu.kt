@@ -351,6 +351,16 @@ fun AuraPlayerMenu(
         }
 
         if (showPlayerVolumeControl(hidePlayerVolume)) {
+            // Row 593: when the slider drives ANOTHER device, say whose volume it is.
+            if (remoteActive) {
+                item {
+                    AuraTechnicalText(
+                        text = stringResource(R.string.device_sync_remote_volume, remoteTargetForVolume?.deviceName?.ifBlank { "—" } ?: "—").uppercase(),
+                        color = AuraPalette.Teal,
+                        modifier = Modifier.padding(horizontal = AuraSpacing.Gutter, vertical = 4.dp),
+                    )
+                }
+            }
             item {
                 VolumeSlider(
                     value = if (remoteActive) remoteVolume else if (isCasting) castVolume else playerVolume,

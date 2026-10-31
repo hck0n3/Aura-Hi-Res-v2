@@ -3794,7 +3794,7 @@ class MusicService :
             if (engine != null) {
                 if (!scope.isActive) scope = CoroutineScope(Dispatchers.Main) + Job()
                 scope.launch {
-                    val sent = runCatching { engine.sendQueueToRemote(queue.getInitialStatus()) }.getOrDefault(false)
+                    val sent = runCatching { engine.sendQueueToRemote(queue.getInitialStatus(), queue.contextId) }.getOrDefault(false)
                     if (!sent) {
                         Timber.tag(TAG).w("Queue could not be sent to the controlled device — playing here")
                         remoteRedirectBypass = true

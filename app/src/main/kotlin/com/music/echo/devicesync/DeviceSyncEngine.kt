@@ -526,7 +526,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         onMain {
             service.remoteRedirectBypass = true
             try {
-                service.playQueue(ListQueue(title = state.deviceName.ifBlank { null }, items = items, startIndex = state.index, position = position), playWhenReady = true)
+                service.playQueue(ListQueue(title = state.deviceName.ifBlank { null }, items = items, startIndex = state.index, position = position, contextId = state.contextId), playWhenReady = true)
             } finally {
                 service.remoteRedirectBypass = false
             }
@@ -585,7 +585,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
      * A queue the user started on THIS device while it controls another one: the other device plays it (as a hand-over in the other
      * direction, without pausing anything here — nothing plays here). False when there is nothing to send or no one to send it to.
      */
-    suspend fun sendQueueToRemote(status: iad1tya.echo.music.playback.queues.Queue.Status): Boolean {
+    suspend fun sendQueueToRemote(status: iad1tya.echo.music.playback.queues.Queue.Status, contextId: String? = null): Boolean {
         val target = RemotePlayback.target.value ?: return false
         if (status.items.isEmpty()) return false
         val first = (status.mediaItemIndex - WINDOW_BEHIND).coerceAtLeast(0)
@@ -596,6 +596,9 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             put("positionMs", status.position)
             put("playing", true)
             put("at", serverNow())
+            // Row 593: the list this queue came from, so the device that plays it files it under that list (its «Ir a la lista» chip and
+            // its no-repeat memory) instead of an anonymous queue.
+            contextId?.takeIf { it.isNotBlank() && it.length <= 120 }?.let { put("ctx", it) }
         }
         val sent = client.send(buildJsonObject {
             put("t", "cmd"); put("to", target.deviceId); put("cmd", "take"); put("args", buildJsonObject { put("state", state) })

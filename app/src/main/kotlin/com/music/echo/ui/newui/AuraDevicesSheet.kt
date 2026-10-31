@@ -8,6 +8,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import iad1tya.echo.music.ui.component.VolumeSlider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -66,6 +70,27 @@ fun ColumnScope.AuraDevicesSheetContent(
                 description = playingElsewhere.deviceName,
                 onClick = { controller?.control(playingElsewhere.deviceId, "next") },
                 enabled = controller != null,
+            )
+            // Row 593 (owner 2026-10-31: «no veo en el menú de volumen cómo controlar el volumen remoto»): the other device's volume, here with
+            // its other controls. It sends at most ~8 times a second while dragging and always the last value.
+            var remoteVolume by remember(playingElsewhere.deviceId) {
+                mutableFloatStateOf(playingElsewhere.volume.takeIf { it >= 0f } ?: 1f)
+            }
+            val lastSentAt = remember(playingElsewhere.deviceId) { LongArray(1) }
+            fun sendVolume() {
+                lastSentAt[0] = System.currentTimeMillis()
+                controller?.control(playingElsewhere.deviceId, "volume", levelPermille = (remoteVolume * 1000).toInt())
+            }
+            VolumeSlider(
+                value = remoteVolume,
+                onValueChange = { v ->
+                    remoteVolume = v.coerceIn(0f, 1f)
+                    if (System.currentTimeMillis() - lastSentAt[0] >= 120L) sendVolume()
+                },
+                onValueChangeFinished = { sendVolume() },
+                enabled = controller != null,
+                accentColor = AuraPalette.Teal,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             )
         }
 
