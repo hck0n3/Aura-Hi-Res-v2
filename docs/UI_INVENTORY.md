@@ -3109,7 +3109,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/LogsScreen.kt`
 | Atrás (tap) / Ir al inicio (mantener) | Ajustes > Registros | LogsScreen.kt:87 (`onLongClick` 89) | navegación | constante | siempre |
 | Copiar (registro al portapapeles) | Ajustes > Registros | LogsScreen.kt:95 | acción primaria | rara | siempre |
 | Compartir (registro) | Ajustes > Registros | LogsScreen.kt:98 | acción secundaria | rara | siempre |
-| Eliminar (borra los registros) | Ajustes > Registros | LogsScreen.kt:101 | destructiva | rara | siempre |
+| Borrar todos los registros (botón de abajo, pide confirmación; ya NO está junto a Compartir) | Ajustes > Registros | LogsScreen.kt (botón inferior + diálogo) | destructiva | rara | solo con registro |
 | Registro de la app (pestaña) | Ajustes > Registros | LogsScreen.kt:133 | acción primaria (selección) | rara | siempre |
 | Último fallo (pestaña) | Ajustes > Registros | LogsScreen.kt:138 | acción primaria (selección) | rara | siempre |
 | Cierres del sistema (pestaña) | Ajustes > Registros | LogsScreen.kt:143 | acción primaria (selección) | rara | siempre |

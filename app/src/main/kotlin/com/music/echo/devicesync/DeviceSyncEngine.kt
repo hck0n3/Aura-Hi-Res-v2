@@ -378,6 +378,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             atMs = o.long("at") ?: serverNow(),
             durationMs = o.long("durationMs") ?: 0L,
             volume = o.int("vol")?.let { it.coerceIn(0, 1000) / 1000f } ?: -1f,
+            shuffle = (o["shuf"] as? JsonPrimitive)?.booleanOrNull,
+            contextId = o.str("ctx")?.takeIf { it.length <= 120 },
         )
     }
 
@@ -385,7 +387,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)
-        if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like" || cmd == "playitem") {
+        if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like" || cmd == "playitem" || cmd == "volume" || cmd == "shuffle") {
             // The device that sent the order is showing OUR timeline: tell it the new state as soon as the player has settled,
             // not at the next heartbeat (row 534).
             scope.launch {
@@ -413,6 +415,9 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             }
             // The volume slider of the device that CONTROLS reaches the one that plays (owner 2026-10-31). It is this app's own volume
             // (the same one the in-app slider sets), 0..1000 per mille.
+            // Owner 2026-10-31: the shuffle switch pressed on the controlling phone only reshuffled the PHONE's queue. It is the playing
+            // device that shuffles (row 577).
+            "shuffle" -> (args["on"] as? JsonPrimitive)?.booleanOrNull?.let { on -> onMain { service.player.shuffleModeEnabled = on } }
             "volume" -> args.int("level")?.let { level ->
                 if (service.playerVolumeInitialized) service.playerVolume.value = (level.coerceIn(0, 1000) / 1000f)
             }
@@ -528,11 +533,12 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
     }
 
-    override fun control(deviceId: String, command: String, positionMs: Long?, trackId: String?, levelPermille: Int?) {
+    override fun control(deviceId: String, command: String, positionMs: Long?, trackId: String?, levelPermille: Int?, flag: Boolean?) {
         scope.launch {
             val sent = client.send(buildJsonObject {
                 put("t", "cmd"); put("to", deviceId); put("cmd", command)
-                if (positionMs != null || trackId != null || levelPermille != null) put("args", buildJsonObject {
+                if (positionMs != null || trackId != null || levelPermille != null || flag != null) put("args", buildJsonObject {
+                    if (flag != null) put("on", flag)
                     if (positionMs != null) put("positionMs", positionMs.coerceAtLeast(0L))
                     if (trackId != null) put("trackId", trackId)
                     if (levelPermille != null) put("level", levelPermille.coerceIn(0, 1000))
@@ -681,6 +687,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             put("playing", p.playWhenReady && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED)
             put("at", serverNow())
             if (service.playerVolumeInitialized) put("vol", (service.playerVolume.value.coerceIn(0f, 1f) * 1000).toInt())
+            put("shuf", p.shuffleModeEnabled)
+            service.shuffleContextId?.takeIf { it.isNotBlank() }?.let { put("ctx", it) }
         }
     }
 

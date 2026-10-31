@@ -36,6 +36,9 @@ object RemotePlayback {
     /** The other device's app volume as the slider here shows it (0..1). Follows what it publishes unless the user is dragging. */
     val volume = MutableStateFlow(1f)
 
+    /** The other device's shuffle as the switch here shows it; follows what it publishes. */
+    val shuffle = MutableStateFlow(false)
+
     @Volatile
     private var lastControlAt = 0L
 
@@ -86,6 +89,15 @@ object RemotePlayback {
     fun previous(): Boolean = send("prev")
 
     /** «No me gusta» / «Me gusta» on the song shown here, done by the device that really plays it (see DeviceSyncEngine.runCommand). */
+    /** The shuffle switch while another device plays: THAT device shuffles (false = nothing is controlled, the caller shuffles its own). */
+    fun setShuffle(on: Boolean): Boolean {
+        val t = target.value ?: return false
+        lastControlAt = System.currentTimeMillis()
+        shuffle.value = on
+        DeviceSyncHub.controller?.control(t.deviceId, "shuffle", flag = on)
+        return true
+    }
+
     fun dislike(): Boolean = sendForCurrentSong("dislike")
     fun like(): Boolean = sendForCurrentSong("like")
 
@@ -150,6 +162,7 @@ object RemotePlayback {
         }
         playing.value = state.playing
         duration.value = state.durationMs
+        state.shuffle?.let { shuffle.value = it }
         // Do not fight the slider while the user is moving it: the device's own report catches up a couple of seconds later.
         if (state.volume >= 0f && System.currentTimeMillis() - lastVolumeAt > 2_500L) volume.value = state.volume
         position.value = state.estimatedPositionMs(serverNowMs).coerceIn(0L, if (state.durationMs > 0) state.durationMs else Long.MAX_VALUE)

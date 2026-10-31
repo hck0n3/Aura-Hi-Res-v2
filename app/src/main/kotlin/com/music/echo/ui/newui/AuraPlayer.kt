@@ -1558,7 +1558,7 @@ private fun AuraPlayerShape(
                                 // Owner 2026-10-18: while a song plays FROM A PLAYLIST, a third door leads back to that list.
                                 // Only for a real playlist context (`PL:` yours, `OL:` a followed one) — an album, a radio or
                                 // a request would be a chip that leads nowhere.
-                                val playlistRoute = PlayerPlaylistRoute.of(playerConnection.shuffleContextId)
+                                val playlistRoute = PlayerPlaylistRoute.of(if (remoteActive) remoteTarget?.contextId else playerConnection.shuffleContextId)
                                 if (playlistRoute != null) {
                                     AuraChip(
                                         text = stringResource(R.string.go_to_playlist),

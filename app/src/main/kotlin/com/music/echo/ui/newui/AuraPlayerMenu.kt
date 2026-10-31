@@ -123,6 +123,7 @@ fun AuraPlayerMenu(
     val playerVolume by playerConnection.service.playerVolume.collectAsState()
     val remoteTargetForVolume by iad1tya.echo.music.devicesync.RemotePlayback.target.collectAsState()
     val remoteVolume by iad1tya.echo.music.devicesync.RemotePlayback.volume.collectAsState()
+    val remoteShuffle by iad1tya.echo.music.devicesync.RemotePlayback.shuffle.collectAsState()
     val remoteActive = remoteTargetForVolume != null
     val hidePlayerVolume = rememberHidePlayerVolume()
     val castHandler = remember(playerConnection) {
@@ -487,17 +488,21 @@ fun AuraPlayerMenu(
                     row(
                         icon = AuraIcons.Shuffle,
                         label = stringResource(R.string.shuffle),
-                        iconTint = if (shuffleModeEnabled) AuraPalette.Teal
+                        iconTint = if (if (remoteActive) remoteShuffle else shuffleModeEnabled) AuraPalette.Teal
                         else AuraPalette.OnGround.copy(alpha = 0.75f),
                         onClick = {
-                            playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled
+                            if (!iad1tya.echo.music.devicesync.RemotePlayback.setShuffle(!remoteShuffle)) {
+                                playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled
+                            }
                             onDismiss()
                         },
                         trailing = {
                             AuraSwitch(
-                                checked = shuffleModeEnabled,
+                                checked = if (remoteActive) remoteShuffle else shuffleModeEnabled,
                                 onCheckedChange = {
-                                    playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled
+                                    if (!iad1tya.echo.music.devicesync.RemotePlayback.setShuffle(!remoteShuffle)) {
+                                        playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled
+                                    }
                                     onDismiss()
                                 },
                                 contentDescription = stringResource(R.string.shuffle),

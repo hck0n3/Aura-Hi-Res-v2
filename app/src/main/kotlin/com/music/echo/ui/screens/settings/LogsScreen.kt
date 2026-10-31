@@ -53,6 +53,7 @@ fun LogsScreen(
     val context = LocalContext.current
     var tab by remember { mutableStateOf(LogTab.APP) }
     var reloadTrigger by remember { mutableStateOf(0) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val logText by produceState(initialValue = "", tab, reloadTrigger) {
         value = withContext(Dispatchers.IO) {
@@ -111,9 +112,6 @@ fun LogsScreen(
                     }
                     IconButton(onClick = { shareAllLogs(context) }, onLongClick = null) {
                         Icon(painterResource(R.drawable.share), contentDescription = stringResource(R.string.share))
-                    }
-                    IconButton(onClick = { AppLogger.clear(context); reloadTrigger++ }, onLongClick = null) {
-                        Icon(painterResource(R.drawable.delete), contentDescription = stringResource(R.string.delete))
                     }
                 },
                 windowInsets = TopAppBarDefaults.windowInsets,
@@ -212,8 +210,32 @@ fun LogsScreen(
                     )
                 }
             }
+            // Owner 2026-10-31: the delete icon sat right next to «Compartir» and wiped the tablet's log by mistake. Deleting now lives
+            // alone at the bottom, apart from copy and share, and asks first (row 577).
+            TextButton(
+                onClick = { showDeleteConfirm = true },
+                enabled = logText.isNotBlank(),
+                modifier = Modifier.align(androidx.compose.ui.Alignment.CenterHorizontally),
+            ) {
+                Icon(painterResource(R.drawable.delete), contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.logs_delete_all), color = MaterialTheme.colorScheme.error)
+            }
             Spacer(Modifier.height(8.dp))
         }
+    }
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.logs_delete_all)) },
+            text = { Text(stringResource(R.string.logs_delete_confirm)) },
+            confirmButton = {
+                TextButton(onClick = { showDeleteConfirm = false; AppLogger.clear(context); reloadTrigger++ }) {
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(android.R.string.cancel)) } },
+        )
     }
 }
 

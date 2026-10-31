@@ -23,6 +23,10 @@ data class NowState(
     val durationMs: Long = 0L,
     /** The device's own app volume, 0..1, or -1 when it did not say (an older build). */
     val volume: Float = -1f,
+    /** Whether the device's shuffle is on, or null when it did not say (an older build). */
+    val shuffle: Boolean? = null,
+    /** The list the device is playing from (`PL:…`, `OL:…`, `AL:…`), or null — so the controlling player can offer «Ir a la lista». */
+    val contextId: String? = null,
 ) {
     val current: NowItem? get() = items.getOrNull(index)
 
@@ -97,7 +101,7 @@ object DeviceSyncHub {
          * play / pause / next / prev / seek (with [positionMs]) / like / dislike (with [trackId]: the song the user is looking at,
          * so an order that arrives after the song changed is ignored instead of landing on the wrong one) to [deviceId].
          */
-        fun control(deviceId: String, command: String, positionMs: Long? = null, trackId: String? = null, levelPermille: Int? = null)
+        fun control(deviceId: String, command: String, positionMs: Long? = null, trackId: String? = null, levelPermille: Int? = null, flag: Boolean? = null)
 
         /** Bring what [deviceId] is playing to THIS device and carry on from where it was. */
         fun takeOverFrom(deviceId: String)
