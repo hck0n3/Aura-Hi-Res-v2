@@ -133,6 +133,8 @@ fun AuraScreenHeader(
     styledTitle: androidx.compose.ui.text.AnnotatedString? = null,
     /** Hide [trailing] behind a single show/hide button. */
     collapseTrailing: Boolean = false,
+    /** Row 567: draw the revealed action buttons inside ONE glass capsule (Biblioteca only; every other screen keeps them loose). */
+    glassActions: Boolean = false,
 ) {
     val titleBlock: @Composable () -> Unit = {
         Column {
@@ -153,7 +155,7 @@ fun AuraScreenHeader(
         .fillMaxWidth()
         .padding(start = AuraSpacing.Gutter, end = AuraSpacing.Gutter, top = 8.dp)
     if (collapseTrailing && trailing != null) {
-        AuraCollapsibleHeader(headerModifier, titleBlock, trailing)
+        AuraCollapsibleHeader(headerModifier, titleBlock, trailing, glassActions)
     } else {
         AuraHeaderLayout(modifier = headerModifier, title = titleBlock, trailing = trailing)
     }
@@ -173,6 +175,7 @@ private fun AuraCollapsibleHeader(
     modifier: Modifier,
     title: @Composable () -> Unit,
     actions: @Composable () -> Unit,
+    glassActions: Boolean = false,
 ) {
     val expanded = AuraHeaderActions.expanded
     val lean = iad1tya.echo.music.utils.rememberLeanMode()
@@ -213,7 +216,20 @@ private fun AuraCollapsibleHeader(
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalAuraTopActionsPart provides AuraTopActionsPart.WithoutAccount,
             ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    if (glassActions) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(AuraShapes.Pill)
+                                .background(AuraPalette.SurfaceFill)
+                                .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
+                                .padding(horizontal = 4.dp),
+                        ) { actions() }
+                    } else {
+                        actions()
+                    }
+                }
             }
         }
     }

@@ -262,7 +262,8 @@ private fun AuraLibraryShortcutTile(
             text = label,
             style = AuraType.MiniTitle,
             color = AuraPalette.OnGround,
-            maxLines = 2,
+            // Row 567: «Canciones que me gust…» was cut at two lines; three keep every label whole (the row grows, the tiles of a row stay level).
+            maxLines = 3,
             overflow = AuraDefaultOverflow,
             modifier = Modifier.weight(1f),
         )

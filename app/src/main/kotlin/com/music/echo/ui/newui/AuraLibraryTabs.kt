@@ -206,6 +206,8 @@ private fun <T : Enum<T>> AuraSortControl(
                     .minimumInteractiveComponentSize()
                     .clip(AuraShapes.Pill)
                     .background(AuraPalette.SurfaceFill)
+                    // Row 567: the same hairline as the other Biblioteca buttons (the sort pill was the one without it).
+                    .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
                     .auraClickableInternal(
                         onClick = { expanded = true },
                         contentDescription = "Cambiar el criterio de orden",
@@ -1741,6 +1743,7 @@ private fun <T> AuraSubFilterRow(
     ) {
         options.forEach { (option, labelRes) ->
             AuraChip(
+                glass = true,
                 text = stringResource(labelRes),
                 selected = selected == option,
                 onClick = { onSelect(option) },

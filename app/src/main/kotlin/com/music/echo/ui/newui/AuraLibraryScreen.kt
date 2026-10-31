@@ -182,6 +182,7 @@ fun AuraLibraryScreen(navController: NavController) {
                 title = stringResource(R.string.filter_library),
                 trailing = { AuraTopActions() },
                 collapseTrailing = true,
+                glassActions = true,
             )
             // The chip row owns the FULL width. It used to share a Row with a search glyph pinned at
             // the right, and that glyph is the owner's "lupa que se ve superpuesta a los chips": the
@@ -199,6 +200,7 @@ fun AuraLibraryScreen(navController: NavController) {
             ) {
                 items(auraLibraryChips(), key = { it.first.name }) { (chip, labelRes) ->
                     AuraChip(
+                        glass = true,
                         text = stringResource(labelRes),
                         selected = filterType == chip,
                         // Tapping the chip that is already active returns to the hub — as today.
