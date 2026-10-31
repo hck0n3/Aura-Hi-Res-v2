@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Row 620: Aura launcher icon in the new glass style, DARK mode (resource qualifier -night). -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_bg_dark" />
+    <foreground android:drawable="@drawable/ic_launcher_mark_dark" />
+    <monochrome android:drawable="@drawable/ic_launcher_mark_mono" />
+</adaptive-icon>

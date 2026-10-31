@@ -22,6 +22,10 @@ Beta encima de la 2.0.67-beta11 (incluye todo lo suyo) y de la 2.0.66 estable. C
 - **Escuchar juntos: el invitado salta al instante a la canción nueva** si ya la tenía cargada (antes reconstruía todo y empezaba tarde).
 - **Dentro de una sala el control remoto se apaga:** la sala manda sobre el reproductor.
 
+## Icono
+
+- **Icono nuevo de Aura al estilo del logo de Apple Music, en modo claro y modo oscuro:** la misma A con el triángulo de reproducir, ahora de cristal con luz de borde de colores. Claro por defecto y oscuro cuando el teléfono está en modo oscuro; el icono de tema de Android 13+ también cambia. Según tu launcher puede mostrar siempre el claro: dime cómo lo ves.
+
 ## Búsqueda, artistas y micrófono
 
 - **Las discografías ya no repiten álbumes** (misma edición limpia/explícita con otro identificador).
