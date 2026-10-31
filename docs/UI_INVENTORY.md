@@ -1656,7 +1656,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Canciones (chip) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:80 | navegación | diaria | siempre |
 | Álbumes (chip) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:81 | navegación | diaria | siempre |
 | Artistas (chip) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:82 | navegación | diaria | siempre |
-| Local (chip) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:83 | navegación | ocasional | siempre |
+| Local (chip) — **solo interfaz clásica; en la interfaz nueva se QUITÓ el chip (2026-10-31, orden del dueño: nada repetido) y queda la tesela «Local» del hub, que abre la misma lista** | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:83 | navegación | ocasional | siempre |
 | (tocar el chip activo → vuelve al hub) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:86-93 | navegación | diaria | solo si el chip pulsado ya es `filterType` |
 | Lista AI (solo icono, FAB pequeño) | Biblioteca > botones flotantes | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:177-188 (cD :185) | acción primaria | ocasional | `AiPlaylistEnabledKey` ON (:176) y `filterType ∈ {LIBRARY, PLAYLISTS}` (:102) |
 | Crear lista de reproducción (FAB extendido) | Biblioteca > botones flotantes | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:191-198 (texto :192) | acción primaria | diaria | solo si `filterType ∈ {LIBRARY, PLAYLISTS}` |

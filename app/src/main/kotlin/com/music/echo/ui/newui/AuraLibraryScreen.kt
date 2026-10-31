@@ -513,13 +513,16 @@ private val AuraEmbeddedScheme = darkColorScheme(
     outlineVariant = AuraPalette.SurfaceLine,
 )
 
-/** The five filter chips, in the classic order. */
+/**
+ * The four filter chips, in the classic order. Row 572: «Local» is NOT a chip any more (owner 2026-10-31: «nada repetido»): the hub's «Local»
+ * tile (row 185, next to Podcasts) opens the same embedded list, and on a phone the fifth chip sat off the right edge anyway. System back
+ * from Local returns to the hub, and tapping any chip leaves it.
+ */
 private fun auraLibraryChips(): List<Pair<LibraryFilter, Int>> = listOf(
     LibraryFilter.PLAYLISTS to R.string.filter_playlists,
     LibraryFilter.SONGS to R.string.filter_songs,
     LibraryFilter.ALBUMS to R.string.filter_albums,
     LibraryFilter.ARTISTS to R.string.filter_artists,
-    LibraryFilter.LOCAL to R.string.filter_local,
 )
 
 /**

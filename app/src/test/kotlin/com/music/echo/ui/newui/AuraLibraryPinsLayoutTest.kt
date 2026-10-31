@@ -90,10 +90,12 @@ class AuraLibraryPinsLayoutTest {
     fun `every shortcut button the hub always had is still there with its toggle`() {
         for (route in listOf(
             "auto_playlist/liked", "auto_playlist/exported", "auto_playlist/exported_videos", "top_playlist/",
-            "auto_playlist/downloaded", "cache_playlist/cached", "favorite_albums", "release_radar", "podcasts",
+            "auto_playlist/downloaded", "cache_playlist/cached", "favorite_albums", "podcasts",
         )) {
             assertTrue("falta el acceso a $route", hub.contains("\"$route"))
         }
+        // Row 570 (owner 2026-10-31: «nada repetido»): Novedades is the bar's tab; the hub no longer carries a second door to the radar.
+        assertFalse("el atajo Novedades se quitó del hub", hub.contains("navController.navigate(\"release_radar\")"))
         assertTrue("Local sigue visible nada más abrir Biblioteca (registry row 185)", hub.contains("AuraLibraryShortcut(AuraIcons.Device, localLabel, onOpenLocal)"))
         for (toggle in listOf("ShowLikedPlaylistKey", "ShowExportedPlaylistKey", "ShowExportedVideosPlaylistKey", "ShowTopPlaylistKey", "ShowDownloadedPlaylistKey", "ShowCachedPlaylistKey")) {
             assertTrue("el interruptor $toggle sigue mandando", hub.contains("rememberPreference($toggle, true)"))
