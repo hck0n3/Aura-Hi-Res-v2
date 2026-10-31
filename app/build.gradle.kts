@@ -231,7 +231,7 @@ android {
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
         // shipped 954) so sideload-install-over-existing keeps working.
-        versionCode = 1092
+        versionCode = 1093
         // BETA 2.0.64-beta3 — SOLO EL DUEÑO (sobre la 2.0.64-beta1 que tiene instalada). Filas 323-328:
         // Pedir música (artista + género, "afro gospel"), cola por patrón con género heredado de la
         // semilla, sonido (protección del altavoz y headroom automático apagados, perfil Aura Hi-Res v3),
@@ -260,7 +260,7 @@ android {
         // plegable, «Añadir a lista» legible, sugerencias en listas seguidas, Inicio más personal, Novedades por tu
         // biblioteca, historial borrable, años como rango en Pedir música (comprobado por canción y conservado por la
         // cola), géneros nuevos y subgéneros, segunda opción deslizable y portadas en el listado.
-        versionName = "2.0.67-beta9"
+        versionName = "2.0.67-beta10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

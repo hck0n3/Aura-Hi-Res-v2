@@ -1,8 +1,42 @@
-# Aura Hi-Res v2.0.67-beta9 — control remoto corregido, Biblioteca con botones de cristal, sin pantallas repetidas, búsqueda de Ajustes completa y portadas animadas que sí se animan
+# Aura Hi-Res v2.0.67-beta10 — aleatorio y control remoto corregidos, listas fijadas sincronizadas, cola inteligente y sugeridas más fieles, menos cosas repetidas
 
-Beta encima de la 2.0.67-beta8 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Para que «Pedir música» comparta respuestas hay que volver a desplegar el servidor `docs/worker/edge`; sin eso la app funciona igual que antes.
+Beta encima de la 2.0.67-beta9 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Para que las listas fijadas se sincronicen no hay que redesplegar nada: usan el mismo servidor de sincronización que ya tienes.
 
-## Control remoto: arreglos sobre la beta 8
+## Aleatorio y control remoto
+
+- **«Empezar desde cero» del aleatorio ya empieza de cero en todos tus dispositivos:** antes solo borraba en el aparato donde lo tocabas y el otro devolvía lo que ya había escuchado («26 de 29» recién reiniciado).
+- **El interruptor de aleatorio manda sobre el dispositivo que suena:** si controlas la tablet desde el cel, el aleatorio se activa en la tablet y el interruptor muestra su estado real, en el reproductor nuevo y también en la cola y el menú clásicos. Antes solo reordenaba la cola del cel.
+- **El volumen remoto ya no vuelve solo al valor viejo:** el dispositivo que suena avisa de su nuevo volumen en cuanto lo recibe.
+- **Tocar el nombre del artista mientras controlas otro dispositivo** ofrece «Ir a la lista» de donde suena.
+
+## Listas fijadas sincronizadas
+
+- **Biblioteca ▸ Fijados y «Fijadas en inicio» se sincronizan entre tus dispositivos** por tu servidor. Fijar o quitar en uno aparece en el otro. Las listas locales se asocian por su identidad de sincronización. El orden manual de Fijados no se sincroniza.
+
+## Cola inteligente, Relacionados y sugeridas
+
+- **La cola infinita conserva el estilo que la guía:** cuando la lista, el álbum o la canción no dicen un estilo claro, la familia que manda se decide una vez con el primer lote y ya no la cambia cada relleno.
+- **Las canciones de estilo sin comprobar solo rellenan lo necesario:** antes entraban pasos enteros (un 15% de lo admitido en los registros).
+- **«Relacionados» de la cola** se juzga contra lo que hay en la cola (estilo, idioma y fe); lo que claramente no pertenece ya no aparece. Si nada encaja, se muestra como venía.
+- **Canciones sugeridas de una lista:** lo que no encaja con la lista se deja fuera, también de los dos rellenos finales; solo si nada encaja se conserva lo mejor del resto para que la sección no quede vacía.
+
+## Menos repetido y más uniforme
+
+- **Cola:** quitadas las filas de vista previa bajo «Reproducción automática»; eran las mismas que la pestaña «Relacionados». El título, «Siguiendo: …» y los chips se conservan.
+- **Biblioteca:** los atajos («Canciones que me gustan», «Álbumes favoritos»…) usan la cápsula de cristal de los botones de arriba. «Local» ya no lista los vídeos, que siguen en «Vídeos exportados».
+- **Inicio, Novedades y Buscar:** los botones que se despliegan bajo el título llevan la misma cápsula de cristal que Biblioteca.
+- **La búsqueda de Ajustes** indexa ahora todo lo que se lee en las pantallas de Ajustes, y una prueba automática avisa si una fila nueva no se indexa.
+
+## Portada animada y registros
+
+- **La portada animada del álbum en el reproductor** ya no se descarta cuando la página del álbum sí la acepta: se valida con el mismo álbum con el que se busca, y una portada rechazada ya no se recuerda como «ninguna».
+- **Registros:** el botón de borrar ya no está junto a Compartir; está solo, abajo, y pide confirmación. El encabezado del registro ya no dice «enhancedShuffle=OFF» por error en dispositivos que nunca tocaron ese ajuste.
+
+## Para que lo pruebes y me cuentes
+
+- No pude probar nada de esto en un aparato. Si la cola se desvía, «siguiente» no cambia en remoto o la portada sigue quieta en algún álbum, manda el registro con la canción y la hora.
+
+## De la beta 9: control remoto, arreglos sobre la beta 8
 
 - **El control remoto vuelve a funcionar:** en la beta 8, tras pausar aquí dejaba de aparecer «Continuar aquí» y los controles del otro dispositivo. Ahora solo se retiene tu canción cuando el otro dispositivo está parado y su estado es viejo (hasta 10 minutos tras tu pausa); si el otro suena, siempre ves su canción y sus controles.
 - **Tocar una canción de la cola mientras controlas la tablet suena en la tablet** y ya no corta la conexión ni empieza a sonar en el cel.
