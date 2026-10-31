@@ -394,7 +394,7 @@ fun OldPlayerMenu(
                                     )
                                 },
                                 onClick = {
-                                    playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled
+                                    iad1tya.echo.music.devicesync.RemotePlayback.toggleShuffle(shuffleModeEnabled) { playerConnection.player.shuffleModeEnabled = it }
                                     onDismiss()
                                 }
                             )

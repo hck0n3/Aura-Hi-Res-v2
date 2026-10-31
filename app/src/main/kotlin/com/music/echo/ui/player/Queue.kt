@@ -393,7 +393,7 @@ fun Queue(
                     PlayerQueueButton(
                         icon = R.drawable.shuffle,
                         onClick = {
-                            playerConnection.player.shuffleModeEnabled = !shuffleModeEnabledInside
+                            iad1tya.echo.music.devicesync.RemotePlayback.toggleShuffle(shuffleModeEnabledInside) { playerConnection.player.shuffleModeEnabled = it }
                         },
                         isActive = shuffleModeEnabledInside,
                         enabled = !isListenTogetherGuest,
@@ -824,7 +824,7 @@ fun Queue(
                     ToggleButton(
                         checked = shuffleModeEnabled,
                         onCheckedChange = {
-                            playerConnection.player.shuffleModeEnabled = it
+                            iad1tya.echo.music.devicesync.RemotePlayback.toggleShuffle(!it) { v -> playerConnection.player.shuffleModeEnabled = v }
                         },
                         enabled = !isListenTogetherGuest,
                         shapes = ButtonGroupDefaults.connectedLeadingButtonShapes(),

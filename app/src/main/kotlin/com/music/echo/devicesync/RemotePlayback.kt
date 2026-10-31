@@ -98,6 +98,14 @@ object RemotePlayback {
         return true
     }
 
+    /**
+     * The one door of every shuffle switch (row 577): while another device is controlled the switch drives THAT device, from its own
+     * state; otherwise it flips the local player through [setLocal]. [localCurrent] is what the switch shows when nothing is controlled.
+     */
+    fun toggleShuffle(localCurrent: Boolean, setLocal: (Boolean) -> Unit) {
+        if (active) setShuffle(!shuffle.value) else setLocal(!localCurrent)
+    }
+
     fun dislike(): Boolean = sendForCurrentSong("dislike")
     fun like(): Boolean = sendForCurrentSong("like")
 
