@@ -733,6 +733,26 @@ constructor(
             )
         }
 
+        // Row 586 (owner 2026-10-31: «las canciones sugeridas no concuerdan con la playlist»): the fit above only moved misfits BEHIND the
+        // fitting ones, so a short list of fitting songs was always topped up with the rest of what YouTube related to the seeds, and the two
+        // backfills below (recently played, newest in the library) were never checked at all. With a profile that says something, a song that
+        // plainly does not belong is now left out; only when NOTHING fits does the best of the rest stay, so the section is never empty.
+        val profileActive = fitProfile != null && fitProfile.active
+        fun songEntry(song: Song) = iad1tya.echo.music.reco.SuggestionFit.Entry(song.song.title, song.artists.map { it.name }, song.album?.title)
+        fun fitsPlaylist(song: Song): Boolean = !profileActive || iad1tya.echo.music.reco.SuggestionFit.fits(fitProfile!!, songEntry(song))
+        val fittingOnly = if (profileActive) {
+            fitted.filter { id ->
+                val entry = localById[id]?.let(::songEntry)
+                    ?: onlineById[id]?.let { item ->
+                        iad1tya.echo.music.reco.SuggestionFit.Entry(item.title, item.artists.map { it.name }, item.album?.name)
+                    }
+                entry == null || iad1tya.echo.music.reco.SuggestionFit.fits(fitProfile!!, entry)
+            }
+        } else {
+            fitted
+        }
+        val fittedForPicking = if (fittingOnly.isNotEmpty()) fittingOnly else fitted
+
         // 5. Artist-diversity pass: greedy max 2 per primary artist; overflow appended at the tail.
         fun primaryArtist(id: String): String =
             localById[id]?.artists?.firstOrNull()?.id
@@ -741,7 +761,7 @@ constructor(
         val perArtist = HashMap<String, Int>()
         val head = ArrayList<String>()
         val overflow = ArrayList<String>()
-        for (id in fitted) {
+        for (id in fittedForPicking) {
             val key = primaryArtist(id)
             val n = perArtist[key] ?: 0
             if (n < 2) {
@@ -761,7 +781,7 @@ constructor(
             val chosenSet = chosen.toHashSet()
             database.quickPicks().first()
                 .asSequence()
-                .filter { it.id !in excluded && it.id !in chosenSet }
+                .filter { it.id !in excluded && it.id !in chosenSet && fitsPlaylist(it) }
                 .take(limit - chosen.size)
                 .forEach { qp ->
                     localById.putIfAbsent(qp.id, qp)
@@ -782,7 +802,7 @@ constructor(
             val chosenSet = chosen.toHashSet()
             database.songsByCreateDateDesc(limit = 50).first()
                 .asSequence()
-                .filter { it.id !in excluded && it.id !in chosenSet }
+                .filter { it.id !in excluded && it.id !in chosenSet && fitsPlaylist(it) }
                 .take(limit - chosen.size)
                 .forEach { lib ->
                     localById.putIfAbsent(lib.id, lib)
