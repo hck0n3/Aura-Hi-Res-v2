@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import iad1tya.echo.music.applecanvas.AppleMusicCanvasProvider
 import iad1tya.echo.music.canvas.CanvasArtwork
 import iad1tya.echo.music.canvas.TidalCanvasProvider
+import iad1tya.echo.music.ui.player.CanvasAlbumMemo
 import iad1tya.echo.music.ui.player.CanvasArtworkPlaybackCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,11 +37,23 @@ fun rememberAlbumCanvas(
         if (country.length == 2) country.lowercase(Locale.ROOT) else "us"
     }
 
+    val memoContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     LaunchedEffect(albumTitle, artistName, firstSongTitle) {
         if (canvasArtwork != null || cacheKey == null) return@LaunchedEffect
         if (albumTitle.isNullOrBlank() || artistName.isNullOrBlank()) {
             canvasArtwork = null
             return@LaunchedEffect
+        }
+
+        // Row 562 — ONE answer per album, shared with the player: what the player (or an earlier visit) already found is used without a single
+        // request, and what this page finds below is written there, so every song of the album shows the same animated cover.
+        val albumMemoKey = CanvasAlbumMemo.key(artist = artistName, album = albumTitle, song = null)
+        if (albumMemoKey != null) {
+            (CanvasAlbumMemo.lookup(memoContext, albumMemoKey) as? CanvasAlbumMemo.Answer.Hit)?.let { hit ->
+                canvasArtwork = hit.artwork
+                CanvasArtworkPlaybackCache.put(cacheKey, hit.artwork)
+                return@LaunchedEffect
+            }
         }
 
         // Overall cap so a slow/hanging canvas provider can't leave the album "loading forever" — and so
@@ -116,6 +129,10 @@ fun rememberAlbumCanvas(
         if (validated != null) {
             canvasArtwork = validated
             CanvasArtworkPlaybackCache.put(cacheKey, validated)
+            if (albumMemoKey != null) {
+                CanvasAlbumMemo.remember(memoContext, albumMemoKey, validated)
+                iad1tya.echo.music.edge.EdgeClient.canvasShare(memoContext, albumMemoKey, validated)
+            }
         }
     }
 

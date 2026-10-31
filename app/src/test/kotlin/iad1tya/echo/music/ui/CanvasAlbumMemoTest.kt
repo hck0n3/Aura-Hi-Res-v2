@@ -4,6 +4,7 @@ import iad1tya.echo.music.canvas.CanvasArtwork
 import iad1tya.echo.music.ui.player.CanvasAlbumMemo
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -47,5 +48,17 @@ class CanvasAlbumMemoTest {
         assertEquals(2, Regex("isPlaying = true,").findAll(album.substring(album.indexOf("CanvasArtworkPlayer("))).count().coerceAtMost(2))
         val thumb = main("ui/player/Thumbnail.kt")
         assertTrue(thumb.substring(thumb.indexOf("canvasArtwork?.let { artwork ->")).contains("isPlaying = isPlaying"))
+    }
+
+    @Test
+    fun `guests do not change the album key - the page and the player agree (row 562)`() {
+        val page = CanvasAlbumMemo.key("Marcos Witt", "Sigues Siendo Dios", null)
+        assertEquals(page, CanvasAlbumMemo.key("Marcos Witt, Jesús Adrián Romero", "Sigues Siendo Dios", "Poderoso"))
+        assertEquals(page, CanvasAlbumMemo.key("Marcos Witt & Alguien", "Sigues Siendo Dios", "Otra"))
+        assertEquals(page, CanvasAlbumMemo.key("Marcos Witt feat. Alguien", "Sigues Siendo Dios", "Otra"))
+        assertEquals("Marcos Witt", CanvasAlbumMemo.firstArtist("Marcos Witt ft. X"))
+        assertEquals("Marcos Witt", CanvasAlbumMemo.firstArtist("Marcos Witt"))
+        // A different artist is still a different key.
+        assertNotEquals(page, CanvasAlbumMemo.key("Otro Artista", "Sigues Siendo Dios", "Poderoso"))
     }
 }

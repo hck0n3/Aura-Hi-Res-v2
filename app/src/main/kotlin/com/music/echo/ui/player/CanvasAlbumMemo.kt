@@ -41,9 +41,17 @@ object CanvasAlbumMemo {
     private val nones = HashMap<String, Long>()
     private var loaded = false
 
+    private val artistSeparators = Regex("\\s*(?:,|&|;|/|\\bfeat\\.?(?=\\s)|\\bft\\.?(?=\\s)|\\bfeaturing\\b)\\s*", RegexOption.IGNORE_CASE)
+
+    /**
+     * Row 562 — the FIRST credited artist of [raw] («A, B», «A & B», «A feat. B» → «A»). The album page keys its animated cover by the
+     * album's artist while the player has the song's full credit line, so a song with a guest never found what the page had found.
+     */
+    fun firstArtist(raw: String?): String = raw.orEmpty().split(artistSeparators, limit = 2).first().trim()
+
     /** The key for [artist] + [album] (or + [song] when there is no album), or null when there is nothing to key on. */
     fun key(artist: String?, album: String?, song: String?): String? {
-        val a = norm(artist)
+        val a = norm(firstArtist(artist))
         if (a.isEmpty()) return null
         val al = norm(album)
         if (al.isNotEmpty()) return "al|$a|$al"

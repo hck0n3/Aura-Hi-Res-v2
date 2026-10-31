@@ -33,6 +33,15 @@ import timber.log.Timber
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+/** Row 561 — how complete an answer is against the lines the lyric has: only COMPLETE is cached and saved; PARTIAL_USABLE (≥ 90 %) is shown once. */
+internal enum class TranslationFit { COMPLETE, PARTIAL_USABLE, TOO_SHORT }
+
+internal fun translationFit(got: Int, expected: Int): TranslationFit = when {
+    got >= expected -> TranslationFit.COMPLETE
+    got * 10 >= expected * 9 -> TranslationFit.PARTIAL_USABLE
+    else -> TranslationFit.TOO_SHORT
+}
+
 /**
  * Parser for the dict-chrome-ex response shapes (both verified live 2026-08-29):
  *   ["line1\nline2"]                  — plain single-string array (sl known)
@@ -452,6 +461,13 @@ object LyricsTranslationHelper {
         val nonEmptyEntries = lyrics.mapIndexedNotNull { index, entry ->
             if (entry.text.isNotBlank()) index to entry else null
         }
+        // Row 561: a translation saved by an older build may be SHORT (it was stored even when the model returned fewer lines). It is
+        // not used: the lines stay untranslated and the next translation replaces it, instead of showing a half-translated song for ever.
+        if (translatedLines.size < nonEmptyEntries.size) {
+            Timber.tag("LyricsTranslate").i("LYRICS_TRANSLATE saved translation is short (%d/%d) — ignored", translatedLines.size, nonEmptyEntries.size)
+            _hasActiveTranslations.value = false
+            return
+        }
 
         nonEmptyEntries.forEachIndexed { idx, (originalIndex, _) ->
             if (idx < translatedLines.size) {
@@ -733,65 +749,67 @@ object LyricsTranslationHelper {
                 }
 
                 result.onSuccess { translatedLines ->
+                    // Row 561 (owner 2026-10-31: «a veces las traducciones fallan… no sale ningún mensaje, solo no las traduce»). Three silent
+                    // paths, closed here: (1) a SHORT answer (the Aura Worker's model may return fewer lines than the lyric has) was
+                    // cached and saved as if complete, so the missing lines stayed untranslated for ever and were never retried;
+                    // (2) an answer that arrived while the lyrics view was not active was thrown away without a word; (3) nothing
+                    // said which step answered. Now: only a COMPLETE answer is cached and saved; one that is at least 90 % complete is
+                    // shown (not saved, so the next open tries again); a shorter one is an error the user can see.
+                    val expectedCount = nonEmptyEntries.size
+                    val fit = translationFit(translatedLines.size, expectedCount)
+                    val complete = fit == TranslationFit.COMPLETE
+                    val usable = fit != TranslationFit.TOO_SHORT
+                    Timber.tag("LyricsTranslate").i(
+                        "LYRICS_TRANSLATE lines=%d/%d complete=%b viewActive=%b provider=%s",
+                        translatedLines.size, expectedCount, complete, isCompositionActive, provider,
+                    )
+
+                    if (complete) {
+                        val cacheKey2 = getCacheKey(fullText, mode, targetLanguage)
+                        translationCache[cacheKey2] = translatedLines
+
+                        if (songId.isNotBlank() && database != null) {
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    val currentLyrics = database.lyrics(songId).first()
+                                    if (currentLyrics != null) {
+                                        database.query {
+                                            upsert(
+                                                currentLyrics.copy(
+                                                    translatedLyrics = translatedLines.joinToString("\n"),
+                                                    translationLanguage = targetLanguage,
+                                                    translationMode = mode,
+                                                ),
+                                            )
+                                        }
+
+                                        _translationSaved.tryEmit(Unit)
+                                    }
+                                } catch (e: Exception) {
+                                    timber.log.Timber.e(e, "Failed to save translated lyrics to database")
+                                }
+                            }
+                        }
+                    }
+
+                    // The view went away while the answer was on its way: it is saved above (when complete) and is picked up when the
+                    // lyrics open again; there is no screen to update now.
                     if (!isCompositionActive) {
                         return@onSuccess
                     }
 
-                    
-                    val cacheKey2 = getCacheKey(fullText, mode, targetLanguage)
-                    translationCache[cacheKey2] = translatedLines
-
-                    
-                    if (songId.isNotBlank() && database != null) {
-                        scope.launch(Dispatchers.IO) {
-                            try {
-                                val currentLyrics = database.lyrics(songId).first()
-                                if (currentLyrics != null) {
-                                    database.query {
-                                        upsert(
-                                            currentLyrics.copy(
-                                                translatedLyrics = translatedLines.joinToString("\n"),
-                                                translationLanguage = targetLanguage,
-                                                translationMode = mode,
-                                            ),
-                                        )
-                                    }
-                                    
-                                    _translationSaved.tryEmit(Unit)
-                                }
-                            } catch (e: Exception) {
-                                timber.log.Timber.e(e, "Failed to save translated lyrics to database")
-                            }
-                        }
-                    }
-
-                    
-                    val expectedCount = nonEmptyEntries.size
-
-                    when {
-                        translatedLines.size >= expectedCount -> {
-                            nonEmptyEntries.forEachIndexed { idx, (originalIndex, _) ->
+                    if (usable) {
+                        nonEmptyEntries.forEachIndexed { idx, (originalIndex, _) ->
+                            if (idx < translatedLines.size) {
                                 lyrics[originalIndex].translatedTextFlow.value = translatedLines[idx]
                             }
-                            _hasActiveTranslations.value = true
-                            _status.value = TranslationStatus.Success
                         }
-                        translatedLines.size < expectedCount -> {
-                            translatedLines.forEachIndexed { idx, translation ->
-                                if (idx < nonEmptyEntries.size) {
-                                    val originalIndex = nonEmptyEntries[idx].first
-                                    lyrics[originalIndex].translatedTextFlow.value = translation
-                                }
-                            }
-                            _hasActiveTranslations.value = true
-                            _status.value = TranslationStatus.Success
-                        }
-                        else -> {
-                            _status.value = TranslationStatus.Error(context.getString(iad1tya.echo.music.R.string.ai_error_unexpected))
-                        }
+                        _hasActiveTranslations.value = true
+                        _status.value = TranslationStatus.Success
+                    } else {
+                        _status.value = TranslationStatus.Error(context.getString(iad1tya.echo.music.R.string.ai_error_translation_failed))
                     }
 
-                    
                     delay(3000)
                     if (_status.value is TranslationStatus.Success) {
                         _status.value = TranslationStatus.Idle

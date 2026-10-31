@@ -1263,11 +1263,15 @@ private fun ThumbnailItem(
                             null
                         }
 
+                        // Row 562: the FIRST credited artist too (the album page searches by the album's artist; a song with guests
+                        // carries a longer credit line that the providers do not match).
+                        val firstArtist = normalizeCanvasArtistName(CanvasAlbumMemo.firstArtist(artistNameRaw))
                         (spotifyCanvas ?: linkedSetOf(
                             songTitle to artistName,
                             songTitleRaw to artistName,
                             songTitle to artistNameRaw,
                             songTitleRaw to artistNameRaw,
+                            songTitle to firstArtist,
                         ).filter { (s, a) -> s.isNotBlank() && a.isNotBlank() }
                             .firstNotNullOfOrNull { (s, a) ->
                                 
