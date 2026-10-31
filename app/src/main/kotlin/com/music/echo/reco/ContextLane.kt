@@ -260,6 +260,14 @@ object ContextLane {
         return if (top.value.toDouble() / known.size >= share) setOf(top.key) else emptySet()
     }
 
+    /**
+     * Row 580 — which families lead a context whose own style is unknown. The FIRST answer stands for the whole context: a later
+     * batch, however it votes, never replaces it, so one drifted batch cannot drag the next ones along (owner 2026-10-31: «se
+     * desvía de verdad»). A new queue starts without one. Pure.
+     */
+    fun lockedConsensus(locked: Set<String>?, fresh: Set<String>): Set<String> =
+        locked?.takeIf { it.isNotEmpty() } ?: fresh
+
     /** One candidate as the lane sees it: the style verdict plus language, family and faith evidence. */
     data class Candidate(
         val verdict: StyleContinuity.Verdict,

@@ -24,3 +24,22 @@ class ConsensusFamilyTest {
         assertTrue(s.contains("val families = baseFamilies.ifEmpty { inferredFamilies }"))
     }
 }
+
+class LockedConsensusTest {
+    @org.junit.Test
+    fun theFirstAnswerStandsForTheWholeContext() {
+        val first = ContextLane.lockedConsensus(null, setOf("worship"))
+        org.junit.Assert.assertEquals(setOf("worship"), first)
+        // A later batch that votes for another family does not move it.
+        org.junit.Assert.assertEquals(setOf("worship"), ContextLane.lockedConsensus(first, setOf("urbano")))
+        // ...and a batch with no clear vote does not loosen it.
+        org.junit.Assert.assertEquals(setOf("worship"), ContextLane.lockedConsensus(first, emptySet()))
+    }
+
+    @org.junit.Test
+    fun aNewQueueStartsFree() {
+        org.junit.Assert.assertEquals(setOf("pop"), ContextLane.lockedConsensus(null, setOf("pop")))
+        org.junit.Assert.assertEquals(emptySet<String>(), ContextLane.lockedConsensus(null, emptySet()))
+        org.junit.Assert.assertEquals(setOf("pop"), ContextLane.lockedConsensus(emptySet(), setOf("pop")))
+    }
+}

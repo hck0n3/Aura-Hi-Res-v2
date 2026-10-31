@@ -86,6 +86,9 @@ internal class ExactStyleState {
     // (no title, no artist: ids and counters only).
     val admissions: ConcurrentHashMap<String, String> = ConcurrentHashMap()
     @Volatile var lastTarget = ""
+
+    /** Row 580 — the families that led this queue when its context named no style; fixed by the first batch (see ContextLane.lockedConsensus). */
+    @Volatile var lockedFamilies: Set<String>? = null
     val skippedArtists: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
     val skippedStyles: ConcurrentHashMap<String, Int> = ConcurrentHashMap()
     val confirmedStyles: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
@@ -107,6 +110,7 @@ internal class ExactStyleState {
         gatedIds.clear()
         admissions.clear()
         lastTarget = ""
+        lockedFamilies = null
         skippedArtists.clear()
         skippedStyles.clear()
         confirmedStyles.clear()
@@ -400,7 +404,13 @@ internal suspend fun MusicService.exactStyleFilter(
     }
     val inferredFamilies = if (baseFamilies.isEmpty() && override == null && requested == null && !languageOnly &&
         target.styles.isNullOrEmpty()
-    ) consensusFamilies(items) else emptySet()
+    ) {
+        // Row 580: the batch YouTube hands over is the weakest evidence there is; it decides ONCE, and the queue keeps that
+        // decision until the user starts another one. Before, every refill voted again and a drifted batch moved the target.
+        val chosen = iad1tya.echo.music.reco.ContextLane.lockedConsensus(st.lockedFamilies, consensusFamilies(items))
+        if (st.lockedFamilies.isNullOrEmpty() && chosen.isNotEmpty()) st.lockedFamilies = chosen
+        chosen
+    } else emptySet()
     if (inferredFamilies.isNotEmpty()) {
         Timber.tag(TAG).i("STYLE_GATE %s: no style known — the batch's own family leads: families=%s", site, inferredFamilies.sorted().joinToString("+"))
     }
