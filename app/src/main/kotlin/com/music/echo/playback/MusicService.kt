@@ -5072,6 +5072,33 @@ class MusicService :
         }
     }
 
+    /**
+     * Row 587 (owner 2026-10-31: «la sección de relacionados no tiene nada que ver con lo que se está escuchando»): the pool the queue
+     * shows under RELACIONADOS is YouTube's raw «similar content», ranked only by the user's taste. It is now judged against what the
+     * queue holds, with the same pure rule the playlist suggestions use ([iad1tya.echo.music.reco.SuggestionFit]): what plainly does not
+     * belong (another style, another language, secular songs in a Christian queue) is left out. When the queue says nothing, or nothing in
+     * the pool fits, the pool is returned as it came — the section is never emptied by this.
+     */
+    private fun fitAutomix(items: List<MediaItem>): List<MediaItem> {
+        if (items.isEmpty()) return items
+        return runCatching {
+            val queued = (0 until player.mediaItemCount).take(60).mapNotNull { i ->
+                val m = player.getMediaItemAt(i).metadata ?: return@mapNotNull null
+                iad1tya.echo.music.reco.SuggestionFit.Entry(m.title, m.artists.map { it.name }, m.album?.title)
+            }
+            val profile = iad1tya.echo.music.reco.SuggestionFit.profileOf(queued, iad1tya.echo.music.reco.GenreCache.snapshot(this))
+            if (!profile.active) return@runCatching items
+            val fitting = items.filter { mi ->
+                val m = mi.metadata ?: return@filter true
+                iad1tya.echo.music.reco.SuggestionFit.fits(
+                    profile,
+                    iad1tya.echo.music.reco.SuggestionFit.Entry(m.title, m.artists.map { it.name }, m.album?.title),
+                )
+            }
+            if (fitting.isEmpty()) items else fitting
+        }.getOrDefault(items)
+    }
+
     fun getAutomix(playlistId: String) {
         if (dataStore.get(SimilarContent, true) &&
             !(dataStore.get(DisableLoadMoreWhenRepeatAllKey, false) && player.repeatMode == REPEAT_MODE_ALL)) {
@@ -5082,16 +5109,20 @@ class MusicService :
                         .onSuccess { firstResult ->
                             YouTube.next(WatchEndpoint(playlistId = firstResult.endpoint.playlistId))
                                 .onSuccess { secondResult ->
-                                    automixItems.value = secondResult.items
-                                        .map { it.toMediaItem() }
-                                        .orderedByTaste()
+                                    automixItems.value = fitAutomix(
+                                        secondResult.items
+                                            .map { it.toMediaItem() }
+                                            .orderedByTaste(),
+                                    )
                                 }
                                 .onFailure {
                                     
                                     if (firstResult.items.isNotEmpty()) {
-                                        automixItems.value = firstResult.items
-                                            .map { it.toMediaItem() }
-                                            .orderedByTaste()
+                                        automixItems.value = fitAutomix(
+                                            firstResult.items
+                                                .map { it.toMediaItem() }
+                                                .orderedByTaste(),
+                                        )
                                     }
                                 }
                         }
@@ -5107,7 +5138,7 @@ class MusicService :
                                         .filter { it.id != currentSong.id }
                                         .map { it.toMediaItem() }
                                     if (filteredItems.isNotEmpty()) {
-                                        automixItems.value = filteredItems.orderedByTaste()
+                                        automixItems.value = fitAutomix(filteredItems.orderedByTaste())
                                     }
                                 }.onFailure {
                                     
@@ -5117,7 +5148,7 @@ class MusicService :
                                                 .filter { it.id != currentSong.id }
                                                 .map { it.toMediaItem() }
                                             if (relatedItems.isNotEmpty()) {
-                                                automixItems.value = relatedItems.orderedByTaste()
+                                                automixItems.value = fitAutomix(relatedItems.orderedByTaste())
                                             }
                                         }
                                     }
