@@ -89,6 +89,9 @@ internal class ExactStyleState {
 
     /** Row 580 — the families that led this queue when its context named no style; fixed by the first batch (see ContextLane.lockedConsensus). */
     @Volatile var lockedFamilies: Set<String>? = null
+
+    /** Row 599 — the styles that led this queue once they were known; fixed until the user starts another queue (see ContextLane.stableStyles). */
+    @Volatile var lockedStyles: Set<String>? = null
     val skippedArtists: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
     val skippedStyles: ConcurrentHashMap<String, Int> = ConcurrentHashMap()
     val confirmedStyles: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
@@ -111,6 +114,7 @@ internal class ExactStyleState {
         admissions.clear()
         lastTarget = ""
         lockedFamilies = null
+        lockedStyles = null
         skippedArtists.clear()
         skippedStyles.clear()
         confirmedStyles.clear()
@@ -361,7 +365,16 @@ internal suspend fun MusicService.exactStyleFilter(
     }
     // Fila 361: a "Pedir música" queue continues what was ASKED (styles, language, faith), not a guess.
     val requested = iad1tya.echo.music.reco.RequestStyleTargets.get(radioOriginContextId)
-    val base = requested ?: detected
+    // Row 599 (owner 2026-10-31: «la cola cambia después de las 10 canciones»): the styles that lead the queue are decided once and then kept,
+    // so a later batch (or a song whose tags arrived late) cannot move them; with none known yet, the styles of the songs HEARD TO THE END in
+    // this queue stand in once they agree on one. A request the user typed and an explicit override keep deciding as before.
+    val stable = if (requested != null) null else iad1tya.echo.music.reco.ContextLane.stableStyles(
+        locked = st.lockedStyles,
+        detected = detected.styles,
+        heardToTheEnd = st.confirmedStyles.toSet(),
+    )
+    if (stable != null && st.lockedStyles == null) st.lockedStyles = stable
+    val base = requested ?: if (stable != null) detected.copy(styles = stable) else detected
     val override = st.override
     val target = StyleContinuity.applyOverride(base, override)
     st.follow.value = StyleContinuity.Follow(

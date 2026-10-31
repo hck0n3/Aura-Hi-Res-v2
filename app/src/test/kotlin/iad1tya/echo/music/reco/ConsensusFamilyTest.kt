@@ -67,3 +67,20 @@ class CapUnprovenTest {
         org.junit.Assert.assertEquals(all, cap(all, enough = Int.MAX_VALUE))
     }
 }
+
+class StableStylesTest {
+    @org.junit.Test
+    fun `a decided style is kept even when a later batch detects another`() {
+        val first = ContextLane.stableStyles(null, setOf("worship"), emptySet())
+        org.junit.Assert.assertEquals(setOf("worship"), first)
+        org.junit.Assert.assertEquals(setOf("worship"), ContextLane.stableStyles(first, setOf("rap"), setOf("pop")))
+        org.junit.Assert.assertEquals(setOf("worship"), ContextLane.stableStyles(first, null, emptySet()))
+    }
+
+    @org.junit.Test
+    fun `unknown becomes the style the songs heard to the end agree on, never a guess between several`() {
+        org.junit.Assert.assertEquals(setOf("rap"), ContextLane.stableStyles(null, null, setOf("rap")))
+        org.junit.Assert.assertNull(ContextLane.stableStyles(null, null, setOf("rap", "pop")))
+        org.junit.Assert.assertNull(ContextLane.stableStyles(null, emptySet(), emptySet()))
+    }
+}

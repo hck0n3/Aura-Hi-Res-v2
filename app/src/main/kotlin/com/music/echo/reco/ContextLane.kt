@@ -268,6 +268,15 @@ object ContextLane {
     fun lockedConsensus(locked: Set<String>?, fresh: Set<String>): Set<String> =
         locked?.takeIf { it.isNotEmpty() } ?: fresh
 
+    /**
+     * Row 599 — the styles that lead a queue. [locked] (decided earlier) always wins; else the [detected] ones from the context, now locked;
+     * else, when the songs [heardToTheEnd] agree on exactly ONE style, that one; else null (still unknown). Pure.
+     */
+    fun stableStyles(locked: Set<String>?, detected: Set<String>?, heardToTheEnd: Set<String>): Set<String>? =
+        locked?.takeIf { it.isNotEmpty() }
+            ?: detected?.takeIf { it.isNotEmpty() }
+            ?: heardToTheEnd.takeIf { it.size == 1 }
+
     /** One candidate as the lane sees it: the style verdict plus language, family and faith evidence. */
     data class Candidate(
         val verdict: StyleContinuity.Verdict,
