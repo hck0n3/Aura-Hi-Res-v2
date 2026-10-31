@@ -302,7 +302,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                                 position <= 0L -> 0L
                                 else -> session.positionAt(position, playing)
                             }
-                        playTrack(service, track, keepPosition = startAt, playWhenReady = playing)
+                        // Row 616: when the room moved to a track this device ALREADY has loaded further down its own list (the host
+                        // pressed next, or the song ended), jump to it in place: ExoPlayer has been pre-buffering it, so it starts at
+                        // once instead of being torn down and resolved again (1-3 s later than the host, then a visible catch-up jump).
+                        val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing) }
+                        if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing)
                     }
                     applyTransport(service, playing, position)
                 } catch (e: Exception) {
@@ -476,6 +480,28 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             player.playWhenReady = playWhenReady
             player.prepare()
         }
+    }
+
+    /**
+     * Row 616: moves the player to [info] WITHOUT rebuilding its list, when the list it already holds is exactly what the room would load
+     * from that track on. Returns false (and touches nothing) otherwise, and the caller loads the room's queue as before.
+     */
+    private fun advanceInPlace(
+        service: MusicService,
+        info: TrackInfo,
+        upcomingIds: List<String>,
+        startAt: Long,
+        playWhenReady: Boolean,
+    ): Boolean {
+        val player = runCatching { service.player }.getOrNull() ?: return false
+        val have = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }
+        val index = have.indexOf(info.id)
+        if (!reuseInPlace(have, info.id, upcomingIds)) return false
+        player.seekTo(index, startAt.coerceAtLeast(0L))
+        player.playWhenReady = playWhenReady
+        if (player.playbackState == androidx.media3.common.Player.STATE_IDLE) player.prepare()
+        Timber.tag(TAG).i("Guest advanced in place to index %d of %d", index, have.size)
+        return true
     }
 
     /**
@@ -862,4 +888,20 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         /** One re-check before giving the room our ready anyway (the server has its own timeout). */
         const val BARRIER_RECHECK_MS = 2_000L
     }
+}
+
+
+/**
+ * Row 616: may the guest jump to [trackId] inside the list it holds ([have], media ids in order)? Only when [trackId] is in it and what the
+ * guest has AFTER it agrees with what the room says comes after it ([roomQueue], the host's window around its cursor, in the room's order):
+ * the shorter of the two must be the start of the longer. Anything else is a different queue and is loaded from scratch.
+ */
+internal fun reuseInPlace(have: List<String>, trackId: String, roomQueue: List<String>): Boolean {
+    val index = have.indexOf(trackId)
+    if (index < 0) return false
+    val roomIndex = roomQueue.indexOf(trackId)
+    val roomUpcoming = if (roomIndex >= 0) roomQueue.drop(roomIndex + 1) else roomQueue.filter { it != trackId }
+    val mine = have.drop(index + 1)
+    val n = minOf(mine.size, roomUpcoming.size)
+    return mine.take(n) == roomUpcoming.take(n)
 }
