@@ -473,7 +473,12 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         val position = state.estimatedPositionMs(serverNow()).coerceAtLeast(0L)
         Timber.tag(TAG).i("DEVICE_SYNC taking over items=%d index=%d", items.size, state.index)
         onMain {
-            service.playQueue(ListQueue(title = state.deviceName.ifBlank { null }, items = items, startIndex = state.index, position = position), playWhenReady = true)
+            service.remoteRedirectBypass = true
+            try {
+                service.playQueue(ListQueue(title = state.deviceName.ifBlank { null }, items = items, startIndex = state.index, position = position), playWhenReady = true)
+            } finally {
+                service.remoteRedirectBypass = false
+            }
         }
     }
 
@@ -522,6 +527,34 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 }
             }
         }
+    }
+
+    /**
+     * A queue the user started on THIS device while it controls another one: the other device plays it (as a hand-over in the other
+     * direction, without pausing anything here — nothing plays here). False when there is nothing to send or no one to send it to.
+     */
+    suspend fun sendQueueToRemote(status: iad1tya.echo.music.playback.queues.Queue.Status): Boolean {
+        val target = RemotePlayback.target.value ?: return false
+        if (status.items.isEmpty()) return false
+        val first = (status.mediaItemIndex - WINDOW_BEHIND).coerceAtLeast(0)
+        val window = status.items.drop(first).take(WINDOW_BEHIND + WINDOW_AHEAD + 1)
+        val state = buildJsonObject {
+            put("items", buildJsonArray { window.forEach { add(nowItem(it)) } })
+            put("index", (status.mediaItemIndex - first).coerceIn(0, window.lastIndex))
+            put("positionMs", status.position)
+            put("playing", true)
+            put("at", serverNow())
+        }
+        val sent = client.send(buildJsonObject {
+            put("t", "cmd"); put("to", target.deviceId); put("cmd", "take"); put("args", buildJsonObject { put("state", state) })
+        })
+        if (sent) {
+            Timber.tag(TAG).i("DEVICE_SYNC queue sent to the controlled device items=%d", window.size)
+            RemotePlayback.playing.value = true
+        } else {
+            DeviceSyncHub.notice("Sin conexión con la sincronización.")
+        }
+        return sent
     }
 
     override fun sendTo(deviceId: String) {

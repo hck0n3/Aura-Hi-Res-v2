@@ -692,6 +692,10 @@ class MusicService :
         internal set // the crossfade swap (CrossfadeEngine.kt) promotes the secondary player
     internal var secondaryPlayer: ExoPlayer? = null
     internal var deviceSync: iad1tya.echo.music.devicesync.DeviceSyncEngine? = null
+
+    /** True while the device-sync engine itself starts a queue here (a hand-over): it must not be sent on to a controlled device. */
+    @Volatile
+    internal var remoteRedirectBypass = false
     internal var fadingPlayer: ExoPlayer? = null
     internal var isCrossfading = false
     // Read-only OBSERVATION flag only. Mirrors the plain [isCrossfading] boolean so the UI can observe a
@@ -3782,6 +3786,28 @@ class MusicService :
         // prepares+plays exactly as before.
         isRestore: Boolean = false,
     ) {
+        // Row 556 (owner 2026-10-31, as Spotify does it): while this device is only CONTROLLING another one, a queue the user starts
+        // here plays THERE. Before, searching and playing a song on the phone while it controlled the tablet made the phone play it
+        // and the tablet go quiet («ya no continuó esa canción en la tablet sino en mi cel»). If the order cannot be sent, play here.
+        if (!isRestore && playWhenReady && !remoteRedirectBypass && iad1tya.echo.music.devicesync.RemotePlayback.active) {
+            val engine = deviceSync
+            if (engine != null) {
+                if (!scope.isActive) scope = CoroutineScope(Dispatchers.Main) + Job()
+                scope.launch {
+                    val sent = runCatching { engine.sendQueueToRemote(queue.getInitialStatus()) }.getOrDefault(false)
+                    if (!sent) {
+                        Timber.tag(TAG).w("Queue could not be sent to the controlled device — playing here")
+                        remoteRedirectBypass = true
+                        try {
+                            playQueue(queue, playWhenReady, isRestore)
+                        } finally {
+                            remoteRedirectBypass = false
+                        }
+                    }
+                }
+                return
+            }
+        }
         // A new queue invalidates any radio-seed coroutine still running for the OLD one — see
         // [queueGeneration]'s own doc comment. Bumped FIRST, before anything async below, so a seed
         // that already captured the old value cannot slip in front of this increment.
