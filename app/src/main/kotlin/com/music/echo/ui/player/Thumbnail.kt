@@ -1302,7 +1302,7 @@ private fun ThumbnailItem(
                     val requestedArtist = item.mediaMetadata.artist?.toString() ?: ""
                     val requestedTitle = item.mediaMetadata.title?.toString() ?: ""
                     
-                    val validated = fetched?.let { artwork ->
+                    val validatedBySong = fetched?.let { artwork ->
                         val resultArtist = artwork.artist
                         val resultName = artwork.name
                         
@@ -1366,6 +1366,28 @@ private fun ThumbnailItem(
                         }
                     }
                     
+                    // Row 598 — the album page's own search, as a second chance. The song-level chain above found nothing (or its check rejected
+                    // it), but the page of this album may well find it: it searches by ALBUM, over four spellings, with TIDAL as a fallback. Both call the
+                    // same function, so from here on «the page animates and the player does not» cannot happen for the same album and first artist.
+                    val validated = validatedBySong ?: run {
+                        val albumForPage = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString().orEmpty()
+                        val artistForPage = CanvasAlbumMemo.firstArtist(item.mediaMetadata.artist?.toString())
+                        if (albumForPage.isBlank() || artistForPage.isBlank() || !canvasInForeground) {
+                            null
+                        } else {
+                            val viaAlbum = withTimeoutOrNull(14_000L) {
+                                iad1tya.echo.music.ui.screens.resolveAlbumCanvas(
+                                    albumTitle = albumForPage,
+                                    artistName = artistForPage,
+                                    firstSongTitle = item.mediaMetadata.title?.toString(),
+                                    storefront = storefront,
+                                )
+                            }
+                            timber.log.Timber.tag("CANVAS").i("CANVAS_ALBUM_RETRY found=%b", viaAlbum != null)
+                            viaAlbum
+                        }
+                    }
+
                     // The chain ANSWERED (it did not time out): keep the album's answer for its other songs.
                     // A cover the providers DID return but this check rejected is not «there is none» (row 578): remembering it as none
                     // froze the player for 20 minutes while the album page, which accepts it, kept animating.
