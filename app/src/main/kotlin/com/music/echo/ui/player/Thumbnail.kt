@@ -530,7 +530,7 @@ fun Thumbnail(
             playerConnection.seekToNextOrStartRadio()
         } else if (currentItem < currentMediaIndex && canSkipPrevious) {
             suppressCoverSettle = true
-            playerConnection.player.seekToPreviousMediaItem()
+            iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() }
         }
     }
 
@@ -781,7 +781,7 @@ fun Thumbnail(
                         }).SwipeGesture(
                             enabled = isPlayerExpanded() && swipeThumbnail,
                             onSwipeLeft = { if (!isListenTogetherGuest && canSkipNext) playerConnection.seekToNextOrStartRadio() },
-                            onSwipeRight = { if (!isListenTogetherGuest && canSkipPrevious) playerConnection.player.seekToPreviousMediaItem() },
+                            onSwipeRight = { if (!isListenTogetherGuest && canSkipPrevious) iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() } },
                         ),
                         contentAlignment = Alignment.Center,
                         label = "ThumbnailDirectionalSlide",

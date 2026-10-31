@@ -1021,9 +1021,9 @@ fun AuraMiniPlayer(
                                 velocity > autoSwipeThreshold * 4
                             if (committed) {
                                 if (offsetX.value > 0) {
-                                    if (canSkipPrevious) playerConnection.player.seekToPreviousMediaItem()
+                                    if (canSkipPrevious) iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() }
                                 } else {
-                                    if (canSkipNext) playerConnection.player.seekToNext()
+                                    if (canSkipNext) iad1tya.echo.music.devicesync.RemotePlayback.nextOrLocal { playerConnection.player.seekToNext() }
                                 }
                             }
                             scope.launch { offsetX.animateTo(0f, settleSpec) }
@@ -1317,7 +1317,7 @@ fun AuraMiniPlayer(
                     AuraIconButton(
                         icon = AuraIcons.SkipPrevious,
                         contentDescription = stringResource(R.string.previous),
-                        onClick = { playerConnection.player.seekToPreviousMediaItem() },
+                        onClick = { iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() } },
                         enabled = canSkipPrevious && !isListenTogetherGuest,
                         interactive = gesturesEnabled,
                         firstTap = true,
@@ -1366,7 +1366,7 @@ fun AuraMiniPlayer(
                     AuraIconButton(
                         icon = AuraIcons.SkipNext,
                         contentDescription = stringResource(R.string.next),
-                        onClick = { playerConnection.player.seekToNext() },
+                        onClick = { iad1tya.echo.music.devicesync.RemotePlayback.nextOrLocal { playerConnection.player.seekToNext() } },
                         enabled = canSkipNext && !isListenTogetherGuest,
                         interactive = gesturesEnabled,
                         firstTap = true,

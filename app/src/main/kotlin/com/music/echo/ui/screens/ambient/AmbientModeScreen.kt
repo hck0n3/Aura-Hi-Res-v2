@@ -87,9 +87,9 @@ fun AmbientModeScreen(navController: NavController) {
                         // Horizontal swipe logic (Skip Next/Prev)
                         if (abs(swipeThresholdX) > 150f && abs(swipeThresholdX) > abs(swipeThresholdY)) {
                             if (swipeThresholdX > 0) {
-                                playerConnection.player.seekToPreviousMediaItem()
+                                iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() }
                             } else {
-                                playerConnection.player.seekToNext()
+                                iad1tya.echo.music.devicesync.RemotePlayback.nextOrLocal { playerConnection.player.seekToNext() }
                             }
                         }
                         swipeThresholdX = 0f

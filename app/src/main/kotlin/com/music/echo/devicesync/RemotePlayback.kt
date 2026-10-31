@@ -109,6 +109,15 @@ object RemotePlayback {
         if (active) setShuffle(!shuffle.value) else setLocal(!localCurrent)
     }
 
+    /**
+     * Row 603 (owner 2026-10-31: «en remoto intento cambiar la canción desde mi cel, el cel hace el intento y se devuelve a la que suena»):
+     * the mini player's previous/next, the swipes on it and on the cover, and the ambient screen moved THIS device's own player, which only
+     * mirrors the other one, so it snapped back. While another device is controlled the order goes to IT; otherwise [local] runs as before.
+     */
+    fun nextOrLocal(local: () -> Unit) { if (!next()) local() }
+
+    fun previousOrLocal(local: () -> Unit) { if (!previous()) local() }
+
     fun dislike(): Boolean = sendForCurrentSong("dislike")
     fun like(): Boolean = sendForCurrentSong("like")
 

@@ -404,9 +404,9 @@ private fun NewMiniPlayer(
 
                                 if (shouldChangeSong) {
                                     if (currentOffset > 0 && canSkipPrevious) {
-                                        playerConnection.player.seekToPreviousMediaItem()
+                                        iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() }
                                     } else if (currentOffset <= 0 && canSkipNext) {
-                                        playerConnection.player.seekToNext()
+                                        iad1tya.echo.music.devicesync.RemotePlayback.nextOrLocal { playerConnection.player.seekToNext() }
                                     }
                                 }
                                 coroutineScope.launch {
@@ -473,7 +473,7 @@ private fun NewMiniPlayer(
 
                 IconButton(
                     enabled = canSkipPrevious && !isListenTogetherGuest,
-                    onClick = if (isListenTogetherGuest) ({}) else ({ playerConnection.player.seekToPreviousMediaItem() }),
+                    onClick = if (isListenTogetherGuest) ({}) else ({ iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() } }),
                 ) {
                     Icon(painter = painterResource(R.drawable.skip_previous), contentDescription = null, tint = onSurfaceColor)
                 }
@@ -489,7 +489,7 @@ private fun NewMiniPlayer(
 
                 IconButton(
                     enabled = canSkipNext && !isListenTogetherGuest,
-                    onClick = if (isListenTogetherGuest) ({}) else ({ playerConnection.player.seekToNext() }),
+                    onClick = if (isListenTogetherGuest) ({}) else ({ iad1tya.echo.music.devicesync.RemotePlayback.nextOrLocal { playerConnection.player.seekToNext() } }),
                 ) {
                     Icon(painter = painterResource(R.drawable.skip_next), contentDescription = null, tint = onSurfaceColor)
                 }
@@ -767,9 +767,9 @@ private fun LegacyMiniPlayer(
 
                                 if (shouldChangeSong) {
                                     if (currentOffset > 0 && canSkipPrevious) {
-                                        playerConnection.player.seekToPreviousMediaItem()
+                                        iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() }
                                     } else if (currentOffset <= 0 && canSkipNext) {
-                                        playerConnection.player.seekToNext()
+                                        iad1tya.echo.music.devicesync.RemotePlayback.nextOrLocal { playerConnection.player.seekToNext() }
                                     }
                                 }
                                 coroutineScope.launch { offsetXAnimatable.animateTo(0f, animationSpec) }
