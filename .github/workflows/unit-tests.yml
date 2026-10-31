@@ -53,7 +53,7 @@ jobs:
 
       # Vigilante del reproductor de YouTube (fila 548): sus reglas de lectura, sobre los archivos reales del repositorio.
       - name: Player watch tests
-        run: cd scripts && python3 -m unittest test_player_watch test_player_extract -v
+        run: cd scripts && python3 -m unittest test_player_watch test_player_extract test_player_publish -v
 
       # Worker de salas (fila 547): Escuchar juntos propio, sobre workerd real.
       - name: Worker rooms tests

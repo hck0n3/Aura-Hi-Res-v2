@@ -1,0 +1,47 @@
+# Etapa 5 de la reparación semiautomática de YouTube: el botón «Publicar» (orden del dueño 2026-10-30: «guíame paso a paso»).
+# SOLO corre cuando el dueño lo lanza a mano y escribe PUBLICAR. Descarga el reproductor actual, construye la entrada, EJECUTA el
+# reproductor real con ella (verificador) y únicamente si pasa la escribe en player_configs.json de main, que la app lee en vivo.
+# Si algo no pasa, no toca nada. Jamás valores adivinados (AGENTS.md).
+# NOTA: GitHub solo muestra el botón de un workflow que está en la rama principal; subirlo a main es decisión del dueño.
+name: Player publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Escribe PUBLICAR para añadir el reproductor actual a player_configs.json (llega a TODOS los usuarios)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: inputs.confirm == 'PUBLICAR'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: cd scripts/verify && npm install --no-audit --no-fund --silent
+      - name: Build, verify and write the entry
+        id: publish
+        run: |
+          set -o pipefail
+          python3 scripts/player_publish.py | tee publish.log
+      - name: Commit it to main
+        run: |
+          if grep -q '^PUBLISHED ' publish.log; then
+            h=$(grep '^PUBLISHED ' publish.log | cut -d' ' -f2)
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add player_configs.json
+            git commit -m "Player config for $h, built and run through the verifier (Publicar)"
+            git push origin HEAD:main
+          else
+            echo "Nothing published:"; cat publish.log
+          fi
