@@ -5,7 +5,7 @@ import { Miniflare } from "miniflare";
 import { webcrypto as c } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, artistTags, normalizeArtist, sanitizeCanvas, canvasGet, canvasPut, validCanvasKey, backupPut, backupGet, backupList, backupDelete, FLAGS } from "../src/index.js";
+import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, artistTags, normalizeArtist, sanitizeCanvas, canvasGet, canvasPut, validCanvasKey, askGet, askPut, sanitizeAsk, validAskKey, backupPut, backupGet, backupList, backupDelete, FLAGS } from "../src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const b64 = (buf) => Buffer.from(buf).toString("base64");
@@ -291,4 +291,27 @@ test("backup route: end to end on workerd", async () => {
   assert.equal(list.copies.length, 1);
   assert.equal((await mf.dispatchFetch("http://x/v1/backup/" + id, { method: "DELETE" })).status, 200);
   assert.equal((await mf.dispatchFetch("http://x/v1/backup/not-an-id")).status, 404);
+});
+
+const askKey = "a".repeat(64);
+const askTracks = [1, 2, 3].map((n) => ({ title: "Song " + n, artist: "Artist" }));
+
+test("ask: an answer is filed under a hash, shared once and served to others", async () => {
+  const env = memEnv();
+  assert.equal((await askGet(env, askKey)).status, 404);
+  assert.equal((await askGet(env, "not a hash")).status, 400);
+  assert.deepEqual((await askPut(env, askKey, askTracks)).body, { stored: true });
+  assert.deepEqual((await askPut(env, askKey, [...askTracks, { title: "x", artist: "y" }])).body, { stored: false });
+  assert.deepEqual((await askGet(env, askKey)).body.tracks, askTracks);
+});
+
+test("ask: only plain bounded title/artist pairs are kept, tiny answers are not shared", () => {
+  assert.ok(validAskKey(askKey));
+  assert.equal(validAskKey("A".repeat(64)), false);
+  assert.equal(sanitizeAsk([{ title: "a", artist: "b" }]), null, "fewer than 3");
+  assert.equal(sanitizeAsk("nope"), null);
+  const mixed = sanitizeAsk([...askTracks, null, { title: 5, artist: "x" }, { title: " ", artist: "x" }, { title: "T".repeat(500), artist: "A", extra: 1 }]);
+  assert.equal(mixed.length, 4);
+  assert.deepEqual(Object.keys(mixed[3]), ["title", "artist"]);
+  assert.equal(mixed[3].title.length, 120);
 });

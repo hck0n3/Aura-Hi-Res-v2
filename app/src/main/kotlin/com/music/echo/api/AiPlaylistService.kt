@@ -3,6 +3,8 @@ package iad1tya.echo.music.api
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import iad1tya.echo.music.edge.EdgeAsk
+import iad1tya.echo.music.edge.EdgeClient
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -124,6 +126,16 @@ object AiPlaylistService {
             return@withContext Result.failure(IllegalArgumentException("Prompt is empty"))
         }
 
+        // Keyless first asks only (no user key, no refill exclusions): the answer another listener already got for the
+        // same request is reused, and ours is shared afterwards. Any miss or failure is the unchanged AI route.
+        val shareKey = if (apiKey.isBlank() && excludeTitles.isEmpty()) EdgeAsk.key(prompt, count) else null
+        if (shareKey != null) {
+            EdgeClient.askLookup(shareKey)?.let { shared ->
+                timber.log.Timber.i("AI playlist: shared answer reused tracks=%d", shared.size)
+                return@withContext Result.success(AiPlaylistSpec(name = "", tracks = shared))
+            }
+        }
+
         val messages = toJsonArray(AiPlaylistPrompt.buildMessages(prompt, count, excludeTitles))
         // Scale the token budget with the requested count (~80 tok/track + overhead) so a 50-song
         // request isn't truncated mid-JSON (the old fixed 2048 cut off large playlists → fewer songs).
@@ -143,6 +155,7 @@ object AiPlaylistService {
             // Zero temperature: owner requires exact obedience — no creative drift.
             temperature = 0.0,
         ) { content -> AiPlaylistParser.parse(content, count, era) }
+            .also { result -> if (shareKey != null) result.getOrNull()?.let { EdgeClient.askShare(shareKey, it.tracks) } }
     }
 
     /**

@@ -347,6 +347,50 @@ export async function canvasPut(env, k, art) {
   return { status: 200, body: { stored: true } };
 }
 
+// ── 3b) Shared answers of "Pedir música" ─────────────────────────────────────────────────────────────────────────────────────
+
+const ASK_TTL = 3 * 24 * 3600;
+const ASK_WRITES_PER_HOUR = 200;
+const ASK_MAX_BODY = 16 * 1024;
+const ASK_MAX_TRACKS = 60;
+
+/** The app files an answer under the SHA-256 of the normalized request: the Worker never sees what was typed. */
+export function validAskKey(k) {
+  return typeof k === "string" && /^[0-9a-f]{64}$/.test(k);
+}
+
+/** Only plain {title, artist} pairs, bounded; anything else (or fewer than 3 tracks) is not worth sharing. */
+export function sanitizeAsk(tracks) {
+  if (!Array.isArray(tracks)) return null;
+  const out = [];
+  for (const t of tracks.slice(0, ASK_MAX_TRACKS)) {
+    if (!t || typeof t.title !== "string" || typeof t.artist !== "string") continue;
+    const title = t.title.trim().slice(0, 120);
+    const artist = t.artist.trim().slice(0, 120);
+    if (title && artist) out.push({ title, artist });
+  }
+  return out.length >= 3 ? out : null;
+}
+
+export async function askGet(env, k) {
+  if (!validAskKey(k)) return { status: 400, body: { error: "key" } };
+  const v = await env.EDGE.get("ask:" + k);
+  return v == null ? { status: 404, body: { miss: true } } : { status: 200, body: { tracks: JSON.parse(v) } };
+}
+
+export async function askPut(env, k, tracks) {
+  const clean = validAskKey(k) ? sanitizeAsk(tracks) : null;
+  if (!clean) return { status: 400, body: { error: "rejected" } };
+  if ((await env.EDGE.get("ask:" + k)) != null) return { status: 200, body: { stored: false } }; // first answer wins until it expires
+  const hour = Math.floor(Date.now() / 3_600_000);
+  const budgetKey = "rate:ask:" + hour;
+  const used = Number((await env.EDGE.get(budgetKey)) || 0);
+  if (used >= ASK_WRITES_PER_HOUR) return { status: 429, body: { error: "slow down" } };
+  await env.EDGE.put(budgetKey, String(used + 1), { expirationTtl: 3700 });
+  await env.EDGE.put("ask:" + k, JSON.stringify(clean), { expirationTtl: ASK_TTL });
+  return { status: 200, body: { stored: true } };
+}
+
 // ── 5) Encrypted cloud backup ────────────────────────────────────────────────────────────────────────────────────────────────
 
 const BACKUP_MAX = 24 * 1024 * 1024; // under KV's 25 MiB value limit, so the same copy fits either store
@@ -442,6 +486,18 @@ export default {
         let input;
         try { input = JSON.parse(text); } catch { return json({ error: "bad json" }, 400); }
         const r = await canvasPut(env, input && input.k, input && input.artwork);
+        return json(r.body, r.status);
+      }
+      if (req.method === "GET" && p === "/v1/ask") {
+        const r = await askGet(env, url.searchParams.get("k"));
+        return json(r.body, r.status, r.status === 200 ? { "cache-control": "public, max-age=600" } : {});
+      }
+      if (req.method === "PUT" && p === "/v1/ask") {
+        const text = await readBody(req, ASK_MAX_BODY);
+        if (text == null) return json({ error: "too big" }, 413);
+        let input;
+        try { input = JSON.parse(text); } catch { return json({ error: "bad json" }, 400); }
+        const r = await askPut(env, input && input.k, input && input.tracks);
         return json(r.body, r.status);
       }
       const bk = /^\/v1\/backup\/([0-9a-f]{64})(\/list)?$/.exec(p);

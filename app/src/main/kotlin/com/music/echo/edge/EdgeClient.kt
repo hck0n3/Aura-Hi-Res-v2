@@ -35,6 +35,10 @@ object EdgeClient {
     var lastState: State = State.NeverChecked
         private set
 
+    /** Kept at app start so callers without a Context (the AI request chain) can still use the shared caches. */
+    @Volatile
+    private var appContext: Context? = null
+
     private data class Settings(val enabled: Boolean, val base: String, val key: String)
 
     private suspend fun settings(context: Context): Settings {
@@ -48,6 +52,7 @@ object EdgeClient {
 
     /** At app start: install the last good config at once (no network), then refresh if it is time. */
     suspend fun start(context: Context) = withContext(Dispatchers.IO) {
+        appContext = context.applicationContext
         val s = settings(context)
         if (!s.enabled) {
             RemoteConfigs.install(null)
@@ -300,6 +305,51 @@ object EdgeClient {
             }
             conn.outputStream.use { it.write(bytes) }
             Timber.tag(TAG).i("EDGE canvas shared status=%d", conn.responseCode)
+        } catch (_: Exception) {
+            // Sharing is a courtesy: a failure changes nothing for this user.
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** «Pedir música»: the answer another listener already got for the same request, or null → the AI is asked as before. */
+    suspend fun askLookup(key: String): List<iad1tya.echo.music.api.TrackQuery>? = withContext(Dispatchers.IO) {
+        val context = appContext ?: return@withContext null
+        val s = settings(context)
+        if (!s.enabled || s.base.isBlank() || key.isBlank()) return@withContext null
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("${s.base}/v1/ask?k=" + java.net.URLEncoder.encode(key, "UTF-8")).openConnection() as HttpURLConnection).apply {
+                connectTimeout = TAGS_TIMEOUT_MS
+                readTimeout = TAGS_TIMEOUT_MS
+            }
+            if (conn.responseCode != 200) return@withContext null
+            readCapped(conn, MAX_CONFIG_BYTES)?.let(EdgeAsk::parse)
+        } catch (_: Exception) {
+            null
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** «Pedir música»: file what the AI proposed so the next identical request skips it. Best effort; the typed text never travels. */
+    suspend fun askShare(key: String, tracks: List<iad1tya.echo.music.api.TrackQuery>) = withContext(Dispatchers.IO) {
+        val context = appContext ?: return@withContext
+        val s = settings(context)
+        if (!s.enabled || s.base.isBlank() || key.isBlank() || tracks.size < 3) return@withContext
+        var conn: HttpURLConnection? = null
+        try {
+            val bytes = EdgeAsk.body(key, tracks).toByteArray(Charsets.UTF_8)
+            conn = (URL("${s.base}/v1/ask").openConnection() as HttpURLConnection).apply {
+                requestMethod = "PUT"
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setFixedLengthStreamingMode(bytes.size)
+            }
+            conn.outputStream.use { it.write(bytes) }
+            Timber.tag(TAG).i("EDGE ask shared status=%d tracks=%d", conn.responseCode, tracks.size)
         } catch (_: Exception) {
             // Sharing is a courtesy: a failure changes nothing for this user.
         } finally {
