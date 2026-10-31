@@ -158,4 +158,25 @@ class LibrarySyncCoreTest {
         val gone = LibrarySyncCore.localOps(emptyMap(), ledger, 100)
         assertEquals(listOf("ab:A"), gone.map { it.key })
     }
+
+    @Test
+    fun `listens of the History screen parse, plan, and are create-only`() {
+        val key = LibrarySyncCore.playKey("song1", 1_761_800_000L)
+        assertEquals("hv:song1:1761800000", key)
+        assertEquals(Key.Play("song1", 1_761_800_000L), LibrarySyncCore.parse(key))
+        assertNull(LibrarySyncCore.parse("hv:song1"))
+        assertNull(LibrarySyncCore.parse("hv:song1:notanumber"))
+        assertNull(LibrarySyncCore.parse("hv:a:b:123"))
+        assertTrue(LibrarySyncCore.isMeta(key))
+
+        val plan = LibrarySyncCore.plan(listOf(reg(key, 10)))
+        assertEquals(listOf("song1" to 1_761_800_000L), plan.plays)
+        assertEquals(0, plan.removalCount)
+
+        // A listen that fell out of the latest-300 window is not «removed here»: it stays in the ledger and is never turned off.
+        val ledger = mapOf(key to Reg(key, 10, "1"))
+        assertTrue(LibrarySyncCore.localOps(emptyMap(), ledger, now = 99).isEmpty())
+        // And a listen already in the ledger is not sent again.
+        assertTrue(LibrarySyncCore.localOps(mapOf(key to "1"), ledger, now = 99).isEmpty())
+    }
 }

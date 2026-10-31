@@ -2,6 +2,7 @@ package iad1tya.echo.music.devicesync
 
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.AlbumEntity
+import iad1tya.echo.music.db.entities.Event
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.devicesync.LibrarySyncCore.ON
@@ -9,6 +10,7 @@ import iad1tya.echo.music.devicesync.LibrarySyncCore.Plan
 import iad1tya.echo.music.dislike.DislikeStore
 import iad1tya.echo.music.models.MediaMetadata
 import java.time.LocalDateTime
+import java.time.ZoneOffset
 import timber.log.Timber
 
 /**
@@ -59,6 +61,14 @@ class LibrarySyncAdapter(
             }
         }
 
+        // The History screen (owner 2026-10-31: «el historial no está sincronizado»): the most recent listens, one create-only register
+        // each. The second is the wall-clock time read as UTC, so every device rebuilds exactly the same moment.
+        for (row in database.syncRecentPlays(PLAY_SYNC_LIMIT)) {
+            if (!LibrarySyncCore.syncableId(row.songId)) continue
+            facts[LibrarySyncCore.playKey(row.songId, row.timestamp.toEpochSecond(ZoneOffset.UTC))] = ON
+            referenced += row.songId
+        }
+
         val d = dislikes.snapshot()
         fun add(set: String, ids: Set<String>) = ids.filter(LibrarySyncCore::syncableId).forEach { facts[LibrarySyncCore.dislikeKey(set, it)] = ON }
         add("song", d.songs)
@@ -106,6 +116,19 @@ class LibrarySyncAdapter(
                     duration = meta.duration,
                 ),
             )
+            applied++
+        }
+
+        // 1c. Listens (History screen) another device heard: add the ones not here yet, with no listening time (it was not heard HERE,
+        // so the statistics of time listened stay true).
+        for ((songId, second) in plan.plays) {
+            if (database.syncSongExists(songId) == 0) {
+                unresolved++
+                continue
+            }
+            val at = LocalDateTime.ofEpochSecond(second, 0, ZoneOffset.UTC)
+            if (database.syncPlayCount(songId, at, at.plusSeconds(1)) > 0) continue
+            database.insert(Event(songId = songId, timestamp = at, playTime = 0L))
             applied++
         }
 
@@ -234,5 +257,8 @@ class LibrarySyncAdapter(
 
     private companion object {
         const val MIRROR_MAX = 25
+
+        /** How many of the latest listens are offered to the other devices; older ones already went out when they were new. */
+        const val PLAY_SYNC_LIMIT = 300
     }
 }

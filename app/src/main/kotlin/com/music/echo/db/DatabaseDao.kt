@@ -1453,7 +1453,7 @@ interface DatabaseDao {
     ): Flow<List<Playlist>>
 
     @Transaction
-    @Query("SELECT * FROM event ORDER BY rowId DESC")
+    @Query("SELECT * FROM event ORDER BY timestamp DESC, rowId DESC")
     fun events(): Flow<List<EventWithSong>>
 
     // Bounded recent history for the taste engine: loading the ENTIRE history (with its song+artist
@@ -2550,6 +2550,13 @@ interface DatabaseDao {
     @Query("SELECT playlistId FROM album WHERE id = :id")
     suspend fun syncAlbumPlaylistId(id: String): String?
 
+    // Listening history (the History screen): the last plays, and whether one is already here (to the second).
+    @Query("SELECT songId, timestamp FROM event ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun syncRecentPlays(limit: Int): List<SyncPlayRow>
+
+    @Query("SELECT COUNT(*) FROM event WHERE songId = :songId AND timestamp >= :from AND timestamp < :to")
+    suspend fun syncPlayCount(songId: String, from: LocalDateTime, to: LocalDateTime): Int
+
     /** Whether the song is liked here right now (null = no such song). */
     @Query("SELECT liked FROM song WHERE id = :id")
     suspend fun syncIsLiked(id: String): Boolean?
@@ -2592,6 +2599,9 @@ data class SyncMemberRow(val playlistId: String, val songId: String)
 
 /** What the library sync tells another device about a saved album. */
 data class SyncAlbumRow(val id: String, val playlistId: String?, val title: String, val year: Int?, val thumbnailUrl: String?, val songCount: Int, val duration: Int)
+
+/** One listen, as the library sync reads it from the History table. */
+data class SyncPlayRow(val songId: String, val timestamp: LocalDateTime)
 
 /** What the library sync tells another device about a song. */
 data class SyncSongRow(val id: String, val title: String, val thumbnailUrl: String?, val artist: String?)
