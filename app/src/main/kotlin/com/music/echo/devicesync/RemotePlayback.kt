@@ -1,6 +1,12 @@
 package iad1tya.echo.music.devicesync
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Row 534/537 — the other device's playback, shown and controlled by THIS device's own player, the way Cast and Spotify Connect do
@@ -27,8 +33,44 @@ object RemotePlayback {
     val duration = MutableStateFlow(0L)
     val playing = MutableStateFlow(false)
 
+    /** The other device's app volume as the slider here shows it (0..1). Follows what it publishes unless the user is dragging. */
+    val volume = MutableStateFlow(1f)
+
     @Volatile
     private var lastControlAt = 0L
+
+    @Volatile
+    private var lastVolumeAt = 0L
+    private var lastVolumeSentAt = 0L
+    private var volumeTrailing: Job? = null
+    private val volumeScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * The volume slider while another device plays: sends at most ~8 times a second while dragging and always the last value.
+     * Returns false when nothing is being controlled (the caller then moves its own volume).
+     */
+    fun setVolume(level: Float): Boolean {
+        val t = target.value ?: return false
+        val v = level.coerceIn(0f, 1f)
+        val now = System.currentTimeMillis()
+        lastControlAt = now
+        lastVolumeAt = now
+        volume.value = v
+        volumeTrailing?.cancel()
+        if (now - lastVolumeSentAt >= VOLUME_SEND_EVERY_MS) {
+            lastVolumeSentAt = now
+            DeviceSyncHub.controller?.control(t.deviceId, "volume", levelPermille = (v * 1000).toInt())
+        } else {
+            volumeTrailing = volumeScope.launch {
+                delay(VOLUME_SEND_EVERY_MS)
+                lastVolumeSentAt = System.currentTimeMillis()
+                DeviceSyncHub.controller?.control(t.deviceId, "volume", levelPermille = (v * 1000).toInt())
+            }
+        }
+        return true
+    }
+
+    private const val VOLUME_SEND_EVERY_MS = 120L
 
     val active: Boolean get() = target.value != null
 
@@ -42,6 +84,18 @@ object RemotePlayback {
     fun toggle(): Boolean = if (playing.value) pause() else play()
     fun next(): Boolean = send("next")
     fun previous(): Boolean = send("prev")
+
+    /** «No me gusta» / «Me gusta» on the song shown here, done by the device that really plays it (see DeviceSyncEngine.runCommand). */
+    fun dislike(): Boolean = sendForCurrentSong("dislike")
+    fun like(): Boolean = sendForCurrentSong("like")
+
+    private fun sendForCurrentSong(command: String): Boolean {
+        val t = target.value ?: return false
+        val id = t.current?.id ?: return false
+        lastControlAt = System.currentTimeMillis()
+        DeviceSyncHub.controller?.control(t.deviceId, command, trackId = id)
+        return true
+    }
 
     fun seekTo(positionMs: Long): Boolean {
         val t = target.value ?: return false
@@ -81,6 +135,8 @@ object RemotePlayback {
         }
         playing.value = state.playing
         duration.value = state.durationMs
+        // Do not fight the slider while the user is moving it: the device's own report catches up a couple of seconds later.
+        if (state.volume >= 0f && System.currentTimeMillis() - lastVolumeAt > 2_500L) volume.value = state.volume
         position.value = state.estimatedPositionMs(serverNowMs).coerceIn(0L, if (state.durationMs > 0) state.durationMs else Long.MAX_VALUE)
     }
 

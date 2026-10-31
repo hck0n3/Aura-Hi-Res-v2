@@ -460,6 +460,8 @@ class PlayerConnection(
 
     fun toggleLike() {
         try {
+            // Playing on another of my devices: the heart belongs to THAT song, not to whatever this device last had.
+            if (iad1tya.echo.music.devicesync.RemotePlayback.like()) return
             service.toggleLike()
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Error in toggleLike")
@@ -481,6 +483,7 @@ class PlayerConnection(
      */
     fun toggleDislikeCurrentSong() {
         try {
+            if (iad1tya.echo.music.devicesync.RemotePlayback.dislike()) return
             service.toggleDislikeCurrentSong()
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Error in toggleDislikeCurrentSong")

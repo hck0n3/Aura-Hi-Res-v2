@@ -2112,6 +2112,7 @@ class MusicService :
         isRunning = true
         // Row 528: the user's devices in step (only does anything while the app is paired in Ajustes ▸ Sincronizar dispositivos).
         deviceSync = iad1tya.echo.music.devicesync.DeviceSyncEngine(this).also { it.start() }
+        watchSyncedDislikes()
         // The Cast handler OBJECT exists from the start; only its initialize() (GMS listeners) waits for the first real
         // playback (initializeCast). It used to be created there, so everything that captured `castConnectionHandler` earlier
         // — PlayerConnection.isEffectivelyPlaying at construction, the player/mini/queue composables with
@@ -5379,6 +5380,40 @@ class MusicService :
         }
     }
 
+    /** Songs whose dislike THIS device is already acting on (see [watchSyncedDislikes]). */
+    private val dislikeHandledHere = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /**
+     * A «No me gusta» that arrives from another device (library sync) must do what it does where it is given: drop the song from the
+     * queue and skip it if it is the one playing (row 552). Until now the dislike only reached the store, so the other device kept
+     * playing the song it was told to dislike. Only NEW ids count (the first read is the baseline), and ids this device just handled
+     * itself in [dislikeCurrentSong] are left alone.
+     */
+    private fun watchSyncedDislikes() {
+        scope.launch {
+            var known: Set<String>? = null
+            dislikeStore.disliked.map { it.songs }.distinctUntilChanged().collect { now ->
+                val before = known
+                known = now
+                if (before == null) return@collect
+                val added = (now - before).filterNot { dislikeHandledHere.remove(it) }.toSet()
+                if (added.isEmpty()) return@collect
+                withContext(Dispatchers.Main) {
+                    var dropped = 0
+                    for (i in player.mediaItemCount - 1 downTo 0) {
+                        if (i != player.currentMediaItemIndex && player.getMediaItemAt(i).mediaId in added) {
+                            player.removeMediaItem(i)
+                            dropped++
+                        }
+                    }
+                    val skipCurrent = player.currentMediaItem?.mediaId in added && player.hasNextMediaItem()
+                    if (skipCurrent) player.seekToNext()
+                    Timber.tag(TAG).i("SYNCED_DISLIKE new=%d dropped=%d skippedCurrent=%b", added.size, dropped, skipCurrent)
+                }
+            }
+        }
+    }
+
     fun toggleStartRadio() {
         startRadioSeamlessly()
     }
@@ -5390,6 +5425,12 @@ class MusicService :
      */
     fun dislikeCurrentSong() {
         val mediaId = player.currentMediaItem?.mediaId ?: return
+        // This body drops and skips by itself: tell the watcher below not to do it a second time (two skips = a song lost).
+        dislikeHandledHere.add(mediaId)
+        scope.launch {
+            delay(5_000)
+            dislikeHandledHere.remove(mediaId)
+        }
         scope.launch {
             // See the matching comment on SongEntity.toggleLike: timestamp only, for correlating
             // against a possible subscribeChannel call if the owner's report reproduces.

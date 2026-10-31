@@ -359,6 +359,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             deviceName = o.str("deviceName").orEmpty(),
             atMs = o.long("at") ?: serverNow(),
             durationMs = o.long("durationMs") ?: 0L,
+            volume = o.int("vol")?.let { it.coerceIn(0, 1000) / 1000f } ?: -1f,
         )
     }
 
@@ -366,7 +367,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)
-        if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek") {
+        if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like") {
             // The device that sent the order is showing OUR timeline: tell it the new state as soon as the player has settled,
             // not at the next heartbeat (row 534).
             scope.launch {
@@ -380,6 +381,20 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             "next" -> onMain { service.player.seekToNext() }
             "prev" -> onMain { service.player.seekToPrevious() }
             "seek" -> args.long("positionMs")?.let { p -> onMain { service.player.seekTo(p) } }
+            // Owner 2026-10-31: «toqué el no me gusta en mi cel mientras sonaba en la tablet… la tablet registró el no me gusta pero no
+            // hizo lo que hace». The song is judged where it PLAYS: this device does the whole thing (remember it, drop it from the
+            // queue, skip), but only if it is still the song the other device was looking at.
+            "dislike" -> args.str("trackId")?.let { id ->
+                onMain { if (service.player.currentMediaItem?.mediaId == id) service.dislikeCurrentSong() }
+            }
+            // The volume slider of the device that CONTROLS reaches the one that plays (owner 2026-10-31). It is this app's own volume
+            // (the same one the in-app slider sets), 0..1000 per mille.
+            "volume" -> args.int("level")?.let { level ->
+                if (service.playerVolumeInitialized) service.playerVolume.value = (level.coerceIn(0, 1000) / 1000f)
+            }
+            "like" -> args.str("trackId")?.let { id ->
+                onMain { if (service.player.currentMediaItem?.mediaId == id) service.toggleLike() }
+            }
             "handoff" -> if (handoffEnabled) {
                 val to = args.str("to") ?: from
                 val state = buildNow()
@@ -418,11 +433,15 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
     }
 
-    override fun control(deviceId: String, command: String, positionMs: Long?) {
+    override fun control(deviceId: String, command: String, positionMs: Long?, trackId: String?, levelPermille: Int?) {
         scope.launch {
             val sent = client.send(buildJsonObject {
                 put("t", "cmd"); put("to", deviceId); put("cmd", command)
-                if (positionMs != null) put("args", buildJsonObject { put("positionMs", positionMs.coerceAtLeast(0L)) })
+                if (positionMs != null || trackId != null || levelPermille != null) put("args", buildJsonObject {
+                    if (positionMs != null) put("positionMs", positionMs.coerceAtLeast(0L))
+                    if (trackId != null) put("trackId", trackId)
+                    if (levelPermille != null) put("level", levelPermille.coerceIn(0, 1000))
+                })
             })
             if (!sent) {
                 DeviceSyncHub.notice("Sin conexión con la sincronización.")
@@ -432,7 +451,12 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     override fun takeOverFrom(deviceId: String) {
         scope.launch {
-            val fallback = DeviceSyncHub.remoteNow.value?.takeIf { it.deviceId == deviceId }
+            // Owner 2026-10-31: after the link between two devices dropped, «Continuar aquí» brought back the OLD queue and played
+            // what the other one had before. What we last heard from a device that was PLAYING and then went quiet is not what it
+            // plays now: only a state that is still fresh may stand in for an answer that never comes (row 553).
+            val fallback = DeviceSyncHub.remoteNow.value
+                ?.takeIf { it.deviceId == deviceId }
+                ?.takeIf { !it.playing || serverNow() - it.atMs <= RemotePlayback.FRESH_MS }
             val sent = client.send(buildJsonObject {
                 put("t", "cmd"); put("to", deviceId); put("cmd", "handoff"); put("args", buildJsonObject { put("to", this@DeviceSyncEngine.deviceId) })
             })
@@ -450,7 +474,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                     // The other device never answered the hand-over: make sure it stops if it IS reachable, so both do not play.
                     client.send(buildJsonObject { put("t", "cmd"); put("to", deviceId); put("cmd", "pause") })
                 } else {
-                    DeviceSyncHub.notice("No se pudo traer la reproducción de ese dispositivo.")
+                    DeviceSyncHub.notice("Ese dispositivo no responde. Cuando vuelva a conectarse, inténtalo de nuevo.")
                 }
             }
         }
@@ -533,6 +557,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             p.duration.takeIf { it > 0L }?.let { put("durationMs", it) }
             put("playing", p.playWhenReady && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED)
             put("at", serverNow())
+            if (service.playerVolumeInitialized) put("vol", (service.playerVolume.value.coerceIn(0f, 1f) * 1000).toInt())
         }
     }
 

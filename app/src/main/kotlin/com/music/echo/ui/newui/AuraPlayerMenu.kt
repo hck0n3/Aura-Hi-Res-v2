@@ -121,6 +121,9 @@ fun AuraPlayerMenu(
     val ringtoneViewModel = LocalRingtoneViewModel.current
 
     val playerVolume by playerConnection.service.playerVolume.collectAsState()
+    val remoteTargetForVolume by iad1tya.echo.music.devicesync.RemotePlayback.target.collectAsState()
+    val remoteVolume by iad1tya.echo.music.devicesync.RemotePlayback.volume.collectAsState()
+    val remoteActive = remoteTargetForVolume != null
     val hidePlayerVolume = rememberHidePlayerVolume()
     val castHandler = remember(playerConnection) {
         runCatching { playerConnection.service.castConnectionHandler }.getOrNull()
@@ -349,8 +352,10 @@ fun AuraPlayerMenu(
         if (showPlayerVolumeControl(hidePlayerVolume)) {
             item {
                 VolumeSlider(
-                    value = if (isCasting) castVolume else playerVolume,
+                    value = if (remoteActive) remoteVolume else if (isCasting) castVolume else playerVolume,
                     onValueChange = { volume ->
+                        // Another of my devices is playing: the slider moves ITS volume (owner 2026-10-31).
+                        if (iad1tya.echo.music.devicesync.RemotePlayback.setVolume(volume)) return@VolumeSlider
                         if (isCasting) castHandler?.setVolume(volume)
                         else playerConnection.service.playerVolume.value = volume
                     },
