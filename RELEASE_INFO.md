@@ -1,8 +1,36 @@
-# Aura Hi-Res v2.0.67-beta10 — aleatorio y control remoto corregidos, listas fijadas sincronizadas, cola inteligente y sugeridas más fieles, menos cosas repetidas
+# Aura Hi-Res v2.0.67-beta11 — un solo dispositivo da audio, el play remoto por fin suena, la cola inteligente deja de creerse las búsquedas y la portada animada usa la búsqueda del álbum
 
-Beta encima de la 2.0.67-beta9 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Para que las listas fijadas se sincronicen no hay que redesplegar nada: usan el mismo servidor de sincronización que ya tienes.
+Beta encima de la 2.0.67-beta10 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Instálala en los dos aparatos (cel y tablet): el control remoto y la sincronización necesitan la versión nueva en ambos lados.
 
-## Aleatorio y control remoto
+## Control remoto
+
+- **Solo un dispositivo da audio:** el que tú pones a sonar. Si empiezas a reproducir en uno mientras el otro suena, el otro recibe una pausa. Las órdenes que llegan del otro aparato (continuar aquí, una cola enviada, un play) no cuentan como toque, así que no se pausan entre sí.
+- **«Play» después de una pausa ahora hace sonar:** una cola copiada o restaurada quedaba «en reposo» y el play remoto no la preparaba, así que por más veces que lo tocaras no sonaba. Ahora la prepara.
+- **Al pausar los dos, ninguno vuelve a la cola anterior:** el aparato que controla ya no copia un estado viejo del otro que sea anterior a su última orden.
+- **El botón de play ya no dice «sonando» de un aparato que no contesta:** si en 5 segundos no hay respuesta (pantalla bloqueada, app dormida), vuelve al estado real y avisa con el nombre del aparato.
+- **Volumen del otro dispositivo en «Mis dispositivos»**, junto a sus controles, y el menú «⋯» dice de qué aparato es la barra.
+- **«Ir a la lista» también cuando el cel envía la cola a la tablet:** la cola viaja con su lista de origen.
+
+## Aleatorio
+
+- **«Iniciar desde cero» empieza de cero de verdad:** el contador ya cuenta solo la memoria del aleatorio. Antes sumaba todo lo que habías oído alguna vez, que nunca se borra, y volvía a mostrar «26 de 29».
+
+## Cola inteligente y Reproducción automática
+
+- **La cola ya no se cree las canciones solo porque vengan de una búsqueda del estilo:** en tu registro, 14 de 15 canciones entraron así y las saltaste. Ahora una canción de búsqueda se juzga por lo que se sabe de ella, y a su artista ya no se le enseña el estilo solo por haberlo buscado. (Lo que pides tú en «Pedir música» sigue funcionando igual.)
+- **El estilo que guía la cola queda fijo** en cuanto se conoce, hasta que pongas otra canción, álbum o lista; si no se conoce, lo toma de las canciones que escuchaste hasta el final y coinciden.
+- **La fila «Siguiendo: …» ya no se esconde cuando el estilo es desconocido:** dice «Detectando estilo…» y puedes corregirlo con el mismo menú.
+
+## Portada animada
+
+- **El reproductor usa la misma búsqueda que la página del álbum** cuando la suya no encuentra nada, una vez por álbum. Si la página anima un álbum, el reproductor también debe animarlo. En el registro verás `CANVAS_ALBUM_RETRY`.
+
+## Para que lo pruebes y me cuentes
+
+- No pude probar nada de esto en un aparato; todo pasa las pruebas automáticas. Si algo falla, manda el registro desde Ajustes ▸ Registros con la canción y la hora: para la portada busca `CANVAS_MEMO` y `CANVAS_ALBUM_RETRY`; para la cola, `STYLE_GATE`.
+- Sin resolver: «siguiente» que no cambiaba en remoto (en los registros sí cambia) y el historial del aleatorio entre aparatos (no se vio un fallo concreto).
+
+## De la beta 10: aleatorio y control remoto
 
 - **«Empezar desde cero» del aleatorio ya empieza de cero en todos tus dispositivos:** antes solo borraba en el aparato donde lo tocabas y el otro devolvía lo que ya había escuchado («26 de 29» recién reiniciado).
 - **El interruptor de aleatorio manda sobre el dispositivo que suena:** si controlas la tablet desde el cel, el aleatorio se activa en la tablet y el interruptor muestra su estado real, en el reproductor nuevo y también en la cola y el menú clásicos. Antes solo reordenaba la cola del cel.
