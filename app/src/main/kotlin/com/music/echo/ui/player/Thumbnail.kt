@@ -63,12 +63,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -236,8 +238,16 @@ private const val COVER_GLOW_ALPHA = 0.50f
  * before the clip instead of being cut by it.
  */
 private val COVER_SHADOW_ROOM = 14.dp
+// Row 560 (owner 2026-10-31: «la orilla de las portadas casi no se nota… que se vea un poco más por encima, que no se vea plana, unida
+// con la interfaz»; the shadow itself stays as it is). Three changes, all drawn once with the cover (nothing is sampled per frame):
+//  · the rim is 1.5 dp and brighter (top-left 0.55 instead of 0.30) and it ends in a thin DARK line at the bottom-right, so the edge
+//    also separates a light cover from a light ground;
+//  · a sheen over the artwork — light falling on the top third, a little shade on the bottom fifth — which is what makes a flat
+//    picture read as an object with thickness;
+//  · both follow the cover's own rounded shape, so the corners are not squared off.
+private val COVER_RIM_WIDTH = 1.5.dp
 private val COVER_RIM_BRUSH = androidx.compose.ui.graphics.Brush.linearGradient(
-    listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.06f)),
+    listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.30f)),
 )
 
 private fun Modifier.coverLift(shape: androidx.compose.ui.graphics.Shape, glow: Color?): Modifier =
@@ -251,7 +261,20 @@ private fun Modifier.coverLift(shape: androidx.compose.ui.graphics.Shape, glow: 
             } else Modifier
         )
         .shadow(COVER_LIFT_ELEVATION, shape, clip = false)
-        .border(1.dp, COVER_RIM_BRUSH, shape)
+        .drawWithCache {
+            val outline = shape.createOutline(size, layoutDirection, this)
+            val sheen = androidx.compose.ui.graphics.Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.14f),
+                0.33f to Color.Transparent,
+                0.80f to Color.Transparent,
+                1f to Color.Black.copy(alpha = 0.16f),
+            )
+            onDrawWithContent {
+                drawContent()
+                drawOutline(outline, sheen)
+            }
+        }
+        .border(COVER_RIM_WIDTH, COVER_RIM_BRUSH, shape)
 
 /**
  * Scale the artwork of an [ThumbnailHost.OPAQUE_DARK] host starts from when the track changes, before it

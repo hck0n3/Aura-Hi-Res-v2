@@ -36,11 +36,15 @@ class CoverShadowGuardTest {
     }
 
     @Test
-    fun `the shadow stays short and the rim stays a hairline (owner 2026-10-30)`() {
+    fun `the shadow stays short and the rim stays a thin line (owner 2026-10-30, row 560)`() {
         val s = source
         assertTrue("sombra corta ≤ 8 dp", dp(s, "COVER_LIFT_ELEVATION") <= 8f)
         assertTrue("resplandor ≤ 28 dp", dp(s, "COVER_GLOW_ELEVATION") <= 28f)
-        assertTrue("filo de 1 dp", s.contains(".border(1.dp, COVER_RIM_BRUSH, shape)"))
+        // Row 560 (owner 2026-10-31): the rim was too faint to notice; it is now 1.5 dp and brighter, with a sheen over the artwork. The
+        // shadow constants above are untouched on purpose («el sombreado está bien»).
+        assertTrue("filo fino (≤ 2 dp)", dp(s, "COVER_RIM_WIDTH") <= 2f)
+        assertTrue("el filo usa su ancho", s.contains(".border(COVER_RIM_WIDTH, COVER_RIM_BRUSH, shape)"))
+        assertTrue("brillo sobre la portada, dibujado una vez con la forma de la portada", s.contains("drawOutline(outline, sheen)"))
     }
 
     @Test

@@ -1,8 +1,34 @@
-# Aura Hi-Res v2.0.67-beta7 — copia de seguridad cifrada en la nube de Aura, portadas animadas y estilos compartidos, y registros más completos
+# Aura Hi-Res v2.0.67-beta8 — «Escuchar juntos» propio de Aura, el control remoto obedece al dispositivo que suena, historial sincronizado y portada con relieve
 
-Beta encima de la 2.0.67-beta6 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Antes de probar la copia en la nube haz una copia de seguridad local (Ajustes ▸ Copia de seguridad).
+Beta encima de la 2.0.67-beta7 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Si quieres probar «Escuchar juntos» de Aura, vuelve a desplegar tu servidor de salas (`npx wrangler deploy` en `docs/worker/rooms`) y activa el interruptor en Ajustes ▸ Escuchar juntos ▸ Salas de Aura.
+## «Escuchar juntos» propio de Aura
 
-## Copia de seguridad en la nube de Aura
+- **Salas de Aura (nuevo, apagado por defecto):** Ajustes ▸ Escuchar juntos ▸ **Salas de Aura**. Las salas viven en tu propio servidor, solo entre usuarios de Aura, con el código de 6 letras de siempre. Apagado, todo sigue como antes con el servidor compartido que también usan otras apps. No se puede cambiar mientras estás en una sala.
+- Sin sala no hay conexión: la pantalla queda lista y el socket se abre al crear o unirse. Si se cae la conexión, vuelve a la misma sala sola; al salir de la sala se cierra todo.
+
+## Control remoto entre tus dispositivos
+
+- **«No me gusta» y «Me gusta» actúan donde suena la música:** antes, tocar «no me gusta» en el cel mientras sonaba la tablet saltaba la canción del cel y la tablet solo lo anotaba. Ahora la orden llega a la tablet, que quita la canción de su cola y salta; y cuando el «no me gusta» llega por la sincronización, el otro dispositivo también la quita de la cola y la salta.
+- **El volumen del menú del reproductor mueve el volumen del dispositivo que está sonando** y muestra su nivel real.
+- **Lo que reproduces en el cel mientras controlas la tablet suena en la tablet,** como en Spotify. Si no se puede enviar, suena en el cel.
+- **«Siguiente» ya no se pierde al final de la cola:** si la cola inteligente aún está buscando más canciones, el «siguiente» espera y salta en cuanto llegan (hasta 3 toques, 30 segundos).
+- **Pausar aquí ya no te cambia la canción:** pausar el dispositivo que sonaba hacía que cargara la cola del otro y te cambiaba la canción de la nada. Ahora, tras una pausa tuya, conserva tu canción durante 10 minutos.
+- **«Continuar aquí» ya no repone una cola vieja** cuando el otro dispositivo dejó de contestar: avisa «Ese dispositivo no responde».
+
+## Historial y cola inteligente
+
+- **El Historial se sincroniza entre tus dispositivos** por tu servidor (las 300 reproducciones más recientes). Lo recibido no suma tiempo de escucha propio. Dentro de un día el historial se ordena por la hora real. Borrar el historial en un dispositivo no lo borra en el otro.
+- **La cola mantiene lo cristiano tras un traspaso:** al pasar la reproducción de un dispositivo a otro, la cola se rehacía y juzgaba la fe solo por las palabras del título. Ahora cuenta también lo que ya se aprendió del artista, para que no derive a rap secular.
+
+## Portada del reproductor
+
+- **La portada se ve más por encima del fondo, no plana:** el filo es más claro (y más oscuro en la esquina opuesta, para que se note incluso sobre portadas claras) y hay un brillo suave arriba y una sombra suave abajo sobre la propia imagen. La sombra de fuera no cambia.
+
+## Para encontrar fallos con tu próximo registro
+
+- **Una canción de la cola que se sale del estilo** deja, al darle «no me gusta», cómo entró (paso y base) y contra qué objetivo se juzgó; las etiquetas de artista dicen si respondió el servidor de Aura o Last.fm; y cada vez que se abre el reproductor grande queda quién lo abrió. Todo en números, nunca títulos ni nombres.
+
+## De la beta 7: copia de seguridad en la nube de Aura
 
 - **Ajustes ▸ Copia de seguridad ▸ «Guardar copia en la nube de Aura»** y **«Restaurar la última copia de la nube»**: la misma copia de tu biblioteca de siempre (sin tu sesión de YouTube ni tu licencia), cifrada en tu móvil antes de salir. El servidor solo guarda bytes que no puede leer. Se conservan las últimas 3 copias y el máximo es de 24 MB cada una.
 - La clave sale de tu código de emparejamiento o de tu licencia y correo de compra. Si se prueba con otra clave, o la copia está dañada, no se restaura nada y la app te lo dice. Restaurar pide confirmación porque reemplaza tu biblioteca y reinicia la app.
@@ -46,7 +72,7 @@ Beta encima de la 2.0.67-beta6 (incluye todo lo suyo) y de la 2.0.66 estable. Co
 
 - Se sincroniza por tu servidor, al momento o al conectarse, y mientras estén conectados YouTube no la sincroniza. Freno de seguridad si llegaran muchos borrados de golpe. El orden de las canciones dentro de una lista no se sincroniza.
 
-## Portada del reproductor
+## Portada del reproductor (de las betas 4 y 5)
 
 - **La sombra ya no se corta en recuadro** en los móviles normales: la portada deja margen para que se desvanezca. En tablets y plegables no cambia.
 - El botón «Mis dispositivos» está en la barra de abajo del reproductor, con el estilo de sus vecinos.
