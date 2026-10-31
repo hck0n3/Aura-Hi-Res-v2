@@ -823,7 +823,7 @@ private fun AuraOnlinePlaylistHeader(
 
             run {
                 val playedCount = remember(shufflePlayedSet, heardIds, songs) {
-                    songs.count { it.id in shufflePlayedSet || it.id in heardIds }
+                    songs.count { it.id in shufflePlayedSet }
                 }
                 EnhancedShuffleChip(
                     playedCount = playedCount,
@@ -845,7 +845,7 @@ private fun AuraOnlinePlaylistHeader(
                 val contextId = shuffleContextId ?: ShuffleContexts.onlinePlaylist(playlist.id)
                 val onShuffleClick = rememberShuffleMemoryPrompt(
                     contextId = contextId,
-                    playedCount = songs.count { it.id in shufflePlayedSet || it.id in heardIds },
+                    playedCount = songs.count { it.id in shufflePlayedSet },
                     totalCount = songs.size,
                 ) { resetMemory ->
                     val seed = ShuffleContexts.seedPlayedIds(

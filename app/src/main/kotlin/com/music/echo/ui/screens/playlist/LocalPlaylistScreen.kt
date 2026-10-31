@@ -1379,7 +1379,7 @@ fun LocalPlaylistHeader(
             val onShuffleClick = rememberShuffleMemoryPrompt(
                 contextId = playlistContextId,
                 playedCount = songs.count {
-                    it.song.id in playedForStart || it.song.song.totalPlayTime > 0L
+                    it.song.id in playedForStart
                 },
                 totalCount = songs.size,
             ) { resetMemory ->
@@ -1546,7 +1546,7 @@ fun LocalPlaylistHeader(
                 ),
             )
             val playedCount = remember(playedSet, songs) {
-                songs.count { it.song.id in playedSet || it.song.song.totalPlayTime > 0L }
+                songs.count { it.song.id in playedSet }
             }
             EnhancedShuffleChip(
                 playedCount = playedCount,

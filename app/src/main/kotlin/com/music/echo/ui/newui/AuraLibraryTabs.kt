@@ -1040,7 +1040,7 @@ fun AuraLibrarySongsTab(
             if (libraryContextId != null) {
                 item(key = "aura_songs_shuffle_chip", contentType = "aura_songs_shuffle_chip", span = { GridItemSpan(maxLineSpan) }) {
                     val playedCount = remember(shufflePlayedSet, filteredSongs) {
-                        filteredSongs.count { it.id in shufflePlayedSet || it.song.totalPlayTime > 0L }
+                        filteredSongs.count { it.id in shufflePlayedSet }
                     }
                     Box(
                         Modifier
@@ -1155,7 +1155,7 @@ fun AuraLibrarySongsTab(
         // Shuffle: the SAME memory prompt and the SAME unplayed-first ordering as the classic tab.
         val onShuffleClick = rememberShuffleMemoryPrompt(
             contextId = libraryContextId,
-            playedCount = filteredSongs.count { it.id in shufflePlayedSet || it.song.totalPlayTime > 0L },
+            playedCount = filteredSongs.count { it.id in shufflePlayedSet },
             totalCount = filteredSongs.size,
         ) { resetMemory ->
             val seed = ShuffleContexts.seedPlayedIds(

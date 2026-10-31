@@ -928,7 +928,7 @@ private fun AuraAlbumHeader(
     val onShuffleClick = rememberShuffleMemoryPrompt(
         contextId = albumShuffleContextId,
         playedCount = album.songs.count {
-            it.id in albumPlayedForStart || it.song.totalPlayTime > 0L
+            it.id in albumPlayedForStart
         },
         totalCount = album.songs.size,
     ) { resetMemory ->
@@ -1065,7 +1065,7 @@ private fun AuraAlbumHeader(
         // feature is off.
         EnhancedShuffleChip(
             playedCount = album.songs.count {
-                it.id in albumPlayedForStart || it.song.totalPlayTime > 0L
+                it.id in albumPlayedForStart
             },
             total = album.songs.size,
             modifier = Modifier.padding(top = 10.dp),

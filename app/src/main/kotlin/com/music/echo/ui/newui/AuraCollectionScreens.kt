@@ -701,7 +701,7 @@ internal fun AuraCollectionHeader(
         if (contextId != null) {
             val playedSet = rememberPlayedShuffleSet(contextId)
             val playedCount = remember(playedSet, songs) {
-                songs.count { it.id in playedSet || it.song.totalPlayTime > 0L }
+                songs.count { it.id in playedSet }
             }
             EnhancedShuffleChip(
                 playedCount = playedCount,
@@ -722,7 +722,7 @@ internal fun AuraCollectionHeader(
             val playedForStart = rememberPlayedShuffleSet(contextId)
             val onShuffleClick = rememberShuffleMemoryPrompt(
                 contextId = contextId,
-                playedCount = songs.count { it.id in playedForStart || it.song.totalPlayTime > 0L },
+                playedCount = songs.count { it.id in playedForStart },
                 totalCount = songs.size,
             ) { resetMemory ->
                 val seedIds = ShuffleContexts.seedPlayedIds(

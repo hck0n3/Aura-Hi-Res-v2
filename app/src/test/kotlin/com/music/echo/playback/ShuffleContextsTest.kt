@@ -23,14 +23,14 @@ class ShuffleContextsTest {
     }
 
     @Test
-    fun continueSeedUnionsShuffleMemoryAndLifetimePlays() {
+    fun continueSeedIsTheShuffleMemoryAloneLifetimePlaysDoNotResurrectAReset() {
         val seed = ShuffleContexts.seedPlayedIds(
             resetMemory = false,
             songIds = listOf("a", "b", "c"),
             shufflePlayed = setOf("a"),
             playTimeMs = { id -> if (id == "c") 12_000L else 0L },
         )
-        assertEquals(setOf("a", "c"), seed)
+        assertEquals(setOf("a"), seed)
     }
 
     @Test

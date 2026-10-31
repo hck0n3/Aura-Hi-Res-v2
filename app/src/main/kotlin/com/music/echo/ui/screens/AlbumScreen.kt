@@ -635,7 +635,7 @@ fun AlbumScreen(
                         val onAlbumShuffleClick = rememberShuffleMemoryPrompt(
                             contextId = albumShuffleContextId,
                             playedCount = albumWithSongs.songs.count {
-                                it.id in albumPlayedForStart || it.song.totalPlayTime > 0L
+                                it.id in albumPlayedForStart
                             },
                             totalCount = albumWithSongs.songs.size,
                         ) { resetMemory ->

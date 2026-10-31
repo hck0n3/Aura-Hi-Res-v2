@@ -165,7 +165,7 @@ fun PlaylistMenu(
     // the sheet is only dismissed from inside the callback, so closing it can't kill the dialog.
     val onMenuShuffleClick = rememberShuffleMemoryPrompt(
         contextId = menuShuffleContextId,
-        playedCount = songs.count { it.id in menuPlayedSet || it.song.totalPlayTime > 0L },
+        playedCount = songs.count { it.id in menuPlayedSet },
         totalCount = songs.size,
     ) { resetMemory ->
         onDismiss()

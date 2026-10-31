@@ -287,7 +287,7 @@ fun LibrarySongsScreen(
         // Enhanced Shuffle: "activo · X/Y reproducidas" pill for this tab (feature-gated inside).
         if (libraryContextId != null) {
             val playedCount = remember(shufflePlayedSet, filteredSongs) {
-                filteredSongs.count { it.id in shufflePlayedSet || it.song.totalPlayTime > 0L }
+                filteredSongs.count { it.id in shufflePlayedSet }
             }
             EnhancedShuffleChip(
                 playedCount = playedCount,
@@ -476,7 +476,7 @@ fun LibrarySongsScreen(
         // memory; with none, the tap plays straight away exactly as before.
         val onShuffleClick = rememberShuffleMemoryPrompt(
             contextId = libraryContextId,
-            playedCount = filteredSongs.count { it.id in shufflePlayedSet || it.song.totalPlayTime > 0L },
+            playedCount = filteredSongs.count { it.id in shufflePlayedSet },
             totalCount = filteredSongs.size,
         ) { resetMemory ->
             val seed = ShuffleContexts.seedPlayedIds(
