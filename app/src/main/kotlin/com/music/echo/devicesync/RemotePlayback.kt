@@ -89,6 +89,21 @@ object RemotePlayback {
     fun dislike(): Boolean = sendForCurrentSong("dislike")
     fun like(): Boolean = sendForCurrentSong("like")
 
+    /**
+     * Row 564 — a row tapped in the queue list while another device is controlled: THAT device jumps to the song and plays it, as
+     * the buttons already do. Before, the tap sought this device's own player and this device started playing — the remote was
+     * left behind (owner 2026-10-31: «si cambio una canción desde mi cel y estoy mandando a la tablet se quita la conexión y me
+     * empieza a reproducir desde el cel»).
+     */
+    fun playItem(trackId: String): Boolean {
+        val t = target.value ?: return false
+        if (trackId.isBlank()) return false
+        lastControlAt = System.currentTimeMillis()
+        playing.value = true
+        DeviceSyncHub.controller?.control(t.deviceId, "playitem", trackId = trackId)
+        return true
+    }
+
     private fun sendForCurrentSong(command: String): Boolean {
         val t = target.value ?: return false
         val id = t.current?.id ?: return false

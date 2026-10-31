@@ -385,7 +385,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)
-        if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like") {
+        if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like" || cmd == "playitem") {
             // The device that sent the order is showing OUR timeline: tell it the new state as soon as the player has settled,
             // not at the next heartbeat (row 534).
             scope.launch {
@@ -412,6 +412,19 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             // (the same one the in-app slider sets), 0..1000 per mille.
             "volume" -> args.int("level")?.let { level ->
                 if (service.playerVolumeInitialized) service.playerVolume.value = (level.coerceIn(0, 1000) / 1000f)
+            }
+            // A row tapped in the other device's queue list: jump to that song here and play it.
+            "playitem" -> args.str("trackId")?.let { id ->
+                onMain {
+                    val p = service.player
+                    for (i in 0 until p.mediaItemCount) {
+                        if (p.getMediaItemAt(i).mediaId == id) {
+                            p.seekTo(i, 0L)
+                            p.play()
+                            break
+                        }
+                    }
+                }
             }
             "like" -> args.str("trackId")?.let { id ->
                 onMain { if (service.player.currentMediaItem?.mediaId == id) service.toggleLike() }

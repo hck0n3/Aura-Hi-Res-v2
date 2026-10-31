@@ -1816,6 +1816,15 @@ private fun auraJumpToQueueWindow(
     isCurrent: Boolean,
     window: Timeline.Window,
 ) {
+    // Row 564: another of my devices is being controlled from here — the tap goes to IT, not to this device's own player.
+    if (iad1tya.echo.music.devicesync.RemotePlayback.active) {
+        if (isCurrent) {
+            iad1tya.echo.music.devicesync.RemotePlayback.toggle()
+        } else {
+            iad1tya.echo.music.devicesync.RemotePlayback.playItem(window.mediaItem.mediaId)
+        }
+        return
+    }
     if (isCurrent) {
         if (isCasting) {
             if (castIsPlaying) castHandler?.pause() else castHandler?.play()
