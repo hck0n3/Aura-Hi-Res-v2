@@ -31,7 +31,7 @@ class LauncherIconThemeTest {
     @Test
     fun everyLayerTheIconNamesExists() {
         for (f in listOf("drawable-nodpi/ic_launcher_mark_light.png", "drawable-nodpi/ic_launcher_mark_dark.png", "drawable-nodpi/ic_launcher_mark_mono.png",
-            "drawable/ic_launcher_bg_light.xml", "drawable/ic_launcher_bg_dark.xml")) {
+            "drawable-nodpi/ic_launcher_bg_light.png", "drawable-nodpi/ic_launcher_bg_dark.png")) {
             assertTrue("$f missing", File("src/main/res/$f").length() > 0)
         }
         assertEquals(true, File("src/main/AndroidManifest.xml").readText().contains("android:icon=\"@mipmap/ic_launcher\""))
