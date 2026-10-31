@@ -544,7 +544,6 @@ fun AuraLibraryHub(
     val downloadedLabel = stringResource(R.string.offline)
     val cachedLabel = stringResource(R.string.cached_playlist)
     val favoriteAlbumsLabel = stringResource(R.string.favorite_albums)
-    val releaseRadarLabel = stringResource(R.string.release_radar_title)
     val podcastsLabel = stringResource(R.string.podcasts)
     val localLabel = stringResource(R.string.filter_local)
     // The tiles obey the same toggles as the classic UI (F9: every appearance setting must work in the new UI too).
@@ -558,7 +557,9 @@ fun AuraLibraryHub(
         if (showDownloaded) add(AuraLibraryShortcut(AuraIcons.Downloaded, downloadedLabel) { navController.navigate("auto_playlist/downloaded") })
         if (showCached) add(AuraLibraryShortcut(AuraIcons.Cloud, cachedLabel) { navController.navigate("cache_playlist/cached") })
         add(AuraLibraryShortcut(AuraIcons.Album, favoriteAlbumsLabel) { navController.navigate("favorite_albums") })
-        add(AuraLibraryShortcut(AuraIcons.Radio, releaseRadarLabel) { navController.navigate("release_radar") })
+        // Row 570: the «Novedades» tile that sat here is gone (owner 2026-10-31: «no quiero nada repetido en Aura»). It opened the classic
+        // radar list; the Novedades tab of the bar shows the SAME radar rows (plus the hero, the upcoming ones and YouTube's new
+        // albums) and also pulls to refresh. The `release_radar` route stays registered for the classic interface, which has no such tab.
         add(AuraLibraryShortcut(AuraIcons.Lyrics, podcastsLabel) { navController.navigate("podcasts") })
         // Owner request: Local must be visible the moment Biblioteca opens — it switches to the LOCAL chip in place (same
         // embedded LocalSongScreen, same scan sheet — no second route, no second screen).
