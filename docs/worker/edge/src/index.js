@@ -546,14 +546,31 @@ export async function judgeRun(env, input, ip) {
   if (used >= JUDGE_DAILY_PER_IP) return { status: 429, body: { error: "slow down" } };
   await env.EDGE.put(key, String(used + 1), { expirationTtl: 172800 });
   const ids = clean.cand.map((x) => x.i);
+  const tried = [];
   for (const model of JUDGE_MODELS) {
+    const short = model.split("/").pop();
     try {
-      const r = await env.AI.run(model, { messages: judgeMessages(clean), max_tokens: 160, temperature: 0 });
-      const keep = parseJudge(r && r.response, ids);
+      const r = await env.AI.run(model, { messages: judgeMessages(clean), max_tokens: 160 });
+      const keep = parseJudge(aiText(r), ids);
       if (keep) return { status: 200, body: { keep } };
-    } catch { /* next model */ }
+      // The model answered, but not with the JSON asked for: say so (never what it said — that can echo the titles).
+      tried.push(short + ": unreadable answer (" + aiText(r).length + " chars)");
+    } catch (e) {
+      tried.push(short + ": " + String((e && e.message) || e).slice(0, 160));
+    }
   }
-  return { status: 502, body: { error: "ai failed" } };
+  return { status: 502, body: { error: "ai failed", tried } };
+}
+
+/** The text of a Workers AI answer, whatever shape the model gives it in (a string, an object already parsed, or chat-style choices). */
+export function aiText(r) {
+  if (!r) return "";
+  if (typeof r.response === "string") return r.response;
+  if (r.response && typeof r.response === "object") return JSON.stringify(r.response);
+  const c = r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content;
+  if (typeof c === "string") return c;
+  if (typeof r.result === "string") return r.result;
+  return "";
 }
 
 export default {

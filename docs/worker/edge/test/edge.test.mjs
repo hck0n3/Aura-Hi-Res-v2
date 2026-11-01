@@ -5,7 +5,7 @@ import { Miniflare } from "miniflare";
 import { webcrypto as c } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, artistTags, normalizeArtist, sanitizeCanvas, canvasGet, canvasPut, validCanvasKey, askGet, askPut, sanitizeAsk, validAskKey, backupPut, backupGet, backupList, backupDelete, sanitizeJudge, judgeMessages, parseJudge, judgeRun, FLAGS } from "../src/index.js";
+import { extractPlayerId, sanitizeConfig, watchYoutube, sendAlert, artistTags, normalizeArtist, sanitizeCanvas, canvasGet, canvasPut, validCanvasKey, askGet, askPut, sanitizeAsk, validAskKey, backupPut, backupGet, backupList, backupDelete, sanitizeJudge, judgeMessages, parseJudge, judgeRun, aiText, FLAGS } from "../src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const b64 = (buf) => Buffer.from(buf).toString("base64");
@@ -338,4 +338,19 @@ test("judge: asks the AI, budget per IP and day, and 503 without the AI binding"
   await kv.put("rate:judge:9.9.9.9:" + day, "400");
   assert.equal((await judgeRun(env, input, "9.9.9.9")).status, 429);
   assert.equal((await judgeRun({ EDGE: kv, AI: { run: async () => ({ response: "rubbish" }) } }, input, "5.5.5.5")).status, 502);
+});
+
+test("judge: the answer text is read from every shape, and a failure says which model failed and why", async () => {
+  assert.equal(aiText({ response: "x" }), "x");
+  assert.equal(aiText({ response: { keep: [1] } }), '{"keep":[1]}');
+  assert.equal(aiText({ choices: [{ message: { content: "y" } }] }), "y");
+  assert.equal(aiText(null), "");
+  const input = { ctx: [{ t: "a", a: "b" }], cand: [{ i: 1, t: "x", a: "y" }] };
+  const objAnswer = { EDGE: kv, AI: { run: async () => ({ response: { keep: [1] } }) } };
+  assert.deepEqual((await judgeRun(objAnswer, input, "7.7.7.7")).body, { keep: [1] });
+  const boom = { EDGE: kv, AI: { run: async () => { throw new Error("model not found"); } } };
+  const r = await judgeRun(boom, input, "8.8.8.8");
+  assert.equal(r.status, 502);
+  assert.equal(r.body.tried.length, 2);
+  assert.match(r.body.tried[0], /model not found/);
 });
