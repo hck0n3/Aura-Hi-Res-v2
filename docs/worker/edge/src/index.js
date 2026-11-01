@@ -512,9 +512,14 @@ export function judgeMessages(c) {
       role: "system",
       content:
         "You curate a continuous radio queue. You get the songs the listener is hearing now (CONTEXT) and candidate songs (CANDIDATES). " +
-        "Keep a candidate ONLY if someone enjoying the context would accept it next: same genre and sub-genre, similar mood, era and language, " +
-        "and the same religious or secular character. Reject children's music unless the context is children's music. Reject a different genre " +
-        "even when the language is the same. If you do not recognise a song or artist, REJECT it. Answer ONLY with JSON: {\"keep\":[ids]}.",
+        "Your job is to REMOVE only the clear misfits and keep everything else. REJECT a candidate only when it is plainly wrong for the listener: " +
+        "(a) children's music when the context is not children's music, (b) a clearly different genre family (for example reggaeton or banda inside classical, " +
+        "or rap inside worship), (c) a clearly different language, or (d) secular music inside a religious context. " +
+        "KEEP a candidate when it is by the same artist as a context song, by a similar artist in the same genre, or when you are not sure — " +
+        "an unfamiliar title is NOT a reason to reject. Most candidates normally stay. " +
+        "Example: context = Bach, Vivaldi; candidates = 0: Air on the G String — Bach, 1: Despacito — Luis Fonsi, 2: Lullaby — Coro Infantil. " +
+        "Answer {\"keep\":[0]}. " +
+        "Answer ONLY with JSON: {\"keep\":[ids]}.",
     },
     {
       role: "user",

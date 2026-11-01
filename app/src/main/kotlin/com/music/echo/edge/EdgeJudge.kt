@@ -34,6 +34,12 @@ object EdgeJudge {
         })
     }.toString()
 
+    /**
+     * Row 625: an answer that keeps NONE of two or more doubtful songs is not believed (the owner's first live test: a small model rejected a
+     * Bach song next to Bach). The queue then goes on with its own filter instead of losing every doubtful candidate on one bad answer.
+     */
+    fun believable(kept: Set<Int>?, asked: Int): Set<Int>? = kept?.takeIf { asked < 2 || it.isNotEmpty() }
+
     /** `{"keep":[i…]}` → the positions the AI kept, or null when the answer is not that (the queue then goes on with its own filter). */
     fun parse(body: String, candidateCount: Int): Set<Int>? = try {
         (Json.parseToJsonElement(body).jsonObject["keep"] as? JsonArray)

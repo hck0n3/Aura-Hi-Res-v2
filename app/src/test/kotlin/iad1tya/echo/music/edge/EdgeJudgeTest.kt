@@ -37,6 +37,14 @@ class EdgeJudgeTest {
     }
 
     @Test
+    fun anAnswerThatRejectsEverythingIsNotBelieved() {
+        assertNull(EdgeJudge.believable(emptySet(), 3))
+        assertEquals(setOf(1), EdgeJudge.believable(setOf(1), 3))
+        assertEquals(emptySet<Int>(), EdgeJudge.believable(emptySet(), 1)) // a single doubtful song may truly be out
+        assertNull(EdgeJudge.believable(null, 3))
+    }
+
+    @Test
     fun theGateOnlyRemovesDoubtfulSongsAndLogsCountsOnly() {
         val src = File("src/main/kotlin/com/music/echo/playback/ExactStyleGate.kt").readText()
         assertTrue(src.contains("EdgeClient.judgeQueue("))

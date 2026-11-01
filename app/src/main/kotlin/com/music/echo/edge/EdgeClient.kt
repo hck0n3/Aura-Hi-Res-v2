@@ -390,7 +390,8 @@ object EdgeClient {
                 Timber.tag(TAG).i("EDGE judge status=%d asked=%d", conn.responseCode, candidates.size)
                 return@withContext null
             }
-            val kept = readCapped(conn, MAX_CONFIG_BYTES)?.let { EdgeJudge.parse(it, minOf(candidates.size, EdgeJudge.MAX_CANDIDATES)) }
+            val asked = minOf(candidates.size, EdgeJudge.MAX_CANDIDATES)
+            val kept = EdgeJudge.believable(readCapped(conn, MAX_CONFIG_BYTES)?.let { EdgeJudge.parse(it, asked) }, asked)
             Timber.tag(TAG).i("EDGE judge asked=%d kept=%s", candidates.size, kept?.size?.toString() ?: "-")
             kept
         } catch (_: Exception) {
