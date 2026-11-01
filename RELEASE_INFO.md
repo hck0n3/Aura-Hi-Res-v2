@@ -4,7 +4,7 @@ Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. C
 
 ## Icono
 
-- **Icono nuevo de Aura, tu diseño de cristal líquido naranja y morado, sin recortar:** la baldosa ocupa casi todo el icono y se ve el borde de vidrio completo, sobre el mismo azul oscuro de tu imagen para que no parezca otro fondo. Según la forma de tu launcher (círculo, cuadrado redondeado) puede quedar un poco de margen oscuro. El icono de tema de Android 13+ usa la silueta de la A, el triángulo y el aro.
+- **Icono nuevo de Aura, tu diseño de cristal líquido naranja y morado, sin recortar:** el borde de tu diseño es el borde del icono, sin otro fondo alrededor. Según la forma de tu launcher (por ejemplo circular) las esquinas pueden quedar recortadas. El icono de tema de Android 13+ usa la silueta de la A, el triángulo y el aro.
 
 ## Favoritos
 
