@@ -455,7 +455,8 @@ constructor(
                     // in the background and publish the full discography in ONE update (not in batches).
                     itemsPage.value = ItemsPage(items = baseItems, continuation = continuation)
                     // Row 613: the artist's SONGS list (YouTube's own page of it) leaves songs out; add what a search for the artist finds.
-                    if (baseItems.isNotEmpty() && baseItems.all { it is SongItem }) {
+                    // Not for the artist's VIDEOS list (those are songs flagged as video): a song search must not add audio tracks to it.
+                    if (baseItems.isNotEmpty() && baseItems.all { it is SongItem && !it.isVideoSong }) {
                         viewModelScope.launch {
                             val name = resolveArtistName() ?: return@launch
                             val found = withTimeoutOrNull(9_000L) {
