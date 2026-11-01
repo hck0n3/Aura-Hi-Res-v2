@@ -1,18 +1,39 @@
-# Aura Hi-Res v2.0.67-beta12 — la cola inteligente pide una segunda opinión a la IA, QR para emparejar, el bajo ya no esconde la voz y el control remoto llega a todos los botones
+# Aura Hi-Res v2.0.67-beta13 — vuelven los vídeos y canciones de los artistas, el corazón siempre descarga y el icono nuevo de cristal líquido
 
-Beta encima de la 2.0.67-beta11 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Instálala en los dos aparatos (cel y tablet): el control remoto y la sincronización necesitan la versión nueva en ambos. Para que la segunda opinión con IA funcione hay que volver a desplegar el servidor `aura-edge` con la IA activada (la app sigue igual sin eso).
+Beta encima de la 2.0.67-beta12 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Instálala en los dos aparatos (cel y tablet). Corrige un error mío de la beta 12 que ocultaba los vídeos, canciones y listas de las páginas de artista.
 
-## Cola inteligente
+## Arreglo de la beta 12
+
+- **Vuelven los vídeos, las canciones y las listas de las páginas de artista y de «ver todos»:** en la beta 12 la función que quita álbumes repetidos descartaba todo lo que no era álbum. Ahora solo compara álbumes, y una prueba automática vigila que canciones, vídeos y listas no se pierdan.
+- **La búsqueda que agrega canciones al artista ya no toca su lista de vídeos.**
+
+## Corazón y favoritos
+
+- **Todo corazón de una canción la descarga** (o solo la marca como descargada si ya estaba en la caché de escucha). Dos caminos lo olvidaban: «me gusta» de varias canciones a la vez y el corazón de la primera canción al agregar a una lista.
+- **Lo que marcas desde tu cuenta de YouTube y ya estaba en tu biblioteca queda arriba** en «Canciones que me gustan»: antes llegaba sin fecha y se iba al fondo.
+
+## Icono
+
+- **Icono nuevo de Aura: tu diseño de cristal líquido, idéntico,** recortado a cuadrado con la baldosa centrada. Es el mismo en modo claro y modo oscuro. El icono de tema de Android 13+ (una sola tinta) usa la silueta de la A con el triángulo y el trazo curvo, sacada de tu misma imagen.
+
+## Para que lo pruebes y me cuentes
+
+- No pude probar nada de esto en un aparato; todo pasa las pruebas automáticas. Si en las páginas de artista falta algo, manda el registro desde Ajustes ▸ Registros con el artista y la hora.
+- Sigue pendiente lo de la beta 12: volver a desplegar `aura-edge` con `[ai] binding = "AI"` para que la segunda opinión con IA de la cola responda.
+
+
+
+## De la beta 12: cola inteligente
 
 - **Segunda opinión con IA para las canciones dudosas:** cuando el filtro no sabe si una canción encaja (estilo o idioma sin comprobar), la app le pregunta a la IA del servidor de Aura y deja fuera las que no encajan. La IA solo puede quitar canciones, nunca agregar. Solo envía el título y el artista de lo que suena y de las canciones dudosas, nunca tu cuenta. Está **encendida por defecto** y se apaga en Ajustes ▸ Servicios Aura.
 - **La música infantil ya no entra a una cola que no es infantil** (pasaba de clásica cristiana a cristiana de niños).
 - **Se borra una vez lo que la app había aprendido mal de cada artista** en las betas anteriores; se vuelve a aprender de las propias canciones.
 
-## Sonido
+## De la beta 12: sonido
 
 - **El bajo ya no esconde la voz y la voz ya no «sube» cuando no hay bajo:** el compresor suave escuchaba también los graves y bajaba toda la mezcla con cada nota grave. Ahora su detector ignora lo que está por debajo de 200 Hz. Si lo notas igual, apaga «compresor suave» en Ajustes ▸ Sonido para comparar y cuéntame.
 
-## Control remoto y Escuchar juntos
+## De la beta 12: control remoto y Escuchar juntos
 
 - **Siguiente y anterior del mini reproductor, de los deslizamientos de la portada y del modo ambiente** ahora mandan la orden al otro dispositivo (antes movían el tuyo y se devolvía a la canción que sonaba).
 - **El control de volumen del botón de salida de audio** mueve el volumen del otro dispositivo cuando lo controlas en remoto, y lo dice.
@@ -22,23 +43,12 @@ Beta encima de la 2.0.67-beta11 (incluye todo lo suyo) y de la 2.0.66 estable. C
 - **Escuchar juntos: el invitado salta al instante a la canción nueva** si ya la tenía cargada (antes reconstruía todo y empezaba tarde).
 - **Dentro de una sala el control remoto se apaga:** la sala manda sobre el reproductor.
 
-## Icono
-
-- **Icono nuevo de Aura:** la A de cristal líquido con luz de colores, tal cual tu diseño. Es el mismo en modo claro y modo oscuro; el icono de tema de Android 13+ (una sola tinta) usa una silueta de la A con el triángulo.
-
-## Búsqueda, artistas y micrófono
+## De la beta 12: búsqueda, artistas y micrófono
 
 - **Las discografías ya no repiten álbumes** (misma edición limpia/explícita con otro identificador).
 - **La lista «Canciones» del artista agrega las que faltaban** y una búsqueda sí encuentra, solo si están acreditadas a ese artista.
 - **«Pedir música» por voz:** envía 1,6 s después de callarte (antes 2,5 s) y un toque doble ya no arranca el micrófono dos veces.
 - **Resultados de búsqueda:** vuelven a mostrarse desde arriba cuando llega un conjunto nuevo.
-
-## Para que lo pruebes y me cuentes
-
-- No pude probar nada de esto en un aparato; todo pasa las pruebas automáticas. Si algo falla, manda el registro desde Ajustes ▸ Registros con la canción y la hora: para la cola busca `STYLE_GATE` y `AI second opinion`; para el sonido, di la canción y el preset; para las salas, `Guest advanced in place`.
-- Sigue sin cubrirse del todo: «Pedir música» con un artista (como Luis Miguel) que se desvía a otros artistas parecidos cuando termina la lista; la segunda opinión con IA debería ayudar pero no la pude probar. Tampoco las canciones que faltan en las páginas de ÁLBUM (la lista de pistas del disco la manda YouTube) y el historial del aleatorio con prioridad al aparato con más reproducciones (ya se unen los historiales; revisado, no es un fallo).
-
-
 
 ## De la beta 11: control remoto
 
