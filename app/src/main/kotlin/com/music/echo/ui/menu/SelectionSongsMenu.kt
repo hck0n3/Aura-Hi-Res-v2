@@ -452,7 +452,7 @@ fun SelectionSongMenu(
                             title = {
                                 Text(
                                     text = stringResource(
-                                        if (allLiked) R.string.dislike_all else R.string.like_all
+                                        if (allLiked) R.string.action_remove_like_all else R.string.like_all
                                     )
                                 )
                             },

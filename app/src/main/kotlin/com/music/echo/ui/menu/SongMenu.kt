@@ -582,6 +582,25 @@ fun SongMenu(
         item {
             Material3MenuGroup(
                 items = listOfNotNull(
+                    // Row 628 (owner 2026-11-01: «en la lista de canciones que me gustan quiero poder eliminar canciones»): a plain, named way
+                    // to take a song out of «Canciones que me gustan» from its menu (the header heart did the same, unlabelled).
+                    if (song.song.liked) {
+                        Material3MenuItemData(
+                            title = { Text(text = stringResource(R.string.action_remove_like)) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.favorite),
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                val s = song.song.toggleLike()
+                                database.query { upsert(s) }
+                                syncUtils.likeSong(s)
+                                onDismiss()
+                            },
+                        )
+                    } else null,
                     if (listenTogetherManager != null && listenTogetherManager.isInRoom && !listenTogetherManager.isHost) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.suggest_to_host)) },

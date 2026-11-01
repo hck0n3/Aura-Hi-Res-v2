@@ -944,7 +944,7 @@ interface DatabaseDao {
 
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
-    @Query("SELECT * FROM album WHERE bookmarkedAt IS NOT NULL ORDER BY rowId")
+    @Query("SELECT * FROM album WHERE bookmarkedAt IS NOT NULL ORDER BY bookmarkedAt, rowId")
     fun albumsLikedByCreateDateAsc(): Flow<List<Album>>
 
     @Transaction
@@ -1114,7 +1114,7 @@ interface DatabaseDao {
     fun albumArtistMaps(albumId: String): List<AlbumArtistMap>
 
     @Transaction
-    @Query("SELECT *, (SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = playlist.id) AS songCount FROM playlist WHERE bookmarkedAt IS NOT NULL ORDER BY rowId")
+    @Query("SELECT *, (SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = playlist.id) AS songCount FROM playlist WHERE bookmarkedAt IS NOT NULL ORDER BY bookmarkedAt, rowId")
     fun playlistsByCreateDateAsc(): Flow<List<Playlist>>
 
     @Transaction
@@ -1161,7 +1161,7 @@ interface DatabaseDao {
     fun getPlaylistByIdBlocking(playlistId: String): Playlist?
 
     @Transaction
-    @Query("SELECT *, (SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = playlist.id) AS songCount FROM playlist WHERE isEditable AND bookmarkedAt IS NOT NULL ORDER BY rowId")
+    @Query("SELECT *, (SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = playlist.id) AS songCount FROM playlist WHERE isEditable AND bookmarkedAt IS NOT NULL ORDER BY bookmarkedAt, rowId")
     fun editablePlaylistsByCreateDateAsc(): Flow<List<Playlist>>
 
     // ORDER BY + LIMIT are load-bearing: with a legacy duplicate pair (one row the user un-saved, one the
@@ -1337,6 +1337,14 @@ interface DatabaseDao {
     @Transaction
     @Query("SELECT * FROM song WHERE isDownloaded = 1 ORDER BY dateDownload")
     fun downloadedSongsByCreateDateAsc(): Flow<List<Song>>
+
+    /** Row 627: the albums with at least one downloaded song — what offline mode shows in the library. */
+    @Query("SELECT DISTINCT m.albumId FROM song_album_map m JOIN song s ON s.id = m.songId WHERE s.isDownloaded = 1")
+    fun albumIdsWithDownloads(): Flow<List<String>>
+
+    /** Row 627: the playlists with at least one downloaded song — what offline mode shows in the library. */
+    @Query("SELECT DISTINCT m.playlistId FROM playlist_song_map m JOIN song s ON s.id = m.songId WHERE s.isDownloaded = 1")
+    fun playlistIdsWithDownloads(): Flow<List<String>>
 
     @Transaction
     @Query("SELECT * FROM song WHERE isDownloaded = 1 ORDER BY title")

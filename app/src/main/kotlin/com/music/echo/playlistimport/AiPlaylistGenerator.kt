@@ -890,6 +890,18 @@ object AiPlaylistGenerator {
         // abajo con lo que devuelve el buscador ([MusicRequestArtist.confirm], "hip hop de X"). Todo lo
         // que filtra por artista lee ESTA variable, no el parámetro.
         var effectiveSolo: String? = soloArtist
+        // Row 626 (owner 2026-11-01: «pido Luis Miguel y me pone de varios artistas que se llaman Luis Miguel; solo quiero al verdadero»): the
+        // artist filter compared NAMES, and several channels share one. The real one is the first exact-name entry of YouTube's artist search
+        // (the official artist ranks first); once known, a song credited to a same-named artist with ANOTHER channel id is turned away.
+        var effectiveSoloId: String? = null
+        suspend fun resolveSoloId(name: String?) {
+            if (name.isNullOrBlank() || effectiveSoloId != null) return
+            effectiveSoloId = YouTube.search(name, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()
+                ?.items?.filterIsInstance<com.music.innertube.models.ArtistItem>()
+                ?.firstOrNull { MusicRequestArtist.sameName(it.title, name) }
+                ?.id
+        }
+        if (soloArtist != null) runCatching { resolveSoloId(soloArtist) }
         // Ronda 12 (dueño: "afro gospel"): palabras que califican al género y que la categoría o la lista
         // elegida tienen que nombrar también (ver [MusicRequestQuery.residualWords]).
         var qualifiers: List<String> = emptyList()
@@ -911,7 +923,8 @@ object AiPlaylistGenerator {
                 val titleKey = dedupKey(item.title, item.artists.firstOrNull()?.name)
                 if (seen.add(item.id) &&
                     seenTitles.add(titleKey) &&
-                    soloPrimaryMatch(item.artists.map { it.name }, effectiveSolo)
+                    soloPrimaryMatch(item.artists.map { it.name }, effectiveSolo) &&
+                    soloIdMatch(item.artists.map { it.name to it.id }, effectiveSolo, effectiveSoloId)
                 ) {
                     pool += item
                 }
@@ -1080,6 +1093,7 @@ object AiPlaylistGenerator {
                 lockedArtist != null -> {
                     artistLocked = true
                     if (effectiveSolo == null) effectiveSolo = lockedArtist
+                    runCatching { resolveSoloId(effectiveSolo) }
                     // Lo que el buscador devolvió para la frase entera ("hip hop de eminem") va primero: es
                     // lo más cercano a lo que pidió dentro del catálogo de ese artista.
                     absorb(christianOnly(candidates))
@@ -1567,6 +1581,17 @@ object AiPlaylistGenerator {
      * Pure, unit-testable core of the strict solo-artist gate: true when [names] (the resolved song's
      * credit list, in order) carries [soloArtist] as a PRIMARY credit. No Android/network types.
      */
+    /**
+     * Row 626: with the channel id of the REAL artist known ([soloId]), a song whose credits name [soloArtist] only through a channel with
+     * ANOTHER id is a namesake (another «Luis Miguel»): turned away. Credits with no id, or no soloId at all, cannot tell and pass.
+     */
+    internal fun soloIdMatch(credits: List<Pair<String, String?>>, soloArtist: String?, soloId: String?): Boolean {
+        if (soloArtist.isNullOrBlank() || soloId.isNullOrBlank()) return true
+        val named = credits.filter { SongResolver.artistMatches(it.first, soloArtist) }
+        if (named.isEmpty()) return true
+        return named.any { it.second == null || it.second == soloId }
+    }
+
     internal fun soloPrimaryMatch(names: List<String>, soloArtist: String?): Boolean {
         if (soloArtist.isNullOrBlank()) return true
         val primary = names.take(MAX_PRIMARY_CREDITS)

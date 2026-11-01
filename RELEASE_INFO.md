@@ -1,27 +1,40 @@
-# Aura Hi-Res v2.0.67-beta13 — vuelven los vídeos y canciones de los artistas, el corazón siempre descarga y el icono nuevo de cristal líquido
+# Aura Hi-Res v2.0.67-beta14 — icono nuevo exacto, lo que marcas sube arriba, «Pedir música» solo del Luis Miguel verdadero y el modo sin conexión solo muestra lo descargado
 
-Beta encima de la 2.0.67-beta12 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Instálala en los dos aparatos (cel y tablet). Corrige un error mío de la beta 12 que ocultaba los vídeos, canciones y listas de las páginas de artista.
+Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Instálala en los dos aparatos (cel y tablet).
 
-## Arreglo de la beta 12
+## Icono
+
+- **Icono nuevo de Aura, tu diseño de cristal líquido naranja y morado, sin recortar:** la baldosa ocupa casi todo el icono y se ve el borde de vidrio completo, sobre el mismo azul oscuro de tu imagen para que no parezca otro fondo. Según la forma de tu launcher (círculo, cuadrado redondeado) puede quedar un poco de margen oscuro. El icono de tema de Android 13+ usa la silueta de la A, el triángulo y el aro.
+
+## Favoritos
+
+- **Lo que marcas ahora sube arriba también en álbumes y listas:** «Álbumes favoritos» y las listas guardadas se ordenaban por el orden en que se creó su fila, no por cuándo las guardaste. Ahora, con el orden «Fecha de creación» (el de siempre), lo último que guardas queda primero.
+- **Quitar canciones de «Canciones que me gustan»:** el menú «⋯» de una canción que te gusta tiene «Quitar me gusta», y al seleccionar varias dice «Eliminar todos los me gusta» cuando todas ya te gustan.
+
+## Pedir música
+
+- **Pides a un artista y solo suena ese artista, no otros que se llamen igual:** con «Luis Miguel» ahora se reconoce al verdadero (el primer artista con ese nombre en YouTube Music) y se dejan fuera las canciones de otros canales que también se llaman «Luis Miguel».
+
+## Modo sin conexión
+
+- **Álbumes y listas de reproducción de Biblioteca muestran solo los que tienen canciones descargadas** cuando estás sin conexión (manual o automático). Las listas automáticas («Me gusta», «Descargadas»…) siguen igual.
+
+## Para que lo pruebes y me cuentes
+
+- No pude probar nada de esto en un aparato; todo pasa las pruebas automáticas. Si «Pedir música» sigue mezclando artistas, manda el registro con el artista y la hora.
+- Ya va dentro el freno de la IA de la cola: si rechaza todas las canciones dudosas, la app no le cree y sigue con su filtro de siempre.
+
+
+
+## De la beta 13: arreglo de la beta 12
 
 - **Vuelven los vídeos, las canciones y las listas de las páginas de artista y de «ver todos»:** en la beta 12 la función que quita álbumes repetidos descartaba todo lo que no era álbum. Ahora solo compara álbumes, y una prueba automática vigila que canciones, vídeos y listas no se pierdan.
 - **La búsqueda que agrega canciones al artista ya no toca su lista de vídeos.**
 
-## Corazón y favoritos
+## De la beta 13: corazón y favoritos
 
 - **Todo corazón de una canción la descarga** (o solo la marca como descargada si ya estaba en la caché de escucha). Dos caminos lo olvidaban: «me gusta» de varias canciones a la vez y el corazón de la primera canción al agregar a una lista.
 - **Lo que marcas desde tu cuenta de YouTube y ya estaba en tu biblioteca queda arriba** en «Canciones que me gustan»: antes llegaba sin fecha y se iba al fondo.
-
-## Icono
-
-- **Icono nuevo de Aura: tu diseño de cristal líquido, idéntico,** recortado a cuadrado con la baldosa centrada. Es el mismo en modo claro y modo oscuro. El icono de tema de Android 13+ (una sola tinta) usa la silueta de la A con el triángulo y el trazo curvo, sacada de tu misma imagen.
-
-## Para que lo pruebes y me cuentes
-
-- No pude probar nada de esto en un aparato; todo pasa las pruebas automáticas. Si en las páginas de artista falta algo, manda el registro desde Ajustes ▸ Registros con el artista y la hora.
-- Sigue pendiente lo de la beta 12: volver a desplegar `aura-edge` con `[ai] binding = "AI"` para que la segunda opinión con IA de la cola responda.
-
-
 
 ## De la beta 12: cola inteligente
 

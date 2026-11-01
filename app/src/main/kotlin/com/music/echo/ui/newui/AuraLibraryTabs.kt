@@ -1241,7 +1241,14 @@ fun AuraLibraryAlbumsTab(
     val (sortDescending, onSortDescendingChange) = rememberPreference(AlbumSortDescendingKey, true)
     val (ytmSync) = rememberPreference(YtmSyncKey, true)
 
-    val albums by viewModel.allAlbums.collectAsState()
+    val allAlbums by viewModel.allAlbums.collectAsState()
+    // Row 627 (owner 2026-11-01: «en el modo offline, en las listas de reproducción y álbumes solo muestre las que están descargadas»):
+    // offline, an album that has nothing downloaded cannot be played, so it is not listed.
+    val offlineLibrary = iad1tya.echo.music.utils.rememberOfflineState().offline
+    val downloadedAlbumIds by LocalDatabase.current.albumIdsWithDownloads().collectAsState(initial = emptyList())
+    val albums = remember(allAlbums, offlineLibrary, downloadedAlbumIds) {
+        if (offlineLibrary) allAlbums.filter { it.id in downloadedAlbumIds.toHashSet() } else allAlbums
+    }
     // What is already pinned to the Library shows its pin on the cover (grid view).
     val pins by rememberLibraryPins()
     val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
@@ -1508,7 +1515,13 @@ fun AuraLibraryPlaylistsTab(
     val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, true)
     val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
 
-    val playlists by viewModel.allPlaylists.collectAsState()
+    val allPlaylists by viewModel.allPlaylists.collectAsState()
+    // Row 627: offline, only the playlists with something downloaded (the automatic ones — Liked, Downloaded… — are not in this list).
+    val offlineLibrary = iad1tya.echo.music.utils.rememberOfflineState().offline
+    val downloadedPlaylistIds by LocalDatabase.current.playlistIdsWithDownloads().collectAsState(initial = emptyList())
+    val playlists = remember(allPlaylists, offlineLibrary, downloadedPlaylistIds) {
+        if (offlineLibrary) allPlaylists.filter { it.id in downloadedPlaylistIds.toHashSet() } else allPlaylists
+    }
     // What is already pinned to the Library shows its pin on the cover (grid view).
     val pins by rememberLibraryPins()
     val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
