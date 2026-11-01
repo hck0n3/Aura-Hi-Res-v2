@@ -43,6 +43,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.music.innertube.YouTube
 import com.music.innertube.models.SongItem
 import iad1tya.echo.music.LocalDatabase
+import iad1tya.echo.music.LocalSyncUtils
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.AddToPlaylistSortDescendingKey
 import iad1tya.echo.music.constants.AddToPlaylistSortTypeKey
@@ -85,6 +86,7 @@ fun AddToPlaylistDialogOnline(
     viewModel: PlaylistsViewModel = hiltViewModel()
 ) {
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val coroutineScope = rememberCoroutineScope()
     val viewStateMap = remember { mutableStateMapOf<String, ItemsPage?>() }
     // Defaults MUST match PlaylistsViewModel.allPlaylists (LAST_UPDATED + descending), or the header
@@ -339,9 +341,12 @@ fun AddToPlaylistDialogOnline(
                                                         withContext(Dispatchers.IO) {
                                                             try {
                                                                 database.insert(firstSongMedia)
+                                                                val toggledFirst = firstSongEnt.toggleLike()
                                                                 database.query {
-                                                                    update(firstSongEnt.toggleLike())
+                                                                    update(toggledFirst)
                                                                 }
+                                                                // Row 622: this heart downloads the song too, like every other one.
+                                                                syncUtils.likeSong(toggledFirst)
                                                             } catch (e: Exception) {
                                                                 Timber.tag("Exception inserting song in database:")
                                                                     .e(e.toString())

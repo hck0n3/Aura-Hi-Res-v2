@@ -514,7 +514,16 @@ class SyncUtils @Inject constructor(
                     )
                 } else if (!dbSong.liked || dbSong.isVideo != isVideoSong) {
                     // Keep the original likedDate — never overwrite it with the sync timestamp.
-                    updateEntities.add(dbSong.copy(liked = true, isVideo = isVideoSong))
+                    // Row 622 (owner 2026-11-01: «lo que pongo en favoritos tiene que quedar arriba»): a song that was already in the
+                    // library and is liked from the account used to get `liked = true` and NO date, and a null date sorts below
+                    // everything. It now gets the same position-based stamp as a new row, unless it already had a date.
+                    updateEntities.add(
+                        dbSong.copy(
+                            liked = true,
+                            likedDate = dbSong.likedDate ?: now.minusSeconds((startIndex + offset).toLong()),
+                            isVideo = isVideoSong,
+                        ),
+                    )
                 }
             } catch (e: Exception) {
                 // Never swallow coroutine cancellation: doing so let the sync loop keep

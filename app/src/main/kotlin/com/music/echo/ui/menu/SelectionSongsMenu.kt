@@ -804,7 +804,10 @@ fun SelectionMediaMetadataMenu(
                                         // toggleLike() is a pure toggle, so only flip a row that is
                                         // not already in the desired state.
                                         if ((!allLiked && !existing.liked) || allLiked) {
-                                            upsert(existing.toggleLike())
+                                            val toggled = existing.toggleLike()
+                                            upsert(toggled)
+                                            // Row 622: every heart downloads the song (or adopts its cached copy) and syncs the like.
+                                            syncUtils.likeSong(toggled)
                                         }
                                     }
                                 }

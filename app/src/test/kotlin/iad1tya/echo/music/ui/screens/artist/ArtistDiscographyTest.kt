@@ -68,4 +68,18 @@ class ArtistDiscographyTest {
         val found = (1..100).map { song("s$it", "Song $it", "X") }
         assertEquals(60, ArtistDiscography.missingSongs(emptyList(), found, "X").size)
     }
+
+    @Test
+    fun songsVideosAndPlaylistsAreNeverDropped() {
+        // Row 621: beta 12 dropped EVERY non-album item (the artist's videos vanished).
+        val songs = listOf(song("1", "A", "X"), song("2", "B", "X"), song("3", "C", "X"))
+        assertEquals(listOf("1", "2", "3"), ArtistDiscography.dedupe(songs).map { it.id })
+        val mixed = listOf<com.music.innertube.models.YTItem>(song("1", "A", "X"), album("A1", "Alb", 2000), song("2", "B", "X"))
+        assertEquals(listOf("1", "A1", "2"), ArtistDiscography.dedupe(mixed).map { it.id })
+    }
+
+    @Test
+    fun aRepeatedSongIdIsStillRemoved() {
+        assertEquals(1, ArtistDiscography.dedupe(listOf(song("1", "A", "X"), song("1", "A", "X"))).size)
+    }
 }

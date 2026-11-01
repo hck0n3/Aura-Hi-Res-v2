@@ -41,12 +41,17 @@ object ArtistDiscography {
         }.take(limit)
     }
 
-    /** [items] without the repeated releases; every other kind of item is only de-duplicated by id, as before. */
+    /**
+     * [items] without the repeated releases; every other kind of item (songs, videos, playlists, artists) is only de-duplicated by id, as
+     * before. Row 621: the first version added the SAME key twice for those kinds, so the second add always failed and every one of them
+     * was dropped — the artist's videos and songs vanished from the artist pages in beta 12.
+     */
     fun dedupe(items: List<YTItem>): List<YTItem> {
-        val seen = HashSet<String>()
+        val seenIds = HashSet<String>()
+        val seenReleases = HashSet<String>()
         return items.filter { item ->
-            val key = if (item is AlbumItem) keyOf(item) else "id|${item.id}"
-            seen.add("id|${item.id}") and seen.add(key)
+            if (!seenIds.add(item.id)) return@filter false
+            if (item is AlbumItem) seenReleases.add(keyOf(item)) else true
         }
     }
 }
