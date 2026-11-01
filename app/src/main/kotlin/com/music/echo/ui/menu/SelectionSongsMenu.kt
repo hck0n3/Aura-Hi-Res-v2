@@ -527,6 +527,7 @@ fun SelectionMediaMetadataMenu(
 ) {
     val context = LocalContext.current
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val downloadUtil = LocalDownloadUtil.current
     val coroutineScope = rememberCoroutineScope()
     val playerConnection = LocalPlayerConnection.current ?: return
