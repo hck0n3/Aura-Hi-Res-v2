@@ -1,17 +1,17 @@
-# Aura Hi-Res v2.0.67-beta14 — icono nuevo exacto, lo que marcas sube arriba, «Pedir música» solo del Luis Miguel verdadero y el modo sin conexión solo muestra lo descargado
+# Aura Hi-Res v2.0.67 — icono nuevo metálico, control remoto y Escuchar juntos más firmes, cola inteligente con IA, biblioteca sincronizada y modo sin conexión
 
-Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Instálala en los dos aparatos (cel y tablet).
+Actualización sobre la 2.0.66. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Instálala en todos tus aparatos (cel y tablet).
 
 ## Icono
 
-- **Icono nuevo de Aura, tu diseño de cristal líquido naranja y morado, sin recortar:** el borde de tu diseño es el borde del icono, sin otro fondo alrededor. Según la forma de tu launcher (por ejemplo circular) las esquinas pueden quedar recortadas. El icono de tema de Android 13+ usa la silueta de la A, el triángulo y el aro.
+- **Icono nuevo de Aura: el botón de play metálico con su marco completo,** centrado y con el borde del diseño como borde del icono, sin otro fondo alrededor. Según la forma de tu launcher (por ejemplo circular) las esquinas pueden quedar recortadas. El icono de tema de Android 13+ usa la silueta del botón y su aro.
 
 ## Favoritos
 
 - **Lo que marcas ahora sube arriba también en álbumes y listas:** «Álbumes favoritos» y las listas guardadas se ordenaban por el orden en que se creó su fila, no por cuándo las guardaste. Ahora, con el orden «Fecha de creación» (el de siempre), lo último que guardas queda primero.
 - **Quitar canciones de «Canciones que me gustan»:** el menú «⋯» de una canción que te gusta tiene «Quitar me gusta», y al seleccionar varias dice «Eliminar todos los me gusta» cuando todas ya te gustan.
 
-## Pedir música
+## Pedir música: solo el artista verdadero
 
 - **Pides a un artista y solo suena ese artista, no otros que se llamen igual:** con «Luis Miguel» ahora se reconoce al verdadero (el primer artista con ese nombre en YouTube Music) y se dejan fuera las canciones de otros canales que también se llaman «Luis Miguel».
 
@@ -19,34 +19,22 @@ Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. C
 
 - **Álbumes y listas de reproducción de Biblioteca muestran solo los que tienen canciones descargadas** cuando estás sin conexión (manual o automático). Las listas automáticas («Me gusta», «Descargadas»…) siguen igual.
 
-## Para que lo pruebes y me cuentes
-
-- No pude probar nada de esto en un aparato; todo pasa las pruebas automáticas. Si «Pedir música» sigue mezclando artistas, manda el registro con el artista y la hora.
-- Ya va dentro el freno de la IA de la cola: si rechaza todas las canciones dudosas, la app no le cree y sigue con su filtro de siempre.
-
-
-
-## De la beta 13: arreglo de la beta 12
-
-- **Vuelven los vídeos, las canciones y las listas de las páginas de artista y de «ver todos»:** en la beta 12 la función que quita álbumes repetidos descartaba todo lo que no era álbum. Ahora solo compara álbumes, y una prueba automática vigila que canciones, vídeos y listas no se pierdan.
-- **La búsqueda que agrega canciones al artista ya no toca su lista de vídeos.**
-
-## De la beta 13: corazón y favoritos
+## Corazón y favoritos
 
 - **Todo corazón de una canción la descarga** (o solo la marca como descargada si ya estaba en la caché de escucha). Dos caminos lo olvidaban: «me gusta» de varias canciones a la vez y el corazón de la primera canción al agregar a una lista.
 - **Lo que marcas desde tu cuenta de YouTube y ya estaba en tu biblioteca queda arriba** en «Canciones que me gustan»: antes llegaba sin fecha y se iba al fondo.
 
-## De la beta 12: cola inteligente
+## Cola inteligente: IA y música infantil
 
 - **Segunda opinión con IA para las canciones dudosas:** cuando el filtro no sabe si una canción encaja (estilo o idioma sin comprobar), la app le pregunta a la IA del servidor de Aura y deja fuera las que no encajan. La IA solo puede quitar canciones, nunca agregar. Solo envía el título y el artista de lo que suena y de las canciones dudosas, nunca tu cuenta. Está **encendida por defecto** y se apaga en Ajustes ▸ Servicios Aura.
 - **La música infantil ya no entra a una cola que no es infantil** (pasaba de clásica cristiana a cristiana de niños).
-- **Se borra una vez lo que la app había aprendido mal de cada artista** en las betas anteriores; se vuelve a aprender de las propias canciones.
+- **Se borra una vez lo que la app había aprendido de cada artista** y se vuelve a aprender de las propias canciones, para que un estilo mal aprendido no arrastre la cola.
 
-## De la beta 12: sonido
+## Sonido
 
 - **El bajo ya no esconde la voz y la voz ya no «sube» cuando no hay bajo:** el compresor suave escuchaba también los graves y bajaba toda la mezcla con cada nota grave. Ahora su detector ignora lo que está por debajo de 200 Hz. Si lo notas igual, apaga «compresor suave» en Ajustes ▸ Sonido para comparar y cuéntame.
 
-## De la beta 12: control remoto y Escuchar juntos
+## Control remoto y Escuchar juntos: QR y salas
 
 - **Siguiente y anterior del mini reproductor, de los deslizamientos de la portada y del modo ambiente** ahora mandan la orden al otro dispositivo (antes movían el tuyo y se devolvía a la canción que sonaba).
 - **El control de volumen del botón de salida de audio** mueve el volumen del otro dispositivo cuando lo controlas en remoto, y lo dice.
@@ -56,14 +44,14 @@ Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. C
 - **Escuchar juntos: el invitado salta al instante a la canción nueva** si ya la tenía cargada (antes reconstruía todo y empezaba tarde).
 - **Dentro de una sala el control remoto se apaga:** la sala manda sobre el reproductor.
 
-## De la beta 12: búsqueda, artistas y micrófono
+## Búsqueda, artistas y micrófono
 
 - **Las discografías ya no repiten álbumes** (misma edición limpia/explícita con otro identificador).
 - **La lista «Canciones» del artista agrega las que faltaban** y una búsqueda sí encuentra, solo si están acreditadas a ese artista.
 - **«Pedir música» por voz:** envía 1,6 s después de callarte (antes 2,5 s) y un toque doble ya no arranca el micrófono dos veces.
 - **Resultados de búsqueda:** vuelven a mostrarse desde arriba cuando llega un conjunto nuevo.
 
-## De la beta 11: control remoto
+## Control remoto: un solo dispositivo da audio
 
 - **Solo un dispositivo da audio:** el que tú pones a sonar. Si empiezas a reproducir en uno mientras el otro suena, el otro recibe una pausa. Las órdenes que llegan del otro aparato (continuar aquí, una cola enviada, un play) no cuentan como toque, así que no se pausan entre sí.
 - **«Play» después de una pausa ahora hace sonar:** una cola copiada o restaurada quedaba «en reposo» y el play remoto no la preparaba, así que por más veces que lo tocaras no sonaba. Ahora la prepara.
@@ -72,26 +60,26 @@ Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. C
 - **Volumen del otro dispositivo en «Mis dispositivos»**, junto a sus controles, y el menú «⋯» dice de qué aparato es la barra.
 - **«Ir a la lista» también cuando el cel envía la cola a la tablet:** la cola viaja con su lista de origen.
 
-## De la beta 11: salas de Aura
+## Salas de Aura: unirse con 6 letras
 
 - **El botón «Unirse» ya se activa con las salas de Aura:** pedía un código de 8 caracteres, y las salas de Aura usan 6, así que desde el segundo dispositivo nunca se habilitaba. Ahora la pantalla y el menú del reproductor piden 6 (salas de Aura) u 8 (servidor compartido) según lo que tengas activado.
 
-## De la beta 11: aleatorio
+## Aleatorio entre dispositivos
 
 - **El progreso del aleatorio de una lista de YouTube enlazada ya se encuentra entre tus aparatos:** cada aparato le daba un identificador distinto y por eso no coincidía; ahora viaja con la identidad de sincronización de la lista.
 - **«Iniciar desde cero» empieza de cero de verdad:** el contador ya cuenta solo la memoria del aleatorio. Antes sumaba todo lo que habías oído alguna vez, que nunca se borra, y volvía a mostrar «26 de 29».
 
-## De la beta 11: cola inteligente
+## Cola inteligente: ya no se cree las búsquedas
 
 - **La cola ya no se cree las canciones solo porque vengan de una búsqueda del estilo:** en tu registro, 14 de 15 canciones entraron así y las saltaste. Ahora una canción de búsqueda se juzga por lo que se sabe de ella, y a su artista ya no se le enseña el estilo solo por haberlo buscado. (Lo que pides tú en «Pedir música» sigue funcionando igual.)
 - **El estilo que guía la cola queda fijo** en cuanto se conoce, hasta que pongas otra canción, álbum o lista; si no se conoce, lo toma de las canciones que escuchaste hasta el final y coinciden.
 - **La fila «Siguiendo: …» ya no se esconde cuando el estilo es desconocido:** dice «Detectando estilo…» y puedes corregirlo con el mismo menú.
 
-## De la beta 11: portada animada
+## Portada animada en el reproductor
 
 - **El reproductor usa la misma búsqueda que la página del álbum** cuando la suya no encuentra nada, una vez por álbum. Si la página anima un álbum, el reproductor también debe animarlo. En el registro verás `CANVAS_ALBUM_RETRY`.
 
-## De la beta 10: aleatorio y control remoto
+## Aleatorio y control remoto
 
 - **El interruptor de aleatorio manda sobre el dispositivo que suena:** si controlas la tablet desde el cel, el aleatorio se activa en la tablet y el interruptor muestra su estado real, en el reproductor nuevo y también en la cola y el menú clásicos. Antes solo reordenaba la cola del cel.
 - **El volumen remoto ya no vuelve solo al valor viejo:** el dispositivo que suena avisa de su nuevo volumen en cuanto lo recibe.
@@ -120,13 +108,9 @@ Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. C
 - **La portada animada del álbum en el reproductor** ya no se descarta cuando la página del álbum sí la acepta: se valida con el mismo álbum con el que se busca, y una portada rechazada ya no se recuerda como «ninguna».
 - **Registros:** el botón de borrar ya no está junto a Compartir; está solo, abajo, y pide confirmación. El encabezado del registro ya no dice «enhancedShuffle=OFF» por error en dispositivos que nunca tocaron ese ajuste.
 
-## Para que lo pruebes y me cuentes
+## Control remoto: arreglos
 
-- No pude probar nada de esto en un aparato. Si la cola se desvía, «siguiente» no cambia en remoto o la portada sigue quieta en algún álbum, manda el registro con la canción y la hora.
-
-## De la beta 9: control remoto, arreglos sobre la beta 8
-
-- **El control remoto vuelve a funcionar:** en la beta 8, tras pausar aquí dejaba de aparecer «Continuar aquí» y los controles del otro dispositivo. Ahora solo se retiene tu canción cuando el otro dispositivo está parado y su estado es viejo (hasta 10 minutos tras tu pausa); si el otro suena, siempre ves su canción y sus controles.
+- **El control remoto no se pierde al pausar aquí:** tras pausar, «Continuar aquí» y los controles del otro dispositivo siguen apareciendo. Solo se retiene tu canción cuando el otro dispositivo está parado y su estado es viejo (hasta 10 minutos tras tu pausa); si el otro suena, siempre ves su canción y sus controles.
 - **Tocar una canción de la cola mientras controlas la tablet suena en la tablet** y ya no corta la conexión ni empieza a sonar en el cel.
 - **El traspaso ya no deja sin música:** el dispositivo que cede solo se pausa si la orden de «tomar» se envió de verdad. Si no se pudo enviar, sigue sonando.
 - **Recordatorio de batería en Sincronizar dispositivos:** si el ahorro de batería puede dormir la reproducción en segundo plano, una fila te lo dice y te lleva a quitar la restricción. Las órdenes remotas que se ignoran ahora dejan su motivo en el registro.
@@ -155,9 +139,9 @@ Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. C
 - **Cambio automático de formato de vídeo:** si un formato de vídeo falla y la app prueba otro sola, ya no abre el reproductor grande.
 - **Menos ruido en GitHub:** quitada una referencia rota (`src/graphify`) que avisaba en cada compilación.
 
-## De la beta 8: «Escuchar juntos» propio de Aura
+## «Escuchar juntos» propio de Aura
 
-- **Salas de Aura (nuevo, apagado por defecto):** Ajustes ▸ Escuchar juntos ▸ **Salas de Aura**. Las salas viven en tu propio servidor, solo entre usuarios de Aura, con el código de 6 letras de siempre. Apagado, todo sigue como antes con el servidor compartido que también usan otras apps. No se puede cambiar mientras estás en una sala.
+- **Salas de Aura (nuevo, encendido por defecto):** Ajustes ▸ Escuchar juntos ▸ **Salas de Aura**. Las salas viven en tu propio servidor, solo entre usuarios de Aura, con el código de 6 letras de siempre. Si lo apagas, todo sigue como antes con el servidor compartido que también usan otras apps. No se puede cambiar mientras estás en una sala.
 - Sin sala no hay conexión: la pantalla queda lista y el socket se abre al crear o unirse. Si se cae la conexión, vuelve a la misma sala sola; al salir de la sala se cierra todo.
 
 ## Control remoto entre tus dispositivos
@@ -178,11 +162,11 @@ Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. C
 
 - **La portada se ve más por encima del fondo, no plana:** el filo es más claro (y más oscuro en la esquina opuesta, para que se note incluso sobre portadas claras) y hay un brillo suave arriba y una sombra suave abajo sobre la propia imagen. La sombra de fuera no cambia.
 
-## Para encontrar fallos con tu próximo registro
+## Registros para encontrar fallos
 
 - **Una canción de la cola que se sale del estilo** deja, al darle «no me gusta», cómo entró (paso y base) y contra qué objetivo se juzgó; las etiquetas de artista dicen si respondió el servidor de Aura o Last.fm; y cada vez que se abre el reproductor grande queda quién lo abrió. Todo en números, nunca títulos ni nombres.
 
-## De la beta 7: copia de seguridad en la nube de Aura
+## Copia de seguridad en la nube de Aura
 
 - **Ajustes ▸ Copia de seguridad ▸ «Guardar copia en la nube de Aura»** y **«Restaurar la última copia de la nube»**: la misma copia de tu biblioteca de siempre (sin tu sesión de YouTube ni tu licencia), cifrada en tu móvil antes de salir. El servidor solo guarda bytes que no puede leer. Se conservan las últimas 3 copias y el máximo es de 24 MB cada una.
 - La clave sale de tu código de emparejamiento o de tu licencia y correo de compra. Si se prueba con otra clave, o la copia está dañada, no se restaura nada y la app te lo dice. Restaurar pide confirmación porque reemplaza tu biblioteca y reinicia la app.
@@ -197,7 +181,7 @@ Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. C
 - **«Enviar registro»** ahora sube también la parte anterior del registro, donde queda lo que pasó al conectar los dispositivos. Sigue enviándose solo cuando lo pulsas.
 - **Cola infinita:** nueva línea de diagnóstico (solo números, nunca nombres) que dice cuánto de lo que la cola aprende viene de las palabras de la propia canción y cuánto del estilo que se pidió. Sirve para encontrar por qué la cola a veces se va desviando después de varias canciones.
 
-## Sincronización de la biblioteca (de la beta 6)
+## Sincronización de la biblioteca
 
 - **Se acabó la tormenta de descargas:** cuando un dispositivo subía una biblioteca grande, el otro pedía la misma lista una y otra vez (en un registro se vieron 1656 descargas en 5 segundos). Gastaba batería, calentaba y dejaba la sincronización sin cerrar, y mientras no cerraba, los cambios de ese dispositivo no salían. Ahora pide una sola vez y repite solo si hubo novedades.
 - **Tus «me gusta» y «no me gusta» llegan también a tu cuenta de YouTube:** si el dispositivo donde los diste no pudo enviarlos (sin sesión o sin red), el que los recibe por tu servidor los manda. Solo cuando son pocos; una sincronización grande no se reenvía una a una.
@@ -226,7 +210,7 @@ Beta encima de la 2.0.67-beta13 (incluye todo lo suyo) y de la 2.0.66 estable. C
 
 - Se sincroniza por tu servidor, al momento o al conectarse, y mientras estén conectados YouTube no la sincroniza. Freno de seguridad si llegaran muchos borrados de golpe. El orden de las canciones dentro de una lista no se sincroniza.
 
-## Portada del reproductor (de las betas 4 y 5)
+## Portada y botón «Mis dispositivos»
 
 - **La sombra ya no se corta en recuadro** en los móviles normales: la portada deja margen para que se desvanezca. En tablets y plegables no cambia.
 - El botón «Mis dispositivos» está en la barra de abajo del reproductor, con el estilo de sus vecinos.
