@@ -138,6 +138,8 @@ fun AuraSettingsScreen(
     val soundText = "Sonido y ecualización"
     val performanceText = "Rendimiento"
     val listenTogetherText = stringResource(R.string.listen_together)
+    val deviceSyncText = stringResource(R.string.device_sync_title)
+    val auraServicesText = stringResource(R.string.aura_services_title)
     val contentText = stringResource(R.string.content)
     val aiLyricsText = stringResource(R.string.ai_lyrics_translation)
     val privacyText = stringResource(R.string.privacy)
@@ -240,6 +242,14 @@ fun AuraSettingsScreen(
                     // of the search index already point at but which had no index row anywhere.
                     AuraSettingsEntry(settingsWordText) {
                         navController.navigate("settings/integrations/listen_together")
+                    },
+                    // Row 528: pairs the user's own devices (shuffle, hand-off, lists) through their Worker.
+                    AuraSettingsEntry(deviceSyncText) {
+                        navController.navigate("settings/device_sync")
+                    },
+                    // Phase A/B of the Worker plan: remote switches, notices and one-tap diagnostics (off until an address is set).
+                    AuraSettingsEntry(auraServicesText) {
+                        navController.navigate("settings/aura_services")
                     },
                 ),
             )

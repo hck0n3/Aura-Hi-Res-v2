@@ -72,6 +72,7 @@ import com.music.innertube.models.SongItem
 import com.music.innertube.models.WatchEndpoint
 import com.music.innertube.utils.completed
 import iad1tya.echo.music.LocalDatabase
+import iad1tya.echo.music.LocalSyncUtils
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
@@ -85,6 +86,7 @@ import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.PlaylistSongMap
 import iad1tya.echo.music.models.toMediaMetadata
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.playback.ShuffleContexts
 import iad1tya.echo.music.playback.queues.YouTubePlaylistQueue
 import iad1tya.echo.music.playback.queues.YouTubeQueue
@@ -150,6 +152,7 @@ fun AuraOnlinePlaylistScreen(
     val focusManager = LocalFocusManager.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val downloadUtil = LocalDownloadUtil.current
     val coroutineScope = rememberCoroutineScope()
     val isTvOrCar = rememberIsTvOrCar()
@@ -449,10 +452,39 @@ fun AuraOnlinePlaylistScreen(
                             (dbSong?.song?.totalPlayTime ?: 0L) > 0L
                         ) && !isActive
 
+                    // Row 506 (owner 2026-10-29: «en las listas fijadas, al entrar, no puedo deslizar las canciones para dar me
+                    // gusta o añadirlas a una lista»): a YouTube list (a Mix, a playlist of someone else's) had only the queue
+                    // swipe, off by default. It now has the same gesture as an album or an artist's songs: right = like,
+                    // left = add to a list. The song is inserted in the library first (a SongItem has no row guaranteed).
+                    var showSwipeAddToPlaylist by rememberSaveable(songItem.id) { mutableStateOf(false) }
+                    AddToPlaylistDialog(
+                        isVisible = showSwipeAddToPlaylist,
+                        songIdsForMembership = listOf(songItem.id),
+                        onGetSong = {
+                            database.query { insert(songItem.toMediaMetadata()) }
+                            listOf(songItem.id)
+                        },
+                        onDismiss = { showSwipeAddToPlaylist = false },
+                    )
+                    AuraLibrarySwipeActionsBox(
+                        modifier = Modifier.animateItem(),
+                        enabled = !inSelectMode && !blocked,
+                        liked = dbSong?.song?.liked == true,
+                        onToggleLike = {
+                            database.query {
+                                insert(songItem.toMediaMetadata())
+                                getSongByIdBlocking(songItem.id)?.song?.let { entity ->
+                                    val toggled = entity.toggleLike()
+                                    update(toggled)
+                                    syncUtils.likeSong(toggled)
+                                }
+                            }
+                        },
+                        onAddToPlaylist = { showSwipeAddToPlaylist = true },
+                    ) {
                     AuraAppleListRowFrame(
                         showDivider = filteredIndex < filteredSongs.lastIndex,
                         dividerInset = AuraAppleCoverDividerInset,
-                        modifier = Modifier.animateItem(),
                     ) {
                     AuraSongRow(
                         title = songItem.title,
@@ -525,6 +557,7 @@ fun AuraOnlinePlaylistScreen(
                             scaleFocused = 1f,
                         ),
                     )
+                    }
                     }
                     }
                 }
@@ -790,7 +823,7 @@ private fun AuraOnlinePlaylistHeader(
 
             run {
                 val playedCount = remember(shufflePlayedSet, heardIds, songs) {
-                    songs.count { it.id in shufflePlayedSet || it.id in heardIds }
+                    songs.count { it.id in shufflePlayedSet }
                 }
                 EnhancedShuffleChip(
                     playedCount = playedCount,
@@ -812,7 +845,7 @@ private fun AuraOnlinePlaylistHeader(
                 val contextId = shuffleContextId ?: ShuffleContexts.onlinePlaylist(playlist.id)
                 val onShuffleClick = rememberShuffleMemoryPrompt(
                     contextId = contextId,
-                    playedCount = songs.count { it.id in shufflePlayedSet || it.id in heardIds },
+                    playedCount = songs.count { it.id in shufflePlayedSet },
                     totalCount = songs.size,
                 ) { resetMemory ->
                     val seed = ShuffleContexts.seedPlayedIds(

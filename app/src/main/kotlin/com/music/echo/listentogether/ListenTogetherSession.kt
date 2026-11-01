@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +20,9 @@ import timber.log.Timber
 import kotlin.coroutines.CoroutineContext
 
 private const val TAG = "ListenTogetherSession"
+
+/** What the room screen shows as the server version while Aura rooms are "ready" without a socket. */
+private const val AURA_ROOMS_VERSION = "aura-rooms"
 
 /** Where the socket is, independent of whether a room has been joined. */
 sealed interface ConnectionState {
@@ -145,6 +149,12 @@ class ListenTogetherSession(
         if (pump == null) {
             pump = launch { client.events.collect(::onEvent) }
         }
+        if (client.isAuraRooms && client.roomTarget == null) {
+            // Aura's rooms have no lobby socket: a connection only exists once there is a room to create or
+            // join. Until then the screen is simply "ready", and createRoom/joinRoom open the real socket.
+            _state.update { it.copy(connection = ConnectionState.Connected(AURA_ROOMS_VERSION), error = null) }
+            return
+        }
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
         client.connect()
     }
@@ -158,6 +168,7 @@ class ListenTogetherSession(
     fun createRoom(username: String) =
         launch {
             pendingUsername = username.trim()
+            if (client.isAuraRooms && !client.isConnected) client.roomTarget = ListenTogetherClient.RoomTarget.Create
             val sent = client.send(MessageTypes.CREATE_ROOM, CreateRoomPayload(username = pendingUsername))
             if (!sent) {
                 // Same TOCTOU semantics the old client had (its "Upstream 5.2.81 fix"): queue the
@@ -174,6 +185,7 @@ class ListenTogetherSession(
         pendingUsername = username.trim()
         val code = roomCode.trim().uppercase()
         _state.update { it.copy(pendingJoinCode = code, error = null) }
+        if (client.isAuraRooms && !client.isConnected) client.roomTarget = ListenTogetherClient.RoomTarget.Join(code)
         val sent = client.send(MessageTypes.JOIN_ROOM, JoinRoomPayload(roomCode = code, username = pendingUsername))
         if (!sent) {
             queuedRoomAction = QueuedRoomAction.Join(code)
@@ -224,6 +236,11 @@ class ListenTogetherSession(
         launch {
             client.send(MessageTypes.LEAVE_ROOM, LeaveRoomPayload())
             tokenStore?.clear()
+            if (client.isAuraRooms) {
+                // One socket per room: leaving ends it, and forgets the room so nothing tries to go back.
+                delay(300)
+                client.disconnect()
+            }
             // The server sends nothing back for leave_room, so the local state is cleared here —
             // waiting for a confirmation that never arrives would leave the room UI on screen.
             _state.update {
@@ -235,6 +252,7 @@ class ListenTogetherSession(
                     suggestions = emptyList(),
                     currentTrack = null,
                     waitingFor = emptyList(),
+                    connection = if (client.isAuraRooms) ConnectionState.Connected(AURA_ROOMS_VERSION) else it.connection,
                 )
             }
         }

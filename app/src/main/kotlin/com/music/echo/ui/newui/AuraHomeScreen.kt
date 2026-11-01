@@ -88,6 +88,7 @@ import iad1tya.echo.music.constants.GridItemsSizeKey
 import iad1tya.echo.music.constants.HighPerformanceModeKey
 import iad1tya.echo.music.constants.HomeRichLayoutKey
 import iad1tya.echo.music.constants.HomeTasteOnlyKey
+import iad1tya.echo.music.constants.TopSize
 import iad1tya.echo.music.constants.OfflineModeKey
 import iad1tya.echo.music.constants.RandomizeHomeOrderKey
 import iad1tya.echo.music.constants.ShowSpeedDialKey
@@ -188,6 +189,9 @@ fun AuraHomeScreen(
     val explorePage by viewModel.explorePage.collectAsState()
     val dailyMixes by viewModel.dailyMixes.collectAsState()
     val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
+    val dailyTop by viewModel.dailyTop.collectAsState()
+    val momentSongs by viewModel.momentSongs.collectAsState()
+    val (topSize) = rememberPreference(TopSize, "50")
     val timeOfDayMix by viewModel.timeOfDayMixDisplay.collectAsState()
     val aiRecommendedPlaylist by viewModel.aiRecommendedPlaylist.collectAsState()
     val aiRecommendedSongs by viewModel.aiRecommendedSongs.collectAsState()
@@ -510,6 +514,8 @@ fun AuraHomeScreen(
                         // Modo sin conexión and Cuenta — live here now; see [LocalAuraTopActions].
                         trailing = { AuraTopActions() },
                         collapseTrailing = true,
+                        // Row 579: the unfolded buttons in the glass capsule Biblioteca already has (owner 2026-10-31).
+                        glassActions = true,
                     )
                 }
 
@@ -777,6 +783,78 @@ fun AuraHomeScreen(
                     }
                 }
 
+                // Top diario: moved here from Novedades (owner 2026-10-29: «en el radar de novedades solo quiero los
+                // estrenos, el top diario lo quiero en el inicio»). Same songs «Mi top» lists; the header opens that screen.
+                dailyTop.takeIf { it.isNotEmpty() }?.let { all ->
+                    item(key = "aura_home_daily_top", contentType = "aura_home_daily_top") {
+                        val topTitle = stringResource(R.string.novedades_daily_top)
+                        val shown = remember(all) { all.distinctBy { it.id }.take(12) }
+                        Column(Modifier.animateItem()) {
+                            AuraSectionHeader(
+                                title = topTitle,
+                                onClick = { navController.navigate("top_playlist/$topSize") },
+                                onPlayAll = { playAllSongs(topTitle, all) },
+                            )
+                            AuraShelf {
+                                items(shown, key = { it.id }) { song ->
+                                    AuraSongShelfCard(
+                                        song = song,
+                                        cardScale = cardScale,
+                                        isActive = song.id == mediaMetadata?.id,
+                                        isPlaying = isPlaying,
+                                        onClick = {
+                                            val queue = all.distinctBy { it.id }
+                                            playerConnection.playQueue(
+                                                ListQueue(
+                                                    title = topTitle,
+                                                    items = queue.map { it.toMediaItem() },
+                                                    startIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0),
+                                                ),
+                                            )
+                                        },
+                                        onLongClick = { songMenu(song) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Canciones del momento: moved here from Novedades (owner 2026-10-29). Nothing that «Top diario» just showed.
+                momentSongs.takeIf { it.isNotEmpty() }?.let { all ->
+                    val topIds = dailyTop.distinctBy { it.id }.take(12).map { it.id }.toSet()
+                    val shown = all.distinctBy { it.id }.filterNot { it.id in topIds }
+                    if (shown.isNotEmpty()) item(key = "aura_home_moment", contentType = "aura_home_moment") {
+                        val momentTitle = stringResource(R.string.novedades_songs_of_the_moment)
+                        Column(Modifier.animateItem()) {
+                            AuraSectionHeader(
+                                title = momentTitle,
+                                onPlayAll = { playAllSongs(momentTitle, shown) },
+                            )
+                            AuraShelf {
+                                items(shown, key = { it.id }) { song ->
+                                    AuraSongShelfCard(
+                                        song = song,
+                                        cardScale = cardScale,
+                                        isActive = song.id == mediaMetadata?.id,
+                                        isPlaying = isPlaying,
+                                        onClick = {
+                                            playerConnection.playQueue(
+                                                ListQueue(
+                                                    title = momentTitle,
+                                                    items = shown.map { it.toMediaItem() },
+                                                    startIndex = shown.indexOfFirst { it.id == song.id }.coerceAtLeast(0),
+                                                ),
+                                            )
+                                        },
+                                        onLongClick = { songMenu(song) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Cold home: onboarding/import done but never played — taste shelves stay empty on purpose.
                 val tasteShelvesEmpty = quickPicks.isNullOrEmpty() &&
                     dailyMixes.isNullOrEmpty() &&
@@ -851,6 +929,7 @@ fun AuraHomeScreen(
                                             // un súper espacio inutilizado"). This is the shelf the user curates
                                             // by hand, so it is the one that is short most often.
                                             itemCount = items.size,
+                                            cardWidth = pinW,
                                         ) {
                                             lazyGridItems(items, key = { it.id }) { item ->
                                                 AuraTypedYtCoverCard(
@@ -1080,6 +1159,7 @@ fun AuraHomeScreen(
                                         AuraDoubleRowShelf(
                                             rowHeight = auraShelfCardStackHeight(playlistW),
                                             itemCount = uniquePlaylists.size,
+                                            cardWidth = playlistW,
                                         ) {
                                             lazyGridItems(uniquePlaylists, key = { it.id }) { item ->
                                                 AuraTypedYtCoverCard(
@@ -1539,8 +1619,9 @@ private fun AuraGroupedYtItemShelves(
 ) {
     val groups = remember(items) { items.groupedByAuraKind { auraContentKind(it) } }
     val showGroupLabels = groups.size > 1
+    BoxWithConstraints(modifier = modifier) {
+    val paneWidth = maxWidth
     Column(
-        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         groups.forEach { (kind, group) ->
@@ -1556,7 +1637,17 @@ private fun AuraGroupedYtItemShelves(
                 )
             }
             val visual = auraTypeVisual(kind)
-            val scale = if (kind == AuraContentKind.Video) cardScale * 1.12f else cardScale
+            val baseScale = if (kind == AuraContentKind.Video) cardScale * 1.12f else cardScale
+            // Row 522 (owner 2026-10-29, Galaxy Tab S12 Ultra: «lo mismo pasa en la pantalla de inicio»): a shelf of five
+            // albums or artists drew five phone-sized cards and left 40 % of a tablet row empty. On a wide pane the cards
+            // of a SHORT shelf grow (up to 1.5×) until the row fills; a phone and a long shelf are exactly as before.
+            val shelfBoost = when (kind) {
+                AuraContentKind.Album, AuraContentKind.Ep, AuraContentKind.Single,
+                AuraContentKind.Playlist, AuraContentKind.Artist, AuraContentKind.Podcast,
+                -> auraWideShelfBoost(group.size, paneWidth, visual.shelfWidth * baseScale)
+                else -> 1f
+            }
+            val scale = baseScale * shelfBoost
             when (kind) {
                 AuraContentKind.Album, AuraContentKind.Ep, AuraContentKind.Single,
                 AuraContentKind.Playlist, AuraContentKind.Artist, AuraContentKind.Podcast,
@@ -1565,6 +1656,8 @@ private fun AuraGroupedYtItemShelves(
                         val w = visual.shelfWidth * scale
                         AuraDoubleRowShelf(
                             rowHeight = auraShelfCardStackHeight(w, visual.ratio),
+                            itemCount = group.size,
+                            cardWidth = w,
                         ) {
                             lazyGridItems(group, key = { it.id }) { item ->
                                 AuraTypedYtCoverCard(
@@ -1616,7 +1709,27 @@ private fun AuraGroupedYtItemShelves(
             }
         }
     }
+    }
 }
+
+/**
+ * How much a SHORT shelf's cards grow on a wide pane so the row fills (1 = unchanged). 1 on a phone/fold (under
+ * [AURA_WIDE_SHELF_MIN_WIDTH]) and for a shelf that already fills the pane; at most [AURA_WIDE_SHELF_MAX_BOOST]. Pure, for test.
+ */
+internal fun auraWideShelfBoost(
+    itemCount: Int,
+    availableWidth: androidx.compose.ui.unit.Dp,
+    cardWidth: androidx.compose.ui.unit.Dp,
+    gap: androidx.compose.ui.unit.Dp = AuraSpacing.ShelfItemGap,
+    gutter: androidx.compose.ui.unit.Dp = AuraSpacing.Gutter,
+): Float {
+    if (itemCount <= 0 || cardWidth <= 0.dp || availableWidth < AURA_WIDE_SHELF_MIN_WIDTH) return 1f
+    val fill = (availableWidth - gutter * 2 + gap) / ((cardWidth + gap) * itemCount)
+    return fill.coerceIn(1f, AURA_WIDE_SHELF_MAX_BOOST)
+}
+
+internal val AURA_WIDE_SHELF_MIN_WIDTH = 800.dp
+internal const val AURA_WIDE_SHELF_MAX_BOOST = 1.5f
 
 /** The render's horizontal shelf: gutter-aligned, 8 px gaps, sitting under a section rule. */
 @Composable

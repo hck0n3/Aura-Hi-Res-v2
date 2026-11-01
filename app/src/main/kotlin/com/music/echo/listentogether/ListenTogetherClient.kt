@@ -18,6 +18,7 @@ import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
+import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -106,6 +107,13 @@ class ListenTogetherClient(
      */
     private val serverUrl: () -> String = { DEFAULT_SERVER_URL },
     /**
+     * True when the user chose Aura's own rooms (Ajustes ▸ Escuchar juntos). Read on every attempt like
+     * [serverUrl]. Those rooms live on the aura-rooms Worker: JSON text frames, one socket per room, so
+     * the address depends on [roomTarget] (create → `/rooms/create`, join → `/rooms/join?code=…`).
+     */
+    private val auraRooms: () -> Boolean = { false },
+    private val auraRoomsUrl: () -> String = { AURA_ROOMS_URL },
+    /**
      * MUST be monotonic — [ServerClock] compares it against itself. Android's
      * `SystemClock.elapsedRealtime` also counts deep sleep, which is exactly what a music app
      * needs: a room resumed after the screen was off must not think half an hour of music passed.
@@ -130,7 +138,24 @@ class ListenTogetherClient(
     val events: SharedFlow<ListenTogetherEvent> = _events.asSharedFlow()
 
     private var codec = MessageCodec(compressionEnabled = true)
+
+    /** Where the next Aura-rooms socket goes. Set by the session right before it connects; null = nowhere to go yet. */
+    sealed interface RoomTarget {
+        data object Create : RoomTarget
+
+        data class Join(val roomCode: String) : RoomTarget
+    }
+
+    @Volatile
+    var roomTarget: RoomTarget? = null
+
+    /** True when this client talks to Aura's rooms rather than a Metrolist-compatible server. */
+    val isAuraRooms: Boolean get() = auraRooms()
     private var session: DefaultClientWebSocketSession? = null
+
+    /** The frame kind of the CURRENT socket: Aura's rooms use text, Metrolist servers binary. */
+    @Volatile
+    private var usingText = false
     private var connectionJob: Job? = null
     private var handshake: CompletableDeferred<ServerCapabilities>? = null
 
@@ -201,7 +226,8 @@ class ListenTogetherClient(
         val live = session ?: return false
         if (!live.isActive) return false
         return runCatching {
-            live.send(Frame.Binary(true, codec.encode(msgType, payload)))
+            val bytes = codec.encode(msgType, payload)
+            live.send(if (usingText) Frame.Text(bytes.decodeToString()) else Frame.Binary(true, bytes))
             true
         }.getOrElse { e ->
             Timber.tag(TAG).w(e, "Send failed for %s", msgType)
@@ -213,6 +239,7 @@ class ListenTogetherClient(
     fun disconnect() {
         Timber.tag(TAG).i("Disconnecting by request")
         sessionToken = null
+        roomTarget = null
         reconnectAttempts = 0
         closeCurrentSocket(connectionJob)
         connectionJob = null
@@ -255,8 +282,22 @@ class ListenTogetherClient(
     }
 
     private suspend fun openAndRun() {
-        val url = serverUrl().ifBlank { DEFAULT_SERVER_URL }
-        Timber.tag(TAG).i("Connecting")
+        val aura = auraRooms()
+        val url =
+            if (aura) {
+                val target = roomTarget ?: run {
+                    // Aura's rooms have no lobby: a socket without a room to create or join would be refused.
+                    Timber.tag(TAG).i("Aura rooms: no room to go to, not connecting")
+                    fatal = true
+                    return
+                }
+                auraUrl(auraRoomsUrl().ifBlank { AURA_ROOMS_URL }, target)
+            } else {
+                serverUrl().ifBlank { DEFAULT_SERVER_URL }
+            }
+        usingText = aura
+        codec = MessageCodec(compressionEnabled = !aura, json = aura)
+        Timber.tag(TAG).i("Connecting (%s)", if (aura) "aura rooms" else "metrolist-compatible")
         // The URL is never logged: a custom server URL is user data (regla 4 del registro — nada
         // de lo que el usuario tecleó va al app.log que comparte desde Ajustes).
         val live = client.webSocketSession(url)
@@ -286,7 +327,7 @@ class ListenTogetherClient(
 
                 // Only narrows: a server that cannot inflate must not be sent gzip. Widening is
                 // pointless because the 100-byte threshold already suppresses useless compression.
-                if (!caps.supportsCompression) {
+                if (!aura && !caps.supportsCompression) {
                     Timber.tag(TAG).w("Server reports no compression support — sending uncompressed")
                     codec = MessageCodec(compressionEnabled = false)
                 }
@@ -331,11 +372,16 @@ class ListenTogetherClient(
 
     private suspend fun readFrames(live: DefaultClientWebSocketSession) {
         for (frame in live.incoming) {
-            // Metrolist's server writes BinaryMessage exclusively; anything else is not ours.
-            if (frame !is Frame.Binary) continue
+            // Metrolist's server writes BinaryMessage exclusively and Aura's rooms Text exclusively;
+            // anything else is not ours.
+            val bytes =
+                when {
+                    usingText && frame is Frame.Text -> frame.readText().encodeToByteArray()
+                    !usingText && frame is Frame.Binary -> frame.readBytes()
+                    else -> continue
+                }
             // Not `getOrElse { continue }`: Kotlin still forbids break/continue inside a lambda,
             // even an inlined one, so the failure has to be unwrapped before the loop can skip.
-            val bytes = frame.readBytes()
             val decoded = runCatching { codec.decode(bytes) }.getOrNull()
             if (decoded == null) {
                 Timber.tag(TAG).w("Undecodable frame dropped (%d bytes)", bytes.size)
@@ -382,7 +428,12 @@ class ListenTogetherClient(
 
             // The token is what makes a drop survivable, so it is captured in passing rather than
             // asked of the layer above — which may not have been listening yet.
-            MessageTypes.ROOM_CREATED -> (payload as? RoomCreatedPayload)?.let { sessionToken = it.sessionToken }
+            MessageTypes.ROOM_CREATED ->
+                (payload as? RoomCreatedPayload)?.let {
+                    sessionToken = it.sessionToken
+                    // A drop after this must come back to THIS room (Aura's rooms are one socket per room).
+                    if (roomTarget != null) roomTarget = RoomTarget.Join(it.roomCode)
+                }
             MessageTypes.JOIN_APPROVED -> (payload as? JoinApprovedPayload)?.let { sessionToken = it.sessionToken }
 
             MessageTypes.ERROR -> {
@@ -461,6 +512,20 @@ class ListenTogetherClient(
          * Metrolist out of the box. Verified alive (HTTP 101 Switching Protocols) 2026-08-30.
          */
         const val DEFAULT_SERVER_URL = "wss://metroserverx.meowery.eu/ws"
+
+        /** Aura's own rooms (docs/worker/rooms). Only reachable by Aura clients; chosen in Ajustes ▸ Escuchar juntos. */
+        const val AURA_ROOMS_URL = "wss://aura-rooms.toberto4000.workers.dev"
+
+        internal fun auraUrl(
+            base: String,
+            target: RoomTarget,
+        ): String {
+            val root = base.trim().trimEnd('/')
+            return when (target) {
+                RoomTarget.Create -> "$root/rooms/create"
+                is RoomTarget.Join -> "$root/rooms/join?code=${target.roomCode.trim().uppercase()}"
+            }
+        }
 
         private val HANDSHAKE_TIMEOUT = 10.seconds
 

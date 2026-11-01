@@ -188,6 +188,7 @@ class SyncUtils @Inject constructor(
     @ApplicationContext private val context: Context,
     private val database: MusicDatabase,
     private val libraryUploadSync: LibraryUploadSync,
+    private val downloadUtil: dagger.Lazy<iad1tya.echo.music.playback.DownloadUtil>,
 ) {
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         if (throwable !is CancellationException) {
@@ -334,6 +335,18 @@ class SyncUtils @Inject constructor(
         }
     }
 
+    /**
+     * Row 536 (owner 2026-10-30: *«que cuando esté conectado entre dispositivos la sincronización a la nube de YouTube no
+     * intervenga»*): while the library is kept equal between the user's devices through the Worker, YouTube's PULL passes for likes
+     * and playlists are skipped — two sources of truth is what duplicated and overwrote things. The pushes of the user's own actions
+     * to their YouTube account are NOT affected.
+     */
+    private fun libraryOwnedByDevices(pass: String): Boolean {
+        if (!iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) return false
+        Timber.i("LIB_SYNC YouTube pull skipped (library synced between devices): %s", pass)
+        return true
+    }
+
     private suspend fun processOperation(operation: SyncOperation) {
         when (operation) {
             // PULL ops run single-flight (HALLAZGO-056): the channel is serial with ITSELF, but the
@@ -349,7 +362,8 @@ class SyncUtils @Inject constructor(
             is SyncOperation.AutoSyncPlaylists -> singleFlightOp(OP_AUTO_SYNC_PLAYLISTS) { executeSyncAutoSyncPlaylists() }
             // WRITE / targeted ops are NEVER coalesced: they carry deliberate user actions (a like,
             // one playlist, a mirror, a wipe) that must run exactly as requested.
-            is SyncOperation.SinglePlaylist -> executeSyncPlaylist(operation.browseId, operation.playlistId)
+            is SyncOperation.SinglePlaylist ->
+                if (!libraryOwnedByDevices("playlist")) executeSyncPlaylist(operation.browseId, operation.playlistId)
             is SyncOperation.LikeSong -> executeLikeSong(operation.song)
             is SyncOperation.CleanupDuplicates -> executeCleanupDuplicatePlaylists()
             is SyncOperation.ClearAllSynced -> executeClearAllSyncedContent()
@@ -500,7 +514,16 @@ class SyncUtils @Inject constructor(
                     )
                 } else if (!dbSong.liked || dbSong.isVideo != isVideoSong) {
                     // Keep the original likedDate — never overwrite it with the sync timestamp.
-                    updateEntities.add(dbSong.copy(liked = true, isVideo = isVideoSong))
+                    // Row 622 (owner 2026-11-01: «lo que pongo en favoritos tiene que quedar arriba»): a song that was already in the
+                    // library and is liked from the account used to get `liked = true` and NO date, and a null date sorts below
+                    // everything. It now gets the same position-based stamp as a new row, unless it already had a date.
+                    updateEntities.add(
+                        dbSong.copy(
+                            liked = true,
+                            likedDate = dbSong.likedDate ?: now.minusSeconds((startIndex + offset).toLong()),
+                            isVideo = isVideoSong,
+                        ),
+                    )
                 }
             } catch (e: Exception) {
                 // Never swallow coroutine cancellation: doing so let the sync loop keep
@@ -800,6 +823,14 @@ class SyncUtils @Inject constructor(
     }
 
     fun likeSong(s: SongEntity) {
+        // Row 519: every like path (the player heart, the song/queue/selection menus) ends here. A song that just became
+        // liked is downloaded for offline (or adopted from the listen cache). The player heart already asked, with its
+        // video-mode knowledge; the second ask for the same tap is dropped inside DownloadUtil.
+        if (s.liked) {
+            runCatching { downloadUtil.get().downloadOnLike(s.id, s.title, s.isVideo) }
+        }
+        // Row 528: the user's other devices refresh their likes at once.
+        runCatching { iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("likes") }
         syncScope.launch {
             syncChannel.send(SyncOperation.LikeSong(s))
         }
@@ -932,6 +963,7 @@ class SyncUtils @Inject constructor(
 
     fun syncPlaylist(browseId: String, playlistId: String) {
         syncScope.launch {
+            if (libraryOwnedByDevices("playlist")) return@launch
             executeSyncPlaylist(browseId, playlistId)
         }
     }
@@ -1110,6 +1142,7 @@ class SyncUtils @Inject constructor(
     }
 
     private suspend fun executeSyncLikedSongs() = withContext(Dispatchers.IO) {
+        if (libraryOwnedByDevices("likedSongs")) return@withContext
         if (!isLoggedIn()) {
             Timber.w("Skipping syncLikedSongs - user not logged in")
             return@withContext
@@ -1464,6 +1497,7 @@ class SyncUtils @Inject constructor(
     }
 
     private suspend fun executeSyncLikedAlbums() = withContext(Dispatchers.IO) {
+        if (libraryOwnedByDevices("likedAlbums")) return@withContext
         if (!isLoggedIn()) {
             Timber.w("Skipping syncLikedAlbums - user not logged in")
             return@withContext
@@ -1774,6 +1808,7 @@ class SyncUtils @Inject constructor(
     }
 
     private suspend fun executeSyncSavedPlaylists() = withContext(Dispatchers.IO) {
+        if (libraryOwnedByDevices("savedPlaylists")) return@withContext
         if (!isLoggedIn()) {
             Timber.w("Skipping syncSavedPlaylists - user not logged in")
             return@withContext
@@ -1825,6 +1860,7 @@ class SyncUtils @Inject constructor(
     }
 
     private suspend fun executeSyncAutoSyncPlaylists() = withContext(Dispatchers.IO) {
+        if (libraryOwnedByDevices("autoSyncPlaylists")) return@withContext
         if (!isLoggedIn()) {
             Timber.w("Skipping syncAutoSyncPlaylists - user not logged in")
             return@withContext
@@ -1946,6 +1982,14 @@ class SyncUtils @Inject constructor(
                     Timber.d("syncPlaylist: Updating local playlist (remote: ${remoteIds.size}, local: ${localIds.size})")
 
                     val libraryNow = LocalDateTime.now()
+                    // Row 511 (owner 2026-10-29: «que la sincronización guarde solo los cambios que hice canción por canción, no
+                    // que reemplace las listas»): a song the USER added in the app that YouTube does not have yet (no entry id:
+                    // it was never matched with a remote entry) is that user's change, still on its way. The rebuild below used
+                    // to drop it — a failed push, an offline add — and the song silently vanished. It now stays at the end of
+                    // the list and is sent to YouTube again. Rows that DO carry an entry id and are gone remotely were removed
+                    // elsewhere: those follow the account, as before.
+                    val remoteIdSet = remoteIds.toHashSet()
+                    val pendingAdds = localRows.filter { it.map.setVideoId == null && it.song.id !in remoteIdSet }
                     // Load the songs that already exist ONCE (no per-row `song(id)` + `getSongByIdBlocking`
                     // reads inside the transaction). This whole playlist rebuild is already one transaction,
                     // so Room still emits a single time — the win here is dropping the N+1 reads.
@@ -1971,6 +2015,25 @@ class SyncUtils @Inject constructor(
                                 )
                             )
                         }
+                        pendingAdds.forEachIndexed { k, row ->
+                            database.insert(
+                                PlaylistSongMap(
+                                    songId = row.song.id,
+                                    playlistId = playlistId,
+                                    position = songs.size + k,
+                                    setVideoId = null,
+                                )
+                            )
+                        }
+                    }
+                    if (pendingAdds.isNotEmpty()) {
+                        var pushed = 0
+                        pendingAdds.forEach { row ->
+                            YouTube.addToPlaylist(browseId, row.song.id).onSuccess { pushed++ }.onFailure { e ->
+                                if (e is CancellationException) throw e
+                            }
+                        }
+                        Timber.i("syncPlaylist: kept %d local-only additions, re-sent %d to YouTube", pendingAdds.size, pushed)
                     }
                     Timber.d("syncPlaylist: Successfully synced playlist")
                 } catch (e: Exception) {

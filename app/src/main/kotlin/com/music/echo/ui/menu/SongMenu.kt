@@ -558,27 +558,19 @@ fun SongMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            // Row 520: link / MP3 / video, asked every time (the choice window saves what is missing).
                             coroutineScope.launch {
-                                if (isExported) {
-                                    val uri = lookupExportedFileUri(context, song.id)
-                                    if (uri != null &&
-                                        shareContentUri(
-                                            context,
-                                            uri,
-                                            if (isExportedVideo) "video/mp4" else "audio/mpeg",
-                                        )
-                                    ) {
-                                        onDismiss()
-                                        return@launch
-                                    }
-                                }
+                                iad1tya.echo.music.ui.newui.ShareChoiceState.open(
+                                    iad1tya.echo.music.ui.newui.ShareSongRequest(
+                                        songId = song.id,
+                                        title = song.song.title,
+                                        artists = song.artists.map { it.name },
+                                        album = song.album?.title.orEmpty(),
+                                        thumbnailUrl = song.song.thumbnailUrl.orEmpty(),
+                                        hasVideo = song.song.isVideo,
+                                    ),
+                                )
                                 onDismiss()
-                                val intent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, ShareLinks.songShareText(song.id, song.song.title, song.artists.map { it.name }))
-                                }
-                                context.startActivity(Intent.createChooser(intent, null))
                             }
                         }
                     )
@@ -590,6 +582,25 @@ fun SongMenu(
         item {
             Material3MenuGroup(
                 items = listOfNotNull(
+                    // Row 628 (owner 2026-11-01: «en la lista de canciones que me gustan quiero poder eliminar canciones»): a plain, named way
+                    // to take a song out of «Canciones que me gustan» from its menu (the header heart did the same, unlabelled).
+                    if (song.song.liked) {
+                        Material3MenuItemData(
+                            title = { Text(text = stringResource(R.string.action_remove_like)) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.favorite),
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                val s = song.song.toggleLike()
+                                database.query { upsert(s) }
+                                syncUtils.likeSong(s)
+                                onDismiss()
+                            },
+                        )
+                    } else null,
                     if (listenTogetherManager != null && listenTogetherManager.isInRoom && !listenTogetherManager.isHost) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.suggest_to_host)) },

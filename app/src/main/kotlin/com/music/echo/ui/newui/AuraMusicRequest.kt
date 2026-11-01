@@ -1107,4 +1107,6 @@ private fun musicRequestSuggestions(currentArtist: String?): List<MusicRequestSu
 private const val MUSIC_REQUEST_BODY_MAX_HEIGHT_FRACTION = 0.9f
 
 /** Silence after the last recognised phrase before a dictated request is sent (the dialog also has «OK»). */
-internal const val MUSIC_REQUEST_DICTATION_SETTLE_MS = 2_500L
+// Row 611 (owner 2026-10-31: «el micrófono de Pedir música es lento»): the request was sent 2.5 s after the LAST word. 1.6 s still rides over a
+// breath between phrases (the recognizer is restarted at every pause, see DICTATION_RESTART_DELAY_MS) and «Listo» sends at once.
+internal const val MUSIC_REQUEST_DICTATION_SETTLE_MS = 1_600L

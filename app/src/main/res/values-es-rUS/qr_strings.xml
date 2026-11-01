@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="qr_pair_show">Mostrar código QR</string>
+    <string name="qr_pair_hint">Apunta la cámara de tu otro dispositivo a este código: Aura se abre y se empareja sola.</string>
+    <string name="qr_pair_done">Dispositivo emparejado</string>
+    <string name="qr_pair_invalid">Ese QR no es un código de emparejamiento de Aura.</string>
+    <string name="qr_scan_hint">Escanéalo con la cámara del otro dispositivo y Aura se abre ya uniéndose.</string>
+</resources>

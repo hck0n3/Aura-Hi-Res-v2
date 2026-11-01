@@ -56,8 +56,11 @@ class MusicRequestCardGuardTest {
     fun `the alternative is another list, one search per request, without the first list's songs, in the same target`() {
         val vm = main("viewmodels/MusicRequestViewModel.kt")
         val load = vm.substringAfter("fun loadAlternate()").substringBefore("fun contextForAlternate()")
-        assertTrue("una sola vez por petición", load.contains("current.alternate != AlternateOption.NotAsked"))
-        assertTrue("sin las canciones de la primera", load.contains(".filter { it.id !in firstIds }"))
+        // Row 512: still one search per request while the answer is good; only an EMPTY answer may be asked again (3 times at most).
+        assertTrue("una sola vez por petición", load.contains("current.alternate != AlternateOption.NotAsked && !retry"))
+        assertTrue("una respuesta vacía se puede reintentar", load.contains("current.alternate == AlternateOption.Empty && alternateAttempts < MAX_ALTERNATE_ATTEMPTS"))
+        assertTrue("sin las canciones de la primera", load.contains(".filter { it.id !in visibleIds && it.id !in have }"))
+        assertTrue("segunda pasada con la memoria de lo servido liberada", load.contains("MusicRequestRecents.releaseExcept(visibleIds)"))
         assertTrue("con el mismo filtro Conocido/Descubrir", load.contains("MusicRequestFocusFilter.select(args.focus"))
         assertTrue(vm.substringAfter("fun contextForAlternate()").substringBefore("fun saveAlternateAsPlaylist()").contains("RequestStyleTargets.put(altId"))
         assertTrue(vm.contains("sealed interface AlternateOption"))

@@ -34,6 +34,7 @@ import iad1tya.echo.music.di.DownloadCache
 import iad1tya.echo.music.di.PlayerCache
 import iad1tya.echo.music.ui.utils.resize
 import iad1tya.echo.music.utils.YTPlayerUtils
+import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.enumPreference
 import iad1tya.echo.music.utils.DeviceTier
 import iad1tya.echo.music.utils.PerformanceMode
@@ -54,6 +55,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.OkHttpClient
 import java.time.LocalDateTime
 import java.util.concurrent.Executor
@@ -125,6 +127,100 @@ constructor(
     fun invalidateSongUrl(songId: String) {
         songUrlCache.remove(songId)
         songUrlCache.remove(videoDownloadMediaId(songId))
+    }
+
+    private val LIKE_DEDUPE_MS = 5_000L
+
+    /** Row 505: at most two listen-cache copies are being copied at once (a whole list asks for many). */
+    private val adoptGate = kotlinx.coroutines.sync.Semaphore(2)
+
+    /**
+     * Row 505 (owner 2026-10-29: «si la canción ya está en caché que la tome de ahí… para que no repita el proceso, no gaste
+     * doble almacenamiento y no gaste más datos»): copies the COMPLETE listen-cache copy of [songId], if there is one, into the
+     * download cache — on disk, no network — and then runs [then], which is the normal enqueue. With every byte already
+     * there Media3 completes that download without opening the network. When there is no complete copy (or anything in the
+     * way, see [ListenCacheAdoption]) it simply runs [then]: exactly the download of before. Runs on the util's own scope,
+     * so closing the sheet that asked for it never cancels it.
+     */
+    fun reuseListenCopyThen(songId: String, then: () -> Unit) {
+        scope.launch {
+            try {
+                adoptGate.withPermit {
+                    val itag = database.format(songId).first()?.itag
+                    ListenCacheAdoption.adopt(downloadCache, playerCache, songId, itag)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                timber.log.Timber.tag("DOWNLOAD").w("LISTEN_ADOPT skipped: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+            }
+            then()
+        }
+    }
+
+    private val appContext: Context = context
+    private val recentLikeDownloads = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    /**
+     * Row 519 (owner 2026-10-29: «cuando toque me gusta tiene que descargar la canción automáticamente… y si ya se descargó en
+     * la caché que indique que ya está descargada y que no la tenga que descargar dos veces»). Called by EVERY like path (the
+     * player heart and [iad1tya.echo.music.utils.SyncUtils.likeSong]).
+     *  · A complete copy in the listen cache is adopted (disk to disk, no network), so the song counts as downloaded even on
+     *    mobile data and nothing is fetched twice.
+     *  · Otherwise Wi-Fi/unmetered downloads it now (HALLAZGO-037's no-surprise-data rule stays), and on mobile data the
+     *    request is kept in [PendingLikeDownloads] and runs when an unmetered network returns — before, it was dropped.
+     * The two callers fire for the same tap, so the second one inside [LIKE_DEDUPE_MS] is ignored.
+     */
+    fun downloadOnLike(songId: String, title: String, isVideoSong: Boolean, deferWhileLiveVideo: Boolean = false) {
+        if (songId.isBlank()) return
+        val now = System.currentTimeMillis()
+        val last = recentLikeDownloads.put(songId, now)
+        if (last != null && now - last < LIKE_DEDUPE_MS) return
+        scope.launch {
+            try {
+                if (!appContext.dataStore.data.map { it[iad1tya.echo.music.constants.AutoDownloadOnLikeKey] ?: true }.first()) return@launch
+                val itag = database.format(songId).first()?.itag
+                val adopted = adoptGate.withPermit { ListenCacheAdoption.adopt(downloadCache, playerCache, songId, itag) }
+                val metered = connectivityManager.isActiveNetworkMetered
+                timber.log.Timber.tag("DOWNLOAD").i("LIKE_DOWNLOAD adopted=%b metered=%b video=%b", adopted, metered, isVideoSong)
+                if (!adopted && metered) {
+                    PendingLikeDownloads.add(appContext, PendingLikeDownloads.Entry(songId, title, isVideoSong))
+                    timber.log.Timber.tag("DOWNLOAD").i("LIKE_DOWNLOAD waiting for Wi-Fi (pending=%d)", PendingLikeDownloads.count(appContext))
+                    return@launch
+                }
+                enqueueSongDownloads(
+                    context = appContext,
+                    songId = songId,
+                    title = title,
+                    // The audio is already on disk: the companion VIDEO would still cost mobile data.
+                    isVideoSong = isVideoSong && !(adopted && metered),
+                    deferWhileLiveVideo = deferWhileLiveVideo,
+                    wifiOnly = false,
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                timber.log.Timber.tag("DOWNLOAD").w("LIKE_DOWNLOAD skipped: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
+            }
+        }
+    }
+
+    /** Row 519: runs the downloads that were waiting for an unmetered network. Cheap no-op when nothing waits. */
+    fun flushPendingLikeDownloads() {
+        if (PendingLikeDownloads.count(appContext) == 0) return
+        if (runCatching { connectivityManager.isActiveNetworkMetered }.getOrDefault(true)) return
+        scope.launch {
+            val entries = PendingLikeDownloads.drain(appContext)
+            timber.log.Timber.tag("DOWNLOAD").i("LIKE_DOWNLOAD flushing %d waiting for Wi-Fi", entries.size)
+            entries.forEach { e ->
+                try {
+                    enqueueSongDownloads(appContext, e.id, e.title, e.isVideoSong, wifiOnly = false)
+                } catch (ex: Exception) {
+                    // A foreground-service start refused from the background: keep it for the next unmetered moment.
+                    PendingLikeDownloads.add(appContext, e)
+                }
+            }
+        }
     }
 
     val downloads = MutableStateFlow<Map<String, Download>>(emptyMap())

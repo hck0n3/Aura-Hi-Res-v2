@@ -63,10 +63,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -191,6 +195,13 @@ internal fun calculateThumbnailDimensions(
 private val WIDE_MAX_THUMBNAIL_SIZE = 420.dp
 
 /**
+ * Row 522 (owner 2026-10-29, Galaxy Tab S12 Ultra: «cuando está en esta pantalla puedes hacer la portada más grande de lo que
+ * se está reproduciendo»): from this window width (dp) the 420 dp ceiling above is lifted and the cover takes the whole height
+ * of its slot (still never wider than the pane). A foldable's unfolded window is ~700–930 dp, so it keeps the #50 ceiling.
+ */
+internal const val TABLET_COVER_MIN_WINDOW_DP = 1000
+
+/**
  * Breathing room left around the artwork of an [ThumbnailHost.OPAQUE_DARK] host when its slot is SHORTER
  * than it is wide, so the elevation below has somewhere to fall. Classic hosts never see it.
  */
@@ -202,8 +213,68 @@ private val OPAQUE_DARK_COVER_INSET = 8.dp
  */
 private val TIDAL_COVER_SIDE_PADDING = 24.dp
 
-/** Elevation of the artwork card on an [ThumbnailHost.OPAQUE_DARK] host. */
-private val OPAQUE_DARK_COVER_ELEVATION = 16.dp
+/**
+ * Row 521 → 532 (owner 2026-10-29/30). The cover must read as lifted in front of the ground, but a BLACK shadow cannot show on this
+ * near-black ground (#060A12) and the stacked-rectangle version banded and looked ugly. The owner picked option **F** from a
+ * side-by-side of six (2026-10-30): three smooth, GPU-drawn parts, no stacked layers, no blur or render effect:
+ *  · a LIGHT RIM — a 1 dp stroke brighter at the top-left and fading to nearly nothing at the bottom-right, so the edge exists on a
+ *    dark cover too;
+ *  · a SHORT soft shadow just below the cover ([COVER_LIFT_ELEVATION]);
+ *  · a soft GLOW in the cover's own colour ([COVER_GLOW_ELEVATION], tinted with the colour [AuraBloomCache] already extracted for
+ *    the ambient wash — no extra decode). Until that colour exists, or on API < 28 where the platform ignores shadow colours, only
+ *    the rim and the short shadow show.
+ * Platform shadows are drawn once with the cover; nothing is sampled per frame (AGENTS rule 7).
+ */
+private val COVER_LIFT_ELEVATION = 4.dp
+private val COVER_GLOW_ELEVATION = 12.dp
+private const val COVER_GLOW_ALPHA = 0.50f
+
+/**
+ * Row 538 (owner 2026-10-30, on a regular phone: «se ve un recuadro abajo, la sombra se ve cuadrada, tiene que ser degradada para que
+ * no se vea el corte»). On a phone the cover takes the WHOLE height of its slot, and a shadow is drawn OUTSIDE the cover: the slot
+ * (the carousel and the animated-content container around it) clips whatever leaves it, so the glow ended in a straight line under
+ * the cover. A tablet or an unfolded foldable has spare height, which is why it only showed on regular phones. The cover now leaves
+ * this much room above and below it, and the glow's elevation ([COVER_GLOW_ELEVATION]) fits inside it, so the shadow fades out
+ * before the clip instead of being cut by it.
+ */
+private val COVER_SHADOW_ROOM = 14.dp
+// Row 560 (owner 2026-10-31: «la orilla de las portadas casi no se nota… que se vea un poco más por encima, que no se vea plana, unida
+// con la interfaz»; the shadow itself stays as it is). Three changes, all drawn once with the cover (nothing is sampled per frame):
+//  · the rim is 1.5 dp and brighter (top-left 0.55 instead of 0.30) and it ends in a thin DARK line at the bottom-right, so the edge
+//    also separates a light cover from a light ground;
+//  · a sheen over the artwork — light falling on the top third, a little shade on the bottom fifth — which is what makes a flat
+//    picture read as an object with thickness;
+//  · both follow the cover's own rounded shape, so the corners are not squared off.
+private val COVER_RIM_WIDTH = 1.5.dp
+private val COVER_RIM_BRUSH = androidx.compose.ui.graphics.Brush.linearGradient(
+    listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.30f)),
+)
+
+private fun Modifier.coverLift(shape: androidx.compose.ui.graphics.Shape, glow: Color?): Modifier =
+    this
+        .then(
+            if (glow != null) {
+                Modifier.shadow(
+                    COVER_GLOW_ELEVATION, shape, clip = false,
+                    ambientColor = glow.copy(alpha = COVER_GLOW_ALPHA), spotColor = glow.copy(alpha = COVER_GLOW_ALPHA),
+                )
+            } else Modifier
+        )
+        .shadow(COVER_LIFT_ELEVATION, shape, clip = false)
+        .drawWithCache {
+            val outline = shape.createOutline(size, layoutDirection, this)
+            val sheen = androidx.compose.ui.graphics.Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.14f),
+                0.33f to Color.Transparent,
+                0.80f to Color.Transparent,
+                1f to Color.Black.copy(alpha = 0.16f),
+            )
+            onDrawWithContent {
+                drawContent()
+                drawOutline(outline, sheen)
+            }
+        }
+        .border(COVER_RIM_WIDTH, COVER_RIM_BRUSH, shape)
 
 /**
  * Scale the artwork of an [ThumbnailHost.OPAQUE_DARK] host starts from when the track changes, before it
@@ -360,6 +431,9 @@ fun Thumbnail(
     // #50 — cap the cover on big screens ONLY. Width-based (never [rememberIsTvOrCar]): this is a pure layout
     // question, and using the D-pad gate here would light the TV focus ring on a wide phone (registry #12/#26).
     val isWideLayout = rememberIsWideLayout()
+    // Row 522: a TABLET window (Galaxy Tab S12 Ultra ~1 600 dp wide) is not an unfolded foldable: the 420 dp ceiling below was
+    // made for the fold (#50) and left a small cover in a huge pane. See [TABLET_COVER_MIN_WINDOW_DP].
+    val isTabletWindow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= TABLET_COVER_MIN_WINDOW_DP
 
     
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -456,7 +530,7 @@ fun Thumbnail(
             playerConnection.seekToNextOrStartRadio()
         } else if (currentItem < currentMediaIndex && canSkipPrevious) {
             suppressCoverSettle = true
-            playerConnection.player.seekToPreviousMediaItem()
+            iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() }
         }
     }
 
@@ -620,7 +694,7 @@ fun Thumbnail(
                 ) {
                     
                     val dimensions = remember(
-                        maxWidth, maxHeight, isLandscape, thumbnailCornerRadius, isWideLayout, host,
+                        maxWidth, maxHeight, isLandscape, thumbnailCornerRadius, isWideLayout, isTabletWindow, host,
                         appleMusicCoverStyle,
                     ) {
                         calculateThumbnailDimensions(
@@ -666,11 +740,16 @@ fun Thumbnail(
                                 // TIDAL-SIZED COVER (owner 2026-09-13, measured on the Galaxy: 320 dp vs
                                 // TIDAL's ~352 dp): the new player's cover uses the slot's full height —
                                 // the 8 dp elevation inset was what kept it height-capped below TIDAL's size.
-                                val slotCap = maxHeight
+                                // Row 538: the new player's cover leaves room for its shadow (see [COVER_SHADOW_ROOM]).
+                                val slotCap = if (host == ThumbnailHost.OPAQUE_DARK) {
+                                    (maxHeight - COVER_SHADOW_ROOM * 2).coerceAtLeast(0.dp)
+                                } else {
+                                    maxHeight
+                                }
                                 // #50 unchanged: on a wide screen the 420 dp ceiling still applies — it is
                                 // now simply the SMALLER of the two caps, because a 420 dp square in a
                                 // 300 dp-tall slot letterboxes exactly the same way.
-                                if (isWideLayout) minOf(WIDE_MAX_THUMBNAIL_SIZE, slotCap) else slotCap
+                                if (isWideLayout && !isTabletWindow) minOf(WIDE_MAX_THUMBNAIL_SIZE, slotCap) else slotCap
                             }
                         )
                     }
@@ -702,7 +781,7 @@ fun Thumbnail(
                         }).SwipeGesture(
                             enabled = isPlayerExpanded() && swipeThumbnail,
                             onSwipeLeft = { if (!isListenTogetherGuest && canSkipNext) playerConnection.seekToNextOrStartRadio() },
-                            onSwipeRight = { if (!isListenTogetherGuest && canSkipPrevious) playerConnection.player.seekToPreviousMediaItem() },
+                            onSwipeRight = { if (!isListenTogetherGuest && canSkipPrevious) iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() } },
                         ),
                         contentAlignment = Alignment.Center,
                         label = "ThumbnailDirectionalSlide",
@@ -886,7 +965,8 @@ private fun ThumbnailItem(
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val isCurrentItem = item.mediaId == currentMediaId
     val isOpaqueDark = host == ThumbnailHost.OPAQUE_DARK
-    val useCardChrome = isOpaqueDark && !appleMusicCoverStyle
+    // The colour the ambient wash already extracted for this cover (snapshot-aware: appears when the extraction lands).
+    val coverGlow = if (isOpaqueDark) iad1tya.echo.music.ui.newui.AuraBloomCache.accentSeed(item.mediaId) else null
     
     // HALLAZGO-059: the old code created an InfiniteTransition for EVERY ThumbnailItem
     // unconditionally; with rotation off (the default) each carousel item still ticked the
@@ -1054,11 +1134,8 @@ private fun ThumbnailItem(
                 // ("Radio de las esquinas de la portada", presets 0/8/16/24/32/40 → doubled), and
                 // overriding it here would make that control dead in the new player.
                 .then(
-                    if (useCardChrome) {
-                        Modifier
-                            .shadow(OPAQUE_DARK_COVER_ELEVATION, coverShape, clip = false)
-                            .border(1.dp, Color.White.copy(alpha = 0.07f), coverShape)
-                    } else Modifier
+                    // Row 532 (option F): the same lift for the card style and for «Inspirado en Apple Music».
+                    if (isOpaqueDark) Modifier.coverLift(coverShape, coverGlow) else Modifier
                 )
                 .clip(coverShape)
                 .graphicsLayer {
@@ -1117,10 +1194,36 @@ private fun ThumbnailItem(
                 // player left open and the screen off, every track change woke the radio for artwork nobody could see.
                 // It waits for the app to be on screen (the key restarts it on return, for whatever is playing then).
                 val canvasInForeground = iad1tya.echo.music.ui.utils.rememberIsAppInForeground()
+                val memoContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
                 LaunchedEffect(item.mediaId, canvasInForeground) {
                     CanvasArtworkPlaybackCache.get(item.mediaId)?.let { cached ->
                         canvasArtwork = cached
                         return@LaunchedEffect
+                    }
+
+                    // Row 523: one answer per ALBUM, shared by every song of it and kept across restarts.
+                    val memoKey = CanvasAlbumMemo.key(
+                        artist = item.mediaMetadata.artist?.toString(),
+                        album = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString(),
+                        song = item.mediaMetadata.title?.toString(),
+                    )
+                    val memo = memoKey?.let { CanvasAlbumMemo.lookup(memoContext, it) }
+                    if (memo is CanvasAlbumMemo.Answer.Hit) {
+                        timber.log.Timber.tag("CANVAS").i("CANVAS_MEMO hit (no lookup)")
+                        canvasArtwork = memo.artwork
+                        CanvasArtworkPlaybackCache.put(item.mediaId, memo.artwork)
+                        return@LaunchedEffect
+                    }
+
+                    // Function 3 of the Worker plan: before searching, ask the shared cache (1.5 s at most; no answer = the chain as before).
+                    if (memoKey != null && memo == null) {
+                        iad1tya.echo.music.edge.EdgeClient.canvasLookup(memoContext, memoKey)?.let { shared ->
+                            timber.log.Timber.tag("CANVAS").i("CANVAS_SHARED hit (no lookup)")
+                            CanvasAlbumMemo.remember(memoContext, memoKey, shared)
+                            canvasArtwork = shared
+                            CanvasArtworkPlaybackCache.put(item.mediaId, shared)
+                            return@LaunchedEffect
+                        }
                     }
 
                     if (!canvasInForeground) return@LaunchedEffect
@@ -1130,7 +1233,11 @@ private fun ThumbnailItem(
 
                     // Overall cap: a slow/hanging canvas provider used to leave canvasFetchInFlight stuck
                     // true forever (had to leave/re-enter to retry). The timeout guarantees it resets.
-                    val fetched = withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
+                    var lookupAnswered = false
+                    val fetched = if (memo is CanvasAlbumMemo.Answer.None) {
+                        timber.log.Timber.tag("CANVAS").i("CANVAS_MEMO none (no lookup)")
+                        null
+                    } else withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
                         val metadata = item.metadata
                         val albumName = (metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString()
                         val duration = metadata?.duration
@@ -1156,11 +1263,15 @@ private fun ThumbnailItem(
                             null
                         }
 
-                        spotifyCanvas ?: linkedSetOf(
+                        // Row 562: the FIRST credited artist too (the album page searches by the album's artist; a song with guests
+                        // carries a longer credit line that the providers do not match).
+                        val firstArtist = normalizeCanvasArtistName(CanvasAlbumMemo.firstArtist(artistNameRaw))
+                        (spotifyCanvas ?: linkedSetOf(
                             songTitle to artistName,
                             songTitleRaw to artistName,
                             songTitle to artistNameRaw,
                             songTitleRaw to artistNameRaw,
+                            songTitle to firstArtist,
                         ).filter { (s, a) -> s.isNotBlank() && a.isNotBlank() }
                             .firstNotNullOfOrNull { (s, a) ->
                                 
@@ -1184,14 +1295,14 @@ private fun ThumbnailItem(
                                         album = albumName,
                                         storefront = storefront
                                     )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-                            }
+                            }).also { lookupAnswered = true }
                     } }
 
 
                     val requestedArtist = item.mediaMetadata.artist?.toString() ?: ""
                     val requestedTitle = item.mediaMetadata.title?.toString() ?: ""
                     
-                    val validated = fetched?.let { artwork ->
+                    val validatedBySong = fetched?.let { artwork ->
                         val resultArtist = artwork.artist
                         val resultName = artwork.name
                         
@@ -1209,7 +1320,11 @@ private fun ThumbnailItem(
                         
                         
                         
-                        val requestedAlbum = item.mediaMetadata.albumTitle?.toString() ?: ""
+                        // Row 578: the SAME album the lookup searched with. The lookup falls back to the song entity's album when the
+                        // media item carries none; validating against the item's field alone left this blank for those songs, the check
+                        // then compared the ALBUM-level cover's name with the SONG title, rejected it, and the player stayed still on an
+                        // album whose page animates (the page validates by artist only).
+                        val requestedAlbum = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString() ?: ""
                         val canvasAlbumName = artwork.albumName
                         val canvasSongName = artwork.name
 
@@ -1251,6 +1366,40 @@ private fun ThumbnailItem(
                         }
                     }
                     
+                    // Row 598 — the album page's own search, as a second chance. The song-level chain above found nothing (or its check rejected
+                    // it), but the page of this album may well find it: it searches by ALBUM, over four spellings, with TIDAL as a fallback. Both call the
+                    // same function, so from here on «the page animates and the player does not» cannot happen for the same album and first artist.
+                    var albumRetryRan = false
+                    val validated = validatedBySong ?: run {
+                        val albumForPage = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString().orEmpty()
+                        val artistForPage = CanvasAlbumMemo.firstArtist(item.mediaMetadata.artist?.toString())
+                        // Not while the album is already remembered as «none» (that answer is kept 20 minutes): one retry per album, not one per song.
+                        if (albumForPage.isBlank() || artistForPage.isBlank() || !canvasInForeground || memo is CanvasAlbumMemo.Answer.None) {
+                            null
+                        } else {
+                            albumRetryRan = true
+                            val viaAlbum = withTimeoutOrNull(14_000L) {
+                                iad1tya.echo.music.ui.screens.resolveAlbumCanvas(
+                                    albumTitle = albumForPage,
+                                    artistName = artistForPage,
+                                    firstSongTitle = item.mediaMetadata.title?.toString(),
+                                    storefront = storefront,
+                                )
+                            }
+                            timber.log.Timber.tag("CANVAS").i("CANVAS_ALBUM_RETRY found=%b", viaAlbum != null)
+                            viaAlbum
+                        }
+                    }
+
+                    // The chain ANSWERED (it did not time out): keep the album's answer for its other songs.
+                    // A cover the providers DID return but this check rejected is not «there is none» (row 578): remembering it as none
+                    // froze the player for 20 minutes while the album page, which accepts it, kept animating.
+                    if (memoKey != null && memo == null && lookupAnswered && (validated != null || fetched == null || albumRetryRan)) {
+                        CanvasAlbumMemo.remember(memoContext, memoKey, validated)
+                        // Function 3: what this search found helps everyone else (the cache refuses anything off-key or off-host).
+                        if (validated != null) iad1tya.echo.music.edge.EdgeClient.canvasShare(memoContext, memoKey, validated)
+                    }
+
                     // Fallback: when no per-song/album canvas passed validation, use the artist's
                     // motion backdrop (same logic as Player.kt ~747-755) so the player still shows
                     // a moving background. Cached inside AppleMusicArtistBackgroundProvider (24 h).

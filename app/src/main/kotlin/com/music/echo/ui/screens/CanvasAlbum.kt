@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import iad1tya.echo.music.applecanvas.AppleMusicCanvasProvider
 import iad1tya.echo.music.canvas.CanvasArtwork
 import iad1tya.echo.music.canvas.TidalCanvasProvider
+import iad1tya.echo.music.ui.player.CanvasAlbumMemo
 import iad1tya.echo.music.ui.player.CanvasArtworkPlaybackCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,6 +37,7 @@ fun rememberAlbumCanvas(
         if (country.length == 2) country.lowercase(Locale.ROOT) else "us"
     }
 
+    val memoContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     LaunchedEffect(albumTitle, artistName, firstSongTitle) {
         if (canvasArtwork != null || cacheKey == null) return@LaunchedEffect
         if (albumTitle.isNullOrBlank() || artistName.isNullOrBlank()) {
@@ -43,83 +45,114 @@ fun rememberAlbumCanvas(
             return@LaunchedEffect
         }
 
-        // Overall cap so a slow/hanging canvas provider can't leave the album "loading forever" — and so
-        // the flow reliably falls through to the Tidal fallback below instead of blocking on it.
-        val fetched = withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
-            val normalizedAlbumTitle = normalizeCanvasSongTitle(albumTitle)
-            val normalizedFirstSongTitle = firstSongTitle?.let { normalizeCanvasSongTitle(it) }
-            val normalizedArtistName = normalizeCanvasArtistName(artistName)
-
-            
-            val searchTasks = linkedSetOf(
-                normalizedAlbumTitle to normalizedArtistName,
-                albumTitle to normalizedArtistName,
-                normalizedAlbumTitle to artistName,
-                albumTitle to artistName,
-            )
-            
-            if (normalizedFirstSongTitle != null) {
-                searchTasks.add(normalizedFirstSongTitle to normalizedArtistName)
-                searchTasks.add(firstSongTitle to normalizedArtistName)
-            }
-
-            searchTasks.filter { (s, a) -> s.isNotBlank() && a.isNotBlank() }
-                .firstNotNullOfOrNull { (s, a) ->
-                    // Echo Canvas removed (owner directive 2026-09-14); Apple Music then TIDAL.
-                    AppleMusicCanvasProvider.getByAlbumArtist(
-                        album = s,
-                        artist = a,
-                        storefront = storefront
-                    )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-                    ?: TidalCanvasProvider.getByAlbumArtist(
-                        album = s,
-                        artist = a
-                    )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-                }
-        } }
-
-
-        var validated = fetched?.let { artwork ->
-            val resultArtist = artwork.artist
-            if (resultArtist != null && artistName.isNotBlank()) {
-                if (resultArtist.contains(artistName, ignoreCase = true) || 
-                    artistName.contains(resultArtist, ignoreCase = true)) {
-                    artwork
-                } else null
-            } else artwork
-        }
-
-        if (validated == null) {
-            val tidalFetched = withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
-                TidalCanvasProvider.getByAlbumArtist(
-                    album = albumTitle,
-                    artist = artistName
-                )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-            } }
-            validated = tidalFetched?.let { artwork ->
-                val resultArtist = artwork.artist
-                val canvasAlbumName = artwork.albumName
-                
-                val artistMatches = if (resultArtist != null && artistName.isNotBlank()) {
-                    resultArtist.contains(artistName, ignoreCase = true) || 
-                    artistName.contains(resultArtist, ignoreCase = true)
-                } else true
-                
-                val albumMatches = if (canvasAlbumName != null && !albumTitle.isNullOrBlank()) {
-                    canvasAlbumName.trim().equals(albumTitle.trim(), ignoreCase = true)
-                } else false
-                
-                if (artistMatches && albumMatches) artwork else null
+        // Row 562 — ONE answer per album, shared with the player: what the player (or an earlier visit) already found is used without a single
+        // request, and what this page finds below is written there, so every song of the album shows the same animated cover.
+        val albumMemoKey = CanvasAlbumMemo.key(artist = artistName, album = albumTitle, song = null)
+        if (albumMemoKey != null) {
+            (CanvasAlbumMemo.lookup(memoContext, albumMemoKey) as? CanvasAlbumMemo.Answer.Hit)?.let { hit ->
+                canvasArtwork = hit.artwork
+                CanvasArtworkPlaybackCache.put(cacheKey, hit.artwork)
+                return@LaunchedEffect
             }
         }
+
+        val validated = resolveAlbumCanvas(albumTitle, artistName, firstSongTitle, storefront)
 
         if (validated != null) {
             canvasArtwork = validated
             CanvasArtworkPlaybackCache.put(cacheKey, validated)
+            if (albumMemoKey != null) {
+                CanvasAlbumMemo.remember(memoContext, albumMemoKey, validated)
+                iad1tya.echo.music.edge.EdgeClient.canvasShare(memoContext, albumMemoKey, validated)
+            }
         }
     }
 
     return canvasArtwork
+}
+
+/**
+ * Row 598 — THE album-cover search, one copy: the album page and the player both call it, so what the page finds the player finds too
+ * (owner 2026-10-31, third beta in a row: «en la página del álbum se anima y en el reproductor no»; his beta-10 log: 7 × `CANVAS_MEMO none`,
+ * not one hit). Apple Music first, then TIDAL, over the four spellings of album and artist, validated by artist (and by album for TIDAL).
+ */
+internal suspend fun resolveAlbumCanvas(
+    albumTitle: String,
+    artistName: String,
+    firstSongTitle: String?,
+    storefront: String,
+): CanvasArtwork? {
+    // Overall cap so a slow/hanging canvas provider can't leave the album "loading forever" — and so
+    // the flow reliably falls through to the Tidal fallback below instead of blocking on it.
+    val fetched = withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
+        val normalizedAlbumTitle = normalizeCanvasSongTitle(albumTitle)
+        val normalizedFirstSongTitle = firstSongTitle?.let { normalizeCanvasSongTitle(it) }
+        val normalizedArtistName = normalizeCanvasArtistName(artistName)
+
+
+        val searchTasks = linkedSetOf(
+            normalizedAlbumTitle to normalizedArtistName,
+            albumTitle to normalizedArtistName,
+            normalizedAlbumTitle to artistName,
+            albumTitle to artistName,
+        )
+
+        if (normalizedFirstSongTitle != null) {
+            searchTasks.add(normalizedFirstSongTitle to normalizedArtistName)
+            searchTasks.add(firstSongTitle to normalizedArtistName)
+        }
+
+        searchTasks.filter { (s, a) -> s.isNotBlank() && a.isNotBlank() }
+            .firstNotNullOfOrNull { (s, a) ->
+                // Echo Canvas removed (owner directive 2026-09-14); Apple Music then TIDAL.
+                AppleMusicCanvasProvider.getByAlbumArtist(
+                    album = s,
+                    artist = a,
+                    storefront = storefront
+                )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
+                ?: TidalCanvasProvider.getByAlbumArtist(
+                    album = s,
+                    artist = a
+                )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
+            }
+    } }
+
+
+    var validated = fetched?.let { artwork ->
+        val resultArtist = artwork.artist
+        if (resultArtist != null && artistName.isNotBlank()) {
+            if (resultArtist.contains(artistName, ignoreCase = true) || 
+                artistName.contains(resultArtist, ignoreCase = true)) {
+                artwork
+            } else null
+        } else artwork
+    }
+
+    if (validated == null) {
+        val tidalFetched = withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
+            TidalCanvasProvider.getByAlbumArtist(
+                album = albumTitle,
+                artist = artistName
+            )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
+        } }
+        validated = tidalFetched?.let { artwork ->
+            val resultArtist = artwork.artist
+            val canvasAlbumName = artwork.albumName
+
+            val artistMatches = if (resultArtist != null && artistName.isNotBlank()) {
+                resultArtist.contains(artistName, ignoreCase = true) || 
+                artistName.contains(resultArtist, ignoreCase = true)
+            } else true
+
+            val albumMatches = if (canvasAlbumName != null && !albumTitle.isNullOrBlank()) {
+                canvasAlbumName.trim().equals(albumTitle.trim(), ignoreCase = true)
+            } else false
+
+            if (artistMatches && albumMatches) artwork else null
+        }
+    }
+
+    return validated
 }
 
 private fun normalizeCanvasSongTitle(raw: String): String {

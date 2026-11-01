@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="device_sync_remote_volume">Volume of %1$s</string>
+</resources>

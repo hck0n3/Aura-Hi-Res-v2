@@ -50,6 +50,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
@@ -274,10 +275,13 @@ fun ActivationPromptScreen(
 fun SubscriptionEntryScreen(
     onActivated: () -> Unit,
     onBack: () -> Unit,
+    initialKey: String = "",
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var key by remember { mutableStateOf("") }
+    var key by remember { mutableStateOf(initialKey) }
+    // Row 530: the email of the purchase. Optional; with it the same license runs on several devices.
+    var email by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var statusColor by remember { mutableStateOf(Color(0xFFFF6B6B)) }
@@ -288,7 +292,7 @@ fun SubscriptionEntryScreen(
         loading = true
         status = null
         scope.launch {
-            val result = LicenseManager.activateSubscription(context, k)
+            val result = LicenseManager.activateSubscription(context, k, email)
             loading = false
             when (result) {
                 LicenseStatus.ACTIVE -> onActivated()
@@ -298,7 +302,16 @@ fun SubscriptionEntryScreen(
                 }
                 LicenseStatus.DEVICE_MISMATCH -> {
                     statusColor = Color(0xFFFFB74D)
-                    status = "Esta clave ya está en uso en otro equipo. Usa el equipo original o espera unos días."
+                    status = if (email.isBlank()) {
+                        "Esta clave ya está en uso en otro equipo. Para usarla en varios equipos escribe el correo con el que " +
+                            "compraste la licencia; si no, usa el equipo original o espera unos días."
+                    } else {
+                        "Esta licencia ya está activa en el máximo de equipos. Espera unos días a que se libere alguno."
+                    }
+                }
+                LicenseStatus.EMAIL_MISMATCH -> {
+                    statusColor = Color(0xFFFFB74D)
+                    status = "Ese correo no es el de la compra de la licencia. Revisa que sea el mismo con el que pagaste."
                 }
                 LicenseStatus.INVALID_KEY -> {
                     statusColor = Color(0xFFFF6B6B)
@@ -355,6 +368,30 @@ fun SubscriptionEntryScreen(
                 unfocusedTextColor = AuraPalette.OnGround,
                 focusedPlaceholderColor = AuraPalette.OnGroundGhost,
                 unfocusedPlaceholderColor = AuraPalette.OnGroundGhost,
+                focusedContainerColor = AuraPalette.SurfaceFill,
+                unfocusedContainerColor = AuraPalette.SurfaceFill,
+            ),
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it; status = null },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Correo de la compra (opcional)") },
+            supportingText = { Text("Con el mismo correo puedes usar la licencia en hasta 3 equipos.") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            shape = AuraShapes.Card,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AuraPalette.Teal,
+                unfocusedBorderColor = AuraPalette.SurfaceLine,
+                focusedLabelColor = AuraPalette.Teal,
+                unfocusedLabelColor = AuraPalette.OnGroundMuted,
+                cursorColor = AuraPalette.Teal,
+                focusedTextColor = AuraPalette.OnGround,
+                unfocusedTextColor = AuraPalette.OnGround,
+                focusedSupportingTextColor = AuraPalette.OnGroundMuted,
+                unfocusedSupportingTextColor = AuraPalette.OnGroundMuted,
                 focusedContainerColor = AuraPalette.SurfaceFill,
                 unfocusedContainerColor = AuraPalette.SurfaceFill,
             ),
@@ -433,14 +470,17 @@ fun NeedsConnectionScreen(onRetry: () -> Unit) {
 }
 
 @Composable
-fun DeviceBlockedScreen(onRetry: () -> Unit) {
+fun DeviceBlockedScreen(onRetry: () -> Unit, onEnterEmail: () -> Unit = {}) {
     val context = LocalContext.current
     LicenseScaffold(
         subtitle = "Suscripción en otro equipo",
-        hint = "Esta suscripción ya está activa en otro equipo. Cada suscripción funciona en un solo " +
-            "equipo a la vez. Suscríbete para este equipo, o espera unos días si dejaste de usar el otro.",
+        hint = "Esta suscripción ya está activa en otro equipo. Sin correo, cada suscripción funciona en un solo " +
+            "equipo a la vez. Si escribes el correo con el que compraste, puedes usarla en hasta 3 equipos. " +
+            "También puedes esperar unos días si dejaste de usar el otro.",
     ) {
-        PrimaryButton("Reintentar", onClick = onRetry)
+        PrimaryButton("Escribir el correo de la compra", onClick = onEnterEmail)
+        Spacer(Modifier.height(12.dp))
+        SecondaryOutlinedButton("Reintentar", onClick = onRetry)
         Spacer(Modifier.height(12.dp))
         SecondaryOutlinedButton(
             text = "Suscribirme ($SUBSCRIPTION_PRICE/mes)",

@@ -944,7 +944,7 @@ interface DatabaseDao {
 
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
-    @Query("SELECT * FROM album WHERE bookmarkedAt IS NOT NULL ORDER BY rowId")
+    @Query("SELECT * FROM album WHERE bookmarkedAt IS NOT NULL ORDER BY bookmarkedAt, rowId")
     fun albumsLikedByCreateDateAsc(): Flow<List<Album>>
 
     @Transaction
@@ -1114,7 +1114,7 @@ interface DatabaseDao {
     fun albumArtistMaps(albumId: String): List<AlbumArtistMap>
 
     @Transaction
-    @Query("SELECT *, (SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = playlist.id) AS songCount FROM playlist WHERE bookmarkedAt IS NOT NULL ORDER BY rowId")
+    @Query("SELECT *, (SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = playlist.id) AS songCount FROM playlist WHERE bookmarkedAt IS NOT NULL ORDER BY bookmarkedAt, rowId")
     fun playlistsByCreateDateAsc(): Flow<List<Playlist>>
 
     @Transaction
@@ -1161,7 +1161,7 @@ interface DatabaseDao {
     fun getPlaylistByIdBlocking(playlistId: String): Playlist?
 
     @Transaction
-    @Query("SELECT *, (SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = playlist.id) AS songCount FROM playlist WHERE isEditable AND bookmarkedAt IS NOT NULL ORDER BY rowId")
+    @Query("SELECT *, (SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = playlist.id) AS songCount FROM playlist WHERE isEditable AND bookmarkedAt IS NOT NULL ORDER BY bookmarkedAt, rowId")
     fun editablePlaylistsByCreateDateAsc(): Flow<List<Playlist>>
 
     // ORDER BY + LIMIT are load-bearing: with a legacy duplicate pair (one row the user un-saved, one the
@@ -1208,6 +1208,21 @@ interface DatabaseDao {
      */
     @Query("SELECT DISTINCT playlistId from playlist_song_map WHERE songId IN (:songIds)")
     fun playlistIdsContaining(songIds: List<String>): Flow<List<String>>
+
+    /**
+     * Row 505 (owner 2026-10-29): the NAMES of the library lists that hold [songId], for the download sheet — «esta canción ya
+     * está descargada y está en estas listas». Only lists the user keeps (a removed list leaves a tombstone with a null
+     * bookmark), alphabetical.
+     */
+    @Query(
+        """
+        SELECT DISTINCT playlist.name FROM playlist
+        INNER JOIN playlist_song_map ON playlist.id = playlist_song_map.playlistId
+        WHERE playlist_song_map.songId = :songId AND playlist.bookmarkedAt IS NOT NULL AND playlist.name != ''
+        ORDER BY playlist.name COLLATE NOCASE
+        """
+    )
+    fun playlistNamesContaining(songId: String): Flow<List<String>>
 
     @Query("SELECT songId from playlist_song_map WHERE playlistId = :playlistId AND songId IN (:songIds)")
     fun playlistDuplicates(
@@ -1322,6 +1337,14 @@ interface DatabaseDao {
     @Transaction
     @Query("SELECT * FROM song WHERE isDownloaded = 1 ORDER BY dateDownload")
     fun downloadedSongsByCreateDateAsc(): Flow<List<Song>>
+
+    /** Row 627: the albums with at least one downloaded song — what offline mode shows in the library. */
+    @Query("SELECT DISTINCT m.albumId FROM song_album_map m JOIN song s ON s.id = m.songId WHERE s.isDownloaded = 1")
+    fun albumIdsWithDownloads(): Flow<List<String>>
+
+    /** Row 627: the playlists with at least one downloaded song — what offline mode shows in the library. */
+    @Query("SELECT DISTINCT m.playlistId FROM playlist_song_map m JOIN song s ON s.id = m.songId WHERE s.isDownloaded = 1")
+    fun playlistIdsWithDownloads(): Flow<List<String>>
 
     @Transaction
     @Query("SELECT * FROM song WHERE isDownloaded = 1 ORDER BY title")
@@ -1438,7 +1461,7 @@ interface DatabaseDao {
     ): Flow<List<Playlist>>
 
     @Transaction
-    @Query("SELECT * FROM event ORDER BY rowId DESC")
+    @Query("SELECT * FROM event ORDER BY timestamp DESC, rowId DESC")
     fun events(): Flow<List<EventWithSong>>
 
     // Bounded recent history for the taste engine: loading the ENTIRE history (with its song+artist
@@ -2345,6 +2368,14 @@ interface DatabaseDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertEnhancedPlayed(entity: EnhancedShufflePlayedEntity)
 
+    /** Row 528 (device sync): the rows written after [since], oldest first — what has not been reported to the room yet. */
+    @Query("SELECT * FROM enhanced_shuffle_played WHERE playedAt > :since ORDER BY playedAt ASC LIMIT :limit")
+    suspend fun enhancedPlayedSince(since: Long, limit: Int): List<EnhancedShufflePlayedEntity>
+
+    /** Row 528 (device sync): every context's cursor and cycle counter. */
+    @Query("SELECT * FROM enhanced_shuffle_context")
+    suspend fun allEnhancedContexts(): List<EnhancedShuffleContextEntity>
+
     /** Wipe a context's played-set so the next cycle starts fresh (called on cycle completion). */
     @Query("DELETE FROM enhanced_shuffle_played WHERE contextId = :contextId")
     suspend fun clearEnhancedContext(contextId: String)
@@ -2470,7 +2501,118 @@ interface DatabaseDao {
 
     @Query("DELETE FROM album_artist_map WHERE albumId IN (:albumIds)")
     fun deleteAlbumArtistMapsByAlbumIds(albumIds: List<String>)
+
+    // ---- Library sync between the user's devices (registry row 536) ----------------------------------------------------------
+    // The reads say what this device has; the writes apply what the others changed. Plain SQL on purpose: nothing here may go
+    // through the paths that push to the YouTube account (a change that CAME from another device must not be sent back there).
+
+    /** The playlists the library sync carries: the user's own (kept in the library and editable), never the special or generated ones. */
+    @Query(
+        """
+        SELECT id, name, browseId FROM playlist
+        WHERE bookmarkedAt IS NOT NULL AND isEditable = 1
+          AND id NOT IN ('LP_LIKED', 'LP_DOWNLOADED', 'AURA_AI_RECS')
+        """
+    )
+    suspend fun syncPlaylistRows(): List<SyncPlaylistRow>
+
+    @Query(
+        """
+        SELECT m.playlistId AS playlistId, m.songId AS songId FROM playlist_song_map m
+        JOIN playlist p ON p.id = m.playlistId
+        JOIN song s ON s.id = m.songId
+        WHERE p.bookmarkedAt IS NOT NULL AND p.isEditable = 1
+          AND p.id NOT IN ('LP_LIKED', 'LP_DOWNLOADED', 'AURA_AI_RECS')
+          AND s.isLocal = 0
+        """
+    )
+    suspend fun syncMemberRows(): List<SyncMemberRow>
+
+    /** Title, first artist and cover of songs, for the ones another device may never have seen. */
+    @Query(
+        """
+        SELECT s.id AS id, s.title AS title, s.thumbnailUrl AS thumbnailUrl,
+          (SELECT a.name FROM song_artist_map sam JOIN artist a ON a.id = sam.artistId
+           WHERE sam.songId = s.id ORDER BY sam.position LIMIT 1) AS artist
+        FROM song s WHERE s.id IN (:ids)
+        """
+    )
+    suspend fun syncSongRows(ids: List<String>): List<SyncSongRow>
+
+    @Query("SELECT COUNT(*) FROM song WHERE id = :id")
+    suspend fun syncSongExists(id: String): Int
+
+    // Saved albums (the heart on the album page): only the album, never its songs' likes.
+    @Query("SELECT id, playlistId, title, year, thumbnailUrl, songCount, duration FROM album WHERE bookmarkedAt IS NOT NULL AND isLocal = 0 AND isUploaded = 0")
+    suspend fun syncSavedAlbumRows(): List<SyncAlbumRow>
+
+    @Query("SELECT COUNT(*) FROM album WHERE id = :id")
+    suspend fun syncAlbumExists(id: String): Int
+
+    @Query("SELECT bookmarkedAt IS NOT NULL FROM album WHERE id = :id")
+    suspend fun syncIsAlbumSaved(id: String): Boolean?
+
+    @Query("UPDATE album SET bookmarkedAt = :date WHERE id = :id")
+    suspend fun syncSetAlbumSaved(id: String, date: java.time.LocalDateTime?)
+
+    @Query("SELECT playlistId FROM album WHERE id = :id")
+    suspend fun syncAlbumPlaylistId(id: String): String?
+
+    // Listening history (the History screen): the last plays, and whether one is already here (to the second).
+    @Query("SELECT songId, timestamp FROM event ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun syncRecentPlays(limit: Int): List<SyncPlayRow>
+
+    @Query("SELECT COUNT(*) FROM event WHERE songId = :songId AND timestamp >= :from AND timestamp < :to")
+    suspend fun syncPlayCount(songId: String, from: LocalDateTime, to: LocalDateTime): Int
+
+    /** Whether the song is liked here right now (null = no such song). */
+    @Query("SELECT liked FROM song WHERE id = :id")
+    suspend fun syncIsLiked(id: String): Boolean?
+
+    @Query(
+        """
+        UPDATE song SET liked = :liked, likedDate = :date,
+          inLibrary = CASE WHEN :liked = 1 AND inLibrary IS NULL THEN :date ELSE inLibrary END
+        WHERE id = :id
+        """
+    )
+    suspend fun syncSetLiked(id: String, liked: Boolean, date: java.time.LocalDateTime?)
+
+    /** The local playlist for a sync key: the key IS its id (local-only lists) or its browseId (lists linked to YouTube). */
+    @Query("SELECT id FROM playlist WHERE id = :key OR browseId = :key LIMIT 1")
+    suspend fun syncPlaylistIdFor(key: String): String?
+
+    @Query("UPDATE playlist SET name = :name, lastUpdateTime = :at WHERE id = :id AND name != :name")
+    suspend fun syncRenamePlaylist(id: String, name: String, at: java.time.LocalDateTime)
+
+    /** Members go with it (foreign key cascade). */
+    @Query("DELETE FROM playlist WHERE id = :id")
+    suspend fun syncDeletePlaylist(id: String)
+
+    @Query("SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = :playlistId AND songId = :songId")
+    suspend fun syncMemberCount(playlistId: String, songId: String): Int
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM playlist_song_map WHERE playlistId = :playlistId")
+    suspend fun syncMaxPosition(playlistId: String): Int
+
+    @Query("DELETE FROM playlist_song_map WHERE playlistId = :playlistId AND songId = :songId")
+    suspend fun syncRemoveMember(playlistId: String, songId: String)
 }
+
+/** One playlist as the library sync reads it. */
+data class SyncPlaylistRow(val id: String, val name: String, val browseId: String?)
+
+/** One song of one playlist. */
+data class SyncMemberRow(val playlistId: String, val songId: String)
+
+/** What the library sync tells another device about a saved album. */
+data class SyncAlbumRow(val id: String, val playlistId: String?, val title: String, val year: Int?, val thumbnailUrl: String?, val songCount: Int, val duration: Int)
+
+/** One listen, as the library sync reads it from the History table. */
+data class SyncPlayRow(val songId: String, val timestamp: LocalDateTime)
+
+/** What the library sync tells another device about a song. */
+data class SyncSongRow(val id: String, val title: String, val thumbnailUrl: String?, val artist: String?)
 
 /** One row of [DatabaseDao.recentPlayedTitleArtists]: what the song is called and who sings it (null = unknown). */
 data class PlayedTitleArtist(val title: String, val artist: String?)

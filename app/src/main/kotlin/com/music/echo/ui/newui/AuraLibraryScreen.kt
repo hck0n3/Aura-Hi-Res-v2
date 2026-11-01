@@ -175,28 +175,14 @@ fun AuraLibraryScreen(navController: NavController) {
                 .fillMaxSize()
                 .windowInsetsPadding(topInsetOnly),
         ) {
-            // Title on its own row so "Biblioteca" is never crushed by AuraTopActions (owner:
-            // "Bibliot…"). Actions keep the trailing corner on a denser row above.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = AuraSpacing.Gutter, end = AuraSpacing.Gutter, top = 8.dp),
-            ) {
-                AuraTopActions()
-            }
-            Text(
-                text = stringResource(R.string.filter_library),
-                style = AuraType.ScreenTitle,
-                color = AuraPalette.OnGround,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(
-                    start = AuraSpacing.Gutter,
-                    end = AuraSpacing.Gutter,
-                    top = 4.dp,
-                ),
+            // Same header as Inicio, Buscar and Novedades (owner 2026-10-29: «en biblioteca los botones que tienen que
+            // estar ocultos se ven visibles en la parte de arriba»): the title and ONE chevron on a row, the five buttons
+            // behind it. The title keeps the whole row, so «Biblioteca» is never crushed by them.
+            AuraScreenHeader(
+                title = stringResource(R.string.filter_library),
+                trailing = { AuraTopActions() },
+                collapseTrailing = true,
+                glassActions = true,
             )
             // The chip row owns the FULL width. It used to share a Row with a search glyph pinned at
             // the right, and that glyph is the owner's "lupa que se ve superpuesta a los chips": the
@@ -214,6 +200,7 @@ fun AuraLibraryScreen(navController: NavController) {
             ) {
                 items(auraLibraryChips(), key = { it.first.name }) { (chip, labelRes) ->
                     AuraChip(
+                        glass = true,
                         text = stringResource(labelRes),
                         selected = filterType == chip,
                         // Tapping the chip that is already active returns to the hub — as today.
@@ -526,13 +513,16 @@ private val AuraEmbeddedScheme = darkColorScheme(
     outlineVariant = AuraPalette.SurfaceLine,
 )
 
-/** The five filter chips, in the classic order. */
+/**
+ * The four filter chips, in the classic order. Row 572: «Local» is NOT a chip any more (owner 2026-10-31: «nada repetido»): the hub's «Local»
+ * tile (row 185, next to Podcasts) opens the same embedded list, and on a phone the fifth chip sat off the right edge anyway. System back
+ * from Local returns to the hub, and tapping any chip leaves it.
+ */
 private fun auraLibraryChips(): List<Pair<LibraryFilter, Int>> = listOf(
     LibraryFilter.PLAYLISTS to R.string.filter_playlists,
     LibraryFilter.SONGS to R.string.filter_songs,
     LibraryFilter.ALBUMS to R.string.filter_albums,
     LibraryFilter.ARTISTS to R.string.filter_artists,
-    LibraryFilter.LOCAL to R.string.filter_local,
 )
 
 /**

@@ -152,6 +152,17 @@
                 <data android:host="listen" />
             </intent-filter>
 
+            <!-- Row 615: the QR of a pairing code (Ajustes ▸ Sincronizar dispositivos) opens here from any camera app. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="echomusic" />
+                <data android:host="pair" />
+            </intent-filter>
+
             <!-- Tidal OAuth (PKCE) redirect for the playlist migration importer -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

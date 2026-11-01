@@ -108,6 +108,7 @@ fun ListenTogetherSettings(
     var serverUrl by rememberPreference(ListenTogetherServerUrlKey, "")
     var username by rememberPreference(ListenTogetherUsernameKey, "")
     var autoApproval by rememberPreference(ListenTogetherAutoApprovalKey, false)
+    var auraRooms by rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
 
     var showServerUrlDialog by rememberSaveable { mutableStateOf(false) }
     var showUsernameDialog by rememberSaveable { mutableStateOf(false) }
@@ -209,6 +210,31 @@ fun ListenTogetherSettings(
                             onClick = if (blockedUsernames.isNotEmpty()) {
                                 { showBlockedUsersDialog = true }
                             } else null
+                        ),
+                        IntegrationCardItem(
+                            icon = painterResource(R.drawable.cloud),
+                            title = { Text(stringResource(R.string.listen_together_aura_rooms)) },
+                            description = {
+                                Text(stringResource(R.string.listen_together_aura_rooms_desc))
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = auraRooms,
+                                    // The room lives on one server or the other; switching mid-room would orphan it.
+                                    enabled = !inRoom,
+                                    onCheckedChange = { auraRooms = it },
+                                    thumbContent = {
+                                        Icon(
+                                            painter = painterResource(
+                                                id = if (auraRooms) R.drawable.check else R.drawable.close
+                                            ),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(SwitchDefaults.IconSize),
+                                        )
+                                    }
+                                )
+                            },
+                            onClick = { if (!inRoom) auraRooms = !auraRooms }
                         ),
                         IntegrationCardItem(
                             icon = painterResource(R.drawable.cloud),

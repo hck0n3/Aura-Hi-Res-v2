@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.R
+import iad1tya.echo.music.db.entities.EnhancedShuffleContextEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -87,7 +88,16 @@ fun rememberShuffleMemoryPrompt(
                             coroutineScope.launch {
                                 // AWAIT the wipe: starting the queue first would let the old memory
                                 // re-order (and re-dim) the very lap the user asked to restart.
-                                withContext(Dispatchers.IO) { database.clearEnhancedContext(id) }
+                                withContext(Dispatchers.IO) {
+                                    database.clearEnhancedContext(id)
+                                    // A manual restart is a NEW LAP, so it moves the cycle counter like a finished one does: without
+                                    // that the other devices (same epoch) still hold the old played-set and their next report merges
+                                    // it straight back ("26 de 29" right after starting from zero). The higher epoch is what makes
+                                    // them wipe theirs too (DeviceSyncEngine.applyShuffle / ShuffleMerge).
+                                    val now = System.currentTimeMillis()
+                                    database.insertEnhancedContextIgnore(EnhancedShuffleContextEntity(contextId = id, updatedAt = now))
+                                    database.incrementEnhancedCycle(id, now)
+                                }
                                 currentOnShuffle(true)
                             }
                         }

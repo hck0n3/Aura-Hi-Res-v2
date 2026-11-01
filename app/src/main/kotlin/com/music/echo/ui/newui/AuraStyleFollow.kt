@@ -38,16 +38,19 @@ internal fun AuraStyleFollowRow(
     modifier: Modifier = Modifier,
 ) {
     if (follow == null) return
-    if (follow.detected.isEmpty() && follow.applied.isEmpty() && follow.override == null) return
+    // Row 599: an unknown style used to HIDE this row — exactly when the queue is most likely to drift (a fifth to a third of the refills in the
+    // owner's logs) and when the user most needs to see it and correct it. It now says it is still detecting, and the correction menu stays.
     var expanded by remember { mutableStateOf(false) }
     val christian = stringResource(R.string.style_follow_christian)
     val anyStyle = stringResource(R.string.style_follow_any)
     val similar = stringResource(R.string.style_follow_similar)
+    val detecting = stringResource(R.string.style_follow_detecting)
     val styleText = when (follow.override) {
         StyleContinuity.Override.AnyStyle -> anyStyle
         StyleContinuity.Override.Similar -> similar
         else -> follow.applied.joinToString(" + ") { MusicStyle.displayName(it) }
             .let { if (follow.christian && it.isNotEmpty()) "$it · $christian" else it }
+            .ifBlank { if (follow.christian) "$detecting · $christian" else detecting }
     }
     if (styleText.isBlank()) return
     val description = stringResource(R.string.style_follow_cd)

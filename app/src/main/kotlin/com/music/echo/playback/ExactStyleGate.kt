@@ -80,6 +80,18 @@ internal class ExactStyleState {
 
     // Fila 356, punto 3 — what the user skipped quickly in THIS queue, and what the gate let through.
     val gatedIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
+
+    // Row 555 — HOW each song got in («t2/own» = admitted at step 2 on the strength of its own artist), and the target it was judged
+    // against. Kept so that when the owner dislikes a song that drifted out of the queue's style, the log says why the gate let it in
+    // (no title, no artist: ids and counters only).
+    val admissions: ConcurrentHashMap<String, String> = ConcurrentHashMap()
+    @Volatile var lastTarget = ""
+
+    /** Row 580 — the families that led this queue when its context named no style; fixed by the first batch (see ContextLane.lockedConsensus). */
+    @Volatile var lockedFamilies: Set<String>? = null
+
+    /** Row 599 — the styles that led this queue once they were known; fixed until the user starts another queue (see ContextLane.stableStyles). */
+    @Volatile var lockedStyles: Set<String>? = null
     val skippedArtists: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
     val skippedStyles: ConcurrentHashMap<String, Int> = ConcurrentHashMap()
     val confirmedStyles: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
@@ -99,6 +111,10 @@ internal class ExactStyleState {
         override = null
         follow.value = null
         gatedIds.clear()
+        admissions.clear()
+        lastTarget = ""
+        lockedFamilies = null
+        lockedStyles = null
         skippedArtists.clear()
         skippedStyles.clear()
         confirmedStyles.clear()
@@ -135,6 +151,11 @@ private const val QUICK_SKIP_MS = 30_000L
 
 /** A style skipped this many times (and never listened through) in a queue is out for that queue. */
 private const val STYLE_SKIPS_TO_REJECT = 2
+
+// Row 527: how much of the batch's head is read for a family when the context names none, and how clear the lead must be.
+private const val CONSENSUS_WINDOW = 15
+private const val CONSENSUS_MIN_KNOWN = 4
+private const val CONSENSUS_SHARE = 0.6
 
 private class TrackText(val id: String?, val primary: String?, val artists: List<String>, val text: String)
 
@@ -189,6 +210,11 @@ internal suspend fun MusicService.exactStyleFilter(
     minMatches: Int,
     allowSearch: Boolean,
     languageOnly: Boolean = false,
+    /**
+     * Row 503: the LAST relaxation level — the genre-family fence of [languageOnly] comes down too. The language and,
+     * in a Christian context, the faith still hold: the gate is never switched off while the context says anything.
+     */
+    dropFamilies: Boolean = false,
 ): List<MediaItem>? = withContext(Dispatchers.IO) {
     if (!keepGenreLaneHint || exactStyle.chipSteered) return@withContext null
     val service = this@exactStyleFilter
@@ -196,17 +222,28 @@ internal suspend fun MusicService.exactStyleFilter(
     val pool = if (collection) radioSeedPool else emptyList()
     if (!collection && anchor == null) return@withContext null
     val genres = runCatching { GenreCache.snapshot(service) }.getOrDefault(emptyMap())
+    // Row 525: artists the user skipped quickly in the songs a smart queue added, in earlier queues too (30 days).
+    val persistedRejected = runCatching { iad1tya.echo.music.reco.ContinuationSkipMemory.rejectedArtists(service) }.getOrDefault(emptySet())
+    if (persistedRejected.isNotEmpty()) Timber.tag(TAG).i("STYLE_GATE remembered skips apply: artists=%d", persistedRejected.size)
 
     // LEARN first, from everything in view: the collection and this batch (own words only).
     fun learnFrom(tracks: List<TrackText>, impliedStyle: String? = null) {
         if (st.learnedIds.size > LEARNED_IDS_CAP) st.learnedIds.clear()
+        // Counted only to tell, in the log, how much of what the queue «learns» comes from the songs' own words and how much
+        // from the style the search ASKED for (owner 2026-10-30: the queue drifts after several songs, not at the end of the
+        // context — the suspect is a style learned from the question rather than from the answer, then used as evidence).
+        var fromOwnWords = 0
+        var fromImplied = 0
         val observations = tracks.mapNotNull { t ->
             val id = t.id ?: return@mapNotNull null
             val artist = t.primary ?: return@mapNotNull null
-            val style = MusicStyle.fromText(t.text) ?: impliedStyle ?: return@mapNotNull null
+            val own = MusicStyle.fromText(t.text)
+            val style = own ?: impliedStyle ?: return@mapNotNull null
             if (!st.learnedIds.add(id)) return@mapNotNull null
+            if (own != null) fromOwnWords++ else fromImplied++
             artist to style
         }
+        if (fromOwnWords + fromImplied > 0) Timber.tag(TAG).i("STYLE_GATE_LEARN own=%d implied=%d", fromOwnWords, fromImplied)
         runCatching { ArtistStyleMemory.learn(service, observations) }
         // Row 459 — and the artist's LANGUAGE, from the track's own words (a title's language never changes, so
         // an undecided title is remembered as seen too and is not re-read on every batch).
@@ -283,8 +320,12 @@ internal suspend fun MusicService.exactStyleFilter(
     var laneMixed = false
     if (collection && pool.isNotEmpty()) {
         val nameStyle = MusicStyle.fromText(radioSeedTitle)
-        val christianTracks = pool.count { mm ->
-            GenreLane.laneOfTrack(genres, mm.artists.firstOrNull()?.name, mm.title, mm.album?.title) == GenreLane.CHRISTIAN
+        // Row 554: the faith of the context also counts what is KNOWN of the artist (Last.fm tags learned before), not only the words
+        // of the title/album. A Christian rapper whose song titles say nothing about it made the target «not Christian», and the
+        // queue drifted to secular rap (owner log 2026-10-30).
+        val christianTracks = pool.withIndex().count { (i, mm) ->
+            GenreLane.laneOfTrack(genres, mm.artists.firstOrNull()?.name, mm.title, mm.album?.title) == GenreLane.CHRISTIAN ||
+                christianEvidence(poolTexts[i])
         }
         val trackStyles = poolTexts.map { styleOf(it) }
         // Row 459: a SHORT collection (a single, an EP) has fewer than the 3 known styles / 4 decided titles the
@@ -313,7 +354,8 @@ internal suspend fun MusicService.exactStyleFilter(
         detected = StyleContinuity.Target(
             styles = styleOf(t)?.let { setOf(it) },
             language = contextLanguage.code,
-            christian = GenreLane.laneOfTrack(genres, t.primary, anchor.title, anchor.album?.title) == GenreLane.CHRISTIAN,
+            christian = GenreLane.laneOfTrack(genres, t.primary, anchor.title, anchor.album?.title) == GenreLane.CHRISTIAN ||
+                christianEvidence(t),
         )
         trackFamilies = listOf(familyFor(t, styleOf(t)))
         ownArtists = t.artists.map { it.trim().lowercase() }.toHashSet()
@@ -323,7 +365,25 @@ internal suspend fun MusicService.exactStyleFilter(
     }
     // Fila 361: a "Pedir música" queue continues what was ASKED (styles, language, faith), not a guess.
     val requested = iad1tya.echo.music.reco.RequestStyleTargets.get(radioOriginContextId)
-    val base = requested ?: detected
+    // Row 605: a context that is itself children's music (a third of its songs say so, or the song it continues, or the user asked for it)
+    // keeps taking children's songs; any other context leaves them out.
+    val contextKids = "infantil" in (requested?.styles.orEmpty()) || (
+        if (collection && pool.isNotEmpty()) {
+            poolTexts.count { MusicStyle.isKidsContent(it.text) } * 3 >= pool.size
+        } else {
+            anchor != null && MusicStyle.isKidsContent(anchor.trackText().text)
+        }
+    )
+    // Row 599 (owner 2026-10-31: «la cola cambia después de las 10 canciones»): the styles that lead the queue are decided once and then kept,
+    // so a later batch (or a song whose tags arrived late) cannot move them; with none known yet, the styles of the songs HEARD TO THE END in
+    // this queue stand in once they agree on one. A request the user typed and an explicit override keep deciding as before.
+    val stable = if (requested != null) null else iad1tya.echo.music.reco.ContextLane.stableStyles(
+        locked = st.lockedStyles,
+        detected = detected.styles,
+        heardToTheEnd = st.confirmedStyles.toSet(),
+    )
+    if (stable != null && st.lockedStyles == null) st.lockedStyles = stable
+    val base = requested ?: if (stable != null) detected.copy(styles = stable) else detected
     val override = st.override
     val target = StyleContinuity.applyOverride(base, override)
     st.follow.value = StyleContinuity.Follow(
@@ -334,22 +394,56 @@ internal suspend fun MusicService.exactStyleFilter(
         override = override,
     )
     // Row 459 — relaxation level 2 of the engine: the style stands down, the LANGUAGE still holds.
-    if (languageOnly && target.language == null) return@withContext null
+    // Row 503: ...unless the context is Christian — then the faith alone is still worth enforcing.
+    if (languageOnly && target.language == null && !target.christian) return@withContext null
     val gateTarget = if (languageOnly) StyleContinuity.Target(null, target.language, target.christian) else target
     // Row 459 — the lane: the language (null = unknown or MIXED: nothing judged), the faith and, when the concrete
     // style is unknown, the genre FAMILY (a user's «cualquier estilo» or a request's own target is never narrowed).
-    val families = if (languageOnly || requested != null || override != null) {
-        emptySet<String>()
-    } else {
-        ContextLane.familyHint(target.styles, trackFamilies)
+    // Row 503 (owner 2026-10-29: «terminó Luis Miguel, siguió con cantantes de la misma época… y de la nada cumbia»):
+    // the relaxation levels used to drop the style AND the family, leaving only the language — and every Spanish song
+    // (a cumbia included) is Spanish. The family fence now survives the first relaxation level (the families of the
+    // styles and their neighbours), and the normal levels fence a context whose styles are known too, with what is
+    // KNOWN of the candidate (its iTunes genre or Last.fm tags); a candidate nothing is known about stays eligible.
+    val baseFamilies = when {
+        override != null -> emptySet<String>()
+        languageOnly -> if (dropFamilies) emptySet() else {
+            target.neighbourFamilies.ifEmpty { ContextLane.familyHint(null, trackFamilies) }
+        }
+        requested != null -> emptySet<String>()
+        else -> ContextLane.familyHint(target.styles, trackFamilies).ifEmpty { target.neighbourFamilies }
     }
+    // Row 527 (owner 2026-10-29: «después de la salsa me puso rap»): a Christian salsa album has NO style and NO family the
+    // tags can name (iTunes says «Christian & Gospel»), so the lane asked only for Spanish + faith and every Spanish Christian
+    // song — a rap included — was a match. When the context itself says nothing, what the queue's OWN first candidates
+    // say is the best hint left: if most of the batch's known songs belong to one family, that family leads. It only ever
+    // narrows (a candidate nothing is known about stays eligible) and never overrides what the context or the user decided.
+    fun consensusFamilies(batch: List<MediaItem>): Set<String> {
+        val known = batch.take(CONSENSUS_WINDOW).mapNotNull { mi ->
+            val t = mi.trackText()
+            familyFor(t, styleOf(t))
+        }
+        return ContextLane.consensusFamilies(known, CONSENSUS_MIN_KNOWN, CONSENSUS_SHARE)
+    }
+    val inferredFamilies = if (baseFamilies.isEmpty() && override == null && requested == null && !languageOnly &&
+        target.styles.isNullOrEmpty()
+    ) {
+        // Row 580: the batch YouTube hands over is the weakest evidence there is; it decides ONCE, and the queue keeps that
+        // decision until the user starts another one. Before, every refill voted again and a drifted batch moved the target.
+        val chosen = iad1tya.echo.music.reco.ContextLane.lockedConsensus(st.lockedFamilies, consensusFamilies(items))
+        if (st.lockedFamilies.isNullOrEmpty() && chosen.isNotEmpty()) st.lockedFamilies = chosen
+        chosen
+    } else emptySet()
+    if (inferredFamilies.isNotEmpty()) {
+        Timber.tag(TAG).i("STYLE_GATE %s: no style known — the batch's own family leads: families=%s", site, inferredFamilies.sorted().joinToString("+"))
+    }
+    val families = baseFamilies.ifEmpty { inferredFamilies }
     val lane = ContextLane.Lane(
         language = gateTarget.language,
         mixed = laneMixed && requested == null,
         christian = gateTarget.christian,
         families = families,
     )
-    if (!gateTarget.active && lane.families.isEmpty()) {
+    if (!gateTarget.active && lane.families.isEmpty() && !lane.christian) {
         Timber.tag(TAG).i("STYLE_GATE %s: style and language unknown, no filter applied", site)
         return@withContext null
     }
@@ -362,13 +456,26 @@ internal suspend fun MusicService.exactStyleFilter(
         )
     }
 
-    fun judge(mi: MediaItem, fromSearch: Boolean): Judged {
+    val basisById = HashMap<String, String>()
+
+    // Row 592 (owner 2026-10-31: «la cola inteligente falla, después de las 10 canciones cambia»; his own log: 7 songs skipped in 20 s, 14 of 15
+    // «kept by search=14», STYLE_GATE_LEARN own=0 implied=13). A song that merely CAME from a search for the style was trusted whole when
+    // nothing was known about it, and then its artist was TAUGHT that style from the question alone, so the next batch found it «learned» and
+    // proven: the queue vouched for itself. Only a request the user typed («Pedir música») is a question worth trusting; everywhere else a
+    // search result is judged by what is known of the song, like any other.
+    fun trustSearch(fromSearch: Boolean): Boolean = fromSearch && requested != null
+
+    fun judge(mi: MediaItem, fromSearch: Boolean, faithSource: Boolean = false): Judged {
         val t = mi.trackText()
         val textStyle = MusicStyle.fromText(t.text)
         val learned = artistStyle(t.primary)
         val genre = MusicStyle.fromGenre(GenreLane.lookupGenre(genres, t.primary))
         val known = textStyle ?: learned ?: genre.style
-        val rejected = ArtistStyleMemory.key(t.primary)?.let { it in st.skippedArtists } == true ||
+        val rejected = (!contextKids && MusicStyle.isKidsContent(t.text) && "infantil" !in target.styles.orEmpty() &&
+            !t.artists.any { it.trim().lowercase() in ownArtists }) ||
+            ArtistStyleMemory.key(t.primary)?.let { it in st.skippedArtists } == true ||
+            (ArtistStyleMemory.key(t.primary)?.let { it in persistedRejected } == true &&
+                !t.artists.any { it.trim().lowercase() in ownArtists }) ||
             (!languageOnly && known != null && known !in target.styles.orEmpty() && known !in st.confirmedStyles &&
                 (st.skippedStyles[known] ?: 0) >= STYLE_SKIPS_TO_REJECT)
         val evidence = languageEvidence(t)
@@ -385,7 +492,7 @@ internal suspend fun MusicService.exactStyleFilter(
                     // Only STRONG evidence may call a candidate «another language»; a hint never does.
                     language = evidence.code.takeIf { evidence.strong },
                     ownArtist = t.artists.any { it.trim().lowercase() in ownArtists },
-                    fromSearch = fromSearch,
+                    fromSearch = trustSearch(fromSearch),
                     rejected = rejected,
                     year = if (gateTarget.era == null) null else iad1tya.echo.music.playlistimport.MusicRequestEraYears.yearOf(
                         mi.mediaId, mi.metadata?.album?.id, mi.metadata?.album?.title,
@@ -393,13 +500,30 @@ internal suspend fun MusicService.exactStyleFilter(
                 ),
             )
         }
-        return Judged(verdict, ContextLane.Candidate(verdict, evidence, familyFor(t, known), christianEvidence(t)))
+        // Row 503 — faith is a GATE in a Christian lane, so what PROVES it must be generous where it is sure: the context's
+        // own artists, and the songs a Christian search ("rap cristiano en español", "música cristiana") brought.
+        val ownArtist = t.artists.any { it.trim().lowercase() in ownArtists }
+        val christian = christianEvidence(t) || (lane.christian && (ownArtist || faithSource))
+        // Row 524: remember what proved this candidate, for the summary line (counts only).
+        basisById[mi.mediaId] = StyleContinuity.basis(
+            gateTarget,
+            StyleContinuity.Candidate(
+                textStyle = textStyle,
+                learnedStyle = learned,
+                genre = genre,
+                language = null,
+                ownArtist = ownArtist,
+                fromSearch = trustSearch(fromSearch),
+                rejected = rejected,
+            ),
+        )
+        return Judged(verdict, ContextLane.Candidate(verdict, evidence, familyFor(t, known), christian))
     }
 
     // Fits the fill may add to: a related artist the context already knows to be elsewhere is not even asked for.
     fun relatedOk(name: String): Boolean {
         val key = ArtistStyleMemory.key(name) ?: return false
-        if (key in st.skippedArtists) return false
+        if (key in st.skippedArtists || key in persistedRejected) return false
         val language = ArtistLanguageMemory.languageOf(langMemory, name)
         if (lane.language != null && language != null && language != lane.language) return false
         val style = artistStyle(name)
@@ -416,7 +540,9 @@ internal suspend fun MusicService.exactStyleFilter(
     // Step 0 = the style (or family) AND the language proven. A candidate whose language is merely unproven (step 1)
     // is eligible but does not stop the lane fill: it is what an English song with a bare title looks like too.
     fun exactCount(): Int = judged.count { j -> ContextLane.tier(lane, j.candidate) == 0 }
-    if (allowSearch && !languageOnly && exactCount() < minMatches) {
+    // Row 503: a Christian context may still SEARCH at the relaxed levels (it asks for Christian songs, never for
+    // anything else), so the faith gate never starves the queue.
+    if (allowSearch && (!languageOnly || lane.christian) && exactCount() < minMatches) {
         val originContextId = radioOriginContextId
         val playedBefore = if (originContextId != null) {
             runCatching { database.radioContinuationPlayedIds(originContextId) }.getOrDefault(emptyList()).toHashSet()
@@ -429,7 +555,12 @@ internal suspend fun MusicService.exactStyleFilter(
             dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false)
         // Same filters for every source of extra songs: the user's own settings, then the smart queue's no-repeat
         // (this session, the persistent «already served after this list» memory, unavailable songs).
-        suspend fun admit(found: List<MediaItem>, fromSearch: Boolean, impliedStyle: String?): Int {
+        suspend fun admit(
+            found: List<MediaItem>,
+            fromSearch: Boolean,
+            impliedStyle: String?,
+            faithSource: Boolean = fromSearch && gateTarget.christian,
+        ): Int {
             val playable = found
                 .filterExplicit(hideExplicit)
                 .filterVideoSongs(hideVideos)
@@ -439,7 +570,8 @@ internal suspend fun MusicService.exactStyleFilter(
                     playable.mapNotNull { it.metadata?.album?.id }, ERA_PREFETCH_MS,
                 )
             }
-            learnFrom(playable.map { it.trackText() }, impliedStyle = impliedStyle)
+            // Row 592: the style a search ASKED for is only taught to the artists when the user's own request asked it.
+            learnFrom(playable.map { it.trackText() }, impliedStyle = impliedStyle.takeIf { requested != null })
             val fresh = playable.filter { mi ->
                 seen.add(mi.mediaId) &&
                     mi.mediaId !in sessionPlayedIds && mi.dedupKeyOrNull() !in sessionPlayedDedupKeys &&
@@ -448,7 +580,7 @@ internal suspend fun MusicService.exactStyleFilter(
             }
             fresh.forEach { mi ->
                 all.add(mi)
-                judged.add(judge(mi, fromSearch))
+                judged.add(judge(mi, fromSearch, faithSource))
             }
             return fresh.size
         }
@@ -460,6 +592,7 @@ internal suspend fun MusicService.exactStyleFilter(
             else -> styles.random(randomSeedSource)
         }
         val query = StyleContinuity.searchQuery(style, gateTarget.language, gateTarget.christian)
+            ?: if (gateTarget.christian) StyleContinuity.christianQuery(gateTarget.language) else null
         if (query != null) {
             repeat(FILL_PAGES_PER_CALL) {
                 if (exactCount() >= minMatches) return@repeat
@@ -472,13 +605,53 @@ internal suspend fun MusicService.exactStyleFilter(
             fetched += admit(laneFillPage(seedArtists) { relatedOk(it) }, fromSearch = false, impliedStyle = null)
         }
     }
+    // Row 606 (owner 2026-10-31: «la cola inteligente falla con cualquier estilo, nunca lo mantiene»): the filter judges by LABELS, and what no
+    // label can place used to be admitted «just in case». Those doubtful songs (steps 1-3: the style or the language is not proven) get a second
+    // opinion from the AI of the Aura server; the ones it does not keep leave. Titles and artists only. Any failure (switch off, no network, slow,
+    // quota) returns null and the queue goes on exactly as before, so the AI can only ever REMOVE a doubtful song, never add one.
+    run {
+        if (languageOnly || requested?.let { it.styles.isNullOrEmpty() && it.language == null } == true) return@run
+        val doubtful = judged.indices.filter { i ->
+            val step = ContextLane.tier(lane, judged[i].candidate)
+            step != null && step >= 1
+        }.take(iad1tya.echo.music.edge.EdgeJudge.MAX_CANDIDATES)
+        if (doubtful.isEmpty()) return@run
+        val context = (if (collection) poolTexts.take(iad1tya.echo.music.edge.EdgeJudge.MAX_CONTEXT) else listOfNotNull(anchor?.trackText()))
+            .mapNotNull { t ->
+                val title = t.text.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                iad1tya.echo.music.edge.EdgeJudge.Song(title, t.primary.orEmpty())
+            }
+        val asked = doubtful.map { i -> all[i].let { mi -> iad1tya.echo.music.edge.EdgeJudge.Song(mi.metadata?.title ?: mi.mediaMetadata.title?.toString().orEmpty(), mi.trackText().primary.orEmpty()) } }
+        val kept = iad1tya.echo.music.edge.EdgeClient.judgeQueue(
+            context, asked, gateTarget.styles.orEmpty().sorted(), gateTarget.language, gateTarget.christian,
+        ) ?: return@run
+        var dropped = 0
+        doubtful.forEachIndexed { n, i ->
+            if (n !in kept) {
+                judged[i] = Judged(StyleContinuity.Verdict.OFF, judged[i].candidate.copy(verdict = StyleContinuity.Verdict.OFF))
+                dropped++
+            }
+        }
+        Timber.tag(TAG).i("STYLE_GATE %s: AI second opinion asked=%d dropped=%d", site, doubtful.size, dropped)
+    }
     val tiers = judged.map { ContextLane.tier(lane, it.candidate) }
     // With the second-to-last relaxation (languageOnly) every non-excluded candidate is welcome, best step first.
     val enough = if (languageOnly) Int.MAX_VALUE else minOf(minMatches, StyleContinuity.ENOUGH_TO_DROP_UNKNOWN)
-    val kept = ContextLane.choose(all, tiers, judged.map { lane.christian && it.candidate.christian }, enough)
+    val tierById = HashMap<String, Int?>()
+    all.forEachIndexed { i, mi -> tierById[mi.mediaId] = tiers.getOrNull(i) }
+    // Row 588: the style-unproven songs (tiers 2-3) are only the filler up to `enough`, not the whole step.
+    val kept = ContextLane.capUnproven(
+        ContextLane.choose(all, tiers, judged.map { lane.christian && it.candidate.christian }, enough),
+        { tierById[it.mediaId] },
+        enough,
+    )
     if (st.gatedIds.size > GATED_IDS_CAP) st.gatedIds.clear()
     kept.forEach { st.gatedIds.add(it.mediaId) }
+    if (st.admissions.size > GATED_IDS_CAP) st.admissions.clear()
+    kept.forEach { st.admissions[it.mediaId] = "t${tierById[it.mediaId] ?: "-"}/${basisById[it.mediaId] ?: "?"}" }
+    st.lastTarget = "styles=${gateTarget.styles?.sorted()?.joinToString("+") ?: "unknown"} lang=${gateTarget.language ?: "unknown"} christian=${gateTarget.christian}"
     // Counts and style/family ids only — never a title, artist or id (AGENTS.md rule 4).
+    Timber.tag(TAG).i("STYLE_GATE_BASIS %s: kept by %s", site, kept.groupingBy { basisById[it.mediaId] ?: "?" }.eachCount().entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${it.value}" }.ifEmpty { "nothing" })
     Timber.tag(TAG).i(
         "STYLE_GATE %s: styles=%s lang=%s christian=%b override=%s match=%d unknown=%d off=%d fetched=%d kept=%d " +
             "mixed=%b families=%s steps=%s never=%d only=%b",
@@ -616,6 +789,13 @@ private suspend fun MusicService.styleSearchPage(query: String): List<MediaItem>
  * and, after [STYLE_SKIPS_TO_REJECT], its style — out for the rest of this queue; a song heard to its end
  * confirms its style so it is never rejected afterwards. Counts only in the log.
  */
+/** Why the gate let [mediaId] into this queue, for the log: «t2/own target=styles=rap lang=es christian=false», or «not-gated». */
+internal fun MusicService.styleAdmissionOf(mediaId: String?): String {
+    val st = exactStyle
+    val how = mediaId?.let { st.admissions[it] } ?: return "not-gated"
+    return "$how target=${st.lastTarget}"
+}
+
 internal fun MusicService.exactStyleOnTransition(newItem: MediaItem?, reason: Int) {
     val st = exactStyle
     val previous = st.currentItem
@@ -639,13 +819,20 @@ internal fun MusicService.exactStyleOnTransition(newItem: MediaItem?, reason: In
     when (reason) {
         Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> if ((now - startedAt) in 0L until QUICK_SKIP_MS) {
             ArtistStyleMemory.key(t.primary)?.let { st.skippedArtists.add(it) }
+            // Row 525: and for the next queues too (only songs the smart queue added reach this branch).
+            val skippedKey = ArtistStyleMemory.key(t.primary)
+            scope.launch(Dispatchers.IO) { iad1tya.echo.music.reco.ContinuationSkipMemory.recordSkip(this@exactStyleOnTransition, skippedKey) }
             ownStyle?.let { st.skippedStyles.merge(it, 1, Int::plus) }
             Timber.tag(TAG).i(
                 "STYLE_GATE quick skip learned: artists=%d styles=%d",
                 st.skippedArtists.size, st.skippedStyles.size,
             )
         }
-        Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> ownStyle?.let { st.confirmedStyles.add(it) }
+        Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> {
+            ownStyle?.let { st.confirmedStyles.add(it) }
+            val heardKey = ArtistStyleMemory.key(t.primary)
+            scope.launch(Dispatchers.IO) { iad1tya.echo.music.reco.ContinuationSkipMemory.forgive(this@exactStyleOnTransition, heardKey) }
+        }
     }
 }
 

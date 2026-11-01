@@ -27,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -142,6 +143,7 @@ fun AuraDownloadSheet(
 ) {
     val context = LocalContext.current
     val database = LocalDatabase.current
+    val downloadUtil = iad1tya.echo.music.LocalDownloadUtil.current
     val (enableExportAsMp3) = rememberPreference(EnableExportAsMp3Key, true)
     val (exportDirectoryUri, onExportDirectoryUriChange) = rememberPreference(ExportDirectoryUriKey, "")
     val ensureMp3Folder = rememberMp3ExportFolderAccess(
@@ -150,6 +152,12 @@ fun AuraDownloadSheet(
     )
 
     val single = songs.size == 1
+    // Row 505: what the download button tells about a song that is ALREADY downloaded, in any way, and which lists hold it.
+    val (exportedSongIds) = rememberPreference(iad1tya.echo.music.constants.ExportedSongIdsKey, "")
+    val (exportedVideoIds) = rememberPreference(iad1tya.echo.music.constants.ExportedVideoIdsKey, "")
+    val listNames by remember(songs) {
+        if (songs.size == 1) database.playlistNamesContaining(songs[0].id) else kotlinx.coroutines.flow.flowOf(emptyList<String>())
+    }.collectAsState(initial = emptyList())
     val videoItems = remember(songs) { songs.filter { it.isVideo } }
     // One song: probe its video for real, like the old chooser. A list: the songs flagged as video are the ones offered.
     val availability = rememberExportVideoAvailability(
@@ -174,14 +182,18 @@ fun AuraDownloadSheet(
             ExportFormat.Offline -> {
                 selection.forEach { item ->
                     item.metadata?.let { meta -> database.transaction { insert(meta) } }
-                    enqueueSongDownloads(
-                        context = context,
-                        songId = item.id,
-                        title = item.title,
-                        // The companion video only for the single song, as the player always did; a whole list is audio.
-                        isVideoSong = single && item.downloadsCompanionVideo,
-                        deferWhileLiveVideo = single && deferOfflineWhileLiveVideo,
-                    )
+                    // Row 505: a song whose every byte is already in the listen cache is copied from there (no network,
+                    // no second download); anything else is the normal enqueue, exactly as before.
+                    downloadUtil.reuseListenCopyThen(item.id) {
+                        enqueueSongDownloads(
+                            context = context,
+                            songId = item.id,
+                            title = item.title,
+                            // The companion video only for the single song, as the player always did; a whole list is audio.
+                            isVideoSong = single && item.downloadsCompanionVideo,
+                            deferWhileLiveVideo = single && deferOfflineWhileLiveVideo,
+                        )
+                    }
                 }
                 onDone()
                 onDismiss()
@@ -248,6 +260,20 @@ fun AuraDownloadSheet(
                         title = stringResource(R.string.download_or_export_title),
                         subtitle = if (single) title else pluralStringResource(R.plurals.n_song, songs.size, songs.size) + " · " + title,
                     )
+                    if (single) {
+                        val id = songs[0].id
+                        val modes = buildList {
+                            if (offlineState == Download.STATE_COMPLETED) add(stringResource(R.string.download_mode_offline))
+                            if (id in exportedSongIds.split(",")) add(stringResource(R.string.download_mode_mp3))
+                            if (id in exportedVideoIds.split(",")) add(stringResource(R.string.download_mode_video))
+                        }
+                        if (modes.isNotEmpty()) {
+                            AlreadyDownloadedNotice(
+                                modes = modes.joinToString(" · "),
+                                lists = listNames,
+                            )
+                        }
+                    }
                     when (offlineState) {
                         Download.STATE_COMPLETED -> DownloadSheetRow(
                             icon = AuraIcons.Downloaded,
@@ -392,6 +418,61 @@ fun AuraDownloadSheet(
     }
 }
 
+/**
+ * Row 505 (owner 2026-10-29): «si vuelvo a tocar el botón de descarga, que la ventana diga que esta canción ya se encuentra
+ * descargada —sin conexión, MP3 o vídeo— y en qué lista de reproducción está».
+ */
+@Composable
+private fun AlreadyDownloadedNotice(modes: String, lists: List<String>) {
+    val shape = RoundedCornerShape(AuraGlassCorner)
+    Row(
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(AuraPalette.Teal.copy(alpha = 0.14f))
+            .border(1.dp, AuraPalette.Teal.copy(alpha = 0.40f), shape)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        androidx.compose.material3.Icon(
+            imageVector = AuraIcons.Downloaded,
+            contentDescription = null,
+            tint = AuraPalette.Teal,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.download_sheet_already_title),
+                style = AuraType.RowTitle,
+                color = AuraPalette.OnGround,
+            )
+            Text(
+                text = stringResource(R.string.download_sheet_already_modes, modes),
+                style = AuraType.MiniArtist,
+                color = AuraPalette.OnGroundMuted,
+            )
+            if (lists.isNotEmpty()) {
+                val shown = lists.take(MAX_LISTS_SHOWN).joinToString(", ")
+                Text(
+                    text = if (lists.size > MAX_LISTS_SHOWN) {
+                        stringResource(
+                            R.string.download_sheet_in_lists_more, shown, lists.size - MAX_LISTS_SHOWN,
+                        ).let { stringResource(R.string.download_sheet_in_lists, it) }
+                    } else {
+                        stringResource(R.string.download_sheet_in_lists, shown)
+                    },
+                    style = AuraType.MiniArtist,
+                    color = AuraPalette.OnGroundMuted,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+private const val MAX_LISTS_SHOWN = 4
+
 @Composable
 private fun formatTitle(format: ExportFormat): String = stringResource(
     when (format) {
@@ -402,7 +483,7 @@ private fun formatTitle(format: ExportFormat): String = stringResource(
 )
 
 @Composable
-private fun SheetHeader(title: String, subtitle: String) {
+internal fun SheetHeader(title: String, subtitle: String) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Text(text = title, style = AuraType.RowTitle, color = AuraPalette.OnGround, maxLines = 1, overflow = AuraDefaultOverflow)
         if (subtitle.isNotBlank()) {
@@ -425,7 +506,7 @@ private fun SheetBack(onClick: () -> Unit) {
 }
 
 @Composable
-private fun DownloadSheetRow(
+internal fun DownloadSheetRow(
     icon: ImageVector,
     title: String,
     description: String,

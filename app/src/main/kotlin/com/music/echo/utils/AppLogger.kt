@@ -34,7 +34,7 @@ object AppLogger {
         File(context.filesDir, "logs").apply { mkdirs() }
 
     fun logFile(context: Context): File = File(logDir(context), "app.log")
-    private fun backupFile(context: Context): File = File(logDir(context), "app.log.1")
+    fun backupFile(context: Context): File = File(logDir(context), "app.log.1")
     fun crashFile(context: Context): File = File(logDir(context), "last_crash.txt")
 
     /**

@@ -103,6 +103,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -298,6 +299,18 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
 
     val skin = iad1tya.echo.music.ui.newui.rememberAuraPanelSkin()
     val premiumSheet = skin.enabled && skin.darkGround
+    // Row 608 (owner 2026-10-31: «el volumen del otro dispositivo en el botón que controla el volumen de Aura, el de abajo del reproductor»):
+    // while another of my devices is the one playing, this slider moves ITS volume (RemotePlayback), not this phone's system volume.
+    val remoteTarget by iad1tya.echo.music.devicesync.RemotePlayback.target.collectAsState()
+    val remoteLevel by iad1tya.echo.music.devicesync.RemotePlayback.volume.collectAsState()
+    val remoteActive = remoteTarget != null
+    val shownVolume = if (remoteActive) remoteLevel * maxVolume else currentVolume
+    val applyVolume: (Float) -> Unit = { newVolume ->
+        if (!iad1tya.echo.music.devicesync.RemotePlayback.setVolume(newVolume / maxVolume.coerceAtLeast(1))) {
+            currentVolume = newVolume
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume.toInt(), 0)
+        }
+    }
     // THE MINI-PLAYER GLASS (owner 2026-09-14): with the activity-level host the output card is an
     // in-window glass panel like the menus; a system sheet window can never sample the app behind it.
     val inWindowGlass = premiumSheet &&
@@ -317,6 +330,14 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                 .padding(bottom = 24.dp)
                 .animateContentSize()
         ) {
+            if (remoteActive) {
+                Text(
+                    text = stringResource(R.string.device_sync_remote_volume, remoteTarget?.deviceName?.ifBlank { "—" } ?: "—"),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
             when {
                 isLoading -> {
                     Box(
@@ -370,7 +391,7 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                 // 20 dp corner instead of Material's brown pills and circular chevron.
                 premiumSheet -> GlassAudioDeviceBody(
                     devices = audioDevices,
-                    currentVolume = currentVolume,
+                    currentVolume = shownVolume,
                     maxVolume = maxVolume,
                     showDevicePopup = showDevicePopup,
                     onTogglePopup = { showDevicePopup = !showDevicePopup },
@@ -379,10 +400,7 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                         refreshDevices()
                         showDevicePopup = false
                     },
-                    onVolumeChange = { newVolume ->
-                        currentVolume = newVolume
-                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume.toInt(), 0)
-                    },
+                    onVolumeChange = applyVolume,
                     onDragStart = { isUserDragging = true },
                     onDragEnd = { isUserDragging = false },
                     onDone = onDismiss,
@@ -570,16 +588,9 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                     VolumeControlRow(
                         label = stringResource(R.string.volume),
                         icon = Icons.Filled.MusicNote,
-                        volume = currentVolume,
+                        volume = shownVolume,
                         maxVolume = maxVolume,
-                        onVolumeChange = { newVolume ->
-                            currentVolume = newVolume
-                            audioManager.setStreamVolume(
-                                AudioManager.STREAM_MUSIC,
-                                newVolume.toInt(),
-                                0
-                            )
-                        },
+                        onVolumeChange = applyVolume,
                         onDragStart = { isUserDragging = true },
                         onDragEnd = { isUserDragging = false }
                     )

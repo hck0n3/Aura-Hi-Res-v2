@@ -81,6 +81,7 @@ import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
+import iad1tya.echo.music.ui.menu.AddToPlaylistDialog
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
@@ -190,6 +191,8 @@ internal fun AuraSongCollectionScaffold(
     val focusManager = LocalFocusManager.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val isTvOrCar = rememberIsTvOrCar()
+    val database = iad1tya.echo.music.LocalDatabase.current
+    val syncUtils = iad1tya.echo.music.LocalSyncUtils.current
 
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -420,10 +423,31 @@ internal fun AuraSongCollectionScaffold(
                             .tvFocusable(isTvOrCar, AuraShapes.Highlight, scaleFocused = 1f),
                     )
                 } else {
+                    // Row 506: the like / add-to-a-list swipe of the albums and artists' songs, also here (Me gusta, Descargadas,
+                    // Mi top, En caché…): these are the lists the Biblioteca pins, and they had no such gesture.
+                    var showSwipeAddToPlaylist by rememberSaveable(song.id) { mutableStateOf(false) }
+                    AddToPlaylistDialog(
+                        isVisible = showSwipeAddToPlaylist,
+                        songIdsForMembership = listOf(song.id),
+                        onGetSong = { listOf(song.id) },
+                        onDismiss = { showSwipeAddToPlaylist = false },
+                    )
+                    AuraLibrarySwipeActionsBox(
+                        modifier = Modifier.animateItem(),
+                        enabled = !inSelectMode,
+                        liked = song.song.liked,
+                        onToggleLike = {
+                            val toggled = song.song.toggleLike()
+                            database.query {
+                                update(toggled)
+                                syncUtils.likeSong(toggled)
+                            }
+                        },
+                        onAddToPlaylist = { showSwipeAddToPlaylist = true },
+                    ) {
                     AuraAppleListRowFrame(
                         showDivider = index < filteredSongs.lastIndex,
                         dividerInset = AuraAppleCoverDividerInset,
-                        modifier = Modifier.animateItem(),
                     ) {
                     AuraSongRow(
                         title = song.song.title,
@@ -479,6 +503,7 @@ internal fun AuraSongCollectionScaffold(
                             scaleFocused = 1f,
                         ),
                     )
+                    }
                     }
                 }
             }
@@ -676,7 +701,7 @@ internal fun AuraCollectionHeader(
         if (contextId != null) {
             val playedSet = rememberPlayedShuffleSet(contextId)
             val playedCount = remember(playedSet, songs) {
-                songs.count { it.id in playedSet || it.song.totalPlayTime > 0L }
+                songs.count { it.id in playedSet }
             }
             EnhancedShuffleChip(
                 playedCount = playedCount,
@@ -697,7 +722,7 @@ internal fun AuraCollectionHeader(
             val playedForStart = rememberPlayedShuffleSet(contextId)
             val onShuffleClick = rememberShuffleMemoryPrompt(
                 contextId = contextId,
-                playedCount = songs.count { it.id in playedForStart || it.song.totalPlayTime > 0L },
+                playedCount = songs.count { it.id in playedForStart },
                 totalCount = songs.size,
             ) { resetMemory ->
                 val seedIds = ShuffleContexts.seedPlayedIds(

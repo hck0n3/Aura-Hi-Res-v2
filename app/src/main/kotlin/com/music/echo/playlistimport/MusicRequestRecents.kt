@@ -39,6 +39,18 @@ object MusicRequestRecents {
         prune(nowMs)
     }
 
+    /**
+     * Row 512 (owner 2026-10-29: «la segunda opción en Pedir música no siempre se cumple»): the second option is another pass of
+     * the same request, and everything served in the last 45 minutes is out of its pool — a narrow request («cumbia villera
+     * cristiana argentina») has few songs, so the first list plus older ones left nothing and the card said «no encontré otra
+     * opción». For the retry only what the user can SEE in the first list ([keep]) has to stay out; the rest of the memory is
+     * let go (it fills again as the new list is served).
+     */
+    @Synchronized
+    fun releaseExcept(keep: Set<String>) {
+        entries.removeAll { it.id !in keep }
+    }
+
     @Synchronized
     fun isRecent(id: String, nowMs: Long = System.currentTimeMillis()): Boolean {
         prune(nowMs)

@@ -82,7 +82,8 @@ class BackupRestoreViewModel @Inject constructor(
         database.playlists(iad1tya.echo.music.constants.PlaylistSortType.NAME, false)
             .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, emptyList())
 
-    fun backup(context: Context, uri: Uri) {
+    /** [onDone] is for the cloud copy (it reuses this exact ZIP): when set, the caller reports the result, so no «copy created» toast here. */
+    fun backup(context: Context, uri: Uri, onDone: ((Boolean) -> Unit)? = null) {
         // Run the file copy/zip off the main thread so backing up a large library doesn't freeze the UI.
         viewModelScope.launch(Dispatchers.IO) {
         var dbSnapshot: java.io.File? = null
@@ -124,12 +125,12 @@ class BackupRestoreViewModel @Inject constructor(
                 java.io.File(s.path + "-shm").delete()
             }
         }.onSuccess {
-            withContext(Dispatchers.Main) {
+            if (onDone != null) onDone(true) else withContext(Dispatchers.Main) {
                 Toast.makeText(context, R.string.backup_create_success, Toast.LENGTH_SHORT).show()
             }
         }.onFailure {
             reportException(it)
-            withContext(Dispatchers.Main) {
+            if (onDone != null) onDone(false) else withContext(Dispatchers.Main) {
                 Toast.makeText(context, R.string.backup_create_failed, Toast.LENGTH_SHORT).show()
             }
         }

@@ -45,6 +45,9 @@ object ShuffleContexts {
         playTimeMs: (String) -> Long,
     ): Set<String> {
         if (resetMemory) return emptySet()
-        return songIds.filterTo(HashSet()) { id -> id in shufflePlayed || playTimeMs(id) > 0L }
+        // Row 591 (owner 2026-10-31: «le doy iniciar desde cero y el contador no se resetea»): the lap is what the no-repeat MEMORY says. Lifetime
+        // listening ([playTimeMs]) used to be added here and to every counter, and it never goes away, so after «Iniciar desde cero» the next
+        // Continue brought all those songs back as «played» (26 of 29 again). The per-row «heard before» tick keeps using lifetime plays.
+        return songIds.filterTo(HashSet()) { id -> id in shufflePlayed }
     }
 }

@@ -5,6 +5,7 @@ package iad1tya.echo.music.ui.screens
 import android.content.res.Configuration.ORIENTATION_LANDSCAPE
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,7 +55,9 @@ fun MoodAndGenresScreen(
     val moodAndGenresList by viewModel.moodAndGenres.collectAsState()
 
     LazyColumn(
-        contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+        contentPadding = LocalPlayerAwareWindowInsets.current
+            .add(androidx.compose.foundation.layout.WindowInsets(top = iad1tya.echo.music.constants.AppBarHeight))
+            .asPaddingValues(),
     ) {
         if (moodAndGenresList == null) {
             item(key = "mood_and_genres_shimmer") {

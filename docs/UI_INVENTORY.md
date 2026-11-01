@@ -714,6 +714,7 @@ distintos para la misma función.)*
 | Interruptor de reproducción automática | Cola > Siguiente > pie | `ui/player/Queue.kt:1505-1513` | conmutador | ocasional | solo si no eres invitado. **Es la MISMA preferencia que Ajustes → «Cargar más canciones automáticamente»** |
 | Chips de orientación del autoplay *(etiquetas dinámicas del servicio)* | Cola > Siguiente > pie | `ui/player/Queue.kt:1523-1530` | conmutador / filtro | ocasional | solo si no eres invitado, autoplay ON y hay chips |
 | «Las canciones relacionadas aparecerán aquí cuando la reproducción automática las cargue» | Cola > Relacionados (vacío) | `ui/player/Queue.kt:1227` | informativo | ocasional | solo si el automix está vacío |
+| *(Interfaz nueva, fila 581)* Filas de vista previa del automix bajo «Reproducción automática» | Cola > Siguiente > pie | `ui/newui/AuraQueue.kt` | **QUITADAS por repetidas**: son el mismo conjunto y la misma fila de la pestaña RELACIONADOS. El título, «Siguiendo: …» y los chips se conservan | — | — |
 | Reproducir a continuación *(icono `playlist_play`)* | Cola > Relacionados > fila | `ui/player/Queue.kt:1614-1626` | acción primaria | ocasional | solo si no eres invitado |
 | Añadir a la cola *(icono `queue_music`)* | Cola > Relacionados > fila | `ui/player/Queue.kt:1627-1639` | acción primaria | ocasional | solo si no eres invitado |
 
@@ -1656,7 +1657,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Canciones (chip) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:80 | navegación | diaria | siempre |
 | Álbumes (chip) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:81 | navegación | diaria | siempre |
 | Artistas (chip) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:82 | navegación | diaria | siempre |
-| Local (chip) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:83 | navegación | ocasional | siempre |
+| Local (chip) — **solo interfaz clásica; en la interfaz nueva se QUITÓ el chip (2026-10-31, orden del dueño: nada repetido) y queda la tesela «Local» del hub, que abre la misma lista** | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:83 | navegación | ocasional | siempre |
 | (tocar el chip activo → vuelve al hub) | Biblioteca > fila de chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:86-93 | navegación | diaria | solo si el chip pulsado ya es `filterType` |
 | Lista AI (solo icono, FAB pequeño) | Biblioteca > botones flotantes | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:177-188 (cD :185) | acción primaria | ocasional | `AiPlaylistEnabledKey` ON (:176) y `filterType ∈ {LIBRARY, PLAYLISTS}` (:102) |
 | Crear lista de reproducción (FAB extendido) | Biblioteca > botones flotantes | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:191-198 (texto :192) | acción primaria | diaria | solo si `filterType ∈ {LIBRARY, PLAYLISTS}` |
@@ -1682,7 +1683,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Subidas → `auto_playlist/uploaded` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:369-375 / :691-697 | navegación | rara | solo si `ShowUploadedPlaylistKey` ON |
 | Mi Top {N} → `top_playlist/{N}` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:378-384 / :700-706 | navegación | ocasional | solo si `ShowTopPlaylistKey` ON |
 | Álbumes favoritos → `favorite_albums` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:386-392 / :708-714 | navegación | ocasional | siempre |
-| Novedades → `release_radar` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:393-399 / :715-721 | navegación | ocasional | siempre |
+| **(Interfaz clásica solamente)** Novedades → `release_radar` — **en la interfaz nueva se QUITÓ de Biblioteca (2026-10-31, orden del dueño: nada repetido): lo cubre la pestaña Novedades de la barra, que muestra las mismas filas del radar y recarga al arrastrar (también el radar, row 571)** | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:393-399 / :715-721 | navegación | ocasional | siempre |
 | Podcasts → `podcasts` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:400-406 / :722-728 | navegación | ocasional | siempre |
 | Local → `local_songs` (media fila) | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:407-415 / :729-737 | navegación | diaria | siempre (duplica el chip "Local") |
 | **Local (tesela del hub Aura, junto a Podcasts)** → activa el chip LOCAL in situ (misma `LocalSongScreen` embebida, misma hoja de escaneo; sin segunda ruta) | Biblioteca > hub Aura | app/src/main/kotlin/com/music/echo/ui/newui/AuraLibraryTabs.kt:483-488 (`AuraLibraryHub` :318; tesela Podcasts :473-477) | navegación | diaria | siempre — **visible nada más abrir Biblioteca (petición del dueño, v2.0.16; antes solo era alcanzable vía el último chip de la fila)** |
@@ -3109,7 +3110,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/LogsScreen.kt`
 | Atrás (tap) / Ir al inicio (mantener) | Ajustes > Registros | LogsScreen.kt:87 (`onLongClick` 89) | navegación | constante | siempre |
 | Copiar (registro al portapapeles) | Ajustes > Registros | LogsScreen.kt:95 | acción primaria | rara | siempre |
 | Compartir (registro) | Ajustes > Registros | LogsScreen.kt:98 | acción secundaria | rara | siempre |
-| Eliminar (borra los registros) | Ajustes > Registros | LogsScreen.kt:101 | destructiva | rara | siempre |
+| Borrar todos los registros (botón de abajo, pide confirmación; ya NO está junto a Compartir) | Ajustes > Registros | LogsScreen.kt (botón inferior + diálogo) | destructiva | rara | solo con registro |
 | Registro de la app (pestaña) | Ajustes > Registros | LogsScreen.kt:133 | acción primaria (selección) | rara | siempre |
 | Último fallo (pestaña) | Ajustes > Registros | LogsScreen.kt:138 | acción primaria (selección) | rara | siempre |
 | Cierres del sistema (pestaña) | Ajustes > Registros | LogsScreen.kt:143 | acción primaria (selección) | rara | siempre |
@@ -3139,6 +3140,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/integrations/Li
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Usuarios bloqueados — desc. «%d usuario(s) bloqueado(s)» / «No hay usuarios bloqueados» (grupo «Ajustes») | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:347 | navegación (diálogo) | rara | siempre |
+| **Salas de Aura** — desc. «Usa las salas propias de Aura… solo con otros usuarios de Aura» (beta 8, por defecto apagado: con el apagado todo sigue como antes, servidor compartido) | Ajustes > Escuchar juntos | ListenTogetherSettings.kt (fila antes de «URL del servidor») | conmutador | rara | bloqueado mientras se está en una sala |
 | URL del servidor — desc. valor o «No establecido» | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:362 | navegación (diálogo «Elegir servidor») | rara | siempre |
 | Nombre de usuario | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:376 | navegación (diálogo con campo) | rara | bloqueado con «No se puede editar el nombre de usuario mientras se está en una sala» |
 | Aprobar automáticamente solicitudes de conexión — desc. «…en lugar de revisarlas manualmente» | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:388 (Switch 393) | conmutador | rara | siempre |
@@ -4211,3 +4213,29 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Búsqueda rápida del reproductor (lupa) | Historial y sugerencias como losa continua; ✕ borra, ↖ copia al campo, «Borrar todo»; resultados sin cambios | 501 |
 | Reconocer música (resultado) | Portada, título, artista y álbum; Reproducir en la app, Me gusta, Añadir a lista, Volver a escuchar y Cerrar como filas de una losa (Me gusta y Añadir a lista esperan a que la canción se resuelva) | 502 |
 | Menú de la cuenta (avatar de Inicio) | Perfil; Usar la cuenta para explorar, Sincronización con YouTube Music (+ sincronizar ahora, programar), Actualizaciones, Reporte de errores, Ajustes, Compartir y Acerca de, cada grupo en su losa | 502 |
+| Botón de descargar del reproductor | Descargando / descargada / exportada: abre la hoja (antes quitaba la descarga en silencio); la hoja avisa «ya descargada» (sin conexión · MP3 · vídeo) y las listas que la tienen; «Quitar descarga» pide confirmación | 505 |
+| Añadir a lista de reproducción | Cada lista que ya tiene la canción dice «Ya tiene esta canción» bajo el nombre, además del tick | 504 |
+| Listas de YouTube y de la biblioteca (Me gusta, Descargadas, Mi top, En caché) | Deslizar a la derecha = me gusta, a la izquierda = añadir a lista | 506 |
+| Búsqueda del reproductor (ventana ancha) | Tocar una pista de un álbum / artista / lista abre «reproducir · a continuación · cola · lista»; la búsqueda general sigue reproduciendo | 507 |
+| Cabecera de Biblioteca | Título + UN chevrón (y el avatar); los cinco botones (reconocer, escuchar juntos, historial, sin conexión, cuenta) detrás del chevrón, como Inicio/Buscar/Novedades — no se quitó ninguno | 513 |
+| Top diario | Estante de Inicio (cabecera → «Mi top»); ya no está en Novedades, que solo trae estrenos | 513 |
+| Reproductor desplegado: botón pantalla completa/dividida y minimizar | Disparan al levantar el dedo (como reproducir/pausa) | 513 |
+| Reproducción en modo audio | Si YouTube rechaza las dos identidades de `/player`, el extractor NewPipe resuelve el audio antes de dar la canción por no disponible (sin cambio visible; línea `NEWPIPE_AUDIO_RESCUE` en Registros) | 514 |
+| Novedades | Solo estrenos de artistas seguidos (héroe, «Más estrenos», radar, «Próximamente»); ya no hay «Lo más nuevo», «Álbumes recién lanzados», «Canciones del momento» ni «Lo que escucha todo el mundo» (orden del dueño) | 517 |
+| Canciones del momento | Estante de Inicio (lo más reproducido en 7 días, sin repetir «Top diario») | 517 |
+| Pantallas de Explorar (estados de ánimo y géneros, listas de una categoría, nuevos lanzamientos, explorar) | El contenido empieza debajo del título; antes la primera fila quedaba tapada por la barra | 518 |
+| «Me gusta» (corazón y menús) | Descarga la canción para usarla sin conexión: adopta la copia de la caché de escucha (también con datos), descarga con Wi-Fi o espera a Wi-Fi; sin cambio visible | 519 |
+| «Compartir» de una canción (reproductor, menú ⋯, cola) | Ventana que pregunta Enlace · MP3 · Vídeo (si lo tiene); lo no guardado se guarda al elegir y luego se abre el menú de compartir del sistema | 520 |
+| Portada del reproductor | Sombreado suave detrás de la portada para que parezca adelantada (sin quitar nada) | 521 |
+| Tablet (≥ 1000 dp): estantes, canciones populares y portada del reproductor | Los estantes de dos filas pasan a una fila si dos no llenan el ancho; las páginas de canciones se ven varias a la vez; la portada del reproductor ocupa toda la altura de su hueco. Teléfono y plegable sin cambios | 522 |
+| Portadas animadas de álbumes y canciones | Una sola búsqueda por álbum para todas sus canciones (guardada 7 días); en la página del álbum se mueven sin pulsar play | 523 |
+| Ajustes ▸ «Sincronizar dispositivos» (`settings/device_sync`, también en Ajustes clásicos y en el buscador de ajustes) | Estado, servidor (tu Worker), código de emparejamiento (crear / escribir / copiar / desemparejar), nombre del dispositivo, interruptores de aleatorio y de continuar en otro dispositivo, lista de dispositivos | 528 |
+| Ajustes ▸ «Servicios Aura» (`settings/aura_services`, también en Ajustes clásicos y en el buscador de ajustes) | Interruptor general, dirección del servidor, clave de verificación (solo si la app no la trae), estado, «Comprobar ahora», «Enviar registro» (solo al pulsar; devuelve un código), aviso vigente del servidor | 543 |
+| Ajustes ▸ Copia de seguridad ▸ «Guardar copia en la nube de Aura» y «Restaurar la última copia de la nube» (con confirmación) | Copia cifrada de la biblioteca en el Worker propio; últimas 3; muestra la fecha de la última | 546 |
+| Reproductor ▸ botón «Mis dispositivos» (barra de abajo, junto a salida de audio; solo con el dispositivo emparejado) | Ventana con tus otros dispositivos: reproducir aquí lo que suena en otro, play/pausa/siguiente remotos y enviar lo mío a otro | 528 |
+| Activar suscripción ▸ campo «Correo de la compra (opcional)» | Con el correo de la compra la misma licencia funciona en hasta 3 equipos; sin él, un equipo como siempre | 530 |
+| Pantalla «Suscripción en otro equipo» | Nuevo botón «Escribir el correo de la compra» (abre la pantalla de activar con la clave ya puesta); «Reintentar» pasa a secundario | 530 |
+| Ajustes ▸ Sincronizar dispositivos: «Emparejamiento» y «Emparejar con mi licencia» | Dice si el equipo está emparejado por licencia, por código o sin emparejar; el servidor pasa a «avanzado» y vale el de Aura por defecto | 531 |
+| Ajustes ▸ Sincronizar dispositivos: «Sincronizar me gusta, no me gusta y listas» | Interruptor (activo por defecto); mientras los dispositivos están conectados, YouTube no sincroniza me gusta ni listas | 536 |
+| Reproductor ▸ «SONANDO EN <dispositivo> · CONTINUAR AQUÍ» (cabecera, arriba de la portada) y barra de tiempo / play / anterior / siguiente | Cuando otro de tus dispositivos suena y este no, el reproductor (y el mini) muestra y controla ESA reproducción con sus propios botones; tocar el aviso trae la reproducción aquí. Sustituye a la tarjeta flotante | 537 |
+| Ajustes ▸ Sincronizar dispositivos: fila «Biblioteca» | Estado real de la sincronización (al día / esperando / servidor desactualizado / fallo); tocarla sincroniza ahora | 539 |

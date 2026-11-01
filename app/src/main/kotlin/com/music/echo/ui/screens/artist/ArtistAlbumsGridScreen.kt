@@ -199,7 +199,7 @@ fun ArtistAlbumsGridScreen(
                 .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues(),
         ) {
             items(
-                items = items.sortedByDescending { (it as? AlbumItem)?.year ?: 0 },
+                items = ArtistDiscography.dedupe(items).sortedByDescending { (it as? AlbumItem)?.year ?: 0 },
                 key = { it.id }
             ) { item ->
                 YouTubeGridItem(

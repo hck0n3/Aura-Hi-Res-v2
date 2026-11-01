@@ -452,7 +452,7 @@ fun SelectionSongMenu(
                             title = {
                                 Text(
                                     text = stringResource(
-                                        if (allLiked) R.string.dislike_all else R.string.like_all
+                                        if (allLiked) R.string.action_remove_like_all else R.string.like_all
                                     )
                                 )
                             },
@@ -527,6 +527,7 @@ fun SelectionMediaMetadataMenu(
 ) {
     val context = LocalContext.current
     val database = LocalDatabase.current
+    val syncUtils = LocalSyncUtils.current
     val downloadUtil = LocalDownloadUtil.current
     val coroutineScope = rememberCoroutineScope()
     val playerConnection = LocalPlayerConnection.current ?: return
@@ -804,7 +805,10 @@ fun SelectionMediaMetadataMenu(
                                         // toggleLike() is a pure toggle, so only flip a row that is
                                         // not already in the desired state.
                                         if ((!allLiked && !existing.liked) || allLiked) {
-                                            upsert(existing.toggleLike())
+                                            val toggled = existing.toggleLike()
+                                            upsert(toggled)
+                                            // Row 622: every heart downloads the song (or adopts its cached copy) and syncs the like.
+                                            syncUtils.likeSong(toggled)
                                         }
                                     }
                                 }

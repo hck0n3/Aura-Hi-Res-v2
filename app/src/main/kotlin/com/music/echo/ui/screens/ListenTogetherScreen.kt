@@ -641,6 +641,19 @@ private fun RoomStatusCard(
                         Text(stringResource(R.string.copy_code))
                     }
                 }
+                // Row 615: the same invite as a QR — the other device points its camera at it and the app opens already joining
+                // (the echomusic://listen deep link, the one the copied link uses).
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                    iad1tya.echo.music.ui.component.QrImage(text = inviteLink, size = 168.dp)
+                }
+                Text(
+                    text = stringResource(R.string.qr_scan_hint),
+                    style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodySmall,
+                    color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                )
             }
         }
     }
@@ -1021,8 +1034,10 @@ private fun JoinCreateRoomSection(
     // The SimpMusic input rules, applied at the edge so the protocol never has to reject:
     // metroserver caps usernames at 50 and mints 8-char uppercase room codes.
     fun onUsernameChangeCapped(value: String) = onUsernameChange(value.take(50))
+    // Row 601: the code length follows the rooms in use (Aura's own rooms are 6 characters, the shared server's 8).
+    val auraRooms by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
     fun onRoomCodeChangeNormalized(value: String) =
-        onRoomCodeChange(value.uppercase().filter { it.isLetterOrDigit() }.take(8))
+        onRoomCodeChange(iad1tya.echo.music.listentogether.RoomCodes.normalize(value, auraRooms))
 
     AuraPanel(
         skin = skin,
@@ -1210,7 +1225,7 @@ private fun JoinCreateRoomSection(
             }
 
             val hasUsername = usernameInput.trim().isNotBlank() || savedUsername.isNotBlank()
-            val hasRoomCode = roomCodeInput.length == 8
+            val hasRoomCode = iad1tya.echo.music.listentogether.RoomCodes.isComplete(roomCodeInput, auraRooms)
             // SimpMusic gates both buttons on a live socket: sending create_room with no server is
             // a message that goes nowhere, and the room state never changes.
             val canAct = hasUsername && isConnected

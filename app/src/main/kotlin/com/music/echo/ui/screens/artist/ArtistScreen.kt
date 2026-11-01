@@ -927,7 +927,7 @@ fun ArtistScreen(
                                     // when present, otherwise open the already-loaded items in a grid.
                                     onClick = {
                                         val more = section.moreEndpoint
-                                        val distinctItems = section.items.distinctBy { it.id }
+                                        val distinctItems = ArtistDiscography.dedupe(section.items)
                                         if (more != null) {
                                             navController.navigate(
                                                 "artist/${viewModel.artistId}/items?browseId=${more.browseId}&params=${more.params}",
@@ -958,14 +958,14 @@ fun ArtistScreen(
                             (section.items.firstOrNull() as? SongItem)?.album != null
                         ) {
                             itemsIndexed(
-                                items = section.items.distinctBy { it.id },
+                                items = ArtistDiscography.dedupe(section.items),
                                 key = { _, it -> "youtube_song_${it.id}" },
                             ) { index, song ->
                                 YouTubeListItem(
                                     item = song as SongItem,
                                     isActive = mediaMetadata?.id == song.id,
                                     isPlaying = isPlaying,
-                                    shape = listItemShape(index, section.items.distinctBy { it.id }.size),
+                                    shape = listItemShape(index, ArtistDiscography.dedupe(section.items).size),
                                     trailingContent = {
                                         IconButton(
                                             onClick = {
@@ -993,7 +993,7 @@ fun ArtistScreen(
                                                     // Set the WHOLE section (e.g. the artist's top songs) as the
                                                     // queue, starting at the tapped song — like an album — instead
                                                     // of a single-song queue, so it continues through the list.
-                                                    val sectionSongs = section.items.distinctBy { it.id }
+                                                    val sectionSongs = ArtistDiscography.dedupe(section.items)
                                                         .filterIsInstance<SongItem>()
                                                     playerConnection.playQueue(
                                                         ListQueue(
@@ -1026,7 +1026,7 @@ fun ArtistScreen(
                                     contentPadding = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal).asPaddingValues(),
                                 ) {
                                     items(
-                                        items = section.items.distinctBy { it.id },
+                                        items = ArtistDiscography.dedupe(section.items),
                                         key = { "youtube_album_${it.id}" },
                                         // Reuse slots only within the same item type. A mixed section
                                         // (albums + songs) would otherwise reuse a song slot as an album,
@@ -1052,7 +1052,7 @@ fun ArtistScreen(
                                                         // grid because its first item happened to have no `.album`
                                                         // (e.g. some "top songs" entries) — that gap is exactly what
                                                         // made "toco una y no sigue con las demás" reproducible.
-                                                        val sectionSongs = section.items.distinctBy { it.id }
+                                                        val sectionSongs = ArtistDiscography.dedupe(section.items)
                                                         when {
                                                             item is SongItem && sectionSongs.all { it is SongItem } -> {
                                                                 if (item.id == mediaMetadata?.id) {

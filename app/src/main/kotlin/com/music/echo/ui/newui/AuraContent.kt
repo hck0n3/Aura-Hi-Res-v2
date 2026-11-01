@@ -133,6 +133,8 @@ fun AuraScreenHeader(
     styledTitle: androidx.compose.ui.text.AnnotatedString? = null,
     /** Hide [trailing] behind a single show/hide button. */
     collapseTrailing: Boolean = false,
+    /** Row 567: draw the revealed action buttons inside ONE glass capsule (Biblioteca only; every other screen keeps them loose). */
+    glassActions: Boolean = false,
 ) {
     val titleBlock: @Composable () -> Unit = {
         Column {
@@ -153,7 +155,7 @@ fun AuraScreenHeader(
         .fillMaxWidth()
         .padding(start = AuraSpacing.Gutter, end = AuraSpacing.Gutter, top = 8.dp)
     if (collapseTrailing && trailing != null) {
-        AuraCollapsibleHeader(headerModifier, titleBlock, trailing)
+        AuraCollapsibleHeader(headerModifier, titleBlock, trailing, glassActions)
     } else {
         AuraHeaderLayout(modifier = headerModifier, title = titleBlock, trailing = trailing)
     }
@@ -173,6 +175,7 @@ private fun AuraCollapsibleHeader(
     modifier: Modifier,
     title: @Composable () -> Unit,
     actions: @Composable () -> Unit,
+    glassActions: Boolean = false,
 ) {
     val expanded = AuraHeaderActions.expanded
     val lean = iad1tya.echo.music.utils.rememberLeanMode()
@@ -213,7 +216,20 @@ private fun AuraCollapsibleHeader(
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalAuraTopActionsPart provides AuraTopActionsPart.WithoutAccount,
             ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    if (glassActions) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(AuraShapes.Pill)
+                                .background(AuraPalette.SurfaceFill)
+                                .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
+                                .padding(horizontal = 4.dp),
+                        ) { actions() }
+                    } else {
+                        actions()
+                    }
+                }
             }
         }
     }
@@ -1253,6 +1269,15 @@ fun AuraSongRow(
     }
 }
 
+/**
+ * How many 4-row pages [AuraSongPages] shows side by side: as many as fit at [AURA_SONG_PAGE_MIN_WIDTH] each, never more than
+ * three, never more than there are pages. A phone and a fold under twice that width keep the one page they always had. Pure.
+ */
+internal fun auraSongPagesPerView(availableWidth: Dp, pageCount: Int): Int =
+    (availableWidth / AURA_SONG_PAGE_MIN_WIDTH).toInt().coerceIn(1, 3).coerceAtMost(pageCount.coerceAtLeast(1))
+
+internal val AURA_SONG_PAGE_MIN_WIDTH = 400.dp
+
 /** Apple Music song pages: 4 full rows, swipe L–R, next page peeks so the user knows to scroll. */
 internal const val AuraSongPageSize = 4
 private val AuraSongPagePeek = 64.dp
@@ -1270,13 +1295,18 @@ fun AuraSongPages(
     if (itemCount <= 0) return
     val pageCount = (itemCount + AuraSongPageSize - 1) / AuraSongPageSize
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val peek = if (pageCount > 1) AuraSongPagePeek else AuraSpacing.Gutter
-        val pageWidth = maxWidth - AuraSpacing.Gutter - peek
+        // Row 522 (owner 2026-10-29, Galaxy Tab S12 Ultra): one page took the whole width and the next one only peeked at
+        // the far right edge, so a tablet showed four rows of songs lost in an empty strip. A wide pane now shows several
+        // pages side by side; a phone (under two pages' width) is the single page with the peek it always had.
+        val perView = auraSongPagesPerView(maxWidth, pageCount)
+        val scrolls = pageCount > perView
+        val peek = if (scrolls) AuraSongPagePeek else AuraSpacing.Gutter
+        val pageWidth = (maxWidth - AuraSpacing.Gutter - peek - AuraSongPageGap * (perView - 1)) / perView
         val (listState, fling) = rememberAuraShelfFlingBehavior()
         LazyRow(
             state = listState,
             flingBehavior = fling,
-            userScrollEnabled = pageCount > 1,
+            userScrollEnabled = scrolls,
             contentPadding = PaddingValues(
                 start = AuraSpacing.Gutter,
                 end = AuraSpacing.Gutter,

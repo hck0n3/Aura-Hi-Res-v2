@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.combinedClickable
@@ -577,12 +578,17 @@ fun AuraChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Row 567 (owner 2026-10-31, Biblioteca: «los botones se ven feos»): the unselected chip in the glass-slab material of the ⋯ menu
+     * (`SurfaceFill` + hairline `SurfaceLine`) instead of the plain 8 % white pill. Off everywhere else; only Biblioteca turns it on.
+     */
+    glass: Boolean = false,
 ) {
     val transition = updateTransition(targetState = selected, label = "auraChip")
     val fillColor by transition.animateColor(
         transitionSpec = { AuraMotion.color() },
         label = "auraChipFill",
-    ) { on -> if (on) AuraPalette.Teal else Color.White.copy(alpha = 0.08f) }
+    ) { on -> if (on) AuraPalette.Teal else if (glass) AuraPalette.SurfaceFill else Color.White.copy(alpha = 0.08f) }
     val inkColor by transition.animateColor(
         transitionSpec = { AuraMotion.color() },
         label = "auraChipInk",
@@ -594,6 +600,9 @@ fun AuraChip(
             .padding(vertical = 6.dp)
             .clip(AuraShapes.Pill)
             .drawBehind { drawRect(fillColor) }
+            .then(
+                if (glass && !selected) Modifier.border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill) else Modifier
+            )
             .auraClickable(onClick = onClick, role = Role.Tab, contentDescription = text)
             .padding(horizontal = 16.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center,

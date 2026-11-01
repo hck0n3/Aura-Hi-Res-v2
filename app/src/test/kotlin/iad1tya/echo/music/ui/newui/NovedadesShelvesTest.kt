@@ -117,9 +117,15 @@ class NovedadesShelvesTest {
             .firstOrNull { File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")
         val src = File(root, "app/src/main/kotlin/com/music/echo/ui/newui/AuraNovedadesScreen.kt").readText()
         // Datos: las mismas siete fuentes del view-model y la deduplicación de «primer id visto gana».
-        for (flow in listOf("radarReleases", "upcoming", "newAlbums", "featuredSongs", "momentSongs", "listening", "topSongs")) {
+        // Fila 517: Novedades solo habla de estrenos de artistas seguidos (radar + «Próximamente»); lo demás se fue.
+        for (flow in listOf("radarReleases", "upcoming")) {
             assertTrue("falta $flow", src.contains("viewModel.$flow.collectAsState()"))
         }
+        for (gone in listOf("newAlbums", "featuredSongs", "momentSongs", "viewModel.listening", "NovedadesLocalSongCard")) {
+            assertFalse("Novedades ya no lleva $gone", src.contains(gone))
+        }
+        val homeSrc = File(root, "app/src/main/kotlin/com/music/echo/ui/newui/AuraHomeScreen.kt").readText()
+        assertTrue(homeSrc.contains("aura_home_moment") && homeSrc.contains("viewModel.momentSongs.collectAsState()"))
         assertTrue(src.contains("seen.claimUnique("))
         // Actualizar (tirar), reselección, estados, menús y navegación.
         assertTrue(src.contains("onRefresh = viewModel::refresh"))
@@ -130,7 +136,10 @@ class NovedadesShelvesTest {
         assertTrue(src.contains("YouTubeAlbumMenu(") && src.contains("YouTubeSongMenu(") && src.contains("YouTubePlaylistMenu(") && src.contains("SongMenu("))
         assertTrue(src.contains("navController.navigate(\"album/"))
         assertTrue(src.contains("navController.navigate(\"artist/"))
-        assertTrue(src.contains("top_playlist/\$topSize"))
+        // Fila 513: el «Top diario» vive en Inicio, no en Novedades (orden del dueño 2026-10-29).
+        assertFalse(src.contains("daily_top") || src.contains("topSongs") || src.contains("top_playlist/"))
+        val home = File(root, "app/src/main/kotlin/com/music/echo/ui/newui/AuraHomeScreen.kt").readText()
+        assertTrue(home.contains("aura_home_daily_top") && home.contains("viewModel.dailyTop.collectAsState()"))
         assertTrue(src.contains("viewModel.togglePresave(item)"))
         assertTrue(src.contains("collapseTrailing = true"))
         // El botón ▶ del héroe resuelve el álbum en el toque (los del radar no traen playlistId), nunca por fotograma.

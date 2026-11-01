@@ -685,9 +685,17 @@ class MusicService :
     @DownloadCache
     lateinit var downloadCache: SimpleCache
 
+    @Inject
+    lateinit var downloadUtil: DownloadUtil
+
     lateinit var player: ExoPlayer
         internal set // the crossfade swap (CrossfadeEngine.kt) promotes the secondary player
     internal var secondaryPlayer: ExoPlayer? = null
+    internal var deviceSync: iad1tya.echo.music.devicesync.DeviceSyncEngine? = null
+
+    /** True while the device-sync engine itself starts a queue here (a hand-over): it must not be sent on to a controlled device. */
+    @Volatile
+    internal var remoteRedirectBypass = false
     internal var fadingPlayer: ExoPlayer? = null
     internal var isCrossfading = false
     // Read-only OBSERVATION flag only. Mirrors the plain [isCrossfading] boolean so the UI can observe a
@@ -1297,6 +1305,9 @@ class MusicService :
     // advances when `!player.isPlaying` (the STATE_ENDED path). This flag forces the seek into the freshly
     // appended radio even though the last album/playlist song has not finished yet.
     @Volatile internal var advanceIntoRadioRequested = false
+
+    /** Row 503: the queue generation whose continuation was already primed one song early (once per queue). */
+    @Volatile internal var earlyPrimedGeneration = -1
 
     /** True while [startRadioSeamlessly] is fetching/appending — used by PlayerConnection for manual Next. */
     val isRadioSeedInFlight: Boolean get() = radioSeedInFlight
@@ -2103,6 +2114,9 @@ class MusicService :
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        // Row 528: the user's devices in step (only does anything while the app is paired in Ajustes ▸ Sincronizar dispositivos).
+        deviceSync = iad1tya.echo.music.devicesync.DeviceSyncEngine(this).also { it.start() }
+        watchSyncedDislikes()
         // The Cast handler OBJECT exists from the start; only its initialize() (GMS listeners) waits for the first real
         // playback (initializeCast). It used to be created there, so everything that captured `castConnectionHandler` earlier
         // — PlayerConnection.isEffectivelyPlaying at construction, the player/mini/queue composables with
@@ -2384,6 +2398,8 @@ class MusicService :
         scope.launch {
             connectivityObserver.networkStatus.collect { isConnected ->
                 isNetworkConnected.value = isConnected
+                // Row 519: songs liked on mobile data wait for an unmetered network; this is that moment.
+                if (isConnected) downloadUtil.flushPendingLikeDownloads()
                 // INSTANT VIDEO SWAP: speculative buffering is unmetered-only. On ANY network change,
                 // re-check — connection lost or now metered → drop the pre-player (no-op when idle).
                 if (!isConnected ||
@@ -3770,6 +3786,28 @@ class MusicService :
         // prepares+plays exactly as before.
         isRestore: Boolean = false,
     ) {
+        // Row 556 (owner 2026-10-31, as Spotify does it): while this device is only CONTROLLING another one, a queue the user starts
+        // here plays THERE. Before, searching and playing a song on the phone while it controlled the tablet made the phone play it
+        // and the tablet go quiet («ya no continuó esa canción en la tablet sino en mi cel»). If the order cannot be sent, play here.
+        if (!isRestore && playWhenReady && !remoteRedirectBypass && iad1tya.echo.music.devicesync.RemotePlayback.active) {
+            val engine = deviceSync
+            if (engine != null) {
+                if (!scope.isActive) scope = CoroutineScope(Dispatchers.Main) + Job()
+                scope.launch {
+                    val sent = runCatching { engine.sendQueueToRemote(queue.getInitialStatus(), queue.contextId) }.getOrDefault(false)
+                    if (!sent) {
+                        Timber.tag(TAG).w("Queue could not be sent to the controlled device — playing here")
+                        remoteRedirectBypass = true
+                        try {
+                            playQueue(queue, playWhenReady, isRestore)
+                        } finally {
+                            remoteRedirectBypass = false
+                        }
+                    }
+                }
+                return
+            }
+        }
         // A new queue invalidates any radio-seed coroutine still running for the OLD one — see
         // [queueGeneration]'s own doc comment. Bumped FIRST, before anything async below, so a seed
         // that already captured the old value cannot slip in front of this increment.
@@ -5034,6 +5072,33 @@ class MusicService :
         }
     }
 
+    /**
+     * Row 587 (owner 2026-10-31: «la sección de relacionados no tiene nada que ver con lo que se está escuchando»): the pool the queue
+     * shows under RELACIONADOS is YouTube's raw «similar content», ranked only by the user's taste. It is now judged against what the
+     * queue holds, with the same pure rule the playlist suggestions use ([iad1tya.echo.music.reco.SuggestionFit]): what plainly does not
+     * belong (another style, another language, secular songs in a Christian queue) is left out. When the queue says nothing, or nothing in
+     * the pool fits, the pool is returned as it came — the section is never emptied by this.
+     */
+    private fun fitAutomix(items: List<MediaItem>): List<MediaItem> {
+        if (items.isEmpty()) return items
+        return runCatching {
+            val queued = (0 until player.mediaItemCount).take(60).mapNotNull { i ->
+                val m = player.getMediaItemAt(i).metadata ?: return@mapNotNull null
+                iad1tya.echo.music.reco.SuggestionFit.Entry(m.title, m.artists.map { it.name }, m.album?.title)
+            }
+            val profile = iad1tya.echo.music.reco.SuggestionFit.profileOf(queued, iad1tya.echo.music.reco.GenreCache.snapshot(this))
+            if (!profile.active) return@runCatching items
+            val fitting = items.filter { mi ->
+                val m = mi.metadata ?: return@filter true
+                iad1tya.echo.music.reco.SuggestionFit.fits(
+                    profile,
+                    iad1tya.echo.music.reco.SuggestionFit.Entry(m.title, m.artists.map { it.name }, m.album?.title),
+                )
+            }
+            if (fitting.isEmpty()) items else fitting
+        }.getOrDefault(items)
+    }
+
     fun getAutomix(playlistId: String) {
         if (dataStore.get(SimilarContent, true) &&
             !(dataStore.get(DisableLoadMoreWhenRepeatAllKey, false) && player.repeatMode == REPEAT_MODE_ALL)) {
@@ -5044,16 +5109,20 @@ class MusicService :
                         .onSuccess { firstResult ->
                             YouTube.next(WatchEndpoint(playlistId = firstResult.endpoint.playlistId))
                                 .onSuccess { secondResult ->
-                                    automixItems.value = secondResult.items
-                                        .map { it.toMediaItem() }
-                                        .orderedByTaste()
+                                    automixItems.value = fitAutomix(
+                                        secondResult.items
+                                            .map { it.toMediaItem() }
+                                            .orderedByTaste(),
+                                    )
                                 }
                                 .onFailure {
                                     
                                     if (firstResult.items.isNotEmpty()) {
-                                        automixItems.value = firstResult.items
-                                            .map { it.toMediaItem() }
-                                            .orderedByTaste()
+                                        automixItems.value = fitAutomix(
+                                            firstResult.items
+                                                .map { it.toMediaItem() }
+                                                .orderedByTaste(),
+                                        )
                                     }
                                 }
                         }
@@ -5069,7 +5138,7 @@ class MusicService :
                                         .filter { it.id != currentSong.id }
                                         .map { it.toMediaItem() }
                                     if (filteredItems.isNotEmpty()) {
-                                        automixItems.value = filteredItems.orderedByTaste()
+                                        automixItems.value = fitAutomix(filteredItems.orderedByTaste())
                                     }
                                 }.onFailure {
                                     
@@ -5079,7 +5148,7 @@ class MusicService :
                                                 .filter { it.id != currentSong.id }
                                                 .map { it.toMediaItem() }
                                             if (relatedItems.isNotEmpty()) {
-                                                automixItems.value = relatedItems.orderedByTaste()
+                                                automixItems.value = fitAutomix(relatedItems.orderedByTaste())
                                             }
                                         }
                                     }
@@ -5344,36 +5413,61 @@ class MusicService :
                 val toggledFinal =
                     if (meta.isVideoSong && !toggled.isVideo) toggled.copy(isVideo = true) else toggled
                 upsert(toggledFinal) // insert-or-update so the like always persists
-                syncUtils.likeSong(toggledFinal)
-
-                if (dataStore.get(AutoDownloadOnLikeKey, true) && toggledFinal.liked) {
-                    // Guard the auto-download: DownloadService.sendAddDownload(foreground=false) throws
-                    // IllegalStateException on Android 8+ when started from the background, and an uncaught throw
-                    // here would abort the whole query block — rolling back the like. Never let the optional
-                    // download break the like itself.
-                    //
-                    // While THIS track is in video mode, defer the WHOLE offline download
-                    // (audio+video). Audio-only enqueue still races the live mux → hitch/403.
-                    // Flushed in exitVideoMode.
+                // Row 519: the download decision (listen-cache adoption, Wi-Fi rule, pending list) lives in DownloadUtil.
+                // It runs BEFORE syncUtils.likeSong, which calls it too for the menus' likes: the first call of a tap wins, and
+                // this one knows whether the song is playing in video mode (defer the whole download then; flushed in
+                // exitVideoMode, as before). Never let the optional download break the like itself.
+                if (toggledFinal.liked) {
                     val watchingThisInVideo =
                         _videoMode.value && currentlyPlayingId == toggledFinal.id
                     try {
-                        enqueueSongDownloads(
-                            this@MusicService,
+                        downloadUtil.downloadOnLike(
                             toggledFinal.id,
                             toggledFinal.title,
                             isVideoSong = meta.isVideoSong,
                             deferWhileLiveVideo = watchingThisInVideo,
-                            // HALLAZGO-037 / cache audit: the AUTOMATIC path never burns mobile
-                            // data — it waits for WiFi. Explicit menu downloads are unaffected.
-                            wifiOnly = true,
                         )
                     } catch (e: Exception) {
                         Timber.tag(TAG).e(e, "auto-download on like failed (non-fatal)")
                     }
                 }
+                syncUtils.likeSong(toggledFinal)
             }
             currentMediaMetadata.value = player.currentMetadata
+        }
+    }
+
+    /** Songs whose dislike THIS device is already acting on (see [watchSyncedDislikes]). */
+    private val dislikeHandledHere = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /**
+     * A «No me gusta» that arrives from another device (library sync) must do what it does where it is given: drop the song from the
+     * queue and skip it if it is the one playing (row 552). Until now the dislike only reached the store, so the other device kept
+     * playing the song it was told to dislike. Only NEW ids count (the first read is the baseline), and ids this device just handled
+     * itself in [dislikeCurrentSong] are left alone.
+     */
+    private fun watchSyncedDislikes() {
+        scope.launch {
+            var known: Set<String>? = null
+            dislikeStore.disliked.map { it.songs }.distinctUntilChanged().collect { now ->
+                val before = known
+                known = now
+                if (before == null) return@collect
+                val added = (now - before).filterNot { dislikeHandledHere.remove(it) }.toSet()
+                if (added.isEmpty()) return@collect
+                withContext(Dispatchers.Main) {
+                    var dropped = 0
+                    for (i in player.mediaItemCount - 1 downTo 0) {
+                        if (i != player.currentMediaItemIndex && player.getMediaItemAt(i).mediaId in added) {
+                            player.removeMediaItem(i)
+                            dropped++
+                        }
+                    }
+                    val skipCurrent = player.currentMediaItem?.mediaId in added && player.hasNextMediaItem()
+                    if (skipCurrent) player.seekToNext()
+                    Timber.tag(TAG).i("SYNCED_DISLIKE new=%d dropped=%d skippedCurrent=%b", added.size, dropped, skipCurrent)
+                }
+            }
         }
     }
 
@@ -5388,10 +5482,16 @@ class MusicService :
      */
     fun dislikeCurrentSong() {
         val mediaId = player.currentMediaItem?.mediaId ?: return
+        // This body drops and skips by itself: tell the watcher below not to do it a second time (two skips = a song lost).
+        dislikeHandledHere.add(mediaId)
+        scope.launch {
+            delay(5_000)
+            dislikeHandledHere.remove(mediaId)
+        }
         scope.launch {
             // See the matching comment on SongEntity.toggleLike: timestamp only, for correlating
             // against a possible subscribeChannel call if the owner's report reproduces.
-            Timber.i("SONG_DISLIKE_TOGGLE")
+            Timber.i("SONG_DISLIKE_TOGGLE admitted=%s", styleAdmissionOf(mediaId))
             runCatching { dislikeStore.dislikeSong(mediaId) }.onFailure {
                 // C3 — the song is still skipped and purged below, but it would NOT be remembered (row 285).
                 if (it is CancellationException) throw it
@@ -6323,6 +6423,9 @@ class MusicService :
             startRadioSeamlessly()
         }
 
+        // Row 503: the same seed one song EARLIER, also on a crossfade swap (CrossfadeEngine) — see [maybePrimeContinuationEarly].
+        maybePrimeContinuationEarly(isAuto = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+
 
         if (persistentQueueHint) {
             // Same content-vs-position split as onPlaybackStateChanged: an auto-advance where nothing was
@@ -6632,6 +6735,33 @@ class MusicService :
             }
         } else {
             sponsorBlock.clear()
+        }
+    }
+
+    /**
+     * Row 503: primes the continuation of a finished album / list one song before its end (see
+     * [RadioQueueShaping.mayPrimeEarly]), so «siguiente» on the last song does not wait for the fetch and the style gate.
+     * Called from the transition path (with its real reason) and from the crossfade swap (always a natural advance, and the
+     * swap never fires onMediaItemTransition). Once per queue generation.
+     */
+    internal fun maybePrimeContinuationEarly(isAuto: Boolean) {
+        if (autoLoadMoreHint &&
+            player.playWhenReady &&
+            !radioSeedInFlight &&
+            earlyPrimedGeneration != queueGeneration &&
+            !(disableLoadMoreWhenRepeatAllHint && player.repeatMode == REPEAT_MODE_ALL) &&
+            RadioQueueShaping.mayPrimeEarly(
+                isAuto = isAuto,
+                shuffle = player.shuffleModeEnabled,
+                repeatOff = player.repeatMode == Player.REPEAT_MODE_OFF,
+                isCollection = iad1tya.echo.music.reco.CollectionContinuation.isCollection(radioAnchorId != null, radioSeedPool.size),
+                hasNextPage = currentQueue.hasNextPage(),
+                itemCount = player.mediaItemCount,
+                nextIndex = player.nextMediaItemIndex,
+            )
+        ) {
+            earlyPrimedGeneration = queueGeneration
+            startRadioSeamlessly(earlyPrime = true)
         }
     }
 
@@ -10186,6 +10316,8 @@ class MusicService :
 
     override fun onDestroy() {
         isRunning = false
+        runCatching { deviceSync?.stop() }
+        deviceSync = null
         musicRequestFillJob?.cancel()
         musicRequestFillJob = null
         playbackKeepAlive.release()

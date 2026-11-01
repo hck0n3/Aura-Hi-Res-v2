@@ -420,29 +420,18 @@ fun PlayerMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            // Row 520: link / MP3 / video, asked every time (the choice window saves what is missing).
                             coroutineScope.launch {
-                                if (isExported) {
-                                    val uri = lookupExportedFileUri(context, mediaMetadata.id)
-                                    if (uri != null &&
-                                        shareContentUri(
-                                            context,
-                                            uri,
-                                            if (isExportedVideo) "video/mp4" else "audio/mpeg",
-                                        )
-                                    ) {
-                                        onDismiss()
-                                        return@launch
-                                    }
-                                }
-                                val intent = android.content.Intent().apply {
-                                    action = android.content.Intent.ACTION_SEND
-                                    type = "text/plain"
-                                    putExtra(
-                                        android.content.Intent.EXTRA_TEXT,
-                                        ShareLinks.songShareText(mediaMetadata.id, mediaMetadata.title, mediaMetadata.artists.map { it.name })
-                                    )
-                                }
-                                context.startActivity(android.content.Intent.createChooser(intent, null))
+                                iad1tya.echo.music.ui.newui.ShareChoiceState.open(
+                                    iad1tya.echo.music.ui.newui.ShareSongRequest(
+                                        songId = mediaMetadata.id,
+                                        title = mediaMetadata.title,
+                                        artists = mediaMetadata.artists.map { it.name },
+                                        album = mediaMetadata.album?.title.orEmpty(),
+                                        thumbnailUrl = mediaMetadata.thumbnailUrl.orEmpty(),
+                                        hasVideo = mediaMetadata.isVideoSong,
+                                    ),
+                                )
                                 onDismiss()
                             }
                         }
@@ -1122,6 +1111,7 @@ fun ListenTogetherDialog(
     
     var savedUsername by rememberPreference(iad1tya.echo.music.constants.ListenTogetherUsernameKey, "")
     var roomCodeInput by rememberSaveable { mutableStateOf("") }
+    val auraRoomsMenu by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
     var usernameInput by rememberSaveable { mutableStateOf(savedUsername) }
 
     
@@ -2033,12 +2023,12 @@ fun ListenTogetherDialog(
                         
                         OutlinedTextField(
                             value = roomCodeInput,
-                            onValueChange = { roomCodeInput = it.uppercase().filter { c -> c.isLetterOrDigit() }.take(8) },
+                            onValueChange = { roomCodeInput = iad1tya.echo.music.listentogether.RoomCodes.normalize(it, auraRoomsMenu) },
                             label = { Text(stringResource(R.string.room_code)) },
-                            placeholder = { Text("ABCD1234") },
+                            placeholder = { Text(iad1tya.echo.music.listentogether.RoomCodes.placeholder(auraRoomsMenu)) },
                             supportingText = {
                                 Text(
-                                    text = "${roomCodeInput.length}/8",
+                                    text = "${roomCodeInput.length}/${iad1tya.echo.music.listentogether.RoomCodes.length(auraRoomsMenu)}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -2163,7 +2153,7 @@ fun ListenTogetherDialog(
                         }
                         
                         
-                        if (roomCodeInput.length == 8) {
+                        if (iad1tya.echo.music.listentogether.RoomCodes.isComplete(roomCodeInput, auraRoomsMenu)) {
                             Button(
                                 onClick = {
                                     val username = usernameInput.takeIf { it.isNotBlank() } ?: savedUsername

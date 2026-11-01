@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Static alias uses the same A+play adaptive layers as the main launcher. -->
+<!-- Row 620: Aura launcher icon = the owner's liquid-glass artwork, identical (cropped square, tile centred inside the safe zone). One look for
+     light and dark mode; the Android 13+ themed icon uses the monochrome silhouette. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background" />
-    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
-    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
+    <background android:drawable="@drawable/ic_launcher_art" />
+    <foreground android:drawable="@android:color/transparent" />
+    <monochrome android:drawable="@drawable/ic_launcher_mark_mono" />
 </adaptive-icon>

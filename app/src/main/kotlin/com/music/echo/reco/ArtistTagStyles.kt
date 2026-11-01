@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import timber.log.Timber
 
 /**
  * Fila 356 — el estilo de cada ARTISTA según las etiquetas de Last.fm (lo que sus oyentes llaman a su música).
@@ -190,12 +191,17 @@ object ArtistTagStyles {
         if (!hasNetwork(context, wifiOnly = !allowMobile)) return@withContext
         val sem = Semaphore(4)
         val failures = AtomicInteger(0)
+        val fromShared = AtomicInteger(0)
+        val fromLastFm = AtomicInteger(0)
         val results = coroutineScope {
             pending.map { key ->
                 async {
                     sem.withPermit {
                         if (failures.get() >= MAX_CONSECUTIVE_FAILURES) return@withPermit null
-                        val tags = LastFM.getArtistTopTags(key)
+                        // Function 4 of the Worker plan: the shared cache first (1.5 s at most), Last.fm directly as always when it has nothing.
+                        val shared = iad1tya.echo.music.edge.EdgeClient.artistTags(context, key)
+                        val tags = shared ?: LastFM.getArtistTopTags(key)
+                        if (shared != null) fromShared.incrementAndGet() else if (tags != null) fromLastFm.incrementAndGet()
                         if (tags == null) {
                             failedThisSession.add(key)
                             failures.incrementAndGet()
@@ -208,6 +214,9 @@ object ArtistTagStyles {
                 }
             }.awaitAll().filterNotNull()
         }
+        // Counts only (row 555): the log never said whether the shared tags answered or Last.fm did, so «the Worker did not help» could
+        // not be checked. shared = answered by the Aura Worker's cache, lastfm = asked directly, none = nobody had it.
+        Timber.tag("ArtistTags").i("ARTIST_TAGS asked=%d shared=%d lastfm=%d none=%d", pending.size, fromShared.get(), fromLastFm.get(), pending.size - fromShared.get() - fromLastFm.get())
         if (results.isEmpty()) return@withContext
         prefs.edit().also { e -> results.forEach { e.putString(it.key, it.style) } }.apply()
         christian.edit().also { e -> results.forEach { e.putBoolean(it.key, it.christian) } }.apply()

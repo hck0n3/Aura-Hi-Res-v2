@@ -142,6 +142,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // PackageManager query, on the path to the first frame, for the sake of one log line. On a slow phone that is
         // tens of milliseconds of a frozen splash; the line only moves a few ms later in app.log.
         applicationScope.launch(Dispatchers.IO) { logBootDiagnostics() }
+        // Phase A of the Worker plan: install the last good signed config, refresh it at most every 6 h. With no address set
+        // (the default) this contacts nothing.
+        applicationScope.launch(Dispatchers.IO) { runCatching { iad1tya.echo.music.edge.EdgeClient.start(this@App) } }
 
         // NOTE: do NOT add a destructive deleteDatabase("song.db") on startup. The Room schema has
         // complete migration coverage (see MusicDatabase), so wiping the DB only erases the user's
@@ -175,6 +178,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             Timber.plant(Timber.DebugTree())
         }
         iad1tya.echo.music.utils.AppLogger.plant(this)
+        // Row 508: the animated-cover module reports its token / HTTP outcomes (status words and counts only) to the shared log.
+        iad1tya.echo.music.canvas.AppleCanvasDiagnostics.sink = { Timber.tag("CANVAS").i(it) }
 
         // Scrobbling (Last.fm): load the API credentials once at startup so the settings-screen login and the
         // ScrobbleManager can talk to Last.fm. Keys come from BuildConfig (embedded, as Last.fm keys are meant
@@ -2130,7 +2135,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                     iad1tya.echo.music.utils.DiagnosticHeader.Settings(
                         crossfadeEnabled = it[iad1tya.echo.music.constants.CrossfadeEnabledKey] ?: true,
                         crossfadeSeconds = it[iad1tya.echo.music.constants.CrossfadeDurationKey] ?: iad1tya.echo.music.constants.CrossfadeDefaultSeconds,
-                        enhancedShuffle = it[iad1tya.echo.music.constants.EnhancedShuffleKey] ?: false,
+                        // Row 585: the real default of the setting is ON (PlayerSettings, MusicService); reading it as OFF made every shared log say
+                        // «enhancedShuffle=OFF» for a device that never touched it.
+                        enhancedShuffle = it[iad1tya.echo.music.constants.EnhancedShuffleKey] ?: true,
                         safeVolume = it[iad1tya.echo.music.constants.SafeVolumeEnabledKey] ?: false,
                         audioOffload = it[iad1tya.echo.music.constants.AudioOffload] ?: false,
                         loggedIn = !it[InnerTubeCookieKey].isNullOrBlank(),

@@ -102,7 +102,11 @@ object RemotePlaylistEdits {
                     YouTube.addToPlaylist(browseId, map.songId).onFailure { e ->
                         if (e is CancellationException) throw e
                         Timber.w("PLAYLIST_REMOTE_restore failed: %s", privacySafeSummary(e))
-                    }.onSuccess { Timber.i("PLAYLIST_REMOTE_restore ok") }
+                    }.onSuccess {
+                        Timber.i("PLAYLIST_REMOTE_restore ok")
+                        // Row 529: the user's other devices pull this list at once.
+                        iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("playlists")
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -133,6 +137,9 @@ object RemotePlaylistEdits {
                 if (e is CancellationException) throw e
                 failed++
                 Timber.w("PLAYLIST_REMOTE_remove failed: %s", privacySafeSummary(e))
+            }.onSuccess {
+                // Row 529: the user's other devices pull this list at once.
+                iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("playlists")
             }
         }
         if (unresolved > 0 || failed > 0) {

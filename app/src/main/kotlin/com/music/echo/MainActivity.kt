@@ -2758,6 +2758,9 @@ class MainActivity : ComponentActivity() {
                     // reads the open/close switch, so this composition does not recompose when it opens.
                     iad1tya.echo.music.ui.screens.recognition.RecognitionWindowHost(navController)
 
+                    // «Compartir» of a song: link / MP3 / video (row 520). A floating window like the recognizer's.
+                    iad1tya.echo.music.ui.newui.ShareChoiceHost()
+
                     if (showSettingDialoge) {
                         SettingDialoge(
                             onDismissRequest = { showSettingDialoge = false },
@@ -3049,6 +3052,21 @@ class MainActivity : ComponentActivity() {
                 state = uri.getQueryParameter("state"),
                 error = uri.getQueryParameter("error"),
             )
+            return
+        }
+
+        // Row 615: the QR of a pairing code (echomusic://pair?code=AAAA-BBBB-…) read by any camera app: the code is adopted and the engine,
+        // which watches DeviceSyncCodeKey, pairs this device by itself. Only a FULL code counts; anything else is told, never half-applied.
+        if (uri.scheme == "echomusic" && uri.host.equals("pair", ignoreCase = true)) {
+            val normalized = iad1tya.echo.music.devicesync.SyncCode.fromPairLink(uri.toString())
+            if (normalized == null) {
+                android.widget.Toast.makeText(this, R.string.qr_pair_invalid, android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                lifecycle.coroutineScope.launch {
+                    this@MainActivity.dataStore.edit { it[iad1tya.echo.music.devicesync.DeviceSyncCodeKey] = normalized }
+                    android.widget.Toast.makeText(this@MainActivity, R.string.qr_pair_done, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
             return
         }
 

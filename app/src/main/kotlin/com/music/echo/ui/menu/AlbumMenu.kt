@@ -137,7 +137,7 @@ fun AlbumMenu(
     // from inside the callback (same pattern as this menu's existing ListDialogs).
     val onMenuShuffleClick = rememberShuffleMemoryPrompt(
         contextId = menuShuffleContextId,
-        playedCount = songs.count { it.id in menuPlayedSet || it.song.totalPlayTime > 0L },
+        playedCount = songs.count { it.id in menuPlayedSet },
         totalCount = songs.size,
     ) { resetMemory ->
         onDismiss()

@@ -33,7 +33,7 @@ class PlayerPlaylistRouteTest {
     fun `the chip is wired to the player and its text exists in the main locales`() {
         val root = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "settings.gradle.kts").isFile }
         val player = File(root, "app/src/main/kotlin/com/music/echo/ui/newui/AuraPlayer.kt").readText()
-        assertTrue(player.contains("PlayerPlaylistRoute.of(playerConnection.shuffleContextId)"))
+        assertTrue(player.contains("PlayerPlaylistRoute.of(if (remoteActive) remoteTarget?.contextId else playerConnection.shuffleContextId)"))
         assertTrue(player.contains("R.string.go_to_playlist"))
         // Every door out of the player goes through the one helper that does not stack a page on itself.
         assertTrue(player.contains("navigateFromPlayer(\"album/\$browseId\")"))

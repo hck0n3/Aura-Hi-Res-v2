@@ -220,6 +220,7 @@ fun AuraQueue(
     val haptic = LocalHapticFeedback.current
     val menuState = LocalMenuState.current
     val bottomSheetPageState = LocalBottomSheetPageState.current
+    val pairedBy by iad1tya.echo.music.devicesync.DeviceSyncHub.pairedBy.collectAsState()
 
     var showAudioDeviceBottomSheet by remember { mutableStateOf(false) }
 
@@ -402,6 +403,14 @@ fun AuraQueue(
                 onOpenQueue = { state.expandSoft() },
                 isBluetoothConnected = isBluetoothConnected,
                 onAudioOutput = { showAudioDeviceBottomSheet = true },
+                // Row 528 / 535 (owner 2026-10-30): the device switcher lives in THIS row, in the style of its buttons — the
+                // quick-access row above the transport was already crowded. Shown only while this device is paired.
+                showDevices = pairedBy != iad1tya.echo.music.devicesync.DeviceSyncHub.PairedBy.None,
+                onDevices = {
+                    bottomSheetPageState.show {
+                        AuraDevicesSheetContent(navController = navController, onDismiss = bottomSheetPageState::dismiss)
+                    }
+                },
                 showInlineLyrics = showInlineLyrics,
                 onToggleLyrics = onToggleLyrics,
                 showCommentButton = showCommentButton,
@@ -1092,18 +1101,9 @@ fun AuraQueue(
                                         }
                                     }
 
-                                    itemsIndexed(items = automix, key = { _, it -> "aura_automix_${it.mediaId}" }) { _, item ->
-                                        Column {
-                                            Spacer(Modifier.height(AuraSpacing.RowGap))
-                                            AuraAutomixRow(
-                                                item = item,
-                                                isListenTogetherGuest = isListenTogetherGuest,
-                                                isCasting = isCasting,
-                                                navController = navController,
-                                                playerBottomSheetState = playerBottomSheetState,
-                                            )
-                                        }
-                                    }
+                                    // Row 581 (owner 2026-10-31: «no quiero nada repetido en Aura»): the automix preview rows that were listed
+                                    // here are the SAME pool the RELACIONADOS tab shows, with the same row; they are gone from this footer. What stays
+                                    // is what only this footer offers: the title, «Siguiendo: …» (correctable) and the steering chips.
                                 }
                             }
                         }
@@ -1184,6 +1184,8 @@ private fun AuraQueueBar(
     onOpenQueue: () -> Unit,
     isBluetoothConnected: Boolean,
     onAudioOutput: () -> Unit,
+    showDevices: Boolean,
+    onDevices: () -> Unit,
     showInlineLyrics: Boolean,
     onToggleLyrics: () -> Unit,
     showCommentButton: Boolean,
@@ -1245,6 +1247,19 @@ private fun AuraQueueBar(
                 tint = tint,
                 modifier = Modifier.size(21.dp),
             )
+        }
+
+        // Mis dispositivos (row 535): hand over what plays or take it from another paired device.
+        if (showDevices) {
+            AuraBarButton(
+                interactive = interactive,
+                contentDescription = stringResource(R.string.device_sync_sheet_title),
+                active = false,
+                onClick = onDevices,
+                contentColor = contentColor,
+                activeContainerColor = activeContainerColor,
+                activeContentColor = activeContentColor,
+            ) { tint -> AuraIconGlyph(AuraIcons.Device, null, size = 21.dp, tint = tint) }
         }
 
         AuraBarButton(
@@ -1792,6 +1807,15 @@ private fun auraJumpToQueueWindow(
     isCurrent: Boolean,
     window: Timeline.Window,
 ) {
+    // Row 564: another of my devices is being controlled from here — the tap goes to IT, not to this device's own player.
+    if (iad1tya.echo.music.devicesync.RemotePlayback.active) {
+        if (isCurrent) {
+            iad1tya.echo.music.devicesync.RemotePlayback.toggle()
+        } else {
+            iad1tya.echo.music.devicesync.RemotePlayback.playItem(window.mediaItem.mediaId)
+        }
+        return
+    }
     if (isCurrent) {
         if (isCasting) {
             if (castIsPlaying) castHandler?.pause() else castHandler?.play()

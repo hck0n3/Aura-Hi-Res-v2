@@ -137,7 +137,7 @@ fun YouTubePlaylistMenu(
     val menuHeardIds = rememberHeardSongIds(songs.map { it.id })
     val onMenuShuffleClick = rememberShuffleMemoryPrompt(
         contextId = menuShuffleContextId,
-        playedCount = songs.count { it.id in menuPlayedSet || it.id in menuHeardIds },
+        playedCount = songs.count { it.id in menuPlayedSet },
         totalCount = songs.size,
     ) { resetMemory ->
         onDismiss()

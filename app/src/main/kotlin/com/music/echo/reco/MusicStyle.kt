@@ -440,6 +440,26 @@ object MusicStyle {
     fun familyOf(id: String?): String? = style(id)?.family
 
     /**
+     * Row 503 — the genre families a context of [styles] may keep: the families of the styles themselves, of their parent
+     * and of the styles they are related to, plus the one neighbour that shares their public (pop ↔ the Iberian
+     * songbook: baladas, boleros, flamenco). Empty when [styles] is empty. The smart queue keeps this fence up even
+     * when it relaxes its filters: it widens WITHIN the neighbourhood and never into «cumbia after Luis Miguel».
+     */
+    fun neighbourFamilies(styles: Set<String>?): Set<String> {
+        if (styles.isNullOrEmpty()) return emptySet()
+        val out = LinkedHashSet<String>()
+        for (id in styles) {
+            val s = style(id) ?: continue
+            out += s.family
+            s.parent?.let { familyOf(it) }?.let { out += it }
+            s.related.mapNotNull { familyOf(it) }.forEach { out += it }
+        }
+        if (FAMILY_POP in out) out += FAMILY_IBERIAN
+        if (FAMILY_IBERIAN in out) out += FAMILY_POP
+        return out
+    }
+
+    /**
      * The style named by a track's own TITLE and ALBUM (never pass the artist: "Banda MS", "La Sonora
      * Dinamita"). Null when no style word appears, or two different concrete styles do.
      */
@@ -655,6 +675,26 @@ object MusicStyle {
             else -> NOTHING
         }
     }
+
+    /**
+     * Row 605 (owner 2026-10-31, tablet: «escuchaba clásica cristiana y pasó a cristiana de niños»): children's music has no style the gate can
+     * see (a Christian kids' album carries no «infantil» word in a title, and iTunes calls it «Christian & Gospel» like the rest), so it passed
+     * the faith and language lanes as «unknown». Its OWN words say it plainly («para niños», «for kids», «escuela dominical»…), and a queue
+     * that is not for children must not take it. Whole words only, folded (accents/case).
+     */
+    fun isKidsContent(text: String?): Boolean {
+        if (text.isNullOrBlank()) return false
+        val padded = " ${fold(text)} "
+        return KIDS_PHRASES.any { padded.contains(" $it ") }
+    }
+
+    // Multi-word or unambiguous phrases only: «Baby», «Kids» (MGMT), «Children» (Robert Miles) or «Lullaby» are ordinary song titles.
+    private val KIDS_PHRASES = listOf(
+        "infantil", "infantiles", "para ninos", "para ninas", "para bebes", "para peques", "canciones de cuna", "cantos para ninos",
+        "nursery rhymes", "for kids", "for children", "kids songs", "kids music", "kids praise", "kids worship", "worship for kids",
+        "children s songs", "children s music", "childrens songs", "lullabies", "escuela dominical", "sunday school",
+        "ministerio infantil", "baby songs", "toddler songs", "preschool songs",
+    )
 
     internal fun fold(value: String): String =
         Normalizer.normalize(value.lowercase(), Normalizer.Form.NFD)

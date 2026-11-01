@@ -170,6 +170,7 @@ import iad1tya.echo.music.playback.videoDownloadMediaId
 import iad1tya.echo.music.ui.component.BottomSheet
 import iad1tya.echo.music.ui.component.BottomSheetState
 import iad1tya.echo.music.ui.component.CAST_TOUCH_TARGET
+import iad1tya.echo.music.devicesync.RemotePlayback
 import iad1tya.echo.music.ui.component.CastButton
 import iad1tya.echo.music.ui.component.ListDialog
 import iad1tya.echo.music.ui.component.LocalBottomSheetPageState
@@ -480,11 +481,26 @@ private fun AuraPlayerShape(
     val castHandler = remember(playerConnection) {
         runCatching { playerConnection.service.castConnectionHandler }.getOrNull()
     }
-    val isCasting by castHandler?.isCasting?.collectAsState() ?: remember { mutableStateOf(false) }
-    val castPosition by castHandler?.castPosition?.collectAsState() ?: remember { mutableLongStateOf(0L) }
-    val castDuration by castHandler?.castDuration?.collectAsState() ?: remember { mutableLongStateOf(0L) }
-    val castIsPlaying by castHandler?.castIsPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
+    val castingReal by castHandler?.isCasting?.collectAsState() ?: remember { mutableStateOf(false) }
+    val castPositionReal by castHandler?.castPosition?.collectAsState() ?: remember { mutableLongStateOf(0L) }
+    val castDurationReal by castHandler?.castDuration?.collectAsState() ?: remember { mutableLongStateOf(0L) }
+    val castIsPlayingReal by castHandler?.castIsPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
+    // Row 537 (owner 2026-10-30, «como lo hace Spotify»): when ANOTHER of the user's devices is playing and this one is silent, THIS
+    // player shows and controls that playback exactly like it does for Cast — same timeline, same buttons, no second set of
+    // controls. The remote's flows take the place of the cast ones below; every `isCasting` branch of this screen then just works.
+    val remoteTarget by RemotePlayback.target.collectAsState()
+    val remoteActive = remoteTarget != null
+    val remotePosition by RemotePlayback.position.collectAsState()
+    val remoteDuration by RemotePlayback.duration.collectAsState()
+    val remotePlaying by RemotePlayback.playing.collectAsState()
+    val isCasting = castingReal || remoteActive
+    val castPosition = if (remoteActive) remotePosition else castPositionReal
+    val castDuration = if (remoteActive) remoteDuration else castDurationReal
+    val castIsPlaying = if (remoteActive) remotePlaying else castIsPlayingReal
     val effectiveIsPlaying = if (isCasting) castIsPlaying else isPlaying
+    fun outsidePlay() { if (remoteActive) RemotePlayback.play() else castHandler?.play() }
+    fun outsidePause() { if (remoteActive) RemotePlayback.pause() else castHandler?.pause() }
+    fun outsideSeek(ms: Long) { if (remoteActive) RemotePlayback.seekTo(ms) else castHandler?.seekTo(ms) }
 
     val highPerfMode by rememberPreference(HighPerformanceModeKey, false)
     // Only term of the CLASSIC video gate that is not already read here (Player.kt:1944). Read
@@ -796,7 +812,10 @@ private fun AuraPlayerShape(
         AuraDownloadSheet(
             songs = listOf(downloadChooserMeta.toAuraDownloadItem()),
             title = downloadChooserMeta.title,
-            offlineState = Download.STATE_STOPPED,
+            // Row 505: the REAL state. It was hard-wired to STOPPED, so the sheet never knew the song was already
+            // downloaded (no «Quitar descarga», no notice) — and the button itself removed the download on the spot.
+            offlineState = download?.state
+                ?: if (downloadChooserMeta.id in pendingDownloadIds) Download.STATE_QUEUED else Download.STATE_STOPPED,
             onDismiss = { showDownloadOrExportDialog = false },
             deferOfflineWhileLiveVideo = videoMode,
         )
@@ -1023,6 +1042,11 @@ private fun AuraPlayerShape(
                         onClick = widePlayerMode.onToggle,
                         size = 20.dp,
                         tint = AuraPalette.OnGround.copy(alpha = 0.6f),
+                        // Row 513 (owner 2026-10-29, unfolded: «el botón de arriba a la izquierda para el reproductor en
+                        // pantalla completa falla»): the header sits inside the sheet's own drag and the queue's swipe-up,
+                        // so a plain clickable is cancelled by the slightest roll of the thumb — the same «hay que tocarlo
+                        // varias veces» as play/pause (rows 372/396). It fires on lift, like them.
+                        firstTap = true,
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
                 }
@@ -1032,6 +1056,7 @@ private fun AuraPlayerShape(
                     onClick = { state.collapseSoft() },
                     size = 22.dp,
                     tint = AuraPalette.OnGround.copy(alpha = 0.6f),
+                    firstTap = true,
                     // D-pad: a remote cannot drag the sheet down, so this is the ONLY way off the player
                     // on a TV. It has to be reachable and it has to show the ring.
                     modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -1063,6 +1088,21 @@ private fun AuraPlayerShape(
                             text = contextLine,
                             color = if (listenTogetherRole != RoomRole.NONE) AuraPalette.Violet
                             else AuraPalette.OnGroundFaint,
+                        )
+                    }
+                    // Row 537: above the cover — «Sonando en <dispositivo> · Continuar aquí». The timeline and the buttons below
+                    // already control that device; this brings the playback to THIS one, from the same second.
+                    remoteTarget?.let { remote ->
+                        AuraTechnicalText(
+                            text = stringResource(
+                                R.string.device_sync_remote_chip,
+                                remote.deviceName.ifBlank { "—" },
+                            ).uppercase(),
+                            color = AuraPalette.Teal,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { RemotePlayback.continueHere() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                     }
                 }
@@ -1518,7 +1558,7 @@ private fun AuraPlayerShape(
                                 // Owner 2026-10-18: while a song plays FROM A PLAYLIST, a third door leads back to that list.
                                 // Only for a real playlist context (`PL:` yours, `OL:` a followed one) — an album, a radio or
                                 // a request would be a chip that leads nowhere.
-                                val playlistRoute = PlayerPlaylistRoute.of(playerConnection.shuffleContextId)
+                                val playlistRoute = PlayerPlaylistRoute.of(if (remoteActive) remoteTarget?.contextId else playerConnection.shuffleContextId)
                                 if (playlistRoute != null) {
                                     AuraChip(
                                         text = stringResource(R.string.go_to_playlist),
@@ -1617,7 +1657,7 @@ private fun AuraPlayerShape(
                             sliderPosition?.let {
                                 if (isCasting) {
                                     lastManualSeekTime = System.currentTimeMillis()
-                                    castHandler?.seekTo(it)
+                                    outsideSeek(it)
                                 } else {
                                     playerConnection.player.seekTo(it)
                                 }
@@ -1737,7 +1777,7 @@ private fun AuraPlayerShape(
                                 // Same three branches the classic transport has: guest = mute,
                                 // casting = the remote device, ENDED = restart, otherwise play/pause.
                                 isListenTogetherGuest -> playerConnection.toggleMute()
-                                isCasting -> if (castIsPlaying) castHandler?.pause() else castHandler?.play()
+                                isCasting -> if (castIsPlaying) outsidePause() else outsidePlay()
                                 playbackState == Player.STATE_ENDED -> {
                                     playerConnection.player.seekTo(0, 0)
                                     playerConnection.player.playWhenReady = true
@@ -1937,9 +1977,14 @@ private fun AuraPlayerShape(
                             onClick = {
                                 when {
                                     isLocalTrack -> Unit
-                                    downloadBusy || downloadDone || downloadHeld ->
-                                        removeSongDownloads(context, songId, isVideo)
                                     isExporting -> Unit
+                                    // Row 505 (owner 2026-10-29: «toco el botón de descargar por error o por capricho en una
+                                    // canción ya descargada, que me avise»): a tap on a song that is downloading, held, or
+                                    // already downloaded (offline, MP3 or video) used to REMOVE the download on the spot,
+                                    // silently. It now opens the sheet, which says what exists and in which lists the song
+                                    // is, and removes only after a confirmation.
+                                    downloadBusy || downloadDone || downloadHeld || isExported ->
+                                        showDownloadOrExportDialog = true
                                     !enableExportAsMp3 -> downloadDirectly()
                                     else -> showDownloadOrExportDialog = true
                                 }
@@ -2009,6 +2054,9 @@ private fun AuraPlayerShape(
                                     isExported = exportedSongIds.split(',').any { it.trim() == meta.id } ||
                                         exportedVideoIds.split(',').any { it.trim() == meta.id },
                                     isExportedVideo = exportedVideoIds.split(',').any { it.trim() == meta.id },
+                                    album = meta.album?.title.orEmpty(),
+                                    thumbnailUrl = meta.thumbnailUrl.orEmpty(),
+                                    hasVideo = meta.isVideoSong,
                                 )
                             }
                         },
@@ -2058,7 +2106,7 @@ private fun AuraPlayerShape(
                     onPlayPause = {
                         when {
                             isListenTogetherGuest -> playerConnection.toggleMute()
-                            isCasting -> if (castIsPlaying) castHandler?.pause() else castHandler?.play()
+                            isCasting -> if (castIsPlaying) outsidePause() else outsidePlay()
                             else -> playerConnection.togglePlayPause()
                         }
                     },

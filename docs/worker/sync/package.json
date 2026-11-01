@@ -1,0 +1,13 @@
+{
+  "name": "aura-sync-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/sync.test.mjs",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "miniflare": "^3.20241106.0",
+    "wrangler": "^3.90.0"
+  }
+}

@@ -772,6 +772,8 @@ internal fun MusicService.beginCrossfadeSwap(secPlayer: ExoPlayer, savedShuffleE
     // queue on every loop (a page fetched + appended per repeat). The transition path suppresses
     // pagination on repeats for exactly this reason — mirror it.
     maybeLoadMoreQueuePages(isRepeatTransition = player.repeatMode == REPEAT_MODE_ONE)
+    // Row 503: and the continuation of a finished album / list, one song early (a swap never fires onMediaItemTransition).
+    maybePrimeContinuationEarly(isAuto = true)
 
     // Linear-play recording under crossfade: the swap path skips onMediaItemTransition, so without
     // this a LINEAR listen (shuffle off, crossfade on — every auto-advance is a swap) left no trace in

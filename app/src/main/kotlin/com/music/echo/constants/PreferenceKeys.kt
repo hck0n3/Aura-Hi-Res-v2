@@ -562,6 +562,8 @@ val EnableGoogleCastKey = booleanPreferencesKey("enableGoogleCast")
 
 val ListenTogetherServerUrlKey = stringPreferencesKey("listenTogetherServerUrl")
 val ListenTogetherUsernameKey = stringPreferencesKey("listenTogetherUsername")
+/** Use Aura's own rooms (aura-rooms Worker, only between Aura users) instead of the Metrolist-compatible server. Default OFF. */
+val ListenTogetherAuraRoomsKey = booleanPreferencesKey("listenTogetherAuraRooms")
 val ListenTogetherAutoApprovalKey = booleanPreferencesKey("listenTogetherAutoApproval")
 val ListenTogetherSyncVolumeKey = booleanPreferencesKey("listenTogetherSyncVolume")
 val ListenTogetherSmartResyncKey = booleanPreferencesKey("listenTogetherSmartResync")

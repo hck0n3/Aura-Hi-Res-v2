@@ -206,6 +206,8 @@ private fun <T : Enum<T>> AuraSortControl(
                     .minimumInteractiveComponentSize()
                     .clip(AuraShapes.Pill)
                     .background(AuraPalette.SurfaceFill)
+                    // Row 567: the same hairline as the other Biblioteca buttons (the sort pill was the one without it).
+                    .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
                     .auraClickableInternal(
                         onClick = { expanded = true },
                         contentDescription = "Cambiar el criterio de orden",
@@ -542,7 +544,6 @@ fun AuraLibraryHub(
     val downloadedLabel = stringResource(R.string.offline)
     val cachedLabel = stringResource(R.string.cached_playlist)
     val favoriteAlbumsLabel = stringResource(R.string.favorite_albums)
-    val releaseRadarLabel = stringResource(R.string.release_radar_title)
     val podcastsLabel = stringResource(R.string.podcasts)
     val localLabel = stringResource(R.string.filter_local)
     // The tiles obey the same toggles as the classic UI (F9: every appearance setting must work in the new UI too).
@@ -556,7 +557,9 @@ fun AuraLibraryHub(
         if (showDownloaded) add(AuraLibraryShortcut(AuraIcons.Downloaded, downloadedLabel) { navController.navigate("auto_playlist/downloaded") })
         if (showCached) add(AuraLibraryShortcut(AuraIcons.Cloud, cachedLabel) { navController.navigate("cache_playlist/cached") })
         add(AuraLibraryShortcut(AuraIcons.Album, favoriteAlbumsLabel) { navController.navigate("favorite_albums") })
-        add(AuraLibraryShortcut(AuraIcons.Radio, releaseRadarLabel) { navController.navigate("release_radar") })
+        // Row 570: the «Novedades» tile that sat here is gone (owner 2026-10-31: «no quiero nada repetido en Aura»). It opened the classic
+        // radar list; the Novedades tab of the bar shows the SAME radar rows (plus the hero, the upcoming ones and YouTube's new
+        // albums) and also pulls to refresh. The `release_radar` route stays registered for the classic interface, which has no such tab.
         add(AuraLibraryShortcut(AuraIcons.Lyrics, podcastsLabel) { navController.navigate("podcasts") })
         // Owner request: Local must be visible the moment Biblioteca opens — it switches to the LOCAL chip in place (same
         // embedded LocalSongScreen, same scan sheet — no second route, no second screen).
@@ -1037,7 +1040,7 @@ fun AuraLibrarySongsTab(
             if (libraryContextId != null) {
                 item(key = "aura_songs_shuffle_chip", contentType = "aura_songs_shuffle_chip", span = { GridItemSpan(maxLineSpan) }) {
                     val playedCount = remember(shufflePlayedSet, filteredSongs) {
-                        filteredSongs.count { it.id in shufflePlayedSet || it.song.totalPlayTime > 0L }
+                        filteredSongs.count { it.id in shufflePlayedSet }
                     }
                     Box(
                         Modifier
@@ -1152,7 +1155,7 @@ fun AuraLibrarySongsTab(
         // Shuffle: the SAME memory prompt and the SAME unplayed-first ordering as the classic tab.
         val onShuffleClick = rememberShuffleMemoryPrompt(
             contextId = libraryContextId,
-            playedCount = filteredSongs.count { it.id in shufflePlayedSet || it.song.totalPlayTime > 0L },
+            playedCount = filteredSongs.count { it.id in shufflePlayedSet },
             totalCount = filteredSongs.size,
         ) { resetMemory ->
             val seed = ShuffleContexts.seedPlayedIds(
@@ -1238,7 +1241,14 @@ fun AuraLibraryAlbumsTab(
     val (sortDescending, onSortDescendingChange) = rememberPreference(AlbumSortDescendingKey, true)
     val (ytmSync) = rememberPreference(YtmSyncKey, true)
 
-    val albums by viewModel.allAlbums.collectAsState()
+    val allAlbums by viewModel.allAlbums.collectAsState()
+    // Row 627 (owner 2026-11-01: «en el modo offline, en las listas de reproducción y álbumes solo muestre las que están descargadas»):
+    // offline, an album that has nothing downloaded cannot be played, so it is not listed.
+    val offlineLibrary = iad1tya.echo.music.utils.rememberOfflineState().offline
+    val downloadedAlbumIds by LocalDatabase.current.albumIdsWithDownloads().collectAsState(initial = emptyList())
+    val albums = remember(allAlbums, offlineLibrary, downloadedAlbumIds) {
+        if (offlineLibrary) allAlbums.filter { it.id in downloadedAlbumIds.toHashSet() } else allAlbums
+    }
     // What is already pinned to the Library shows its pin on the cover (grid view).
     val pins by rememberLibraryPins()
     val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
@@ -1505,7 +1515,13 @@ fun AuraLibraryPlaylistsTab(
     val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, true)
     val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
 
-    val playlists by viewModel.allPlaylists.collectAsState()
+    val allPlaylists by viewModel.allPlaylists.collectAsState()
+    // Row 627: offline, only the playlists with something downloaded (the automatic ones — Liked, Downloaded… — are not in this list).
+    val offlineLibrary = iad1tya.echo.music.utils.rememberOfflineState().offline
+    val downloadedPlaylistIds by LocalDatabase.current.playlistIdsWithDownloads().collectAsState(initial = emptyList())
+    val playlists = remember(allPlaylists, offlineLibrary, downloadedPlaylistIds) {
+        if (offlineLibrary) allPlaylists.filter { it.id in downloadedPlaylistIds.toHashSet() } else allPlaylists
+    }
     // What is already pinned to the Library shows its pin on the cover (grid view).
     val pins by rememberLibraryPins()
     val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
@@ -1741,6 +1757,7 @@ private fun <T> AuraSubFilterRow(
     ) {
         options.forEach { (option, labelRes) ->
             AuraChip(
+                glass = true,
                 text = stringResource(labelRes),
                 selected = selected == option,
                 onClick = { onSelect(option) },

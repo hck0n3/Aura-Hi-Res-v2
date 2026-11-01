@@ -48,6 +48,7 @@ import iad1tya.echo.music.constants.NavigationBarAnimationSpec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 
 @Composable
@@ -263,6 +264,14 @@ class BottomSheetState(
     }
 
     fun expand(animationSpec: AnimationSpec<Dp>) {
+        // Row 557 (owner 2026-10-31: «toco una cosa y de la nada se abre el reproductor»): only 4 call sites log their own
+        // PLAYER_EXPAND, and none of them showed up for the last report. This logs WHO asked, for every expand of a sheet that is not
+        // already open: the first caller outside this file (class and line; names are the R8-mapped ones, the mapping file of the
+        // build decodes them). No user data.
+        if (!isExpanded) {
+            val caller = Throwable().stackTrace.firstOrNull { !it.className.contains("BottomSheet") && !it.className.startsWith("java.") }
+            Timber.tag("BottomSheet").i("SHEET_EXPAND from=%s:%d", caller?.className?.substringAfterLast('.') ?: "?", caller?.lineNumber ?: -1)
+        }
         onAnchorChanged(expandedAnchor)
         coroutineScope.launch {
             // From the collapsed position the whole player tree is composed on the first frame of the flip, and the

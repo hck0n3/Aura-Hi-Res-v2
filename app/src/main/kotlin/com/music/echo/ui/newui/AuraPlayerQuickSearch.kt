@@ -439,6 +439,9 @@ fun AuraPlayerQuickSearchContent(
                         AuraSearchDetailPane(
                             pick = pickedInDetail,
                             navController = navController,
+                            // Row 507 (owner 2026-10-29): unfolded, a tapped track played at once; the player's search asks
+                            // (now / next / queue / list) exactly as it does with the foldable closed.
+                            askBeforePlaying = true,
                         )
                     }
                 }

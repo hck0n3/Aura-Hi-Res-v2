@@ -1,5 +1,6 @@
 package iad1tya.echo.music.applecanvas
 
+import iad1tya.echo.music.canvas.AppleCanvasDiagnostics
 import iad1tya.echo.music.canvas.CanvasArtwork
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -172,6 +173,10 @@ object AppleMusicCanvasProvider {
             }
             if (response.status != HttpStatusCode.OK) {
                 AppleCanvasLogger.w("search failed with status ${response.status}")
+                AppleCanvasDiagnostics.log("APPLE_CANVAS search status=${response.status.value}")
+                if (response.status == HttpStatusCode.Unauthorized || response.status == HttpStatusCode.Forbidden) {
+                    AppleMusicTokenProvider.invalidate()
+                }
                 return@runCatching null
             }
 
@@ -354,6 +359,10 @@ object AppleMusicCanvasProvider {
             }
             if (response.status != HttpStatusCode.OK) {
                 AppleCanvasLogger.w("album fetch failed for $albumId: ${response.status}")
+                AppleCanvasDiagnostics.log("APPLE_CANVAS album status=${response.status.value}")
+                if (response.status == HttpStatusCode.Unauthorized || response.status == HttpStatusCode.Forbidden) {
+                    AppleMusicTokenProvider.invalidate()
+                }
                 return@runCatching null
             }
 

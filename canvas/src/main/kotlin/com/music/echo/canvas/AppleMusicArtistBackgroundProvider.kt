@@ -105,7 +105,13 @@ object AppleMusicArtistBackgroundProvider {
                 parameter("types", "artists")
                 parameter("limit", "3")
             }
-            if (response.status != HttpStatusCode.OK) return@runCatching null
+            if (response.status != HttpStatusCode.OK) {
+                AppleCanvasDiagnostics.log("APPLE_ARTIST search status=${response.status.value}")
+                if (response.status == HttpStatusCode.Unauthorized || response.status == HttpStatusCode.Forbidden) {
+                    AppleMusicTokenProvider.invalidate()
+                }
+                return@runCatching null
+            }
 
             val root = response.body<JsonObject>()
             val results = root["results"]?.jsonObject?.get("artists")?.jsonObject?.get("data")?.jsonArray ?: return@runCatching null
@@ -149,7 +155,13 @@ object AppleMusicArtistBackgroundProvider {
                 header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                 parameter("extend", "editorialVideo,editorialArtwork")
             }
-            if (response.status != HttpStatusCode.OK) return@runCatching null
+            if (response.status != HttpStatusCode.OK) {
+                AppleCanvasDiagnostics.log("APPLE_ARTIST lookup status=${response.status.value}")
+                if (response.status == HttpStatusCode.Unauthorized || response.status == HttpStatusCode.Forbidden) {
+                    AppleMusicTokenProvider.invalidate()
+                }
+                return@runCatching null
+            }
 
             val root = response.body<JsonObject>()
             val data = root["data"]?.jsonArray

@@ -185,7 +185,7 @@ fun ArtistItemsScreen(
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         ) {
             itemsIndexed(
-                items = itemsPage?.items.orEmpty().distinctBy { it.id },
+                items = ArtistDiscography.dedupe(itemsPage?.items.orEmpty()),
                 key = { _, it -> it.id },
             ) { index, item ->
                 val songItem = item as? SongItem
@@ -236,7 +236,7 @@ fun ArtistItemsScreen(
                         else -> false
                     },
                     isPlaying = isPlaying,
-                    shape = listItemShape(index, itemsPage?.items.orEmpty().distinctBy { it.id }.size),
+                    shape = listItemShape(index, ArtistDiscography.dedupe(itemsPage?.items.orEmpty()).size),
                     trailingContent = {
                         IconButton(
                             onClick = {
@@ -316,7 +316,7 @@ fun ArtistItemsScreen(
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
         ) {
             items(
-                items = itemsPage?.items.orEmpty().distinctBy { it.id }
+                items = ArtistDiscography.dedupe(itemsPage?.items.orEmpty())
                     .sortedByDescending { (it as? AlbumItem)?.year ?: 0 },
                 key = { it.id }
             ) { item ->

@@ -454,6 +454,31 @@ constructor(
                     // Show the YouTube list IMMEDIATELY (fast), then complete it against iTunes/Apple Music
                     // in the background and publish the full discography in ONE update (not in batches).
                     itemsPage.value = ItemsPage(items = baseItems, continuation = continuation)
+                    // Row 613: the artist's SONGS list (YouTube's own page of it) leaves songs out; add what a search for the artist finds.
+                    // Not for the artist's VIDEOS list (those are songs flagged as video): a song search must not add audio tracks to it.
+                    if (baseItems.isNotEmpty() && baseItems.all { it is SongItem && !it.isVideoSong }) {
+                        viewModelScope.launch {
+                            val name = resolveArtistName() ?: return@launch
+                            val found = withTimeoutOrNull(9_000L) {
+                                val first = YouTube.search(name, YouTube.SearchFilter.FILTER_SONG).getOrNull() ?: return@withTimeoutOrNull emptyList()
+                                val more = first.continuation?.let { YouTube.searchContinuation(it).getOrNull()?.items.orEmpty() }.orEmpty()
+                                (first.items + more).filterIsInstance<SongItem>()
+                            }.orEmpty()
+                            val extra = iad1tya.echo.music.ui.screens.artist.ArtistDiscography
+                                .missingSongs(baseItems.filterIsInstance<SongItem>(), found, name)
+                                .filterExplicit(hideExplicit)
+                                .filterVideoSongs(hideVideoSongs)
+                                .let { iad1tya.echo.music.utils.UnavailableSongs.playableOnly(it) }
+                            if (extra.isNotEmpty()) {
+                                Timber.tag("ArtistItems").i("ARTIST_SONGS_COMPLETED listed=%d added=%d", baseItems.size, extra.size)
+                                val current = itemsPage.value
+                                itemsPage.value = ItemsPage(
+                                    items = (current?.items ?: baseItems) + extra,
+                                    continuation = current?.continuation ?: continuation,
+                                )
+                            }
+                        }
+                    }
                     if (baseItems.any { it is AlbumItem }) {
                         // Key by artist AND browse: the same artist's Albums and Singles/EP see-all screens
                         // share artistId but differ by browseId. Keying by artistId alone made opening one

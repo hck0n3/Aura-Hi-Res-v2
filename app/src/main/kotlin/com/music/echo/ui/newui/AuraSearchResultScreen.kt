@@ -208,6 +208,18 @@ fun AuraSearchResultScreen(
         derivedStateOf { searchFilter?.value?.let { viewModel.viewStateMap[it] } }
     }
 
+    // Row 618 (owner 2026-10-31: «los resultados de búsqueda aparecen desde abajo; deben verse desde arriba»): Compose keeps a list's scroll by
+    // the KEY of the first visible row, so when the results of a new search replace the old ones after the reset above already ran (the
+    // filtered pages arrive later than the summary) the list could stay scrolled down. The first result's identity changing is a new
+    // result set: back to the top, unless the user is scrolling it right now. Loading more appends at the END and changes nothing here.
+    val firstResultId = itemsPage?.items?.firstOrNull()?.id ?: searchSummary?.summaries?.firstOrNull()?.items?.firstOrNull()?.id
+    LaunchedEffect(firstResultId) {
+        if (firstResultId != null) {
+            if (!lazyListState.isScrollInProgress) lazyListState.scrollToItem(0)
+            if (!gridState.isScrollInProgress) gridState.scrollToItem(0)
+        }
+    }
+
     LaunchedEffect(lazyListState) {
         snapshotFlow {
             lazyListState.layoutInfo.visibleItemsInfo.any { it.key == "aura_results_loading" }

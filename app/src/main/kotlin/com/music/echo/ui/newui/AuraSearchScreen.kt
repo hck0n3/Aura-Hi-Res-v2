@@ -263,6 +263,7 @@ fun AuraSearchScreen(
                 title = stringResource(R.string.search),
                 trailing = { AuraTopActions() },
                 collapseTrailing = true,
+                glassActions = true,
             )
 
             AuraSearchInputBar(
@@ -873,7 +874,11 @@ internal fun rememberAuraVoiceSearch(
     // requestDirect already sets opening=true before launching the permission flow, so the
     // instant feedback is preserved.
     val launch = {
-        if (recognizer != null) {
+        // Row 611: a tap that arrives while the mic is still OPENING (the 6 s watchdog below always clears it) must not start a SECOND session (the recognizer answers
+        // by restarting and the system «ready» sound plays twice — owner 2026-10-31: «se activa dos veces»).
+        if (opening) {
+            Unit
+        } else if (recognizer != null) {
             requestDirect()
         } else {
             // No in-process recognizer visible to us: hand off to the OS dialog if any app can

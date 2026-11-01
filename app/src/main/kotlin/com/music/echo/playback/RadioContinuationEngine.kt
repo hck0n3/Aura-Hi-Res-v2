@@ -261,7 +261,13 @@ import timber.log.Timber
  * internal. Behaviour is unchanged; see docs/REGRESSION_REGISTRY.md rows #22, #34, #60, #95, #299–#313,
  * #321/#324 and #344/#346 for what this engine guarantees.
  */
-fun MusicService.startRadioSeamlessly() {
+fun MusicService.startRadioSeamlessly(
+    /**
+     * Row 503: prime the continuation one song EARLY ([RadioQueueShaping.mayPrimeEarly]): the batch is appended AFTER the last
+     * item of the queue instead of replacing everything after the playing song, so the album's last song is never cut.
+     */
+    earlyPrime: Boolean = false,
+) {
     // Offline mode: never seed radio / related / YouTube next — that is network by definition.
     if (dataStore.get(OfflineModeKey, false)) {
         resumeAfterSeed = false
@@ -549,7 +555,9 @@ fun MusicService.startRadioSeamlessly() {
             }
             // Recompute the index from the LIVE player at append time (not a stale value captured before the
             // network fetch), so we never remove items relative to a position that has since moved.
-            val liveIndex = player.currentMediaItemIndex
+            // Row 503: an early prime appends after the LAST item (the playing song is the one before it); a normal seed
+            // appends after the playing song, which IS the last.
+            val liveIndex = if (earlyPrime) player.mediaItemCount - 1 else player.currentMediaItemIndex
             val itemCount = player.mediaItemCount
             // Order FIRST, then decide. orderedByTaste() can return an EMPTY list (e.g. every candidate is a
             // hard-disliked artist), and the old order — remove-then-append — truncated the queue to the
@@ -750,7 +758,10 @@ fun MusicService.startRadioSeamlessly() {
             // Row 459 (owner 2026-10-20: rap cristiano en español → reggaetón → hip hop en inglés): relaxation level 2
             // no longer switches the gate OFF — the style and the genre family stand down but the LANGUAGE still
             // holds (languageOnly); only level 3 plays anything, and only after every coherent source came back empty.
-            val styled = if (contextSteerActive && keepGenreLaneHint && relaxLevel < 3) {
+            // Row 503 (owner 2026-10-29): level 3 no longer plays ANYTHING — it drops only the genre-family fence; the
+            // language and, in a Christian context, the faith still hold, and a context that says nothing at all is the
+            // only one the gate leaves alone (exactStyleFilter returns null for it).
+            val styled = if (contextSteerActive && keepGenreLaneHint) {
                 exactStyleFilter(
                     items = languageOrdered.first,
                     anchor = radioAnchorMetadata ?: currentMediaMetadata,
@@ -761,6 +772,7 @@ fun MusicService.startRadioSeamlessly() {
                     minMatches = iad1tya.echo.music.reco.StyleContinuity.MIN_MATCHES,
                     allowSearch = true,
                     languageOnly = relaxLevel >= 2,
+                    dropFamilies = relaxLevel >= 3,
                 )
             } else {
                 null
@@ -1237,7 +1249,7 @@ fun MusicService.startRadioSeamlessly() {
         if (!appended) {
             relaxLevel = 3
             appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
-            if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the style gate off")
+            if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the language and faith gates only")
         }
         // Autoplay chips: the seed just landed (appendSeed ran) → refresh the queue-footer
         // suggestions for THIS seed. Bounded: no-ops if this seed's chips are already loaded.

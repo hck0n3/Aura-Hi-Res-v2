@@ -31,4 +31,19 @@ class LicenseStatusParserTest {
     @Test fun garbageBodyIsNetworkError() {
         assertEquals(LicenseStatus.NETWORK_ERROR, LicenseStatusParser.parse("<html>502</html>"))
     }
+
+    @Test fun emailMismatch() {
+        assertEquals(
+            LicenseStatus.EMAIL_MISMATCH,
+            LicenseStatusParser.parse("""{"status":"email_mismatch"}"""),
+        )
+    }
+
+    @Test fun emailVerifiedOnlyWhenTheWorkerSaysSo() {
+        assertEquals(true, LicenseStatusParser.emailVerified("""{"status":"active","email_ok":true}"""))
+        // a master key, an old Worker, no email typed, or garbage: never verified
+        assertEquals(false, LicenseStatusParser.emailVerified("""{"status":"active"}"""))
+        assertEquals(false, LicenseStatusParser.emailVerified("""{"status":"active","email_ok":false}"""))
+        assertEquals(false, LicenseStatusParser.emailVerified("<html>502</html>"))
+    }
 }

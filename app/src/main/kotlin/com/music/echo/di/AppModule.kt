@@ -184,6 +184,9 @@ object AppModule {
             userAgent = "Aura/${iad1tya.echo.music.BuildConfig.VERSION_NAME} " +
                 "(${iad1tya.echo.music.BuildConfig.APPLICATION_ID}; Android ${android.os.Build.VERSION.RELEASE})",
             serverUrl = urlSupplier,
+            auraRooms = {
+                iad1tya.echo.music.utils.PrefsBridge.peek(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey) ?: true
+            },
         )
     }
 

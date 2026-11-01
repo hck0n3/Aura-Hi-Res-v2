@@ -60,15 +60,34 @@ object ArtistStyleMemory {
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private const val SCHEMA_KEY = "__schema"
+
+    /**
+     * Row 604 (owner 2026-10-31, beta 11: «estaba escuchando música clásica cristiana y pasó a cristiana de niños»): until beta 10 this memory
+     * was also TAUGHT the style a search had asked for (`implied`) for every artist the search returned, with no evidence of its own, and the
+     * queue then admitted those artists «by learned» for ever. Beta 11 stopped teaching it, but what was already written stayed (the beta-11 log
+     * still admits songs `kept by learned=4`). Once, at the first read after this update, the memory is emptied; it relearns from what the songs
+     * say about themselves and from Last.fm tags. Values that are not strings (this marker) are ignored by [snapshot].
+     */
+    @Synchronized
+    private fun ensureCurrent(context: Context) {
+        val p = prefs(context)
+        if (p.getInt(SCHEMA_KEY, 0) < SCHEMA_VERSION) p.edit().clear().putInt(SCHEMA_KEY, SCHEMA_VERSION).apply()
+    }
+
+    const val SCHEMA_VERSION = 2
+
     /** One disk read; call off the main thread, once per batch. */
-    fun snapshot(context: Context): Memory =
-        prefs(context).all.mapNotNull { (k, v) -> (v as? String)?.let { k to decode(it) } }.toMap()
+    fun snapshot(context: Context): Memory {
+        ensureCurrent(context)
+        return prefs(context).all.mapNotNull { (k, v) -> (v as? String)?.let { k to decode(it) } }.toMap()
+    }
 
     /** Adds [observations] (artist → style) and persists only the artists that changed. Off the main thread. */
     @Synchronized
     fun learn(context: Context, observations: List<Pair<String, String>>) {
         if (observations.isEmpty()) return
-        val before = snapshot(context)
+        val before = snapshot(context) // also runs the one-time purge (ensureCurrent)
         val after = merged(before, observations)
         val changed = observations.mapNotNull { key(it.first) }.toSet()
         val edit = prefs(context).edit()

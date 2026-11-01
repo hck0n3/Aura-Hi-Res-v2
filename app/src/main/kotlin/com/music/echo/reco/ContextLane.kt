@@ -250,6 +250,33 @@ object ContextLane {
         val extra: Boolean get() = language != null || families.isNotEmpty()
     }
 
+    /**
+     * Row 527: the family that leads [known] (the families of a batch's known songs, in batch order) when there are at least
+     * [minKnown] of them and one holds [share] of them; otherwise none. Pure.
+     */
+    fun consensusFamilies(known: List<String>, minKnown: Int, share: Double): Set<String> {
+        if (known.size < minKnown) return emptySet()
+        val top = known.groupingBy { it }.eachCount().maxByOrNull { it.value } ?: return emptySet()
+        return if (top.value.toDouble() / known.size >= share) setOf(top.key) else emptySet()
+    }
+
+    /**
+     * Row 580 — which families lead a context whose own style is unknown. The FIRST answer stands for the whole context: a later
+     * batch, however it votes, never replaces it, so one drifted batch cannot drag the next ones along (owner 2026-10-31: «se
+     * desvía de verdad»). A new queue starts without one. Pure.
+     */
+    fun lockedConsensus(locked: Set<String>?, fresh: Set<String>): Set<String> =
+        locked?.takeIf { it.isNotEmpty() } ?: fresh
+
+    /**
+     * Row 599 — the styles that lead a queue. [locked] (decided earlier) always wins; else the [detected] ones from the context, now locked;
+     * else, when the songs [heardToTheEnd] agree on exactly ONE style, that one; else null (still unknown). Pure.
+     */
+    fun stableStyles(locked: Set<String>?, detected: Set<String>?, heardToTheEnd: Set<String>): Set<String>? =
+        locked?.takeIf { it.isNotEmpty() }
+            ?: detected?.takeIf { it.isNotEmpty() }
+            ?: heardToTheEnd.takeIf { it.size == 1 }
+
     /** One candidate as the lane sees it: the style verdict plus language, family and faith evidence. */
     data class Candidate(
         val verdict: StyleContinuity.Verdict,
@@ -265,12 +292,13 @@ object ContextLane {
      *
      *  - 0 — the style (or, with it unknown, the genre family) matches and the language is the lane's;
      *  - 1 — the same, with the language unproven;
-     *  - 2 — style unproven, language proven, and (in a Christian lane) provably Christian;
-     *  - 3 — style unproven, language unproven, and (in a Christian lane) provably Christian;
-     *  - 4 — everything else that is not excluded.
+     *  - 2 — style unproven, language proven;
+     *  - 3 — style unproven, language unproven;
+     *  - [MAX_TIER] (4) is no longer handed out (row 503): it was «not provably Christian in a Christian lane».
      *
      * Excluded: an OFF style verdict; strong evidence of another language (unless the lane has none, i.e. the
-     * context is unknown or MIXED); a known family outside the lane's families.
+     * context is unknown or MIXED); a known family outside the lane's families; in a Christian lane, anything not
+     * provably Christian (row 503).
      */
     fun tier(lane: Lane, c: Candidate): Int? {
         if (c.verdict == StyleContinuity.Verdict.OFF) return null
@@ -283,13 +311,18 @@ object ContextLane {
         // «Proven» = the lane asks no language, or the candidate's evidence says it. A hint of ANOTHER language
         // proves nothing either way (it never excludes), so it only keeps the candidate out of the best steps.
         val languageProven = wanted == null || code == wanted
-        val faithOk = !lane.christian || c.christian
+        // Row 503 (owner 2026-10-29: «rap cristiano… a las tres o cinco canciones empezó a poner música secular, mantuvo
+        // el género pero no la religión»): in a Christian lane FAITH IS A GATE, not a ranking. Until now a candidate
+        // that was not provably Christian fell to the catch-all step 4, and the widening ([choose]) took that whole step
+        // whenever the better ones were fewer than `enough` — so a secular Spanish rap song with the right style was
+        // admitted at step 0/1 and the rest at step 4. The context's own artists and what a Christian search brought
+        // are proven by the caller ([iad1tya.echo.music.playback.exactStyleFilter]); anything else needs evidence.
+        if (lane.christian && !c.christian) return null
         return when {
             exact && languageProven -> 0
             exact -> 1
-            languageProven && faithOk -> 2
-            faithOk -> 3
-            else -> MAX_TIER
+            languageProven -> 2
+            else -> 3
         }
     }
 
@@ -298,6 +331,22 @@ object ContextLane {
      * non-excluded candidate when there are fewer). Best step first; inside a step the caller's order is kept,
      * except that in a Christian lane provably Christian candidates lead their step.
      */
+    /**
+     * Row 588 — the widening of [choose] takes the WHOLE next step, so a handful of proven songs plus a big step of style-unproven ones
+     * (tiers 2 and 3) let in every one of them (15% of what the queue admitted in the owner's logs). Unproven songs are only the FILLER
+     * that brings the total up to [enough]: the proven ones (tiers 0 and 1) all stay, and as many unproven as are still missing, best
+     * first. [kept] must already be in tier order ([choose] returns it that way). Pure.
+     */
+    fun <T> capUnproven(kept: List<T>, tierOf: (T) -> Int?, enough: Int): List<T> {
+        val proven = kept.count { (tierOf(it) ?: 0) <= 1 }
+        var room = (enough - proven).coerceAtLeast(0)
+        return kept.filter { item ->
+            if ((tierOf(item) ?: 0) <= 1) true
+            else if (room > 0) { room--; true }
+            else false
+        }
+    }
+
     fun <T> choose(items: List<T>, tiers: List<Int?>, christianFirst: List<Boolean>, enough: Int): List<T> {
         require(items.size == tiers.size && items.size == christianFirst.size)
         var cutoff = 0

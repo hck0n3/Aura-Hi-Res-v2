@@ -299,6 +299,8 @@ fun AddToPlaylistDialog(
                 val alreadyHasSong = playlist.id in playlistIdsWithSong
                 RoomyPlaylistListItem(
                     playlist = playlist,
+                    // Row 504: said in words under the name too, not only as a tick that a downloaded list's own tick hides.
+                    note = if (alreadyHasSong) stringResource(R.string.playlist_already_has_song) else null,
                     shape = if (premium) RectangleShape else listItemShape(index = index + 1, count = totalItemsCount),
                     trailingContent = {
                         // The mark, not a block: adding again is still allowed (that is what the
@@ -308,17 +310,12 @@ fun AddToPlaylistDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(end = 4.dp),
                             ) {
+                                // Not the plain tick: that one is the «downloaded» mark of the row.
                                 Icon(
-                                    painter = painterResource(R.drawable.check),
-                                    contentDescription = null,
+                                    painter = painterResource(R.drawable.library_add_check),
+                                    contentDescription = stringResource(R.string.playlist_already_has_song),
                                     tint = if (premium) AuraPalette.Teal else MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Text(
-                                    text = stringResource(R.string.playlist_already_has_song),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = if (premium) AuraPalette.Teal else MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(start = 4.dp),
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
                         }
@@ -349,6 +346,9 @@ fun AddToPlaylistDialog(
                                             if (e !is kotlinx.coroutines.CancellationException) {
                                                 timber.log.Timber.w("PLAYLIST_REMOTE_add failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
                                             }
+                                        }.onSuccess {
+                                            // Row 529: the user's other devices pull this list at once.
+                                            iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("playlists")
                                         }
                                     }
                                 }
@@ -397,6 +397,9 @@ fun AddToPlaylistDialog(
                                             if (e !is kotlinx.coroutines.CancellationException) {
                                                 timber.log.Timber.w("PLAYLIST_REMOTE_add failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
                                             }
+                                        }.onSuccess {
+                                            // Row 529: the user's other devices pull this list at once.
+                                            iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("playlists")
                                         }
                                     }
                                 }
@@ -424,6 +427,9 @@ fun AddToPlaylistDialog(
                                             if (e !is kotlinx.coroutines.CancellationException) {
                                                 timber.log.Timber.w("PLAYLIST_REMOTE_add failed: %s", iad1tya.echo.music.utils.privacySafeSummary(e))
                                             }
+                                        }.onSuccess {
+                                            // Row 529: the user's other devices pull this list at once.
+                                            iad1tya.echo.music.devicesync.DeviceSyncHub.controller?.libraryChanged("playlists")
                                         }
                                     }
                                 }

@@ -38,6 +38,8 @@ object StyleContinuity {
         val era: iad1tya.echo.music.playlistimport.MusicRequestEra.Range? = null,
     ) {
         val families: Set<String> = styles.orEmpty().mapNotNull { MusicStyle.familyOf(it) }.toSet()
+        /** Row 503: [families] plus the neighbourhood the queue may widen into ([MusicStyle.neighbourFamilies]). */
+        val neighbourFamilies: Set<String> get() = MusicStyle.neighbourFamilies(styles)
         val active: Boolean get() = !styles.isNullOrEmpty() || language != null || era != null
     }
 
@@ -61,6 +63,23 @@ object StyleContinuity {
     )
 
     enum class Verdict { MATCH, UNKNOWN, OFF }
+
+    /**
+     * Row 524: WHICH evidence decided [verdict] for [c] — a label for the diagnostic log only (counts, never a name). Mirrors the
+     * order of [verdict]: the track's own words, then the context's own artist, then a search for the style, then what is known
+     * of the artist (learned in this queue, or the genre tags), then only the family. `known` is the genre tag alone: the
+     * weakest proof of a style, and the one worth looking at when a queue «changes genre».
+     */
+    fun basis(target: Target, c: Candidate): String = when {
+        !target.active -> "inactive"
+        c.rejected -> "rejected"
+        c.textStyle != null && !target.styles.isNullOrEmpty() -> "text"
+        c.ownArtist -> "own"
+        c.fromSearch -> "search"
+        c.learnedStyle != null -> "learned"
+        c.genre.style != null -> "tag"
+        else -> "family"
+    }
 
     /** True when [style] is the parent of, or a style related to, one of the requested [styles] (row 434). */
     private fun isParentOf(style: String, styles: Set<String>): Boolean =
@@ -206,6 +225,18 @@ object StyleContinuity {
 
     const val COLLECTION_MIN_KNOWN = 3
     const val COLLECTION_STYLE_FLOOR = 0.15
+
+    /**
+     * Row 503: what to ask YouTube when a CHRISTIAN context knows no concrete style but knows its language, so the
+     * queue always has a source of provably Christian songs ("música cristiana"). Null without a language: asking for
+     * Spanish songs to someone listening to English ones would be a guess.
+     */
+    fun christianQuery(language: String?): String? = when (language) {
+        TitleLanguage.ES -> "música cristiana"
+        TitleLanguage.EN -> "christian music"
+        TitleLanguage.PT -> "música gospel"
+        else -> null
+    }
 
     /**
      * What to ask YouTube for more songs of [style] in this context: "cumbia cristiana", "rock en español",

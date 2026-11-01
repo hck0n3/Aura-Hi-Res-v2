@@ -76,7 +76,6 @@ import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.HomeRichLayoutKey
-import iad1tya.echo.music.constants.TopSize
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.db.entities.UpcomingReleaseEntity
 import iad1tya.echo.music.extensions.toMediaItem
@@ -118,8 +117,7 @@ import kotlinx.coroutines.withContext
  *    label, artist, age pill, «E», Reproducir / Abrir / ⋯);
  *  · type filters (Todo · Álbumes · Sencillos y EP · Canciones · Próximamente) that only appear when they have
  *    something behind them;
- *  · every shelf with a real title and «Ver todo» (expands it in place into a multi-column grid; «Top diario»
- *    keeps going to its own playlist screen);
+ *  · every shelf with a real title and «Ver todo» (expands it in place into a multi-column grid);
  *  · «Hoy» / «Ayer» / «Esta semana» / «Este mes» pills where the data HAS a date (the radar rows do; YouTube's
  *    «new albums» only carry a year, so those get nothing rather than a guessed label);
  *  · on a wide window the hero sits beside its text and «Más estrenos» is the same multi-browse carousel as
@@ -144,13 +142,7 @@ fun AuraNovedadesScreen(
 
     val radar by viewModel.radarReleases.collectAsState()
     val upcoming by viewModel.upcoming.collectAsState()
-    val newAlbums by viewModel.newAlbums.collectAsState()
-    val featured by viewModel.featuredSongs.collectAsState()
-    val moment by viewModel.momentSongs.collectAsState()
-    val listening by viewModel.listening.collectAsState()
-    val topSongs by viewModel.topSongs.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val (topSize) = rememberPreference(TopSize, "50")
     val (homeRichLayout) = rememberPreference(HomeRichLayoutKey, true)
     val cardScale = if (homeRichLayout) 1f else 1f / 1.25f
 
@@ -178,37 +170,30 @@ fun AuraNovedadesScreen(
             }
         }
     }
-    val heroRaw = (radarAlbums + newAlbums).distinctBy { it.id }.take(8)
+    val heroRaw = radarAlbums.distinctBy { it.id }.take(8)
     // First-seen id wins across every shelf so the same album/song never repeats in Novedades.
     val unique = remember(
-        heroRaw, featured, newAlbums, radarAlbums, moment, listening, topSongs, upcoming,
+        heroRaw, radarAlbums, upcoming,
     ) {
         val seen = linkedSetOf<String>()
         NovedadesUnique(
             hero = seen.claimUnique(heroRaw) { it.id },
-            featured = seen.claimUnique(featured) { it.id },
-            newAlbums = seen.claimUnique(newAlbums) { it.id },
             radarAlbums = seen.claimUnique(radarAlbums) { it.id },
-            moment = seen.claimUnique(moment) { it.id },
-            listening = seen.claimUnique(listening) { it.id },
-            topSongs = seen.claimUnique(topSongs.take(12)) { it.id },
             upcoming = seen.claimUnique(upcoming) { it.id },
         )
     }
 
     val allShelvesEmpty = with(unique) {
-        hero.isEmpty() && featured.isEmpty() && newAlbums.isEmpty() && radarAlbums.isEmpty() &&
-            moment.isEmpty() && listening.isEmpty() && topSongs.isEmpty() && upcoming.isEmpty()
+        hero.isEmpty() && radarAlbums.isEmpty() && upcoming.isEmpty()
     }
 
     // Type filters. Which ones are offered depends on what the lists really contain.
     val visibleFilters = remember(unique) {
-        val albumKinds = (unique.hero + unique.newAlbums + unique.radarAlbums).map { auraContentKind(it) }
+        val albumKinds = (unique.hero + unique.radarAlbums).map { auraContentKind(it) }
         NovedadesShelves.visibleFilters(
             hasAlbums = albumKinds.any { it == AuraContentKind.Album },
             hasSinglesAndEps = albumKinds.any { it == AuraContentKind.Single || it == AuraContentKind.Ep },
-            hasSongs = unique.featured.isNotEmpty() || unique.moment.isNotEmpty() || unique.topSongs.isNotEmpty() ||
-                unique.listening.any { NovedadesShelves.matches(NovedadesFilter.Songs, auraContentKind(it)) },
+            hasSongs = false,
             hasUpcoming = unique.upcoming.isNotEmpty(),
         )
     }
@@ -252,25 +237,6 @@ fun AuraNovedadesScreen(
             }
         }
     }
-    val playLocal: (Int, List<Song>, String) -> Unit = { index, queueSongs, title ->
-        playerConnection.playQueue(
-            ListQueue(
-                title = title,
-                items = queueSongs.map { it.toMediaItem() },
-                startIndex = index,
-            ),
-        )
-    }
-    val localMenu: (Song) -> Unit = { song ->
-        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        menuState.show {
-            SongMenu(
-                originalSong = song,
-                navController = navController,
-                onDismiss = menuState::dismiss,
-            )
-        }
-    }
     // The hero's «Reproducir»: the whole release as its own queue, the same album-radio path the classic
     // NewReleaseScreen and the radar's ▶ use. Radar rows have no playlist id, so it is resolved on the tap
     // (one request per tap, never per frame); a failure says so instead of doing nothing.
@@ -311,6 +277,7 @@ fun AuraNovedadesScreen(
                     title = stringResource(R.string.tab_novedades),
                     trailing = { AuraTopActions() },
                     collapseTrailing = true,
+                    glassActions = true,
                 )
                 Column(
                     modifier = Modifier
@@ -362,18 +329,13 @@ fun AuraNovedadesScreen(
         val seeLess = stringResource(R.string.novedades_see_less)
         // The shelf builders run in a non-composable scope, so every title is resolved here.
         val moreReleasesTitle = stringResource(R.string.novedades_more_releases)
-        val featuredTitle = stringResource(R.string.novedades_featured_songs)
-        val latestTitle = stringResource(R.string.novedades_latest_albums)
         val recentTitle = stringResource(R.string.novedades_recent_releases)
-        val momentTitle = stringResource(R.string.novedades_songs_of_the_moment)
-        val listeningTitle = stringResource(R.string.novedades_everyones_listening)
-        val dailyTitle = stringResource(R.string.novedades_daily_top)
         val comingSoonTitle = stringResource(R.string.novedades_coming_soon)
 
         PullToRefreshBox(
             state = pullRefreshState,
             isRefreshing = isRefreshing,
-            onRefresh = viewModel::refresh,
+            onRefresh = viewModel::refreshByUser,
             indicator = {
                 AuraPullRefreshIndicator(state = pullRefreshState, isRefreshing = isRefreshing)
             },
@@ -388,6 +350,7 @@ fun AuraNovedadesScreen(
                         title = stringResource(R.string.tab_novedades),
                         trailing = { AuraTopActions() },
                         collapseTrailing = true,
+                        glassActions = true,
                     )
                 }
 
@@ -511,47 +474,6 @@ fun AuraNovedadesScreen(
 
                 novedadesShelf(
                     layout = layout,
-                    key = "featured",
-                    title = featuredTitle,
-                    count = shown.featured.size,
-                    itemKey = { shown.featured[it].id },
-                    seeAllLabel = seeAll,
-                    seeLessLabel = seeLess,
-                ) { index, width ->
-                    NovedadesYtCard(
-                        item = shown.featured[index],
-                        width = width,
-                        cardScale = shelfScale,
-                        age = null,
-                        isActive = shown.featured[index].id == activeId,
-                        isPlaying = isPlaying,
-                        onOpen = openYt,
-                        onMenu = ytMenu,
-                    )
-                }
-                novedadesShelf(
-                    layout = layout,
-                    key = "latest",
-                    title = latestTitle,
-                    count = shown.newAlbums.size,
-                    itemKey = { shown.newAlbums[it].id },
-                    seeAllLabel = seeAll,
-                    seeLessLabel = seeLess,
-                    twoRowsHeight = auraShelfCardStackHeight(auraTypeVisual(AuraContentKind.Album).shelfWidth * shelfScale),
-                ) { index, width ->
-                    NovedadesYtCard(
-                        item = shown.newAlbums[index],
-                        width = width,
-                        cardScale = shelfScale,
-                        age = ages[shown.newAlbums[index].id],
-                        isActive = shown.newAlbums[index].id == activeAlbumId,
-                        isPlaying = isPlaying,
-                        onOpen = openYt,
-                        onMenu = ytMenu,
-                    )
-                }
-                novedadesShelf(
-                    layout = layout,
                     key = "recent",
                     title = recentTitle,
                     count = shown.radarAlbums.size,
@@ -576,75 +498,6 @@ fun AuraNovedadesScreen(
                 // únicamente la sección de novedades"*). Era la única sección de Novedades que no
                 // hablaba de lanzamientos: listas que YouTube marca como "actualizadas" y que ya
                 // aparecen en Inicio, así que en la práctica repetía contenido de otra pestaña.
-                novedadesShelf(
-                    layout = layout,
-                    key = "moment",
-                    title = momentTitle,
-                    count = shown.moment.size,
-                    itemKey = { shown.moment[it].id },
-                    seeAllLabel = seeAll,
-                    seeLessLabel = seeLess,
-                ) { index, width ->
-                    NovedadesLocalSongCard(
-                        song = shown.moment[index],
-                        width = width,
-                        cardScale = shelfScale,
-                        isActive = shown.moment[index].id == activeId,
-                        isPlaying = isPlaying,
-                        onClick = {
-                            val queue = shown.moment
-                            val at = queue.indexOfFirst { it.id == shown.moment[index].id }.coerceAtLeast(0)
-                            playLocal(at, queue, momentTitle)
-                        },
-                        onLongClick = { localMenu(shown.moment[index]) },
-                    )
-                }
-                novedadesShelf(
-                    layout = layout,
-                    key = "listening",
-                    title = listeningTitle,
-                    count = shown.listening.size,
-                    minItems = 1,
-                    itemKey = { shown.listening[it].id },
-                    seeAllLabel = seeAll,
-                    seeLessLabel = seeLess,
-                ) { index, width ->
-                    NovedadesYtCard(
-                        item = shown.listening[index],
-                        width = width,
-                        cardScale = shelfScale,
-                        age = null,
-                        isActive = shown.listening[index].id == activeId,
-                        isPlaying = isPlaying,
-                        onOpen = openYt,
-                        onMenu = ytMenu,
-                    )
-                }
-                novedadesShelf(
-                    layout = layout,
-                    key = "daily_top",
-                    title = dailyTitle,
-                    count = shown.topSongs.size,
-                    itemKey = { shown.topSongs[it].id },
-                    seeAllLabel = seeAll,
-                    seeLessLabel = seeLess,
-                    // Top diario keeps what its header did: open the whole playlist screen.
-                    onSeeAll = { navController.navigate("top_playlist/$topSize") },
-                ) { index, width ->
-                    NovedadesLocalSongCard(
-                        song = shown.topSongs[index],
-                        width = width,
-                        cardScale = shelfScale,
-                        isActive = shown.topSongs[index].id == activeId,
-                        isPlaying = isPlaying,
-                        onClick = {
-                            val queue = topSongs
-                            val at = queue.indexOfFirst { it.id == shown.topSongs[index].id }.coerceAtLeast(0)
-                            playLocal(at, queue, dailyTitle)
-                        },
-                        onLongClick = { localMenu(shown.topSongs[index]) },
-                    )
-                }
                 novedadesShelf(
                     layout = layout,
                     key = "coming_soon",
@@ -672,27 +525,16 @@ fun AuraNovedadesScreen(
 
 private data class NovedadesUnique(
     val hero: List<AlbumItem>,
-    val featured: List<SongItem>,
-    val newAlbums: List<AlbumItem>,
     val radarAlbums: List<AlbumItem>,
-    val moment: List<Song>,
-    val listening: List<YTItem>,
-    val topSongs: List<Song>,
     val upcoming: List<UpcomingReleaseEntity>,
 ) {
     /** The same lists after the type filter. [NovedadesFilter.All] is the identity. */
     fun filteredBy(which: NovedadesFilter): NovedadesUnique {
         if (which == NovedadesFilter.All) return this
         fun <T : YTItem> List<T>.keep(): List<T> = this.filter { NovedadesShelves.matches(which, auraContentKind(it)) }
-        val songsWanted = NovedadesShelves.matches(which, AuraContentKind.Song)
         return NovedadesUnique(
             hero = hero.keep(),
-            featured = featured.keep(),
-            newAlbums = newAlbums.keep(),
             radarAlbums = radarAlbums.keep(),
-            moment = if (songsWanted) moment else emptyList(),
-            listening = listening.keep(),
-            topSongs = if (songsWanted) topSongs else emptyList(),
             upcoming = if (which == NovedadesFilter.Upcoming) upcoming else emptyList(),
         )
     }
@@ -736,7 +578,7 @@ private const val NOVEDADES_GRID_CAP = 60
  * only the rows on screen).
  *
  * [card] draws the item at an index; [width] is null in the carousel (the card keeps its own shelf width) and the
- * cell width in the grid. [onSeeAll] replaces the in-place expansion (Top diario opens its playlist screen).
+ * cell width in the grid. [onSeeAll] replaces the in-place expansion when a shelf has a screen of its own.
  * [minItems] is [NovedadesShelves.MIN_SHELF_ITEMS] unless the shelf is one the owner never wants hidden.
  */
 private fun LazyListScope.novedadesShelf(
@@ -897,31 +739,6 @@ private fun NovedadesYtCard(
                 explicit = false,
             )
         },
-    )
-}
-
-@Composable
-private fun NovedadesLocalSongCard(
-    song: Song,
-    width: Dp?,
-    cardScale: Float,
-    isActive: Boolean,
-    isPlaying: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-) {
-    val visual = auraTypeVisual(AuraContentKind.Song)
-    AuraCoverCard(
-        title = song.song.title,
-        subtitle = song.artists.joinToString { it.name }.takeIf { it.isNotBlank() },
-        thumbnailUrl = song.song.thumbnailUrl,
-        seed = song.id,
-        width = width ?: (visual.shelfWidth * cardScale),
-        isActive = isActive,
-        isPlaying = isPlaying,
-        onClick = onClick,
-        onLongClick = onLongClick,
-        badge = { NovedadesCoverBadges(age = null, explicit = song.song.explicit) },
     )
 }
 
