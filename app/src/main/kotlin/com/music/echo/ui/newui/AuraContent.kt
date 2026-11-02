@@ -1110,7 +1110,10 @@ fun AuraSongRow(
     showGenreColumn: Boolean = false,
 ) {
     val playedCheck = playedInShuffle && !isActive
-    val dimmed = dimContent || playedCheck
+    // Row 638: offline, a song that does not play with zero network is drawn dimmed (never hidden).
+    val offlineDim = downloadId != null &&
+        iad1tya.echo.music.playback.OfflinePlayable.isDimmed(downloadId, iad1tya.echo.music.playback.LocalOfflinePlayable.current)
+    val dimmed = dimContent || playedCheck || offlineDim
     val columnsLayout = appleLayout && rememberAuraTrackColumns()
     val titleBadge: (@Composable () -> Unit)? =
         if (appleLayout && explicit) ({ AuraExplicitBadge() }) else null

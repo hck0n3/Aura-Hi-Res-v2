@@ -1856,7 +1856,27 @@ class MainActivity : ComponentActivity() {
                         null
                     }
                 }
+                // Row 638: while offline, which songs play with zero network (complete download / complete listen-cache copy /
+                // exported file). Recomputed only when the offline state or the downloads change — local metadata reads on IO.
+                val offlineNow = iad1tya.echo.music.utils.rememberOfflineState().offline
+                val offlineDownloads by downloadUtil.downloads.collectAsState()
+                val offlinePlayable by androidx.compose.runtime.produceState<Set<String>?>(null, offlineNow, offlineDownloads) {
+                    value = if (offlineNow) {
+                        withContext(Dispatchers.IO) {
+                            iad1tya.echo.music.playback.OfflinePlayable.compute(
+                                downloadUtil.downloadCache,
+                                downloadUtil.playerCache,
+                                runCatching { dataStore.data.first()[iad1tya.echo.music.constants.ExportedFileUrisKey].orEmpty() }
+                                    .getOrDefault(""),
+                                applicationContext,
+                            )
+                        }
+                    } else {
+                        null
+                    }
+                }
                 CompositionLocalProvider(
+                    iad1tya.echo.music.playback.LocalOfflinePlayable provides offlinePlayable,
                     LocalAuraHomeShortcut provides auraHomeShortcut,
                     LocalRingtoneViewModel provides ringtoneViewModel,
                     LocalDatabase provides database,

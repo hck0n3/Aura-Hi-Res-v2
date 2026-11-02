@@ -655,6 +655,10 @@ fun SongListItem(
     playedInShuffle: Boolean = false,
 ) {
     val swipeEnabled by rememberPreference(SwipeToSongKey, defaultValue = false)
+    // Row 638: offline, a song that does not play with zero network is drawn dimmed (never hidden).
+    val offlineDim = iad1tya.echo.music.playback.OfflinePlayable.isDimmed(
+        song.id, iad1tya.echo.music.playback.LocalOfflinePlayable.current,
+    )
 
     val content: @Composable () -> Unit = {
         ListItem(
@@ -702,7 +706,11 @@ fun SongListItem(
                 }
                 trailingContent()
             },
-            modifier = if (playedInShuffle && !isActive) modifier.alpha(0.5f) else modifier,
+            modifier = when {
+                offlineDim -> modifier.alpha(0.45f)
+                playedInShuffle && !isActive -> modifier.alpha(0.5f)
+                else -> modifier
+            },
             isSelected = isSelected,
             isActive = isActive,
             shape = shape,
