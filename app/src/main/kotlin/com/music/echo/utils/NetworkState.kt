@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 /**
  * 🔴 ¿HAY RED AHORA MISMO? — una sola respuesta para todo el proceso, observable desde Compose.
@@ -67,16 +68,24 @@ object NetworkState {
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = refresh()
         }
         runCatching { cm.registerDefaultNetworkCallback(callback) }
+            .onSuccess { Timber.tag("NetworkState").i("NET_STATE registered=true online=%b", _online.value) }
             .onFailure {
                 // Sin callback no hay automático: se queda en "hay red" y el interruptor manual sigue
                 // siendo la vía. Nunca al contrario.
                 _online.value = true
+                // Solo la clase de la excepción: sin mensaje, que podría llevar datos de la red.
+                Timber.tag("NetworkState").w("NET_STATE registered=false error=%s", it.javaClass.simpleName)
             }
     }
 
     private fun refresh() {
         val cm = connectivityManager ?: return
-        if (readNow(cm)) {
+        val now = readNow(cm)
+        // Row 645: one numbers-only line per network event so "the app never noticed it was offline" can be told apart from
+        // "it noticed and the screen ignored it".
+        // Only when the reading disagrees with the current state: capability events also fire on every signal change.
+        if (now != _online.value) Timber.tag("NetworkState").i("NET_STATE event readNow=%b was=%b", now, _online.value)
+        if (now) {
             pendingOffline?.cancel()
             pendingOffline = null
             _online.value = true
@@ -88,7 +97,9 @@ object NetworkState {
         pendingOffline = scope.launch {
             delay(AutoOfflinePolicy.OFFLINE_DEBOUNCE_MS)
             // Segunda lectura: el hueco puede haberse cerrado solo mientras esperábamos.
-            if (!readNow(cm)) _online.value = false
+            val still = readNow(cm)
+            if (!still) _online.value = false
+            Timber.tag("NetworkState").i("NET_STATE debounced readNow=%b online=%b", still, _online.value)
         }
     }
 
