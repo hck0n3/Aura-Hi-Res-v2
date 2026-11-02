@@ -2,6 +2,7 @@
 
 package iad1tya.echo.music.recognition
 
+import timber.log.Timber
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
@@ -175,6 +176,10 @@ object MusicRecognitionService {
 
         var lastNoMatch: RecognitionStatus.NoMatch? = null
         var lastError: RecognitionStatus.Error? = null
+        // Row 642: one numbers-only line per attempt.
+        val diagStartedAt = android.os.SystemClock.elapsedRealtime()
+        val diagWindows = ArrayList<String>()
+        var diagResult = "none"
         try {
             for (checkpointMs in ProgressiveRecognition.CHECKPOINTS_MS) {
                 // Esperar a que haya audio suficiente para ESTE punto (o a que la grabación acabe).
@@ -209,19 +214,53 @@ object MusicRecognitionService {
                     _recognitionStatus.value = RecognitionStatus.Processing
                 }
 
-                when (val outcome = queryWindow(bytes)) {
+                val windowStartedAt = android.os.SystemClock.elapsedRealtime()
+                val outcome = queryWindow(bytes)
+                val tookMs = android.os.SystemClock.elapsedRealtime() - windowStartedAt
+                when (outcome) {
                     is RecognitionStatus.Success -> {
+                        diagWindows += RecognitionDiag.window(checkpointMs, "match", tookMs)
+                        diagResult = "match"
                         recorder.cancel()
                         return@coroutineScope outcome
                     }
-                    is RecognitionStatus.NoMatch -> lastNoMatch = outcome
-                    is RecognitionStatus.Error -> lastError = outcome
+                    is RecognitionStatus.NoMatch -> {
+                        diagWindows += RecognitionDiag.window(checkpointMs, "nomatch", tookMs)
+                        lastNoMatch = outcome
+                    }
+                    is RecognitionStatus.Error -> {
+                        diagWindows += RecognitionDiag.window(checkpointMs, RecognitionDiag.errorCategory(outcome.message), tookMs)
+                        lastError = outcome
+                    }
                     else -> Unit
                 }
                 if (capture.isFinished() && capture.size() <= bytes.size) break
             }
         } finally {
             recorder.cancel()
+            if (diagResult != "match") {
+                diagResult = when {
+                    !currentCoroutineContext().isActive -> "cancelled"
+                    lastError != null && diagWindows.all { !it.contains(":nomatch:") } -> "error"
+                    lastNoMatch != null -> "nomatch"
+                    lastError != null -> "error"
+                    else -> "no-audio"
+                }
+            }
+            runCatching {
+                val recordedMs = capture.size() * 1000L / (RECORDING_SAMPLE_RATE * 2)
+                Timber.tag("RecognitionFgService").i(
+                    RecognitionDiag.line(
+                        source = RecognitionDiag.sourceName(capture.audioSource),
+                        recordedMs = recordedMs,
+                        peakDb = RecognitionDiag.levelDb(capture.peakAmplitude().toDouble()),
+                        rmsDb = RecognitionDiag.levelDb(capture.rmsAmplitude()),
+                        windows = diagWindows,
+                        result = diagResult,
+                        elapsedMs = android.os.SystemClock.elapsedRealtime() - diagStartedAt,
+                    ),
+                )
+            }
         }
 
         // Un error de red pesa más que un "no encontrado": ver el KDoc.
@@ -246,7 +285,26 @@ object MusicRecognitionService {
         @Volatile private var finished = false
         @Volatile private var error: Throwable? = null
 
-        fun write(data: ByteArray, length: Int) = synchronized(lock) { stream.write(data, 0, length) }
+        // Row 642: level statistics of what was recorded (numbers only), and which capture source the system gave.
+        @Volatile var audioSource: Int = -1
+        private var peak = 0
+        private var sumSquares = 0.0
+        private var samples = 0L
+
+        fun write(data: ByteArray, length: Int) = synchronized(lock) {
+            stream.write(data, 0, length)
+            var i = 0
+            while (i + 1 < length) {
+                val s = ((data[i + 1].toInt() shl 8) or (data[i].toInt() and 0xFF)).toShort().toInt()
+                val a = if (s < 0) -s else s
+                if (a > peak) peak = a
+                sumSquares += s.toDouble() * s
+                samples++
+                i += 2
+            }
+        }
+        fun peakAmplitude(): Int = synchronized(lock) { peak }
+        fun rmsAmplitude(): Double = synchronized(lock) { if (samples == 0L) 0.0 else kotlin.math.sqrt(sumSquares / samples) }
         fun size(): Int = synchronized(lock) { stream.size() }
         fun finish() { finished = true }
         fun isFinished(): Boolean = finished
@@ -332,6 +390,7 @@ object MusicRecognitionService {
         // smears the musical spectrum the Shazam fingerprint relies on. Prefer the cleanest source the
         // device offers, falling back only if construction fails.
         val audioRecord = createCleanAudioRecord(context, bufferSize)
+        sink.audioSource = audioRecord.audioSource
 
         // Belt-and-suspenders: even on VOICE_RECOGNITION/UNPROCESSED, some OEMs attach AGC/NS to the
         // capture session. Disable both if present — we want RAW music, not voice-cleaned audio. The
