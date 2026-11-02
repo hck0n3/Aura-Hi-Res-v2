@@ -107,11 +107,19 @@ fun dbToLinear(db: Double): Float = 10.0.pow(db / 20.0).toFloat()
 /**
  * Attenuate Safe Volume gain when the EQ preamp is positive so boosted masters do not saturate the
  * limiter (raspy voice at high preamp + Safe Volume ON).
+ *
+ * Row 639 (owner 2026-11-02: «cuando subo el preamp de decibeles casi no sube el volumen»). This only applies when the song's
+ * normalization gain is above 1 (quiet songs), and with the old factor 0.75 it took back 75 % of every dB the owner added:
+ * +6 dB of preamp gave +1.5 dB of real volume on those songs, while loud songs (gain <= 1) got the full +6. The factor is now
+ * [DEFAULT_PREAMP_FACTOR] (0.30): +6 dB of preamp gives +4.2 dB. The downstream true-peak soft limiter, not this trim, is what
+ * keeps the boosted peaks from clipping; the trim only keeps a share of the boost out of it.
  */
+const val DEFAULT_PREAMP_FACTOR = 0.30
+
 fun safeVolumeGainWithEqPreamp(
     baseGainLinear: Float,
     preampDb: Double,
-    preampFactor: Double = 0.75,
+    preampFactor: Double = DEFAULT_PREAMP_FACTOR,
 ): Float {
     if (baseGainLinear <= 1f || preampDb <= 0.0) return baseGainLinear
     val trim = dbToLinear(kotlin.math.max(0.0, preampDb) * preampFactor)
