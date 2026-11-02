@@ -286,6 +286,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // with the track unchanged, and is applied normally.
                     val playing = if (trackChanged && !isPlaying) lastRoomPlaying else isPlaying
                     lastRoomPlaying = playing
+                    val changeStartedAt = android.os.SystemClock.elapsedRealtime()
+                    var changeReused = false
                     if (trackChanged && track != null) {
                         val sameTrack = track.id == lastAppliedTrackId
                         lastAppliedTrackId = track.id
@@ -309,9 +311,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         // pressed next, or the song ended), jump to it in place: ExoPlayer has been pre-buffering it, so it starts at
                         // once instead of being torn down and resolved again (1-3 s later than the host, then a visible catch-up jump).
                         val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing) }
+                        changeReused = reused
                         if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing)
                     }
                     applyTransport(service, playing, position)
+                    if (trackChanged) {
+                        // Row 643: how much this device had of the new song when the room moved to it, and how long applying it took.
+                        // Numbers only (AGENTS rule 4). The «next song already downloaded on every device» claim needs THIS to be measured.
+                        val buffered = onMain { runCatching { service.player.bufferedPercentage }.getOrDefault(0) }
+                        Timber.tag(TAG).i(
+                            "LT_CHANGE reused=%b applyMs=%d bufferedPct=%d queue=%d",
+                            changeReused, android.os.SystemClock.elapsedRealtime() - changeStartedAt, buffered, queueIds.size,
+                        )
+                    }
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Failed to apply remote state")
                 } finally {
