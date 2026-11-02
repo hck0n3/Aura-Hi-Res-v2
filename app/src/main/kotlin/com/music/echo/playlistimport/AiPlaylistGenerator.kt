@@ -266,7 +266,7 @@ object AiPlaylistGenerator {
             )
             return karaoke
         }
-        val soloArtist = AiPlaylistConstraints.extractSoloArtist(intent.cleanPrompt)
+        val soloArtist = AiPlaylistConstraints.extractSoloArtist(intent.cleanPrompt) ?: confirmedBareArtist(intent)
         val startedAt = System.currentTimeMillis()
         val racedRaw = produceRacing(
             database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress, taste,
@@ -325,6 +325,25 @@ object AiPlaylistGenerator {
      * (asking the same track again must return the same track), and no AI (its titles cannot be verified as backing tracks).
      * Returns null when no backing track was found — an honest «no encontré nada», not the original song.
      */
+    /**
+     * Row 641: a request that is JUST a name («Luis Miguel», «pon Luis Miguel», «lo mejor de Luis Miguel») is a request for that
+     * artist and nobody else. The phrase only becomes the solo lock when the YouTube Music artist search returns an artist card whose
+     * name is exactly that name (a song title that looks like a name does not match one); with no artist, nothing changes and the
+     * request goes through the free route (AI, genres, moods) as before. Only a yes/no is logged (AGENTS rule 4).
+     */
+    internal suspend fun confirmedBareArtist(intent: MusicRequestIntent.Intent): String? {
+        if (intent.checkable || intent.likeArtist != null || intent.year != null || intent.era != null) return null
+        val candidate = AiPlaylistConstraints.bareArtistCandidate(intent.cleanPrompt) ?: return null
+        val confirmed = runCatching {
+            YouTube.search(candidate, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()
+                ?.items?.filterIsInstance<com.music.innertube.models.ArtistItem>()
+                ?.firstOrNull { MusicRequestArtist.sameName(it.title, candidate) }
+                ?.title
+        }.getOrNull()
+        timber.log.Timber.i("MUSIC_REQUEST bare artist candidate confirmed=%b", confirmed != null)
+        return confirmed
+    }
+
     private suspend fun produceKaraoke(ask: MusicRequestKaraoke.Ask, count: Int): Produced? {
         val target = count.coerceAtLeast(1)
         return try {
@@ -582,6 +601,7 @@ object AiPlaylistGenerator {
     ): kotlin.Result<Result> {
         val target = count
         val soloArtist = AiPlaylistConstraints.extractSoloArtist(prompt)
+            ?: confirmedBareArtist(MusicRequestIntent.parse(prompt))
 
         // La escalera (IA → búsqueda) vive en [produceInternal], compartida con [produce]. Lo que
         // queda aquí es lo propio de GUARDAR una playlist: la etiqueta honesta del origen y la

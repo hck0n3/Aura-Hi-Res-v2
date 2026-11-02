@@ -56,6 +56,35 @@ object AiPlaylistConstraints {
         return null
     }
 
+    /**
+     * Row 641 (owner 2026-11-02: «pido Luis Miguel y me salen los de Luis Miguel pero también Cristian Castro, Ricardo Montaner»).
+     * [extractSoloArtist] only locks to one artist when the phrase has a trigger («solo X», «canciones de X», …). A bare name —
+     * «Luis Miguel», «pon Luis Miguel», «quiero escuchar a Luis Miguel», «lo mejor de Luis Miguel» — has none, so the request
+     * went to the radio of that artist: similar artists. This returns the NAME such a phrase would be, or null. It is only a
+     * CANDIDATE: the caller must still confirm it is a real artist (an exact artist-card match), because a song title looks
+     * the same on paper. Genres, moods, decades and themes are never a candidate ([cleanArtistCandidate]).
+     */
+    fun bareArtistCandidate(prompt: String): String? {
+        var s = prompt.trim()
+        if (s.isBlank() || s.length > 60) return null
+        if (extractSoloArtist(s) != null) return null
+        val filler = Regex("""(?iu)^\s*(?:(?:por\s+favor|ponme|pon|poner|dame|quiero\s+escuchar|quiero|reproduce|reprod[uú]ceme|reproducir|escuchar|me\s+gustar[ií]a\s+escuchar)\s+)+""")
+        val hadFiller = filler.containsMatchIn(s)
+        s = filler.replace(s, "")
+        // «lo mejor de X», «los mejores éxitos de X», «grandes éxitos de X»
+        s = Regex("""(?iu)^\s*(?:lo\s+mejor|los\s+mejores(?:\s+(?:[eé]xitos|temas|canciones))?|mejores\s+(?:[eé]xitos|temas|canciones)|grandes\s+[eé]xitos|[eé]xitos)\s+(?:de\s+|del\s+)?""")
+            .replaceFirst(s, "")
+        // «pon a Luis Miguel»: the «a» is the preposition only when something was asked before it (A$AP, A Great Big World stay).
+        if (hadFiller) s = Regex("""(?iu)^\s*(?:a|al)\s+(?=\S+)""").replaceFirst(s, "")
+        s = s.trim().trim('"', '\'', '«', '»').trim()
+        if (s.isBlank()) return null
+        val words = s.split(Regex("""\s+""")).filter { it.isNotBlank() }
+        if (words.size > 5) return null
+        // A comma, a question or a colon is a sentence, not a name.
+        if (!s.all { it.isLetterOrDigit() || it == ' ' || it in ".&'-$!·" }) return null
+        return cleanArtistCandidate(s)
+    }
+
     private val NEGATION_TRIGGERS = listOf("no", "nunca", "sin", "excepto", "tampoco", "menos")
 
     /** True if a negation word appears anywhere before [matchStart] in [raw] (word-boundary match). */
