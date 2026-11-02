@@ -8547,9 +8547,30 @@ class MusicService :
      */
     internal fun hasLiveInternetConnection(): Boolean = runCatching {
         val net = connectivityManager.activeNetwork ?: return@runCatching false
-        connectivityManager.getNetworkCapabilities(net)
-            ?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        val caps = connectivityManager.getNetworkCapabilities(net) ?: return@runCatching false
+        NetworkProbePolicy.usable(
+            hasInternetCapability = caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET),
+            validated = caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+            dnsOk = ::dnsReachable,
+        )
     }.getOrDefault(true)
+
+    // Row 644: the last DNS probe (when, answer). Only used on a network Android did not validate.
+    @Volatile private var dnsProbe: Pair<Long, Boolean>? = null
+
+    /** One short DNS lookup; fail-open (true) on anything unexpected. Reused for [NetworkProbePolicy.CACHE_MS]. */
+    private fun dnsReachable(): Boolean {
+        val now = android.os.SystemClock.elapsedRealtime()
+        dnsProbe?.let { (at, ok) -> if (NetworkProbePolicy.cacheValid(at, now)) return ok }
+        val ok = runCatching {
+            val task = java.util.concurrent.FutureTask { java.net.InetAddress.getAllByName("www.youtube.com").isNotEmpty() }
+            Thread(task, "dns-probe").apply { isDaemon = true }.start()
+            task.get(NetworkProbePolicy.DNS_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+        }.getOrElse { e -> e !is java.util.concurrent.TimeoutException && e.cause !is java.net.UnknownHostException }
+        dnsProbe = now to ok
+        Timber.tag("MusicService").i("NETWORK_PROBE validated=false dnsOk=%b", ok)
+        return ok
+    }
 
 
     // Data source for the VIDEO-mode track: a plain OkHttp source that sets the correct per-client
