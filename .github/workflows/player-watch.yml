@@ -4,8 +4,11 @@
 name: Player watch
 
 on:
-  schedule:
-    - cron: "17,47 * * * *"
+  # PAUSED on the owner's order (2026-11-02): on GitHub's servers music.youtube.com does not return the page that carries
+  # the player URL ("Could not find the player in music.youtube.com"), so every run failed red and the watcher was blind.
+  # Put the schedule back ONLY once the fetch is fixed and proven by a manual run:
+  #   schedule:
+  #     - cron: "17,47 * * * *"
   workflow_dispatch:
     inputs:
       force:
