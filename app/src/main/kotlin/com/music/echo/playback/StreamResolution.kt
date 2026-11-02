@@ -580,6 +580,16 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         // copy (served just above) may play. A partial cache / songUrlCache / YT resolve all need the
         // network — refuse them while OfflineModeKey is ON.
         if (offlineModeOn) {
+            // Row 637 (owner 2026-11-02: offline mode lists songs and none of them plays): the shared log never said WHY a song was
+            // refused offline. Booleans and counts only (AGENTS rule 4 — no ids, titles or artists), one line per refusal.
+            Timber.tag(TAG).w(
+                "OFFLINE_REFUSE manual=%b liveNet=%b fullyDownloaded=%b spans=%d lengthKnown=%b bypass=%b forceOpus=%b exported=%b video=%b",
+                dataStore.get(OfflineModeKey, false), hasLiveInternetConnection(), isFullyDownloaded,
+                downloadCache.getCachedSpans(mediaId).size,
+                cachedLength != androidx.media3.common.C.LENGTH_UNSET.toLong() && cachedLength > 0,
+                shouldBypassCache, forceOpusForMediaId == mediaId, !exportedUri.isNullOrBlank(),
+                dataSpec.key?.startsWith("yt-video-") == true,
+            )
             throw PlaybackException(
                 getString(R.string.error_offline_not_downloaded),
                 null,
