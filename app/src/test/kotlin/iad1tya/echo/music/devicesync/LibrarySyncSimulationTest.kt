@@ -192,7 +192,7 @@ class LibrarySyncSimulationTest {
         override fun rewrite(map: Map<String, Reg>) { stored = HashMap(map) }
     }
 
-    inner class Device(val id: String, clockSkewMs: Long = 0L, val enabled: () -> Boolean = { true }) {
+    inner class Device(val id: String, clockSkewMs: Long = 0L, val enabled: () -> Boolean = { true }, secondary: Boolean = false) {
         val backend = FakeBackend()
         val ledger = FakeLedger()
         private var since = 0L
@@ -211,6 +211,7 @@ class LibrarySyncSimulationTest {
             isEnabled = enabled,
             clock = { System.currentTimeMillis() + clockSkewMs },
             timing = LibrarySync.Timing(fastDelayMs = 20, slowDelayMs = 20, minIntervalMs = 20, pullTimeoutMs = 2_000),
+            isSecondary = { secondary },
         )
 
         fun connect() {
@@ -259,6 +260,68 @@ class LibrarySyncSimulationTest {
         eventually("tablet has the playlist and its song") { tablet.backend.playlists["LPabcdefgh"] == "Gym" && ("LPabcdefgh" to "s3") in tablet.backend.members }
         assertTrue("the song's title came with it", tablet.backend.songs["s1"]?.title == "Título s1")
         assertTrue(("song" to "bad1") in tablet.backend.dislikes)
+    }
+
+    // ── row 640: the library flows from the primary (the device that generated the code) to the others ──
+
+    @Test
+    fun `a secondary device joining a room keeps what only it has but never shares it`() {
+        val phone = Device("phone")
+        phone.backend.like("s1"); phone.backend.like("s2")
+        phone.connect()
+        settle()
+
+        // The tablet is a secondary one with an OLD library: a like and a playlist the primary removed long ago.
+        val tablet = Device("tablet", secondary = true)
+        tablet.backend.like("old1")
+        tablet.backend.playlists["LPold12345"] = "Vieja"
+        tablet.connect()
+        eventually("the tablet receives the primary's likes") { tablet.backend.likes.containsAll(setOf("s1", "s2")) }
+        settle()
+        assertEquals("the old like never reached the room", null, room.value(LibrarySyncCore.likeKey("old1")))
+        assertEquals("the old playlist never reached the room", null, room.value(LibrarySyncCore.playlistKey("LPold12345")))
+        assertFalse("the primary did not get the old like back", "old1" in phone.backend.likes)
+        assertTrue("nothing was deleted on the secondary", "old1" in tablet.backend.likes && "LPold12345" in tablet.backend.playlists)
+    }
+
+    @Test
+    fun `a secondary device does not become the room's library while the primary has shared nothing`() {
+        val tablet = Device("tablet", secondary = true)
+        tablet.backend.like("old1")
+        tablet.connect()
+        settle()
+        assertEquals("the empty room stayed empty", null, room.value(LibrarySyncCore.likeKey("old1")))
+
+        val phone = Device("phone")
+        phone.backend.like("s1")
+        phone.connect()
+        eventually("the tablet gets the primary's library when it arrives") { "s1" in tablet.backend.likes }
+        settle()
+        assertEquals("and still never shared its own", null, room.value(LibrarySyncCore.likeKey("old1")))
+    }
+
+    @Test
+    fun `after joining, a secondary device still shares what it does from then on`() {
+        val phone = Device("phone")
+        phone.backend.like("s1")
+        phone.connect()
+        settle()
+        val tablet = Device("tablet", secondary = true)
+        tablet.connect()
+        eventually("joined") { "s1" in tablet.backend.likes }
+        settle()
+        tablet.backend.like("fresh"); tablet.changed()
+        eventually("a like made on the secondary after joining reaches the primary") { "fresh" in phone.backend.likes }
+    }
+
+    @Test
+    fun `a device that is not secondary behaves exactly as before - its library is shared`() {
+        val phone = Device("phone")
+        phone.backend.like("mine1")
+        phone.connect()
+        val tablet = Device("tablet")
+        tablet.connect()
+        eventually("a normal device shares its library") { "mine1" in tablet.backend.likes }
     }
 
     @Test

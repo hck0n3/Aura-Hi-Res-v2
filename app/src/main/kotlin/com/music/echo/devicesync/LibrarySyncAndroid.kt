@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import iad1tya.echo.music.constants.LibraryPinsKey
 import iad1tya.echo.music.utils.dataStore
@@ -41,6 +42,12 @@ object LibrarySyncAndroid {
             scope = scope,
             sendMessage = sendMessage,
             isEnabled = isEnabled,
+            isSecondary = {
+                // Row 640: primary = the device that generated the code it is using now; everything else is secondary.
+                val prefsNow = context.dataStore.data.first()
+                val current = prefsNow[DeviceSyncCodeKey].orEmpty()
+                current.isNotEmpty() && prefsNow[DeviceSyncGeneratedCodeKey].orEmpty() != current
+            },
             watchChanges = { kick ->
                 // Likes, playlists and their songs live in the database; whoever changes them, this fires.
                 val observer = object : InvalidationTracker.Observer("song", "playlist", "playlist_song_map", "speed_dial_item") {

@@ -88,6 +88,7 @@ fun DeviceSyncSettings(
 
     var server by rememberPreference(DeviceSyncServerKey, "")
     var code by rememberPreference(DeviceSyncCodeKey, "")
+    var generatedCode by rememberPreference(iad1tya.echo.music.devicesync.DeviceSyncGeneratedCodeKey, "")
     var deviceName by rememberPreference(DeviceSyncDeviceNameKey, "")
     var shuffle by rememberPreference(DeviceSyncShuffleKey, true)
     var handoff by rememberPreference(DeviceSyncHandoffKey, true)
@@ -303,7 +304,11 @@ fun DeviceSyncSettings(
                             IntegrationCardItem(
                                 icon = painterResource(R.drawable.add),
                                 title = { Text(stringResource(R.string.device_sync_code_create)) },
-                                onClick = { code = SyncCode.normalize(SyncCode.generate()).orEmpty() },
+                                onClick = {
+                                    val fresh = SyncCode.normalize(SyncCode.generate()).orEmpty()
+                                    code = fresh
+                                    generatedCode = fresh // row 640: this device generated it = the primary
+                                },
                             )
                         )
                         add(

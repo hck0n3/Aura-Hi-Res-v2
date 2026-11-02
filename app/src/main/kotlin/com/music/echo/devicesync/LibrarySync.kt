@@ -49,6 +49,12 @@ class LibrarySync(
     private val watchChanges: (kick: (fast: Boolean) -> Unit) -> () -> Unit = { {} },
     private val clock: () -> Long = { DeviceSyncHub.serverNow() },
     private val timing: Timing = Timing(),
+    /**
+     * Row 640 (owner 2026-11-02: the library must flow from the device that generated the code to the others, because an outdated
+     * device overwrites the up-to-date one). True when this device typed/scanned the code instead of generating it. Asked once,
+     * on the very first sync with a room (see [onStateLocked]); a device that is not secondary behaves exactly as before.
+     */
+    private val isSecondary: suspend () -> Boolean = { false },
 ) {
     /** Delays, in one place so a test can make them tiny. */
     data class Timing(
@@ -71,6 +77,10 @@ class LibrarySync(
 
     @Volatile private var connected = false
     @Volatile private var pulledOnce = false
+
+    /** Row 640: decided at the first pull answer of the session — never synced with a room before (empty ledger, since 0). */
+    private var firstSyncHere: Boolean? = null
+    private var adoptionHandled = false
 
     /** One `lib_pull` at a time: a big push makes the room send one `lib_ops` per batch, and a pull per signal is a storm (beta 4: 1656 pages in 5 s). */
     private val pullLock = Any()
@@ -205,6 +215,7 @@ class LibrarySync(
 
     private suspend fun onStateLocked(msg: JsonObject) {
         val ledger = ledger()
+        if (firstSyncHere == null) firstSyncHere = ledger.isEmpty() && since == 0L
         if ((msg["reset"] as? JsonPrimitive)?.booleanOrNull == true) {
             // The room was emptied or recreated: it has nothing of ours any more. Everything we know is pending again.
             since = 0L
@@ -246,6 +257,31 @@ class LibrarySync(
             // More pages, or the room announced new changes while this one was on its way: the next pull goes out now.
             sendPull()
             if (more) return
+        }
+        // Row 640: the first time a SECONDARY device (one that did not generate the code) meets a room, the room's library — the
+        // primary's — is the truth. What only this device has is kept here but never shared (it would come back to the primary as
+        // «newer» than the primary's own removals), and until the primary has shared anything this device does not become the
+        // room's library either.
+        if (firstSyncHere == true && !adoptionHandled) {
+            if (isSecondary()) {
+                val shared = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
+                if (shared == 0) {
+                    Timber.tag(TAG).i("LIB_SYNC waiting for the primary device (room has no library yet)")
+                    DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Waiting
+                    pullWatchdog?.cancel()
+                    return
+                }
+                val current = adapter.readLocal { key -> ledger.containsKey(key) }
+                val onlyHere = current.filter { (key, _) -> !ledger.containsKey(key) && !LibrarySyncCore.isMeta(key) }
+                val frozen = onlyHere.map { (key, value) -> Reg(key, 0L, value, pending = false) }
+                frozen.forEach { ledger[it.key] = it }
+                store.append(frozen)
+                Timber.tag(TAG).i("LIB_SYNC secondary adopted the primary library shared=%d onlyHere=%d", shared, frozen.size)
+                if (frozen.isNotEmpty()) {
+                    DeviceSyncHub.notice("Esta biblioteca ahora sigue a la del dispositivo principal. ${frozen.size} elementos que solo estaban aquí se quedan aquí y no se comparten.")
+                }
+            }
+            adoptionHandled = true
         }
         // Caught up: from here the room is the source of truth between the devices, and what is different HERE goes out.
         pulledOnce = true
