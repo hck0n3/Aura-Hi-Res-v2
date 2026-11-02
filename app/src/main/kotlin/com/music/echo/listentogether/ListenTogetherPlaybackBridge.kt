@@ -263,7 +263,10 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // Salir de la sala (o pasar a ser anfitrión) con la velocidad recortada la
                     // dejaría así para siempre: el ajuste solo se toca desde aquí, y aquí ya no se
                     // entra. Devolverla es parte de apagar la corrección, no un detalle.
-                    restoreUserTempo()
+                    // Row 636: this collector runs on the manager's Dispatchers.Default scope, and Media3 throws
+                    // "Player is accessed on the wrong thread" for ANY player access off main — restoring the speed
+                    // straight from here crashed the app when the owner ended a room.
+                    onMain { restoreUserTempo() }
                     return@collect
                 }
                 val service = serviceFlow.value ?: return@collect
