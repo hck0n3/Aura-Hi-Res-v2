@@ -305,6 +305,10 @@ class ListenTogetherSession(
         trackInfo: TrackInfo?,
         queue: List<TrackInfo> = emptyList(),
         queueTitle: String = "",
+        // Row 647: the server time read at the SAME instant as [position]. When null it is read here, which is AFTER the caller
+        // read the position (a coroutine hop and a main-thread wait later): the reference then lags by that gap, and every
+        // guest settles that much behind for the rest of the song.
+        capturedAtServerTime: Long? = null,
     ) = launch {
         client.send(
             MessageTypes.PLAYBACK_ACTION,
@@ -319,10 +323,13 @@ class ListenTogetherSession(
                 // its own next song and the room splits one track later.
                 queue = queue,
                 queueTitle = queueTitle,
-                capturedAtServerTime = client.serverNow() ?: 0L,
+                capturedAtServerTime = capturedAtServerTime ?: client.serverNow() ?: 0L,
             ),
         )
     }
+
+    /** The shared server clock now, or null before the first pong. Read it in the same breath as the position it stamps. */
+    fun serverNow(): Long? = client.serverNow()
 
     /** Publishes the whole queue. Host only; guests take the host's order verbatim. */
     fun sendQueue(

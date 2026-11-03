@@ -151,6 +151,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { publishStateWhenSomeoneArrives() }
         scope.launch { publishTrackChangesAsHost() }
         scope.launch { publishPlayPauseAsHost() }
+        scope.launch { publishHostReferenceHeartbeat() }
         scope.launch { publishQueueAsHost() }
         scope.launch { answerBufferBarrier() }
     }
@@ -239,6 +240,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 trackId = "",
                 position = progress,
                 trackInfo = null,
+                capturedAtServerTime = session.serverNow(),
             )
         }
     }
@@ -271,7 +273,10 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 }
                 val service = serviceFlow.value ?: return@collect
                 val (track, isPlaying, position, queueIds) = snapshot
-                Timber.tag(TAG).i("Room says: playing=%b pos=%d queue=%d", isPlaying, position, queueIds.size)
+                // Row 647: the host now re-publishes its position every few seconds; a position-only refresh is not news, so it
+                // is not logged (the LT_SYNC line already reports the correction it causes).
+                val positionOnly = isPlaying == lastRoomPlaying && position > 0L && !isNewTrackOrQueue(track, queueIds)
+                if (!positionOnly) Timber.tag(TAG).i("Room says: playing=%b pos=%d queue=%d", isPlaying, position, queueIds.size)
                 applyingRemote = true
                 try {
                     // Rebuild when the track changes OR when the queue behind it does — the queue
@@ -380,6 +385,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      * audio offload rechazado para siempre después de una sala — batería perdida sin que nada lo
      * diga.
      */
+    private fun isNewTrackOrQueue(track: TrackInfo?, queueIds: List<String>): Boolean =
+        (track != null && track.id.isNotBlank() && track.id != lastAppliedTrackId) || queueIds != lastAppliedQueueIds
+
     private var lastSyncLogAtMs = 0L
 
     /**
@@ -751,11 +759,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         }
                     } != null
                 if (started) {
+                    // Row 647: position and server time read together, so the room's reference is the host's REAL playhead.
+                    val (position, capturedAt) = positionStamp(service)
                     session.sendPlaybackAction(
                         action = PlaybackActions.PLAY,
                         trackId = "",
-                        position = onMain { safePosition(service) },
+                        position = position,
                         trackInfo = null,
+                        capturedAtServerTime = capturedAt,
                     )
                 }
             }
@@ -774,7 +785,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 // playWhenReady carries the intent, so a dip where the two disagree is not news.
                 val intent = playIntent.value
                 if (isPlaying != intent) return@collect
-                val position = onMain { safePosition(service) }
+                val (position, capturedAt) = positionStamp(service)
                 Timber.tag(TAG).i("Host publishing %s", if (intent) "PLAY" else "PAUSE")
                 session.sendPlaybackAction(
                     action = if (intent) PlaybackActions.PLAY else PlaybackActions.PAUSE,
@@ -785,9 +796,45 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     trackId = "",
                     position = position,
                     trackInfo = null,
+                    capturedAtServerTime = capturedAt,
                 )
             }
     }
+
+    /**
+     * Row 647 (owner 2026-11-02: «cuando cambio la canción se desincroniza, tengo que volver a poner la misma canción para que suene
+     * sincronizada»). The host used to publish ONE reference per song: a PLAY sent once the play intent committed — up to 2 s before
+     * audio is really running, from a `currentPosition` that is still settling, and stamped with the server time read AFTER the
+     * position (a coroutine hop later). Every guest then aligned to that single, off reference for the whole song, which is why the
+     * error was a different size on every track (+80, −20, −200 ms measured) and why re-selecting the same track (a fresh read) fixed it.
+     *
+     * Sonos / AirPlay / Snapcast do the opposite: a continuous stream of timestamped references. Here the host re-publishes its REAL
+     * playhead every [HOST_REFERENCE_MS] while audio is actually playing, as a PLAY with the position and the server time of the
+     * same instant. Guests already treat a room state with a new position as a correction event (same path as the 15 s heartbeat),
+     * so whatever offset the first reference had is gone within one beat. One small message every few seconds, only while hosting.
+     */
+    private suspend fun publishHostReferenceHeartbeat() {
+        while (true) {
+            delay(HOST_REFERENCE_MS)
+            val state = session.state.value
+            if (!state.inRoom || !state.isHost || applyingRemote) continue
+            val service = serviceFlow.value ?: continue
+            // Audible playback only: a buffering host reports a stalled position, which would be a worse reference than none.
+            if (!isPlayingNow.value || !playIntent.value) continue
+            val (position, capturedAt) = positionStamp(service)
+            session.sendPlaybackAction(
+                action = PlaybackActions.PLAY,
+                trackId = "",
+                position = position,
+                trackInfo = null,
+                capturedAtServerTime = capturedAt,
+            )
+        }
+    }
+
+    /** The host's playhead (what is HEARD) and the server time of that same instant, read together on the main thread. */
+    private suspend fun positionStamp(service: MusicService): Pair<Long, Long?> =
+        onMain { safePosition(service) to session.serverNow() }
 
     /**
      * Republishes the queue whenever the host's own queue changes — upstream's `publishQueueAsHost`.
@@ -907,6 +954,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
         /** Row 647: one LT_SYNC line per this many ms at most. */
         const val SYNC_LOG_EVERY_MS = 5_000L
+
+        /** Row 647: how often the host re-publishes its real playhead while audio is playing. */
+        const val HOST_REFERENCE_MS = 4_000L
 
         /** Poll step for the settle wait; the play intent is edge-triggered, not a suspending wait. */
         const val PLAY_SETTLE_POLL_MS = 50L
