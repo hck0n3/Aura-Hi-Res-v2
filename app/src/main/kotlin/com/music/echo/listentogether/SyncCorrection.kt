@@ -75,11 +75,22 @@ object SyncCorrection {
      *   ADELANTADO y tiene que ir más lento.
      * @param targetMs dónde debería estar, para el salto cuando el hueco es demasiado grande.
      */
-    fun correct(errorMs: Long, targetMs: Long): SyncAction = when {
+    fun correct(errorMs: Long, targetMs: Long, fastCatchUp: Boolean = false): SyncAction = when {
         abs(errorMs) <= IN_SYNC_MS -> SyncAction.Hold
-        abs(errorMs) > MAX_TRIM_MS -> SyncAction.Resync(targetMs.coerceAtLeast(0L))
+        abs(errorMs) > (if (fastCatchUp) FAST_RESYNC_MS else MAX_TRIM_MS) -> SyncAction.Resync(targetMs.coerceAtLeast(0L))
         else -> SyncAction.Trim(trimSpeed(errorMs))
     }
+
+    /**
+     * Row 647 (owner 2026-11-02: «al cambiar la canción sí se desincronizan bastante»). Right after a track change a guest starts the new
+     * song 100-250 ms behind (it only begins loading it when the room moves, 0 % buffered in 3 of 4 changes) and trimming at 2 % takes
+     * 8-15 s to close that: the error the owner hears. During [FAST_CATCHUP_WINDOW_MS] after a change an error above this jumps instead:
+     * a seek in the first seconds of a song is inaudible, a 10 s drift is not.
+     */
+    const val FAST_RESYNC_MS = 80L
+
+    /** How long after a track change the fast jump applies. Two host references (4 s apart) fit in it. */
+    const val FAST_CATCHUP_WINDOW_MS = 9_000L
 
     /**
      * La velocidad que cierra [errorMs] en [CONVERGE_SECONDS], recortada a [MAX_TRIM].

@@ -295,6 +295,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     var changeReused = false
                     if (trackChanged && track != null) {
                         val sameTrack = track.id == lastAppliedTrackId
+                        // Row 647: a NEW track opens the fast catch-up window (see [SyncCorrection.FAST_RESYNC_MS]); the same track being
+                        // rebuilt because its queue arrived late is not a change the guest has to catch up with.
+                        if (!sameTrack) lastTrackChangeAtMs = android.os.SystemClock.elapsedRealtime()
                         lastAppliedTrackId = track.id
                         lastAppliedQueueIds = queueIds
                         // Decided BEFORE loading, not corrected afterwards: loading with a hardcoded
@@ -319,7 +322,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         changeReused = reused
                         if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing)
                     }
-                    applyTransport(service, playing, position)
+                    // Row 647: the CHANGE_TRACK message itself carries position 0, stamped when the host's item changed, before its own audio starts;
+                    // jumping to that extrapolation would put this guest AHEAD by the host's load time, so the fast jump waits for a real reference.
+                    applyTransport(service, playing, position, allowFastCatchUp = !trackChanged)
                     if (trackChanged) {
                         // Row 643: how much this device had of the new song when the room moved to it, and how long applying it took.
                         // Numbers only (AGENTS rule 4). The «next song already downloaded on every device» claim needs THIS to be measured.
@@ -388,6 +393,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     private fun isNewTrackOrQueue(track: TrackInfo?, queueIds: List<String>): Boolean =
         (track != null && track.id.isNotBlank() && track.id != lastAppliedTrackId) || queueIds != lastAppliedQueueIds
 
+    /** Row 647: when this guest last moved to a different track ([SyncCorrection.FAST_CATCHUP_WINDOW_MS] counts from here). */
+    @Volatile private var lastTrackChangeAtMs = -SyncCorrection.FAST_CATCHUP_WINDOW_MS
+
     private var lastSyncLogAtMs = 0L
 
     /**
@@ -420,6 +428,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         service: MusicService,
         isPlaying: Boolean,
         position: Long,
+        allowFastCatchUp: Boolean = true,
     ) = withContext(Dispatchers.Main.immediate) {
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
@@ -450,7 +459,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 hostPositionMs = corrected,
                 myLatencyMs = outputLatencyMs(service),
             )
-            val action = SyncCorrection.correct(errorMs = errorMs, targetMs = corrected)
+            val fastCatchUp = allowFastCatchUp &&
+                android.os.SystemClock.elapsedRealtime() - lastTrackChangeAtMs < SyncCorrection.FAST_CATCHUP_WINDOW_MS
+            // The jump target is where the host's HEARD playhead is, plus my own output delay (same sign as [OutputLatency.syncErrorMs]).
+            val action = SyncCorrection.correct(
+                errorMs = errorMs,
+                targetMs = corrected + outputLatencyMs(service),
+                fastCatchUp = fastCatchUp,
+            )
             logSyncError(errorMs, action)
             if (action is SyncAction.Resync) player.seekTo(action.positionMs)
 

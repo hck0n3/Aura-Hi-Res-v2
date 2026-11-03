@@ -28,6 +28,24 @@ class SyncCorrectionTest {
     }
 
     @Test
+    fun `justo despues de un cambio de cancion un hueco de mas de 80 ms salta y uno menor sigue estirando`() {
+        // Fila 647: tras cada cambio el invitado arranca 100-250 ms atras y estirar al 2 % tarda 8-15 s en cerrarlo.
+        assertTrue(SyncCorrection.correct(-243L, 5_000L, fastCatchUp = true) is SyncAction.Resync)
+        assertTrue(SyncCorrection.correct(120L, 5_000L, fastCatchUp = true) is SyncAction.Resync)
+        assertTrue(SyncCorrection.correct(-60L, 5_000L, fastCatchUp = true) is SyncAction.Trim)
+        assertEquals(SyncAction.Hold, SyncCorrection.correct(-20L, 5_000L, fastCatchUp = true))
+        // El salto lleva a donde esta el anfitrion.
+        assertEquals(SyncAction.Resync(5_000L), SyncCorrection.correct(-243L, 5_000L, fastCatchUp = true))
+    }
+
+    @Test
+    fun `fuera de esa ventana el mismo hueco se sigue estirando sin saltar`() {
+        // Con la musica en curso un salto SI se oye: 243 ms se cierra estirando, como antes.
+        assertTrue(SyncCorrection.correct(-243L, 5_000L) is SyncAction.Trim)
+        assertTrue(SyncCorrection.correct(-243L, 5_000L, fastCatchUp = false) is SyncAction.Trim)
+    }
+
+    @Test
     fun `adelantado frena y atrasado acelera`() {
         val adelantado = SyncCorrection.correct(300L, 10_000L)
         val atrasado = SyncCorrection.correct(-300L, 10_000L)
