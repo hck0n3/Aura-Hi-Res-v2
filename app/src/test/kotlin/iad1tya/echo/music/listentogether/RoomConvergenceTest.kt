@@ -36,6 +36,17 @@ class RoomConvergenceTest {
     }
 
     @Test
+    fun aGuestThatStartsATrackUpToSevenHundredMsOffEndsWithinThirtyAfterAMinute() {
+        // Row 647 (owner 2026-11-02): «la tablet va más adelantada» with ~80 ms measured; the old 60 ms dead zone left that
+        // standing for the whole song. Each track change can start a guest a little off, so every size of start error up
+        // to the trim range must end tight, not just inside the loose 150 ms budget above.
+        val starts = listOf(-700L, -400L, -150L, -100L, -80L, -60L, -40L, 40L, 60L, 80L, 100L, 120L, 380L)
+        settle(starts, heartbeats = 4).forEachIndexed { i, e ->
+            assertTrue("started ${starts[i]} ms off and ended $e ms off", abs(e) <= 30)
+        }
+    }
+
+    @Test
     fun aHostThatIsBehindOrAheadMovesEveryGuestTheSameWay() {
         // The reference is the room's clock: shifting the whole room by any amount shifts every error by the same amount, so a
         // guest's correction depends only on its own error against the room, not on who is the slowest or the creator.

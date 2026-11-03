@@ -380,6 +380,25 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      * audio offload rechazado para siempre después de una sala — batería perdida sin que nada lo
      * diga.
      */
+    private var lastSyncLogAtMs = 0L
+
+    /**
+     * Row 647: what the guest BELIEVES its error is, so it can be compared with a measurement taken from outside. Numbers only
+     * (milliseconds, the action kind, the requested speed): no titles, ids or names. At most one line every 5 s.
+     */
+    private fun logSyncError(errorMs: Long, action: SyncAction) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastSyncLogAtMs < SYNC_LOG_EVERY_MS) return
+        lastSyncLogAtMs = now
+        val kind = when (action) {
+            is SyncAction.Hold -> "hold"
+            is SyncAction.Trim -> "trim"
+            is SyncAction.Resync -> "resync"
+        }
+        val speed = (action as? SyncAction.Trim)?.speed ?: 1f
+        Timber.tag(TAG).i("LT_SYNC err=%d action=%s speed=%.4f", errorMs, kind, speed)
+    }
+
     private fun restoreUserTempo(player: Player? = null) {
         val tempo = syncUserTempo ?: return
         syncUserTempo = null
@@ -418,14 +437,13 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // El anfitrión ya publicó lo que OYE, así que aquí se compara contra lo que oigo yo:
             // resto el retardo de mi propia salida. Ver [OutputLatency] — así los dos extremos se
             // compensan solos y el caso "los dos por Bluetooth" no sobrecorrige.
-            val action = SyncCorrection.correct(
-                errorMs = OutputLatency.syncErrorMs(
-                    myPositionMs = player.currentPosition,
-                    hostPositionMs = corrected,
-                    myLatencyMs = outputLatencyMs(service),
-                ),
-                targetMs = corrected,
+            val errorMs = OutputLatency.syncErrorMs(
+                myPositionMs = player.currentPosition,
+                hostPositionMs = corrected,
+                myLatencyMs = outputLatencyMs(service),
             )
+            val action = SyncCorrection.correct(errorMs = errorMs, targetMs = corrected)
+            logSyncError(errorMs, action)
             if (action is SyncAction.Resync) player.seekTo(action.positionMs)
 
             val target = SyncCorrection.playerSpeed(userTempo, action)
@@ -886,6 +904,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
     private companion object {
         const val PLAY_SETTLE_TIMEOUT_MS = 2_000L
+
+        /** Row 647: one LT_SYNC line per this many ms at most. */
+        const val SYNC_LOG_EVERY_MS = 5_000L
 
         /** Poll step for the settle wait; the play intent is edge-triggered, not a suspending wait. */
         const val PLAY_SETTLE_POLL_MS = 50L

@@ -40,8 +40,15 @@ import kotlin.math.abs
  * no llegan al umbral de salto.
  */
 object SyncCorrection {
-    /** Por debajo de esto se considera sincronizado y la velocidad vuelve a 1.0 exacta. */
-    const val IN_SYNC_MS = 60L
+    /**
+     * Por debajo de esto se considera sincronizado y la velocidad vuelve a 1.0 exacta.
+     *
+     * Fila 647 (dueño 2026-11-02, celular + tablet): «la tablet va más adelantada, no van a tiempo» con ~80 ms medidos entre los
+     * dos. Con 60 ms aquí, cualquier error de hasta 60 ms se dejaba SIN corregir y, sumado al ruido de la estimación del reloj
+     * compartido, se oía. 25 ms es lo que el oído ya no distingue; la corrección sigue atenuándose al acercarse
+     * ([trimSpeed]), así que no persigue el cero.
+     */
+    const val IN_SYNC_MS = 25L
 
     /** A partir de aquí converger con la velocidad tardaría demasiado y se salta. */
     const val MAX_TRIM_MS = 1_000L
