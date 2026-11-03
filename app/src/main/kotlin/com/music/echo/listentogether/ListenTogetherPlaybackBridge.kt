@@ -302,7 +302,10 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         val sameTrack = track.id == lastAppliedTrackId
                         // Row 647: a NEW track opens the fast catch-up window (see [SyncCorrection.FAST_RESYNC_MS]); the same track being
                         // rebuilt because its queue arrived late is not a change the guest has to catch up with.
-                        if (!sameTrack) lastTrackChangeAtMs = android.os.SystemClock.elapsedRealtime()
+                        if (!sameTrack) {
+                            lastTrackChangeAtMs = android.os.SystemClock.elapsedRealtime()
+                            fastStartPending = true
+                        }
                         lastAppliedTrackId = track.id
                         lastAppliedQueueIds = queueIds
                         // Decided BEFORE loading, not corrected afterwards: loading with a hardcoded
@@ -407,6 +410,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** Row 647: when this guest last moved to a different track ([SyncCorrection.FAST_CATCHUP_WINDOW_MS] counts from here). */
     @Volatile private var lastTrackChangeAtMs = -SyncCorrection.FAST_CATCHUP_WINDOW_MS
 
+    /** Row 647: a track change is waiting for its player to start playing before the fast catch-up window begins. */
+    @Volatile private var fastStartPending = false
+
     /** Row 647: when a re-check after a fast jump is due (0 = none). Read by [guestPositionHeartbeat], set by [applyTransport]. */
     @Volatile private var fastRecheckAtMs = 0L
 
@@ -482,8 +488,15 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // reading look behind again, which jumps again — a burst of seeks every 1-1.5 s (−496, +172, −454, −1477, −222, −93, −118…)
             // that kept the guest buffering and sounded like repeated, jumbled beeps. A jump is only judged on a player that is actually
             // playing, and never twice within [SyncCorrection.MIN_SEEK_INTERVAL_MS].
-            val canJump = player.playbackState == Player.STATE_READY && player.isPlaying &&
-                nowMs - lastSeekAtMs >= SyncCorrection.MIN_SEEK_INTERVAL_MS
+            val playerReady = player.playbackState == Player.STATE_READY && player.isPlaying
+            // The fast window counts from when the new track is actually PLAYING, not from when the room moved to it: a video or an
+            // unbuffered track can spend 10+ s loading, and with the clock started at the change the window was already over when the
+            // player became ready (measured: after a track change the tablet sat at −386 ms and closed it at 2 % over 15 s, no jump).
+            if (fastStartPending && playerReady) {
+                lastTrackChangeAtMs = nowMs
+                fastStartPending = false
+            }
+            val canJump = playerReady && nowMs - lastSeekAtMs >= SyncCorrection.MIN_SEEK_INTERVAL_MS
             val fastCatchUp = allowFastCatchUp && canJump &&
                 nowMs - lastTrackChangeAtMs < SyncCorrection.FAST_CATCHUP_WINDOW_MS
             // The jump target is where the host's HEARD playhead is, plus my own output delay (same sign as [OutputLatency.syncErrorMs]).

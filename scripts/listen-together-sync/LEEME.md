@@ -15,3 +15,6 @@ Herramientas usadas en la sesión del 2026-11-02 (fila 647/648 de `docs/REGRESSI
 - Pon los dos aparatos a distancia parecida de la laptop.
 - Detrás del video de pitidos la lista sigue con otro contenido: graba mientras suena el video.
 - Con los dos altavoces Bluetooth la app asume 180 ms en ambos y se cancelan; el hueco real (~130 ms medido) lo corrige el ajuste manual por salida.
+
+## `onsets.js` (útil sin Bluetooth)
+`node onsets.js mic.wav` lista el instante de cada pitido (ms) y los huecos entre ataques: un segundo ataque a +15…+40 ms del primero es el otro aparato. Con altavoces Bluetooth conviene `attacks.js`.
