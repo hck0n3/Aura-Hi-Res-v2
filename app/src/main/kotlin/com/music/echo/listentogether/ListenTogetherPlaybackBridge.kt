@@ -215,7 +215,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // guest starts the new song 200-400 ms behind and, until now, waited for the host's next 4 s reference to jump. The jump
             // is judged only on a PLAYING player, so the moment it starts to play is the moment to catch up — with the room's last known
             // position (extrapolated by the shared clock), not 4 s later.
-            if (isPlaying && fastStartPending) catchUpNow()
+            if (isPlaying && fastStartPending) {
+                // Numbers only: how long this guest took to START the new track after the room moved to it.
+                Timber.tag(TAG).i("LT_READY afterChangeMs=%d", android.os.SystemClock.elapsedRealtime() - lastTrackChangeAtMs)
+                catchUpNow()
+            }
         }
 
         override fun onTimelineChanged(
@@ -280,10 +284,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // Row 636: this collector runs on the manager's Dispatchers.Default scope, and Media3 throws
                     // "Player is accessed on the wrong thread" for ANY player access off main — restoring the speed
                     // straight from here crashed the app when the owner ended a room.
-                    onMain { restoreUserTempo() }
+                    onMain {
+                        restoreUserTempo()
+                        serviceFlow.value?.let { setGuestPreload(it, false) }
+                    }
                     return@collect
                 }
                 val service = serviceFlow.value ?: return@collect
+                onMain { setGuestPreload(service, true) }
                 val (track, isPlaying, position, queueIds) = snapshot
                 // Row 647: the host now re-publishes its position every few seconds; a position-only refresh is not news, so it
                 // is not logged (the LT_SYNC line already reports the correction it causes).
@@ -421,6 +429,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     @Volatile private var fastStartPending = false
 
     private var bridgeScope: CoroutineScope? = null
+
+    /**
+     * Row 647: a guest's player never preloaded the NEXT track (every change arrived with `bufferedPct=0`, and the first jump came 4-6 s
+     * later, which the owner hears as an echo). While this device follows a host, media3's own preload of the next item is on; leaving
+     * the room puts it back to the default (off), so nothing changes for normal listening. Main thread only.
+     */
+    private fun setGuestPreload(service: MusicService, on: Boolean) {
+        runCatching {
+            val player = service.player
+            val want = if (on) ExoPlayer.PreloadConfiguration(GUEST_PRELOAD_US) else ExoPlayer.PreloadConfiguration.DEFAULT
+            if (player.preloadConfiguration != want) player.preloadConfiguration = want
+        }.onFailure { Timber.tag(TAG).w("LT_PRELOAD failed %s", it.javaClass.simpleName) }
+    }
 
     /** Row 647: when this host last published a track change ([HOST_BURST_WINDOW_MS] of fast references follow). */
     @Volatile private var hostChangeAtMs = -HOST_BURST_WINDOW_MS
@@ -1134,6 +1155,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
         /** Row 649: how often the output delay is measured again while in a room and playing. */
         const val CALIBRATION_EVERY_MS = 120_000L
+
+        /** Row 647: how much of the next track a guest's player preloads (microseconds). */
+        const val GUEST_PRELOAD_US = 15_000_000L
 
         /** Row 647: references every [HOST_BURST_MS] during [HOST_BURST_WINDOW_MS] after a track change. */
         const val HOST_BURST_MS = 1_000L
