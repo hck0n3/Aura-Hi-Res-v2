@@ -422,6 +422,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
     private var bridgeScope: CoroutineScope? = null
 
+    /** Row 647: when this host last published a track change ([HOST_BURST_WINDOW_MS] of fast references follow). */
+    @Volatile private var hostChangeAtMs = -HOST_BURST_WINDOW_MS
+
+    /** Row 647: when this host last published a position reference. */
+    @Volatile private var lastReferenceAtMs = 0L
+
     /**
      * Row 647: the guest's new track just started playing — apply the room's last known position NOW (the fast jump is judged on a
      * playing player) instead of waiting up to 4 s for the host's next reference. Same guard and path as the heartbeat.
@@ -819,6 +825,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 if (!state.inRoom || !state.isHost || applyingRemote) return@collect
                 if (item.id == lastPublishedTrackId) return@collect
                 lastPublishedTrackId = item.id
+                hostChangeAtMs = android.os.SystemClock.elapsedRealtime()
                 Timber.tag(TAG).i("Host publishing track change: %s", item.id.asLogToken())
                 val (trackInfo, queue, queueTitle) = onMain {
                     Triple(item.toTrackInfo(service), hostQueueTracks(service), service.queueTitle.orEmpty())
@@ -910,13 +917,21 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      */
     private suspend fun publishHostReferenceHeartbeat() {
         while (true) {
-            delay(HOST_REFERENCE_MS)
+            // Row 647: right after a track change the host's audio starts a moment AFTER its PLAY (it is still loading when that is
+            // sent) and the guests are waiting for a real position to jump to: references every second for a few seconds, then the
+            // calm cadence. Measured: without this the first jump came 4-6 s after every change (the echo the owner hears).
+            // Polled every second so a change is noticed at once; the calm cadence is kept by [lastReferenceAtMs].
+            delay(HOST_BURST_MS)
+            val nowMs = android.os.SystemClock.elapsedRealtime()
+            val burst = nowMs - hostChangeAtMs < HOST_BURST_WINDOW_MS
+            if (!burst && nowMs - lastReferenceAtMs < HOST_REFERENCE_MS) continue
             val state = session.state.value
             if (!state.inRoom || !state.isHost || applyingRemote) continue
             val service = serviceFlow.value ?: continue
             // Audible playback only: a buffering host reports a stalled position, which would be a worse reference than none.
             if (!isPlayingNow.value || !playIntent.value) continue
             val (position, capturedAt) = positionStamp(service)
+            lastReferenceAtMs = android.os.SystemClock.elapsedRealtime()
             session.sendPlaybackAction(
                 action = PlaybackActions.PLAY,
                 trackId = "",
@@ -1104,6 +1119,10 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
         /** Row 649: how often the output delay is measured again while in a room and playing. */
         const val CALIBRATION_EVERY_MS = 60_000L
+
+        /** Row 647: references every [HOST_BURST_MS] during [HOST_BURST_WINDOW_MS] after a track change. */
+        const val HOST_BURST_MS = 1_000L
+        const val HOST_BURST_WINDOW_MS = 8_000L
 
         /** Row 647: how often the host re-publishes its real playhead while audio is playing. */
         const val HOST_REFERENCE_MS = 4_000L
