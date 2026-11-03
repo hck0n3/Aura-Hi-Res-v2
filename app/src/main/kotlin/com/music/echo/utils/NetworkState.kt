@@ -52,6 +52,7 @@ object NetworkState {
     private var started = false
 
     private const val LOST_SETTLE_MS = 1_500L
+    private const val OFFLINE_RECHECK_MS = 5_000L
 
     /** Llamado una vez desde `App.onCreate`. Repetirlo no registra un segundo callback. */
     fun start(context: Context) {
@@ -112,6 +113,16 @@ object NetworkState {
             val still = readNow(cm)
             if (!still) _online.value = false
             Timber.tag("NetworkState").i("NET_STATE debounced readNow=%b online=%b", still, _online.value)
+            // Row 645: a phone that alternates between two wifi networks can report "no network" for a moment and then never send
+            // another event, leaving the app offline on a good connection (Xiaomi, ~2 min). While offline, read again until it
+            // really is back; the read is one binder call every few seconds and stops as soon as it recovers.
+            while (!_online.value) {
+                delay(OFFLINE_RECHECK_MS)
+                if (readNow(cm)) {
+                    _online.value = true
+                    Timber.tag("NetworkState").i("NET_STATE recheck readNow=true online=true")
+                }
+            }
         }
     }
 
