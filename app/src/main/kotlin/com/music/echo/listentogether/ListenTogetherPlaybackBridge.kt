@@ -410,6 +410,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** Row 647: when a re-check after a fast jump is due (0 = none). Read by [guestPositionHeartbeat], set by [applyTransport]. */
     @Volatile private var fastRecheckAtMs = 0L
 
+    /** Row 647: when this guest last jumped (seekTo) to catch up; jumps are at least [SyncCorrection.MIN_SEEK_INTERVAL_MS] apart. */
+    @Volatile private var lastSeekAtMs = -SyncCorrection.MIN_SEEK_INTERVAL_MS
+
     private var lastSyncLogAtMs = 0L
 
     /**
@@ -474,22 +477,32 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 hostPositionMs = corrected,
                 myLatencyMs = outputLatencyMs(service),
             )
-            val fastCatchUp = allowFastCatchUp &&
-                android.os.SystemClock.elapsedRealtime() - lastTrackChangeAtMs < SyncCorrection.FAST_CATCHUP_WINDOW_MS
+            val nowMs = android.os.SystemClock.elapsedRealtime()
+            // Row 647 (measured with the owner's two Bluetooth speakers): a jump while the player is still LOADING makes the next
+            // reading look behind again, which jumps again — a burst of seeks every 1-1.5 s (−496, +172, −454, −1477, −222, −93, −118…)
+            // that kept the guest buffering and sounded like repeated, jumbled beeps. A jump is only judged on a player that is actually
+            // playing, and never twice within [SyncCorrection.MIN_SEEK_INTERVAL_MS].
+            val canJump = player.playbackState == Player.STATE_READY && player.isPlaying &&
+                nowMs - lastSeekAtMs >= SyncCorrection.MIN_SEEK_INTERVAL_MS
+            val fastCatchUp = allowFastCatchUp && canJump &&
+                nowMs - lastTrackChangeAtMs < SyncCorrection.FAST_CATCHUP_WINDOW_MS
             // The jump target is where the host's HEARD playhead is, plus my own output delay (same sign as [OutputLatency.syncErrorMs]).
             // Row 647: a fast jump of a guest that is BEHIND also leads by [SyncCorrection.FAST_JUMP_LEAD_MS]: after a seek the player
             // stalls to refill its buffer, and the first fast jumps landed ~100 ms short (−94, −152, −115 ms measured after each change).
             val lead = if (fastCatchUp && errorMs < 0) SyncCorrection.FAST_JUMP_LEAD_MS else 0L
-            val action = SyncCorrection.correct(
+            var action = SyncCorrection.correct(
                 errorMs = errorMs,
                 targetMs = corrected + outputLatencyMs(service) + lead,
                 fastCatchUp = fastCatchUp,
             )
+            // Not allowed to jump right now (loading, or just jumped): leave the player alone, do not stretch a reading that means nothing.
+            if (action is SyncAction.Resync && !canJump) action = SyncAction.Hold
             logSyncError(errorMs, action, outputLatencyMs(service))
             if (action is SyncAction.Resync) {
                 player.seekTo(action.positionMs)
-                // Check again soon, not in 15 s: the landing is only known once the player has restarted.
-                if (fastCatchUp) fastRecheckAtMs = android.os.SystemClock.elapsedRealtime() + SyncCorrection.FAST_RECHECK_MS
+                lastSeekAtMs = nowMs
+                // Check again once the landing is known (not in 15 s, and not while the player is still restarting).
+                if (fastCatchUp) fastRecheckAtMs = nowMs + SyncCorrection.FAST_RECHECK_MS
             }
 
             val target = SyncCorrection.playerSpeed(userTempo, action)

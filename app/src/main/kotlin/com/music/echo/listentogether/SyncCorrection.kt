@@ -95,8 +95,11 @@ object SyncCorrection {
     /** A fast jump of a guest that is behind lands this much AHEAD: the player stalls ~100 ms refilling its buffer after a seek. */
     const val FAST_JUMP_LEAD_MS = 100L
 
-    /** How soon after a fast jump the guest checks where it landed. */
-    const val FAST_RECHECK_MS = 1_500L
+    /** How soon after a fast jump the guest checks where it landed: after the player has restarted, not while it refills its buffer. */
+    const val FAST_RECHECK_MS = 4_000L
+
+    /** Two jumps are never closer than this: a seek restarts buffering, and judging a loading player is what caused a storm of jumps. */
+    const val MIN_SEEK_INTERVAL_MS = 3_500L
 
     /**
      * La velocidad que cierra [errorMs] en [CONVERGE_SECONDS], recortada a [MAX_TRIM].
