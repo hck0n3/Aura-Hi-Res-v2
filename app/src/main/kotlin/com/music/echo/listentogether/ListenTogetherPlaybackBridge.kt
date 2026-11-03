@@ -44,6 +44,7 @@ import iad1tya.echo.music.extensions.metadata
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.playback.MusicService
+import iad1tya.echo.music.utils.dataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -157,6 +158,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { publishHostReferenceHeartbeat() }
         scope.launch { publishQueueAsHost() }
         scope.launch { answerBufferBarrier() }
+        scope.launch { followManualSyncOffset() }
     }
 
     /**
@@ -414,7 +416,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      * Row 647: what the guest BELIEVES its error is, so it can be compared with a measurement taken from outside. Numbers only
      * (milliseconds, the action kind, the requested speed): no titles, ids or names. At most one line every 5 s.
      */
-    private fun logSyncError(errorMs: Long, action: SyncAction) {
+    private fun logSyncError(errorMs: Long, action: SyncAction, latencyMs: Int) {
         val now = android.os.SystemClock.elapsedRealtime()
         // A jump is always worth a line (they are rare); the steady state is rate-limited.
         if (action !is SyncAction.Resync && now - lastSyncLogAtMs < SYNC_LOG_EVERY_MS) return
@@ -425,7 +427,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             is SyncAction.Resync -> "resync"
         }
         val speed = (action as? SyncAction.Trim)?.speed ?: 1f
-        Timber.tag(TAG).i("LT_SYNC err=%d action=%s speed=%.4f", errorMs, kind, speed)
+        Timber.tag(TAG).i("LT_SYNC err=%d action=%s speed=%.4f lat=%d", errorMs, kind, speed, latencyMs)
     }
 
     private fun restoreUserTempo(player: Player? = null) {
@@ -483,7 +485,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 targetMs = corrected + outputLatencyMs(service) + lead,
                 fastCatchUp = fastCatchUp,
             )
-            logSyncError(errorMs, action)
+            logSyncError(errorMs, action, outputLatencyMs(service))
             if (action is SyncAction.Resync) {
                 player.seekTo(action.positionMs)
                 // Check again soon, not in 15 s: the landing is only known once the player has restarted.
@@ -980,7 +982,28 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             OutputLatency.defaultMsFor(
                 iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(context),
             )
-        }.getOrDefault(0)
+        }.getOrDefault(0) + manualSyncOffsetMs
+
+    /**
+     * Row 648 (owner 2026-11-02, a Zealot S89 on the tablet and a Harman Kardon Onyx Studio 9 on the phone: «suenan horriblemente
+     * desincronizados»). The app assumes the SAME 180 ms for any Bluetooth speaker, so two different speakers cancel out and
+     * whatever they really differ by is left uncorrected — Android exposes no API for the real value. This is the user's own
+     * per-device correction in ms (Ajustes > Escuchar juntos > Ajuste de sincronía), summed into the output delay both when this
+     * device publishes what it hears and when it compares itself with the host. Read live so it can be tuned by ear in a room.
+     */
+    @Volatile private var manualSyncOffsetMs = 0
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun followManualSyncOffset() {
+        serviceFlow
+            .filterNotNull()
+            .flatMapLatest { service ->
+                service.dataStore.data.map { prefs ->
+                    (prefs[iad1tya.echo.music.constants.ListenTogetherSyncOffsetMsKey] ?: 0).coerceIn(-600, 600)
+                }
+            }
+            .collect { manualSyncOffsetMs = it }
+    }
 
     private fun safeDuration(service: MusicService): Long =
         runCatching { service.player.duration }.getOrDefault(0L).coerceAtLeast(0L)

@@ -110,6 +110,9 @@ fun ListenTogetherSettings(
     var autoApproval by rememberPreference(ListenTogetherAutoApprovalKey, false)
     var auraRooms by rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
 
+    // Row 648: per-device offset, in ms, for the output delay the app cannot measure (two different Bluetooth speakers, for one).
+    var syncOffsetMs by rememberPreference(iad1tya.echo.music.constants.ListenTogetherSyncOffsetMsKey, 0)
+    var showSyncOffsetDialog by rememberSaveable { mutableStateOf(false) }
     var showServerUrlDialog by rememberSaveable { mutableStateOf(false) }
     var showUsernameDialog by rememberSaveable { mutableStateOf(false) }
     var showBlockedUsersDialog by rememberSaveable { mutableStateOf(false) }
@@ -129,6 +132,40 @@ fun ListenTogetherSettings(
             },
             onDismiss = { showServerUrlDialog = false }
         )
+    }
+
+    if (showSyncOffsetDialog) {
+        // Applied live (the bridge collects the preference), so the user can tune by ear inside a running room.
+        DefaultDialog(
+            onDismiss = { showSyncOffsetDialog = false },
+            icon = { Icon(painterResource(R.drawable.sync), contentDescription = null) },
+            title = { Text(stringResource(R.string.listen_together_sync_offset_title)) },
+            buttons = {
+                TextButton(onClick = { syncOffsetMs = 0 }) {
+                    Text(stringResource(R.string.reset))
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = { showSyncOffsetDialog = false }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            }
+        ) {
+            Column {
+                Text(
+                    text = stringResource(R.string.listen_together_sync_offset_value, syncOffsetMs),
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                androidx.compose.material3.Slider(
+                    value = syncOffsetMs.toFloat(),
+                    onValueChange = { syncOffsetMs = (it / 5f).toInt() * 5 },
+                    valueRange = -600f..600f,
+                )
+                Text(
+                    text = stringResource(R.string.listen_together_sync_offset_help),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
     }
 
     if (showUsernameDialog) {
@@ -270,6 +307,14 @@ fun ListenTogetherSettings(
                                     ).show()
                                 }
                             }
+                        ),
+                        IntegrationCardItem(
+                            icon = painterResource(R.drawable.sync),
+                            title = { Text(stringResource(R.string.listen_together_sync_offset_title)) },
+                            description = {
+                                Text(stringResource(R.string.listen_together_sync_offset_value, syncOffsetMs))
+                            },
+                            onClick = { showSyncOffsetDialog = true }
                         ),
                         IntegrationCardItem(
                             icon = painterResource(R.drawable.done),

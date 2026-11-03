@@ -567,6 +567,7 @@ val ListenTogetherAuraRoomsKey = booleanPreferencesKey("listenTogetherAuraRooms"
 val ListenTogetherAutoApprovalKey = booleanPreferencesKey("listenTogetherAutoApproval")
 val ListenTogetherSyncVolumeKey = booleanPreferencesKey("listenTogetherSyncVolume")
 val ListenTogetherSmartResyncKey = booleanPreferencesKey("listenTogetherSmartResync")
+val ListenTogetherSyncOffsetMsKey = intPreferencesKey("listenTogetherSyncOffsetMs")
 val ListenTogetherBlockedUsersKey = stringPreferencesKey("listenTogetherBlockedUsers")
 val ListenTogetherInTopBarKey = booleanPreferencesKey("listenTogetherInTopBar")
 

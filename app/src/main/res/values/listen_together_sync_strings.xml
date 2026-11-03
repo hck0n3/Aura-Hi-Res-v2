@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listen_together_sync_offset_title">Sync adjustment (this device)</string>
+    <string name="listen_together_sync_offset_value">%1$d ms</string>
+    <string name="listen_together_sync_offset_help">If this device sounds AFTER the others (a Bluetooth speaker, for example), raise the value; if it sounds BEFORE, lower it. Each device keeps its own value. Changes apply at once, even in a room.</string>
+</resources>

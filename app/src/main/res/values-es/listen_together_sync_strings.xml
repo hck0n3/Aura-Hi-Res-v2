@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listen_together_sync_offset_title">Ajuste de sincronía (este aparato)</string>
+    <string name="listen_together_sync_offset_value">%1$d ms</string>
+    <string name="listen_together_sync_offset_help">Si este aparato suena DESPUÉS que los demás (un altavoz Bluetooth, por ejemplo), sube el valor; si suena ANTES, bájalo. Cada aparato guarda el suyo. Los cambios se aplican al instante, incluso dentro de una sala.</string>
+</resources>
