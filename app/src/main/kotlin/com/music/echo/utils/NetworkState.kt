@@ -51,6 +51,8 @@ object NetworkState {
     private var pendingOffline: Job? = null
     private var started = false
 
+    private const val LOST_SETTLE_MS = 1_500L
+
     /** Llamado una vez desde `App.onCreate`. Repetirlo no registra un segundo callback. */
     fun start(context: Context) {
         if (started) return
@@ -63,9 +65,17 @@ object NetworkState {
             // verdad está en `readNow`, no en cuál de los tres llegó. Un `onAvailable` de una red sin
             // transporte útil no debe encender nada, y un `onLost` de la wifi mientras quedan datos
             // no debe apagar nada.
-            override fun onAvailable(network: Network) = refresh()
-            override fun onLost(network: Network) = refresh()
-            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = refresh()
+            override fun onAvailable(network: Network) = refresh("available")
+            override fun onLost(network: Network) {
+                refresh("lost")
+                // Row 645: when the default network drops, `activeNetwork` can still answer with the old one for a moment, so
+                // the read above says "still online" and no further callback ever corrects it. Read again once it has settled.
+                scope.launch {
+                    delay(LOST_SETTLE_MS)
+                    refresh("lost+settle")
+                }
+            }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = refresh("caps")
         }
         runCatching { cm.registerDefaultNetworkCallback(callback) }
             .onSuccess { Timber.tag("NetworkState").i("NET_STATE registered=true online=%b", _online.value) }
@@ -78,13 +88,15 @@ object NetworkState {
             }
     }
 
-    private fun refresh() {
+    private fun refresh(source: String) {
         val cm = connectivityManager ?: return
         val now = readNow(cm)
         // Row 645: one numbers-only line per network event so "the app never noticed it was offline" can be told apart from
-        // "it noticed and the screen ignored it".
-        // Only when the reading disagrees with the current state: capability events also fire on every signal change.
-        if (now != _online.value) Timber.tag("NetworkState").i("NET_STATE event readNow=%b was=%b", now, _online.value)
+        // "it noticed and the screen ignored it". Availability and loss are rare and always logged (they are what was missing
+        // on the tablet); capability events fire on every signal change, so they log only when the reading disagrees.
+        if (source != "caps" || now != _online.value) {
+            Timber.tag("NetworkState").i("NET_STATE event=%s readNow=%b was=%b", source, now, _online.value)
+        }
         if (now) {
             pendingOffline?.cancel()
             pendingOffline = null
