@@ -111,6 +111,14 @@ object OutputLatencyProbe {
         val mean = (sum / rho.size).toFloat()
         // A clear single peak: strong in absolute terms and well above the average of the window.
         if (best < 0.2f || best < 4f * mean) return null
+        // Row 649: ANOTHER device chirping at the same moment (two devices in one room measuring together) makes two peaks of similar
+        // size; picking either would be a coin toss and a wrong delay. A competing peak ≥ 3 ms away from the best and at least 70 % of
+        // it means "ambiguous": no measurement.
+        val bestIdx = bestK - lo
+        val apart = 3 * fs / 1000
+        var second = 0f
+        for (j in rho.indices) if (abs(j - bestIdx) > apart && rho[j] > second) second = rho[j]
+        if (second >= 0.7f * best) return null
         var frac = 0f
         val i0 = bestK - lo
         if (i0 > 0 && i0 < rho.size - 1) {

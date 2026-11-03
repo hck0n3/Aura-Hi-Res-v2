@@ -1064,7 +1064,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      */
     private suspend fun calibrateOutputLoop() {
         var lastKey: String? = null
-        var lastAt = 0L
+        var nextAt = 0L
         while (true) {
             delay(2_000)
             val state = session.state.value
@@ -1072,12 +1072,27 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             if (!state.inRoom || !isPlayingNow.value || !playIntent.value) continue
             val key = runCatching { iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(service) }.getOrNull() ?: continue
             val now = android.os.SystemClock.elapsedRealtime()
-            if (key == lastKey && now - lastAt < CALIBRATION_EVERY_MS) continue
-            if (key != lastKey) OutputLatencyCalibration.forget(key) // another connection of the same speaker may have another delay
-            lastKey = key
-            lastAt = now
-            if (!OutputLatencyCalibration.hasMicrophone(service)) continue
-            OutputLatencyCalibration.calibrate(service, key)
+            if (key != lastKey) {
+                // Another output (or the first one in this room): forget what was measured for it — another connection of the same
+                // speaker may have another delay — and measure after a RANDOM pause. Row 649: two devices in one room that started
+                // together chirped at the same instant every minute, heard each other and measured garbage (223, −22, 54, 385 ms).
+                OutputLatencyCalibration.forget(key)
+                lastKey = key
+                nextAt = now + kotlin.random.Random.nextLong(1_000, 12_000)
+            }
+            if (now < nextAt) continue
+            if (!OutputLatencyCalibration.hasMicrophone(service)) {
+                nextAt = now + CALIBRATION_EVERY_MS
+                continue
+            }
+            val ms = OutputLatencyCalibration.calibrate(service, key)
+            val after = android.os.SystemClock.elapsedRealtime()
+            nextAt = if (ms != null) {
+                after + CALIBRATION_EVERY_MS + kotlin.random.Random.nextLong(0, 30_000)
+            } else {
+                // Nothing clear (ambiguous: another device chirped too): try again soon, at a random moment.
+                after + kotlin.random.Random.nextLong(5_000, 20_000)
+            }
         }
     }
 
@@ -1118,7 +1133,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         const val SYNC_LOG_EVERY_MS = 5_000L
 
         /** Row 649: how often the output delay is measured again while in a room and playing. */
-        const val CALIBRATION_EVERY_MS = 60_000L
+        const val CALIBRATION_EVERY_MS = 120_000L
 
         /** Row 647: references every [HOST_BURST_MS] during [HOST_BURST_WINDOW_MS] after a track change. */
         const val HOST_BURST_MS = 1_000L
