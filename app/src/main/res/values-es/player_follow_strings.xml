@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_subscribe_failed">No se encontró el canal de este artista. Inténtalo de nuevo con conexión.</string>
+</resources>

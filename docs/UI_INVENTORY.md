@@ -430,6 +430,7 @@ mini reproductor), según el contenido (audio / vídeo / canvas), según la orie
 | Copiar título *(mantener pulsado; Toast «Título copiado»)* | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1932` | acción secundaria | rara | siempre que haya título |
 | Nombre del artista → abre el artista | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1958` | navegación | diaria | solo si algún artista tiene id y la lista no está vacía |
 | Copiar artista *(mantener pulsado; Toast «Artista copiado»)* | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1964` | acción secundaria | rara | siempre que haya artista |
+| **Suscribirse / Suscrito** *(chip que aparece al tocar el nombre del artista; con varios artistas abre un diálogo «¿a cuál?»)* | Reproductor Aura > bloque de título | `ui/newui/AuraPlayer.kt` (chip), `ui/newui/PlayerArtistFollow.kt` | acción secundaria | ocasional | **2026-11-02 (fila 646):** solo si la canción tiene algún artista con nombre; refleja el estado real de la suscripción |
 | Cambiar a vídeo / volver a audio *(solo icono `videocam`/`music_note`)* | Reproductor > fin de la fila del título | `app/.../ui/player/Player.kt:1990` | conmutador | ocasional | solo si hay vídeo (`isVideoSong` o `podcastVideoUrl`) **y** (`!highPerfMode` **o** pantalla ancha/TV) |
 
 ## 2.3 Reproductor > fila de chips de acción

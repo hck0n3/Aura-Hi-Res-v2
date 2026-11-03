@@ -52,6 +52,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -159,6 +160,8 @@ import iad1tya.echo.music.extensions.metadata
 import iad1tya.echo.music.extensions.togglePlayPause
 import iad1tya.echo.music.extensions.toggleRepeatMode
 import iad1tya.echo.music.listentogether.RoomRole
+import iad1tya.echo.music.models.MediaMetadata
+import iad1tya.echo.music.applicationScope
 import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.playback.AudioExportService
 import iad1tya.echo.music.playback.PendingDeferredDownloads
@@ -789,6 +792,27 @@ private fun AuraPlayerShape(
     // be destroyed and recreated by a rotation and the open dialog would vanish mid-gesture.
     var showChoosePlaylistDialog by rememberSaveable { mutableStateOf(false) }
     var showSelectArtistDialog by rememberSaveable { mutableStateOf(false) }
+    // «Suscribirse» chip (owner 2026-11-02). Same placement rule as the dialogs above: in the BODY, not in `controlsContent`.
+    // `resolvedFollowIds` holds the channel id found for an artist the song only knows by name, so the chip can read its state.
+    var showFollowArtistDialog by rememberSaveable { mutableStateOf(false) }
+    var resolvedFollowIds by remember(mediaMetadata?.id) { mutableStateOf(emptyMap<String, String>()) }
+    val followCandidates = remember(mediaMetadata?.artists) {
+        PlayerArtistFollow.candidates(mediaMetadata?.artists.orEmpty())
+    }
+    val followedByName = rememberPlayerArtistFollowed(database, followCandidates, resolvedFollowIds)
+    val toggleFollow: (MediaMetadata.Artist) -> Unit = { artist ->
+        // Application scope: the tap must land even if the player folds away right after it.
+        context.applicationScope.launch {
+            val done = toggleFollowFromPlayer(database, artist, resolvedFollowIds) { id ->
+                resolvedFollowIds = resolvedFollowIds + (artist.name to id)
+            }
+            if (!done) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, context.getString(R.string.player_subscribe_failed), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
     var showDownloadOrExportDialog by rememberSaveable { mutableStateOf(false) }
     val downloadChooserMeta = mediaMetadata
     // Row 348 (C2 audit, UI_INVENTORY §20.1): «Exportar como MP3» OFF means the download button just
@@ -852,6 +876,43 @@ private fun AuraPlayerShape(
                         }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                 )
+            }
+        }
+    }
+    if (showFollowArtistDialog) {
+        // Several artists on the song: ask which one. The dialog stays open after a tap so the state flips in place
+        // and a second artist can be followed without reopening it.
+        ListDialog(onDismiss = { showFollowArtistDialog = false }) {
+            items(items = followCandidates, key = { "${it.id}_${it.name}" }) { artist ->
+                val followed = followedByName[artist.name] == true
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { toggleFollow(artist) }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                ) {
+                    Text(
+                        text = artist.name,
+                        style = AuraType.MenuLabel,
+                        color = AuraPalette.OnGround,
+                        maxLines = 1,
+                        overflow = AuraDefaultOverflow,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AuraIconGlyph(
+                        icon = if (followed) AuraIcons.Check else AuraIcons.Plus,
+                        contentDescription = null,
+                        size = 18.dp,
+                        tint = if (followed) AuraPalette.Teal else AuraPalette.OnGroundMuted,
+                    )
+                    Text(
+                        text = stringResource(if (followed) R.string.subscribed else R.string.subscribe),
+                        style = AuraType.RowSubtitle,
+                        color = if (followed) AuraPalette.Teal else AuraPalette.OnGroundMuted,
+                    )
+                }
             }
         }
     }
@@ -1533,7 +1594,10 @@ private fun AuraPlayerShape(
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth(),
+                                // Up to four chips now (álbum · artista · suscribirse · lista): scrolls instead of clipping on a narrow phone.
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
                             ) {
                                 // El álbum solo cuando hay uno que resolver: un chip que no lleva a
                                 // ningún sitio es el placebo que este repo prohíbe.
@@ -1555,6 +1619,24 @@ private fun AuraPlayerShape(
                                         goToArtist()
                                     },
                                 )
+                                // Owner 2026-11-02: subscribe from here instead of walking to the artist page. It reads the
+                                // real follow state; with several artists the tap asks which one (dialog above).
+                                if (followCandidates.isNotEmpty()) {
+                                    val allFollowed = PlayerArtistFollow.allFollowed(
+                                        followCandidates.map { followedByName[it.name] == true },
+                                    )
+                                    AuraChip(
+                                        text = stringResource(if (allFollowed) R.string.subscribed else R.string.subscribe),
+                                        selected = allFollowed,
+                                        onClick = {
+                                            if (PlayerArtistFollow.asksWhich(followCandidates.size)) {
+                                                showFollowArtistDialog = true
+                                            } else {
+                                                toggleFollow(followCandidates.first())
+                                            }
+                                        },
+                                    )
+                                }
                                 // Owner 2026-10-18: while a song plays FROM A PLAYLIST, a third door leads back to that list.
                                 // Only for a real playlist context (`PL:` yours, `OL:` a followed one) — an album, a radio or
                                 // a request would be a chip that leads nowhere.
