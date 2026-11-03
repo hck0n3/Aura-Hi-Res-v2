@@ -89,8 +89,14 @@ object SyncCorrection {
      */
     const val FAST_RESYNC_MS = 80L
 
-    /** How long after a track change the fast jump applies. Two host references (4 s apart) fit in it. */
-    const val FAST_CATCHUP_WINDOW_MS = 9_000L
+    /** How long after a track change the fast jump applies. Several host references (4 s apart) and re-checks fit in it. */
+    const val FAST_CATCHUP_WINDOW_MS = 14_000L
+
+    /** A fast jump of a guest that is behind lands this much AHEAD: the player stalls ~100 ms refilling its buffer after a seek. */
+    const val FAST_JUMP_LEAD_MS = 100L
+
+    /** How soon after a fast jump the guest checks where it landed. */
+    const val FAST_RECHECK_MS = 1_500L
 
     /**
      * La velocidad que cierra [errorMs] en [CONVERGE_SECONDS], recortada a [MAX_TRIM].

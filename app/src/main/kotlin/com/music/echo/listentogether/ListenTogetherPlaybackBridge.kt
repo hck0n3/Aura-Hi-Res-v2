@@ -64,6 +64,9 @@ private const val TAG = "ListenTogetherBridge"
 /** Same cadence as [ServerClock]'s own ping — see [ListenTogetherPlaybackBridge.guestPositionHeartbeat]. */
 private const val HEARTBEAT_INTERVAL_MS = 15_000L
 
+/** Row 647: how often the heartbeat loop looks at the clock (it only does work when a beat or a fast re-check is due). */
+private const val HEARTBEAT_POLL_MS = 500L
+
 /** What the guest reacts to. A data class so `distinctUntilChanged` compares every field. */
 private data class RoomSnapshot(
     val track: TrackInfo?,
@@ -365,8 +368,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      * la música sonando.
      */
     private suspend fun guestPositionHeartbeat() {
+        var lastBeatAt = android.os.SystemClock.elapsedRealtime()
         while (true) {
-            delay(HEARTBEAT_INTERVAL_MS)
+            // Row 647: polled instead of one long sleep, so a re-check asked for by a fast jump (1.5 s) is not stuck behind the 15 s beat.
+            delay(HEARTBEAT_POLL_MS)
+            val nowMs = android.os.SystemClock.elapsedRealtime()
+            val recheck = fastRecheckAtMs in 1..nowMs
+            if (!recheck && nowMs - lastBeatAt < HEARTBEAT_INTERVAL_MS) continue
+            if (recheck) fastRecheckAtMs = 0L else lastBeatAt = nowMs
             val state = session.state.value
             if (!state.inRoom || state.isHost) continue
             val service = serviceFlow.value ?: continue
@@ -396,6 +405,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** Row 647: when this guest last moved to a different track ([SyncCorrection.FAST_CATCHUP_WINDOW_MS] counts from here). */
     @Volatile private var lastTrackChangeAtMs = -SyncCorrection.FAST_CATCHUP_WINDOW_MS
 
+    /** Row 647: when a re-check after a fast jump is due (0 = none). Read by [guestPositionHeartbeat], set by [applyTransport]. */
+    @Volatile private var fastRecheckAtMs = 0L
+
     private var lastSyncLogAtMs = 0L
 
     /**
@@ -404,7 +416,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      */
     private fun logSyncError(errorMs: Long, action: SyncAction) {
         val now = android.os.SystemClock.elapsedRealtime()
-        if (now - lastSyncLogAtMs < SYNC_LOG_EVERY_MS) return
+        // A jump is always worth a line (they are rare); the steady state is rate-limited.
+        if (action !is SyncAction.Resync && now - lastSyncLogAtMs < SYNC_LOG_EVERY_MS) return
         lastSyncLogAtMs = now
         val kind = when (action) {
             is SyncAction.Hold -> "hold"
@@ -462,13 +475,20 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             val fastCatchUp = allowFastCatchUp &&
                 android.os.SystemClock.elapsedRealtime() - lastTrackChangeAtMs < SyncCorrection.FAST_CATCHUP_WINDOW_MS
             // The jump target is where the host's HEARD playhead is, plus my own output delay (same sign as [OutputLatency.syncErrorMs]).
+            // Row 647: a fast jump of a guest that is BEHIND also leads by [SyncCorrection.FAST_JUMP_LEAD_MS]: after a seek the player
+            // stalls to refill its buffer, and the first fast jumps landed ~100 ms short (−94, −152, −115 ms measured after each change).
+            val lead = if (fastCatchUp && errorMs < 0) SyncCorrection.FAST_JUMP_LEAD_MS else 0L
             val action = SyncCorrection.correct(
                 errorMs = errorMs,
-                targetMs = corrected + outputLatencyMs(service),
+                targetMs = corrected + outputLatencyMs(service) + lead,
                 fastCatchUp = fastCatchUp,
             )
             logSyncError(errorMs, action)
-            if (action is SyncAction.Resync) player.seekTo(action.positionMs)
+            if (action is SyncAction.Resync) {
+                player.seekTo(action.positionMs)
+                // Check again soon, not in 15 s: the landing is only known once the player has restarted.
+                if (fastCatchUp) fastRecheckAtMs = android.os.SystemClock.elapsedRealtime() + SyncCorrection.FAST_RECHECK_MS
+            }
 
             val target = SyncCorrection.playerSpeed(userTempo, action)
             // Recordar el tempo del usuario SOLO mientras se corrige; en cuanto deja de corregirse
