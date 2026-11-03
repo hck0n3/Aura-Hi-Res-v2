@@ -510,6 +510,8 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.listen_together_cannot_edit_username_in_room), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_auto_approval), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_auto_approval_desc), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
+            Triple(stringResource(R.string.listen_together_calibrate_title), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
+            Triple(stringResource(R.string.listen_together_calibrate_desc), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_sync_offset_title), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_sync_offset_help), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_sync_volume), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),

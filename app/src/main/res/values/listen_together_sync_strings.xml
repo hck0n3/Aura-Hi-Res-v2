@@ -6,4 +6,11 @@
     <string name="listen_together_sync_offset_bluetooth">Bluetooth: %1$s</string>
     <string name="listen_together_sync_offset_other">Output: %1$s</string>
     <string name="listen_together_sync_offset_help">Applies to the output audio is going to right now. If it sounds AFTER the other devices (a Bluetooth speaker, for example), raise the value; if it sounds BEFORE, lower it. The device speaker and each Bluetooth speaker keep their own value. Changes apply at once, even in a room.</string>
+    <string name="listen_together_calibrate_title">Calibrate with the microphone</string>
+    <string name="listen_together_calibrate_desc">Measures the real delay of this output (a Bluetooth speaker, for example) with a brief tone. It also runs by itself inside a room.</string>
+    <string name="listen_together_calibrate_running">Measuring…</string>
+    <string name="listen_together_calibrate_last">Measured: %1$d ms</string>
+    <string name="listen_together_calibrate_done">Output delay measured: %1$d ms</string>
+    <string name="listen_together_calibrate_failed">Could not measure. Put the device near its speaker, raise the volume a little and try again.</string>
+    <string name="listen_together_calibrate_no_mic">Without the microphone the delay cannot be measured; the adjustment below stays manual.</string>
 </resources>

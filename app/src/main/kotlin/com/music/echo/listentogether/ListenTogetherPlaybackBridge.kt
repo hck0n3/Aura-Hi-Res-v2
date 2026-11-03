@@ -159,6 +159,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { publishQueueAsHost() }
         scope.launch { answerBufferBarrier() }
         scope.launch { followManualSyncOffset() }
+        scope.launch { calibrateOutputLoop() }
     }
 
     /**
@@ -1005,7 +1006,34 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      */
     private fun outputLatencyMs(context: android.content.Context): Int {
         val key = runCatching { iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(context) }.getOrNull() ?: return 0
-        return OutputLatency.defaultMsFor(key) + (manualSyncOffsets[key] ?: 0)
+        // Row 649: what the microphone measured for THIS output wins over the guess (180 ms for any Bluetooth speaker).
+        val base = OutputLatencyCalibration.latencyFor(key) ?: OutputLatency.defaultMsFor(key)
+        return base + (manualSyncOffsets[key] ?: 0)
+    }
+
+    /**
+     * Row 649: measures the real output delay of the current output with the microphone — when this device is in a room and playing,
+     * when the output changes (another speaker connected) and every [CALIBRATION_EVERY_MS] (Bluetooth drifts inside a session).
+     * Needs the microphone permission; without it the guessed values stay (the settings row asks for it). One brief tone per
+     * measurement, never while paused.
+     */
+    private suspend fun calibrateOutputLoop() {
+        var lastKey: String? = null
+        var lastAt = 0L
+        while (true) {
+            delay(2_000)
+            val state = session.state.value
+            val service = serviceFlow.value ?: continue
+            if (!state.inRoom || !isPlayingNow.value || !playIntent.value) continue
+            val key = runCatching { iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(service) }.getOrNull() ?: continue
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (key == lastKey && now - lastAt < CALIBRATION_EVERY_MS) continue
+            if (key != lastKey) OutputLatencyCalibration.forget(key) // another connection of the same speaker may have another delay
+            lastKey = key
+            lastAt = now
+            if (!OutputLatencyCalibration.hasMicrophone(service)) continue
+            OutputLatencyCalibration.calibrate(service, key)
+        }
     }
 
     /**
@@ -1043,6 +1071,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
         /** Row 647: one LT_SYNC line per this many ms at most. */
         const val SYNC_LOG_EVERY_MS = 5_000L
+
+        /** Row 649: how often the output delay is measured again while in a room and playing. */
+        const val CALIBRATION_EVERY_MS = 60_000L
 
         /** Row 647: how often the host re-publishes its real playhead while audio is playing. */
         const val HOST_REFERENCE_MS = 4_000L

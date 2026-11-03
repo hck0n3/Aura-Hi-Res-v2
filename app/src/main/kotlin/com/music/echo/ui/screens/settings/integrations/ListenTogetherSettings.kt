@@ -1,6 +1,10 @@
 package iad1tya.echo.music.ui.screens.settings.integrations
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -119,6 +123,26 @@ fun ListenTogetherSettings(
         else -> stringResource(R.string.listen_together_sync_offset_other, outputKey)
     }
     var syncOffsetMs by rememberPreference(iad1tya.echo.music.constants.listenTogetherSyncOffsetKey(outputKey), 0)
+    // Row 649: measure the real output delay with the microphone (asks for the permission the first time).
+    val calibrationScope = rememberCoroutineScope()
+    val measuredByOutput by iad1tya.echo.music.listentogether.OutputLatencyCalibration.measured.collectAsState()
+    var calibrating by rememberSaveable { mutableStateOf(false) }
+    val runCalibration: () -> Unit = {
+        calibrating = true
+        calibrationScope.launch {
+            val ms = iad1tya.echo.music.listentogether.OutputLatencyCalibration.calibrate(context, outputKey)
+            calibrating = false
+            Toast.makeText(
+                context,
+                if (ms != null) context.getString(R.string.listen_together_calibrate_done, ms) else context.getString(R.string.listen_together_calibrate_failed),
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+    val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) runCalibration()
+        else Toast.makeText(context, context.getString(R.string.listen_together_calibrate_no_mic), Toast.LENGTH_LONG).show()
+    }
     var showSyncOffsetDialog by rememberSaveable { mutableStateOf(false) }
     var showServerUrlDialog by rememberSaveable { mutableStateOf(false) }
     var showUsernameDialog by rememberSaveable { mutableStateOf(false) }
@@ -316,6 +340,26 @@ fun ListenTogetherSettings(
                                         context.getString(R.string.listen_together_cannot_edit_username_in_room),
                                         Toast.LENGTH_SHORT
                                     ).show()
+                                }
+                            }
+                        ),
+                        IntegrationCardItem(
+                            icon = painterResource(R.drawable.speed),
+                            title = { Text(stringResource(R.string.listen_together_calibrate_title)) },
+                            description = {
+                                Text(
+                                    when {
+                                        calibrating -> stringResource(R.string.listen_together_calibrate_running)
+                                        measuredByOutput[outputKey] != null ->
+                                            stringResource(R.string.listen_together_calibrate_last, measuredByOutput[outputKey] ?: 0)
+                                        else -> stringResource(R.string.listen_together_calibrate_desc)
+                                    }
+                                )
+                            },
+                            onClick = {
+                                if (!calibrating) {
+                                    if (iad1tya.echo.music.listentogether.OutputLatencyCalibration.hasMicrophone(context)) runCalibration()
+                                    else micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                                 }
                             }
                         ),

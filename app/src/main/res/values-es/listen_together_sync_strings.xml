@@ -6,4 +6,11 @@
     <string name="listen_together_sync_offset_bluetooth">Bluetooth: %1$s</string>
     <string name="listen_together_sync_offset_other">Salida: %1$s</string>
     <string name="listen_together_sync_offset_help">Vale para la salida por la que suena el audio ahora mismo. Si suena DESPUÉS que los demás aparatos (un altavoz Bluetooth, por ejemplo), sube el valor; si suena ANTES, bájalo. El altavoz del aparato y cada altavoz Bluetooth guardan su propio valor. Los cambios se aplican al instante, incluso dentro de una sala.</string>
+    <string name="listen_together_calibrate_title">Calibrar con el micrófono</string>
+    <string name="listen_together_calibrate_desc">Mide el retardo real de esta salida (un altavoz Bluetooth, por ejemplo) con un tono breve. También se hace solo dentro de una sala.</string>
+    <string name="listen_together_calibrate_running">Midiendo…</string>
+    <string name="listen_together_calibrate_last">Medido: %1$d ms</string>
+    <string name="listen_together_calibrate_done">Retardo de la salida medido: %1$d ms</string>
+    <string name="listen_together_calibrate_failed">No se pudo medir. Acerca el aparato a su altavoz, sube un poco el volumen e inténtalo de nuevo.</string>
+    <string name="listen_together_calibrate_no_mic">Sin el micrófono no se puede medir el retardo; el ajuste de abajo queda manual.</string>
 </resources>
