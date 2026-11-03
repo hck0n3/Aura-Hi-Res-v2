@@ -990,32 +990,36 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      * a mitad de sala, y un valor cacheado dejaría la compensación puesta (o quitada) justo cuando
      * cambia lo único que la justifica.
      */
-    private fun outputLatencyMs(context: android.content.Context): Int =
-        runCatching {
-            OutputLatency.defaultMsFor(
-                iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(context),
-            )
-        }.getOrDefault(0) + manualSyncOffsetMs
+    private fun outputLatencyMs(context: android.content.Context): Int {
+        val key = runCatching { iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(context) }.getOrNull() ?: return 0
+        return OutputLatency.defaultMsFor(key) + (manualSyncOffsets[key] ?: 0)
+    }
 
     /**
      * Row 648 (owner 2026-11-02, a Zealot S89 on the tablet and a Harman Kardon Onyx Studio 9 on the phone: «suenan horriblemente
-     * desincronizados»). The app assumes the SAME 180 ms for any Bluetooth speaker, so two different speakers cancel out and
-     * whatever they really differ by is left uncorrected — Android exposes no API for the real value. This is the user's own
-     * per-device correction in ms (Ajustes > Escuchar juntos > Ajuste de sincronía), summed into the output delay both when this
-     * device publishes what it hears and when it compares itself with the host. Read live so it can be tuned by ear in a room.
+     * desincronizados»; and «lo quiero bien en los parlantes del cel y la tablet y cuando conecte a Bluetooth»). The app assumes
+     * the SAME 180 ms for any Bluetooth speaker, so two different speakers cancel out and whatever they really differ by is left
+     * uncorrected — Android exposes no API for the real value. This is the user's own correction in ms (Ajustes > Escuchar juntos >
+     * Ajuste de sincronía), kept PER OUTPUT (device speaker, each Bluetooth speaker by name, wired, USB) because the delay belongs
+     * to the speaker: the same tablet needs 0 on its own speaker and another value on a Bluetooth one. It is summed into the output
+     * delay both when this device publishes what it hears and when it compares itself with the host, and read live so it can be
+     * tuned by ear inside a room. [manualSyncOffsets] is keyed by `EqDeviceProfileStore.currentOutputKey`.
      */
-    @Volatile private var manualSyncOffsetMs = 0
+    @Volatile private var manualSyncOffsets: Map<String, Int> = emptyMap()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun followManualSyncOffset() {
+        val prefix = iad1tya.echo.music.constants.LISTEN_TOGETHER_SYNC_OFFSET_PREFIX
         serviceFlow
             .filterNotNull()
             .flatMapLatest { service ->
                 service.dataStore.data.map { prefs ->
-                    (prefs[iad1tya.echo.music.constants.ListenTogetherSyncOffsetMsKey] ?: 0).coerceIn(-600, 600)
+                    prefs.asMap().entries
+                        .filter { it.key.name.startsWith(prefix) && it.value is Int }
+                        .associate { it.key.name.removePrefix(prefix) to (it.value as Int).coerceIn(-600, 600) }
                 }
             }
-            .collect { manualSyncOffsetMs = it }
+            .collect { manualSyncOffsets = it }
     }
 
     private fun safeDuration(service: MusicService): Long =

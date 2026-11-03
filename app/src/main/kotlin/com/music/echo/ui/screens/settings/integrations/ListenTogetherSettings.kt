@@ -110,8 +110,15 @@ fun ListenTogetherSettings(
     var autoApproval by rememberPreference(ListenTogetherAutoApprovalKey, false)
     var auraRooms by rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
 
-    // Row 648: per-device offset, in ms, for the output delay the app cannot measure (two different Bluetooth speakers, for one).
-    var syncOffsetMs by rememberPreference(iad1tya.echo.music.constants.ListenTogetherSyncOffsetMsKey, 0)
+    // Row 648: offset in ms for the output delay the app cannot measure (two different Bluetooth speakers, for one), kept PER OUTPUT:
+    // the device speaker and each Bluetooth speaker have their own value. The output shown is the one audio is routed to right now.
+    val outputKey = remember { iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(context) }
+    val outputLabel = when {
+        outputKey == iad1tya.echo.music.eq.data.EqDeviceProfileStore.PHONE_KEY -> stringResource(R.string.listen_together_sync_offset_speaker)
+        outputKey.startsWith("bt:") -> stringResource(R.string.listen_together_sync_offset_bluetooth, outputKey.removePrefix("bt:"))
+        else -> stringResource(R.string.listen_together_sync_offset_other, outputKey)
+    }
+    var syncOffsetMs by rememberPreference(iad1tya.echo.music.constants.listenTogetherSyncOffsetKey(outputKey), 0)
     var showSyncOffsetDialog by rememberSaveable { mutableStateOf(false) }
     var showServerUrlDialog by rememberSaveable { mutableStateOf(false) }
     var showUsernameDialog by rememberSaveable { mutableStateOf(false) }
@@ -151,6 +158,10 @@ fun ListenTogetherSettings(
             }
         ) {
             Column {
+                Text(
+                    text = outputLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Text(
                     text = stringResource(R.string.listen_together_sync_offset_value, syncOffsetMs),
                     style = MaterialTheme.typography.headlineSmall,
@@ -312,7 +323,7 @@ fun ListenTogetherSettings(
                             icon = painterResource(R.drawable.sync),
                             title = { Text(stringResource(R.string.listen_together_sync_offset_title)) },
                             description = {
-                                Text(stringResource(R.string.listen_together_sync_offset_value, syncOffsetMs))
+                                Text(outputLabel + " · " + stringResource(R.string.listen_together_sync_offset_value, syncOffsetMs))
                             },
                             onClick = { showSyncOffsetDialog = true }
                         ),

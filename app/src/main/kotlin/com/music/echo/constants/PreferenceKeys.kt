@@ -567,7 +567,13 @@ val ListenTogetherAuraRoomsKey = booleanPreferencesKey("listenTogetherAuraRooms"
 val ListenTogetherAutoApprovalKey = booleanPreferencesKey("listenTogetherAutoApproval")
 val ListenTogetherSyncVolumeKey = booleanPreferencesKey("listenTogetherSyncVolume")
 val ListenTogetherSmartResyncKey = booleanPreferencesKey("listenTogetherSmartResync")
-val ListenTogetherSyncOffsetMsKey = intPreferencesKey("listenTogetherSyncOffsetMs")
+/**
+ * Row 648: the Listen Together sync adjustment is stored PER OUTPUT (the device speaker, each Bluetooth speaker by name, wired, USB),
+ * because the delay to correct belongs to the speaker, not to the device: the same tablet needs 0 ms on its own speaker and
+ * another value on a Bluetooth one. [outputKey] is `EqDeviceProfileStore.currentOutputKey`.
+ */
+const val LISTEN_TOGETHER_SYNC_OFFSET_PREFIX = "listenTogetherSyncOffsetMs:"
+fun listenTogetherSyncOffsetKey(outputKey: String) = intPreferencesKey(LISTEN_TOGETHER_SYNC_OFFSET_PREFIX + outputKey)
 val ListenTogetherBlockedUsersKey = stringPreferencesKey("listenTogetherBlockedUsers")
 val ListenTogetherInTopBarKey = booleanPreferencesKey("listenTogetherInTopBar")
 
