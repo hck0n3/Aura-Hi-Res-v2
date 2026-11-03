@@ -147,6 +147,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     fun start(scope: CoroutineScope) {
         if (started) return
         started = true
+        bridgeScope = scope
         Timber.tag(TAG).i("Playback bridge started")
         scope.launch { followPlayer() }
         scope.launch { watchRoomForGuests() }
@@ -210,6 +211,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             isPlayingNow.value = isPlaying
+            // Row 647 (owner 2026-11-03: «cuando cambio la canción escucho eco, uno adelante y otro atrás»): after a track change the
+            // guest starts the new song 200-400 ms behind and, until now, waited for the host's next 4 s reference to jump. The jump
+            // is judged only on a PLAYING player, so the moment it starts to play is the moment to catch up — with the room's last known
+            // position (extrapolated by the shared clock), not 4 s later.
+            if (isPlaying && fastStartPending) catchUpNow()
         }
 
         override fun onTimelineChanged(
@@ -413,6 +419,30 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
     /** Row 647: a track change is waiting for its player to start playing before the fast catch-up window begins. */
     @Volatile private var fastStartPending = false
+
+    private var bridgeScope: CoroutineScope? = null
+
+    /**
+     * Row 647: the guest's new track just started playing — apply the room's last known position NOW (the fast jump is judged on a
+     * playing player) instead of waiting up to 4 s for the host's next reference. Same guard and path as the heartbeat.
+     */
+    private fun catchUpNow() {
+        val st = session.state.value
+        // Position 0 is the CHANGE_TRACK message itself, stamped before the host's audio started: extrapolating it would put this guest
+        // AHEAD by the host's own load time. Only a real reference (the host's PLAY / 4 s heartbeat, position > 0) is worth jumping to.
+        if (!st.inRoom || st.isHost || !st.isPlaying || st.position <= 0L) return
+        val service = serviceFlow.value ?: return
+        bridgeScope?.launch {
+            applyingRemote = true
+            try {
+                applyTransport(service, st.isPlaying, st.position)
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Catch-up on play failed")
+            } finally {
+                applyingRemote = false
+            }
+        }
+    }
 
     /** Row 647: when a re-check after a fast jump is due (0 = none). Read by [guestPositionHeartbeat], set by [applyTransport]. */
     @Volatile private var fastRecheckAtMs = 0L
