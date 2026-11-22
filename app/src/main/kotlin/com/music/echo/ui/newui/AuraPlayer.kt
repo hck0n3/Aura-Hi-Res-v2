@@ -629,7 +629,7 @@ private fun AuraPlayerShape(
     // Same automix top-up the classic player runs (kept as an effect, never in the composition body).
     LaunchedEffect(canSkipNext, automix) {
         if (!canSkipNext && automix.isNotEmpty() && !playerConnection.service.automixDefersToContinuation()) {
-            playerConnection.service.addToQueueAutomix(automix[0], 0)
+            playerConnection.service.addNextUnheardAutomix()
         }
     }
 

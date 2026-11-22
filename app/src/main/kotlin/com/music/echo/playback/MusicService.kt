@@ -5182,6 +5182,25 @@ class MusicService :
         addToQueue(listOf(item))
     }
 
+    fun addNextUnheardAutomix() {
+        val items = automixItems.value
+        if (items.isEmpty()) return
+        val queued = liveQueueSnapshot(afterCurrent = false)
+        val index = items.indexOfFirst { !it.isHeardForSmartQueue(queued) }
+        if (index >= 0) addToQueueAutomix(items[index], index)
+    }
+
+    internal fun MediaItem.isHeardForSmartQueue(queued: LiveQueueSnapshot?): Boolean {
+        val id = mediaId
+        if (id.isNotEmpty() && (
+                id in sessionPlayedIds || cachedPlayedIds?.contains(id) == true ||
+                    cachedEverPlayedIds?.contains(id) == true || queued?.ids?.contains(id) == true
+                )
+        ) return true
+        val key = dedupKeyOrNull() ?: return false
+        return key in sessionPlayedDedupKeys || queued?.keys?.contains(key) == true
+    }
+
     fun playNextAutomix(
         item: MediaItem,
         position: Int,
