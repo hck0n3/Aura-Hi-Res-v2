@@ -26,7 +26,7 @@ Lentes: CON = conexiones e incoherencias; BUG = fallos; SEC = seguridad y privac
 | **BUG** | 0 | 3 (F-005, F-006, F-009) | 2 (F-007, F-010) | — | 5 |
 | **SEC** | 0 | 1 (F-002) | 2 (F-003, F-008) | — | 3 |
 | **PERF** | 0 | — | 2 (F-001, F-011) | — | 2 |
-| **CON** | 0 | — | 2 (F-004, D-002) | 1 (F-012) | 3 |
+| **CON** | 0 | — | 2 (F-004, D-002) | 1 (F-012, implementado) | 3 |
 | **Total** | **0** | **4** | **8** | **1** | **13** |
 
 F-005 cuenta como BUG y también como SEC. F-008 cuenta como SEC y también como CON. Además hay 6 sospechas
@@ -59,17 +59,30 @@ Documentación:
   (`d8219a8`).
 - `UI_INVENTORY.md`: nota sobre el reproductor clásico borrado.
 
-## Tu decisión pendiente
+## F-012 (implementado con tu visto bueno)
 
-- **F-012 (P3):** el ajuste «Lienzo a pantalla completa al girar» (Ajustes ▸ Rendimiento) solo lo leía el
-  reproductor clásico. En la interfaz nueva el interruptor no hace nada, y ya no lo hacía antes del borrado.
-  ¿Lo implemento en el reproductor nuevo o quito el interruptor?
+- `2caa1d3`. El ajuste «Fondo animado a pantalla completa en horizontal» (Ajustes ▸ Rendimiento, apagado por
+  defecto) ya funciona en el reproductor nuevo.
+- Se activa con el móvil de verdad en horizontal, con el lienzo animado activo, con lienzo para esa canción
+  y sin vídeo. Entonces solo se ve el lienzo a pantalla completa, con anterior, play y siguiente: se ocultan
+  a los 3,5 s y vuelven al tocar.
+- Fila 644 del registro y guardián en `HotZoneAuditGuardTest` (`dfd1b4f`).
 
 ## Verificación (fase 3)
 
 - Revisión con ojos frescos de la primera tanda (F-005, F-006, F-009, F-010): **SIN HALLAZGOS**.
-- La revisión de la segunda tanda, el resultado de `unit-tests.yml` y la compilación con Cast
-  (`test-build.yml`, `assembleUniversalGmsDebug`) se apuntan al final de este informe.
+- Revisión fresca de la segunda tanda (F-001, F-003, F-004, F-007, F-008, F-011, D-002). Hallazgos y lo que
+  se hizo con cada uno:
+  - **Arreglar:** la política decía «solo título y artista», pero también se envían estilos, idioma y la
+    señal de fe. Corregido con tu visto bueno (`0961639`).
+  - **Rebatido:** según el revisor, F-002 y la fila 7 estaban fuera de las órdenes. No es así: fueron
+    decisiones tuyas en esta conversación.
+  - **Menor:** quedaban 6 comentarios que citaban el reproductor borrado. Actualizados (`5644fe2`).
+- `unit-tests.yml` sobre `3f69f96` (toda la segunda tanda): **success**
+  ([run 45034045389](https://github.com/hck0n3/Aura-Hi-Res-v2/actions/runs/45034045389)).
+- Compilación con Cast (`test-build.yml`, `assembleUniversalGmsDebug`) sobre `34256c3`: **success**
+  ([run 45033819989](https://github.com/hck0n3/Aura-Hi-Res-v2/actions/runs/45033819989)).
+- F-012 (`2caa1d3`): su revisión fresca y su CI se apuntan cuando terminen.
 - **Lint: no ejecutado.** No hay un workflow de lint en el repositorio y aquí no se puede compilar.
 - **Registro por archivo:** revisé cada fila que cita un archivo tocado. Las 12 filas cuyo guardián vivía en
   el `Player.kt` borrado se comprobaron contra `AuraPlayer.kt`. La única función que solo existía en el
@@ -95,6 +108,9 @@ Documentación:
    hubieras tocado y comprueba que se aplica.
 9. **D-002.** El reproductor, la mini barra, la letra de la cola y el reproductor ancho del plegable deben
    funcionar como siempre.
+10. **F-012.** Activa el lienzo animado y, en Ajustes ▸ Rendimiento, «Fondo animado a pantalla completa en
+   horizontal». Pon una canción con lienzo y gira el móvil: debe verse solo el lienzo, y al tocar aparecen
+   los controles. Con el ajuste apagado, el reproductor ancho de siempre.
 
 ## No verificado aquí
 
