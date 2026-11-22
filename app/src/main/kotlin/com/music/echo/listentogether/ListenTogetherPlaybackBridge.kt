@@ -397,8 +397,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
         val roomTrack = session.state.value.currentTrack
-        val corrected = capToTrack(session.positionAt(position, isPlaying), roomTrack)
         val player = runCatching { service.player }.getOrNull() ?: return@withContext
+        val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
+        val corrected = capToTrack(session.positionAt(position, isPlaying), roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
             val attempt = roomTrack.id to session.state.value.lastActionServerTime
             if (mismatchReload == attempt) return@withContext
@@ -687,7 +688,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             title = title,
             artist = artists.joinToString(", ") { it.name },
             album = album?.title.orEmpty(),
-            duration = safeDuration(service),
+            duration = safeDuration(service).takeIf { it > 0L } ?: (duration.toLong().coerceAtLeast(0L) * 1000L),
             thumbnail = thumbnailUrl.orEmpty(),
         )
 
@@ -889,8 +890,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             )
         }.getOrDefault(0)
 
-    private fun capToTrack(position: Long, track: TrackInfo?): Long {
-        val duration = track?.duration ?: 0L
+    private fun capToTrack(position: Long, track: TrackInfo?, localDurationMs: Long = 0L): Long {
+        val duration = track?.duration?.takeIf { it > 0L } ?: localDurationMs
         return if (duration > TRACK_END_MARGIN_MS) position.coerceAtMost(duration - TRACK_END_MARGIN_MS) else position
     }
 
