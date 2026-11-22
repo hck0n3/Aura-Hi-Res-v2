@@ -19,7 +19,7 @@ import org.junit.Test
  * las lecturas calientes de Main no paguen el viaje runBlocking por el actor del DataStore.
  * Estos tests fijan su contrato: el snapshot es de reemplazo completo (una sola fuente publica),
  * peek es null para claves ausentes o antes de la primera emisión, y getNonBlocking SOLO cae a
- * la lectura bloqueante cuando el snapshot no tiene la clave — jamás cuando la tiene.
+ * la lectura bloqueante antes de la primera emisión — jamás con el snapshot publicado.
  *
  * NOTA: PrefsBridge es un singleton de proceso; cada test publica primero el snapshot exacto que
  * necesita y usa claves propias para no depender del orden de ejecución.
@@ -79,12 +79,18 @@ class PrefsBridgeTest {
         assertEquals("bridge", ThrowingStore().getNonBlocking(key, "fallback"))
     }
 
+    /**
+     * Auditoría F-001 (2026-11-22, aprobado por el dueño): el snapshot es de reemplazo completo, así que
+     * una clave que está en disco SIEMPRE está en él. Que falte significa "nunca se guardó": se devuelve
+     * el default sin el runBlocking por el actor del DataStore (antes, cada ajuste nunca tocado bloqueaba
+     * el hilo principal en cada lectura).
+     */
     @Test
-    fun `getNonBlocking cae al store cuando la clave no esta en el snapshot`() {
+    fun `getNonBlocking devuelve el default sin tocar el store cuando el snapshot no tiene la clave`() {
         val key = stringPreferencesKey("bridge_fallback")
         PrefsBridge.publish(preferencesOf(stringPreferencesKey("bridge_unrelated") to "x"))
 
-        assertEquals("disco", FixedStore(preferencesOf(key to "disco")).getNonBlocking(key, "defecto"))
+        assertEquals("defecto", ThrowingStore().getNonBlocking(key, "defecto"))
     }
 
     @Test

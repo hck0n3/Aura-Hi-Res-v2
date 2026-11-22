@@ -82,7 +82,7 @@ fun <T> DataStore<Preferences>.get(
 fun <T> DataStore<Preferences>.getNonBlocking(
     key: Preferences.Key<T>,
     defaultValue: T,
-): T = PrefsBridge.peek(key) ?: get(key, defaultValue)
+): T = if (PrefsBridge.isReady) PrefsBridge.peek(key) ?: defaultValue else get(key, defaultValue)
 
 fun <T> preference(
     context: Context,
@@ -153,7 +153,7 @@ inline fun <reified T : Enum<T>> rememberEnumPreference(
     // HALLAZGO-060 (diferido): semilla no bloqueante vía snapshot de proceso (PrefsBridge).
     val initialValue =
         remember {
-            (PrefsBridge.peek(key) ?: context.dataStore[key]).toEnum(defaultValue = defaultValue)
+            (if (PrefsBridge.isReady) PrefsBridge.peek(key) else context.dataStore[key]).toEnum(defaultValue = defaultValue)
         }
     val state =
         remember {
