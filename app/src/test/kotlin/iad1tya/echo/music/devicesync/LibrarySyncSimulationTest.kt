@@ -197,6 +197,7 @@ class LibrarySyncSimulationTest {
         val backend = FakeBackend()
         val ledger = FakeLedger()
         private var since = 0L
+        private var caughtUp = false
         private val inbox = Channel<JsonObject>(Channel.UNLIMITED)
         @Volatile var online = false
         private var consumer: Job? = null
@@ -208,6 +209,8 @@ class LibrarySyncSimulationTest {
                 override fun put(value: Long) { since = value }
                 override fun freshStart() = fresh
                 override fun endFreshStart() { fresh = false }
+                override fun caughtUpOnce() = caughtUp
+                override fun markCaughtUp() { caughtUp = true }
             },
             scope = scope,
             sendMessage = { msg -> if (online) { room.receive(id, msg); true } else false },
@@ -365,6 +368,102 @@ class LibrarySyncSimulationTest {
 
         phone.connect()
         eventually("the offline like goes out on reconnect") { "offlineLike" in tablet.backend.likes }
+    }
+
+    // Owner 2026-11-22: a change made while a device was away used to get its time when it was SENT, i.e. after the room's
+    // state had already been applied over it. These three pin «newest wins by when the change was MADE».
+
+    @Test
+    fun `a like made offline is not undone by an older unlike the room got while the device was away`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("known")
+        phone.connect(); tablet.connect()
+        eventually("both caught up") { "known" in tablet.backend.likes }
+        settle()
+        tablet.disconnect()
+        // Monday: the phone likes Y and then changes its mind.
+        phone.backend.like("Y"); phone.changed()
+        eventually("the like is in the room") { room.value("lk:Y") == "1" }
+        phone.backend.likes -= "Y"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:Y") == "0" }
+        settle()
+        // Tuesday, offline: the tablet likes Y.
+        tablet.backend.like("Y"); tablet.changed()
+        settle()
+        tablet.connect()
+        eventually("the tablet's newer like reaches the room") { room.value("lk:Y") == "1" }
+        eventually("and the phone") { "Y" in phone.backend.likes }
+        settle()
+        assertTrue("the tablet kept its like", "Y" in tablet.backend.likes)
+    }
+
+    @Test
+    fun `an unlike made offline is not undone by an older like the room got while the device was away`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("Y")
+        phone.connect(); tablet.connect()
+        eventually("both have Y") { "Y" in tablet.backend.likes }
+        settle()
+        tablet.disconnect()
+        // Monday: the phone unlikes Y and likes it again.
+        phone.backend.likes -= "Y"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:Y") == "0" }
+        phone.backend.like("Y"); phone.changed()
+        eventually("the like is in the room again") { room.value("lk:Y") == "1" }
+        settle()
+        // Tuesday, offline: the tablet unlikes Y.
+        tablet.backend.likes -= "Y"; tablet.changed()
+        settle()
+        tablet.connect()
+        eventually("the tablet's newer unlike reaches the room") { room.value("lk:Y") == "0" }
+        eventually("and the phone") { "Y" !in phone.backend.likes }
+        settle()
+        assertFalse("the tablet kept its unlike", "Y" in tablet.backend.likes)
+    }
+
+    @Test
+    fun `a change the room got AFTER the offline one still wins`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("Y")
+        phone.connect(); tablet.connect()
+        eventually("both have Y") { "Y" in tablet.backend.likes }
+        settle()
+        tablet.disconnect()
+        // First the offline tablet unlikes Y, then the phone unlikes and likes it again: the phone's like is the newest.
+        tablet.backend.likes -= "Y"; tablet.changed()
+        settle()
+        phone.backend.likes -= "Y"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:Y") == "0" }
+        phone.backend.like("Y"); phone.changed()
+        eventually("the like is in the room again") { room.value("lk:Y") == "1" }
+        settle()
+        tablet.connect()
+        eventually("the newest change, the phone's like, reaches the tablet") { "Y" in tablet.backend.likes }
+        settle()
+        assertEquals("1", room.value("lk:Y"))
+        assertTrue("Y" in phone.backend.likes)
+    }
+
+    @Test
+    fun `a device that never caught up with the room does not turn the library it brought into new changes while offline`() {
+        val tablet = Device("tablet")
+        repeat(3) { tablet.backend.like("w$it") }
+        tablet.connect()
+        eventually("the room has the likes") { (0 until 3).all { room.value("lk:w$it") == "1" } }
+        tablet.backend.likes.clear(); tablet.changed()
+        eventually("the room has the removals") { (0 until 3).all { room.value("lk:w$it") == "0" } }
+
+        // A phone new to this room still has them, and something kicks its sync before it ever connects.
+        val phone = Device("phone")
+        repeat(3) { phone.backend.like("w$it") }
+        phone.changed()
+        settle()
+        assertTrue("nothing recorded before the first catch-up", phone.ledger.stored.isEmpty())
+        phone.connect()
+        eventually("the phone caught up") { (0 until 3).all { phone.ledger.stored["lk:w$it"]?.value == "0" } }
+        settle()
+        assertTrue("the room's removals stand", (0 until 3).all { room.value("lk:w$it") == "0" })
+        assertTrue("nothing the user removed came back on the tablet", tablet.backend.likes.isEmpty())
     }
 
     @Test
