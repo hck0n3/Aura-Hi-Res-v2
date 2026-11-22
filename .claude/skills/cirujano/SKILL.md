@@ -22,6 +22,11 @@ Este skill **no sustituye** a `AGENTS.md`: lo aplica a un cambio puntual. Si alg
   que adivinar. No elijas tú la interpretación "más razonable".
 - **Si no sabes algo, dilo:** "no lo sé" o "no lo he comprobado". Nunca lo rellenes con una suposición
   presentada como hecho.
+- **Etiqueta `[NO VERIFICADO]`** todo lo que dependa de algo que no puedes leer ni ejecutar aquí: cómo se
+  comporta YouTube, media3 u otra librería por dentro, una versión de Android, un dispositivo concreto. La
+  etiqueta va en el plan y en el informe, junto con cómo se comprobaría. Nunca se presenta como hecho.
+- **Sin complacencia:** si la petición choca con el código o con el registro de regresiones, dilo con la
+  prueba (archivo:línea) **antes** de hacerla. Nada de "tienes razón" sin evidencia.
 
 ## 1. Antes de editar
 
@@ -31,16 +36,23 @@ Este skill **no sustituye** a `AGENTS.md`: lo aplica a un cambio puntual. Si alg
    Ya se depuró código muerto una vez (registro #43).
 3. **Busca en `docs/REGRESSION_REGISTRY.md`** el archivo y la función que vas a tocar
    (`grep -n "<Archivo>.kt" docs/REGRESSION_REGISTRY.md`). Cada fila que aparezca es un guardián que
-   tu diff no puede revertir. Lee también la sección "LEER ANTES DE TOCAR CÓDIGO".
+   tu diff no puede revertir. Lee también la sección "LEER ANTES DE TOCAR CÓDIGO". El `archivo:línea`
+   de una fila puede estar desfasado: busca el guardián en el código (`grep`), no te fíes del número de
+   línea. Si el guardián ya no existe, avísalo: puede ser una regresión anterior.
 4. **Localiza los tests guardianes** del archivo: `grep -rl "<Archivo>.kt" app/src/test`. Son los que
    tu cambio debe dejar en verde.
 5. **Lista quién depende** de lo que cambias (`grep -rn "nombreFuncion" --include=*.kt`). Si es un
    flag en un `object`/singleton, pregunta quién más corre a la vez (precarga, crossfade, descargas).
 6. **Si copias un patrón existente, léelo entero** y lista sus partes antes de replicarlo.
-7. **Pide plan y espera confirmación** (3 líneas: archivo, cambio, por qué) si se cumple cualquiera:
+7. **Pide plan y espera confirmación** (3 líneas: archivo, cambio, por qué) si se cumple cualquiera.
+   A estos casos se les llama **cambio de riesgo** en el resto de la skill:
    - el cambio toca más de 2 archivos;
    - toca un archivo compartido de la lista de `AGENTS.md` regla 1;
-   - cambia una firma, tipo o contrato público.
+   - cambia una firma, tipo o contrato público;
+   - toca corrutinas, hilos, callbacks del reproductor o estado compartido;
+   - el plan tiene algún `[NO VERIFICADO]`.
+8. **Apunta la línea base** antes de la primera edición: `git rev-parse HEAD` y `git status --short`.
+   Lo que ya estaba modificado no es tuyo: no lo incluyas en tu commit ni en tu revisión.
 
 ## 2. Alcance
 
@@ -68,9 +80,10 @@ línea, responde "¿qué parte de la orden exige esto?". Si no tiene respuesta, 
 | Claves en `app/build.gradle.kts` (Last.fm, Tidal, Qobuz) | Públicas por diseño |
 | Paquete `com.music.echo`, root project `echomusic` | Herencia del fork, no se "arregla" |
 
-Las tres primeras zonas las vigila un hook (`.claude/hooks/protect-zones.sh`): editar ahí **le pide
-aprobación al dueño**, y modificarlas desde la shell **se bloquea**. Si el hook salta, para y pregunta.
-**Nunca lo esquives** (con un script de Python, otra ruta, o cambiando `.claude/settings.json`).
+Las tres primeras zonas, el propio hook y `.claude/settings.json` están **bloqueados siempre** por un hook
+(`.claude/hooks/protect-zones.sh`), tanto con Edit/Write como desde la shell. Si el dueño pide un cambio
+ahí, dile que está bloqueado y que solo él puede desactivar el hook a mano. **Nunca lo esquives** (con un
+script de Python, otra ruta, otro nombre de archivo o cualquier otra vía).
 
 ## 4. Al escribir el cambio
 
@@ -96,6 +109,19 @@ aprobación al dueño**, y modificarlas desde la shell **se bloquea**. Si el hoo
 - Si el build o un test falla **por tu cambio**: corrígelo dentro de tu cambio, o revierte **solo tus
   propios cambios** (no descartes trabajo ajeno con `git checkout .`/`reset --hard`).
 - Si falla **por algo que ya estaba roto** antes de tu cambio: no lo arregles. Dilo en el informe.
+- **Para y pregunta** si el mismo error se repite, si arreglar un fallo provoca otro, o si el arreglo
+  exige tocar archivos fuera de lo pedido. No sigas probando a ciegas.
+
+**Revisión con ojos frescos (solo en un cambio de riesgo).** Quien escribió el cambio tiende a darlo por
+bueno. Antes de entregar, lanza un subagente nuevo que reciba **solo** la orden del dueño y el diff contra
+la línea base (`git diff <base>` y los archivos nuevos), sin la conversación ni tus explicaciones. Pídele:
+- que busque fallos reales: carreras entre hilos, nulos, casos límite, código que sobra y regresiones de
+  las filas del registro que toca el diff;
+- que conteste **"SIN HALLAZGOS"** solo si no encuentra nada; si encuentra algo, solo la lista de
+  hallazgos con su `archivo:línea` y su gravedad (bloqueante / defecto / menor).
+
+Después, clasifica cada hallazgo como **ARREGLAR** (comprobado en el código) o **REBATIR** (con la prueba
+de por qué no es un fallo). Preséntaselo al dueño y que decida él. No arregles nada nuevo sin su visto bueno.
 - **Un test guardián en rojo es una regresión, no un test desfasado.** Nunca lo borres, lo debilites ni
   le cambies la expectativa para que pase. Para y explica qué arreglo antiguo está rompiendo el cambio.
   Solo si el dueño confirma que ese comportamiento debe cambiar, se actualiza el test junto con su fila.
@@ -121,6 +147,7 @@ Commit: <sha corto> — <mensaje>
 Archivo(s): <ruta:línea>
 Cambio: <una línea>
 Verificación: <comando → BUILD SUCCESSFUL / FAIL / no ejecutado (motivo)>
+Revisión fresca: <SIN HALLAZGOS | N hallazgos: ARREGLAR x, REBATIR y | no aplica (cambio sin riesgo)>
 Registro: <filas revisadas, p. ej. #12 #43 — sin conflicto>
 Propuesta (solo si dices que sí): <fila de registro + test guardián, o "nada">
 No verificado: <lo que solo se comprueba en el dispositivo, o "nada">
@@ -144,3 +171,6 @@ Visto, sin tocar: <una línea por problema, o "nada">
 | "Este test guardián está anticuado" | Es la alarma de una regresión. Para y pregunta. |
 | "El hook me bloquea, lo hago por otra vía" | El hook es la voluntad del dueño. Pregunta. |
 | "Lo meto en el commit anterior" | Un cambio, un commit. |
+| "Ya lo revisé yo, no hace falta la revisión fresca" | En un cambio de riesgo, el autor no se revisa a sí mismo. |
+| "media3/YouTube seguro que se comporta así" | `[NO VERIFICADO]` hasta que lo pruebes. |
+| "El registro dice línea 450, ahí estará" | Busca el guardián con grep; las líneas se mueven. |
