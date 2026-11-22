@@ -166,6 +166,25 @@ class OfflineFallbackGuardTest {
         assertTrue(skip.contains("if (resume && castConnectionHandler?.isCasting?.value != true) {"))
     }
 
+    /** One ERR_BR line per branch, so the shared log says which recovery ran. Ids only (rule 4). */
+    @Test
+    fun `every onPlayerError branch logs its ERR_BR line`() {
+        val branches = listOf(
+            "soft_video", "video_format_retry", "video_unresolvable", "video_to_audio", "retry_limit",
+            "offline_no_stream", "no_stream_video", "no_stream_skip", "renderer", "range_416", "corruption_giveup",
+            "corruption", "page_reload", "expired_403", "offline_network", "offline_skip", "offline_wait",
+            "network_giveup", "network_retry", "generic_io", "auto_skip", "stop",
+        )
+        for (branch in branches) {
+            assertTrue("ERR_BR $branch", onPlayerError.contains("logErrorBranch(\"$branch\", mediaId, error)"))
+        }
+        assertTrue(onPlayerError.contains("logErrorBranch(\"offline_rejection_\${kind?.name?.lowercase()}\", mediaId, error)"))
+        val helper = service.substring(service.indexOf("private fun logErrorBranch(")).substringBefore("\n    }\n")
+        assertTrue(helper.contains("\"ERR_BR=%s id=%s code=%d connected=%b session=%b validated=%b\""))
+        assertTrue(helper.contains("LogRedaction.forLog(mediaId)"))
+        assertFalse(helper.contains("error.message"))
+    }
+
     /** The bounded network retry keeps the bytes (a dead link says nothing about audio already on disk). */
     @Test
     fun `the network branches never purge the song bytes`() {

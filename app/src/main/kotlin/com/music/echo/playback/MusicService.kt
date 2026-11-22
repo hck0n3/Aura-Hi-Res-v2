@@ -8258,6 +8258,22 @@ class MusicService :
     // pure predicates, pinned by PlaybackErrorClassifierTest. Here stays the ROUTING: which handler
     // runs, retry counts, cache purges.
 
+    /**
+     * One INFO line per onPlayerError branch, for the log the owner shares (AGENTS.md rule 4: the video id is allowed;
+     * never titles, artists or URLs). `session`/`validated` say what the offline session saw at that moment.
+     */
+    private fun logErrorBranch(branch: String, mediaId: String?, error: PlaybackException) {
+        Timber.tag(TAG).i(
+            "ERR_BR=%s id=%s code=%d connected=%b session=%b validated=%b",
+            branch,
+            iad1tya.echo.music.utils.LogRedaction.forLog(mediaId),
+            error.errorCode,
+            isNetworkConnected.value,
+            PlaybackOfflineSession.isActive,
+            iad1tya.echo.music.utils.NetworkState.validated.value,
+        )
+    }
+
     override fun onPlayerError(error: PlaybackException) {
         super.onPlayerError(error)
 
@@ -8276,6 +8292,7 @@ class MusicService :
         // tracked item would be classified as a VIDEO failure below, walk the video format ladder and could switch
         // video mode back on by itself. The next error (if any) takes the normal path, the soft flag is gone.
         if (softVideoId != null) {
+            logErrorBranch("soft_video", mediaId, error)
             hardRestoreSoftVideo("player error while soft")
             return
         }
@@ -8327,16 +8344,21 @@ class MusicService :
                 // único roto es el contenedor del video, así que se prueba OTRO formato (otro itag →
                 // InnerTube → muxed 22/18) mientras el audio sigue sonando. Solo cuando no queda ningún
                 // peldaño se vuelve a audio — y ni siquiera entonces se salta la canción.
-                if (videoCoordinator.retryVideoWithAnotherFormat(mediaId)) return
+                if (videoCoordinator.retryVideoWithAnotherFormat(mediaId)) {
+                    logErrorBranch("video_format_retry", mediaId, error)
+                    return
+                }
                 // Owner 2026-10-20: the video failed because its merged AUDIO (the refused song audio) did, and no muxed
                 // rung is left: going «back to audio» would only fail again. It is unplayable — one notice + skip.
                 if (iad1tya.echo.music.playback.SongModeAvailability.isBlocked(mediaId)) {
+                    logErrorBranch("video_unresolvable", mediaId, error)
                     silentVideoEntry = false
                     iad1tya.echo.music.utils.UnavailableSongs.recordFailure(mediaId)
                     handleUnresolvableSong(mediaId, null)
                     return
                 }
             }
+            logErrorBranch("video_to_audio", mediaId, error)
             exitVideoMode()
             Toast.makeText(this, "Video no disponible — volviendo a audio", Toast.LENGTH_SHORT).show()
             return
@@ -8345,6 +8367,7 @@ class MusicService :
         
         if (mediaId != null && hasExceededRetryLimit(mediaId)) {
             Timber.tag(TAG).w("Song ${iad1tya.echo.music.utils.LogRedaction.forLog(mediaId)} has exceeded retry limit, skipping")
+            logErrorBranch("retry_limit", mediaId, error)
             markSongAsFailed(mediaId)
             handleFinalFailure()
             return
@@ -8383,6 +8406,7 @@ class MusicService :
                 !PlaybackErrorClassifier.isContentLevelNoStream(error) &&
                 (PlaybackOfflineSession.isActive || iad1tya.echo.music.utils.NetworkState.validationLost.value) &&
                 noteOfflineNetworkFailure() -> {
+                logErrorBranch("offline_no_stream", mediaId, error)
                 continueWithOfflineQueue(stopIfNothing = false)
                 return
             }
@@ -8408,6 +8432,7 @@ class MusicService :
                     ) &&
                     videoCoordinator.fallBackToVideoForUnresolvableSong(mediaId)
                 ) {
+                    logErrorBranch("no_stream_video", mediaId, error)
                     return
                 }
                 // Owner 2026-10-06 — remember a CONTENT-level dead end (region, Premium-only, removed…) so
@@ -8418,16 +8443,19 @@ class MusicService :
                 ) {
                     iad1tya.echo.music.utils.UnavailableSongs.recordFailure(mediaId)
                 }
+                logErrorBranch("no_stream_skip", mediaId, error)
                 handleUnresolvableSong(mediaId, PlaybackErrorClassifier.noStreamReason(error))
                 return
             }
             PlaybackErrorClassifier.isAudioRendererError(error) -> {
                 Timber.tag(TAG).d("AudioTrack error detected (${error.errorCode}), performing safe recovery")
+                logErrorBranch("renderer", mediaId, error)
                 handleAudioRendererError(mediaId)
                 return
             }
             PlaybackErrorClassifier.isRangeNotSatisfiableError(error) -> {
                 Timber.tag(TAG).d("Range Not Satisfiable (416) detected, performing strict recovery")
+                logErrorBranch("range_416", mediaId, error)
                 handleRangeNotSatisfiableError(mediaId)
                 return
             }
@@ -8456,20 +8484,24 @@ class MusicService :
                 // surface final failure / skip instead of looping "Volver a intentar".
                 if (noDeclaredBrand && mediaId != null && hasExceededRetryLimit(mediaId)) {
                     Timber.tag(TAG).w("CONTAINER_3003 giving up for ${mediaId.take(11)} after NoDeclaredBrand retries")
+                    logErrorBranch("corruption_giveup", mediaId, error)
                     markSongAsFailed(mediaId)
                     handleFinalFailure()
                     return
                 }
+                logErrorBranch("corruption", mediaId, error)
                 handleExpiredUrlError(mediaId)
                 return
             }
             PlaybackErrorClassifier.isPageReloadError(error) -> {
                 Timber.tag(TAG).d("Page reload error detected, performing strict recovery")
+                logErrorBranch("page_reload", mediaId, error)
                 handlePageReloadError(mediaId)
                 return
             }
             PlaybackErrorClassifier.isExpiredUrlError(error) -> {
                 Timber.tag(TAG).d("Expired URL (403) detected, refreshing stream URL")
+                logErrorBranch("expired_403", mediaId, error)
                 handleExpiredUrlError(mediaId)
                 return
             }
@@ -8479,6 +8511,7 @@ class MusicService :
                 // session). Nothing is wrong with the song or its bytes: never retried, never purged (this used to
                 // fall through to handleGenericIOError → performAggressiveCacheClear while "connected").
                 val kind = PlaybackErrorClassifier.offlineRejectionKind(error)
+                logErrorBranch("offline_rejection_${kind?.name?.lowercase()}", mediaId, error)
                 if (kind == OfflineRejectionException.Kind.NO_NETWORK) noteOfflineNoNetwork()
                 // The manual switch refuses it whatever the network does: with nothing ahead, waiting would never end.
                 continueWithOfflineQueue(stopIfNothing = kind == OfflineRejectionException.Kind.MANUAL)
@@ -8488,6 +8521,7 @@ class MusicService :
             // A network failure that, with the evidence so far, puts the player in its offline session (or one while it
             // already is): the queue goes on with what plays offline instead of retrying the network song.
             PlaybackErrorClassifier.isNetworkRelatedError(error) && noteOfflineNetworkFailure() -> {
+                logErrorBranch("offline_network", mediaId, error)
                 continueWithOfflineQueue(stopIfNothing = false)
                 return
             }
@@ -8502,10 +8536,12 @@ class MusicService :
                 val offlineTargetIndex = findNextOfflinePlayableIndex()
                 if (offlineTargetIndex != null) {
                     Timber.tag(TAG).d("Offline — skipping to next offline-playable song at index $offlineTargetIndex")
+                    logErrorBranch("offline_skip", mediaId, error)
                     skipToOfflinePlayableSong(offlineTargetIndex)
                     return
                 }
                 Timber.tag(TAG).d("Offline — waiting for the network to return")
+                logErrorBranch("offline_wait", mediaId, error)
                 waitOnNetworkError()
                 return
             }
@@ -8518,6 +8554,7 @@ class MusicService :
                     incrementRetryCount(mediaId)
                     if (hasExceededRetryLimit(mediaId)) {
                         Timber.tag(TAG).w("Connected but ${iad1tya.echo.music.utils.LogRedaction.forLog(mediaId)} keeps failing network-like; giving up (skip)")
+                        logErrorBranch("network_giveup", mediaId, error)
                         markSongAsFailed(mediaId)
                         handleFinalFailure()
                         return
@@ -8530,6 +8567,7 @@ class MusicService :
                     songUrlCache.remove(mediaId)
                 }
                 Timber.tag(TAG).d("Connected but network-like error; bounded retry with a fresh URL")
+                logErrorBranch("network_retry", mediaId, error)
                 waitOnNetworkError()
                 return
             }
@@ -8539,6 +8577,7 @@ class MusicService :
         if (error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) {
             Timber.tag(TAG).d("IO error detected (${error.errorCode}), attempting recovery")
+            logErrorBranch("generic_io", mediaId, error)
             handleGenericIOError(mediaId)
             return
         }
@@ -8546,9 +8585,11 @@ class MusicService :
         
         if (dataStore.get(AutoSkipNextOnErrorKey, false)) {
             Timber.tag(TAG).d("Auto-skipping to next track due to unrecoverable error")
+            logErrorBranch("auto_skip", mediaId, error)
             skipOnError()
         } else {
             Timber.tag(TAG).d("Stopping playback due to unrecoverable error")
+            logErrorBranch("stop", mediaId, error)
             stopOnError()
         }
     }
