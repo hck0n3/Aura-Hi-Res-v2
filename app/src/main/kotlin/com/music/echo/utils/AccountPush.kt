@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.widget.Toast
+import androidx.datastore.preferences.core.edit
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -17,6 +18,8 @@ import com.music.innertube.YouTube
 import com.music.innertube.utils.parseCookieString
 import dagger.hilt.android.EntryPointAccessors
 import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
+import iad1tya.echo.music.constants.ImportFollowsLocalOnlyKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -243,6 +246,17 @@ object AccountPush {
     /** The live follow finished. Logged only: a follow that did not land is the uploader's pending SUBSCRIBE. */
     fun onLiveArtistSubscribe(confirmed: Boolean) {
         Timber.i("SYNC_PUSH kind=subscribe status=%s", if (confirmed) "ok" else "failed")
+    }
+
+    /** The user followed this artist by tap: an import no longer holds it back from the upload. */
+    suspend fun onUserFollowedArtist(artistId: String) {
+        val ctx = appContext ?: return
+        runCatching {
+            ctx.dataStore.edit {
+                it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() - artistId
+                it[ImportFollowsLocalOnlyKey] = it[ImportFollowsLocalOnlyKey].orEmpty() - artistId
+            }
+        }
     }
 
     /** Is a (pending, or just confirmed) action on this song vetoing a "liked" reading from the account? */

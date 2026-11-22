@@ -249,11 +249,15 @@ class LibraryUploadSync @Inject constructor(
             runCatching { database.getArtistById(id) }.getOrNull()
                 ?.let { it.unfollowedByUserAt != null || it.ytmSyncedAt != null } == true
         }
-        if (settled.isNotEmpty()) {
+        // Only the local-only set: an import writes an awaiting id before its follow row exists.
+        val localOnlyStale = prefs[ImportFollowsLocalOnlyKey].orEmpty().filterTo(HashSet()) { id ->
+            runCatching { database.getArtistById(id) }.getOrElse { return@filterTo false }?.followedByUserAt == null
+        }
+        if (settled.isNotEmpty() || localOnlyStale.isNotEmpty()) {
             runCatching {
                 context.dataStore.edit {
                     it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() - settled
-                    it[ImportFollowsLocalOnlyKey] = it[ImportFollowsLocalOnlyKey].orEmpty() - settled
+                    it[ImportFollowsLocalOnlyKey] = it[ImportFollowsLocalOnlyKey].orEmpty() - settled - localOnlyStale
                 }
             }
         }

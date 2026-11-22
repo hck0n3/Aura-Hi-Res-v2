@@ -157,6 +157,7 @@ data class ArtistEntity(
         onLiveUnsubscribeConfirmed: suspend (artistId: String, unfollowedAt: LocalDateTime) -> Unit,
     ) = localToggleLike().also { toggled ->
         CoroutineScope(Dispatchers.IO).launch {
+            if (followedByUserAt == null) iad1tya.echo.music.utils.AccountPush.onUserFollowedArtist(id)
             // Single source of truth for "does this tap reach the account?" — see the doc there. A
             // local-only artist has no YouTube channel behind it; everything else does.
             if (!iad1tya.echo.music.utils.ArtistSyncPolicy.mustCallAccountLive(this@ArtistEntity)) {
