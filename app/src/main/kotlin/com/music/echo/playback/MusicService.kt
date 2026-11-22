@@ -1243,6 +1243,10 @@ class MusicService :
         val md = metadata ?: return null
         return NoRepeatKey.of(md.title, md.artists.firstOrNull()?.name)
     }
+    private fun rememberQueuedItems(items: List<MediaItem>) {
+        sessionPlayedIds.addAll(items.mapNotNull { it.mediaId.takeIf(String::isNotEmpty) })
+        sessionPlayedDedupKeys.addAll(items.mapNotNull { it.dedupKeyOrNull() })
+    }
     private fun rememberRecentRadioId(id: String?, dedupKey: String? = null) {
         if (id.isNullOrBlank()) return
         sessionPlayedIds.add(id) // NO-REPEAT: session-wide memory of everything actually played
@@ -5255,6 +5259,7 @@ class MusicService :
 
         
         player.addMediaItems(insertIndex, items)
+        rememberQueuedItems(items)
         player.prepare()
 
         if (shuffleEnabled) {
@@ -5337,6 +5342,7 @@ class MusicService :
         }
 
         player.addMediaItems(items)
+        rememberQueuedItems(items)
         if (player.shuffleModeEnabled) {
             val shufflePlaylistFirst = dataStore.get(ShufflePlaylistFirstKey, false)
             applyShuffleOrder(player.currentMediaItemIndex, player.mediaItemCount, shufflePlaylistFirst)
@@ -5889,6 +5895,7 @@ class MusicService :
             contextId = contextId,
         )
         queueTitle = title
+        rememberQueuedItems(items)
     }
 
     /**
@@ -6033,6 +6040,7 @@ class MusicService :
                 // in-app queue (adoptExternalQueue cleared that). Bounded by the timeline size itself.
                 radioSeedPool = (0 until player.mediaItemCount)
                     .mapNotNull { i -> runCatching { player.getMediaItemAt(i).metadata }.getOrNull() }
+                rememberQueuedItems((0 until player.mediaItemCount).mapNotNull { i -> runCatching { player.getMediaItemAt(i) }.getOrNull() })
                 radioSeedTitle = null
                 // A plain tap (no shuffle action) with shuffle mode REMEMBERED ON: media3 never fires
                 // onShuffleModeEnabledChanged (the value did not change), so without this the session ran
@@ -6800,6 +6808,7 @@ class MusicService :
             }
         }
         previousMediaItemIndex = player.currentMediaItemIndex
+        player.currentMediaItem?.let { rememberRecentRadioId(it.mediaId, it.dedupKeyOrNull()) }
         // The exact-style gate and the queue's quick-skip memory track "the song that really plays" from
         // onMediaItemTransition — which a crossfade swap (the DEFAULT) never fires, so after every auto-advance
         // they still pointed at the song BEFORE: the next skip was attributed to the wrong song and timed from
