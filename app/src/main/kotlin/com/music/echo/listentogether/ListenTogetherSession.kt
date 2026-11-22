@@ -433,6 +433,7 @@ class ListenTogetherSession(
                         currentTrack = p.state?.currentTrack,
                         isPlaying = p.state?.isPlaying ?: false,
                         position = p.state?.position ?: 0L,
+                        lastActionServerTime = p.state?.lastUpdate?.takeIf { t -> t > 0L } ?: it.lastActionServerTime,
                     )
                 }
             }
@@ -525,6 +526,7 @@ class ListenTogetherSession(
                         currentTrack = p.currentTrack,
                         isPlaying = p.isPlaying,
                         position = p.position,
+                        lastActionServerTime = if (p.lastUpdate > 0L) p.lastUpdate else it.lastActionServerTime,
                         // Only replace the queue when the server actually sent one — sync_state
                         // with an empty queue means "nothing to say", not "the queue is empty".
                         queue = p.queue.ifEmpty { it.queue },
