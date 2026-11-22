@@ -104,6 +104,18 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         scope.launch { tickLoop() }
     }
 
+    /**
+     * The app came back to the foreground (MusicService.onAppForegrounded). Owner 2026-11-22: «controlo el dispositivo 2 desde el 1, vuelvo
+     * a la app y el 1 pierde el control; el mini reproductor muestra lo de aquí». A link that dropped in the background waited out its
+     * backoff (up to 60 s) with the remote cleared: reconnect now, and decide again at once what the player shows.
+     */
+    fun onAppForegrounded() {
+        client.reconnectNow()
+        scope.launch {
+            runCatching { if (DeviceSyncHub.connection.value is DeviceSyncHub.Connection.Connected) evaluateRemote() }
+        }
+    }
+
     fun stop() {
         if (DeviceSyncHub.controller === this) DeviceSyncHub.controller = null
         library?.stop()

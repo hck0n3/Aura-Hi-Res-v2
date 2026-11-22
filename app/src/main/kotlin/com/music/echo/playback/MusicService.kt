@@ -10694,6 +10694,7 @@ class MusicService :
     fun onAppForegrounded() {
         userHasForegroundedThisProcess = true
         awaitingFirstUserPlay = false
+        deviceSync?.onAppForegrounded()
     }
 
     /**
