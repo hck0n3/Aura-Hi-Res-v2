@@ -1265,6 +1265,12 @@
     <string name="ytm_upload_requests_last_run">%1$d requests on the last run</string>
     <string name="ytm_upload_only_followed_note">Only artists you actually followed are subscribed on your account — never artists that just happen to have a song in your library.</string>
     <string name="ytm_upload_enable_confirm_message">%1$d artists you follow in Aura are not on your YouTube Music account yet. Turning this on will subscribe your account to them.</string>
+    <plurals name="ytm_upload_import_awaiting">
+        <item quantity="one">%d imported artist is waiting for your confirmation to be subscribed on your account</item>
+        <item quantity="other">%d imported artists are waiting for your confirmation to be subscribed on your account</item>
+    </plurals>
+    <string name="ytm_upload_import_subscribe">Subscribe</string>
+    <string name="ytm_upload_import_local_only">Only in Aura</string>
     <!-- "Interfaz nueva": full-screen lyrics + downloads containers -->
     <string name="aura_no_song_playing">No song is playing</string>
     <string name="aura_lyrics_appearance">Lyrics appearance</string>

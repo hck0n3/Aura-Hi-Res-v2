@@ -31,14 +31,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.edit
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.music.innertube.utils.parseCookieString
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
+import iad1tya.echo.music.constants.ImportFollowsLocalOnlyKey
 import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey
 import iad1tya.echo.music.constants.YtmLastSyncKey
@@ -47,8 +51,10 @@ import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.UploadCategoryProgress
+import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AccountSettingsViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -321,6 +327,17 @@ private fun LibraryUploadSection(
     val database = iad1tya.echo.music.LocalDatabase.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val pendingFollowsToConfirm = remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+    val (awaitingImportIds, _) = rememberPreference(ImportFollowsAwaitingConfirmKey, emptySet())
+    val awaitingImportCount by androidx.compose.runtime.produceState(0, awaitingImportIds) {
+        value = if (awaitingImportIds.isEmpty()) 0 else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                database.artistsPendingSubscribe(Int.MAX_VALUE).count {
+                    iad1tya.echo.music.utils.ArtistSyncPolicy.maySubscribe(it) && it.id in awaitingImportIds
+                }
+            }.getOrDefault(0)
+        }
+    }
+    val showImportFollowsConfirm = remember { androidx.compose.runtime.mutableStateOf(false) }
 
     fun requestUploadEnabled(enabled: Boolean) {
         if (!enabled) {
@@ -330,8 +347,11 @@ private fun LibraryUploadSection(
         coroutineScope.launch {
             val pending = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching {
+                    val held = context.dataStore.data.first().let {
+                        it[ImportFollowsAwaitingConfirmKey].orEmpty() + it[ImportFollowsLocalOnlyKey].orEmpty()
+                    }
                     database.artistsPendingSubscribe(Int.MAX_VALUE)
-                        .count { iad1tya.echo.music.utils.ArtistSyncPolicy.maySubscribe(it) }
+                        .count { iad1tya.echo.music.utils.ArtistSyncPolicy.maySubscribe(it) && it.id !in held }
                 }.getOrNull()
             } ?: return@launch
             if (pending > 0) pendingFollowsToConfirm.value = pending else setUploadEnabled(true)
@@ -355,6 +375,55 @@ private fun LibraryUploadSection(
                 androidx.compose.material3.TextButton(onClick = { pendingFollowsToConfirm.value = null }) {
                     Text(stringResource(R.string.cancel))
                 }
+            },
+        )
+    }
+
+    if (showImportFollowsConfirm.value) {
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
+            onDismissRequest = { showImportFollowsConfirm.value = false },
+            title = { Text(stringResource(R.string.ytm_upload_toggle_title)) },
+            text = {
+                Text(pluralStringResource(R.plurals.ytm_upload_import_awaiting, awaitingImportCount, awaitingImportCount))
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        showImportFollowsConfirm.value = false
+                        val confirmed = awaitingImportIds
+                        coroutineScope.launch {
+                            runCatching {
+                                context.dataStore.edit {
+                                    it[ImportFollowsAwaitingConfirmKey] =
+                                        it[ImportFollowsAwaitingConfirmKey].orEmpty() - confirmed
+                                }
+                            }.onSuccess {
+                                iad1tya.echo.music.utils.YtmSyncWorker.enqueue(
+                                    context,
+                                    iad1tya.echo.music.utils.YtmSyncWorker.TYPE_UPLOAD_LIBRARY,
+                                )
+                                onToast(context.getString(R.string.ytm_upload_started))
+                            }
+                        }
+                    },
+                ) { Text(stringResource(R.string.ytm_upload_import_subscribe)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        showImportFollowsConfirm.value = false
+                        val keptLocal = awaitingImportIds
+                        coroutineScope.launch {
+                            runCatching {
+                                context.dataStore.edit {
+                                    it[ImportFollowsAwaitingConfirmKey] =
+                                        it[ImportFollowsAwaitingConfirmKey].orEmpty() - keptLocal
+                                    it[ImportFollowsLocalOnlyKey] = it[ImportFollowsLocalOnlyKey].orEmpty() + keptLocal
+                                }
+                            }
+                        }
+                    },
+                ) { Text(stringResource(R.string.ytm_upload_import_local_only)) }
             },
         )
     }
@@ -388,6 +457,15 @@ private fun LibraryUploadSection(
                 },
                 onClick = { requestUploadEnabled(!uploadEnabled) },
             ),
+        ) + listOfNotNull(
+            Material3SettingsItem(
+                icon = painterResource(R.drawable.add_circle),
+                title = {
+                    Text(pluralStringResource(R.plurals.ytm_upload_import_awaiting, awaitingImportCount, awaitingImportCount))
+                },
+                onClick = { showImportFollowsConfirm.value = true },
+            ).takeIf { uploadEnabled && awaitingImportCount > 0 },
+        ) + listOf(
             Material3SettingsItem(
                 icon = painterResource(R.drawable.sync),
                 title = { Text(stringResource(R.string.ytm_upload_run_now)) },

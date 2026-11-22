@@ -3,6 +3,7 @@ package iad1tya.echo.music.ui.screens.migration
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aura.migration.MigrationEngine
@@ -24,6 +25,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.DataSaverEnabledKey
+import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
 import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.ArtistEntity
@@ -784,9 +786,9 @@ class MigrationViewModel @Inject constructor(
             }
 
             // Push the new follows up to the account. syncArtistsSubscriptions() only pulls DOWN, so
-            // the upload pass is what actually subscribes them — and it only touches rows carrying
-            // followedByUserAt, which bookmarkArtist() above set because these came from the source
-            // account's real "followed artists" list. Bounded, batched and resumable.
+            // the upload pass is what actually subscribes them — and only once the user confirms them on
+            // the sync screen (ImportFollowsAwaitingConfirmKey, set by bookmarkArtist() above).
+            // Bounded, batched and resumable.
             runCatching { syncUtils.syncArtistsSubscriptions() }
             runCatching {
                 iad1tya.echo.music.utils.YtmSyncWorker.enqueue(
@@ -836,6 +838,12 @@ class MigrationViewModel @Inject constructor(
 
         val existing = database.getArtistById(match.id)
         if (existing?.unfollowedByUserAt != null) return true
+        // Recorded before the follow is written, so the upload pass never sees the follow without it.
+        if (existing?.followedByUserAt == null) {
+            context.dataStore.edit {
+                it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() + match.id
+            }
+        }
         database.withTransaction {
             val now = LocalDateTime.now()
             if (existing == null) {

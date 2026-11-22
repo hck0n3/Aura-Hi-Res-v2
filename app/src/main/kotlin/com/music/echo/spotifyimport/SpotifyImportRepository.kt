@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import iad1tya.echo.music.R
 import iad1tya.echo.music.utils.ImportFailureRow
 import iad1tya.echo.music.utils.ImportFailuresCsv
+import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
 import iad1tya.echo.music.constants.SpotifyAccessTokenExpiresAtKey
 import iad1tya.echo.music.constants.SpotifyAccessTokenKey
 import iad1tya.echo.music.constants.SpotifyAccountAvatarUrlKey
@@ -1098,6 +1099,12 @@ class SpotifyImportRepository @Inject constructor(
         val thumbnail = match.thumbnail
         val existing = database.artist(match.id).first()?.artist
         if (existing?.unfollowedByUserAt != null) return ItemMatchOutcome.Success
+        // Recorded before the follow is written, so the upload pass never sees the follow without it.
+        if (existing?.followedByUserAt == null) {
+            context.dataStore.edit {
+                it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() + match.id
+            }
+        }
 
         database.withTransaction {
             val now = LocalDateTime.now()

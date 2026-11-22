@@ -9,6 +9,8 @@ import com.music.innertube.models.PlaylistItem
 import com.music.innertube.utils.completed
 import com.music.innertube.utils.parseCookieString
 import dagger.hilt.android.qualifiers.ApplicationContext
+import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
+import iad1tya.echo.music.constants.ImportFollowsLocalOnlyKey
 import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.constants.YtmUploadLastCompletedKey
 import iad1tya.echo.music.constants.YtmUploadProgressKey
@@ -222,6 +224,29 @@ class LibraryUploadSync @Inject constructor(
         context.dataStore.data.map { it[YtmUploadSyncKey] ?: false }.first()
     }.getOrDefault(false)
 
+    /**
+     * Artists an import followed only in Aura — awaiting the user's confirmation or kept in Aura only.
+     * The subscribe step skips them. Ids the user has since unfollowed, or that the account already
+     * has, are dropped from both sets. Null when the preferences cannot be read.
+     */
+    suspend fun importFollowsHeldBack(): Set<String>? = withContext(Dispatchers.IO) {
+        val prefs = runCatching { context.dataStore.data.first() }.getOrNull() ?: return@withContext null
+        val held = prefs[ImportFollowsAwaitingConfirmKey].orEmpty() + prefs[ImportFollowsLocalOnlyKey].orEmpty()
+        val settled = held.filterTo(HashSet()) { id ->
+            runCatching { database.getArtistById(id) }.getOrNull()
+                ?.let { it.unfollowedByUserAt != null || it.ytmSyncedAt != null } == true
+        }
+        if (settled.isNotEmpty()) {
+            runCatching {
+                context.dataStore.edit {
+                    it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() - settled
+                    it[ImportFollowsLocalOnlyKey] = it[ImportFollowsLocalOnlyKey].orEmpty() - settled
+                }
+            }
+        }
+        held - settled
+    }
+
     // ---- the pass ------------------------------------------------------------------------------
 
     /**
@@ -235,6 +260,9 @@ class LibraryUploadSync @Inject constructor(
             val followsTotal = database.countDeliberateFollows()
             val followsSynced = database.countFollowsSyncedToYtm()
             val pendingUnsubs = database.countPendingUnsubscribes()
+            val held = importFollowsHeldBack().orEmpty()
+            val heldPending = if (held.isEmpty()) 0
+            else database.artistsPendingSubscribe(Int.MAX_VALUE).count { it.id in held }
             // Playlists and artists are `verified` straight from the database: a playlist row with a
             // browseId IS linked to the account, and an artist row with ytmSyncedAt IS subscribed —
             // both are only ever written after the account confirmed it. No network needed.
@@ -246,7 +274,7 @@ class LibraryUploadSync @Inject constructor(
                     synced = followsSynced,
                     // A pending unfollow is work left to do too, so the report is not "todo listo"
                     // while an unsubscribe is still queued.
-                    pending = (followsTotal - followsSynced).coerceAtLeast(0) + pendingUnsubs,
+                    pending = (followsTotal - followsSynced - heldPending).coerceAtLeast(0) + pendingUnsubs,
                     verified = true,
                 ),
             )
@@ -430,11 +458,16 @@ class LibraryUploadSync @Inject constructor(
 
     private suspend fun uploadArtistSubscriptions(remoteIds: Set<String>) {
         _progress.value = _progress.value.copy(artists = _progress.value.artists.copy(running = true))
-        val pending = runCatching { database.artistsPendingSubscribe(MAX_SUBSCRIBES_PER_RUN) }
+        val candidates = runCatching { database.artistsPendingSubscribe(Int.MAX_VALUE) }
             .getOrNull().orEmpty()
             // Same in-Kotlin re-check as the unsubscribe path: the DAO query and the policy must agree
             // before anything is written to someone's account, in either direction.
             .filter { ArtistSyncPolicy.maySubscribe(it) }
+        // Read after the rows: an import records the id before it writes the follow.
+        val held = importFollowsHeldBack()
+        val pending = candidates
+            .filter { held != null && it.id !in held }
+            .take(MAX_SUBSCRIBES_PER_RUN)
             // Belt and braces on top of the DB filter: never re-subscribe something the account
             // already has (it would still be a wasted write even though YouTube is idempotent).
             .filterNot { it.id in remoteIds }

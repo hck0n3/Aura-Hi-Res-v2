@@ -112,6 +112,11 @@ val YtmUploadLastCompletedKey = longPreferencesKey("ytmUploadLastCompletedEpochM
 // Persisted snapshot of the upload progress report (compact JSON), so the sync screen shows accurate
 // "ya sincronizadas / sincronizando" counts across app restarts instead of only per session.
 val YtmUploadProgressKey = stringPreferencesKey("ytmUploadProgress")
+// Artist ids an import (Spotify, Tidal/Deezer migration) followed only in Aura. The upload never
+// subscribes them: the first set waits for the user to confirm on the sync screen, the second holds
+// the ones the user chose to keep in Aura only.
+val ImportFollowsAwaitingConfirmKey = stringSetPreferencesKey("import_follows_awaiting_confirm")
+val ImportFollowsLocalOnlyKey = stringSetPreferencesKey("import_follows_local_only")
 // Saved/pinned podcast shows (JSON array of {id,title,author,artworkUrl,feedUrl}).
 val PinnedPodcastsKey = stringPreferencesKey("pinnedPodcasts")
 // Region (2-letter) the user picked for the podcast charts (persisted across sessions).
