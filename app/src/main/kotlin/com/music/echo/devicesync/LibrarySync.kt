@@ -72,6 +72,7 @@ class LibrarySync(
 
     @Volatile private var connected = false
     @Volatile private var pulledOnce = false
+    @Volatile private var stopped = false
 
     /** One `lib_pull` at a time: a big push makes the room send one `lib_ops` per batch, and a pull per signal is a storm (beta 4: 1656 pages in 5 s). */
     private val pullLock = Any()
@@ -83,6 +84,7 @@ class LibrarySync(
     }
 
     fun stop() {
+        stopped = true
         runCatching { stopWatching?.invoke() }
         stopWatching = null
         connected = false
@@ -150,7 +152,7 @@ class LibrarySync(
     /** Handles the library messages of the room. True when [msg] was one of them. */
     suspend fun handle(msg: JsonObject): Boolean {
         when ((msg["t"] as? JsonPrimitive)?.contentOrNull) {
-            "lib_state" -> if (isEnabled()) mutex.withLock {
+            "lib_state" -> if (isEnabled() && connected && !stopped) mutex.withLock {
                 runCatching { onStateLocked(msg) }.onFailure {
                     Timber.tag(TAG).w("LIB_SYNC state failed: %s", it.javaClass.simpleName)
                     DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed(it.javaClass.simpleName)
@@ -176,6 +178,7 @@ class LibrarySync(
     }
 
     private fun sendPull() {
+        if (stopped) return
         DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Syncing
         if (!sendMessage(buildJsonObject { put("t", "lib_pull"); put("since", since) })) {
             synchronized(pullLock) { pullInFlight = false; pullAgain = false }
@@ -187,6 +190,7 @@ class LibrarySync(
         pullWatchdog?.cancel()
         pullWatchdog = scope.launch {
             delay(timing.pullTimeoutMs)
+            if (stopped) return@launch
             synchronized(pullLock) { pullInFlight = false } // a lost answer must not block every later pull
             if (DeviceSyncHub.libraryStatus.value == DeviceSyncHub.LibraryStatus.Syncing && !pulledOnce) {
                 DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed("el servidor no responde")

@@ -433,6 +433,34 @@ class LibrarySyncSimulationTest {
     }
 
     @Test
+    fun `a stopped sync sends no pull on the socket, and a sync that is not connected applies no state`() {
+        val phone = Device("phone")
+        phone.connect()
+        eventually("the phone caught up") { DeviceSyncHub.libraryStatus.value is DeviceSyncHub.LibraryStatus.Synced }
+        settle()
+        // The room changes (a room switch stops this instance): a late signal must not make it pull on the new socket.
+        phone.sync.stop()
+        val pulls = room.pulls
+        runBlocking { phone.sync.handle(buildJsonObject { put("t", "lib_ops"); put("seq", 1) }) }
+        settle()
+        assertEquals("the stopped instance sent no lib_pull", pulls, room.pulls)
+
+        // A state that arrives before this instance is connected (a stale answer from the previous room) is not applied.
+        val tablet = Device("tablet")
+        runBlocking {
+            tablet.sync.handle(buildJsonObject {
+                put("t", "lib_state"); put("seq", 7); put("more", false)
+                put("items", buildJsonArray {
+                    add(buildJsonArray { add(JsonPrimitive("sg:stale")); add(JsonPrimitive(1L)); add(JsonPrimitive(LibrarySyncCore.encodeSong(LibrarySyncCore.SongMeta("t", "a", "c")))) })
+                    add(buildJsonArray { add(JsonPrimitive("lk:stale")); add(JsonPrimitive(1L)); add(JsonPrimitive("1")) })
+                })
+            })
+        }
+        assertTrue("nothing was applied", tablet.backend.likes.isEmpty() && tablet.backend.songs.isEmpty())
+        assertTrue("and nothing was written to its ledger", tablet.ledger.stored.isEmpty())
+    }
+
+    @Test
     fun `an old server is reported, not waited for in silence`() {
         val phone = Device("phone")
         phone.online = true
