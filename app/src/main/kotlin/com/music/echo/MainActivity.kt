@@ -3208,10 +3208,10 @@ class MainActivity : ComponentActivity() {
             }
 
             // /browse/<id> — resolve album vs artist vs playlist vs podcast by prefix (see helper).
-            "browse" -> uri.lastPathSegment?.let { navigateBrowseId(it) }
+            "browse" -> uri.lastPathSegment?.takeIf(::isRouteSafeId)?.let { navigateBrowseId(it) }
 
             // /channel/UC… is a real artist browseId → artist screen.
-            "channel" -> uri.lastPathSegment?.let { artistId ->
+            "channel" -> uri.lastPathSegment?.takeIf(::isRouteSafeId)?.let { artistId ->
                 navController.navigate("artist/$artistId")
             }
 
