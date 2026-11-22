@@ -90,11 +90,13 @@ widget · Cast (Gms).
 - [x] L46 ui/newui/AuraLibraryTabs.kt L1201-L1767 — leído L380-L560, L915-L945, L1230-L1260, L1385-L1400; el resto por búsqueda dirigida (efectos, BD, navegación, colas). F-011
 - [x] L47 ui/newui/AuraHomeScreen.kt L1-L1200
 - [x] L48 ui/newui/AuraHomeScreen.kt L1201-L2309 — leído L170-L455; el resto (estanterías) por búsqueda dirigida: efectos, BD, colas, claves de la lista (por índice, sin claves repetidas). Sin hallazgos P0-P2
-- [ ] L49 ui/screens/equalizer/axion/AxionEqScreen.kt L1-L1200 (solo lectura)
-- [ ] L50 ui/screens/equalizer/axion/AxionEqScreen.kt L1201-L2400 (solo lectura)
-- [ ] L51 ui/screens/equalizer/axion/AxionEqScreen.kt L2401-L2708 (solo lectura)
+- [x] L49 ui/screens/equalizer/axion/AxionEqScreen.kt L1-L1200 (solo lectura)
+- [x] L50 ui/screens/equalizer/axion/AxionEqScreen.kt L1201-L2400 (solo lectura)
+- [x] L51 ui/screens/equalizer/axion/AxionEqScreen.kt L2401-L2708 (solo lectura) — zona del ecualizador: búsqueda dirigida (bucles, efectos, listeners, `!!`), leído L500-L600, L735-L760, L2395-L2440. Nada se toca (AGENTS regla 6); solo observaciones
 
 Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
+
+## Fase 1 terminada (51/51 lotes)
 
 ## Ledger de hallazgos
 
@@ -157,6 +159,9 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - Obs (P3, rendimiento) `AuraContent.kt:655` `downloadUtil.getDownload(songId)` devuelve un `Flow` nuevo en cada llamada (`DownloadUtil.kt:559` `downloads.map { … }`), así que `collectAsState` reinicia la suscripción en cada recomposición de la fila; mientras hay una descarga, `liveProgress` recompone todas las filas visibles en cada tic. Un `remember(songId)` lo evita.
 
 - Obs (P3) `AuraHomeScreen.kt:278-288` → `HomeViewModel.kt:1374-1395` `loadMoreYouTubeItems` comprueba `_isLoadingMore` en Main y lo pone a `true` ya dentro del `launch(Dispatchers.IO)`: dos índices visibles seguidos antes de que arranque la corrutina piden la MISMA continuación dos veces y la página se añade repetida (estanterías duplicadas; las claves son por índice, así que no hay cierre). Además el `false` final no va en `finally`.
+
+- Obs (P3, zona EQ, no se toca) `AxionEqScreen.kt:547-577` el medidor FFT corre un bucle `withFrameNanos` en cada fotograma mientras la pantalla del ecualizador está abierta, también en pausa con las barras ya en cero: publica el mismo `Zero` (no repinta), pero pide un fotograma por vsync.
+- Obs (P3, zona EQ, misma clase que F-007) `AxionEqScreen.kt:752-…` el `DisposableEffect(playerConnection)` engancha su listener al `ExoPlayer` de ese momento; `PlayerConnection` sí se re-engancha cuando el crossfade cambia de instancia (`PlayerConnection.kt:339-343` `updateAttachedPlayer`), esta pantalla no: tras el primer crossfade con el ecualizador abierto, `audioSessionId`/`meterPlaying` quedan del reproductor viejo.
 
 ## [DECISIÓN REQUERIDA] abiertas
 
