@@ -82,7 +82,15 @@ Documentación:
   ([run 45034045389](https://github.com/hck0n3/Aura-Hi-Res-v2/actions/runs/45034045389)).
 - Compilación con Cast (`test-build.yml`, `assembleUniversalGmsDebug`) sobre `34256c3`: **success**
   ([run 45033819989](https://github.com/hck0n3/Aura-Hi-Res-v2/actions/runs/45033819989)).
-- F-012 (`2caa1d3`): su revisión fresca y su CI se apuntan cuando terminen.
+- F-012, CI del primer intento (`2caa1d3`): **falló** el test guardián `RemotePlaybackGuardTest:87`
+  ([run 45034941734](https://github.com/hck0n3/Aura-Hi-Res-v2/actions/runs/45034941734); la app sí compiló).
+  La vista del lienzo copiaba la orden de play/pausa que se reenvía al otro dispositivo, y el test cuenta
+  exactamente dos copias. Arreglado dentro de F-012 sin tocar el test: las dos vistas a pantalla completa
+  comparten la misma función (`a93ee5a`).
+- F-012, primera revisión fresca: 1 bloqueante y 5 defectos (la barra de la cola tapaba los controles, el
+  lienzo se decodificaba sin sonar, faltaba el «primer toque», el lienzo se buscaba en `Thumbnail` y saltaba
+  al diseño ancho en cada canción…). Todos arreglados con tu visto bueno (`7742d73`, `08184fc`, `1dc08f5`).
+  La segunda revisión y el CI de la versión arreglada se apuntan cuando terminen.
 - **Lint: no ejecutado.** No hay un workflow de lint en el repositorio y aquí no se puede compilar.
 - **Registro por archivo:** revisé cada fila que cita un archivo tocado. Las 12 filas cuyo guardián vivía en
   el `Player.kt` borrado se comprobaron contra `AuraPlayer.kt`. La única función que solo existía en el
