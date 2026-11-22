@@ -1,7 +1,8 @@
 # Informe de la auditoría — zonas que más fallan (2026-11-22)
 
-Rama: `claude/compassionate-gates-1dotj5`. Nada se ha publicado: ni `main`, ni tags, ni `gradle.yml`, ni
-`player_configs.json`, ni pull request. El detalle de cada lote y cada hallazgo está en `AUDIT_TRACKER.md`.
+Rama: `claude/compassionate-gates-1dotj5`. Lo único publicado es la beta privada `v2.0.69-beta1` (por orden del
+dueño; ver «Cierre»). No se ha tocado `main`, no hay tag estable, ni `player_configs.json`, ni pull request. El
+detalle de cada lote y cada hallazgo está en `AUDIT_TRACKER.md`.
 
 ## Cobertura
 
@@ -113,6 +114,17 @@ Documentación:
 
 - Registro: filas 636-644. Guardián: `HotZoneAuditGuardTest`. `PROBLEMAS.md` reconciliado. Tracker al día.
 - Beta privada `2.0.69-beta1` preparada (`fa67b80`) para el canal de betas del actualizador, por orden del dueño.
+- **Beta publicada** el 2026-11-22 a las 16:05 UTC:
+  [release `v2.0.69-beta1`](https://github.com/hck0n3/Aura-Hi-Res-v2/releases/tag/v2.0.69-beta1).
+  - Sale de `gradle.yml` con `beta_tag`, sobre `5745157`
+    ([run 45040298070](https://github.com/hck0n3/Aura-Hi-Res-v2/actions/runs/45040298070)).
+  - Va marcada como prerelease, así que `releases/latest` sigue siendo `v2.0.68` y solo la recibe quien tenga
+    encendido «Recibir versiones beta».
+  - Lleva los APK universal y arm64, y `changelog.json`.
+  - Firma comprobada sobre el APK publicado: `CN=Aura Hi-Res v2`, SHA-256
+    `BA:82:C1:1D:…:CB:F0:61:42`. Es idéntica a la de la 2.0.68, así que se instala encima sin perder datos.
+- Pruebas unitarias sobre `5745157`: **success**
+  ([run 45039338308](https://github.com/hck0n3/Aura-Hi-Res-v2/actions/runs/45039338308)).
 
 ## Pruebas manuales en tu móvil
 
