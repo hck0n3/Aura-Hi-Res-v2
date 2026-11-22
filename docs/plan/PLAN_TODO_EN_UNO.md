@@ -42,7 +42,17 @@ incremental, recorrer de verdad la carpeta elegida.
 ## Fase 5 — Nube privada y las tres bibliotecas juntas
 **Decisión del dueño (2026-11-22): después de la música local, la nube empieza con rclone** empaquetado dentro de
 Aura (todas las nubes: Google Drive, OneDrive, Dropbox, MEGA, pCloud, WebDAV/Nextcloud, SMB, SFTP, S3…). Leer de verdad
-las carpetas del selector de Android va como complemento. Página de artista con «En tu móvil / En tu nube / En YouTube
+las carpetas del selector de Android va como complemento.
+Nubes prioritarias del dueño: **MEGA, OneDrive, Google Drive y Dropbox** (las cuatro existen en rclone).
+- **5.1 — MEGA + OneDrive**: rclone ≥ 1.76 empaquetado como `librclone.so` (proceso `rcd` bajo demanda, credenciales
+  aleatorias, alineado a 16 KB), streaming por HTTP en 127.0.0.1 hacia la caché de media3, `rclone.conf` cifrado con
+  clave en el Keystore y fuera de las copias, nada de rutas ni nombres en el registro. MEGA con correo, contraseña y
+  2FA (avisar de su cuota gratuita); OneDrive con app propia en Entra y OAuth en Custom Tab. **El dueño pide en esta
+  fase la verificación de Google** (tarda semanas).
+- **5.2 — Google Drive + Dropbox**: clientes propios (`drive.readonly`, permisos de lectura de Dropbox).
+- **5.3** — la nube dentro de la biblioteca («En tu nube» en artistas, búsqueda conjunta, mejor fuente primero).
+- **5.4** — descarga sin conexión.
+Requiere el permiso explícito del dueño para añadir rclone como dependencia binaria. Página de artista con «En tu móvil / En tu nube / En YouTube
 Music», búsqueda conjunta, preferir la mejor fuente (local sin pérdida > nube > en línea).
 
 ## Fase 6 — Modo TV
