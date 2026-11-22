@@ -49,6 +49,7 @@ import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.UploadCategoryProgress
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AccountSettingsViewModel
+import kotlinx.coroutines.launch
 
 /**
  * YouTube Music library sync hub. Reached from Settings ▸ Import, the account sheet, and
@@ -317,6 +318,46 @@ private fun LibraryUploadSection(
     // The switch shown here is the opt-in for anyone the one-time migration defaulted to off.
     val (uploadEnabled, setUploadEnabled) = rememberPreference(YtmUploadSyncKey, false)
     val progress by viewModel.uploadProgress.collectAsState()
+    val database = iad1tya.echo.music.LocalDatabase.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val pendingFollowsToConfirm = remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+
+    fun requestUploadEnabled(enabled: Boolean) {
+        if (!enabled) {
+            setUploadEnabled(false)
+            return
+        }
+        coroutineScope.launch {
+            val pending = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    database.artistsPendingSubscribe(Int.MAX_VALUE)
+                        .count { iad1tya.echo.music.utils.ArtistSyncPolicy.maySubscribe(it) }
+                }.getOrNull()
+            } ?: return@launch
+            if (pending > 0) pendingFollowsToConfirm.value = pending else setUploadEnabled(true)
+        }
+    }
+
+    pendingFollowsToConfirm.value?.let { count ->
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
+            onDismissRequest = { pendingFollowsToConfirm.value = null },
+            title = { Text(stringResource(R.string.ytm_upload_toggle_title)) },
+            text = { Text(stringResource(R.string.ytm_upload_enable_confirm_message, count)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        pendingFollowsToConfirm.value = null
+                        setUploadEnabled(true)
+                    },
+                ) { Text(stringResource(R.string.enable)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingFollowsToConfirm.value = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 
     // Network-free: reads the persisted snapshot and recounts from the DB. Never uploads anything.
     LaunchedEffect(Unit) { viewModel.refreshUploadProgress() }
@@ -342,10 +383,10 @@ private fun LibraryUploadSection(
                 trailingContent = {
                     Switch(
                         checked = uploadEnabled,
-                        onCheckedChange = { setUploadEnabled(it) },
+                        onCheckedChange = { requestUploadEnabled(it) },
                     )
                 },
-                onClick = { setUploadEnabled(!uploadEnabled) },
+                onClick = { requestUploadEnabled(!uploadEnabled) },
             ),
             Material3SettingsItem(
                 icon = painterResource(R.drawable.sync),

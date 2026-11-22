@@ -1157,6 +1157,7 @@
     <string name="ytm_upload_never_completed">Aún no se ha sincronizado por completo</string>
     <string name="ytm_upload_requests_last_run">%1$d peticiones en la última tanda</string>
     <string name="ytm_upload_only_followed_note">Solo se suscriben en tu cuenta los artistas que tú seguiste — nunca los que simplemente tienen una canción en tu biblioteca.</string>
+    <string name="ytm_upload_enable_confirm_message">%1$d artistas que sigues en Aura aún no están en tu cuenta de YouTube Music. Al activarlo, tu cuenta se suscribirá a ellos.</string>
     <!-- "Interfaz nueva": contenedores de la letra a pantalla completa y de las descargas -->
     <string name="aura_no_song_playing">No hay ninguna canción sonando</string>
     <string name="aura_lyrics_appearance">Aspecto de la letra</string>
