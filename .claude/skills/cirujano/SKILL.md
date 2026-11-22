@@ -95,6 +95,16 @@ script de Python, otra ruta, otro nombre de archivo o cualquier otra vía).
 - **UI:** si tocas la interfaz, comprueba en `docs/UI_INVENTORY.md` que no desaparece ni se oculta nada.
 - Código, commits y mensajes de error en inglés; el informe al dueño en español.
 
+### Cambios con reglas propias
+
+| Si el cambio… | Entonces |
+|---|---|
+| Toca un `@Entity`, una columna o la versión de `@Database` | Cambio de riesgo. Necesita migración, subir la versión y el esquema exportado en `app/schemas/…/<versión>.json`. El esquema lo **genera** Gradle (`./gradlew :app:kspUniversalFossDebugKotlin --rerun`), nunca se escribe a mano. `MigrationCoverageTest` debe quedar en verde. |
+| Necesita una librería nueva o cambiar una versión | **Pregunta antes.** Los `gradle.lockfile` se regeneran con el flujo `test-build.yml` (opción de lockfiles), nunca a mano. |
+| Usa reflexión, serialización, JNI o nombres de clase en texto | La release va con R8 (`isMinifyEnabled = true`) y la build de debug no lo prueba. Revisa `app/proguard-rules.pro` y marca `[NO VERIFICADO en release]` si no compilaste la release. |
+| Añade o cambia un texto visible | Hay 59 idiomas en `res/values-*`. Copia cómo se hizo el texto parecido más cercano (en qué archivo y en qué idiomas está). Si no está claro, pregunta. Lo habitual es `stringResource` (~930 usos), aunque hay ~230 textos escritos en el código: no los "arregles". |
+| Renombra una clave de ajustes (DataStore/SharedPreferences) | No lo hagas: el usuario pierde su ajuste guardado. Si es imprescindible, cambio de riesgo con migración de la clave. |
+
 ## 5. Verificación (obligatoria)
 
 ```bash
