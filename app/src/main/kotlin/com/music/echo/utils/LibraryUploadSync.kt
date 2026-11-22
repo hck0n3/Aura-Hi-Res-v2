@@ -11,6 +11,7 @@ import com.music.innertube.utils.parseCookieString
 import dagger.hilt.android.qualifiers.ApplicationContext
 import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
 import iad1tya.echo.music.constants.ImportFollowsLocalOnlyKey
+import iad1tya.echo.music.constants.ImportFollowsPendingHeldV1Key
 import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.constants.YtmUploadLastCompletedKey
 import iad1tya.echo.music.constants.YtmUploadProgressKey
@@ -230,7 +231,19 @@ class LibraryUploadSync @Inject constructor(
      * has, are dropped from both sets. Null when the preferences cannot be read.
      */
     suspend fun importFollowsHeldBack(): Set<String>? = withContext(Dispatchers.IO) {
-        val prefs = runCatching { context.dataStore.data.first() }.getOrNull() ?: return@withContext null
+        var prefs = runCatching { context.dataStore.data.first() }.getOrNull() ?: return@withContext null
+        if (prefs[ImportFollowsPendingHeldV1Key] != true) {
+            val pendingIds = runCatching { database.artistsPendingSubscribe(Int.MAX_VALUE).map { it.id } }
+                .getOrNull() ?: return@withContext null
+            prefs = runCatching {
+                context.dataStore.edit {
+                    if (it[ImportFollowsPendingHeldV1Key] != true) {
+                        it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() + pendingIds
+                        it[ImportFollowsPendingHeldV1Key] = true
+                    }
+                }
+            }.getOrNull() ?: return@withContext null
+        }
         val held = prefs[ImportFollowsAwaitingConfirmKey].orEmpty() + prefs[ImportFollowsLocalOnlyKey].orEmpty()
         val settled = held.filterTo(HashSet()) { id ->
             runCatching { database.getArtistById(id) }.getOrNull()
