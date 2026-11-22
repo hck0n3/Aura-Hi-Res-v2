@@ -210,7 +210,8 @@ fun AuraAlbumScreen(
         key = AlbumCanvasEnabledKey,
         defaultValue = false,
     )
-    val albumCanvasEnabled = if (dataSaverEnabled) false else albumCanvasEnabledPref
+    val powerSave = iad1tya.echo.music.utils.rememberPowerSaveMode()
+    val albumCanvasEnabled = if (dataSaverEnabled || powerSave) false else albumCanvasEnabledPref
 
     val canvasArtwork = rememberAlbumCanvas(
         albumTitle = albumWithSongs?.album?.title,

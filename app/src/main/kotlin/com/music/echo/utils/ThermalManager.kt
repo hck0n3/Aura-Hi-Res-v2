@@ -111,3 +111,28 @@ fun rememberDeviceThrottle(): Boolean {
     val hot by ThermalManager.isHot.collectAsState()
     return hot
 }
+
+@Composable
+fun rememberPowerSaveMode(): Boolean {
+    val context = LocalContext.current
+    val saver = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isPowerSaveMode == true,
+        )
+    }
+    DisposableEffect(context) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: android.content.Intent?) {
+                saver.value = (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isPowerSaveMode == true
+            }
+        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            context,
+            receiver,
+            android.content.IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    return saver.value
+}

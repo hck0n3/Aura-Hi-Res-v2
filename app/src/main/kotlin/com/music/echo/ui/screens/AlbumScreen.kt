@@ -181,7 +181,8 @@ fun AlbumScreen(
     val hideVideoSongsPref by rememberPreference(key = HideVideoSongsKey, defaultValue = false)
     val hideVideoSongs = if (dataSaverEnabled) true else hideVideoSongsPref
     val albumCanvasEnabledPref by iad1tya.echo.music.utils.rememberPerfGatedBoolean(key = AlbumCanvasEnabledKey, defaultValue = false)
-    val albumCanvasEnabled = if (dataSaverEnabled) false else albumCanvasEnabledPref
+    val powerSave = iad1tya.echo.music.utils.rememberPowerSaveMode()
+    val albumCanvasEnabled = if (dataSaverEnabled || powerSave) false else albumCanvasEnabledPref
 
     val canvasArtwork = rememberAlbumCanvas(
         albumTitle = albumWithSongs?.album?.title,

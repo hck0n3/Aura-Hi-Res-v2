@@ -914,6 +914,7 @@ private fun ThumbnailHeader(
  *  · `rememberDeviceThrottle()` — anti-overheating: the OS reporting MODERATE+ thermal stops the video.
  *    Always false below API 29 / while cool, so a cool device is byte-identical.
  *  · [RotatingThumbnailKey] — the rotating cover and the canvas are the same surface; the canvas yields.
+ *  · `rememberPowerSaveMode()` — owner 2026-11-22: with the phone's battery saver on, no animated cover plays.
  */
 @Composable
 internal fun rememberCanvasAnimationEnabled(): Boolean {
@@ -926,7 +927,8 @@ internal fun rememberCanvasAnimationEnabled(): Boolean {
         defaultValue = false,
     )
     val deviceThrottle = iad1tya.echo.music.utils.rememberDeviceThrottle()
-    return canvasPref && !deviceThrottle && !rotatingThumbnail
+    val powerSave = iad1tya.echo.music.utils.rememberPowerSaveMode()
+    return canvasPref && !deviceThrottle && !rotatingThumbnail && !powerSave
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
