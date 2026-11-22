@@ -1328,6 +1328,7 @@ class MusicService :
     // that is loading IS this song's continuation, and a seed is only needed if it comes back without
     // one — decided by [seedAfterInitialLoad] once the load settles.
     @Volatile internal var initialLoadPendingGeneration = -1
+    @Volatile private var heardFilterEmptiedGeneration = -1
     // True when a radio seed was started from the STATE_ENDED safety net (the queue truly ended): once the
     // seed appends items, advance+play into them so predictive infinite playback resumes with no manual action.
     @Volatile internal var resumeAfterSeed = false
@@ -4143,6 +4144,7 @@ class MusicService :
                 val split = laneStatus.mediaItemIndex.coerceIn(0, laneStatus.items.size - 1) + 1
                 val tail = laneStatus.items.subList(split, laneStatus.items.size)
                 val kept = tail.filterNot { it.isHeardForSmartQueue(null) }
+                if (kept.isEmpty() && tail.isNotEmpty()) heardFilterEmptiedGeneration = myGeneration
                 if (kept.size == tail.size) laneStatus else laneStatus.copy(items = laneStatus.items.subList(0, split) + kept)
             } else {
                 laneStatus
@@ -4454,7 +4456,8 @@ class MusicService :
             return
         }
         val armed = resumeAfterSeed || advanceIntoRadioRequested
-        if (armed || (autoLoadMoreHint && player.playWhenReady && !currentQueue.hasNextPage())) {
+        val heardFilterEmptied = heardFilterEmptiedGeneration == generation
+        if (armed || (autoLoadMoreHint && player.playWhenReady && (!currentQueue.hasNextPage() || heardFilterEmptied))) {
             startRadioSeamlessly()
         }
     }
