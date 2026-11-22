@@ -3065,6 +3065,8 @@ class MusicService :
 
         scope.launch(Dispatchers.IO) {
             loadPersistedNoRepeat()
+            recentlyPlayedIds()
+            everPlayedIds()
         }
         if (dataStore.get(PersistentQueueKey, true)) {
             val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
