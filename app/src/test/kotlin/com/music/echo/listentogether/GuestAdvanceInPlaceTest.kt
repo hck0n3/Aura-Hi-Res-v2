@@ -57,7 +57,43 @@ class GuestAdvanceInPlaceTest {
     @Test
     fun aCurrentTrackMissingFromTheRoomQueueLeadsAndTheQueueFollows() {
         val (loaded, start) = roomPlaybackOrder(TrackInfo(id = "x"), tracks("a", "", "b", "a"))
-        assertEquals(listOf("x", "a", "b"), loaded.map { it.id })
+        // blank ids dropped; the song queued twice stays twice (review of row 652: dropping a copy shifts everything after it)
+        assertEquals(listOf("x", "a", "b", "a"), loaded.map { it.id })
         assertEquals(0, start)
+    }
+
+    @Test
+    fun theHostWindowStartsAfterAnEarlierCopyOfTheCurrentSong() {
+        // host queue A B A C, playing the SECOND A (index 2)
+        val ids = listOf("A", "B", "A", "C")
+        assertEquals(1 until 4, hostQueueWindow(ids.size, 2, 25) { ids[it] })
+        // no earlier copy: the plain window around the cursor
+        assertEquals(0 until 4, hostQueueWindow(ids.size, 1, 25) { ids[it] })
+    }
+
+    @Test
+    fun aGuestOfAQueueWithTheCurrentSongTwiceStartsOnTheHostsCopyAndNextIsTheRoomsNext() {
+        val ids = listOf("A", "B", "A", "C")
+        val window = hostQueueWindow(ids.size, 2, 25) { ids[it] }.map { TrackInfo(id = ids[it]) }
+        val (loaded, start) = roomPlaybackOrder(TrackInfo(id = "A"), window)
+        assertEquals(listOf("B", "A", "C"), loaded.map { it.id })
+        assertEquals("C", loaded[start + 1].id)
+    }
+
+    @Test
+    fun aRepeatedSongIsReusedInPlaceOnTheCopyAheadOfTheGuest() {
+        // the guest holds A B A C D and plays B (index 1); the room moves on to the second A
+        val have = listOf("A", "B", "A", "C", "D")
+        val room = listOf("B", "A", "C", "D")
+        assertEquals(2, reuseIndexInPlace(have, "A", room, currentIndex = 1))
+    }
+
+    @Test
+    fun theRoomQueueIsComparedAsTheGuestLoadsItSoBlanksAndDuplicatesStillMatch() {
+        val roomIds = listOf("h1", "", "cur", "u1", "cur", "u2")
+        val (loaded, _) = roomPlaybackOrder(TrackInfo(id = "cur"), roomIds.map { TrackInfo(id = it) })
+        val have = loaded.map { it.id }
+        assertTrue(reuseInPlace(have, "u1", roomIds))
+        assertEquals(3, reuseIndexInPlace(have, "cur", listOf("u1", "cur", "u2"), currentIndex = 2))
     }
 }

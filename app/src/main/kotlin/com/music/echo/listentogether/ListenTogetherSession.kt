@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.coroutines.CoroutineContext
@@ -84,6 +85,14 @@ data class ListenTogetherState(
      * open, and each one needs its own answer.
      */
     val bufferWaitRevision: Int = 0,
+    /** The track the last `buffer_wait` named, or "" when it named none: what this device answers about. */
+    val bufferWaitTrackId: String = "",
+    /**
+     * True once the current barrier has been on screen for [BUFFER_WAIT_INDICATOR_MAX_MS]. No device pauses during the barrier and the
+     * server does not hold the room's clock in it (that needs the server change W2), so a long «Esperando a X» would announce a wait
+     * nobody hears; the indicator stays as long as it did when every device answered within 2 s.
+     */
+    val bufferWaitIndicatorExpired: Boolean = false,
     /** Server time the last transport command was captured at; 0 when unknown. */
     val lastActionServerTime: Long = 0L,
     /**
@@ -103,8 +112,19 @@ data class ListenTogetherState(
 
     /** Names, not ids — "Waiting for Long" is the only useful phrasing of the barrier. */
     val waitingForNames: List<String>
-        get() = waitingFor.mapNotNull { id -> members.firstOrNull { it.userId == id }?.username }
+        get() = if (bufferWaitIndicatorExpired) emptyList() else waitingFor.mapNotNull { id -> members.firstOrNull { it.userId == id }?.username }
 }
+
+/** How long the barrier indicator stays on screen: the 2 s within which every device used to answer before row 652. */
+internal const val BUFFER_WAIT_INDICATOR_MAX_MS = 2_000L
+
+/** The indicator of barrier [revision] expires, unless a newer barrier replaced it or it already ended. */
+internal fun ListenTogetherState.expireBufferWaitIndicator(revision: Int): ListenTogetherState =
+    if (bufferWaitRevision != revision || waitingFor.isEmpty()) {
+        this
+    } else {
+        copy(bufferWaitIndicatorExpired = true, members = members.map { it.copy(isBuffering = false) })
+    }
 
 /**
  * The room state machine.
@@ -172,6 +192,7 @@ class ListenTogetherSession(
     fun disconnect() {
         client.disconnect()
         tokenStore?.clear()
+        sentAnchor.set(null)
         _state.value = ListenTogetherState()
     }
 
@@ -253,6 +274,7 @@ class ListenTogetherSession(
             }
             // The server sends nothing back for leave_room, so the local state is cleared here —
             // waiting for a confirmation that never arrives would leave the room UI on screen.
+            sentAnchor.set(null)
             _state.update {
                 it.copy(
                     roomCode = null,
@@ -336,17 +358,18 @@ class ListenTogetherSession(
                 capturedAtServerTime = capturedAt,
             ),
         )
-        if (sent) lastSentAnchor = nextSentAnchor(lastSentAnchor, action, position, capturedAt)
+        if (sent) sentAnchor.updateAndGet { nextSentAnchor(it, action, position, capturedAt) }
     }
+
+    /** Atomic: two sends completing at once must not lose one update (each is computed from the previous anchor). */
+    private val sentAnchor = java.util.concurrent.atomic.AtomicReference<SentAnchor?>(null)
 
     /**
      * Where the host last told the room it was. Aura's server does not echo a host's own commands back to it (`broadcast(out, a.id)`
      * in docs/worker/rooms), so this is the host's own record of the room's timeline — what [ListenTogetherPlaybackBridge] measures
-     * its drift against.
+     * its drift against. Forgotten when the room is left.
      */
-    @Volatile
-    var lastSentAnchor: SentAnchor? = null
-        private set
+    val lastSentAnchor: SentAnchor? get() = sentAnchor.get()
 
     /** Server wall time now, or null while the clock is not calibrated. */
     fun serverNow(): Long? = client.serverNow()
@@ -536,12 +559,19 @@ class ListenTogetherSession(
 
             MessageTypes.BUFFER_WAIT -> {
                 val p = payload as? BufferWaitPayload ?: return
-                _state.update { s ->
-                    s.copy(
-                        waitingFor = p.waitingFor,
-                        bufferWaitRevision = s.bufferWaitRevision + 1,
-                        members = s.members.map { it.copy(isBuffering = it.userId in p.waitingFor) },
-                    )
+                val next =
+                    _state.updateAndGet { s ->
+                        s.copy(
+                            waitingFor = p.waitingFor,
+                            bufferWaitRevision = s.bufferWaitRevision + 1,
+                            bufferWaitTrackId = p.trackId,
+                            bufferWaitIndicatorExpired = false,
+                            members = s.members.map { it.copy(isBuffering = it.userId in p.waitingFor) },
+                        )
+                    }
+                launch {
+                    delay(BUFFER_WAIT_INDICATOR_MAX_MS)
+                    _state.update { it.expireBufferWaitIndicator(next.bufferWaitRevision) }
                 }
             }
 
