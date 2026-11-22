@@ -65,7 +65,7 @@ class LibraryPinsBackend(
         val libraryUps = ArrayList<LibraryPin>()
         for ((ref, meta) in upserts) {
             if (ref.scope != SCOPE_LIBRARY) continue
-            val kind = LibraryPinKind.fromCode(ref.code) ?: continue
+            val kind = LibraryPinKind.fromCode(ref.code) ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue
             val id = if (kind == LibraryPinKind.PLAYLIST && meta.local) rowFor[ref.id] ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue else ref.id
             libraryUps += LibraryPin(
                 kind, id, meta.title, meta.subtitle.ifBlank { null }, meta.cover.ifBlank { null }, meta.local,
@@ -89,7 +89,7 @@ class LibraryPinsBackend(
 
         for ((ref, meta) in upserts) {
             if (ref.scope != SCOPE_HOME) continue
-            val type = homeType(ref.code) ?: continue
+            val type = homeType(ref.code) ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue
             val id = if (ref.code == "P" && meta.local) rowFor[ref.id] ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue else ref.id
             database.speedDialDao.insert(
                 SpeedDialItem(

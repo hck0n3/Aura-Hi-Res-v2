@@ -518,6 +518,30 @@ class LibrarySyncSimulationTest {
     }
 
     @Test
+    fun `a register this device cannot decode is parked, never sent back as a removal that deletes it on the device that made it`() {
+        val phone = Device("phone")
+        phone.backend.playlists["LPblankname"] = " " // the create dialog only rejects an EMPTY name
+        phone.connect()
+        eventually("the playlist is in the room") { room.value("pl:LPblankname") == LibrarySyncCore.encodePlaylistName(" ") }
+        // A pin with a blank title (or from a newer version) that this build cannot draw.
+        val pin = LibrarySyncCore.pinKey(LibrarySyncCore.PinRef("l", "P", "PLblank"))
+        val pinValue = LibrarySyncCore.encodePin(LibrarySyncCore.PinMeta(" "))
+        room.receive("newer", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive(pin)); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive(pinValue)) }) })
+        })
+
+        val tablet = Device("tablet")
+        tablet.connect()
+        eventually("the tablet caught up") { tablet.ledger.stored.containsKey("pl:LPblankname") && tablet.ledger.stored.containsKey(pin) }
+        tablet.changed(); phone.changed()
+        settle(); settle()
+        assertEquals("the playlist is still in the room", LibrarySyncCore.encodePlaylistName(" "), room.value("pl:LPblankname"))
+        assertEquals("and on the phone that made it", " ", phone.backend.playlists["LPblankname"])
+        assertEquals("the pin is still in the room", pinValue, room.value(pin))
+    }
+
+    @Test
     fun `a parked like that becomes real here is no longer parked - the user's unlike goes out and the old like does not come back`() {
         val tablet = Device("tablet")
         tablet.connect()

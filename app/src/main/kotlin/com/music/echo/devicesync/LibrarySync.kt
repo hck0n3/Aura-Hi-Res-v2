@@ -237,13 +237,15 @@ class LibrarySync(
         }
         val parkedBefore = ledger.values.filter { it.parked && !LibrarySyncCore.isHeld(it) }
         val result = adapter.apply(plan)
-        val stored = accepted.map { it.copy(pending = false, parked = it.key in result.unplaced) } + held.map { it.copy(pending = false, parked = true) }
+        val stored = accepted.map { it.copy(pending = false, parked = it.key in result.unplaced || it.key in plan.undecoded) } +
+            held.map { it.copy(pending = false, parked = true) }
         stored.forEach { ledger[it.key] = it }
         store.append(stored)
         val retry = parkedBefore.filter { ledger[it.key] == it }
         if (retry.isNotEmpty()) {
-            val again = adapter.apply(LibrarySyncCore.plan(retry))
-            val placed = retry.filter { it.key !in again.unplaced }.map { it.copy(parked = false) }
+            val retryPlan = LibrarySyncCore.plan(retry)
+            val again = adapter.apply(retryPlan)
+            val placed = retry.filter { it.key !in again.unplaced && it.key !in retryPlan.undecoded }.map { it.copy(parked = false) }
             placed.forEach { ledger[it.key] = it }
             store.append(placed)
         }

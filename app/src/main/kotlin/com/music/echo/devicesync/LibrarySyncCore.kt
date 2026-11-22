@@ -172,6 +172,7 @@ object LibrarySyncCore {
         val plays: List<Pair<String, Long>> = emptyList(),
         val pinUpserts: List<Pair<PinRef, PinMeta>> = emptyList(),
         val pinRemovals: List<PinRef> = emptyList(),
+        val undecoded: Set<String> = emptySet(),
     ) {
         val removalCount: Int
             get() = playlistRemovals.size + memberRemovals.size + likes.count { !it.second } + dislikes.count { !it.third } +
@@ -196,22 +197,26 @@ object LibrarySyncCore {
         val plays = ArrayList<Pair<String, Long>>()
         val pinUpserts = ArrayList<Pair<PinRef, PinMeta>>()
         val pinRemovals = ArrayList<PinRef>()
+        val undecoded = HashSet<String>()
         for (reg in accepted) {
             when (val k = parse(reg.key)) {
                 is Key.Song -> decodeSong(reg.value)?.let { songs += k.songId to it }
                 is Key.AlbumMeta -> decodeAlbum(reg.value)?.let { albums += k.albumId to it }
-                is Key.Album -> if (reg.value == ON || reg.value == OFF) albumSaves += k.albumId to (reg.value == ON)
+                is Key.Album -> if (reg.value == ON || reg.value == OFF) albumSaves += k.albumId to (reg.value == ON) else undecoded += reg.key
                 is Key.Play -> if (reg.value == ON) plays += k.songId to k.second
-                is Key.Pin -> if (reg.value == OFF) pinRemovals += k.ref else decodePin(reg.value)?.let { pinUpserts += k.ref to it }
+                is Key.Pin -> if (reg.value == OFF) pinRemovals += k.ref else decodePin(reg.value)?.let { pinUpserts += k.ref to it } ?: run { undecoded += reg.key }
                 is Key.Playlist ->
-                    if (reg.value == OFF) plRemovals += k.playlistKey else decodePlaylistName(reg.value)?.let { upserts += k.playlistKey to it }
-                is Key.Member -> if (reg.value == ON) adds += k.playlistKey to k.songId else if (reg.value == OFF) memberRemovals += k.playlistKey to k.songId
-                is Key.Like -> if (reg.value == ON || reg.value == OFF) likes += k.songId to (reg.value == ON)
-                is Key.Dislike -> if (reg.value == ON || reg.value == OFF) dislikes += Triple(k.set, k.id, reg.value == ON)
+                    if (reg.value == OFF) plRemovals += k.playlistKey
+                    else decodePlaylistName(reg.value)?.let { upserts += k.playlistKey to it } ?: run { undecoded += reg.key }
+                is Key.Member ->
+                    if (reg.value == ON) adds += k.playlistKey to k.songId
+                    else if (reg.value == OFF) memberRemovals += k.playlistKey to k.songId else undecoded += reg.key
+                is Key.Like -> if (reg.value == ON || reg.value == OFF) likes += k.songId to (reg.value == ON) else undecoded += reg.key
+                is Key.Dislike -> if (reg.value == ON || reg.value == OFF) dislikes += Triple(k.set, k.id, reg.value == ON) else undecoded += reg.key
                 null -> Unit
             }
         }
-        return Plan(songs, upserts, plRemovals, adds, memberRemovals, likes, dislikes, albums, albumSaves, plays, pinUpserts, pinRemovals)
+        return Plan(songs, upserts, plRemovals, adds, memberRemovals, likes, dislikes, albums, albumSaves, plays, pinUpserts, pinRemovals, undecoded)
     }
 
     // ── values ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
