@@ -16,7 +16,7 @@
 | Comprobación | Resultado |
 |---|---|
 | CI `unit-tests.yml` en `68fd908` | ✅ success — run 44988866771 |
-| Build/tests/lint locales | SDK instalado en `/home/user/android-sdk` (fuera del repo). 1er intento: FALLO de red (Maven Central 429), no de código; reintento en curso |
+| Build/tests/lint locales | NO VIABLE en este contenedor: 2 intentos fallan resolviendo plugins de Gradle (Maven Central 429), igual que la fila #250 del registro. Verificación = CI `unit-tests.yml` |
 | Nota | `app/build.gradle.kts` usa `compileSdk = 37`; `AGENTS.md` dice platform 36 (doc desfasado, no se toca) |
 
 ## Reconciliación de `PROBLEMAS.md` (ítems de la zona)
@@ -45,12 +45,12 @@ widget · Cast (Gms).
 - [x] L01 MusicService.kt L1-L1200
 - [x] L02 MusicService.kt L1201-L2400
 - [x] L03 MusicService.kt L2401-L3600
-- [ ] L04 MusicService.kt L3601-L4800
-- [ ] L05 MusicService.kt L4801-L6000
-- [ ] L06 MusicService.kt L6001-L7200
-- [ ] L07 MusicService.kt L7201-L8400
-- [ ] L08 MusicService.kt L8401-L9600
-- [ ] L09 MusicService.kt L9601-L11089
+- [x] L04 MusicService.kt L3601-L4800
+- [x] L05 MusicService.kt L4801-L6000
+- [x] L06 MusicService.kt L6001-L7200
+- [x] L07 MusicService.kt L7201-L8400
+- [x] L08 MusicService.kt L8401-L9600
+- [x] L09 MusicService.kt L9601-L11089
 - [ ] L10 MainActivity.kt L1-L1200
 - [ ] L11 MainActivity.kt L1201-L2400
 - [ ] L12 MainActivity.kt L2401-L3443
@@ -101,6 +101,9 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 | ID | Lente | Sev. | Marca | Archivo:Línea | Resumen | Estado | Commit |
 |---|---|---|---|---|---|---|---|
 | F-001 | PERF | P2 | NUEVO (fila #180 parcial) | `utils/DataStore.kt:85`, `:156` | `getNonBlocking`/`rememberEnumPreference` caen a `runBlocking` para TODA clave ausente del snapshot = todo ajuste nunca modificado (defaults). El snapshot es reemplazo completo, así que una clave en disco siempre está en él: el fallback solo bloquea los defaults. El test guardián `PrefsBridgeTest` caso 5 fija el comportamiento actual | [DECISIÓN REQUERIDA] | — |
+| F-002 | SEC | P1 | NUEVO (choca con AGENTS regla 4) | `MusicService.kt:1906, 6129, 6912, 7525, 7949, 8025, 8066, 8113, 8126, 8170, 10481, 10528, 10532, 10537, 11033` | Logs INFO/WARN con el videoId (`mediaId`), el contexto `PL:<id>` o el id de playlist del widget. AppLogger persiste ≥INFO en `app.log`, que el usuario comparte; `LogRedaction` no los quita (sus comentarios los consideran «identificadores de diagnóstico»), pero AGENTS regla 4 y otros logs del mismo archivo («no title, artist or id», L1829/L5003) los prohíben. El dueño ya diagnosticó con estos ids (fila #305) | [DECISIÓN REQUERIDA] | — |
+| F-003 | SEC | P2 | NUEVO | `MusicService.kt:8410-8415` | En un fetch de audio fallido se loguea a WARN `body=$peek` (160 primeros caracteres del cuerpo de la respuesta). El propio comentario (L8405-8406) dice «NEVER the query string or body contents (owner data rule)» y AGENTS regla 4 prohíbe cuerpos de respuesta | Plan pendiente (archivo compartido) | — |
+| F-004 | CON | P2 | NUEVO | `MusicService.kt:10295` | `isPowerSaveModeActive()` privada sin ninguna llamada (grep en todo `app/src`); la misma comprobación se hace en línea en L6828, L8783, L10905 | Plan pendiente (archivo compartido) | — |
 
 ## Conexiones pendientes
 
@@ -109,6 +112,9 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - S-001 `MusicService.kt:2499-2527` colector de versión de IP: su 1ª emisión no se salta si el colector de calidad emitió antes (`isFirstQualityEmit` compartido). Si la cola restaurada ya tuviera items, haría `stop()+prepare()` sobre la cola restaurada sin preparar (#27). Improbable por tiempos (la restauración pasa por IO); sin escenario reproducible.
 - S-002 `MusicService.kt:589,1566,3795,3837` el scope revivido es `Job()` y no `SupervisorJob()` como el original (L354). Solo se cancela en `onDestroy` (L10406): revivir ocurre sobre un servicio ya destruido. Impacto real no demostrado.
 - S-003 `MusicService.kt:3527-3531` `triggerRetry` dice «refresh stream URL» con `seekTo` a la misma posición; no se ve que invalide `songUrlCache`. Posible placebo; pendiente leer StreamResolution.
+- Obs (P3) `MusicService.kt:10233` `withCancellationSafe` relanza el bloque al cancelarse (doble efecto); hoy solo envuelve `job?.cancel()` (idempotente) dentro de un `runBlocking` inútil en `onDestroy` (L10371). Sin impacto actual.
+- Obs (P3) `MusicService.kt:10413` `onTaskRemoved` solo llama a `super`.
+- Obs (P3) `MusicService.kt:1812` `dataStore.get` bloqueante en el callback de dispositivo de audio (hilo principal), solo al conectar un dispositivo.
 - Obs (P3) `MusicService.kt:3197`, `:3217` `dataStore.get(PersistentQueueKey)` bloqueante cada 10/30 s en Main aunque existe el espejo `persistentQueueHint` (L959).
 
 ## [DECISIÓN REQUERIDA] abiertas
