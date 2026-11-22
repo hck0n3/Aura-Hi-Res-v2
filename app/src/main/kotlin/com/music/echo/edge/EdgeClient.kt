@@ -373,7 +373,7 @@ object EdgeClient {
         val app = appContext ?: return@withContext null
         val s = settings(app)
         if (!s.enabled || s.base.isBlank() || context.isEmpty() || candidates.isEmpty()) return@withContext null
-        if (app.dataStore.data.first()[QueueAiJudgeKey] == false) return@withContext null
+        if (app.dataStore.data.first()[QueueAiJudgeKey] != true) return@withContext null
         var conn: HttpURLConnection? = null
         try {
             val bytes = EdgeJudge.body(context, candidates, styles, language, faith).toByteArray(Charsets.UTF_8)

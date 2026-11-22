@@ -51,7 +51,10 @@ class EdgeJudgeTest {
         assertTrue("must only remove: a null answer changes nothing", src.contains(") ?: return@run"))
         assertTrue(src.contains("AI second opinion asked=%d dropped=%d"))
         val client = File("src/main/kotlin/com/music/echo/edge/EdgeClient.kt").readText()
-        assertTrue("honours its own switch", client.contains("QueueAiJudgeKey] == false"))
+        // Audit F-008 (owner 2026-11-22): off until the user turns it on — an absent key means OFF.
+        assertTrue("honours its own switch, off by default", client.contains("QueueAiJudgeKey] != true"))
+        val settings = File("src/main/kotlin/com/music/echo/ui/screens/settings/integrations/AuraServicesSettings.kt").readText()
+        assertTrue("the settings switch shows it off by default", settings.contains("QueueAiJudgeKey, false)"))
     }
 
     @Test

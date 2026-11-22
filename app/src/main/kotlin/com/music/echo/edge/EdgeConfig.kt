@@ -23,7 +23,8 @@ val EdgePublicKeyKey = stringPreferencesKey("edgePublicKey")
 val EdgeEnabledKey = booleanPreferencesKey("edgeEnabled")
 
 /**
- * Row 606: the smart queue's second opinion by AI (`POST /v1/judge`). ON by default (owner 2026-10-31); it sends the title and artist of what
+ * Row 606: the smart queue's second opinion by AI (`POST /v1/judge`). OFF until the user turns it on (owner 2026-11-22, audit F-008:
+ * the privacy policy promises that AI features are off until enabled); it sends the title and artist of what
  * is playing and of the doubtful candidates, nothing else, and only while [EdgeEnabledKey] is also on.
  */
 val QueueAiJudgeKey = booleanPreferencesKey("queueAiJudge")

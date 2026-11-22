@@ -73,7 +73,7 @@ fun AuraServicesSettings(
     val ground = if (skin.enabled && skin.darkGround) AuraPalette.Ground else MaterialTheme.colorScheme.surface
 
     var enabled by rememberPreference(EdgeEnabledKey, true)
-    var queueAiJudge by rememberPreference(iad1tya.echo.music.edge.QueueAiJudgeKey, true)
+    var queueAiJudge by rememberPreference(iad1tya.echo.music.edge.QueueAiJudgeKey, false)
     var address by rememberPreference(EdgeUrlKey, "")
     var publicKey by rememberPreference(EdgePublicKeyKey, "")
     var state by rememberSaveable { mutableStateOf(EdgeClient.lastState) }
