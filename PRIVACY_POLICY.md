@@ -1,210 +1,120 @@
-# Privacy Policy for Aura Hi-Res Player App
+# Privacy Policy — Aura Hi-Res v2
 
-**Last updated:** 22 November 2026
+**Version:** 3 · **Effective date:** November 22, 2026
 
-## Introduction
+This is the English translation of the privacy policy of **Aura Hi-Res v2** (the "App"). The primary version is the Spanish one, [PRIVACIDAD.md](PRIVACIDAD.md); if the two differ, the Spanish version prevails. It expands on clause 11 of the [Terms and Conditions](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) (in Spanish).
 
-Aura Hi-Res Player ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains what information stays on your device, what leaves it, and who receives it when you use our mobile application (the "App").
+## Who is responsible
 
-**In short:** the App contains no analytics, tracking, advertising or usage-profiling SDK. We do not build a profile of you, and we have no account system for your music data. However, the App is a client for YouTube Music and other online services, so requests to those services necessarily leave your device — and one of our own servers receives a license key and a device identifier to run the subscription. This policy describes all of that honestly, including the parts that are not private by nature.
+**The independent developer of Aura Hi-Res v2**, based in **Honduras** ("we", "us"). Contact for anything about your data: **aurahires@gmail.com**.
 
-## Information We Collect
+## In short
 
-### 1. Data That Stays on Your Device
+- The App has **no analytics, tracking, advertising or advertising profiles**, and it does not send us crash reports or usage data automatically.
+- You have no account with us. Your library, history, playlists, searches and your YouTube or Spotify sessions **are stored on your device**.
+- Even so, **some data does leave your device**, and all of it is listed here: what music services and other third parties receive, and what our own services receive (not one server: four services).
+- Two features that send data are **on by default**: **Aura services** and **automatic lyrics translation**. In addition, **device sync** turns itself on when you activate your licence with the purchase e-mail. All three can be turned off.
+- **We do not sell your data** or share it for advertising.
 
-The App has no user account with us and does not sync your library to us. The following is recorded **locally on your device only** and is never uploaded to us:
+## 1. What stays on your device
 
-- **Listening data**: songs played, paused and skipped, and your listening history — used for the in-app statistics screens and the on-device recommendation engine
-- **Playlists**: playlists you create and modify
-- **Search history**, and **app settings and preferences**
-- **Local music library**: access to your device's music files for playback
-- **Session credentials**: cookies and tokens for third-party services you choose to log in to
+- What you play, pause and skip, and your listening history (for the statistics and for the recommendations computed on the device itself).
+- Your playlists, likes, search history, settings and downloads.
+- Access to your local music files.
+- Cookies and session tokens of the third-party services you sign in to. They are **not included** in backups or in sync.
+- The purchase e-mail, if you type it when activating the licence.
 
-You can erase all of it by clearing the App's data or uninstalling the App.
+You erase all of it by clearing the App's data or uninstalling it. Whatever has already been sent to our services (section 2) is erased as explained in section 6.
 
-### 2. Data We (the Developer) Receive
+## 2. What our services receive
 
-We operate one server (a Cloudflare Worker). It receives:
+We run four online services on Cloudflare's infrastructure: the licence server (which also serves the AI features), Aura services, device sync and the Listen Together rooms.
 
-- **License and demo checks** (always, while the subscription gate is active): your **license key** and a **device identifier**. The device identifier is your Android `ANDROID_ID`, or a randomly generated ID if `ANDROID_ID` is unavailable. It is required to enforce one device per subscription and to prevent the free demo period from being reset by clearing app data. It is not used for advertising or profiling.
-- **AI playlist requests** (only if you use the AI playlist feature): the text prompt you type and, when modifying an existing playlist, the titles and artists of its tracks.
-- **Song recognition** (only if you use the recognition feature): an audio fingerprint derived from the microphone, captured only while that feature is actively running.
-- **Smart-queue AI check** (off by default; only if you turn on "Smart queue: AI second opinion" in Settings ▸ Aura services): when the smart queue cannot tell whether a candidate song fits what you are listening to, it sends the **title and artist** of the songs playing and of those doubtful candidates, plus a short hint about the queue — up to four style names, its language and whether it is Christian music — and nothing else (no account, no library), so the AI can say which ones fit.
+| Service | What it receives | When | How long it is kept |
+|---|---|---|---|
+| **Licences** | Your licence key and a technical device identifier (ANDROID_ID, or a random one if it is unavailable). If you type it, the purchase e-mail, which is **compared** with Gumroad's and **not stored** on the server. | Always: when starting the demo, activating the licence and opening the App. | The link between your key and your devices (with the last-use date), for as long as your licence exists. The demo record of each device is kept so the demo does not restart when data is cleared. |
+| **AI** (same server) | What each AI feature sends (section 4) and your IP address. | Only when you use an AI feature, or when lyrics translation reaches its last resort. | The content is not stored. The IP is kept for at most **48 hours**, only to limit the number of daily requests. |
+| **Aura services** (**on by default**; turned off in Settings ▸ Servicios Aura) | The request for the signed configuration (feature switches and notices), with no data about you. Artist names, to get their styles. Artist and album, to look up animated covers. For "Pedir música", an encrypted fingerprint (SHA-256) of the request and the list the AI proposed, **never the text you typed**. | While you use the App. | Artist styles: 30 days. Animated covers: 7 days. "Pedir música" answers: 3 days. These are shared caches that do not identify you. |
+| Aura services: **cloud backup** | Your backup (library and history), **encrypted on your device** with a key derived from a secret only you have. We cannot read it. | Only when you create one. | The **last 3** copies; older ones are deleted. |
+| Aura services: **diagnostic log** | The App's technical log. It does not include titles, artists, playlist names, accounts, e-mails or keys; it may include song and playlist identifiers. A fingerprint of your IP to limit uploads. | Only when you press **"Enviar registro"** (Send log). | **7 days**. |
+| Aura services: **smart-queue AI second opinion** (**off by default**) | Title and artist of what is playing and of the doubtful candidate songs, up to four style names, the language and whether it is Christian music. Your IP. | Only if you turn it on. | The content is not stored. The IP, for at most 48 hours. |
+| **Device sync** (turns itself on when you activate the licence **with the purchase e-mail**, or when you pair with a code; turned off in Settings ▸ Sincronizar dispositivos) | Your likes and dislikes, your playlist names and the title, artist and cover of their songs; your device names; what is playing (title, artist, cover and position). Your group is identified by an encrypted fingerprint (SHA-256) of your key and e-mail, or of your code. It does **not** store accounts, cookies, the e-mail or the key. | While it is on. | For as long as your group exists. You can ask us to delete it. |
+| **Listen Together** | The name you choose, the room code and the data of the songs playing in it (identifier, title, artist). | Only when you create or join a room. | An empty room is deleted after **5 minutes**. |
+| **Song recognition** (relay) | An audio signature computed from the microphone. | Only while you use recognition, and only if the direct connection to Shazam fails. | It is forwarded to Shazam; we do not store it. |
 
-Apart from that optional check, we do not receive your library, your listening history, your playlists or your search history.
+## 3. What third parties receive
 
-### 3. Analytics and Crash Reporting: None in the Published App
+These third parties receive the requests and handle them under **their own** privacy policies. All of them can see your IP address.
 
-**The published Aura Hi-Res Player app contains no active analytics and sends us no crash reports.**
+**Always, because the App cannot work without them:**
 
-For transparency about how this works, since the code is public and references Firebase:
+- **YouTube / YouTube Music (Google):** search, browsing, playback, video identifiers and, if you sign in, your account cookies. This is unavoidable in a YouTube Music client.
+- **Google image servers:** cover art and thumbnails.
+- **GitHub:** downloading the configuration that keeps playback working (no data about you) and the update check (on by default; can be turned off in settings).
+- **Gumroad:** when you pay, Gumroad receives your payment and billing data under its own policy. We do not receive or store card data; in our Gumroad dashboard we see the sale data Gumroad provides (for example, the e-mail, date, amount and subscription status).
 
-- The App is published in a build variant ("gms") that links the Firebase libraries, but Firebase is **never initialised**, because the Firebase Gradle plugins are only applied when a `google-services.json` configuration file is present, and no such file exists in this repository or in our release pipeline. Without it, Firebase has no project to report to, and both Firebase Analytics and Firebase Crashlytics collect and transmit nothing.
-- Firebase Analytics is additionally **never called anywhere in the App's code**.
-- The alternative "foss" build variant contains no crash-reporting backend at all — its crash reporter is an empty no-op.
-- **Caveat, stated precisely:** anyone who builds the App from source themselves *can* supply their own `google-services.json` to a "gms" build and thereby enable Firebase Crashlytics (and Firebase Analytics auto-collection) in **their own** build. That is a developer option; it is not how the app we distribute is built. If this ever changes for the app we publish, this policy will be updated first.
+**Automatic lyrics translation (on by default; can be turned off in settings):** the **lyrics text** goes to **Google Translate**. If there is no translation, **SimpMusic** is queried with the song identifier, and as a last resort the lyrics text goes to our AI server (section 2).
 
-Crashes are handled **on your device**: the App shows you a crash screen and writes a crash log locally, which you may choose to share with us manually.
+**Depending on the features you use:**
 
-## How We Use Your Information
+- **Lyrics providers:** song title, artist, album and duration, until one has the lyrics. You can choose the order.
+- **iTunes (Apple), Apple Music and other metadata and animated-cover providers:** song, artist and album names.
+- **Wikipedia:** the artist's name, when you view artist information.
+- **Shazam:** the song-recognition audio signature, only while you use it.
+- **Your own AI provider:** if you configure your own key, the text of your AI requests goes to that provider instead of our server.
 
-### 1. App Functionality
+**Optional integrations (they send nothing until you enable them):** Last.fm (scrobbling and taste import), ListenBrainz, Spotify import, SponsorBlock, AutoEQ, podcasts and the like. Each sends only what it needs (for example, the song playing, a headphone model or a search term). When you sign in to YouTube, Spotify or Last.fm, your credentials go directly to that service.
 
-- Provide music streaming and playback services
-- Manage your playlists and music library
-- Enable search and discovery features
-- Verify your subscription or demo status
+## 4. Artificial intelligence
 
-### 2. Personalization
+The App is developed with the help of AI tools under the developer's direction. Those tools **are not connected to the App** and do not receive your data automatically. If you send us a diagnostic log or a report, we may analyse it with their help; that is why the log does not include titles, artists, accounts, e-mails or keys.
 
-- Recommend music based on your listening habits. **This runs on your device.** The recommendation engine reads your local listening data; it does not upload it. To enrich recommendations it does make limited third-party lookups — artist names to iTunes for genres, and the video IDs of songs you liked to YouTube for related tracks. Both are limited in volume and run only on Wi-Fi.
-- Customize the app interface according to your preferences
-- Remember your settings and preferences
+Inside the App, the AI features send to our AI server (third-party open models hosted on Cloudflare) only this:
 
-### 3. Improvement
+| Feature | Default | What it sends |
+|---|---|---|
+| **AI playlist and "Pedir música"** | Available; sends only when you use it | The text you type and, when modifying a playlist, the titles and artists of its songs. |
+| **"Recomendado para ti (IA)"** | **Off** | Once turned on, periodically: up to 16 songs (title and artist) from your most played and your likes, up to 8 of your most frequent artists, your dominant genres and up to 24 titles from the previous list. |
+| **Smart-queue AI second opinion** | **Off** | As described in section 2. |
+| **Lyrics translation** | **On** | Only as a last resort: the lyrics text (section 3). |
 
-We improve the App from bug reports you send us voluntarily and from local crash logs you choose to share. We do not measure your usage remotely.
+## 5. What we use the data for
 
-## Data Sharing and Disclosure
+Only to make the App work: playing, searching, showing lyrics and artwork, verifying your licence or demo, syncing your devices, Listen Together rooms, the AI features you use, and investigating bugs when you send us a log. We do **not** use it for advertising, we build no profiles, and we do not sell it or share it for advertising. We would disclose it only if a law or a competent authority required us to.
 
-### 1. Requests That Always Leave Your Device
+## 6. Your rights
 
-These are inherent to the App working at all:
+You can ask us, by writing to **aurahires@gmail.com**, for:
 
-- **YouTube / YouTube Music (Google)**: search, browse and playback requests, video IDs, playback tracking, and — if you log in — your account cookies. Your IP address is visible to Google. This is unavoidable in a YouTube Music client.
-- **Google image CDNs** (`googleusercontent.com`, `ytimg.com`): cover art and thumbnails, which exposes your IP address to Google.
-- **Our license server**: as described above.
-- **Remote configuration**: the App downloads a small configuration file from our public GitHub repository to keep streaming working when YouTube changes its player. It is a plain download and contains no data about you (your IP is visible to GitHub).
-- **Update check**: the App checks GitHub for new releases. This is **on by default and can be turned off** in settings.
+- **Access:** to know what data about you our services keep and to get a copy.
+- **Rectification:** to correct it.
+- **Erasure:** to delete it (for example, the link between your licence and your devices, your sync group or your cloud backups). The demo record of each device (its technical identifier and start date) is an exception: we keep it for as long as needed to prevent the demo from being repeated.
+- **Objection:** to stop processing it for a specific purpose. You can also turn off Aura services, sync, automatic lyrics translation and the AI features yourself.
 
-### 2. Requests That Depend on Features You Use
+To check that the request is yours, we will ask you to write from the purchase e-mail or to give us your licence key. We will answer within **30 days** at most.
 
-- **Lyrics providers**: when lyrics are displayed, the song title, artist, album and duration are sent to lyrics providers in turn until one has a match. You can configure the provider order.
-- **iTunes (Apple)**: artist, album and track names, for genre and discography lookups.
-- **Apple Music and other metadata / cover-video providers**: track, artist and album names when those features fetch artwork, canvases or album information.
-- **Wikipedia**: the artist's name, when artist information is shown.
+In Honduras, **article 182 of the Constitution** recognises the guarantee of **habeas data**: the right to access information about you held in files or records, and to ask for it to be corrected, updated or deleted. If you live in another country, you keep the rights its law gives you, and you can complain to its data-protection or consumer-protection authority.
 
-### 3. Optional Integrations (Off Unless You Enable Them)
+## 7. Security
 
-- **Last.fm scrobbling**: requires you to log in. Sends track, artist, album and timestamps, plus "loves".
-- **Last.fm taste import**: off by default; requires being enabled *and* a username. Sends your username to retrieve your top artists and loved tracks.
-- **ListenBrainz**: off by default. Sends artist, track, release and playback timings with your token.
-- **Spotify import**: sends the playlist and library requests needed to import from your Spotify account.
-- **SponsorBlock**: off by default. Sends video IDs.
-- **Lyric translation**: the lyrics text is sent to Google Translate's public endpoint (no API key) to be translated, with a fallback to a third-party AI endpoint.
-- **Smart-queue AI check**: off by default. When you enable it, the titles, artists and queue hint described in section 2 go to our relay.
-- **AI playlist generation**: your prompt (and track names when modifying a playlist) goes to our relay, falling back to a public third-party AI endpoint. If you supply your own API key for another AI provider, your prompt goes to that provider instead.
-- **Song recognition**: microphone audio fingerprints, only while you run the feature.
-- **Listen Together, AutoEQ, podcasts and similar optional features**: send only what that feature needs (for example, a room code and current track; a headphone model name; a podcast search term).
-- **Logging in to YouTube, Spotify or Last.fm**: your credentials go directly to that provider.
+Communications with our services are encrypted (HTTPS). Cloud backups are encrypted on your device (AES-256-GCM) before they are sent. Your sync group and your cloud-backup identifier are encrypted fingerprints that do not reveal your secret. No system is perfectly secure; if we detect an incident affecting your data, we will announce it in the App.
 
-Third parties receive these requests and handle them under **their own** privacy policies, and they can see your IP address.
+## 8. Children
 
-### 4. No Sale of Personal Data
+The App is not directed to children under 13, and we do not knowingly collect data from children under 13. If you are a parent or guardian and believe a child has sent us data, write to us and we will delete it.
 
-We do not sell, trade, or rent your personal information to third parties for marketing purposes. The App contains no advertising and builds no advertising profile.
+## 9. Where data is processed
 
-### 5. Legal Requirements
+Our services run on Cloudflare's global network, so your requests may be processed outside your country. The third parties in section 3 process data in their own locations.
 
-We may disclose your information if required by law or to protect our rights and safety.
+## 10. Changes to this policy
 
-## Data Storage and Security
+Each version carries its number and effective date. If a change widens the data that is sent or how it is used, we will tell you in the App before applying it and, when it affects the Terms and Conditions, you will be asked to accept them again.
 
-### 1. Local Storage
+## 11. Contact
 
-- Your music playlists, listening history and preferences are stored locally on your device
-- We use secure local storage to protect your data
+- **E-mail:** aurahires@gmail.com
+- **Responsible party:** the independent developer of Aura Hi-Res v2 (Honduras) · aurahires@gmail.com
+- **Project:** [https://github.com/hck0n3/Aura-Hi-Res-v2](https://github.com/hck0n3/Aura-Hi-Res-v2)
 
-### 2. Cloud Storage
-
-- We do not store your library or preferences on our servers, and the App offers no cloud sync of them
-- If you log in to a third-party service (YouTube, Spotify), actions you take may be reflected in **that** account, as per their privacy policies
-
-### 3. Data Retention
-
-- We keep no analytics data, because we collect none
-- Our license server retains your license key and device identifier for as long as needed to operate your subscription and to keep a record that a demo was started on that device
-- Local app data is retained until you uninstall the app or clear app data
-
-## Your Rights and Choices
-
-### 1. Data Access
-
-- You can view your data through the app settings
-- You can export your playlists and preferences
-
-### 2. Data Deletion
-
-- Uninstalling the app will remove all local data
-- You can clear app data through device settings
-- Contact us to request deletion of the license/demo record associated with your device identifier
-
-### 3. Privacy Controls
-
-- There is no analytics to disable, because the App collects none
-- You can control which services you connect to, and leave the optional integrations above turned off
-- You can turn off automatic update checks in settings
-- You can manage permissions through your device settings. The App requests permissions only for specific features: microphone (song recognition, only while in use), storage/media files (local music and downloads), Bluetooth state (playback behaviour with audio devices) and notifications (playback controls)
-
-## Third-Party Services
-
-### 1. YouTube Music
-
-- **Privacy Policy**: [YouTube Privacy Policy](https://policies.google.com/privacy)
-- **Data Collection**: YouTube may collect data about your music preferences and usage
-
-### 2. Spotify
-
-- **Privacy Policy**: [Spotify Privacy Policy](https://www.spotify.com/legal/privacy-policy/)
-- **Data Collection**: Spotify may collect data about your listening habits
-
-### 3. Other Providers
-
-Lyrics, metadata, artwork, translation, AI, scrobbling and recognition providers each operate under their own privacy policies. The App contacts them only for the features described above.
-
-## Children's Privacy
-
-Our App is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13.
-
-## International Users
-
-Our license server runs on Cloudflare's global network, so your license request may be processed at a location outside your country. The third-party services listed above process data in their own locations under their own policies.
-
-## Changes to This Privacy Policy
-
-We may update this Privacy Policy from time to time. We will notify you of any changes by:
-- Posting the new Privacy Policy in the App
-- Updating the "Last Updated" date
-- Sending you a notification if significant changes are made
-
-## Contact Us
-
-If you have any questions about this Privacy Policy or our data practices, or to send error reports and suggestions, please contact us:
-
-- **Email**: aurahires@gmail.com
-- **GitHub**: [https://github.com/hck0n3/Aura-Hi-Res-v2](https://github.com/hck0n3/Aura-Hi-Res-v2)
-- **Issues**: [https://github.com/hck0n3/Aura-Hi-Res-v2/issues](https://github.com/hck0n3/Aura-Hi-Res-v2/issues)
-- **Discussions**: [https://github.com/hck0n3/Aura-Hi-Res-v2/discussions](https://github.com/hck0n3/Aura-Hi-Res-v2/discussions)
-
-When you use **Report & suggest** in the App, your device opens your own email app with a message addressed to aurahires@gmail.com. We receive only what you choose to send (and optional diagnostic logs you attach). Nothing is uploaded silently.
-
-## Data Protection Compliance
-
-This Privacy Policy complies with:
-- **GDPR** (General Data Protection Regulation) for EU users
-- **CCPA** (California Consumer Privacy Act) for California users
-- **PIPEDA** (Personal Information Protection and Electronic Documents Act) for Canadian users
-
-## Summary
-
-- The App has **no analytics, tracking or advertising SDK**, and sends us no usage data or crash reports
-- Your library, history, playlists and searches stay **on your device**
-- Our only server receives your **license key and a device identifier** to run the subscription, plus AI prompts, the optional smart-queue AI check or recognition fingerprints **only if you use those features**
-- Because the App streams from YouTube Music, **Google receives your requests and IP address** — that is inherent to the App, not analytics
-- Optional integrations (Last.fm, ListenBrainz, Spotify, SponsorBlock, AI, translation) are **off until you enable them**
-- We do not sell your personal data
-- We are committed to protecting your privacy and being transparent about our practices
-
----
-
-**By using Aura Hi-Res Player, you agree to the collection and use of information in accordance with this Privacy Policy.**
+When you use **Reporte de errores y sugerencias** (Bug reports and suggestions) in the App, your own e-mail app opens with a message addressed to aurahires@gmail.com. We receive only what you choose to send (and any logs or screenshots you choose to attach).
