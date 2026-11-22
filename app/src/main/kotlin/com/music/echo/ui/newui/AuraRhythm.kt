@@ -9,8 +9,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalView
 import androidx.media3.common.C
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
@@ -63,6 +66,7 @@ fun rememberAuraRhythmLevel(
 
     // [active] (sheet expanded) gates the loop, NOT the capture: while collapsed no state is
     // written per frame, so nothing recomposes and no frame callbacks tick behind the mini-player.
+    val view = LocalView.current
     LaunchedEffect(captureEnabled, active, playing) {
         if (!captureEnabled || !active) {
             level.floatValue = 0f
@@ -74,14 +78,26 @@ fun rememberAuraRhythmLevel(
         // was open — also while PAUSED, when the target is 0 and nothing changes (120 main-thread wakeups a second to
         // write the same 0f). Once paused and decayed to nothing it now ends; the effect is keyed on [playing], so it
         // starts again the moment playback does.
+        // Battery/heat (owner 2026-11-22): while PLAYING it still woke every vsync (120 Hz) for a hub level that moves
+        // ~20 times a second. It now runs at most [AURA_RHYTHM_MAX_FPS], applies the same per-panel-frame smoothing for
+        // every panel frame it skipped, and writes [level] only when the quantized step the ground reads changes.
+        val panelHz = view.display?.refreshRate?.takeIf { it > 0f } ?: 60f
+        // Half a panel frame short of the cap, so the frame request lands between two vsyncs and the next one is taken.
+        val pauseMs = (1000f / AURA_RHYTHM_MAX_FPS - 500f / panelHz).coerceAtLeast(0f).toLong()
+        var lastFrameNanos = 0L
         while (isActive && !settled) {
-            withFrameNanos {
+            withFrameNanos { frameNanos ->
+                val frames = if (lastFrameNanos == 0L) 1f else ((frameNanos - lastFrameNanos) * panelHz / 1_000_000_000f).coerceAtLeast(1f)
+                lastFrameNanos = frameNanos
                 val target = if (playing) hubLevel else 0f
                 // Fast attack, slower release — reads as rhythm without jitter.
-                smoothed += (target - smoothed) * if (target > smoothed) 0.35f else 0.12f
-                level.floatValue = smoothed.coerceIn(0f, 1f)
+                val rate = if (target > smoothed) 0.35f else 0.12f
+                smoothed += (target - smoothed) * (1f - (1f - rate).pow(frames))
+                val next = smoothed.coerceIn(0f, 1f)
+                if (quantizeAuraRhythmIntensity(next) != quantizeAuraRhythmIntensity(level.floatValue)) level.floatValue = next
                 settled = auraRhythmSettled(playing, smoothed)
             }
+            if (!settled && pauseMs > 0) delay(pauseMs)
         }
         if (settled) level.floatValue = 0f
     }
@@ -94,6 +110,9 @@ fun rememberAuraRhythmLevel(
  * reaches half a bucket (1/64 ≈ 0.0156), and this is a third of that. Pure and JVM-testable (battery audit 2026-10-20).
  */
 const val AURA_RHYTHM_SETTLED_EPSILON = 0.005f
+
+/** Update cap of the rhythm smoothing loop: above the ~20 hub updates a second, far below a 120 Hz panel. */
+const val AURA_RHYTHM_MAX_FPS = 30
 
 /** Paused AND decayed to nothing: the per-frame smoothing loop has nothing left to animate and must stop asking for frames. */
 fun auraRhythmSettled(playing: Boolean, smoothed: Float): Boolean = !playing && smoothed < AURA_RHYTHM_SETTLED_EPSILON
