@@ -65,9 +65,9 @@ widget · Cast (Gms).
 - [x] L21 ui/player/Player.kt L1-L1200 — INALCANZABLE (ver D-002); no se audita a fondo código que no se ejecuta
 - [x] L22 ui/player/Player.kt L1201-L2400
 - [x] L23 ui/player/Player.kt L2401-L3785 — parte viva `InlineLyricsView` L3499-L3580 leída línea a línea (sin fallos); L3583-L3785 leída (código muerto)
-- [ ] L24 ui/component/Lyrics.kt L1-L1200
-- [ ] L25 ui/component/Lyrics.kt L1201-L2400
-- [ ] L26 ui/component/Lyrics.kt L2401-L2746
+- [x] L24 ui/component/Lyrics.kt L1-L1200
+- [x] L25 ui/component/Lyrics.kt L1201-L2400
+- [x] L26 ui/component/Lyrics.kt L2401-L2746 — sin hallazgos P0-P2; ver obs. de Lyrics en Sospechas
 - [ ] L27 utils/YTPlayerUtils.kt L1-L1200
 - [ ] L28 utils/YTPlayerUtils.kt L1201-L1966
 - [ ] L29 playback/ExactStyleGate.kt L1-L886
@@ -124,6 +124,10 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - Obs (P3) `MusicService.kt:10413` `onTaskRemoved` solo llama a `super`.
 - Obs (P3) `MusicService.kt:1812` `dataStore.get` bloqueante en el callback de dispositivo de audio (hilo principal), solo al conectar un dispositivo.
 - Obs (P3) `MusicService.kt:3197`, `:3217` `dataStore.get(PersistentQueueKey)` bloqueante cada 10/30 s en Main aunque existe el espejo `persistentQueueHint` (L959).
+
+- Obs (CON, registro desfasado) `Lyrics.kt:2041` APPLE_V2 sin timings por palabra pinta la línea entera (`!hasRealWordTimings -> wholeLineFill`); la fila #7 del registro dice lo contrario («fabricar timings char-weighted en el else»). El cambio es deliberado (comentario L2030-2040: el barrido fabricado iba «letra por letra desincronizado»), entró en `8b44a43` y ninguna fila lo recoge. No se toca el código: propuesta para Fase 4 = actualizar el guardián de la fila #7 (el dueño confirma qué comportamiento quiere).
+- Obs (P3) `Lyrics.kt:2121-2132` con «brillo» activo, la línea actual corre un bucle de pulso infinito (recomposición por fotograma) mientras la pantalla de letra está visible. Solo con la letra en pantalla; no con la pantalla apagada. Sin medir.
+- Obs (P3) `Lyrics.kt:2512` cada apertura del selector de colores crea un `ImageLoader(context)` nuevo (sin caché compartida) para sacar la paleta de la portada.
 
 ## [DECISIÓN REQUERIDA] abiertas
 
