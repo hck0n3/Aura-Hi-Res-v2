@@ -19,9 +19,9 @@ import iad1tya.echo.music.constants.HighPerformanceModeKey
  */
 object PerformanceMode {
 
-    /** Blocking read of the master flag (default OFF). Cheap: DataStore in-memory after first read. */
+    /** Read of the master flag (default OFF) from the process snapshot; blocks only before its first emission. */
     fun isOn(context: Context): Boolean =
-        context.applicationContext.dataStore.get(HighPerformanceModeKey, false)
+        context.applicationContext.dataStore.getNonBlocking(HighPerformanceModeKey, false)
 
     /**
      * The tier the app should BEHAVE as: [DeviceTier.ULTRA] (the most-stripped path, below LOW) when Performance
