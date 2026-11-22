@@ -639,7 +639,8 @@ internal suspend fun MusicService.exactStyleFilter(
         }
         Timber.tag(TAG).i("STYLE_GATE %s: AI second opinion asked=%d dropped=%d", site, doubtful.size, dropped)
     }
-    val tiers = judged.map { ContextLane.tier(lane, it.candidate) }
+    // Row 655: what the strict no-repeat drops afterwards never counts toward `enough` nor the widening cut.
+    val tiers = judged.mapIndexed { i, j -> if (all[i].mediaId in heardInBatch) null else ContextLane.tier(lane, j.candidate) }
     // With the second-to-last relaxation (languageOnly) every non-excluded candidate is welcome, best step first.
     val enough = if (languageOnly) Int.MAX_VALUE else minOf(minMatches, StyleContinuity.ENOUGH_TO_DROP_UNKNOWN)
     val tierById = HashMap<String, Int?>()
