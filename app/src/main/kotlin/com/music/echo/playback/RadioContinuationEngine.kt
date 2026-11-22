@@ -1218,6 +1218,30 @@ fun MusicService.startRadioSeamlessly(
             ok
         }.getOrElse { radioSourceFailed("context", it) }
 
+        // Row 651 — a «Pedir música» list of ONE artist continues with that artist's own unheard songs, never with similar
+        // artists (orderedByTaste keeps only that artist from every other source too). Nothing unheard left → the
+        // other sources run, and whatever of them is not that artist is dropped: the queue may end.
+        var artistCatalogue: List<MediaItem>? = null
+        suspend fun tryArtistCatalogue(): Boolean = runCatching {
+            if (activeMoodParams != null) return@runCatching false
+            val lock = iad1tya.echo.music.playlistimport.RequestArtistTargets.get(originContextId) ?: return@runCatching false
+            contextSteerActive = true
+            val catalogue = artistCatalogue ?: withContext(Dispatchers.IO) { requestArtistCatalogue(lock) }
+                .filterExplicit(dataStore.get(HideExplicitKey, false))
+                .filterVideoSongs(dataStore.get(HideVideoSongsKey, false) || dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false))
+                .filterNonMusicForAutoQueue()
+                .also { artistCatalogue = it }
+            val queued = liveQueueSnapshot(afterCurrent = false)
+            val unheard = catalogue.filter { it.mediaId != currentMediaId && !it.isHeardForSmartQueue(queued) }
+            for (batch in unheard.chunked(ARTIST_CATALOGUE_BATCH).take(ARTIST_CATALOGUE_TRIES)) {
+                if (appendSeed(batch)) {
+                    currentQueue = EmptyQueue
+                    return@runCatching true
+                }
+            }
+            false
+        }.getOrElse { radioSourceFailed("artist", it) }
+
         // Mood (if active) first, then radio, then related. If a transient hiccup left us empty, wait
         // briefly and try again — so a momentary network blip / rate-limit window at the exact
         // end-of-queue moment never permanently stops the music. THREE attempts, not two: a single
@@ -1226,29 +1250,29 @@ fun MusicService.startRadioSeamlessly(
         // last-resort instead of ever reaching real radio — even though the seed video id was
         // valid and playable moments earlier. The extra 5s attempt costs nothing on the common case
         // (mood/radio/related already succeeded and this block never runs).
-        var appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
+        var appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
         if (!appended) {
             kotlinx.coroutines.delay(2500)
-            appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
         }
         if (!appended) {
             kotlinx.coroutines.delay(5000)
-            appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
         }
         // Nothing worked with every filter on: loosen OUR OWN filters step by step (see [relaxLevel]) before
         // giving up, so the smart queue still continues the list instead of ending it.
         if (!appended) {
             relaxLevel = 1
-            appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
         }
         if (!appended) {
             relaxLevel = 2
-            appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
             if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the language gate only")
         }
         if (!appended) {
             relaxLevel = 3
-            appended = tryMood() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
             if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the language and faith gates only")
         }
         // Autoplay chips: the seed just landed (appendSeed ran) → refresh the queue-footer

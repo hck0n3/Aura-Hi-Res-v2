@@ -143,6 +143,7 @@ constructor(
                         baseUrl = args.baseUrl,
                         model = args.model,
                         taste = args.taste,
+                        lockedArtist = iad1tya.echo.music.playlistimport.RequestArtistTargets.get(args.contextId)?.name,
                     )
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
@@ -174,6 +175,9 @@ constructor(
         val altId = current.contextId + ":alt"
         iad1tya.echo.music.reco.RequestStyleTargets.get(current.contextId)?.let {
             iad1tya.echo.music.reco.RequestStyleTargets.put(altId, it)
+        }
+        iad1tya.echo.music.playlistimport.RequestArtistTargets.get(current.contextId)?.let {
+            iad1tya.echo.music.playlistimport.RequestArtistTargets.put(altId, it)
         }
         return altId
     }
@@ -386,6 +390,13 @@ constructor(
                     ),
                 )
             }
+            // Row 651: a request for ONE artist keeps that artist in the queue that continues it (and in the top-up below).
+            produced.lockedArtist?.let {
+                iad1tya.echo.music.playlistimport.RequestArtistTargets.put(
+                    contextId,
+                    iad1tya.echo.music.playlistimport.RequestArtistTargets.Lock(it, produced.lockedArtistId),
+                )
+            }
             // Fila 462: the backing track of ONE song is a closed list (the track and its alternatives): no top-up with other
             // songs, and the queue that continues it must not bring more karaoke of other songs ([RequestKaraokeContexts]).
             val closedKaraoke = produced.karaoke == iad1tya.echo.music.playlistimport.MusicRequestKaraoke.Kind.SONG
@@ -460,6 +471,7 @@ constructor(
                 model = model,
                 taste = taste,
                 context = context,
+                lockedArtist = iad1tya.echo.music.playlistimport.RequestArtistTargets.get(contextId)?.name,
             )
         }.getOrNull()
         if (fuller == null || fuller.songs.isEmpty()) return

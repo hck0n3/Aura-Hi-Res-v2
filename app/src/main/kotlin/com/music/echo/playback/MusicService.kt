@@ -4936,7 +4936,10 @@ class MusicService :
         // Ids / NoRepeatKeys of the live queue (see liveQueueSnapshot) — also off-limits when non-null.
         queued: LiveQueueSnapshot? = null,
     ): List<MediaItem> {
-        if (size < 2 && !strictNoRepeat) return this
+        // Row 651: a «Pedir música» list of ONE artist continues with that artist only; an explicit chip / mood steer stands it down.
+        val artistLock = if (exactStyle.chipSteered || activeMoodParams != null) null
+        else iad1tya.echo.music.playlistimport.RequestArtistTargets.get(radioOriginContextId)
+        if (size < 2 && !strictNoRepeat && artistLock == null) return this
         val disliked = runCatching { dislikeStore.snapshot() }
             .getOrDefault(iad1tya.echo.music.dislike.DislikeStore.Disliked())
         // Fila 462: the queue that follows the backing track of ONE song ("Pedir música" → "karaoke de X") must not bring more
@@ -4944,6 +4947,13 @@ class MusicService :
         // karaoke request for an artist or a style keeps the rule below (playing one, they rank like any other song).
         val karaokeClosed = iad1tya.echo.music.playlistimport.RequestKaraokeContexts.isClosed(radioOriginContextId)
         val filtered = this.filter { mi ->
+            if (artistLock != null &&
+                !iad1tya.echo.music.playlistimport.RequestArtistTargets.admits(
+                    artistLock, mi.metadata?.artists.orEmpty().map { it.name to it.id },
+                )
+            ) {
+                return@filter false
+            }
             val m = mi.metadata ?: return@filter true
             if (karaokeClosed && iad1tya.echo.music.reco.VersionNoise.isDerivative(m.title, m.album?.title)) return@filter false
             m.id !in disliked.songs && m.artists.none { it.id != null && it.id in disliked.artists }
