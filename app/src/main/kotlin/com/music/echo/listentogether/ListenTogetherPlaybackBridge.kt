@@ -401,6 +401,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
         val corrected = capToTrack(session.positionAt(position, isPlaying), roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
+            val previous = player.previousMediaItemIndex
+            val cameFromRoomTrack = previous != androidx.media3.common.C.INDEX_UNSET && player.getMediaItemAt(previous).mediaId == roomTrack.id
+            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@withContext
             val attempt = roomTrack.id to session.state.value.lastActionServerTime
             if (mismatchReload == attempt) return@withContext
             mismatchReload = attempt
@@ -915,6 +918,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         const val READY_BUFFER_PERCENT = 5
 
         const val TRACK_END_MARGIN_MS = 500L
+
+        const val TRACK_END_HANDOFF_MS = 2_000L
 
         /** One re-check before giving the room our ready anyway (the server has its own timeout). */
         const val BARRIER_RECHECK_MS = 2_000L
