@@ -140,6 +140,7 @@ constructor(
                 "External PLAY rejected (deliberate pause, route just connected)",
                 "from=${controller.packageName}",
             )
+            timber.log.Timber.tag("PLAYBACK").i("START_CAUSE=external_play_rejected_echo from=%s", controller.packageName)
             return SessionResult.RESULT_ERROR_PERMISSION_DENIED
         }
         // Owner 2026-11-22 (registry 556: «two local External PLAY with remote control on»): while another device is controlled from
@@ -160,6 +161,13 @@ constructor(
             }
         }
         recordExternalPlayAttempt(controller, vetoed = false)
+        if (playerCommand == androidx.media3.common.Player.COMMAND_PLAY_PAUSE && this::service.isInitialized) {
+            timber.log.Timber.tag("PLAYBACK").i(
+                "START_CAUSE=external_%s from=%s",
+                if (service.player.playWhenReady) "pause" else "play",
+                controller.packageName,
+            )
+        }
         return super.onPlayerCommandRequest(session, controller, playerCommand)
     }
 

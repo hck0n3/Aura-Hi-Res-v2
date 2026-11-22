@@ -1914,6 +1914,7 @@ class MusicService :
                         },
                     )
                     pausedByNoisy = false
+                    Timber.tag(TAG).i("START_CAUSE=route_resume setting=%b", settingResume)
                     player.play()
                 }
             }
@@ -3495,6 +3496,7 @@ class MusicService :
         hasAudioFocus = decision.hasAudioFocus
         wasPlayingBeforeAudioFocusLoss = decision.wasPlayingBeforeLoss
         if (decision.pause) {
+            Timber.tag(TAG).i("START_CAUSE=focus_loss_pause change=%d", focusChange)
             expectingOwnFocusPause = true
             player.pause()
         }
@@ -3507,6 +3509,7 @@ class MusicService :
                 if (hasAudioFocus && wasPlayingBeforeAudioFocusLoss && !player.isPlaying) {
 
                     if (castConnectionHandler?.isCasting?.value != true) {
+                        Timber.tag(TAG).i("START_CAUSE=focus_resume")
                         player.play()
                     }
                     wasPlayingBeforeAudioFocusLoss = false
@@ -3626,6 +3629,7 @@ class MusicService :
                 if (fresh && castConnectionHandler?.isCasting?.value != true) {
                     // Reclaim audio focus first so we don't resume over whatever took over during the outage.
                     requestAudioFocus()
+                    Timber.tag(TAG).i("START_CAUSE=network_resume")
                     player.play()
                 }
             }
@@ -3647,6 +3651,7 @@ class MusicService :
             player.prepare()
             
             if (castConnectionHandler?.isCasting?.value != true) {
+                Timber.tag(TAG).i("START_CAUSE=error_skip")
                 player.play()
             }
             return
@@ -3657,6 +3662,7 @@ class MusicService :
         if (SongModePlanning.skipChainExhausted(consecutivePlaybackErr, MAX_CONSECUTIVE_ERR)) {
             runCatching { Toast.makeText(this, R.string.skip_chain_stopped, Toast.LENGTH_LONG).show() }
         }
+        Timber.tag(TAG).i("START_CAUSE=error_skip_chain_pause")
         player.pause()
         consecutivePlaybackErr = 0
     }
@@ -3724,6 +3730,7 @@ class MusicService :
         player.seekTo(index, C.TIME_UNSET)
         player.prepare()
         if (castConnectionHandler?.isCasting?.value != true) {
+            Timber.tag(TAG).i("START_CAUSE=offline_skip")
             player.play()
         }
         runCatching {
@@ -3735,6 +3742,7 @@ class MusicService :
         // Mark that the imminent pause is OURS, so onPlayWhenReadyChanged keeps pausedByNetwork (whereas a
         // genuine user/external pause clears it and is therefore never auto-resumed).
         expectingOwnStopPause = true
+        Timber.tag(TAG).i("START_CAUSE=error_stop")
         player.pause()
     }
 
@@ -8384,6 +8392,7 @@ class MusicService :
             if (wasPlayingBeforeVolumeMute && !player.isPlaying && castConnectionHandler?.isCasting?.value != true) {
                 wasPlayingBeforeVolumeMute = false
                 isPausedByVolumeMute = false
+                Timber.tag(TAG).i("START_CAUSE=volume_resume")
                 player.play()
             }
         }
@@ -10567,6 +10576,7 @@ class MusicService :
                     // veto never applies to it.
                     if (player.playbackState == Player.STATE_IDLE) player.prepare()
                     awaitingFirstUserPlay = false
+                    Timber.tag(TAG).i("START_CAUSE=widget")
                     player.play()
                 }
                 updateWidgetUI(player.isPlaying)

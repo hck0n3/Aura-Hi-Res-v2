@@ -501,6 +501,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 runCatching { publishNow(force = true) }
             }
         }
+        if (cmd == "play" || cmd == "pause" || cmd == "playitem") Timber.tag(TAG).i("START_CAUSE=remote_command cmd=%s", cmd)
         when (cmd) {
             // Row 596: a paused player may be IDLE (a restored/mirrored queue is never prepared) or ENDED, and play() alone does nothing then.
             "play" -> onMain { resumePlayback(service.player) }
@@ -560,8 +561,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                     // Row 569 (owner 2026-10-31: «la tablet me dijo sin conexión y paró la canción y no la volvió a reproducir»): this device paused
                     // itself even when the hand-over never left (the sync link was down), so the song stopped on BOTH devices. It only gives way
                     // when the other one has really been told to take over; otherwise it keeps playing.
-                    if (sent) onMain { service.player.pause() }
-                    else Timber.tag(TAG).w("DEVICE_SYNC hand-over not sent (no link) — keeps playing here")
+                    if (sent) {
+                        Timber.tag(TAG).i("START_CAUSE=handoff_pause")
+                        onMain { service.player.pause() }
+                    } else Timber.tag(TAG).w("DEVICE_SYNC hand-over not sent (no link) — keeps playing here")
                 }
             }
             "take" -> if (handoffEnabled) {
@@ -632,6 +635,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
         val position = state.estimatedPositionMs(serverNow()).coerceAtLeast(0L)
         Timber.tag(TAG).i("DEVICE_SYNC taking over items=%d index=%d", items.size, state.index)
+        Timber.tag(TAG).i("START_CAUSE=take")
         RemotePlayback.grantLocalStart()
         onMain {
             service.remoteRedirectBypass = true
@@ -736,7 +740,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             val sent = client.send(buildJsonObject {
                 put("t", "cmd"); put("to", deviceId); put("cmd", "take"); put("args", buildJsonObject { put("state", state) })
             })
-            if (sent) onMain { service.player.pause() } else DeviceSyncHub.notice("Sin conexión con la sincronización.")
+            if (sent) {
+                Timber.tag(TAG).i("START_CAUSE=sent_away_pause")
+                onMain { service.player.pause() }
+            } else DeviceSyncHub.notice("Sin conexión con la sincronización.")
         }
     }
 
