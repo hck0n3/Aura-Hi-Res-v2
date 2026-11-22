@@ -20,10 +20,12 @@ Este skill **no sustituye** a `AGENTS.md`: lo aplica a un cambio puntual. Si alg
 3. **Busca en `docs/REGRESSION_REGISTRY.md`** el archivo y la función que vas a tocar
    (`grep -n "<Archivo>.kt" docs/REGRESSION_REGISTRY.md`). Cada fila que aparezca es un guardián que
    tu diff no puede revertir. Lee también la sección "LEER ANTES DE TOCAR CÓDIGO".
-4. **Lista quién depende** de lo que cambias (`grep -rn "nombreFuncion" --include=*.kt`). Si es un
+4. **Localiza los tests guardianes** del archivo: `grep -rl "<Archivo>.kt" app/src/test`. Son los que
+   tu cambio debe dejar en verde.
+5. **Lista quién depende** de lo que cambias (`grep -rn "nombreFuncion" --include=*.kt`). Si es un
    flag en un `object`/singleton, pregunta quién más corre a la vez (precarga, crossfade, descargas).
-5. **Si copias un patrón existente, léelo entero** y lista sus partes antes de replicarlo.
-6. **Pide plan y espera confirmación** (3 líneas: archivo, cambio, por qué) si se cumple cualquiera:
+6. **Si copias un patrón existente, léelo entero** y lista sus partes antes de replicarlo.
+7. **Pide plan y espera confirmación** (3 líneas: archivo, cambio, por qué) si se cumple cualquiera:
    - el cambio toca más de 2 archivos;
    - toca un archivo compartido de la lista de `AGENTS.md` regla 1;
    - cambia una firma, tipo o contrato público.
@@ -35,7 +37,9 @@ Este skill **no sustituye** a `AGENTS.md`: lo aplica a un cambio puntual. Si alg
 - Diff mínimo: nunca reescribas un archivo entero para cambiar unas líneas.
 - **Comentarios:** solo uno, junto al fix, si explica un guardián no obvio (el porqué, no el qué).
 - **Excepción obligatoria:** si arreglas un bug **reportado**, añade su fila a
-  `docs/REGRESSION_REGISTRY.md` (causa raíz real + archivo:línea guardián). No cuenta como "extra".
+  `docs/REGRESSION_REGISTRY.md` (causa raíz real + archivo:línea guardián) **y un test guardián** en
+  `app/src/test/` que falle si el arreglo desaparece (modelo: `viewmodels/BackupRestoreRegistryGuardTest.kt`).
+  Ninguna de las dos cosas cuenta como "extra".
 - Otro problema que veas: una línea al final del informe. No lo toques.
 
 ## 3. Zonas prohibidas (salvo petición explícita)
@@ -47,6 +51,10 @@ Este skill **no sustituye** a `AGENTS.md`: lo aplica a un cambio puntual. Si alg
 | `google-services.json` | No existe a propósito |
 | Claves en `app/build.gradle.kts` (Last.fm, Tidal, Qobuz) | Públicas por diseño |
 | Paquete `com.music.echo`, root project `echomusic` | Herencia del fork, no se "arregla" |
+
+Las tres primeras zonas las vigila un hook (`.claude/hooks/protect-zones.sh`): editar ahí **le pide
+aprobación al dueño**, y modificarlas desde la shell **se bloquea**. Si el hook salta, para y pregunta.
+**Nunca lo esquives** (con un script de Python, otra ruta, o cambiando `.claude/settings.json`).
 
 ## 4. Al escribir el cambio
 
@@ -71,16 +79,28 @@ Este skill **no sustituye** a `AGENTS.md`: lo aplica a un cambio puntual. Si alg
   ¿el valor llega a lo que produce el efecto?, ¿hay un gate o un default que lo anule?
 - Si el build o un test falla: corrígelo, o revierte **solo tus propios cambios** (no descartes trabajo
   ajeno del árbol con `git checkout .`/`reset --hard`).
+- **Un test guardián en rojo es una regresión, no un test desfasado.** Nunca lo borres, lo debilites ni
+  le cambies la expectativa para que pase. Para y explica qué arreglo antiguo está rompiendo el cambio.
+  Solo si el dueño confirma que ese comportamiento debe cambiar, se actualiza el test junto con su fila.
 - Si no puedes compilar aquí (sin SDK/NDK), **dilo**: "no verificado: falta X". Nunca lo des por bueno.
+  Tras el push a una rama `claude/**`, GitHub corre `unit-tests.yml`: consulta su resultado.
 
-## 6. Lo que NO hace este skill
+## 6. Un cambio, un commit
+
+- Cada petición del dueño va en **su propio commit**, con un mensaje que diga qué pidió. Nunca mezcles
+  dos peticiones en un commit, ni modifiques (`--amend`) un commit anterior ya subido.
+- Así, si algo se rompe, se deshace solo ese cambio: `git revert <sha>`, sin perder lo demás.
+- Si la petición llega con trabajo a medio hacer en el árbol, no lo metas en tu commit: avisa.
+
+## 7. Lo que NO hace este skill
 
 Commit y push a la rama de trabajo, sí. **Nunca** sin orden explícita del dueño en ese momento:
 merge/push a `main`, tags `v*`, lanzar `gradle.yml`, publicar `player_configs.json`, abrir un PR.
 
-## 7. Informe final (este formato, nada más)
+## 8. Informe final (este formato, nada más)
 
 ```
+Commit: <sha corto> — <mensaje>
 Archivo(s): <ruta:línea>
 Cambio: <una línea>
 Verificación: <comando → BUILD SUCCESSFUL / FAIL / no ejecutado (motivo)>
@@ -99,3 +119,6 @@ Visto, sin tocar: <una línea por problema, o "nada">
 | "Un log de depuración no hace daño" | Va al archivo que el usuario comparte. |
 | "Son 3 archivos pero es obvio" | Plan de 3 líneas y espera. |
 | "No hay SDK, pero el cambio es trivial" | Informa "no verificado". |
+| "Este test guardián está anticuado" | Es la alarma de una regresión. Para y pregunta. |
+| "El hook me bloquea, lo hago por otra vía" | El hook es la voluntad del dueño. Pregunta. |
+| "Lo meto en el commit anterior" | Un cambio, un commit. |
