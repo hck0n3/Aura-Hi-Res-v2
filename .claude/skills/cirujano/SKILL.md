@@ -88,7 +88,8 @@ script de Python, otra ruta, otro nombre de archivo o cualquier otra vía).
 ## 4. Al escribir el cambio
 
 - **Logs:** `AppLogger` persiste `>= INFO` en `app.log`, que el usuario **comparte**. Nunca loguees
-  títulos, artistas, IDs, cuerpos de respuesta ni cookies.
+  títulos, artistas, IDs, cuerpos de respuesta ni cookies (única excepción: el id de vídeo/lista, permitido
+  por el dueño — ver `AGENTS.md` regla 4).
 - **Batería y calor:** nada que muestree pantalla o red en cada fotograma mientras suena música.
 - **Pérdida de datos:** si el cambio puede producir una lista vacía, el **consumidor** debe negarse a
   borrar con ella.

@@ -48,6 +48,11 @@ arreglado— antes de cambiar nada.
 `filesDir/logs/app.log`, que es **el archivo que el usuario comparte** desde Ajustes ▸ Registros. Antes de
 loguear una variable: ¿contiene datos del usuario (títulos, artistas, IDs, cuerpos de respuesta, cookies)?
 Si la respuesta es sí, no se loguea.
+**Excepción permitida por el dueño (2026-11-22, auditoría F-002):** el **id del vídeo/canción de YouTube y el
+id de una lista o de su contexto** (`PL:<id>`, `AL:<id>`…) **sí** pueden ir a `INFO`/`WARN`: sin ellos no se
+puede diagnosticar «esta canción no suena» desde el log compartido (fila #305). Siguen prohibidos los
+títulos, artistas, nombres de listas, cuerpos de respuesta, URLs con su query (llevan `sig`/`pot`), cookies,
+tokens, el correo y la clave de licencia.
 
 **5. Antes de tocar la interfaz, lee `docs/UI_INVENTORY.md`.** Enumera todo lo que la app expone hoy. Lo que
 no aparezca en el diseño nuevo y esté en esa lista, se habrá perdido en silencio. **Ocultar también es perder.**
