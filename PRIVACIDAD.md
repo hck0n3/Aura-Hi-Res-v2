@@ -1,12 +1,12 @@
 # Política de privacidad — Aura Hi-Res v2
 
-**Versión:** 3 · **Fecha de entrada en vigor:** [FECHA DE ENTRADA EN VIGOR]
+**Versión:** 3 · **Fecha de entrada en vigor:** 22 de noviembre de 2026
 
 Esta es la versión principal de la política de privacidad de **Aura Hi-Res v2** (la "aplicación"). La traducción al inglés está en [PRIVACY_POLICY.md](PRIVACY_POLICY.md); si las dos no coinciden, prevalece esta versión en español. Completa la cláusula 11 de los [Términos y Condiciones](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md).
 
 ## Quién es el responsable
 
-**[NOMBRE LEGAL COMPLETO]**, desarrollador independiente con domicilio en **[CIUDAD], Honduras** ("nosotros"). Contacto para todo lo relacionado con tus datos: **aurahires@gmail.com**.
+**El desarrollador independiente de Aura Hi-Res v2**, con residencia en **Honduras** ("nosotros"). Contacto para todo lo relacionado con tus datos: **aurahires@gmail.com**.
 
 ## En resumen
 
@@ -91,7 +91,7 @@ Puedes pedirnos, escribiendo a **aurahires@gmail.com**:
 - **Supresión:** borrarlos (por ejemplo, el vínculo de tu licencia con tus dispositivos, tu grupo de sincronización o tus copias en la nube). El registro de demo de cada dispositivo (su identificador técnico y la fecha de inicio) es una excepción: lo conservamos mientras sea necesario para impedir que la demo se repita.
 - **Oposición:** que dejemos de tratarlos para una finalidad concreta. Además, puedes apagar tú mismo los Servicios Aura, la sincronización, la traducción automática de letras y las funciones de IA.
 
-Para comprobar que la petición es tuya, te pediremos que nos escribas desde el correo de la compra o que nos indiques tu clave de licencia. Te responderemos en un plazo máximo de **[30] días**.
+Para comprobar que la petición es tuya, te pediremos que nos escribas desde el correo de la compra o que nos indiques tu clave de licencia. Te responderemos en un plazo máximo de **30 días**.
 
 En Honduras, el **artículo 182 de la Constitución** reconoce la garantía de **hábeas data**: el derecho a acceder a la información sobre ti que conste en archivos o registros, y a pedir que se corrija, se actualice o se suprima. Si resides en otro país, conservas los derechos que te reconozca su ley, y puedes reclamar ante su autoridad de protección de datos o de protección al consumidor.
 
@@ -114,7 +114,7 @@ Cada versión lleva su número y su fecha de entrada en vigor. Si un cambio ampl
 ## 11. Contacto
 
 - **Correo:** aurahires@gmail.com
-- **Responsable:** [NOMBRE LEGAL COMPLETO], [CIUDAD], Honduras
+- **Responsable:** el desarrollador independiente de Aura Hi-Res v2 (Honduras) · aurahires@gmail.com
 - **Proyecto:** [https://github.com/hck0n3/Aura-Hi-Res-v2](https://github.com/hck0n3/Aura-Hi-Res-v2)
 
 Cuando usas **Reporte de errores y sugerencias** en la aplicación, se abre tu propia aplicación de correo con un mensaje dirigido a aurahires@gmail.com. Solo recibimos lo que decidas enviar (y los registros o capturas que decidas adjuntar).

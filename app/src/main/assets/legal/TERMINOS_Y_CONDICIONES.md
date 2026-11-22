@@ -1,8 +1,8 @@
 # Términos y Condiciones de Uso — Aura Hi-Res v2
 
-**Versión de los Términos: 3** · **Fecha de entrada en vigor: [FECHA DE ENTRADA EN VIGOR]**
+**Versión de los Términos: 3** · **Fecha de entrada en vigor: 22 de noviembre de 2026**
 
-**Quién presta el servicio:** [NOMBRE LEGAL COMPLETO], desarrollador independiente con domicilio en [CIUDAD], Honduras (el "Desarrollador"). Contacto: aurahires@gmail.com.
+**Quién presta el servicio:** el desarrollador independiente de Aura Hi-Res v2, con residencia en Honduras (el "Desarrollador"). Contacto: aurahires@gmail.com.
 
 Estos Términos y Condiciones (los "Términos") regulan el uso de la aplicación **Aura Hi-Res v2** (la "Aplicación"), un reproductor de música para Android desarrollado y mantenido por el Desarrollador, y de los servicios en línea que el Desarrollador opera para ella. La Aplicación se desarrolla con ayuda de herramientas de inteligencia artificial (cláusula 20). Lea estos Términos con atención antes de usar la Aplicación. Si no está de acuerdo con ellos, no instale ni use la Aplicación.
 
@@ -122,13 +122,13 @@ Estos Términos y Condiciones (los "Términos") regulan el uso de la aplicación
 10.6. **Cómo cancelar.** Puede cancelar en cualquier momento, sin penalización y sin dar explicaciones:
 
 - (a) desde el enlace de gestión de la suscripción que Gumroad incluye en el correo de compra, o desde su cuenta de Gumroad; o
-- (b) escribiendo a aurahires@gmail.com desde el correo con el que pagó. El Desarrollador la cancelará en un plazo máximo de [2] días hábiles y se lo confirmará por correo.
+- (b) escribiendo a aurahires@gmail.com desde el correo con el que pagó. El Desarrollador la cancelará en un plazo máximo de 2 días hábiles y se lo confirmará por correo.
 
 La cancelación detiene los cargos futuros; usted conserva el acceso hasta el final del período ya pagado. **Desinstalar la Aplicación no cancela la suscripción.**
 
 10.7. **Reembolsos.**
 
-- (a) **Primer cargo:** si lo solicita dentro de los [7] días siguientes al primer cargo de su suscripción, se le reembolsa completo, sin preguntas, escribiendo a aurahires@gmail.com desde el correo de la compra. La suscripción se cancela con el reembolso.
+- (a) **Primer cargo:** si lo solicita dentro de los 7 días siguientes al primer cargo de su suscripción, se le reembolsa completo, sin preguntas, escribiendo a aurahires@gmail.com desde el correo de la compra. La suscripción se cancela con el reembolso.
 - (b) **Cobros por error:** un cargo duplicado o hecho por error se reembolsa siempre.
 - (c) **Fallos de la propia Aplicación:** si no pudo usar la Aplicación por un fallo de la propia Aplicación o del servicio de licencias que el Desarrollador no resolvió en un plazo razonable, se reembolsa el cargo del período afectado.
 - (d) Fuera de esos casos, los cargos de renovación ya cobrados no se reembolsan de forma proporcional, y no procede reembolso por la mera indisponibilidad o degradación de funciones que dependan de servicios de terceros (cláusula 6.4), sin perjuicio de los esfuerzos razonables del Desarrollador por restablecerlas.
@@ -145,7 +145,7 @@ Los reembolsos se hacen a través de Gumroad, al mismo método de pago; el tiemp
 - (e) Si un pago de renovación falla o la suscripción termina, el acceso se corta en la primera verificación posterior al final del período pagado, y se recupera solo al reactivar el pago.
 - (f) Un cambio de estas condiciones que le perjudique (por ejemplo, menos dispositivos o menos días sin conexión) se tratará como un cambio material conforme a la cláusula 17.
 
-10.9. **Cambios de precio.** Un cambio de precio se avisará con al menos [30] días de antelación a la renovación en la que se aplique, en la Aplicación y/o en el correo de la compra. No afecta a períodos ya pagados. Si no está de acuerdo, puede cancelar antes de esa renovación (cláusula 10.6).
+10.9. **Cambios de precio.** Un cambio de precio se avisará con al menos 30 días de antelación a la renovación en la que se aplique, en la Aplicación y/o en el correo de la compra. No afecta a períodos ya pagados. Si no está de acuerdo, puede cancelar antes de esa renovación (cláusula 10.6).
 
 10.10. **Procesador de pagos.** Los pagos se procesan a través de Gumroad, cuya página de pago se abre desde la Aplicación, conforme a sus propios términos y política de privacidad. Cuando Gumroad actúa como vendedor registrado ("merchant of record"), es quien calcula y cobra los impuestos aplicables. El Desarrollador no recibe ni almacena datos de tarjetas ni otra información financiera del Usuario; puede ver en su panel de Gumroad los datos de la venta que Gumroad le facilita (por ejemplo, el correo, la fecha, el importe y el estado de la suscripción).
 
@@ -239,7 +239,7 @@ Aclaración técnica, por transparencia (el código es público y menciona Fireb
 
 18.3. Antes de iniciar cualquier acción formal, las partes intentarán resolver de buena fe cualquier controversia mediante comunicación directa a través del contacto de la cláusula 21, durante un plazo de treinta (30) días. Este plazo no le impide reclamar antes ante su banco, el emisor de su tarjeta, Gumroad o la autoridad de protección al consumidor.
 
-18.4. Salvo lo previsto en la cláusula 18.2, las controversias se someterán a los tribunales competentes de [CIUDAD DE LOS TRIBUNALES], Honduras.
+18.4. Salvo lo previsto en la cláusula 18.2, las controversias se someterán a los tribunales competentes de Honduras.
 
 18.5. La Convención de las Naciones Unidas sobre los Contratos de Compraventa Internacional de Mercaderías no se aplica a estos Términos.
 
@@ -276,7 +276,7 @@ Aclaración técnica, por transparencia (el código es público y menciona Fireb
 
 Para consultas legales, avisos de propiedad intelectual (cláusula 9), privacidad, cancelaciones y reembolsos (cláusula 10), soporte, reportes de errores o sugerencias:
 
-- **Responsable:** [NOMBRE LEGAL COMPLETO], [CIUDAD], Honduras
+- **Responsable:** el desarrollador independiente de Aura Hi-Res v2 (Honduras) · aurahires@gmail.com
 - **Correo electrónico de la Aplicación:** aurahires@gmail.com
 - **Repositorio del proyecto:** https://github.com/hck0n3/Aura-Hi-Res-v2
 
@@ -294,7 +294,7 @@ Este resumen es solo una ayuda de lectura. **No sustituye a las cláusulas anter
 - **Tú decides y tú respondes.** Usar un cliente no oficial, que además no muestra los anuncios de la plataforma, puede ir contra los términos de YouTube u otros servicios en tu país. Esa decisión es tuya, igual que cumplir la ley donde vives.
 - **3 días gratis, luego suscripción.** La demo es completa, no pide tarjeta y no se cobra sola. Después, para seguir usando la app oficial necesitas la suscripción: USD 3.74 al mes más impuestos, que se renueva sola cada mes hasta que la canceles.
 - **El pago no es para escuchar música.** Sostiene el desarrollo y los servicios del proyecto y te da acceso a la app oficial. No compras música, no es una donación y el código sigue siendo libre (GPL-3.0).
-- **Cancelar y reembolsos.** Cancela cuando quieras en Gumroad o escribiéndonos; sigues teniendo acceso hasta que termine el mes pagado. Si lo pides en los primeros [7] días del primer cobro, te devolvemos todo. Desinstalar no cancela.
+- **Cancelar y reembolsos.** Cancela cuando quieras en Gumroad o escribiéndonos; sigues teniendo acceso hasta que termine el mes pagado. Si lo pides en los primeros 7 días del primer cobro, te devolvemos todo. Desinstalar no cancela.
 - **Licencia.** Se verifica en línea; aguanta hasta 3 días sin conexión. Un dispositivo, o hasta 3 si activas con el correo de la compra.
 - **Tus cuentas se quedan en tu teléfono.** Tus sesiones de YouTube o Spotify no salen de tu dispositivo. Lo que sí sale: las peticiones a los servicios de música, la verificación de tu licencia, los Servicios Aura (activados por defecto, se pueden apagar), la sincronización entre tus dispositivos si activas con el correo, la traducción de letras (activada por defecto) y las funciones de IA que uses. No vendemos tus datos ni mostramos anuncios.
 - **Hecha con ayuda de IA.** El desarrollador usa herramientas de IA para programar y redactar, y revisa lo que entra. Dentro de la app, las funciones de IA solo envían lo que se explica en la cláusula 20.

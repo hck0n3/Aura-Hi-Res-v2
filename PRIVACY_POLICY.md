@@ -1,12 +1,12 @@
 # Privacy Policy — Aura Hi-Res v2
 
-**Version:** 3 · **Effective date:** [EFFECTIVE DATE]
+**Version:** 3 · **Effective date:** November 22, 2026
 
 This is the English translation of the privacy policy of **Aura Hi-Res v2** (the "App"). The primary version is the Spanish one, [PRIVACIDAD.md](PRIVACIDAD.md); if the two differ, the Spanish version prevails. It expands on clause 11 of the [Terms and Conditions](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) (in Spanish).
 
 ## Who is responsible
 
-**[FULL LEGAL NAME]**, an independent developer based in **[CITY], Honduras** ("we", "us"). Contact for anything about your data: **aurahires@gmail.com**.
+**The independent developer of Aura Hi-Res v2**, based in **Honduras** ("we", "us"). Contact for anything about your data: **aurahires@gmail.com**.
 
 ## In short
 
@@ -91,7 +91,7 @@ You can ask us, by writing to **aurahires@gmail.com**, for:
 - **Erasure:** to delete it (for example, the link between your licence and your devices, your sync group or your cloud backups). The demo record of each device (its technical identifier and start date) is an exception: we keep it for as long as needed to prevent the demo from being repeated.
 - **Objection:** to stop processing it for a specific purpose. You can also turn off Aura services, sync, automatic lyrics translation and the AI features yourself.
 
-To check that the request is yours, we will ask you to write from the purchase e-mail or to give us your licence key. We will answer within **[30] days** at most.
+To check that the request is yours, we will ask you to write from the purchase e-mail or to give us your licence key. We will answer within **30 days** at most.
 
 In Honduras, **article 182 of the Constitution** recognises the guarantee of **habeas data**: the right to access information about you held in files or records, and to ask for it to be corrected, updated or deleted. If you live in another country, you keep the rights its law gives you, and you can complain to its data-protection or consumer-protection authority.
 
@@ -114,7 +114,7 @@ Each version carries its number and effective date. If a change widens the data 
 ## 11. Contact
 
 - **E-mail:** aurahires@gmail.com
-- **Responsible party:** [FULL LEGAL NAME], [CITY], Honduras
+- **Responsible party:** the independent developer of Aura Hi-Res v2 (Honduras) · aurahires@gmail.com
 - **Project:** [https://github.com/hck0n3/Aura-Hi-Res-v2](https://github.com/hck0n3/Aura-Hi-Res-v2)
 
 When you use **Reporte de errores y sugerencias** (Bug reports and suggestions) in the App, your own e-mail app opens with a message addressed to aurahires@gmail.com. We receive only what you choose to send (and any logs or screenshots you choose to attach).
