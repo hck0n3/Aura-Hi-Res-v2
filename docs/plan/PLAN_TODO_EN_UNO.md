@@ -40,8 +40,9 @@ me gusta/listas/historial, búsqueda de Biblioteca y Android Auto con lo local, 
 incremental, recorrer de verdad la carpeta elegida.
 
 ## Fase 5 — Nube privada y las tres bibliotecas juntas
-WebDAV primero (Nextcloud, ownCloud, Synology, QNAP, `rclone serve webdav`), carpetas del selector de Android como
-puente, SMB después, rclone empaquetado solo si hace falta. Página de artista con «En tu móvil / En tu nube / En YouTube
+**Decisión del dueño (2026-11-22): después de la música local, la nube empieza con rclone** empaquetado dentro de
+Aura (todas las nubes: Google Drive, OneDrive, Dropbox, MEGA, pCloud, WebDAV/Nextcloud, SMB, SFTP, S3…). Leer de verdad
+las carpetas del selector de Android va como complemento. Página de artista con «En tu móvil / En tu nube / En YouTube
 Music», búsqueda conjunta, preferir la mejor fuente (local sin pérdida > nube > en línea).
 
 ## Fase 6 — Modo TV
