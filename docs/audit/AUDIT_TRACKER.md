@@ -73,8 +73,8 @@ widget · Cast (Gms).
 - [x] L29 playback/ExactStyleGate.kt L1-L886 — F-008
 - [x] L30 ui/newui/AuraShell.kt L1-L1200
 - [x] L31 ui/newui/AuraShell.kt L1201-L1518 — sin hallazgos (descartado: el `pointerInput(Unit)` del deslizar lee `canSkipNext` por su delegado `by`, no queda congelado)
-- [ ] L32 ui/newui/AuraQueue.kt L1-L1200
-- [ ] L33 ui/newui/AuraQueue.kt L1201-L1995
+- [x] L32 ui/newui/AuraQueue.kt L1-L1200
+- [x] L33 ui/newui/AuraQueue.kt L1201-L1995 — sin hallazgos P0-P2
 - [ ] L34 devicesync/RemotePlayback.kt L1-L306
 - [ ] L35 ui/newui/AuraPalette.kt L1-L1192
 - [ ] L36 utils/SyncUtils.kt L1-L1200
@@ -137,6 +137,8 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - Obs (P3) `YTPlayerUtils.kt:1820` `reportException` en cada fallo de la validación HEAD, también por red caída (en `getSignatureTimestampOrNull` ya se excluyen los fallos de red, L1881). Solo afecta al sabor GMS (Crashlytics).
 
 - Obs (P3, cosmético) `AuraShell.kt:459-464` el rango del motor «líquido» de la barra es `0..items.size-1`, pero la celda Ajustes tiene índice `items.size`: `animateToValue` lo recorta (`DampedDragAnimation.kt:145`), así que ir a Ajustes desde la última pestaña no deforma la pastilla. Solo con cristal interactivo.
+
+- Obs (P3) `AuraQueue.kt:1605` la clave de cada fila es `window.uid.hashCode()`: dos uids distintos con el mismo hash darían una clave repetida en la `LazyColumn`, que en Compose es un cierre. Con hashes de identidad la probabilidad es del orden de n²/2³² (≈0,02 % con 1.000 canciones en cola). Usar el `uid` mismo (o `firstPeriodIndex`+uid) lo evitaría; sin caso observado.
 
 ## [DECISIÓN REQUERIDA] abiertas
 
