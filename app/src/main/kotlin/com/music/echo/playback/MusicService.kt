@@ -6969,6 +6969,7 @@ class MusicService :
         while (isActive) {
             kotlinx.coroutines.delay(1000)
             if (!player.isPlaying) continue
+            if (listenTogetherManager.isInRoom && !listenTogetherManager.isHost) continue
             val pos = player.currentPosition
             val target = sponsorBlock.skipTargetFor(pos) ?: continue
             val duration = player.duration
