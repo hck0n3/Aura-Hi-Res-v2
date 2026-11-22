@@ -246,8 +246,15 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         applicationScope.launch(Dispatchers.IO) {
             var attempt = 0
             while (true) {
+                var firstEmission = true
                 val failure = runCatching {
-                    applicationContext.dataStore.data.collect { iad1tya.echo.music.utils.PrefsBridge.publish(it) }
+                    applicationContext.dataStore.data.collect {
+                        iad1tya.echo.music.utils.PrefsBridge.publish(it)
+                        if (firstEmission) {
+                            firstEmission = false
+                            resetImageLoaderIfLeanWasStale()
+                        }
+                    }
                 }.exceptionOrNull() ?: break
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
                 attempt++
@@ -2271,6 +2278,23 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         }
     }
 
+    /** Lean flag the current ImageLoader was built with (null = not built yet). Guarded by [imageLoaderLeanLock]. */
+    private var imageLoaderBuiltLean: Boolean? = null
+    private val imageLoaderLeanLock = Any()
+
+    /**
+     * Same idea as `imageCacheMirrorWasStale` in [initializeSettings]: a loader built before PrefsBridge's first
+     * emission read LeanMode.isOn() = false. Called right after that emission is published; if the flag the loader
+     * was built with differs, reset it once so the rebuilt loader reads the real value.
+     */
+    private fun resetImageLoaderIfLeanWasStale() {
+        val stale = synchronized(imageLoaderLeanLock) {
+            val built = imageLoaderBuiltLean
+            (built != null && built != iad1tya.echo.music.utils.LeanMode.isOn()).also { if (it) imageLoaderBuiltLean = null }
+        }
+        if (stale) runCatching { SingletonImageLoader.reset() }
+    }
+
     override fun newImageLoader(context: PlatformContext): ImageLoader {
         // Default the image cache to a large size (2 GB on disk, half the app's RAM in memory) so
         // artwork loads instantly and isn't re-downloaded; the user can still lower it in settings.
@@ -2282,9 +2306,13 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // decoding artwork (+ RGB_565 / no fade below). Uses the CACHED device tier (cheap, non-blocking) instead
         // of a main-thread DataStore read, so newImageLoader never blocks the main thread (P46/H4). The loader is
         // built once at process start. The lean switch (row 395) takes the same path; LeanMode.isOn() is the
-        // non-blocking snapshot read (false before its first emission, i.e. the normal path).
+        // non-blocking snapshot read (false before its first emission, i.e. the normal path — if that first
+        // emission says otherwise, resetImageLoaderIfLeanWasStale() rebuilds the loader once).
+        val lean = synchronized(imageLoaderLeanLock) {
+            iad1tya.echo.music.utils.LeanMode.isOn().also { imageLoaderBuiltLean = it }
+        }
         val perfMode = iad1tya.echo.music.utils.DeviceCapabilities.tier(this) == iad1tya.echo.music.utils.DeviceTier.LOW ||
-            iad1tya.echo.music.utils.LeanMode.isOn()
+            lean
         val memCachePercent = if (perfMode) 0.15 else 0.40
         return ImageLoader.Builder(this).apply {
             // Perf mode: no fade animation on image load + RGB_565 (16-bit) bitmaps = HALF the memory per image
