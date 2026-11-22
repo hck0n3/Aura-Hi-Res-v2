@@ -461,7 +461,7 @@ fun AuraLibraryScreen(navController: NavController) {
             allowSyncing = true,
             onPlaylistCreated = { playlistId ->
                 showCreatePlaylistDialog = false
-                navController.navigate("local_playlist/$playlistId")
+                navController.navigateOnce("local_playlist/$playlistId")
             },
         )
     }
@@ -471,7 +471,7 @@ fun AuraLibraryScreen(navController: NavController) {
             onDismiss = { showAiPlaylistDialog = false },
             onPlaylistCreated = { playlistId ->
                 showAiPlaylistDialog = false
-                navController.navigate("local_playlist/$playlistId")
+                navController.navigateOnce("local_playlist/$playlistId")
             },
             onOpenAiSettings = {
                 showAiPlaylistDialog = false

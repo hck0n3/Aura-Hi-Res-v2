@@ -65,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlin.math.abs
@@ -764,7 +765,16 @@ fun AuraLocalPlaylistScreen(
                         }
                     }
 
-                    val dismissBoxState = rememberSwipeToDismissBoxState(
+                    var dismissRowWidthPx by remember { mutableIntStateOf(0) }
+                    lateinit var dismissBoxState: androidx.compose.material3.SwipeToDismissBoxState
+                    dismissBoxState = rememberSwipeToDismissBoxState(
+                        // A fast fling must not remove the song: only a swipe that reached the full width.
+                        confirmValueChange = { value ->
+                            value == SwipeToDismissBoxValue.Settled || (
+                                dismissRowWidthPx > 0 &&
+                                    abs(runCatching { dismissBoxState.requireOffset() }.getOrDefault(0f)) >= dismissRowWidthPx - 1f
+                                )
+                        },
                         positionalThreshold = { totalDistance -> totalDistance },
                     )
                     // Ronda 5 (premium UX, dueño): un toque de vibración exactamente cuando el swipe
@@ -932,6 +942,7 @@ fun AuraLocalPlaylistScreen(
                         } else {
                             SwipeToDismissBox(
                                 state = dismissBoxState,
+                                modifier = Modifier.onSizeChanged { dismissRowWidthPx = it.width },
                                 backgroundContent = {
                                     // AuraPalette has no error/danger step (same reasoning as
                                     // AuraMigrationScreen's AuraWarnTone): always the DARK Material

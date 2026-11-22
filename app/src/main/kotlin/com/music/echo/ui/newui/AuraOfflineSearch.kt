@@ -349,7 +349,7 @@ internal fun LazyListScope.offlineSearchItems(
                 kind = AuraContentKind.Album,
                 onClick = {
                     ui.onDismiss()
-                    ui.navController.navigate("album/${collection.id}")
+                    ui.navController.navigateOnce("album/${collection.id}")
                 },
             )
         }
@@ -371,7 +371,7 @@ internal fun LazyListScope.offlineSearchItems(
                 kind = AuraContentKind.Playlist,
                 onClick = {
                     ui.onDismiss()
-                    ui.navController.navigate("local_playlist/${collection.id}")
+                    ui.navController.navigateOnce("local_playlist/${collection.id}")
                 },
             )
         }

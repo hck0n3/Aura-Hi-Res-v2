@@ -745,7 +745,7 @@ fun AuraNewAlbumsTab(
                             }
                         },
                         explicit = wideTabs && album.explicit,
-                        onClick = { navController.navigate("album/${album.id}") },
+                        onClick = { navController.navigateOnce("album/${album.id}") },
                         onLongClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {

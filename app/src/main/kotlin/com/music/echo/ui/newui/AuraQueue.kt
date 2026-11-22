@@ -92,6 +92,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
@@ -894,7 +895,17 @@ fun AuraQueue(
                                             ReorderableItem(state = reorderableState, key = auraSongKey(window)) {
                                                 val currentItem by rememberUpdatedState(window)
                                                 val isActive = window.uid == currentPlayingUid
-                                                val dismissBoxState = rememberSwipeToDismissBoxState(
+                                                var dismissRowWidthPx by remember { mutableIntStateOf(0) }
+                                                lateinit var dismissBoxState: androidx.compose.material3.SwipeToDismissBoxState
+                                                dismissBoxState = rememberSwipeToDismissBoxState(
+                                                    // A fast fling must not remove the song: only a swipe that reached the full width.
+                                                    confirmValueChange = { value ->
+                                                        value == SwipeToDismissBoxValue.Settled || (
+                                                            dismissRowWidthPx > 0 &&
+                                                                kotlin.math.abs(runCatching { dismissBoxState.requireOffset() }.getOrDefault(0f)) >=
+                                                                dismissRowWidthPx - 1f
+                                                            )
+                                                    },
                                                     positionalThreshold = { totalDistance -> totalDistance },
                                                 )
 
@@ -1052,6 +1063,7 @@ fun AuraQueue(
                                                     SwipeToDismissBox(
                                                         state = dismissBoxState,
                                                         backgroundContent = {},
+                                                        modifier = Modifier.onSizeChanged { dismissRowWidthPx = it.width },
                                                     ) { row() }
                                                 }
                                             }

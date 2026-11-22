@@ -150,9 +150,16 @@ fun BottomSheetMenu(
                 modifier = modifier
                     .fillMaxSize()
                     .background(auraFloatingScrimColor())
-                    .pointerInput(Unit) {
-                        detectTapGestures { focusManager.clearFocus(); state.dismiss() }
-                    },
+                    // Fading out, the scrim must not eat the next tap meant for the screen under it.
+                    .then(
+                        if (visible) {
+                            Modifier.pointerInput(Unit) {
+                                detectTapGestures { focusManager.clearFocus(); state.dismiss() }
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
             ) {
                 val sheetMaxHeight = rememberAuraSheetMaxHeight()
                 // Cerrar arrastrando la barrita (dueño, 2026-10-18). Estado propio de ESTA apertura.
@@ -208,6 +215,8 @@ fun BottomSheetMenu(
                             // interior (it trims the content, not the effect draw), leaving the
                             // panel with square top corners over a rounded-content sheet.
                             .clip(panelShape)
+                            // A tap on the panel must not reach the scrim's dismiss detector.
+                            .pointerInput(Unit) { detectTapGestures { } }
                             // ONE FLOATING MATERIAL (owner 2026-09-13: "unas transparentes, otras sólidas"):
                             // the same opaque account-menu plate + hairline the dialogs use, glass on top.
                             .background(iad1tya.echo.music.ui.newui.AuraPalette.FloatingWindowPlate)

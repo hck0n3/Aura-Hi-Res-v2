@@ -1190,6 +1190,7 @@ private fun AuraPlayerShape(
                         icon = AuraIcons.Lyrics,
                         contentDescription = "Pantalla completa de la letra",
                         onClick = { isFullScreen = !isFullScreen },
+                        firstTap = true,
                         size = 20.dp,
                         tint = if (isFullScreen) AuraPalette.Teal else AuraPalette.OnGround.copy(alpha = 0.6f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -1218,6 +1219,7 @@ private fun AuraPlayerShape(
                                 )
                             }
                         },
+                        firstTap = true,
                         size = 22.dp,
                         tint = AuraPalette.OnGround.copy(alpha = 0.6f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -1587,6 +1589,7 @@ private fun AuraPlayerShape(
                         icon = if (titleRowLiked) AuraIcons.HeartFilled else AuraIcons.Heart,
                         contentDescription = stringResource(R.string.action_like),
                         onClick = playerConnection::toggleLike,
+                        firstTap = true,
                         size = heartGlyph,
                         tint = if (titleRowLiked) transportAccent else AuraPalette.OnGround.copy(alpha = 0.85f),
                         // Optical alignment (see [auraHeartOpticalOffset]): the 48 dp touch target is kept,
@@ -1623,6 +1626,7 @@ private fun AuraPlayerShape(
                                             showArtistActions = false
                                             goToAlbumFromArtists()
                                         },
+                                        firstTap = true,
                                     )
                                 }
                                 AuraChip(
@@ -1632,6 +1636,7 @@ private fun AuraPlayerShape(
                                         showArtistActions = false
                                         goToArtist()
                                     },
+                                    firstTap = true,
                                 )
                                 // Owner 2026-10-18: while a song plays FROM A PLAYLIST, a third door leads back to that list.
                                 // Only for a real playlist context (`PL:` yours, `OL:` a followed one) — an album, a radio or
@@ -1645,6 +1650,7 @@ private fun AuraPlayerShape(
                                             showArtistActions = false
                                             navigateFromPlayer(playlistRoute)
                                         },
+                                        firstTap = true,
                                     )
                                 }
                             }
@@ -1959,6 +1965,7 @@ private fun AuraPlayerShape(
                         icon = AuraIcons.ThumbDown,
                         contentDescription = stringResource(R.string.action_dislike),
                         onClick = { playerConnection.toggleDislikeCurrentSong() },
+                        firstTap = true,
                         size = quickAccessGlyph,
                         tint = if (disliked) transportAccent else AuraPalette.OnGround.copy(alpha = 0.7f),
                         modifier = Modifier
@@ -1974,6 +1981,7 @@ private fun AuraPlayerShape(
                         icon = AuraIcons.PlaylistAdd,
                         contentDescription = stringResource(R.string.add_to_playlist),
                         onClick = { showChoosePlaylistDialog = true },
+                        firstTap = true,
                         size = quickAccessGlyph,
                         tint = AuraPalette.OnGround.copy(alpha = 0.7f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -2067,6 +2075,7 @@ private fun AuraPlayerShape(
                                     else -> showDownloadOrExportDialog = true
                                 }
                             },
+                            firstTap = true,
                             size = quickAccessGlyph,
                             tint = if (doneChrome) transportAccent
                             else if (isDeferredOnly) AuraPalette.Teal.copy(alpha = 0.85f)
@@ -2112,6 +2121,7 @@ private fun AuraPlayerShape(
                                 )
                             }
                         },
+                        firstTap = true,
                         size = quickAccessGlyph,
                         tint = AuraPalette.OnGround.copy(alpha = 0.7f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -2138,6 +2148,7 @@ private fun AuraPlayerShape(
                                 )
                             }
                         },
+                        firstTap = true,
                         size = quickAccessGlyph,
                         tint = AuraPalette.OnGround.copy(alpha = 0.7f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
@@ -2676,6 +2687,7 @@ private fun AuraImmersiveVideo(
                     onClick = onPrevious,
                     enabled = canSkipPrevious,
                     size = 32.dp,
+                    firstTap = true,
                     tint = Color.White,
                     modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                 )
@@ -2684,6 +2696,7 @@ private fun AuraImmersiveVideo(
                     contentDescription = playPauseDescription,
                     onClick = onPlayPause,
                     diameter = 56.dp,
+                    firstTap = true,
                     fill = playButtonFill,
                     ink = playButtonInk,
                     modifier = Modifier
@@ -2696,6 +2709,7 @@ private fun AuraImmersiveVideo(
                     onClick = onNext,
                     enabled = canSkipNext,
                     size = 32.dp,
+                    firstTap = true,
                     tint = Color.White,
                     modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                 )

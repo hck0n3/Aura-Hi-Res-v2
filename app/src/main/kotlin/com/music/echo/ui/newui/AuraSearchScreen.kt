@@ -1052,7 +1052,7 @@ internal fun auraRunSearch(
             playerConnection?.playQueue(YouTubeQueue(WatchEndpoint(videoId = parsed.id)))
 
         is YouTubeUrlParser.ParsedUrl.Artist ->
-            navController.navigate("artist/${parsed.id}")
+            navController.navigateOnce("artist/${parsed.id}")
 
         null -> if (!offlineMode) {
             navigateToResults(URLEncoder.encode(rawQuery, "UTF-8"))

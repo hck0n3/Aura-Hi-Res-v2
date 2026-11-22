@@ -286,7 +286,7 @@ fun AuraStatsScreen(
                                     width = 128.dp,
                                     // Artists are round everywhere in this app, classic and new.
                                     shape = CircleShape,
-                                    onClick = { navController.navigate("artist/${artist.id}") },
+                                    onClick = { navController.navigateOnce("artist/${artist.id}") },
                                     onLongClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         menuState.show {
@@ -326,7 +326,7 @@ fun AuraStatsScreen(
                                     width = 128.dp,
                                     isActive = album.id == mediaMetadata?.album?.id,
                                     isPlaying = isPlaying,
-                                    onClick = { navController.navigate("album/${album.id}") },
+                                    onClick = { navController.navigateOnce("album/${album.id}") },
                                     onLongClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         menuState.show {

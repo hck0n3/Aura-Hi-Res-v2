@@ -39,6 +39,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
@@ -123,7 +124,7 @@ fun BottomSheet(
                     .coerceAtLeast(0f)
                 translationY = y
             }
-            .pointerInput(state, isExpandable, dragCollapsedContent, state.isCollapsed) {
+            .pointerInput(state, isExpandable, dragCollapsedContent, !dragCollapsedContent && state.isCollapsed) {
                 if (!isExpandable) return@pointerInput
                 // Ver [dragCollapsedContent]: sobre una barra de botones el arrastre le roba el clic.
                 if (!dragCollapsedContent && state.isCollapsed) return@pointerInput
@@ -175,12 +176,18 @@ fun BottomSheet(
         // mini-player tree in one synchronous chunk the instant expansion ended (1dp from the top),
         // right in the middle of the collapse animation — a visible hitch on every back gesture.
         // Keeping it composed costs one small subtree; its fade is the draw-phase alpha below, and
-        // the clickable is disabled while expanded so the invisible strip at the top of the
-        // expanded sheet neither draws nor steals taps.
+        // it is not PLACED while expanded so the invisible strip at the top of the expanded sheet
+        // neither draws nor steals taps (a disabled clickable still hit-tests and blocks what is under it).
         if (onDismiss == null || !state.isDismissed) {
             Box(
                 modifier =
                 Modifier
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+                        layout(placeable.width, placeable.height) {
+                            if (!state.isExpanded) placeable.place(0, 0)
+                        }
+                    }
                     .graphicsLayer {
                         alpha = BottomSheetVisuals.miniAlpha(state.progress)
                     }.clickable(
@@ -243,8 +250,14 @@ class BottomSheetState(
         value == animatable.lowerBound!!
     }
 
+    /**
+     * true while a collapsed sheet only slides to a new [collapsedBound] (the navigation bar hid or came back, ~0.6 s):
+     * it is still the mini player, so its buttons must keep answering instead of the strip's tap opening the player.
+     */
+    internal var followingCollapsedBound by mutableStateOf(false)
+
     val isCollapsed by derivedStateOf {
-        value <= collapsedBound + 1.dp
+        value <= collapsedBound + 1.dp || followingCollapsedBound
     }
 
     val isExpanded by derivedStateOf {
@@ -455,9 +468,6 @@ fun rememberBottomSheetState(
         }
 
         animatable.updateBounds(dismissedBound.coerceAtMost(expandedBound), expandedBound)
-        coroutineScope.launch {
-            animatable.animateTo(initialValue, NavigationBarAnimationSpec)
-        }
 
         BottomSheetState(
             draggableState = DraggableState { delta ->
@@ -470,6 +480,17 @@ fun rememberBottomSheetState(
             coroutineScope = coroutineScope,
             animatable = animatable,
             collapsedBound = collapsedBound
-        )
+        ).also { state ->
+            // Only a sheet that SITS collapsed: one still animating there (a collapse after «Ver álbum») keeps its content.
+            state.followingCollapsedBound = previousAnchor == collapsedAnchor && !animatable.isRunning
+            coroutineScope.launch {
+                try {
+                    animatable.animateTo(initialValue, NavigationBarAnimationSpec)
+                } finally {
+                    // Also when a drag or an expand takes the animatable over.
+                    state.followingCollapsedBound = false
+                }
+            }
+        }
     }
 }

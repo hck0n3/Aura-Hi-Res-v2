@@ -253,7 +253,7 @@ fun AuraPlayerMenu(
                                     artist.id
                                 }
                                 if (!browseId.isNullOrBlank()) {
-                                    navController.navigate("artist/$browseId")
+                                    navController.navigateOnce("artist/$browseId")
                                 } else {
                                     navController.navigate(
                                         "search/${URLEncoder.encode(artist.name, "UTF-8")}"
