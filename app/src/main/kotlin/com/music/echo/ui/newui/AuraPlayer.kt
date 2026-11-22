@@ -762,7 +762,9 @@ private fun AuraPlayerShape(
     val immersiveVideo = useWideShape && showVideoSurface
     // F-012 (owner 2026-11-22): «Fondo animado a pantalla completa en horizontal», off by default (registry #48).
     val immersiveCanvasOnRotate by rememberPreference(iad1tya.echo.music.constants.ImmersiveCanvasOnRotateKey, false)
-    val immersiveCanvasArtwork = if (isLandscape && immersiveCanvasOnRotate && canvasAvailable && !showVideoSurface && !inPipMode) {
+    val immersiveCanvasArtwork = if (isLandscape && immersiveCanvasOnRotate && canvasAvailable && !showVideoSurface && !inPipMode &&
+        !(isFullScreen && showInlineLyrics)
+    ) {
         mediaMetadata?.id?.let { CanvasArtworkPlaybackCache.get(it) }
     } else {
         null
@@ -2126,6 +2128,7 @@ private fun AuraPlayerShape(
                 AuraImmersiveCanvas(
                     primaryUrl = immersiveCanvasArtwork.animated,
                     fallbackUrl = immersiveCanvasArtwork.videoUrl,
+                    canvasPlaying = isPlaying,
                     isPlaying = if (isListenTogetherGuest) !isMuted else effectiveIsPlaying,
                     playPauseDescription = when {
                         isListenTogetherGuest ->
@@ -2396,7 +2399,7 @@ private fun AuraPlayerShape(
         // top of the fullscreen video's own bottom transport — the same reason the classic player hides
         // it there (Player.kt:3401). In PORTRAIT video the bar deliberately stays, because that shape
         // keeps the whole player and only swaps the artwork slot.
-        if (!isFullScreen && !immersiveVideo) {
+        if (!isFullScreen && !immersiveVideo && immersiveCanvasArtwork == null) {
             QueueHost(
                 state = queueSheetState,
                 playerBottomSheetState = state,
@@ -2659,6 +2662,7 @@ private fun AuraImmersiveVideo(
 private fun AuraImmersiveCanvas(
     primaryUrl: String?,
     fallbackUrl: String?,
+    canvasPlaying: Boolean,
     isPlaying: Boolean,
     playPauseDescription: String,
     canSkipPrevious: Boolean,
@@ -2700,13 +2704,12 @@ private fun AuraImmersiveCanvas(
             .onPreviewKeyEvent {
                 if (isTvOrCar && it.type == KeyEventType.KeyDown) controlsVisible = true
                 false
-            }
-            .pointerInput(Unit) { detectTapGestures { controlsVisible = !controlsVisible } },
+            },
     ) {
         iad1tya.echo.music.ui.player.CanvasArtworkPlayer(
             primaryUrl = primaryUrl,
             fallbackUrl = fallbackUrl,
-            isPlaying = isPlaying,
+            isPlaying = canvasPlaying,
             modifier = Modifier.fillMaxSize(),
         )
         Box(
@@ -2739,6 +2742,7 @@ private fun AuraImmersiveCanvas(
                     onClick = onPrevious,
                     enabled = canSkipPrevious,
                     size = 32.dp,
+                    firstTap = true,
                     tint = Color.White,
                     modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                 )
@@ -2747,6 +2751,7 @@ private fun AuraImmersiveCanvas(
                     contentDescription = playPauseDescription,
                     onClick = onPlayPause,
                     diameter = 56.dp,
+                    firstTap = true,
                     fill = playButtonFill,
                     ink = playButtonInk,
                     modifier = Modifier
@@ -2759,6 +2764,7 @@ private fun AuraImmersiveCanvas(
                     onClick = onNext,
                     enabled = canSkipNext,
                     size = 32.dp,
+                    firstTap = true,
                     tint = Color.White,
                     modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                 )
