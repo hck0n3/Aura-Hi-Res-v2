@@ -70,6 +70,7 @@ private data class RoomSnapshot(
     val isPlaying: Boolean,
     val position: Long,
     val queueIds: List<String>,
+    val anchorServerTime: Long,
 )
 
 /**
@@ -279,6 +280,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     isPlaying = it.isPlaying,
                     position = it.position,
                     queueIds = it.queue.map { t -> t.id },
+                    anchorServerTime = it.lastActionServerTime,
                 ) to (it.inRoom && !it.isHost)
             }
             .distinctUntilChanged()
@@ -296,7 +298,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     return@collect
                 }
                 val service = serviceFlow.value ?: return@collect
-                val (track, isPlaying, position, queueIds) = snapshot
+                val (track, isPlaying, position, queueIds, anchorServerTime) = snapshot
                 Timber.tag(TAG).i("Room says: playing=%b pos=%d queue=%d", isPlaying, position, queueIds.size)
                 remoteDepth.incrementAndGet()
                 try {
@@ -329,7 +331,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                                 // running it through the clock correction turns it into however
                                 // long ago the last command was, which can seek past the end.
                                 position <= 0L -> 0L
-                                else -> capToTrack(session.positionAt(position, playing), track)
+                                else -> capToTrack(session.positionAt(position, playing, anchorServerTime), track)
                             }
                         // Row 616: when the room moved to a track this device ALREADY has loaded further down its own list (the host
                         // pressed next, or the song ended), jump to it in place: ExoPlayer has been pre-buffering it, so it starts at
@@ -337,7 +339,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally) }
                         if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing && !pausedLocally)
                     }
-                    applyTransport(service, playing && !pausedLocally, position, track, session.state.value.lastActionServerTime)
+                    applyTransport(service, playing && !pausedLocally, position, track, anchorServerTime)
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Failed to apply remote state")
                 } finally {
