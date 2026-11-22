@@ -498,13 +498,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         keepPosition: Long = 0L,
         playWhenReady: Boolean,
     ) {
-        val roomQueue = session.state.value.queue
-        // Metrolist's canonicalPlaybackQueue: the current track leads, upcoming follows, no dupes.
-        val ordered =
-            (listOf(info) + roomQueue.filter { it.id != info.id })
-                .filter { it.id.isNotBlank() }
-                .distinctBy { it.id }
-        Timber.tag(TAG).i("Guest loading %s + %d upcoming", info.id.asLogToken(), ordered.size - 1)
+        val (ordered, startIndex) = roomPlaybackOrder(info, session.state.value.queue)
+        Timber.tag(TAG).i("Guest loading %s at %d of %d", info.id.asLogToken(), startIndex, ordered.size)
 
         // Dispatchers.Main is mandatory, not tidiness: Media3 throws if the player is touched off
         // the main thread, and this collector runs on the bridge scope (Default).
@@ -516,8 +511,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // anterior del invitado DENTRO de la sala — canciones que el anfitrión nunca puso. Es el mismo
             // agujero que el dueño reportó en Android Auto (2026-09-17); ver `adoptDirectQueue`, que
             // además fija el título en el mismo sitio.
-            service.adoptDirectQueue(items = items, title = "Listen Together")
-            player.setMediaItems(items, 0, keepPosition.coerceAtLeast(0L))
+            service.adoptDirectQueue(items = items, title = "Listen Together", startIndex = startIndex)
+            player.setMediaItems(items, startIndex, keepPosition.coerceAtLeast(0L))
             // prepare() + the intent decided by the caller, in that order and BEFORE anything can
             // observe the player: `setMediaItems` alone leaves an idle player idle (nothing ever
             // loads), and leaving playWhenReady to be corrected afterwards is the race upstream
@@ -944,6 +939,21 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     }
 }
 
+
+/**
+ * The list the guest loads and where it starts in it: the room's queue AS THE HOST HAS IT, starting at [current].
+ *
+ * The host publishes a window around its cursor, so the room's queue carries songs it already played BEFORE the current one. Moving the
+ * current track to the front put those played songs right after it, and ExoPlayer's buffer and the service's next-songs preload (both
+ * read the items after the current index) prepared a song the room had already left. If [current] is not in the room's queue, it leads
+ * and the queue follows, as before.
+ */
+internal fun roomPlaybackOrder(current: TrackInfo, roomQueue: List<TrackInfo>): Pair<List<TrackInfo>, Int> {
+    val queue = roomQueue.filter { it.id.isNotBlank() }.distinctBy { it.id }
+    val index = queue.indexOfFirst { it.id == current.id }
+    if (index >= 0) return queue to index
+    return (listOf(current) + queue).filter { it.id.isNotBlank() }.distinctBy { it.id } to 0
+}
 
 /**
  * Row 616: may the guest jump to [trackId] inside the list it holds ([have], media ids in order)? Only when [trackId] is in it and what the
