@@ -6005,6 +6005,9 @@ class MusicService :
         contextId: String? = null,
         startIndex: Int = 0,
     ) {
+        // Row 656: a whole new queue is no longer the request it replaced — its artist lock, style target and «already
+        // served after this list» memory (all read by this id) must not follow it. adoptExternalQueue sets the same value.
+        radioOriginContextId = contextId
         currentQueue = ListQueue(
             title = title,
             items = items,

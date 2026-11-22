@@ -1220,17 +1220,22 @@ fun MusicService.startRadioSeamlessly(
 
         // Row 651 — a «Pedir música» list of ONE artist continues with that artist's own unheard songs, never with similar
         // artists (orderedByTaste keeps only that artist from every other source too). Nothing unheard left → the
-        // other sources run, and whatever of them is not that artist is dropped: the queue may end.
+        // queue ends (row 656).
         var artistCatalogue: List<MediaItem>? = null
+        // Row 656: the lock holds and the catalogue answered with nothing unheard — no other source can add a song of that
+        // artist worth the requests (each of them is reduced to that artist), so the continuation ends here.
+        var artistLockExhausted = false
         suspend fun tryArtistCatalogue(): Boolean = runCatching {
-            if (activeMoodParams != null) return@runCatching false
+            if (activeMoodParams != null || exactStyle.chipSteered) return@runCatching false
             val lock = iad1tya.echo.music.playlistimport.RequestArtistTargets.get(originContextId) ?: return@runCatching false
             contextSteerActive = true
+            // Row 656: only an answer is kept; a failed fetch (null) is asked again on the next attempt.
             val catalogue = artistCatalogue ?: withContext(Dispatchers.IO) { requestArtistCatalogue(lock) }
-                .filterExplicit(dataStore.get(HideExplicitKey, false))
-                .filterVideoSongs(dataStore.get(HideVideoSongsKey, false) || dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false))
-                .filterNonMusicForAutoQueue()
-                .also { artistCatalogue = it }
+                ?.filterExplicit(dataStore.get(HideExplicitKey, false))
+                ?.filterVideoSongs(dataStore.get(HideVideoSongsKey, false) || dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false))
+                ?.filterNonMusicForAutoQueue()
+                ?.also { artistCatalogue = it }
+                ?: return@runCatching false
             val queued = liveQueueSnapshot(afterCurrent = false)
             val unheard = catalogue.filter { it.mediaId != currentMediaId && !it.isHeardForSmartQueue(queued) }
             for (batch in unheard.chunked(ARTIST_CATALOGUE_BATCH).take(ARTIST_CATALOGUE_TRIES)) {
@@ -1239,6 +1244,7 @@ fun MusicService.startRadioSeamlessly(
                     return@runCatching true
                 }
             }
+            artistLockExhausted = true
             false
         }.getOrElse { radioSourceFailed("artist", it) }
 
@@ -1250,29 +1256,31 @@ fun MusicService.startRadioSeamlessly(
         // last-resort instead of ever reaching real radio — even though the seed video id was
         // valid and playable moments earlier. The extra 5s attempt costs nothing on the common case
         // (mood/radio/related already succeeded and this block never runs).
-        var appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
-        if (!appended) {
+        suspend fun trySources(): Boolean =
+            tryMood() || tryArtistCatalogue() || (!artistLockExhausted && (tryContextRadio() || tryRadio() || tryRelated()))
+        var appended = trySources()
+        if (!appended && !artistLockExhausted) {
             kotlinx.coroutines.delay(2500)
-            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = trySources()
         }
-        if (!appended) {
+        if (!appended && !artistLockExhausted) {
             kotlinx.coroutines.delay(5000)
-            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = trySources()
         }
         // Nothing worked with every filter on: loosen OUR OWN filters step by step (see [relaxLevel]) before
         // giving up, so the smart queue still continues the list instead of ending it.
-        if (!appended) {
+        if (!appended && !artistLockExhausted) {
             relaxLevel = 1
-            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = trySources()
         }
-        if (!appended) {
+        if (!appended && !artistLockExhausted) {
             relaxLevel = 2
-            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = trySources()
             if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the language gate only")
         }
-        if (!appended) {
+        if (!appended && !artistLockExhausted) {
             relaxLevel = 3
-            appended = tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()
+            appended = trySources()
             if (appended) Timber.tag(TAG).i("RADIO_RELAXED continuation landed with the language and faith gates only")
         }
         // Autoplay chips: the seed just landed (appendSeed ran) → refresh the queue-footer

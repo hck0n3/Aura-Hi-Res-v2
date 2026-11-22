@@ -17,8 +17,10 @@ internal const val ARTIST_CATALOGUE_TRIES = 3
  * Row 651 — the songs of the artist a «Pedir música» request named, from that artist's OWN catalogue: the song list of
  * their channel page (with [lock]'s channel id), else a song search for their name. Only songs [RequestArtistTargets.admits]
  * keeps; never the «Fans might also like» shelf or a radio. Network: call off the main thread.
+ * Row 656: null = YouTube did not answer (nothing found and the song search failed), so the caller asks again later
+ * instead of taking a network failure for an exhausted catalogue; an empty list is a real «nothing of that artist».
  */
-internal suspend fun requestArtistCatalogue(lock: RequestArtistTargets.Lock): List<MediaItem> {
+internal suspend fun requestArtistCatalogue(lock: RequestArtistTargets.Lock): List<MediaItem>? {
     val songs = ArrayList<SongItem>()
     val browseId = lock.id?.takeIf { it.startsWith("UC") }
     if (browseId != null) {
@@ -40,11 +42,10 @@ internal suspend fun requestArtistCatalogue(lock: RequestArtistTargets.Lock): Li
         }
     }
     if (songs.isEmpty()) {
-        YouTube.search(lock.name, YouTube.SearchFilter.FILTER_SONG).getOrNull()?.let { result ->
-            songs += result.items.filterIsInstance<SongItem>()
-            result.continuation?.let { c ->
-                YouTube.searchContinuation(c).getOrNull()?.items?.filterIsInstance<SongItem>()?.let { songs += it }
-            }
+        val result = YouTube.search(lock.name, YouTube.SearchFilter.FILTER_SONG).getOrNull() ?: return null
+        songs += result.items.filterIsInstance<SongItem>()
+        result.continuation?.let { c ->
+            YouTube.searchContinuation(c).getOrNull()?.items?.filterIsInstance<SongItem>()?.let { songs += it }
         }
     }
     return songs
