@@ -87,5 +87,13 @@ class HotZoneAuditGuardTest {
         assertTrue(src.contains("rememberPreference(iad1tya.echo.music.constants.ImmersiveCanvasOnRotateKey, false)"))
         assertTrue(src.contains("immersiveCanvasArtwork != null -> {"))
         assertTrue(src.contains("private fun AuraImmersiveCanvas("))
+        // Review fixes: the docked queue bar stands down (it covered the canvas transport), the decoder follows the local
+        // player, and the view runs the shared lookup itself instead of waiting for Thumbnail (off screen in this view).
+        assertTrue(src.contains("if (!isFullScreen && !immersiveVideo && immersiveCanvasArtwork == null) {"))
+        assertTrue(src.contains("isPlaying = canvasPlaying,"))
+        assertTrue(src.contains("iad1tya.echo.music.ui.player.canvasLookupOverNetwork("))
+        val thumb = main("ui/player/Thumbnail.kt")
+        assertTrue(thumb.contains("internal suspend fun canvasLookupWithoutNetwork("))
+        assertTrue(thumb.contains("internal suspend fun canvasLookupOverNetwork("))
     }
 }
