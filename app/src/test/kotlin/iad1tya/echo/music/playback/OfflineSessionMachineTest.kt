@@ -141,6 +141,23 @@ class OfflineSessionMachineTest {
         assertFalse(resolved.shouldRejectResolve(systemHasNetwork = true, epoch = 1, nowMs = 1))
     }
 
+    /** Airplane mode off on a VPN: "no network at all" is no longer true, so the session cannot wait for VALIDATED. */
+    @Test
+    fun `a new network ends a session that only had no network as evidence`() {
+        val noNetwork = machine()
+        noNetwork.onNoNetwork(epoch = 1, nowMs = 0)
+        assertTrue(noNetwork.onNetworkAvailable())
+        assertFalse(noNetwork.active)
+
+        val failed = machine()
+        failed.onNetworkFailure(systemHasNetwork = true, validated = false, epoch = 1, nowMs = 0)
+        assertFalse("real failures wait for a probe or VALIDATED", failed.onNetworkAvailable())
+        assertTrue(failed.active)
+        assertFalse("but the next resolve is a probe", failed.shouldRejectResolve(systemHasNetwork = true, epoch = 2, nowMs = 10))
+
+        assertFalse("nothing to end", machine().onNetworkAvailable())
+    }
+
     @Test
     fun `a success resets the streak, so a later single failure is retried again`() {
         val m = machine()

@@ -18,7 +18,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * the network is not VALIDATED; or two such failures in a row (VALIDATED alone is not enough either way: VPN, IPv6-only and
  * signed-in captive portals carry traffic and never validate — ronda 9 / row 284); or a stall with evidence.
  *
- * Leaving: the default network becomes VALIDATED, or a fresh network resolve succeeds. The resolver lets a resolve through
+ * Leaving: the default network becomes VALIDATED, or a fresh network resolve succeeds (or, for a session whose only
+ * evidence was "no network at all", any new network appearing). The resolver lets a resolve through
  * (a "probe") as soon as the network changed since the last evidence, or [PROBE_AFTER_MS] after it — so a network that
  * never validates still finds its way back, without any polling: probes only happen when the player needs a song anyway.
  */
@@ -102,6 +103,13 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long) {
     /** The default network validated. True when it ended the session. */
     fun onValidated(): Boolean = exit()
 
+    /**
+     * A new default network appeared (onAvailable). It voids the evidence "there is no network at all", so a NO_NETWORK
+     * session ends (a network that never validates — VPN — would otherwise keep it until something resolves). Sessions
+     * entered on real failures stay: for them the new network only makes the next resolve a probe.
+     */
+    fun onNetworkAvailable(): Boolean = if (reason == OfflineSessionReason.NO_NETWORK) exit() else false
+
     private fun exit(): Boolean {
         if (!active) return false
         active = false
@@ -153,4 +161,6 @@ internal object PlaybackOfflineSession {
     fun onResolveSucceeded(): Boolean = locked { onResolveSucceeded() }
 
     fun onValidated(): Boolean = locked { onValidated() }
+
+    fun onNetworkAvailable(): Boolean = locked { onNetworkAvailable() }
 }

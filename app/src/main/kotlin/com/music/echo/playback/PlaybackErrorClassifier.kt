@@ -89,10 +89,23 @@ object PlaybackErrorClassifier {
             return false
         }
         if (isOfflineRejection(error)) return false
+        return error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT ||
+            error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
+            isConnectivityFailure(error)
+    }
+
+    /**
+     * The narrower question the playback offline session asks: did the CONNECTION itself fail (could not connect, no DNS,
+     * no route, timed out)? Unlike [isNetworkRelatedError] it leaves out a bad content type (googlevideo answering HTML on
+     * a dead URL) and the generic player TIMEOUT: those say the URL or the player is wrong, not that there is no internet.
+     */
+    fun isConnectivityFailure(error: PlaybackException): Boolean {
+        if (isExpiredUrlError(error) || isRangeNotSatisfiableError(error) || isPageReloadError(error)) {
+            return false
+        }
+        if (isOfflineRejection(error)) return false
         if (error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-            error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE
+            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
         ) {
             return true
         }

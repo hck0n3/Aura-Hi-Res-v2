@@ -241,6 +241,35 @@ class PlaybackErrorClassifierTest {
         assertFalse(PlaybackErrorClassifier.isNetworkRelatedError(top))
     }
 
+    /**
+     * The offline session's evidence is the CONNECTION failing, not "anything network-ish": a dead URL answering HTML
+     * (bad content type) or a generic player timeout twice must never switch the whole player to offline.
+     */
+    @Test
+    fun connectivityFailureIsOnlyTheConnectionItself() {
+        val deep = playbackError(
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            cause = java.io.IOException(
+                "Unexpected",
+                playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, cause = java.net.UnknownHostException("h")),
+            ),
+        )
+        assertTrue(PlaybackErrorClassifier.isConnectivityFailure(deep))
+        assertTrue(PlaybackErrorClassifier.isConnectivityFailure(playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT)))
+        assertTrue(PlaybackErrorClassifier.isConnectivityFailure(playbackError(0, cause = java.net.NoRouteToHostException())))
+
+        val contentType = playbackError(PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE)
+        assertTrue("still the bounded retry", PlaybackErrorClassifier.isNetworkRelatedError(contentType))
+        assertFalse(PlaybackErrorClassifier.isConnectivityFailure(contentType))
+        assertFalse(PlaybackErrorClassifier.isConnectivityFailure(playbackError(PlaybackException.ERROR_CODE_TIMEOUT)))
+        assertFalse(
+            PlaybackErrorClassifier.isConnectivityFailure(
+                playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, cause = invalidResponseCode(403)),
+            ),
+        )
+        assertFalse(PlaybackErrorClassifier.isConnectivityFailure(offlineRejection(OfflineRejectionException.Kind.NO_NETWORK)))
+    }
+
     // ------------------------------------------------------- offline rejection
 
     private fun offlineRejection(kind: OfflineRejectionException.Kind): PlaybackException {

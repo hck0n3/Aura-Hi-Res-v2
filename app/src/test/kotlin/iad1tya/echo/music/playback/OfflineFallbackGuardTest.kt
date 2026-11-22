@@ -84,7 +84,7 @@ class OfflineFallbackGuardTest {
         val noStreamVerdict = onPlayerError.indexOf("PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value -> {")
         assertTrue(noStreamSession in 1 until noStreamVerdict)
 
-        val networkSession = onPlayerError.indexOf("PlaybackErrorClassifier.isNetworkRelatedError(error) && noteOfflineNetworkFailure() -> {")
+        val networkSession = onPlayerError.indexOf("PlaybackErrorClassifier.isConnectivityFailure(error) && noteOfflineNetworkFailure() -> {")
         val boundedRetry = onPlayerError.indexOf("PlaybackErrorClassifier.isNetworkRelatedError(error) -> {")
         val offline = onPlayerError.indexOf("!isNetworkConnected.value -> {")
         assertTrue(networkSession in 1 until offline)
@@ -104,7 +104,8 @@ class OfflineFallbackGuardTest {
         assertTrue(service.contains("Timber.tag(TAG).i(\"OFFLINE_SESSION exit reason=%s\", how)"))
         assertTrue(service.contains("R.string.offline_session_started") && service.contains("R.string.offline_session_ended"))
         // Leaving re-prepares a waiting queue with the reconnection semantics: only a NETWORK pause is resumed.
-        assertTrue(service.contains("if (waitingForNetworkConnection.value) triggerRetry()"))
+        assertTrue(service.contains("if (how != \"resolved\" && waitingForNetworkConnection.value) triggerRetry()"))
+        assertTrue(service.contains("if (PlaybackOfflineSession.onNetworkAvailable()) onOfflineSessionExited(\"network_back\")"))
         for (values in listOf("values", "values-es")) {
             val strings = File(root, "app/src/main/res/$values/strings.xml").readText()
             assertTrue("$values", strings.contains("name=\"offline_session_started\"") && strings.contains("name=\"offline_session_ended\""))

@@ -2514,6 +2514,12 @@ class MusicService :
                 if (validated && PlaybackOfflineSession.onValidated()) onOfflineSessionExited("validated")
             }
         }
+        // A new default network appeared: a session whose only evidence was "no network at all" ends.
+        scope.launch {
+            iad1tya.echo.music.utils.NetworkState.epoch.collect {
+                if (PlaybackOfflineSession.onNetworkAvailable()) onOfflineSessionExited("network_back")
+            }
+        }
 
         
         var isFirstQualityEmit = true
@@ -3802,8 +3808,9 @@ class MusicService :
             offlineSessionNoticeShown = false
             runCatching { Toast.makeText(this, R.string.offline_session_ended, Toast.LENGTH_SHORT).show() }
         }
-        // Same semantics as a reconnection: re-prepares a queue that was waiting, resumes only a NETWORK pause.
-        if (waitingForNetworkConnection.value) triggerRetry()
+        // Same semantics as a reconnection: re-prepares a queue that was waiting, resumes only a NETWORK pause. Not after
+        // "resolved": a resolve just worked, the player is already loading.
+        if (how != "resolved" && waitingForNetworkConnection.value) triggerRetry()
     }
 
     /** Main thread. A playback error that really tried the network and failed. True when the session is now on. */
@@ -8520,7 +8527,7 @@ class MusicService :
 
             // A network failure that, with the evidence so far, puts the player in its offline session (or one while it
             // already is): the queue goes on with what plays offline instead of retrying the network song.
-            PlaybackErrorClassifier.isNetworkRelatedError(error) && noteOfflineNetworkFailure() -> {
+            PlaybackErrorClassifier.isConnectivityFailure(error) && noteOfflineNetworkFailure() -> {
                 logErrorBranch("offline_network", mediaId, error)
                 continueWithOfflineQueue(stopIfNothing = false)
                 return
