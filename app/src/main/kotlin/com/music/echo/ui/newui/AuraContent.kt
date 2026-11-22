@@ -1648,18 +1648,22 @@ fun AuraSwipeSongBox(
                 onDragStopped = {
                     when {
                         offset.floatValue >= threshold -> {
-                            player?.playNext(listOf(mediaItem))
-                            android.widget.Toast
-                                .makeText(context, R.string.play_next, android.widget.Toast.LENGTH_SHORT)
-                                .show()
+                            if (player?.shouldBlockPlaybackChanges?.invoke() != true) {
+                                player?.playNext(listOf(mediaItem))
+                                android.widget.Toast
+                                    .makeText(context, R.string.play_next, android.widget.Toast.LENGTH_SHORT)
+                                    .show()
+                            }
                             auraResetSwipe(offset, scope)
                         }
 
                         offset.floatValue <= -threshold -> {
-                            player?.addToQueue(listOf(mediaItem))
-                            android.widget.Toast
-                                .makeText(context, R.string.add_to_queue, android.widget.Toast.LENGTH_SHORT)
-                                .show()
+                            if (player?.shouldBlockPlaybackChanges?.invoke() != true) {
+                                player?.addToQueue(listOf(mediaItem))
+                                android.widget.Toast
+                                    .makeText(context, R.string.add_to_queue, android.widget.Toast.LENGTH_SHORT)
+                                    .show()
+                            }
                             auraResetSwipe(offset, scope)
                         }
 
