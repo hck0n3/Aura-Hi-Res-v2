@@ -48,7 +48,7 @@ class SplitPlayerNavigationGuardTest {
         assertTrue(ambient > 0)
         assertTrue(menu.indexOf("playerBottomSheetState.collapseSoft()") in (ambient - 400) until ambient)
         // «Ver álbum» / «Ir al artista» go through the split-aware collapse.
-        assertTrue(Regex("""navigate\("album/\${'$'}browseId"\)\s*\n\s*state\.collapseAfterNavigate\(\)""").containsMatchIn(src("ui/newui/AuraPlayer.kt")))
+        assertTrue(Regex("""navigateOnce\("album/\${'$'}browseId"\)\s*\n\s*state\.collapseAfterNavigate\(\)""").containsMatchIn(src("ui/newui/AuraPlayer.kt")))
     }
 
     @Test

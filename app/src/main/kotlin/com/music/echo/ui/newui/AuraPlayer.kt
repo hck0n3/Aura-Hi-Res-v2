@@ -1514,7 +1514,7 @@ private fun AuraPlayerShape(
                                                 album.id
                                             }
                                             if (!browseId.isNullOrBlank()) {
-                                                navController.navigate("album/$browseId")
+                                                navController.navigateOnce("album/$browseId")
                                                 state.collapseAfterNavigate()
                                             } else if (album.title.isNotBlank()) {
                                                 navController.navigate(
