@@ -95,9 +95,19 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         scope.launch {
             client.state.collect {
                 DeviceSyncHub.connection.value = it
-                if (it !is DeviceSyncHub.Connection.Connected) {
-                    library?.onDisconnected()
-                    RemotePlayback.update(null, 0L)
+                if (it !is DeviceSyncHub.Connection.Connected) library?.onDisconnected()
+                when (it) {
+                    DeviceSyncHub.Connection.Connected -> {
+                        dropHold?.cancel()
+                        dropHold = null
+                    }
+                    // Switched off or re-configured: nothing is controlled any more.
+                    DeviceSyncHub.Connection.Off -> {
+                        dropHold?.cancel()
+                        dropHold = null
+                        RemotePlayback.update(null, 0L)
+                    }
+                    else -> holdRemoteThroughDrop()
                 }
             }
         }
@@ -115,6 +125,25 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         client.reconnectNow()
         scope.launch {
             runCatching { if (DeviceSyncHub.connection.value is DeviceSyncHub.Connection.Connected) evaluateRemote() }
+        }
+    }
+
+    private var dropHold: Job? = null
+
+    /**
+     * Owner 2026-11-22 («vuelvo a la app y el 1 pierde el control; el mini reproductor muestra lo de aquí»): a link that drops for a moment
+     * (the app going to the background, a network switch) cleared the remote at once, so the player fell back to showing the local mirror
+     * as if it were this device's own. The remote now stays shown for [RemotePlayback.LINK_DROP_HOLD_MS]; a reconnect in that time keeps
+     * it (and the next report decides), a link that stays down clears it.
+     */
+    private fun holdRemoteThroughDrop() {
+        if (!RemotePlayback.active || dropHold?.isActive == true) return
+        dropHold = scope.launch {
+            delay(RemotePlayback.LINK_DROP_HOLD_MS)
+            if (DeviceSyncHub.connection.value !is DeviceSyncHub.Connection.Connected && RemotePlayback.active) {
+                RemotePlayback.update(null, 0L)
+                Timber.tag(TAG).i("DEVICE_SYNC remote control off: the link stayed down")
+            }
         }
     }
 

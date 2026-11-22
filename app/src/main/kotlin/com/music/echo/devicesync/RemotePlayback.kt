@@ -27,6 +27,12 @@ object RemotePlayback {
     /** A playing remote must have spoken within this long (it heartbeats every 20 s); three missed beats and it is gone. */
     const val FRESH_MS = 70_000L
 
+    /**
+     * How long the remote stays shown while the link to the room is down. Covers the client's first reconnect (a 4 s backoff plus the
+     * handshake; on coming back to the app there is no backoff). Chosen for this fix, not measured (to be confirmed by the owner).
+     */
+    const val LINK_DROP_HOLD_MS = 10_000L
+
     /** The device being shown and controlled, with its last published state; null = this device plays for itself. */
     val target = MutableStateFlow<NowState?>(null)
     val position = MutableStateFlow(0L)
