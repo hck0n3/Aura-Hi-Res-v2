@@ -1868,9 +1868,16 @@ class MusicService :
                     else -> false
                 }
             } == true
+            // A Bluetooth LE Audio headset / speaker or a hearing aid replays PLAY on reconnect just like A2DP does, so it
+            // opens the same echo window (registry 422) — without changing what the resume-on-connect setting reacts to.
+            val echoRoute = hasPlaybackRoute || addedDevices?.any {
+                it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                    it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+                    it.type == AudioDeviceInfo.TYPE_HEARING_AID
+            } == true
+            if (echoRoute) lastRouteConnectedAtMs = System.currentTimeMillis()
 
             if (hasPlaybackRoute) {
-                lastRouteConnectedAtMs = System.currentTimeMillis()
                 val settingResume = dataStore.get(ResumeOnBluetoothConnectKey, false)
                 val autoNoisyResume = autoSession && pausedByNoisy &&
                     System.currentTimeMillis() - pausedByNoisyAtMs <= 45_000L
