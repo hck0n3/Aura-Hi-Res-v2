@@ -71,8 +71,8 @@ widget · Cast (Gms).
 - [x] L27 utils/YTPlayerUtils.kt L1-L1200
 - [x] L28 utils/YTPlayerUtils.kt L1201-L1966 — sin hallazgos P0-P2 confirmados; S-004 y obs. abajo
 - [x] L29 playback/ExactStyleGate.kt L1-L886 — F-008
-- [ ] L30 ui/newui/AuraShell.kt L1-L1200
-- [ ] L31 ui/newui/AuraShell.kt L1201-L1518
+- [x] L30 ui/newui/AuraShell.kt L1-L1200
+- [x] L31 ui/newui/AuraShell.kt L1201-L1518 — sin hallazgos (descartado: el `pointerInput(Unit)` del deslizar lee `canSkipNext` por su delegado `by`, no queda congelado)
 - [ ] L32 ui/newui/AuraQueue.kt L1-L1200
 - [ ] L33 ui/newui/AuraQueue.kt L1201-L1995
 - [ ] L34 devicesync/RemotePlayback.kt L1-L306
@@ -135,6 +135,8 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - Obs (P3) `YTPlayerUtils.kt:136-137` `hasShownLosslessToast`/`hasShownSaavnToast` y `:493` `showFallbackToast` (lee el DataStore en cada resolución) sin ningún uso tras retirar Qobuz/Saavn.
 - Obs (privacidad, va con F-002/F-003) `YTPlayerUtils.kt:131` `RESOLVE_FAIL … ${error.message?.take(180)}` a WARN: con `expectSuccess = true` (`innertube/NetworkConfig.kt:34`) el mensaje de un `ClientRequestException` de Ktor es `Client request(POST <url>) invalid: 400 … Text: "<cuerpo>"`, así que entran la URL de `/player` y el principio del JSON de error de YouTube. No lleva datos del usuario, pero es «cuerpo de respuesta» según la regla 4. Además los logs INFO/WARN de este archivo llevan el videoId (L131, L434, L634, L639, L1026, L1264, L1283, L1311, L1498, L1875): misma decisión que F-002.
 - Obs (P3) `YTPlayerUtils.kt:1820` `reportException` en cada fallo de la validación HEAD, también por red caída (en `getSignatureTimestampOrNull` ya se excluyen los fallos de red, L1881). Solo afecta al sabor GMS (Crashlytics).
+
+- Obs (P3, cosmético) `AuraShell.kt:459-464` el rango del motor «líquido» de la barra es `0..items.size-1`, pero la celda Ajustes tiene índice `items.size`: `animateToValue` lo recorta (`DampedDragAnimation.kt:145`), así que ir a Ajustes desde la última pestaña no deforma la pastilla. Solo con cristal interactivo.
 
 ## [DECISIÓN REQUERIDA] abiertas
 
