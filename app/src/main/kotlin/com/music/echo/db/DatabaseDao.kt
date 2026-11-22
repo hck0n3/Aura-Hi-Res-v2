@@ -2196,9 +2196,6 @@ interface DatabaseDao {
                 description = albumPage.description ?: album.description,
             ),
         )
-        if (artists?.size != albumPage.album.artists?.size) {
-            artists?.forEach(::delete)
-        }
         albumPage.songs
             .map(SongItem::toMediaMetadata)
             .onEach(::insert)
