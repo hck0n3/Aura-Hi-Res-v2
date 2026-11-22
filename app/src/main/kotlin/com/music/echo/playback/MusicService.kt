@@ -697,6 +697,14 @@ class MusicService :
     /** True while the device-sync engine itself starts a queue here (a hand-over): it must not be sent on to a controlled device. */
     @Volatile
     internal var remoteRedirectBypass = false
+
+    /**
+     * The player holds another device's queue only to SHOW it (device-sync mirror) and was left IDLE on purpose: nothing is
+     * downloaded, and with no READY state no automatic path (Bluetooth resume, error skip) can start it. The first real request
+     * to play it here prepares it (onPlayWhenReadyChanged); cleared as soon as the player leaves IDLE.
+     */
+    @Volatile
+    internal var mirrorUnprepared = false
     internal var fadingPlayer: ExoPlayer? = null
     internal var isCrossfading = false
     // Read-only OBSERVATION flag only. Mirrors the plain [isCrossfading] boolean so the UI can observe a
@@ -3861,6 +3869,9 @@ class MusicService :
         // media-button PLAY at boot can't cold-start it. Any normal caller keeps the default (false) and
         // prepares+plays exactly as before.
         isRestore: Boolean = false,
+        // Read only with isRestore = true: false leaves the queue IDLE (not prepared, nothing downloaded) — the device-sync mirror of
+        // another device's playback, which this player only shows.
+        prepareRestore: Boolean = true,
     ) {
         // Row 556 (owner 2026-10-31, as Spotify does it): while this device is only CONTROLLING another one, a queue the user starts
         // here plays THERE. Before, searching and playing a song on the phone while it controlled the tablet made the phone play it
@@ -3917,7 +3928,7 @@ class MusicService :
             Timber.tag(TAG).w("playQueue called before player initialization, queuing request")
             scope.launch {
                 playerInitialized.first { it }
-                playQueue(queue, playWhenReady, isRestore)
+                playQueue(queue, playWhenReady, isRestore, prepareRestore)
             }
             return
         }
@@ -4273,12 +4284,17 @@ class MusicService :
                 // The other site that genuinely ends the in-flight stream — see the note at the preloadItem
                 // branch above.
                 dropQualityPin()
+                if (isRestore && !prepareRestore) player.stop()
                 player.setMediaItems(
                     initialStatus.items,
                     safeIndex,
                     initialStatus.position,
                 )
-                if (isRestore) {
+                if (isRestore && !prepareRestore) {
+                    player.playWhenReady = false
+                    mirrorUnprepared = true
+                    if (!userHasForegroundedThisProcess) awaitingFirstUserPlay = true
+                } else if (isRestore) {
                     // FIX A (#27): RESTORE — prepare the queue (so the mini-player / notification / Android Auto
                     // show the song + the widget/UI resume works) but leave it PAUSED, and arm
                     // awaitingFirstUserPlay. The real anti-phantom guard is the onPlayerCommandRequest veto in
@@ -7123,6 +7139,7 @@ class MusicService :
         // so clearing on any non-IDLE state would drop the veto during the restore itself. It is cleared only
         // on genuine engagement (real playback via EVENT_IS_PLAYING_CHANGED, a genuine playQueue/widget play,
         // or the app coming to the foreground).
+        if (playbackState != Player.STATE_IDLE) mirrorUnprepared = false
 
         if (playbackState == Player.STATE_ENDED) {
             val repeatMode = player.repeatMode  // live value; avoids a blocking disk read on the player thread
@@ -7227,6 +7244,7 @@ class MusicService :
             player.pause()
             return
         }
+        if (playWhenReady && mirrorUnprepared && player.playbackState == Player.STATE_IDLE) player.prepare()
         scheduleSoftVideoRestoreOnPause(playWhenReady)
 
         // Tell OUR error-pause (stopOnError set expectingOwnStopPause right before pausing) apart from a real

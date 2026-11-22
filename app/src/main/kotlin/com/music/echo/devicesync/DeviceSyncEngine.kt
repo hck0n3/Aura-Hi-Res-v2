@@ -349,9 +349,20 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         val current = state.current ?: return
         onMain {
             val p = playerOrNull() ?: return@onMain
-            if (p.currentMediaItem?.mediaId == current.id) return@onMain
+            // A mirror is never left prepared: a READY player lets Bluetooth resume (or an error skip) start it here, and
+            // every song change on the other device would download it again. The first request to play here prepares it.
+            fun keepIdle() {
+                if (p.playWhenReady) return
+                if (p.playbackState != Player.STATE_IDLE) p.stop()
+                service.mirrorUnprepared = true
+            }
+            if (p.currentMediaItem?.mediaId == current.id) {
+                keepIdle()
+                return@onMain
+            }
             for (i in 0 until p.mediaItemCount) {
                 if (p.getMediaItemAt(i).mediaId == current.id) {
+                    keepIdle()
                     p.seekTo(i, 0L)
                     return@onMain
                 }
@@ -369,6 +380,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 ListQueue(title = state.deviceName.ifBlank { null }, items = items, startIndex = state.index, position = 0L),
                 playWhenReady = false,
                 isRestore = true,
+                prepareRestore = false,
             )
         }
     }
