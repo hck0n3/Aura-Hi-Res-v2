@@ -8407,11 +8407,8 @@ class MusicService :
                                             val newReq = req.newBuilder().header("User-Agent", agent).build()
                                             val response = chain.proceed(newReq)
                                             if (!response.isSuccessful) {
-                                                val peek = runCatching {
-                                                    response.peekBody(300).string().replace(Regex("\\s+"), " ").take(160)
-                                                }.getOrDefault("-")
                                                 Timber.tag("AudioFetch").w(
-                                                    "FETCH ${response.code} host=$host c=$c range=${newReq.header("Range")} ua=${agent.takeLast(28)} body=$peek"
+                                                    "FETCH ${response.code} host=$host c=$c range=${newReq.header("Range")} ua=${agent.takeLast(28)}"
                                                 )
                                             } else {
                                                 Timber.tag("AudioFetch").d(
