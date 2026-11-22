@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.ViewModel
 import iad1tya.echo.music.MainActivity
 import iad1tya.echo.music.R
@@ -20,6 +21,7 @@ import iad1tya.echo.music.extensions.zipInputStream
 import iad1tya.echo.music.extensions.zipOutputStream
 import iad1tya.echo.music.playback.MusicService
 import iad1tya.echo.music.playback.MusicService.Companion.PERSISTENT_QUEUE_FILE
+import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.reportException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -339,6 +341,13 @@ class BackupRestoreViewModel @Inject constructor(
             // The restored settings file carries the old profile's init guards, which would otherwise
             // suppress newly seeded defaults/features ("new features don't appear after restore").
             runCatching { java.io.File(context.filesDir, POST_RESTORE_REINIT_FLAG).createNewFile() }
+
+            if (dbClosedForRestore) {
+                context.dataStore.edit { settings ->
+                    settings[iad1tya.echo.music.constants.YtmUploadSyncKey] =
+                        iad1tya.echo.music.utils.LibraryUploadOptIn.onAccountDetached()
+                }
+            }
 
             Timber.tag("RESTORE").i("Restore complete — restarting (dbReplaced=$dbClosedForRestore)")
             restartApp(context)
