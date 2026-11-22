@@ -96,13 +96,51 @@ class RequestArtistLockTest {
     @Test
     fun `the continuation draws from the artist's own catalogue first, never from similar artists`() {
         val engine = main("playback/RadioContinuationEngine.kt")
-        val chain = "tryMood() || tryArtistCatalogue() || tryContextRadio() || tryRadio() || tryRelated()"
-        assertEquals("los seis intentos de la escalera", 6, engine.split(chain).size - 1)
+        val chain = "tryMood() || tryArtistCatalogue() || (!artistLockExhausted && (tryContextRadio() || tryRadio() || tryRelated()))"
+        assertEquals("una sola escalera, el catálogo antes que las radios", 1, engine.split(chain).size - 1)
+        assertEquals("los seis intentos la usan", 6, engine.split("appended = trySources()").size - 1)
         assertFalse(engine.contains("tryMood() || tryContextRadio()"))
         val catalogue = main("playback/RequestArtistCatalogue.kt")
         assertTrue(catalogue.contains("RequestArtistTargets.admits(lock, song.artists.map { it.name to it.id })"))
         for (forbidden in listOf("ArtistItem", "YouTube.next(", "RDAMVM", "related", "Timber")) {
             assertFalse("el catálogo no usa $forbidden", catalogue.contains(forbidden))
         }
+    }
+
+    @Test
+    fun `an exhausted catalogue ends the queue without the other rungs or the relaxed retries`() {
+        // Row 656: under the lock every other source is reduced to that artist; running them all (and the waits and
+        // relaxation levels) at every end of queue spent ~40 requests for nothing.
+        val engine = main("playback/RadioContinuationEngine.kt")
+        val body = engine.substringAfter("suspend fun tryArtistCatalogue(): Boolean").substringBefore("radioSourceFailed(\"artist\", it)")
+        assertTrue(body.indexOf("artistLockExhausted = true") > body.indexOf("for (batch in unheard.chunked(ARTIST_CATALOGUE_BATCH)"))
+        assertEquals("los cinco reintentos se saltan", 5, engine.split("if (!appended && !artistLockExhausted) {").size - 1)
+        assertTrue("el aviso único de «cola terminada» sigue ahí", engine.contains("smartQueueEndNoticeGeneration = seedGeneration"))
+    }
+
+    @Test
+    fun `a failed catalogue fetch is asked again, only an answer is cached`() {
+        val catalogue = main("playback/RequestArtistCatalogue.kt")
+        assertTrue(catalogue.contains("internal suspend fun requestArtistCatalogue(lock: RequestArtistTargets.Lock): List<MediaItem>? {"))
+        assertTrue(catalogue.contains("YouTube.search(lock.name, YouTube.SearchFilter.FILTER_SONG).getOrNull() ?: return null"))
+        val engine = main("playback/RadioContinuationEngine.kt")
+        val body = engine.substringAfter("suspend fun tryArtistCatalogue(): Boolean").substringBefore("radioSourceFailed(\"artist\", it)")
+        assertTrue(body.contains("?.also { artistCatalogue = it }"))
+        assertTrue(body.contains("?: return@runCatching false"))
+    }
+
+    @Test
+    fun `a chip or a mood stands the lock down in the source too, like in the ordering`() {
+        val engine = main("playback/RadioContinuationEngine.kt")
+        assertTrue(engine.contains("if (activeMoodParams != null || exactStyle.chipSteered) return@runCatching false"))
+    }
+
+    @Test
+    fun `a queue adopted outside playQueue drops the request context`() {
+        // Row 656: «Reproducir a continuación» on a cleared player (and Listen Together) adopt a new queue; it kept the
+        // request's MR id, so its end brought that artist back and dropped everything else.
+        val service = main("playback/MusicService.kt")
+        val adopt = service.substringAfter("fun adoptDirectQueue(").substringBefore("fun adoptExternalQueue(")
+        assertTrue(adopt.contains("radioOriginContextId = contextId"))
     }
 }
