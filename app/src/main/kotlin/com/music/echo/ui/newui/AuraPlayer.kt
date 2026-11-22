@@ -215,6 +215,7 @@ import iad1tya.echo.music.utils.resolveOnlineAlbumBrowseId
 import iad1tya.echo.music.utils.resolveOnlineArtistBrowseId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -762,9 +763,9 @@ private fun AuraPlayerShape(
     val immersiveVideo = useWideShape && showVideoSurface
     // F-012 (owner 2026-11-22): «Fondo animado a pantalla completa en horizontal», off by default (registry #48).
     val immersiveCanvasOnRotate by rememberPreference(iad1tya.echo.music.constants.ImmersiveCanvasOnRotateKey, false)
-    // Lyrics (inline or full screen) win over the canvas view, and nothing is held while the app is off screen.
+    // Only with the sheet open (the body stays composed while it is collapsed); lyrics (inline or full screen) win.
     val immersiveCanvasWanted = isLandscape && immersiveCanvasOnRotate && canvasEnabled && !showVideoSurface && !inPipMode &&
-        !showInlineLyrics && appInForeground
+        !showInlineLyrics && state.isExpanded
     // Entering the view, [Thumbnail] (in the wide shape) finds the canvas as always; the player notices it in the cache
     // (not snapshot state) with a map read every 600 ms for the rest of THIS song — no network — so a slow lookup still
     // brings the view. While the view is up Thumbnail is off screen, so the player looks the NEXT song's canvas up itself
@@ -776,10 +777,16 @@ private fun AuraPlayerShape(
     var immersiveCanvasFound by remember(mediaMetadata?.id) { mutableStateOf<iad1tya.echo.music.canvas.CanvasArtwork?>(null) }
     var immersiveCanvasLookupDone by remember(mediaMetadata?.id) { mutableStateOf(false) }
     val immersiveCanvasHeld = remember { arrayOfNulls<iad1tya.echo.music.canvas.CanvasArtwork>(1) }
+    // The composition does not see the app leaving the screen (its frame clock pauses first), so these read the
+    // process-wide flag: nothing is held across a screen-off, and nothing below reads or fetches while it is off.
+    LaunchedEffect(Unit) {
+        iad1tya.echo.music.utils.AppForeground.visible.collect { visible -> if (!visible) immersiveCanvasHeld[0] = null }
+    }
     LaunchedEffect(mediaMetadata?.id, immersiveCanvasWanted) {
         if (!immersiveCanvasWanted) return@LaunchedEffect
         val id = mediaMetadata?.id ?: return@LaunchedEffect
         while (true) {
+            iad1tya.echo.music.utils.AppForeground.visible.first { it }
             CanvasArtworkPlaybackCache.get(id)?.let {
                 immersiveCanvasCached = it
                 return@LaunchedEffect
@@ -791,19 +798,23 @@ private fun AuraPlayerShape(
         if (!immersiveCanvasWanted) return@LaunchedEffect
         if (immersiveCanvasHeld[0] == null) return@LaunchedEffect
         val id = mediaMetadata?.id ?: return@LaunchedEffect
-        // By id in the queue, not «the current item»: during a crossfade hand-over the two can disagree for a moment.
+        // By id, not blindly «the current item»: during a crossfade hand-over the two can disagree for a moment.
         val player = playerConnection.player
-        val item = (0 until player.mediaItemCount).firstNotNullOfOrNull { i ->
-            player.getMediaItemAt(i).takeIf { it.mediaId == id }
-        }
+        val item = player.currentMediaItem?.takeIf { it.mediaId == id }
+            ?: (0 until player.mediaItemCount).firstNotNullOfOrNull { i ->
+                player.getMediaItemAt(i).takeIf { it.mediaId == id }
+            }
         immersiveCanvasFound = if (item == null) {
             null
         } else {
             CanvasArtworkPlaybackCache.get(id)
                 ?: iad1tya.echo.music.ui.player.canvasLookupWithoutNetwork(item, context.applicationContext).let { cheap ->
-                    cheap.artwork ?: iad1tya.echo.music.ui.player.canvasLookupOverNetwork(
-                        item, context.applicationContext, immersiveCanvasStorefront, immersiveSpotifyCanvas, true, cheap,
-                    )
+                    cheap.artwork ?: run {
+                        iad1tya.echo.music.utils.AppForeground.visible.first { it }
+                        iad1tya.echo.music.ui.player.canvasLookupOverNetwork(
+                            item, context.applicationContext, immersiveCanvasStorefront, immersiveSpotifyCanvas, true, cheap,
+                        )
+                    }
                 }
         }
         immersiveCanvasLookupDone = true
