@@ -147,9 +147,16 @@ fun BottomSheetPage(
                 modifier = modifier
                     .fillMaxSize()
                     .background(auraFloatingScrimColor())
-                    .pointerInput(Unit) {
-                        detectTapGestures { focusManager.clearFocus(); state.dismiss() }
-                    },
+                    // Fading out, the scrim must not eat the next tap meant for the screen under it.
+                    .then(
+                        if (visible) {
+                            Modifier.pointerInput(Unit) {
+                                detectTapGestures { focusManager.clearFocus(); state.dismiss() }
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
             ) {
                 val sheetMaxHeight = rememberAuraSheetMaxHeight()
                 // Cerrar arrastrando la barrita (dueño, 2026-10-18). Estado propio de ESTA apertura.
@@ -220,6 +227,8 @@ fun BottomSheetPage(
                             // AUDIT P4: clip BEFORE the glass (an interior clip leaves the
                             // effect drawing with square corners over a rounded-content panel).
                             .clip(panelShape)
+                            // A tap on the panel must not reach the scrim's dismiss detector.
+                            .pointerInput(Unit) { detectTapGestures { } }
                             // Same opaque floating plate as menus and dialogs (one material everywhere).
                             .background(AuraPalette.FloatingWindowPlate)
                             .then(if (wide) Modifier.auraWindowBorder(panelShape) else Modifier)
@@ -331,9 +340,15 @@ private fun AuraSpotlightHost(
             modifier = modifier
                 .fillMaxSize()
                 .background(auraFloatingScrimColor())
-                .pointerInput(Unit) {
-                    detectTapGestures { focusManager.clearFocus(); state.dismiss() }
-                },
+                .then(
+                    if (visible) {
+                        Modifier.pointerInput(Unit) {
+                            detectTapGestures { focusManager.clearFocus(); state.dismiss() }
+                        }
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             // El área ya descuenta barra de estado y teclado: la hoja nunca queda tapada por el teclado.
             androidx.compose.foundation.layout.BoxWithConstraints(
