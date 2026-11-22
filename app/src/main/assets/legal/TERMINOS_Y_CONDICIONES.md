@@ -126,15 +126,7 @@ Estos Términos y Condiciones (los "Términos") regulan el uso de la aplicación
 
 La cancelación detiene los cargos futuros; usted conserva el acceso hasta el final del período ya pagado. **Desinstalar la Aplicación no cancela la suscripción.**
 
-10.7. **Reembolsos.**
-
-- (a) **Primer cargo:** si lo solicita dentro de los 7 días siguientes al primer cargo de su suscripción, se le reembolsa completo, sin preguntas, escribiendo a aurahires@gmail.com desde el correo de la compra. La suscripción se cancela con el reembolso.
-- (b) **Cobros por error:** un cargo duplicado o hecho por error se reembolsa siempre.
-- (c) **Fallos de la propia Aplicación:** si no pudo usar la Aplicación por un fallo de la propia Aplicación o del servicio de licencias que el Desarrollador no resolvió en un plazo razonable, se reembolsa el cargo del período afectado.
-- (d) Fuera de esos casos, los cargos de renovación ya cobrados no se reembolsan de forma proporcional, y no procede reembolso por la mera indisponibilidad o degradación de funciones que dependan de servicios de terceros (cláusula 6.4), sin perjuicio de los esfuerzos razonables del Desarrollador por restablecerlas.
-- (e) Nada de esta cláusula limita los derechos que le reconozca la ley de protección al consumidor aplicable (incluida la de Honduras y la de su país de residencia), ni su derecho a reclamar ante su banco, el emisor de su tarjeta o Gumroad.
-
-Los reembolsos se hacen a través de Gumroad, al mismo método de pago; el tiempo que tarda en verse depende de su banco.
+10.7. **Sin reembolsos.** Los pagos de la suscripción no son reembolsables, ni el primero ni los de renovación, ni de forma total ni proporcional, tampoco por la indisponibilidad o degradación de funciones que dependan de servicios de terceros (cláusula 6.4). Puede cancelar en cualquier momento para que no se le vuelva a cobrar (cláusula 10.6) y conserva el acceso hasta el final del período ya pagado. Esto se entiende sin perjuicio de los derechos que la ley de protección al consumidor aplicable le reconozca de forma irrenunciable (incluida la de Honduras y la de su país de residencia).
 
 10.8. **Condiciones técnicas de la licencia.**
 
@@ -217,7 +209,7 @@ Aclaración técnica, por transparencia (el código es público y menciona Fireb
 
 16.4. Sobreviven a la terminación las cláusulas que por su naturaleza deban sobrevivir, incluidas las cláusulas 4, 5, 7, 9, 13, 14, 15, 17 y 18.
 
-16.5. Si el Desarrollador descontinúa la Aplicación o el servicio de licencias, dejará de cobrar renovaciones y reembolsará la parte no usada del período en curso a quien tenga una suscripción activa.
+16.5. Si el Desarrollador descontinúa la Aplicación o el servicio de licencias, dejará de cobrar renovaciones.
 
 ## 17. Cambios a estos Términos
 
@@ -225,7 +217,7 @@ Aclaración técnica, por transparencia (el código es público y menciona Fireb
 
 17.2. Los cambios materiales se comunicarán dentro de la Aplicación y **solo se le aplicarán si los acepta** pulsando "Aceptar y continuar" en la pantalla de aceptación, que aparece antes de seguir usando la Aplicación. **El simple uso continuado de la Aplicación no se considera aceptación.** Mientras no acepte la nueva versión, la anterior sigue rigiendo su relación con el Desarrollador.
 
-17.3. Si no acepta la nueva versión, puede dejar de usar la Aplicación y cancelar su suscripción sin penalización (cláusula 10.6), y pedir el reembolso de la parte no usada del período en curso escribiendo al contacto de la cláusula 21.
+17.3. Si no acepta la nueva versión, puede dejar de usar la Aplicación y cancelar su suscripción sin penalización (cláusula 10.6); no se le volverá a cobrar.
 
 17.4. Las correcciones que no cambian derechos ni obligaciones (por ejemplo, erratas o aclaraciones) pueden publicarse sin nueva aceptación, actualizando la fecha de vigencia.
 
@@ -274,7 +266,7 @@ Aclaración técnica, por transparencia (el código es público y menciona Fireb
 
 ## 21. Contacto
 
-Para consultas legales, avisos de propiedad intelectual (cláusula 9), privacidad, cancelaciones y reembolsos (cláusula 10), soporte, reportes de errores o sugerencias:
+Para consultas legales, avisos de propiedad intelectual (cláusula 9), privacidad, cancelaciones (cláusula 10), soporte, reportes de errores o sugerencias:
 
 - **Responsable:** el desarrollador independiente de Aura Hi-Res v2 (Honduras) · aurahires@gmail.com
 - **Correo electrónico de la Aplicación:** aurahires@gmail.com
@@ -294,7 +286,7 @@ Este resumen es solo una ayuda de lectura. **No sustituye a las cláusulas anter
 - **Tú decides y tú respondes.** Usar un cliente no oficial, que además no muestra los anuncios de la plataforma, puede ir contra los términos de YouTube u otros servicios en tu país. Esa decisión es tuya, igual que cumplir la ley donde vives.
 - **3 días gratis, luego suscripción.** La demo es completa, no pide tarjeta y no se cobra sola. Después, para seguir usando la app oficial necesitas la suscripción: USD 3.74 al mes más impuestos, que se renueva sola cada mes hasta que la canceles.
 - **El pago no es para escuchar música.** Sostiene el desarrollo y los servicios del proyecto y te da acceso a la app oficial. No compras música, no es una donación y el código sigue siendo libre (GPL-3.0).
-- **Cancelar y reembolsos.** Cancela cuando quieras en Gumroad o escribiéndonos; sigues teniendo acceso hasta que termine el mes pagado. Si lo pides en los primeros 7 días del primer cobro, te devolvemos todo. Desinstalar no cancela.
+- **Cancelar.** Cancela cuando quieras en Gumroad o escribiéndonos; sigues teniendo acceso hasta que termine el mes pagado. **No hay reembolsos.** Desinstalar no cancela.
 - **Licencia.** Se verifica en línea; aguanta hasta 3 días sin conexión. Un dispositivo, o hasta 3 si activas con el correo de la compra.
 - **Tus cuentas se quedan en tu teléfono.** Tus sesiones de YouTube o Spotify no salen de tu dispositivo. Lo que sí sale: las peticiones a los servicios de música, la verificación de tu licencia, los Servicios Aura (activados por defecto, se pueden apagar), la sincronización entre tus dispositivos si activas con el correo, la traducción de letras (activada por defecto) y las funciones de IA que uses. No vendemos tus datos ni mostramos anuncios.
 - **Hecha con ayuda de IA.** El desarrollador usa herramientas de IA para programar y redactar, y revisa lo que entra. Dentro de la app, las funciones de IA solo envían lo que se explica en la cláusula 20.
