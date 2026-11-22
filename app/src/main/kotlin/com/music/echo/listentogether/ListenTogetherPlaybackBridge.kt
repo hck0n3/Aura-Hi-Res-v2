@@ -263,7 +263,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // Salir de la sala (o pasar a ser anfitrión) con la velocidad recortada la
                     // dejaría así para siempre: el ajuste solo se toca desde aquí, y aquí ya no se
                     // entra. Devolverla es parte de apagar la corrección, no un detalle.
-                    restoreUserTempo()
+                    onMain { restoreUserTempo() }
                     return@collect
                 }
                 val service = serviceFlow.value ?: return@collect
