@@ -314,7 +314,8 @@ class ListenTogetherSession(
         queue: List<TrackInfo> = emptyList(),
         queueTitle: String = "",
     ) = launch {
-        client.send(
+        val capturedAt = client.serverNow() ?: 0L
+        val sent = client.send(
             MessageTypes.PLAYBACK_ACTION,
             PlaybackActionPayload(
                 action = action,
@@ -327,10 +328,23 @@ class ListenTogetherSession(
                 // its own next song and the room splits one track later.
                 queue = queue,
                 queueTitle = queueTitle,
-                capturedAtServerTime = client.serverNow() ?: 0L,
+                capturedAtServerTime = capturedAt,
             ),
         )
+        if (sent) lastSentAnchor = nextSentAnchor(lastSentAnchor, action, position, capturedAt)
     }
+
+    /**
+     * Where the host last told the room it was. Aura's server does not echo a host's own commands back to it (`broadcast(out, a.id)`
+     * in docs/worker/rooms), so this is the host's own record of the room's timeline — what [ListenTogetherPlaybackBridge] measures
+     * its drift against.
+     */
+    @Volatile
+    var lastSentAnchor: SentAnchor? = null
+        private set
+
+    /** Server wall time now, or null while the clock is not calibrated. */
+    fun serverNow(): Long? = client.serverNow()
 
     /** Publishes the whole queue. Host only; guests take the host's order verbatim. */
     fun sendQueue(
@@ -601,6 +615,31 @@ class ListenTogetherSession(
      */
     private var pendingUsername: String = ""
 }
+
+/** A position the host published, the server time it was captured at (0 = clock not calibrated) and whether it was playing. */
+data class SentAnchor(
+    val position: Long,
+    val serverTime: Long,
+    val playing: Boolean,
+)
+
+/**
+ * The anchor after the host sends [action]. A track change counts as NOT playing until the PLAY that follows it (the shared server
+ * sets IsPlaying=false on every change_track); a seek keeps whether it was playing; queue updates move nothing.
+ */
+internal fun nextSentAnchor(
+    previous: SentAnchor?,
+    action: String,
+    position: Long,
+    serverTime: Long,
+): SentAnchor? =
+    when (action) {
+        PlaybackActions.PLAY -> SentAnchor(position, serverTime, playing = true)
+        PlaybackActions.PAUSE -> SentAnchor(position, serverTime, playing = false)
+        PlaybackActions.SEEK -> SentAnchor(position, serverTime, playing = previous?.playing ?: false)
+        PlaybackActions.CHANGE_TRACK -> SentAnchor(position, serverTime, playing = false)
+        else -> previous
+    }
 
 private fun UserInfo.toMember() =
     RoomMember(

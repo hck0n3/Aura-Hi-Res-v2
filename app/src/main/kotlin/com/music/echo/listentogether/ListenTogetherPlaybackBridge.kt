@@ -65,6 +65,15 @@ private const val TAG = "ListenTogetherBridge"
 /** Same cadence as [ServerClock]'s own ping — see [ListenTogetherPlaybackBridge.guestPositionHeartbeat]. */
 private const val HEARTBEAT_INTERVAL_MS = 15_000L
 
+/**
+ * How far the host may drift from its last published anchor before it re-anchors the room. Just above the guests' own dead band
+ * ([SyncCorrection.IN_SYNC_MS], 60 ms): a smaller drift would make no guest correct anything, so publishing it is noise.
+ */
+internal const val HOST_DRIFT_REPUBLISH_MS = 80L
+
+/** Whether the host, hearing [heardMs] while its last anchor puts the room at [roomMs], should republish its position. */
+internal fun hostDriftNeedsRepublish(heardMs: Long, roomMs: Long): Boolean = kotlin.math.abs(heardMs - roomMs) > HOST_DRIFT_REPUBLISH_MS
+
 /** What the guest reacts to. A data class so `distinctUntilChanged` compares every field. */
 private data class RoomSnapshot(
     val track: TrackInfo?,
@@ -159,6 +168,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { followPlayer() }
         scope.launch { watchRoomForGuests() }
         scope.launch { guestPositionHeartbeat() }
+        scope.launch { hostDriftHeartbeat() }
         scope.launch { publishCurrentStateOnJoin() }
         scope.launch { publishStateWhenSomeoneArrives() }
         scope.launch { publishTrackChangesAsHost() }
@@ -401,6 +411,42 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             } finally {
                 remoteDepth.decrementAndGet()
             }
+        }
+    }
+
+    /**
+     * The host's side of the heartbeat: re-anchors the room when the host has drifted from what it last told it.
+     *
+     * The host publishes its position only on events. When its audio starts later than the change_track it published at 0 (a slow
+     * resolve), [publishPlayPauseAsHost] already republishes PLAY with the real position on the buffering-to-playing edge; this catches
+     * whatever that edge missed (a dip too short for the StateFlow to deliver, a lost send, a tempo other than 1.0×, a send made
+     * before the clock was calibrated). It compares what the host HEARS with where its last published anchor says the room is, and
+     * only past [HOST_DRIFT_REPUBLISH_MS] sends a PLAY, the same message every resume already sends (Aura's server opens a buffer
+     * barrier only on change_track/seek, never on play). Same cadence as the guest's heartbeat; does nothing unless hosting with
+     * music playing.
+     */
+    private suspend fun hostDriftHeartbeat() {
+        while (true) {
+            delay(HEARTBEAT_INTERVAL_MS)
+            val state = session.state.value
+            if (!state.inRoom || !state.isHost || applyingRemote) continue
+            if (!playIntent.value || !isPlayingNow.value) continue
+            val service = serviceFlow.value ?: continue
+            // Drift is measured on the server's clock: without it there is nothing to compare against.
+            if (session.serverNow() == null) continue
+            val anchor = session.lastSentAnchor ?: continue
+            val (currentId, heard) = onMain { runCatching { service.player.currentMediaItem?.mediaId }.getOrNull() to safePosition(service) }
+            // Only for the track the room knows the host is on; a track change publishes its own anchor.
+            if (currentId == null || currentId != lastPublishedTrackId) continue
+            val room = session.positionAt(anchor.position, anchor.playing, anchor.serverTime)
+            if (!hostDriftNeedsRepublish(heard, room)) continue
+            Timber.tag(TAG).i("Host drifted %d ms from the room — republishing PLAY", heard - room)
+            session.sendPlaybackAction(
+                action = PlaybackActions.PLAY,
+                trackId = "",
+                position = heard,
+                trackInfo = null,
+            )
         }
     }
 
