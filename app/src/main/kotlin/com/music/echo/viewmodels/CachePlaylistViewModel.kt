@@ -100,7 +100,7 @@ class CachePlaylistViewModel @Inject constructor(
                 val pureCacheIds = cachedIds.subtract(downloadedIds)
 
                 val songs = if (pureCacheIds.isNotEmpty()) {
-                    database.getSongsByIds(pureCacheIds.toList())
+                    pureCacheIds.toList().chunked(900).flatMap { database.getSongsByIds(it) }
                 } else {
                     emptyList()
                 }
