@@ -523,8 +523,8 @@ class LibrarySyncSimulationTest {
         repeat(40) { phone.backend.like("r$it") }
         phone.connect(); tablet.connect()
         eventually("the tablet has all 40") { tablet.backend.likes.size == 40 }
-        // The user removes 30 on the tablet, ten at a time: each step is a normal tidy-up, under the brake.
-        for (step in 0 until 3) {
+        // The user removes 20 on the tablet, ten at a time: each step is a normal tidy-up, under the brake (also on the restored phone).
+        for (step in 0 until 2) {
             for (i in step * 10 until step * 10 + 10) tablet.backend.likes -= "r$i"
             tablet.changed()
             eventually("step $step reaches the phone") { phone.backend.likes.size == 40 - (step + 1) * 10 }
@@ -536,11 +536,40 @@ class LibrarySyncSimulationTest {
         repeat(40) { restored.backend.like("r$it") }
         restored.backend.like("onlyInBackup")
         restored.connect()
-        val kept = (30 until 40).map { "r$it" }.toSet()
+        val kept = (20 until 40).map { "r$it" }.toSet()
         eventually("the room's removals win on the restored phone") { restored.backend.likes == kept + "onlyInBackup" }
         eventually("what only the backup had reaches the tablet") { "onlyInBackup" in tablet.backend.likes }
         settle(); settle()
         assertEquals("nothing the user removed came back", kept + "onlyInBackup", tablet.backend.likes)
-        assertTrue((0 until 30).all { room.value("lk:r$it") == "0" })
+        assertTrue((0 until 20).all { room.value("lk:r$it") == "0" })
+    }
+
+    @Test
+    fun `a backup restored while the room holds a mass removal the other devices braked is not wiped, and brings nothing back`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        repeat(40) { phone.backend.like("b$it") }
+        phone.connect(); tablet.connect()
+        eventually("the tablet has all 40") { tablet.backend.likes.size == 40 }
+        settle()
+        // A faulty device pushes 40 removals at once: the tablet brakes them and keeps its likes.
+        val now = System.currentTimeMillis()
+        room.receive("faulty", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { repeat(40) { add(buildJsonArray { add(JsonPrimitive("lk:b$it")); add(JsonPrimitive(now)); add(JsonPrimitive("0")) }) } })
+        })
+        settle(); settle()
+        assertEquals("the tablet braked the removals", 40, tablet.backend.likes.size)
+        phone.disconnect()
+
+        // The phone restores its backup (the same 40 likes); its sync memory starts empty and fresh.
+        val restored = Device("phone", fresh = true)
+        repeat(40) { restored.backend.like("b$it") }
+        restored.connect()
+        eventually("the restored phone caught up") { restored.ledger.stored.keys.count { it.startsWith("lk:") } == 40 }
+        restored.changed()
+        settle(); settle()
+        assertEquals("the restored library was not wiped by the room's removals", 40, restored.backend.likes.size)
+        assertTrue("and the held removals were not sent back as new likes", (0 until 40).all { room.value("lk:b$it") == "0" })
+        assertEquals(40, tablet.backend.likes.size)
     }
 }

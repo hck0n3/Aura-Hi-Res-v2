@@ -63,7 +63,7 @@ class LibrarySyncGuardTest {
         val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAndroid.kt")
         assertTrue(a.contains("override fun freshStart() = fresh.isFile"))
         val l = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
-        assertTrue("el freno no retiene lo que la sala ya sabe tras restaurar", l.contains("if (!freshStart && LibrarySyncCore.brakeTrips("))
+        assertTrue("el freno sigue activo tras restaurar", l.contains("if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {") && !l.contains("!freshStart && LibrarySyncCore.brakeTrips("))
     }
 
     @Test

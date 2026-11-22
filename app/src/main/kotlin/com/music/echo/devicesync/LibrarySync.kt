@@ -227,7 +227,7 @@ class LibrarySync(
         var plan = LibrarySyncCore.plan(accepted)
         val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
         var held = emptyList<Reg>()
-        if (!freshStart && LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
+        if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
             // A pile of removals at once is not a person tidying up. Keep every addition, hold every removal, and say so.
             held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
             accepted = accepted - held.toSet()
@@ -381,7 +381,7 @@ interface SinceStore {
     fun get(): Long
     fun put(value: Long)
 
-    /** True after a backup was restored, until the first pull catches up: the room wins over the restored library, brake included. */
+    /** True after a backup was restored, until the first pull catches up: the room wins over the restored library, except what the brake holds. */
     fun freshStart(): Boolean = false
     fun endFreshStart() {}
 }
