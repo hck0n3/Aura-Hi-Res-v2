@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
@@ -46,6 +47,7 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.ExportedFileUrisKey
 import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.SongSortType
@@ -56,6 +58,8 @@ import iad1tya.echo.music.playback.PlayerConnection
 import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.menu.SongMenu
+import iad1tya.echo.music.utils.exportedFileUriExists
+import iad1tya.echo.music.utils.parseExportedFileUriMap
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.CachePlaylistViewModel
 import kotlinx.coroutines.Dispatchers
@@ -117,9 +121,21 @@ internal fun rememberOfflineLibrary(): OfflineLibrary {
     val (exportedVideoIdsRaw) = rememberPreference(ExportedVideoIdsKey, "")
     val exportedSongIds = remember(exportedSongIdsRaw) { exportedSongIdsRaw.split(",").filter { it.isNotBlank() } }
     val exportedVideoIds = remember(exportedVideoIdsRaw) { exportedVideoIdsRaw.split(",").filter { it.isNotBlank() } }
-    val exportedSongs by remember(exportedSongIds) {
+    val exportedSongRows by remember(exportedSongIds) {
         if (exportedSongIds.isEmpty()) flowOf(emptyList()) else database.getSongsByIdsFlow(exportedSongIds)
     }.collectAsState(initial = emptyList())
+    // Only exports whose file still exists: the resolver plays an export from that file and refuses it when it is gone,
+    // so listing it would be a song that shows as available offline and does not play.
+    val context = LocalContext.current
+    val (exportedFileUrisRaw) = rememberPreference(ExportedFileUrisKey, "")
+    val exportedSongs by produceState(emptyList<Song>(), exportedSongRows, exportedFileUrisRaw) {
+        value = withContext(Dispatchers.IO) {
+            val uris = parseExportedFileUriMap(exportedFileUrisRaw)
+            exportedSongRows.filter { song ->
+                uris[song.id]?.let { exportedFileUriExists(context, it) } == true
+            }
+        }
+    }
     val exportedVideosRaw by remember(exportedVideoIds) {
         if (exportedVideoIds.isEmpty()) flowOf(emptyList()) else database.getSongsByIdsFlow(exportedVideoIds)
     }.collectAsState(initial = emptyList())

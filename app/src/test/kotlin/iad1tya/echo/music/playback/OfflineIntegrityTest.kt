@@ -60,6 +60,41 @@ class OfflineIntegrityTest {
         assertTrue("a song still downloading is not listed yet", "busy" !in plan.markDownloaded)
     }
 
+    /**
+     * Owner 2026-11-22: «en modo sin conexión las canciones aparecen como disponibles pero no suenan tras actualizar».
+     * Media3 keeps a COMPLETED record while the bytes are gone: that song was listed forever and never played offline.
+     */
+    @Test
+    fun `a completed record whose bytes are gone is un-listed, and comes back when the bytes do`() {
+        val plan = OfflineIntegrity.plan(
+            roomDownloaded = setOf("phantom", "partial"),
+            indexState = mapOf("phantom" to Download.STATE_COMPLETED, "partial" to Download.STATE_COMPLETED),
+            bytesComplete = emptySet(),
+            anyBytes = setOf("partial"),
+        )
+        assertEquals(setOf("phantom"), plan.unmarkDownloaded)
+        assertTrue("some bytes left: kept, as before", "partial" !in plan.unmarkDownloaded)
+
+        val later = OfflineIntegrity.plan(
+            roomDownloaded = emptySet(),
+            indexState = mapOf("phantom" to Download.STATE_COMPLETED),
+            bytesComplete = setOf("phantom"),
+            anyBytes = setOf("phantom"),
+        )
+        assertEquals(setOf("phantom"), later.markDownloaded)
+    }
+
+    @Test
+    fun `a failed or stopped record without bytes keeps its flag, as before`() {
+        val plan = OfflineIntegrity.plan(
+            roomDownloaded = setOf("failed", "stopped"),
+            indexState = mapOf("failed" to Download.STATE_FAILED, "stopped" to Download.STATE_STOPPED),
+            bytesComplete = emptySet(),
+            anyBytes = emptySet(),
+        )
+        assertTrue(plan.unmarkDownloaded.isEmpty())
+    }
+
     @Test
     fun `a cache that lost everything un-lists everything it listed, honestly`() {
         val plan = OfflineIntegrity.plan(

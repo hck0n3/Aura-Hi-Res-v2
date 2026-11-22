@@ -49,8 +49,9 @@ internal object OfflineIntegrity {
 
     /**
      * Pure decision. [anyBytes] = ids with at least one cached span (a partial download); [indexState] = Media3's download
-     * state per id. A song is un-listed only when nothing at all is left AND Media3 has no record of it: a partial or a
-     * pending download is still "trying", and a flag flip is reversible anyway ([markDownloaded] restores it next start).
+     * state per id. A song is un-listed only when nothing at all is left AND Media3 is not working on it: no record, or a
+     * COMPLETED record whose bytes are gone (the update/restore phantom — listed forever, never plays offline). A partial
+     * or a pending download is still "trying", and a flag flip is reversible anyway ([markDownloaded] restores it next start).
      */
     fun plan(
         roomDownloaded: Set<String>,
@@ -60,7 +61,8 @@ internal object OfflineIntegrity {
     ): OfflinePlan {
         val mark = bytesComplete.filterTo(linkedSetOf()) { it !in roomDownloaded && indexState[it] !in PENDING }
         val unmark = roomDownloaded.filterTo(linkedSetOf()) { id ->
-            id !in bytesComplete && id !in anyBytes && indexState[id] == null
+            id !in bytesComplete && id !in anyBytes &&
+                (indexState[id] == null || indexState[id] == Download.STATE_COMPLETED)
         }
         return OfflinePlan(markDownloaded = mark, unmarkDownloaded = unmark)
     }

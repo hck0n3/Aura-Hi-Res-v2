@@ -3715,16 +3715,22 @@ class MusicService :
     }
 
     /** Same "playable with zero network" test the resolver itself applies — see [findNextOfflinePlayableIndex]. */
-    private fun isPlayableOffline(mediaId: String, exportedUris: Map<String, String>): Boolean {
-        if (mediaId.isLocalMediaId()) return true
-        val cachedLength = androidx.media3.datasource.cache.ContentMetadata.getContentLength(downloadCache.getContentMetadata(mediaId))
-        val isFullyDownloaded = cachedLength != C.LENGTH_UNSET.toLong() && cachedLength > 0 &&
-            downloadCache.isCached(mediaId, 0, cachedLength)
-        if (isFullyDownloaded) return true
-        if (fullyCachedListenUri(mediaId, null) != null) return true
-        val exportedUri = exportedUris[mediaId]
-        return !exportedUri.isNullOrBlank() && exportedFileUriExists(this, exportedUri)
-    }
+    private fun isPlayableOffline(mediaId: String, exportedUris: Map<String, String>): Boolean =
+        offlinePlayableSource(mediaId, exportedUris) != null
+
+    /** [OfflinePlayability] fed from this service's caches — the one "plays with zero network" test. */
+    internal fun offlinePlayableSource(mediaId: String, exportedUris: Map<String, String>): OfflinePlayability.Source? =
+        runCatching {
+            OfflinePlayability.source(
+                isLocal = mediaId.isLocalMediaId(),
+                downloadComplete = { OfflineIntegrity.isFullyOnDisk(downloadCache, mediaId) },
+                exportedFileExists = {
+                    exportedUris[mediaId]?.takeIf { it.isNotBlank() }?.let { exportedFileUriExists(this, it) } == true
+                },
+                downloadHasAnySpan = { downloadCache.getCachedSpans(mediaId).isNotEmpty() },
+                listenCacheComplete = { fullyCachedListenUri(mediaId, null) != null },
+            )
+        }.getOrNull()
 
     /** Jumps to a song [findNextOfflinePlayableIndex] already confirmed is playable with zero network. */
     private fun skipToOfflinePlayableSong(index: Int) {
@@ -8490,12 +8496,8 @@ class MusicService :
      * listen-cache copy — so it plays with zero network. Cheap metadata lookups; call off the UI
      * frame loop (the player reads it once per track to paint the scrubber fully loaded).
      */
-    fun isSongFullyCached(mediaId: String): Boolean = runCatching {
-        val downloadedLength = androidx.media3.datasource.cache.ContentMetadata
-            .getContentLength(downloadCache.getContentMetadata(mediaId))
-        (downloadedLength > 0 && downloadCache.isCached(mediaId, 0, downloadedLength)) ||
-            fullyCachedListenUri(mediaId, null) != null
-    }.getOrDefault(false)
+    fun isSongFullyCached(mediaId: String): Boolean =
+        OfflinePlayability.isCacheSource(offlinePlayableSource(mediaId, emptyMap()))
 
     /**
      * CACHE-FIRST VIDEO (owner directive 2026-09-13: "aunque haya internet, primero ve si lo tiene en
