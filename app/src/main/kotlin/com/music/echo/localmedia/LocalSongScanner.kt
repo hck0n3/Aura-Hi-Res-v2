@@ -144,7 +144,9 @@ constructor(
 
             snapshot.artists.forEach { artist ->
                 val existingArtist = existingArtists[artist.id]
-                insert(
+                if (existingArtist != null && existingArtist.isLocal) {
+                    update(existingArtist.copy(name = artist.name))
+                } else insert(
                     ArtistEntity(
                         id = artist.id,
                         name = artist.name,
@@ -159,7 +161,17 @@ constructor(
 
             snapshot.albums.forEach { album ->
                 val existingAlbum = existingAlbums[album.id]
-                insert(
+                if (existingAlbum != null && existingAlbum.isLocal) {
+                    update(
+                        existingAlbum.copy(
+                            title = album.title,
+                            year = album.year ?: existingAlbum.year,
+                            thumbnailUrl = album.thumbnailUrl ?: existingAlbum.thumbnailUrl,
+                            songCount = album.songCount,
+                            duration = album.duration,
+                        ),
+                    )
+                } else insert(
                     AlbumEntity(
                         id = album.id,
                         playlistId = null,
@@ -194,7 +206,20 @@ constructor(
 
             snapshot.tracks.forEach { track ->
                 val existingSong = existingSongs[track.id]?.song
-                insert(
+                if (existingSong != null && existingSong.isLocal) {
+                    update(
+                        existingSong.copy(
+                            title = track.title,
+                            duration = track.durationSeconds,
+                            thumbnailUrl = track.thumbnailUrl ?: existingSong.thumbnailUrl,
+                            albumId = track.albumId,
+                            albumName = track.albumName,
+                            year = track.year ?: existingSong.year,
+                            dateModified = track.dateModified ?: existingSong.dateModified,
+                            isVideo = track.isVideo,
+                        ),
+                    )
+                } else insert(
                     SongEntity(
                         id = track.id,
                         title = track.title,
