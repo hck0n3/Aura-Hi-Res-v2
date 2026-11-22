@@ -27,6 +27,9 @@ del que salió, no un despiste. No lo "arregles".
 
 ## Antes de tocar código — reglas duras
 
+**0. Todo cambio de código se hace con la skill `cirujano`** (`.claude/skills/cirujano/SKILL.md`), sin
+excepciones: arreglos, cambios pequeños y funciones nuevas.
+
 **1. `docs/REGRESSION_REGISTRY.md` es lectura obligatoria.** Registra 30+ fallos reportados con su causa raíz
 real y el archivo:línea que hace de guardián. Antes de dar por bueno un cambio, verifica —leyendo o
 grepeando el código, no solo compilando— que no revierte ninguno. Los archivos compartidos son la fuente #1
