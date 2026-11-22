@@ -425,6 +425,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
             return@withContext
         }
+        if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) mismatchReload = null
         // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
         //
         // 🔴 PETICIÓN DEL DUEÑO (2026-09-17): *"hazlo entonces como lo hace Sonos o AirPlay"*, tras
