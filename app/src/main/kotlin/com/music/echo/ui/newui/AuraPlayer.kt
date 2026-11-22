@@ -762,12 +762,40 @@ private fun AuraPlayerShape(
     val immersiveVideo = useWideShape && showVideoSurface
     // F-012 (owner 2026-11-22): «Fondo animado a pantalla completa en horizontal», off by default (registry #48).
     val immersiveCanvasOnRotate by rememberPreference(iad1tya.echo.music.constants.ImmersiveCanvasOnRotateKey, false)
-    val immersiveCanvasArtwork = if (isLandscape && immersiveCanvasOnRotate && canvasAvailable && !showVideoSurface && !inPipMode &&
+    val immersiveCanvasWanted = isLandscape && immersiveCanvasOnRotate && canvasEnabled && !showVideoSurface && !inPipMode &&
         !(isFullScreen && showInlineLyrics)
-    ) {
-        mediaMetadata?.id?.let { CanvasArtworkPlaybackCache.get(it) }
-    } else {
-        null
+    // The player looks the canvas up itself — [Thumbnail], which normally does it, is not on screen in this view — with the
+    // same lookup (Thumbnail.kt `canvasLookupWithoutNetwork` / `canvasLookupOverNetwork`). While the NEXT song's lookup runs,
+    // the previous canvas holds, so a track change does not drop back to the wide shape.
+    val immersiveCanvasStorefront = remember { iad1tya.echo.music.ui.player.canvasStorefront() }
+    val immersiveSpotifyCanvas by rememberPreference(iad1tya.echo.music.constants.EnableSpotifyCanvasKey, false)
+    var immersiveCanvasFound by remember(mediaMetadata?.id) { mutableStateOf<iad1tya.echo.music.canvas.CanvasArtwork?>(null) }
+    var immersiveCanvasLookupDone by remember(mediaMetadata?.id) { mutableStateOf(false) }
+    val immersiveCanvasHeld = remember { arrayOfNulls<iad1tya.echo.music.canvas.CanvasArtwork>(1) }
+    LaunchedEffect(mediaMetadata?.id, immersiveCanvasWanted, appInForeground) {
+        if (!immersiveCanvasWanted) return@LaunchedEffect
+        val id = mediaMetadata?.id ?: return@LaunchedEffect
+        val item = playerConnection.player.currentMediaItem?.takeIf { it.mediaId == id } ?: return@LaunchedEffect
+        val cached = CanvasArtworkPlaybackCache.get(id)
+            ?: iad1tya.echo.music.ui.player.canvasLookupWithoutNetwork(item, context.applicationContext).let { cheap ->
+                cheap.artwork ?: run {
+                    if (!appInForeground) return@LaunchedEffect
+                    iad1tya.echo.music.ui.player.canvasLookupOverNetwork(
+                        item, context.applicationContext, immersiveCanvasStorefront, immersiveSpotifyCanvas, appInForeground, cheap,
+                    )
+                }
+            }
+        immersiveCanvasFound = cached
+        immersiveCanvasLookupDone = true
+    }
+    val immersiveCanvasArtwork = when {
+        !immersiveCanvasWanted -> {
+            immersiveCanvasHeld[0] = null
+            null
+        }
+        immersiveCanvasFound != null -> immersiveCanvasFound.also { immersiveCanvasHeld[0] = it }
+        !immersiveCanvasLookupDone -> immersiveCanvasHeld[0]
+        else -> null
     }
 
     // Published by the fullscreen video so the pinned Cast button follows its tap-to-hide controls,
