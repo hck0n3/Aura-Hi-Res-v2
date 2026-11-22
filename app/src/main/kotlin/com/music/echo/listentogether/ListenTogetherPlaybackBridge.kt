@@ -104,6 +104,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     @Volatile
     private var pausedLocally = false
 
+    @Volatile
+    private var mismatchReload: Pair<String, Long>? = null
+
     private var started = false
     private var lastPublishedTrackId: String? = null
     private var lastAppliedTrackId: String? = null
@@ -271,6 +274,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // entra. Devolverla es parte de apagar la corrección, no un detalle.
                     onMain { restoreUserTempo() }
                     pausedLocally = false
+                    mismatchReload = null
                     lastAppliedTrackId = null
                     lastAppliedQueueIds = emptyList()
                     lastRoomPlaying = false
@@ -395,6 +399,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         val corrected = capToTrack(session.positionAt(position, isPlaying), roomTrack)
         val player = runCatching { service.player }.getOrNull() ?: return@withContext
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
+            val attempt = roomTrack.id to session.state.value.lastActionServerTime
+            if (mismatchReload == attempt) return@withContext
+            mismatchReload = attempt
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
             return@withContext
         }
