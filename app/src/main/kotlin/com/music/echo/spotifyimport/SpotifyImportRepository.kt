@@ -1053,9 +1053,9 @@ class SpotifyImportRepository @Inject constructor(
 
     /**
      * Searches YouTube Music for [spotifyArtist], picks the first result whose
-     * name likely matches, then upserts it as a bookmarked [ArtistEntity] and
-     * subscribes the channel on YouTube. Success when the artist was matched
-     * and bookmarked locally (the YouTube subscribe is best-effort).
+     * normalized name is identical, then upserts it as a followed [ArtistEntity].
+     * The YouTube subscribe is left to the library upload pass. Success when the
+     * artist was matched and followed locally, or the user had unfollowed it.
      */
     private suspend fun matchAndFollowArtistDetailed(spotifyArtist: SpotifyArtist): ItemMatchOutcome {
         val searchResult = searchWithRateLimitBackoff {
@@ -1074,7 +1074,10 @@ class SpotifyImportRepository @Inject constructor(
 
         val match = searchResult.items
             .filterIsInstance<ArtistItem>()
-            .firstOrNull { ArtistNameMatching.isLikelyMatch(spotifyArtist.name, it.title) }
+            .firstOrNull {
+                val name = ArtistNameMatching.normalize(spotifyArtist.name)
+                name.isNotEmpty() && name == ArtistNameMatching.normalize(it.title)
+            }
             ?: return ItemMatchOutcome.Failure(SpotifyImportFailureReason.NO_CANDIDATES)
 
         // Resolve the real channel id the same way SyncUtils does: search-result
@@ -1094,6 +1097,7 @@ class SpotifyImportRepository @Inject constructor(
             }
         val thumbnail = match.thumbnail
         val existing = database.artist(match.id).first()?.artist
+        if (existing?.unfollowedByUserAt != null) return ItemMatchOutcome.Success
 
         database.withTransaction {
             val now = LocalDateTime.now()
@@ -1120,37 +1124,17 @@ class SpotifyImportRepository @Inject constructor(
                         channelId = channelId,
                         bookmarkedAt = existing.bookmarkedAt ?: now,
                         followedByUserAt = existing.followedByUserAt ?: now,
-                        // A fresh follow supersedes any queued unsubscribe for this artist.
-                        unfollowedByUserAt = null,
                         lastUpdateTime = now,
                     ),
                 )
             }
         }
 
-        if (channelId.isNotEmpty()) {
-            // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a song
-            // appears to also subscribe its artist. This is the explicit Spotify-import follow path,
-            // not that flow — timestamp only (regla 4), for correlating against a like/dislike log
-            // line if the report reproduces during an import.
-            timber.log.Timber.i("ARTIST_SUBSCRIBE_IMPORT")
-            runCatching { YouTube.subscribeChannel(channelId, true) }
-                .onSuccess {
-                    // Confirmed on the account — record it so the library upload sync treats this
-                    // artist as already synced and never re-subscribes it.
-                    runCatching {
-                        database.withTransaction {
-                            getArtistById(match.id)?.let { row ->
-                                update(row.copy(ytmSyncedAt = LocalDateTime.now()))
-                            }
-                        }
-                    }
-                }
-                .onFailure { error ->
-                    if (error is CancellationException) throw error
-                    reportException(error)
-                }
-        }
+        // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a song
+        // appears to also subscribe its artist. This is the explicit Spotify-import follow path,
+        // not that flow — timestamp only (regla 4), for correlating against a like/dislike log
+        // line if the report reproduces during an import.
+        timber.log.Timber.i("ARTIST_SUBSCRIBE_IMPORT")
 
         return ItemMatchOutcome.Success
     }
