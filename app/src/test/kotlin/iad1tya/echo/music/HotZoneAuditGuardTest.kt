@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Registry rows 636-643 — the hot-zone audit of 2026-11-22 (docs/audit/AUDIT_TRACKER.md). Each test pins one fix so a
+ * Registry rows 636-644 — the hot-zone audit of 2026-11-22 (docs/audit/AUDIT_TRACKER.md). Each test pins one fix so a
  * later edit cannot quietly undo it. Source-text checks on purpose: these paths need a device (deep links, the player
  * sheet, a crossfade, an old SQLite) and none of them runs in a JVM test.
  */
@@ -78,5 +78,14 @@ class HotZoneAuditGuardTest {
         assertFalse(File(root, "app/src/main/kotlin/com/music/echo/ui/player/Player.kt").exists())
         assertTrue(main("ui/player/InlineLyricsView.kt").contains("fun InlineLyricsView("))
         assertTrue(main("ui/newui/NewUiHosts.kt").contains("NewUiGate(classic = player, new = player)"))
+    }
+
+    /** F-012 (registry #48): the full-screen canvas setting must be read by the only player there is. */
+    @Test
+    fun `the Aura player honours the full-screen canvas in landscape setting`() {
+        val src = main("ui/newui/AuraPlayer.kt")
+        assertTrue(src.contains("rememberPreference(iad1tya.echo.music.constants.ImmersiveCanvasOnRotateKey, false)"))
+        assertTrue(src.contains("immersiveCanvasArtwork != null -> {"))
+        assertTrue(src.contains("private fun AuraImmersiveCanvas("))
     }
 }
