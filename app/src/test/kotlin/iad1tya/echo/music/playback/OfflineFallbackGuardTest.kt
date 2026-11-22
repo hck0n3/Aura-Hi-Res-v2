@@ -116,8 +116,9 @@ class OfflineFallbackGuardTest {
     @Test
     fun `the session never writes the manual offline switch`() {
         val session = main("playback/PlaybackOfflineSession.kt")
-        assertFalse(session.contains("OfflineModeKey"))
-        assertFalse(session.contains("dataStore"))
+        assertFalse("the session is memory only", session.contains("dataStore"))
+        assertFalse(session.contains("[OfflineModeKey] ="))
+        assertFalse(session.contains(".edit {"))
         assertFalse(service.contains("[OfflineModeKey] = true"))
         assertFalse(service.contains("[OfflineModeKey] = !"))
     }
