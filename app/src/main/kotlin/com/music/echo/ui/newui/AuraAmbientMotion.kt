@@ -5,7 +5,6 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -14,7 +13,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.constants.HighPerformanceModeKey
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceTier
@@ -39,8 +37,7 @@ import kotlinx.coroutines.delay
  *  · **Solo invalida el DIBUJO** del fondo: nada se recompone. [auraBloom] aísla el contenido de la
  *    pantalla en su propia capa, así que cada paso vuelve a pintar solo los lóbulos (tres blits de una
  *    imagen pequeña ya rasterizada), no la pantalla entera.
- *  · **Se para** con la app en segundo plano o la pantalla apagada (`repeatOnLifecycle(STARTED)`), sin música
- *    sonando (en pausa o sin canción), con el
+ *  · **Se para** con la app en segundo plano o la pantalla apagada (`repeatOnLifecycle(STARTED)`), con el
  *    Modo rendimiento, con el móvil caliente ([rememberDeviceThrottle]), en equipos de gama baja, con el
  *    ahorro de batería del sistema y si el usuario quitó las animaciones del sistema. Parado, la fase se
  *    queda donde estaba: el fondo se ve igual de colorido, solo quieto.
@@ -94,11 +91,9 @@ object AuraAmbientMotion {
         val highPerformanceMode by rememberPreference(HighPerformanceModeKey, false)
         val deviceHot = rememberDeviceThrottle()
         val lowTier = remember { DeviceCapabilities.tier(context) == DeviceTier.LOW }
-        val playerConnection = LocalPlayerConnection.current
-        val playing = if (playerConnection != null) playerConnection.isEffectivelyPlaying.collectAsState().value else false
 
-        LaunchedEffect(highPerformanceMode, deviceHot, lowTier, playing, lifecycle) {
-            if (highPerformanceMode || deviceHot || lowTier || !playing) return@LaunchedEffect
+        LaunchedEffect(highPerformanceMode, deviceHot, lowTier, lifecycle) {
+            if (highPerformanceMode || deviceHot || lowTier) return@LaunchedEffect
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 var ticks = 0
                 var still = !motionAllowed(
