@@ -1220,10 +1220,13 @@ class MusicService :
      *  queue this session lands here (large bounded LRU, ~4000, thread-safe). Unlike [recentRadioIds] (last ~120)
      *  it spans the WHOLE session, so the radio pagination (Path A) and the re-seed / [orderedByTaste] paths can
      *  HARD-DROP anything already heard/queued — the infinite queue never repeats a song. */
+    private val noRepeatVersion = java.util.concurrent.atomic.AtomicInteger(0)
     internal val sessionPlayedIds: MutableSet<String> = java.util.Collections.synchronizedSet(
         java.util.Collections.newSetFromMap(
             object : java.util.LinkedHashMap<String, Boolean>(4096, 0.75f, false) {
                 override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean = size > 4000
+                override fun put(key: String, value: Boolean): Boolean? =
+                    super.put(key, value).also { if (it == null) noRepeatVersion.incrementAndGet() }
             }
         )
     )
@@ -1236,6 +1239,8 @@ class MusicService :
         java.util.Collections.newSetFromMap(
             object : java.util.LinkedHashMap<String, Boolean>(4096, 0.75f, false) {
                 override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean = size > 4000
+                override fun put(key: String, value: Boolean): Boolean? =
+                    super.put(key, value).also { if (it == null) noRepeatVersion.incrementAndGet() }
             }
         )
     )
@@ -1268,6 +1273,27 @@ class MusicService :
             runCatching { file.delete() }
         }
         persistedNoRepeatReady = true
+    }
+    @Volatile private var noRepeatSavedVersion = 0
+    private fun saveNoRepeatMemory(synchronous: Boolean = false) {
+        if (!persistedNoRepeatReady) return
+        val version = noRepeatVersion.get()
+        if (version == noRepeatSavedVersion) return
+        val write: () -> Unit = {
+            runCatching {
+                writePersistedFileAtomically(
+                    PERSISTENT_NO_REPEAT_FILE,
+                    arrayListOf(
+                        noRepeatSnapshot(persistedNoRepeatIds, sessionPlayedIds),
+                        noRepeatSnapshot(persistedNoRepeatKeys, sessionPlayedDedupKeys),
+                    ),
+                )
+                noRepeatSavedVersion = version
+            }.onFailure {
+                Timber.tag(TAG).w("NO_REPEAT memory save failed: %s", privacySafeSummary(it))
+            }
+        }
+        if (synchronous) write() else scope.launch(Dispatchers.IO) { write() }
     }
     private fun rememberQueuedItems(items: List<MediaItem>) {
         sessionPlayedIds.addAll(items.mapNotNull { it.mediaId.takeIf(String::isNotEmpty) })
@@ -1903,6 +1929,7 @@ class MusicService :
                 Intent.ACTION_SHUTDOWN,
                 Intent.ACTION_REBOOT,
                 -> {
+                    runCatching { saveNoRepeatMemory(synchronous = true) }
                     if (!dataStore.get(PersistentQueueKey, true)) return
                     runCatching { saveQueueToDisk(synchronous = true) }
                     runCatching { savePlaybackPositionToDiskSynchronous() }
@@ -3036,7 +3063,9 @@ class MusicService :
             }
 
 
-        scope.launch(Dispatchers.IO) { loadPersistedNoRepeat() }
+        scope.launch(Dispatchers.IO) {
+            loadPersistedNoRepeat()
+        }
         if (dataStore.get(PersistentQueueKey, true)) {
             val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
             if (queueFile.exists()) {
@@ -3226,6 +3255,7 @@ class MusicService :
         scope.launch {
             while (isActive) {
                 delay(30.seconds)
+                saveNoRepeatMemory()
                 if (dataStore.get(PersistentQueueKey, true) && queueDirty) {
                     queueDirty = false
                     saveQueueToDisk()
@@ -10260,11 +10290,6 @@ class MusicService :
                 playbackState = player.playbackState
             )
 
-            val persistNoRepeat = if (!persistedNoRepeatReady) null else arrayListOf(
-                noRepeatSnapshot(persistedNoRepeatIds, sessionPlayedIds),
-                noRepeatSnapshot(persistedNoRepeatKeys, sessionPlayedDedupKeys),
-            )
-
             // Snapshot is built above on the calling (player) thread; only the file IO runs off it.
             val writeAll: () -> Unit = {
                 runCatching {
@@ -10281,12 +10306,6 @@ class MusicService :
                 }.onFailure {
                     Timber.tag(TAG).e(it, "Failed to save automix")
                     reportException(it)
-                }
-
-                if (persistNoRepeat != null) runCatching {
-                    writePersistedFileAtomically(PERSISTENT_NO_REPEAT_FILE, persistNoRepeat)
-                }.onFailure {
-                    Timber.tag(TAG).w("NO_REPEAT memory save failed: %s", privacySafeSummary(it))
                 }
 
                 runCatching {
@@ -10424,6 +10443,7 @@ class MusicService :
         }
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         castConnectionHandler?.release()
+        runCatching { saveNoRepeatMemory(synchronous = true) }
         if (dataStore.get(PersistentQueueKey, true)) {
             saveQueueToDisk(synchronous = true)
         }
