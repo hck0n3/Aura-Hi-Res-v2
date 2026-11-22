@@ -440,6 +440,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)
         lastOrderHereAt = System.currentTimeMillis()
+        // The other device is addressing THIS one as the player: what it orders may start playback here.
+        RemotePlayback.grantLocalStart()
         if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like" || cmd == "playitem" || cmd == "volume" || cmd == "shuffle") {
             // The device that sent the order is showing OUR timeline: tell it the new state as soon as the player has settled,
             // not at the next heartbeat (row 534).
@@ -579,6 +581,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
         val position = state.estimatedPositionMs(serverNow()).coerceAtLeast(0L)
         Timber.tag(TAG).i("DEVICE_SYNC taking over items=%d index=%d", items.size, state.index)
+        RemotePlayback.grantLocalStart()
         onMain {
             service.remoteRedirectBypass = true
             try {
@@ -663,6 +666,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             Timber.tag(TAG).i("DEVICE_SYNC queue sent to the controlled device items=%d", window.size)
             RemotePlayback.playing.value = true
         } else {
+            // It will play here instead (MusicService.playQueue): the other device is no longer the one being controlled.
+            RemotePlayback.update(null, serverNow())
+            RemotePlayback.grantLocalStart()
+            Timber.tag(TAG).i("DEVICE_SYNC remote control off: the queue could not be sent, it plays here")
             DeviceSyncHub.notice("Sin conexión con la sincronización.")
         }
         return sent

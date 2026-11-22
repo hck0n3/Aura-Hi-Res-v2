@@ -259,6 +259,44 @@ object RemotePlayback {
     /** An order from another device that arrived this recently explains why this device just started playing: it is not a user's tap here. */
     const val COMMAND_GRACE_MS = 5_000L
 
+    @Volatile
+    private var localStartGrantedAt = 0L
+
+    /**
+     * This device has been told to play HERE (an order from another device, a take-over, a queue that could not be sent away): for
+     * [COMMAND_GRACE_MS] a local start is allowed even while another device is still shown.
+     */
+    fun grantLocalStart(nowMs: Long = System.currentTimeMillis()) {
+        localStartGrantedAt = nowMs
+    }
+
+    /**
+     * Pure (owner 2026-11-22: «la música que sonaba en el dispositivo 2 se pasó sola al 1, y Aura se abrió sola»): while another device is
+     * shown and controlled from here, this player only holds its mirror. Anything that starts it locally without a grant — Bluetooth
+     * resume, audio focus coming back, the network coming back, an error skip — is not a reason for the music to move here, the same
+     * way a cast session keeps the local player silent.
+     */
+    fun blocksLocalStart(remoteActive: Boolean, msSinceGrant: Long): Boolean =
+        remoteActive && msSinceGrant !in 0..COMMAND_GRACE_MS
+
+    fun blocksLocalStartNow(nowMs: Long = System.currentTimeMillis()): Boolean =
+        blocksLocalStart(active, nowMs - localStartGrantedAt)
+
+    /** What an external PLAY (notification, lock screen, Bluetooth, watch, Android Auto) does. */
+    enum class ExternalPlay { LOCAL, REMOTE, IGNORE }
+
+    /**
+     * Pure. Without a remote it plays here as always. With one, the button the controller shows is THIS player's (paused), so a press
+     * is a play, and it goes to the device that really plays — except a PLAY from another app within [shieldMs] of an audio route
+     * connecting, which is the Bluetooth stack's reconnect echo (registry 422), not a person: it is dropped instead of starting
+     * the other device.
+     */
+    fun externalPlay(remoteActive: Boolean, fromOwnPackage: Boolean, sinceRouteConnectedMs: Long, shieldMs: Long): ExternalPlay = when {
+        !remoteActive -> ExternalPlay.LOCAL
+        !fromOwnPackage && sinceRouteConnectedMs in 0..shieldMs -> ExternalPlay.IGNORE
+        else -> ExternalPlay.REMOTE
+    }
+
     /**
      * Row 594 (owner 2026-10-31: «si está en remoto solo uno de los dos dispositivos debe mandar audio y obedecer al otro»): the device the
      * user just started playing on is the one that sounds. True when THIS device has just started playing by its own user's action while

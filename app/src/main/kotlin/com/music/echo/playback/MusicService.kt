@@ -7244,6 +7244,13 @@ class MusicService :
             player.pause()
             return
         }
+        // While another of the user's devices is controlled from here, this player only holds its mirror: like the cast guard
+        // above, nothing may start it locally unless the device-sync engine granted it (take-over, an order from that device).
+        if (playWhenReady && !remoteRedirectBypass && iad1tya.echo.music.devicesync.RemotePlayback.blocksLocalStartNow()) {
+            Timber.tag(TAG).i("START_CAUSE=blocked_remote_mode reason=%d", reason)
+            player.pause()
+            return
+        }
         if (playWhenReady && mirrorUnprepared && player.playbackState == Player.STATE_IDLE) player.prepare()
         scheduleSoftVideoRestoreOnPause(playWhenReady)
 
@@ -10550,6 +10557,9 @@ class MusicService :
             MusicWidgetReceiver.ACTION_PLAY_PAUSE -> {
                 if (player.isPlaying) {
                     player.pause()
+                } else if (iad1tya.echo.music.devicesync.RemotePlayback.play()) {
+                    // Another device is controlled from here: its play button is the widget's.
+                    Timber.tag(TAG).i("START_CAUSE=widget_remote")
                 } else {
                     // #27: a home-screen widget tap is a GENUINE user action → allow it to start a restored
                     // queue (prepare() is a no-op if already prepared) AND drop the veto so external controls
