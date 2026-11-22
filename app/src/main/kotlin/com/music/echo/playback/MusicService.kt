@@ -4180,7 +4180,7 @@ class MusicService :
             ) {
                 recentlyPlayedIds()
                 everPlayedIds()
-                val split =laneStatus.mediaItemIndex.coerceIn(0, laneStatus.items.size - 1) + 1
+                val split = laneStatus.mediaItemIndex.coerceIn(0, laneStatus.items.size - 1) + 1
                 val tail = laneStatus.items.subList(split, laneStatus.items.size)
                 val kept = tail.filterNot { it.isHeardForSmartQueue(null) }
                 if (kept.isEmpty() && tail.isNotEmpty()) heardFilterEmptiedGeneration = myGeneration
