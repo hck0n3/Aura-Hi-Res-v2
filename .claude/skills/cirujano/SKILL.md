@@ -1,6 +1,6 @@
 ---
 name: cirujano
-description: Use when the owner asks to fix a reported bug or make a small, targeted change in Aura Hi-Res v2 without breaking existing behavior or adding unrequested features — "arregla", "corrige", "cambia solo", "sin romper nada", "modo cirujano", or any edit touching shared files like MusicService.kt, Player.kt, App.kt, Utils.kt, Lyrics.kt, YTPlayerUtils.kt, HomeScreen.kt or Thumbnail.kt.
+description: Use when the owner asks for ANY code change in Aura Hi-Res v2 — a bug fix, a small change, a new option, "arregla", "corrige", "cambia", "añade", "quita", "sin romper nada", "modo cirujano" — and before any edit to shared files like MusicService.kt, Player.kt, App.kt, Utils.kt, Lyrics.kt, YTPlayerUtils.kt, HomeScreen.kt or Thumbnail.kt.
 ---
 
 # Cirujano — edición quirúrgica en Aura Hi-Res v2 (cero regresiones)
@@ -10,6 +10,18 @@ description: Use when the owner asks to fix a reported bug or make a small, targ
 
 Este skill **no sustituye** a `AGENTS.md`: lo aplica a un cambio puntual. Si algo de aquí choca con
 `AGENTS.md`, manda `AGENTS.md`.
+
+## 0. Nada inventado, nada improvisado
+
+- **Todo lo que escribas o afirmes sale de algo leído en este repo o ejecutado en esta sesión.** Antes de
+  usar una función, clase, parámetro, ajuste, ruta o API, ábrela y comprueba que existe con esa firma.
+  Nada "de memoria" ni "suele llamarse así".
+- **Nunca inventes valores** (umbrales, IDs, claves, configuraciones del player, versiones). Si el valor
+  no está en el código ni se puede medir, pregúntalo.
+- **Si la petición admite dos lecturas, pregunta antes de escribir código.** Una pregunta corta es mejor
+  que adivinar. No elijas tú la interpretación "más razonable".
+- **Si no sabes algo, dilo:** "no lo sé" o "no lo he comprobado". Nunca lo rellenes con una suposición
+  presentada como hecho.
 
 ## 1. Antes de editar
 
@@ -32,15 +44,19 @@ Este skill **no sustituye** a `AGENTS.md`: lo aplica a un cambio puntual. Si alg
 
 ## 2. Alcance
 
-- Modifica **solo** lo pedido. Nada de refactorizar, renombrar, reformatear ni "mejorar" código vecino.
+- **Ni una línea que el dueño no haya pedido.** Cada línea añadida, cambiada o borrada debe ser
+  necesaria para cumplir la orden. Si quitarla no impide cumplirla, sobra.
+- Nada de refactorizar, renombrar, reformatear, reordenar imports ni "mejorar" código vecino.
+- **Sin comentarios nuevos**, logs, opciones, ajustes ni textos de interfaz que no se hayan pedido.
 - Conserva firmas, tipos y contratos salvo que se pida cambiarlos.
 - Diff mínimo: nunca reescribas un archivo entero para cambiar unas líneas.
-- **Comentarios:** solo uno, junto al fix, si explica un guardián no obvio (el porqué, no el qué).
-- **Excepción obligatoria:** si arreglas un bug **reportado**, añade su fila a
-  `docs/REGRESSION_REGISTRY.md` (causa raíz real + archivo:línea guardián) **y un test guardián** en
-  `app/src/test/` que falle si el arreglo desaparece (modelo: `viewmodels/BackupRestoreRegistryGuardTest.kt`).
-  Ninguna de las dos cosas cuenta como "extra".
+- **Registro y test guardián, solo con permiso.** Si arreglas un bug reportado, **propón** en el informe
+  la fila para `docs/REGRESSION_REGISTRY.md` y un test guardián (modelo:
+  `viewmodels/BackupRestoreRegistryGuardTest.kt`). Se añaden solo si el dueño dice que sí, en su propio commit.
 - Otro problema que veas: una línea al final del informe. No lo toques.
+
+**Revisión del diff antes de entregar (obligatoria):** lee `git diff` línea por línea. Para cada
+línea, responde "¿qué parte de la orden exige esto?". Si no tiene respuesta, quítala.
 
 ## 3. Zonas prohibidas (salvo petición explícita)
 
@@ -77,8 +93,9 @@ aprobación al dueño**, y modificarlas desde la shell **se bloquea**. Si el hoo
 - Si toca Cast/Crashlytics, compila también `assembleUniversalGmsDebug`.
 - **Traza el fix hasta el efecto:** ¿se ejecuta?, ¿en el dispositivo y configuración del usuario?,
   ¿el valor llega a lo que produce el efecto?, ¿hay un gate o un default que lo anule?
-- Si el build o un test falla: corrígelo, o revierte **solo tus propios cambios** (no descartes trabajo
-  ajeno del árbol con `git checkout .`/`reset --hard`).
+- Si el build o un test falla **por tu cambio**: corrígelo dentro de tu cambio, o revierte **solo tus
+  propios cambios** (no descartes trabajo ajeno con `git checkout .`/`reset --hard`).
+- Si falla **por algo que ya estaba roto** antes de tu cambio: no lo arregles. Dilo en el informe.
 - **Un test guardián en rojo es una regresión, no un test desfasado.** Nunca lo borres, lo debilites ni
   le cambies la expectativa para que pase. Para y explica qué arreglo antiguo está rompiendo el cambio.
   Solo si el dueño confirma que ese comportamiento debe cambiar, se actualiza el test junto con su fila.
@@ -104,7 +121,8 @@ Commit: <sha corto> — <mensaje>
 Archivo(s): <ruta:línea>
 Cambio: <una línea>
 Verificación: <comando → BUILD SUCCESSFUL / FAIL / no ejecutado (motivo)>
-Registro: <filas revisadas, p. ej. #12 #43 — sin conflicto> | <fila nueva #N>
+Registro: <filas revisadas, p. ej. #12 #43 — sin conflicto>
+Propuesta (solo si dices que sí): <fila de registro + test guardián, o "nada">
 No verificado: <lo que solo se comprueba en el dispositivo, o "nada">
 Visto, sin tocar: <una línea por problema, o "nada">
 ```
@@ -114,6 +132,10 @@ Visto, sin tocar: <una línea por problema, o "nada">
 | Pensamiento | Realidad |
 |---|---|
 | "Ya que estoy, arreglo esto otro" | Fuera de alcance. Una línea en el informe. |
+| "Seguro que esta función existe" | Ábrela y compruébalo antes de usarla. |
+| "Entiendo lo que quiere decir" | Si hay dos lecturas, pregunta. |
+| "Un comentario/log/opción extra ayuda" | No lo pidió. Quítalo. |
+| "Este valor debería funcionar" | Un valor no medido es inventado. Pregunta. |
 | "Compila, está arreglado" | Placebo ×5 en este repo. Traza hasta el efecto. |
 | "Este comentario dice que es un no-op" | Es una hipótesis; verifícala (registro #43). |
 | "Un log de depuración no hace daño" | Va al archivo que el usuario comparte. |
