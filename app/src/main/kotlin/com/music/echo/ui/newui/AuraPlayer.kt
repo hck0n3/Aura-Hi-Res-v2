@@ -2108,6 +2108,15 @@ private fun AuraPlayerShape(
         // ── LA DISPOSICIÓN ────────────────────────────────────────────────────────────────────────
         // The ONLY thing that changes with the window. Each branch calls the same three blocks above;
         // none of them re-declares a control, a gesture or a preference read.
+        // The play/pause of the two full-screen overlays (video and, F-012, canvas): one lambda, so a guest still mutes and
+        // a remote / Cast device still gets the order (RemotePlaybackGuardTest counts this routing).
+        val immersivePlayPause: () -> Unit = {
+            when {
+                isListenTogetherGuest -> playerConnection.toggleMute()
+                isCasting -> if (castIsPlaying) outsidePause() else outsidePlay()
+                else -> playerConnection.togglePlayPause()
+            }
+        }
         when {
             // 1) LANDSCAPE REAL + VÍDEO → pantalla completa (§2.8). Routed by the REAL orientation, not
             //    by width, for the same reason the classic player does it (Player.kt:2747): the video
@@ -2140,13 +2149,7 @@ private fun AuraPlayerShape(
                     playButtonInk = playButtonInk,
                     onPrevious = playerConnection::seekToPrevious,
                     onNext = playerConnection::seekToNext,
-                    onPlayPause = {
-                        when {
-                            isListenTogetherGuest -> playerConnection.toggleMute()
-                            isCasting -> if (castIsPlaying) outsidePause() else outsidePlay()
-                            else -> playerConnection.togglePlayPause()
-                        }
-                    },
+                    onPlayPause = immersivePlayPause,
                     onExitVideo = { playerConnection.toggleVideoMode() },
                     onControlsVisibilityChanged = { immersiveControlsVisible = it },
                 )
@@ -2171,13 +2174,7 @@ private fun AuraPlayerShape(
                     playButtonInk = playButtonInk,
                     onPrevious = playerConnection::seekToPrevious,
                     onNext = playerConnection::seekToNext,
-                    onPlayPause = {
-                        when {
-                            isListenTogetherGuest -> playerConnection.toggleMute()
-                            isCasting -> if (castIsPlaying) outsidePause() else outsidePlay()
-                            else -> playerConnection.togglePlayPause()
-                        }
-                    },
+                    onPlayPause = immersivePlayPause,
                     onControlsVisibilityChanged = { immersiveControlsVisible = it },
                 )
             }
