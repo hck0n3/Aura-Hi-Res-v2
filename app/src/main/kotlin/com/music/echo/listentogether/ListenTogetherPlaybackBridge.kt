@@ -51,10 +51,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -70,6 +72,13 @@ private const val HEARTBEAT_INTERVAL_MS = 15_000L
  * ([SyncCorrection.IN_SYNC_MS], 60 ms): a smaller drift would make no guest correct anything, so publishing it is noise.
  */
 internal const val HOST_DRIFT_REPUBLISH_MS = 80L
+
+/**
+ * Whether a guest realigns to the room on a READY edge or a clock calibration: only while the room plays and the user has not paused
+ * this device (its pause stays, row 647), and not for the READY that the previous realign's own jump caused.
+ */
+internal fun shouldRealignGuest(roomPlaying: Boolean, pausedLocally: Boolean, causedByOwnJump: Boolean): Boolean =
+    roomPlaying && !pausedLocally && !causedByOwnJump
 
 /** Whether the host, hearing [heardMs] while its last anchor puts the room at [roomMs], should republish its position. */
 internal fun hostDriftNeedsRepublish(heardMs: Long, roomMs: Long): Boolean = kotlin.math.abs(heardMs - roomMs) > HOST_DRIFT_REPUBLISH_MS
@@ -145,6 +154,13 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** The loaded item's media id and the player's playback state, as the listener last saw them: what the buffer barrier answers from. */
     private val playerReadiness = MutableStateFlow<Pair<String?, Int>>(null to Player.STATE_IDLE)
 
+    /** Bumped each time the player goes from BUFFERING to READY: the moment a guest's audio can actually start. */
+    private val readyAfterBuffering = MutableStateFlow(0)
+
+    /** Set when the realign after a READY jumped the playhead, so the READY that jump causes does not realign again. */
+    @Volatile
+    private var skipNextReadyRealign = false
+
     /** The player the listener is currently installed on. Main thread only. */
     private var listeningTo: ExoPlayer? = null
 
@@ -169,6 +185,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { watchRoomForGuests() }
         scope.launch { guestPositionHeartbeat() }
         scope.launch { hostDriftHeartbeat() }
+        scope.launch { realignGuestWhenAudioIsReady() }
         scope.launch { publishCurrentStateOnJoin() }
         scope.launch { publishStateWhenSomeoneArrives() }
         scope.launch { publishTrackChangesAsHost() }
@@ -244,7 +261,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
+            val previous = playerReadiness.value.second
             playerReadiness.value = listeningTo?.currentMediaItem?.mediaId to playbackState
+            if (previous == Player.STATE_BUFFERING && playbackState == Player.STATE_READY) readyAfterBuffering.value++
         }
 
         override fun onMediaItemTransition(
@@ -415,6 +434,40 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     }
 
     /**
+     * A late guest lands where the room IS once its audio can start, not 15 s later on the heartbeat.
+     *
+     * A guest loads the room's track at the room's position as computed when the command arrived, and then spends the resolve and
+     * the start buffer (one to three seconds) getting there: when it starts playing it is that far behind, and the same after a
+     * mid-song stall. Likewise a guest that joined before its clock was calibrated used the room's position uncorrected. So on the
+     * player's BUFFERING→READY edge, and once when the clock calibrates, the room's last known state goes through [applyTransport]
+     * again — the heartbeat's own path, with its own guards (pausedLocally, the wrong track reloaded once, capToTrack, main thread).
+     * A READY caused by the jump this makes is not realigned again, so a slow network cannot turn it into a seek loop.
+     */
+    private suspend fun realignGuestWhenAudioIsReady() {
+        merge(
+            readyAfterBuffering.drop(1).map { true },
+            session.clockReadyCount.drop(1).map { false },
+        ).collect { afterBuffering ->
+            val causedByOwnJump = afterBuffering && skipNextReadyRealign
+            if (afterBuffering) skipNextReadyRealign = false
+            val state = session.state.value
+            if (!state.inRoom || state.isHost) return@collect
+            if (!shouldRealignGuest(state.isPlaying, pausedLocally, causedByOwnJump)) return@collect
+            val service = serviceFlow.value ?: return@collect
+            remoteDepth.incrementAndGet()
+            try {
+                val seeked = applyTransport(service, state.isPlaying, state.position, state.currentTrack, state.lastActionServerTime)
+                if (afterBuffering && seeked) skipNextReadyRealign = true
+                Timber.tag(TAG).i("Guest realigned to the room after %s (jumped=%b)", if (afterBuffering) "buffering" else "clock calibration", seeked)
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Failed to realign to the room")
+            } finally {
+                remoteDepth.decrementAndGet()
+            }
+        }
+    }
+
+    /**
      * The host's side of the heartbeat: re-anchors the room when the host has drifted from what it last told it.
      *
      * The host publishes its position only on events. When its audio starts later than the change_track it published at 0 (a slow
@@ -473,21 +526,23 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         position: Long,
         roomTrack: TrackInfo?,
         anchorServerTime: Long,
-    ) = withContext(Dispatchers.Main.immediate) {
+    ): Boolean = withContext(Dispatchers.Main.immediate) {
+        // True only when this call jumped the playhead (SyncAction.Resync): see [realignGuestWhenAudioIsReady].
+        var seeked = false
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
-        val player = runCatching { service.player }.getOrNull() ?: return@withContext
+        val player = runCatching { service.player }.getOrNull() ?: return@withContext false
         val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
         val corrected = capToTrack(session.positionAt(position, isPlaying, anchorServerTime), roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
             val previous = player.previousMediaItemIndex
             val cameFromRoomTrack = previous != androidx.media3.common.C.INDEX_UNSET && player.getMediaItemAt(previous).mediaId == roomTrack.id
-            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@withContext
+            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@withContext false
             val attempt = roomTrack.id to anchorServerTime
-            if (mismatchReload == attempt) return@withContext
+            if (mismatchReload == attempt) return@withContext false
             mismatchReload = attempt
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
-            return@withContext
+            return@withContext false
         }
         if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) mismatchReload = null
         // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
@@ -518,7 +573,10 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 ),
                 targetMs = corrected,
             )
-            if (action is SyncAction.Resync) player.seekTo(action.positionMs)
+            if (action is SyncAction.Resync) {
+                player.seekTo(action.positionMs)
+                seeked = true
+            }
 
             val target = SyncCorrection.playerSpeed(userTempo, action)
             // Recordar el tempo del usuario SOLO mientras se corrige; en cuanto deja de corregirse
@@ -544,6 +602,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         } else if (!isPlaying && player.playWhenReady) {
             player.pause()
         }
+        seeked
     }
 
     /**

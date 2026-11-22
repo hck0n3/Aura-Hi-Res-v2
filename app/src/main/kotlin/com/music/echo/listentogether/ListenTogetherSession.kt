@@ -128,6 +128,11 @@ class ListenTogetherSession(
     private val _state = MutableStateFlow(ListenTogetherState())
     val state: StateFlow<ListenTogetherState> = _state.asStateFlow()
 
+    private val _clockReadyCount = MutableStateFlow(0)
+
+    /** Bumped each time the server clock becomes usable (first pong of a socket): positions computed before it were uncorrected. */
+    val clockReadyCount: StateFlow<Int> = _clockReadyCount.asStateFlow()
+
     private var pump: Job? = null
 
     /**
@@ -402,7 +407,7 @@ class ListenTogetherSession(
                 flushQueuedRoomAction()
             }
 
-            is ListenTogetherEvent.ClockReady -> Unit
+            is ListenTogetherEvent.ClockReady -> _clockReadyCount.update { it + 1 }
 
             is ListenTogetherEvent.Disconnected ->
                 _state.update {
