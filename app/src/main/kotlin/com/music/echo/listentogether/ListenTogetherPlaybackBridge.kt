@@ -24,7 +24,7 @@
  *
  * The DECISIONS are SimpMusic's verbatim (play intent decided before loading, playWhenReady not
  * isPlaying, guests may pause and stay paused, queue carried on the same message as the track, the
- * queue republished on its own, buffer barrier answered from bufferedPercentage); only the calls
+ * queue republished on its own, buffer barrier answered once the room's track is READY); only the calls
  * into the player differ.
  *
  * The direction of travel is decided entirely by who hosts:
@@ -49,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -132,6 +133,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** Bumped whenever the host's timeline changes, so the queue can be republished on its own. */
     private val timelineRevision = MutableStateFlow(0)
 
+    /** The loaded item's media id and the player's playback state, as the listener last saw them: what the buffer barrier answers from. */
+    private val playerReadiness = MutableStateFlow<Pair<String?, Int>>(null to Player.STATE_IDLE)
+
     /** The player the listener is currently installed on. Main thread only. */
     private var listeningTo: ExoPlayer? = null
 
@@ -183,6 +187,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         if (previous === player) return
         previous?.removeListener(playerListener)
         listeningTo = player
+        playerReadiness.value = player?.currentMediaItem?.mediaId to (player?.playbackState ?: Player.STATE_IDLE)
         if (player == null) return
         player.addListener(playerListener)
         // Seed, or the first publish after a player swap compares against a stale intent.
@@ -226,6 +231,17 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             isPlayingNow.value = isPlaying
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            playerReadiness.value = listeningTo?.currentMediaItem?.mediaId to playbackState
+        }
+
+        override fun onMediaItemTransition(
+            mediaItem: androidx.media3.common.MediaItem?,
+            reason: Int,
+        ) {
+            playerReadiness.value = mediaItem?.mediaId to (listeningTo?.playbackState ?: Player.STATE_IDLE)
         }
 
         override fun onTimelineChanged(
@@ -827,34 +843,34 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
     /**
      * Answers the barrier for OURSELVES: when the room says it is waiting on this device, report
-     * readiness once the current track has enough buffered.
+     * readiness once the ROOM's track is the loaded item and the player is READY with it.
      *
      * Nobody in the room hears anything until every member answers, so a client that never sends
-     * this silently freezes playback for everyone — including the host.
+     * this silently freezes playback for everyone — including the host. The opposite is just as
+     * wrong: this used to answer after 2 s whatever the player was doing, and from
+     * `bufferedPercentage` (a share of the whole song, of whatever item was loaded — the previous
+     * song still counted), so the room started without the slow device. A device that never gets
+     * ready is the server's timeout to release, which is the safety valve upstream relies on too.
+     * Driven by the listener's events: nothing is polled while the room waits.
      */
     private suspend fun answerBufferBarrier() {
-        session.state
-            .map { it.waitingFor to it.currentTrack?.id }
-            .distinctUntilChanged()
-            .collect { (waitingFor, trackId) ->
-                val state = session.state.value
-                if (trackId.isNullOrBlank() || !state.inRoom) return@collect
-                if (state.selfUserId !in waitingFor) return@collect
-                val service = serviceFlow.value ?: return@collect
-                // bufferedPercentage, not isPlaying: the barrier asks whether the track is loaded,
-                // and playback is exactly what it is holding back.
-                val buffered = onMain { runCatching { service.player.bufferedPercentage }.getOrDefault(0) }
-                if (buffered >= READY_BUFFER_PERCENT) {
-                    session.reportBufferReady(trackId)
-                } else {
-                    // Not ready yet — one re-check after a short wait, then answer anyway: a
-                    // stalled local resolve must not freeze everyone forever, and the server keeps
-                    // its own timeout (the SimpMusic bridge answers the moment it is ready; the
-                    // fallback here is the safety valve that upstream leaves to the server).
-                    delay(BARRIER_RECHECK_MS)
-                    session.reportBufferReady(trackId)
-                }
-            }
+        var answered = -1
+        combine(
+            session.state
+                .map { s ->
+                    Triple(s.bufferWaitRevision, s.inRoom && s.selfUserId.isNotBlank() && s.selfUserId in s.waitingFor, s.currentTrack?.id)
+                }.distinctUntilChanged(),
+            playerReadiness,
+        ) { (revision, waitingOnMe, trackId), (loadedId, playbackState) ->
+            Triple(waitingOnMe, revision, trackId?.takeIf { bufferBarrierReady(it, loadedId, playbackState) })
+        }.collect { (waitingOnMe, revision, readyTrackId) ->
+            // The barrier is over (or the room state was reset): the next one is answered whatever its revision.
+            if (!waitingOnMe) answered = -1
+            if (!waitingOnMe || readyTrackId == null || revision == answered) return@collect
+            answered = revision
+            Timber.tag(TAG).i("Buffer barrier: ready on %s", readyTrackId.asLogToken())
+            session.reportBufferReady(readyTrackId)
+        }
     }
 
     /**
@@ -928,17 +944,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         /** How much of the host's timeline rides along with a track change. */
         const val HOST_QUEUE_WINDOW = 25
 
-        const val READY_BUFFER_PERCENT = 5
-
         const val TRACK_END_MARGIN_MS = 500L
 
         const val TRACK_END_HANDOFF_MS = 2_000L
-
-        /** One re-check before giving the room our ready anyway (the server has its own timeout). */
-        const val BARRIER_RECHECK_MS = 2_000L
     }
 }
 
+
+/**
+ * Has this device the room's track ready for the buffer barrier? Only when [loadedId] (the player's current item) IS [roomTrackId] and
+ * the player is READY with it (media3 reaches READY once the load control's start buffer is in, see MusicService's DefaultLoadControl).
+ */
+internal fun bufferBarrierReady(roomTrackId: String?, loadedId: String?, playbackState: Int): Boolean =
+    !roomTrackId.isNullOrBlank() && loadedId == roomTrackId && playbackState == Player.STATE_READY
 
 /**
  * The list the guest loads and where it starts in it: the room's queue AS THE HOST HAS IT, starting at [current].

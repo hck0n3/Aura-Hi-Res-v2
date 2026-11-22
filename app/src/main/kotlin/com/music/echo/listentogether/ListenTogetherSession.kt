@@ -79,6 +79,11 @@ data class ListenTogetherState(
     val queue: List<TrackInfo> = emptyList(),
     /** Non-empty while the room is held at the buffer barrier. */
     val waitingFor: List<String> = emptyList(),
+    /**
+     * Bumped by every `buffer_wait`: a second barrier (another seek) can arrive with the SAME waiting list while the first is still
+     * open, and each one needs its own answer.
+     */
+    val bufferWaitRevision: Int = 0,
     /** Server time the last transport command was captured at; 0 when unknown. */
     val lastActionServerTime: Long = 0L,
     /**
@@ -515,6 +520,7 @@ class ListenTogetherSession(
                 _state.update { s ->
                     s.copy(
                         waitingFor = p.waitingFor,
+                        bufferWaitRevision = s.bufferWaitRevision + 1,
                         members = s.members.map { it.copy(isBuffering = it.userId in p.waitingFor) },
                     )
                 }
