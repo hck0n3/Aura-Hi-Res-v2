@@ -231,6 +231,11 @@ class CrashHandler private constructor(
         while (t != null && depth < 12) {
             val m = t.message?.lowercase().orEmpty()
             if (m.contains("connection is closed") || m.contains("error code: 21")) return true
+            if (m.contains("re-open an already-closed object: sqlitedatabase")) return true
+            if (t.suppressed.any { s ->
+                    s.message?.lowercase().orEmpty().let { it.contains("connection is closed") || it.contains("error code: 21") }
+                }
+            ) return true
             t = t.cause
             depth++
         }
