@@ -760,6 +760,13 @@ private fun AuraPlayerShape(
         videoSurfaceVisible = showVideoSurface,
     )
     val immersiveVideo = useWideShape && showVideoSurface
+    // F-012 (owner 2026-11-22): «Fondo animado a pantalla completa en horizontal», off by default (registry #48).
+    val immersiveCanvasOnRotate by rememberPreference(iad1tya.echo.music.constants.ImmersiveCanvasOnRotateKey, false)
+    val immersiveCanvasArtwork = if (isLandscape && immersiveCanvasOnRotate && canvasAvailable && !showVideoSurface && !inPipMode) {
+        mediaMetadata?.id?.let { CanvasArtworkPlaybackCache.get(it) }
+    } else {
+        null
+    }
 
     // Published by the fullscreen video so the pinned Cast button follows its tap-to-hide controls,
     // exactly as the classic player's `immersiveControlsVisible` does. Lives in the BODY, not in the
@@ -2115,6 +2122,35 @@ private fun AuraPlayerShape(
                 )
             }
 
+            immersiveCanvasArtwork != null -> {
+                AuraImmersiveCanvas(
+                    primaryUrl = immersiveCanvasArtwork.animated,
+                    fallbackUrl = immersiveCanvasArtwork.videoUrl,
+                    isPlaying = if (isListenTogetherGuest) !isMuted else effectiveIsPlaying,
+                    playPauseDescription = when {
+                        isListenTogetherGuest ->
+                            if (isMuted) stringResource(R.string.unmute) else stringResource(R.string.mute)
+                        effectiveIsPlaying -> stringResource(R.string.pause)
+                        else -> stringResource(R.string.play)
+                    },
+                    canSkipPrevious = canSkipPrevious && !isListenTogetherGuest,
+                    canSkipNext = canSkipNext && !isListenTogetherGuest,
+                    isTvOrCar = isTvOrCar,
+                    playButtonFill = playButtonFill,
+                    playButtonInk = playButtonInk,
+                    onPrevious = playerConnection::seekToPrevious,
+                    onNext = playerConnection::seekToNext,
+                    onPlayPause = {
+                        when {
+                            isListenTogetherGuest -> playerConnection.toggleMute()
+                            isCasting -> if (castIsPlaying) outsidePause() else outsidePlay()
+                            else -> playerConnection.togglePlayPause()
+                        }
+                    },
+                    onControlsVisibilityChanged = { immersiveControlsVisible = it },
+                )
+            }
+
             // 2) ANCHO / APAISADO → dos o tres partes.
             //
             //    `isWideLayout` (>= 600 dp of WINDOW width) buys the third part: the live queue column.
@@ -2609,6 +2645,123 @@ private fun AuraImmersiveVideo(
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * F-012 (owner 2026-11-22, registry #48): the classic player's «Fondo animado a pantalla completa en horizontal» in the
+ * Aura shape — only the canvas, full bleed, with previous / play / next that hide after 3.5 s and come back on a tap.
+ * The same overlay as [AuraImmersiveVideo], without the video surface, the system-bar hiding or the way out of video.
+ */
+@Composable
+private fun AuraImmersiveCanvas(
+    primaryUrl: String?,
+    fallbackUrl: String?,
+    isPlaying: Boolean,
+    playPauseDescription: String,
+    canSkipPrevious: Boolean,
+    canSkipNext: Boolean,
+    isTvOrCar: Boolean,
+    playButtonFill: Brush,
+    playButtonInk: Color,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onPlayPause: () -> Unit,
+    onControlsVisibilityChanged: (Boolean) -> Unit,
+) {
+    var controlsVisible by remember { mutableStateOf(true) }
+    val publishVisibility by rememberUpdatedState(onControlsVisibilityChanged)
+    LaunchedEffect(controlsVisible) { publishVisibility(controlsVisible) }
+    DisposableEffect(Unit) { onDispose { publishVisibility(true) } }
+
+    LaunchedEffect(controlsVisible, isTvOrCar) {
+        if (controlsVisible && !isTvOrCar) {
+            delay(3500)
+            controlsVisible = false
+        }
+    }
+
+    val playFocus = remember { FocusRequester() }
+    LaunchedEffect(isTvOrCar, controlsVisible) {
+        if (isTvOrCar && controlsVisible) {
+            repeat(10) {
+                runCatching { playFocus.requestFocus() }
+                delay(50)
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .onPreviewKeyEvent {
+                if (isTvOrCar && it.type == KeyEventType.KeyDown) controlsVisible = true
+                false
+            }
+            .pointerInput(Unit) { detectTapGestures { controlsVisible = !controlsVisible } },
+    ) {
+        iad1tya.echo.music.ui.player.CanvasArtworkPlayer(
+            primaryUrl = primaryUrl,
+            fallbackUrl = fallbackUrl,
+            isPlaying = isPlaying,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .pointerInput(Unit) { detectTapGestures { controlsVisible = !controlsVisible } },
+        )
+
+        AnimatedVisibility(
+            visible = controlsVisible,
+            enter = fadeIn(animationSpec = AuraMotion.float),
+            exit = fadeOut(animationSpec = AuraMotion.float),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .windowInsetsPadding(WindowInsets.systemBars)
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                    .pointerInput(Unit) { detectTapGestures { } },
+            ) {
+                AuraIconButton(
+                    icon = AuraIcons.SkipPrevious,
+                    contentDescription = stringResource(R.string.previous),
+                    onClick = onPrevious,
+                    enabled = canSkipPrevious,
+                    size = 32.dp,
+                    tint = Color.White,
+                    modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                )
+                AuraPlayButton(
+                    isPlaying = isPlaying,
+                    contentDescription = playPauseDescription,
+                    onClick = onPlayPause,
+                    diameter = 56.dp,
+                    fill = playButtonFill,
+                    ink = playButtonInk,
+                    modifier = Modifier
+                        .focusRequester(playFocus)
+                        .tvFocusable(isTvOrCar, CircleShape),
+                )
+                AuraIconButton(
+                    icon = AuraIcons.SkipNext,
+                    contentDescription = stringResource(R.string.next),
+                    onClick = onNext,
+                    enabled = canSkipNext,
+                    size = 32.dp,
+                    tint = Color.White,
+                    modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
+                )
             }
         }
     }
