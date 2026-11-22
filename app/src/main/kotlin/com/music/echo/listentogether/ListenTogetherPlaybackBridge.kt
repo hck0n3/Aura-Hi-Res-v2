@@ -70,6 +70,7 @@ private data class RoomSnapshot(
     val isPlaying: Boolean,
     val position: Long,
     val queueIds: List<String>,
+    val anchorServerTime: Long,
 )
 
 /**
@@ -279,6 +280,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     isPlaying = it.isPlaying,
                     position = it.position,
                     queueIds = it.queue.map { t -> t.id },
+                    anchorServerTime = it.lastActionServerTime,
                 ) to (it.inRoom && !it.isHost)
             }
             .distinctUntilChanged()
@@ -296,7 +298,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     return@collect
                 }
                 val service = serviceFlow.value ?: return@collect
-                val (track, isPlaying, position, queueIds) = snapshot
+                val (track, isPlaying, position, queueIds, anchorServerTime) = snapshot
                 Timber.tag(TAG).i("Room says: playing=%b pos=%d queue=%d", isPlaying, position, queueIds.size)
                 remoteDepth.incrementAndGet()
                 try {
@@ -329,7 +331,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                                 // running it through the clock correction turns it into however
                                 // long ago the last command was, which can seek past the end.
                                 position <= 0L -> 0L
-                                else -> capToTrack(session.positionAt(position, playing), track)
+                                else -> capToTrack(session.positionAt(position, playing, anchorServerTime), track)
                             }
                         // Row 616: when the room moved to a track this device ALREADY has loaded further down its own list (the host
                         // pressed next, or the song ended), jump to it in place: ExoPlayer has been pre-buffering it, so it starts at
@@ -337,7 +339,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally) }
                         if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing && !pausedLocally)
                     }
-                    applyTransport(service, playing && !pausedLocally, position, track, session.state.value.lastActionServerTime)
+                    applyTransport(service, playing && !pausedLocally, position, track, anchorServerTime)
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Failed to apply remote state")
                 } finally {
@@ -425,6 +427,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
             return@withContext
         }
+        if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) mismatchReload = null
         // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
         //
         // 🔴 PETICIÓN DEL DUEÑO (2026-09-17): *"hazlo entonces como lo hace Sonos o AirPlay"*, tras
@@ -565,7 +568,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         name = artist.ifBlank { "" },
                     ),
                 ),
-            duration = (duration / 1000L).let { if (it > Int.MAX_VALUE) Int.MAX_VALUE else it.coerceAtLeast(0L).toInt() },
+            duration = (duration / 1000L).let { if (it > Int.MAX_VALUE) Int.MAX_VALUE else if (it <= 0L) -1 else it.toInt() },
             thumbnailUrl = thumbnail.ifBlank { null },
             album =
                 album.takeIf { it.isNotBlank() }?.let {
@@ -909,7 +912,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         }.getOrDefault(0)
 
     private fun capToTrack(position: Long, track: TrackInfo?, localDurationMs: Long = 0L): Long {
-        val duration = track?.duration?.takeIf { it > 0L } ?: localDurationMs
+        val duration = localDurationMs.takeIf { it > 0L } ?: track?.duration ?: 0L
         return if (duration > TRACK_END_MARGIN_MS) position.coerceAtMost(duration - TRACK_END_MARGIN_MS) else position
     }
 

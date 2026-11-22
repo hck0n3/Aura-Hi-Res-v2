@@ -2068,14 +2068,18 @@ fun SwipeToSongBox(
                 onDragStopped = {
                     when {
                         offset.floatValue >= threshold -> {
-                            player?.playNext(listOf(mediaItem))
-                            Toast.makeText(ctx, R.string.play_next, Toast.LENGTH_SHORT).show()
+                            if (player?.shouldBlockPlaybackChanges?.invoke() != true) {
+                                player?.playNext(listOf(mediaItem))
+                                Toast.makeText(ctx, R.string.play_next, Toast.LENGTH_SHORT).show()
+                            }
                             reset(offset, scope)
                         }
 
                         offset.floatValue <= -threshold -> {
-                            player?.addToQueue(listOf(mediaItem))
-                            Toast.makeText(ctx, R.string.add_to_queue, Toast.LENGTH_SHORT).show()
+                            if (player?.shouldBlockPlaybackChanges?.invoke() != true) {
+                                player?.addToQueue(listOf(mediaItem))
+                                Toast.makeText(ctx, R.string.add_to_queue, Toast.LENGTH_SHORT).show()
+                            }
                             reset(offset, scope)
                         }
 

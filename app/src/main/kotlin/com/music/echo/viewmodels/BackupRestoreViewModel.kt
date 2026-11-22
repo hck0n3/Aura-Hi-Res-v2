@@ -347,6 +347,7 @@ class BackupRestoreViewModel @Inject constructor(
                     context.dataStore.edit { settings ->
                         settings[iad1tya.echo.music.constants.YtmUploadSyncKey] =
                             iad1tya.echo.music.utils.LibraryUploadOptIn.onAccountDetached()
+                        settings.remove(iad1tya.echo.music.constants.ImportFollowsPendingHeldV1Key)
                     }
                 }
                 runCatching { iad1tya.echo.music.devicesync.LibrarySyncAndroid.forgetAfterRestore(context) }
