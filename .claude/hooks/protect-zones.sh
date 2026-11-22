@@ -24,7 +24,7 @@ case "$tool_name" in
   Edit|Write|MultiEdit|NotebookEdit)
     path="$(printf '%s' "$tool_input" | grep -o '"\(file_path\|notebook_path\)"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')"
     if printf '%s' "$path" | grep -Eq "$zones"; then
-      emit ask "ZONA PROTEGIDA (AGENTS.md regla 6): $path pertenece al ecualizador, a Superpowered o a la licencia. Solo se toca si el dueño lo pidió explícitamente. Aprueba solo si tú pediste este cambio."
+      emit deny "ZONA BLOQUEADA (AGENTS.md regla 6): $path pertenece al ecualizador, a Superpowered, a la licencia o al propio hook. No se edita. Si el dueño pidió este cambio explícitamente, dile que está bloqueado y que solo él puede desbloquearlo arrancando Claude con AURA_UNLOCK_ZONES=1."
     fi
     ;;
   Bash)
