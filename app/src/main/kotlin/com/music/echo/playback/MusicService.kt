@@ -8131,7 +8131,7 @@ class MusicService :
 
         
         if (mediaId != null && hasExceededRetryLimit(mediaId)) {
-            Timber.tag(TAG).w("Song $mediaId has exceeded retry limit, skipping")
+            Timber.tag(TAG).w("Song ${iad1tya.echo.music.utils.LogRedaction.forLog(mediaId)} has exceeded retry limit, skipping")
             markSongAsFailed(mediaId)
             handleFinalFailure()
             return
@@ -8276,7 +8276,7 @@ class MusicService :
                 if (mediaId != null) {
                     incrementRetryCount(mediaId)
                     if (hasExceededRetryLimit(mediaId)) {
-                        Timber.tag(TAG).w("Connected but $mediaId keeps failing network-like; giving up (skip)")
+                        Timber.tag(TAG).w("Connected but ${iad1tya.echo.music.utils.LogRedaction.forLog(mediaId)} keeps failing network-like; giving up (skip)")
                         markSongAsFailed(mediaId)
                         handleFinalFailure()
                         return

@@ -113,12 +113,30 @@ object LogRedaction {
 
     private val CONTENT_URI = Regex("(content://([^/\\s\"']+)/)[^\\s\"'<>]+")
 
+    /**
+     * Rest of a file path: file names carry spaces, so it runs to the `: ` that ends a
+     * FileNotFoundException path, a quote/bracket, or the end of the line. The atomic groups below stop
+     * a second pass from re-splitting an already masked root, so the rules stay idempotent.
+     */
+    private const val PATH_REST = "[^\\r\\n\"'<>]+?(?=: |[\\r\\n\"'<>]|\\z)"
+
+    /** `/storage/<volume>/…` and `/sdcard/…`: the volume root stays, the folders and file name go. */
+    private val STORAGE_PATH = Regex(
+        "(/(?>storage/(?:emulated/\\d+|self/primary|[^/\\s\"'<>]+)|sdcard)/)$PATH_REST",
+    )
+
+    /** Any other `file://` URI keeps only its first path segment. */
+    private val FILE_URI = Regex("(file://(?>(?:/[^/\\s\"'<>]+)?)/)$PATH_REST")
+
+    private val MEDIA_STORE_URI = Regex("content://media/(?:[A-Za-z0-9_.-]+/)+\\d+")
+
     private val YOUTUBE_ID = Regex("[A-Za-z0-9_-]{11}")
     private val SCHEME = Regex("^([A-Za-z][A-Za-z0-9+.-]{0,15})://")
 
     fun forLog(id: String?): String {
         if (id == null) return "null"
         if (YOUTUBE_ID.matches(id)) return id
+        if (MEDIA_STORE_URI.matches(id)) return id
         val scheme = SCHEME.find(id)?.groupValues?.get(1) ?: "id"
         return "$scheme#${Integer.toHexString(id.hashCode())}"
     }
@@ -137,6 +155,10 @@ object LogRedaction {
         out = URL_USERINFO.replace(out, "$1$MASK@")
         out = CONTENT_URI.replace(out) {
             if (it.groupValues[2] == "media") it.value else "${it.groupValues[1]}$MASK"
+        }
+        out = STORAGE_PATH.replace(out, "$1$MASK")
+        out = FILE_URI.replace(out) {
+            if (it.groupValues[1] == "file:///storage/" || it.groupValues[1] == "file:///sdcard/") it.value else "${it.groupValues[1]}$MASK"
         }
         out = HEADER_VALUE.replace(out, "$1$MASK")
         out = SECRET_FIELD.replace(out, "$1$MASK")

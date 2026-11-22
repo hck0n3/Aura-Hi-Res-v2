@@ -183,6 +183,51 @@ class LogRedactionTest {
     }
 
     @Test
+    fun storagePathsKeepTheVolumeRootAndLoseTheRest() {
+        val out = LogRedaction.redact(
+            "java.io.FileNotFoundException: /storage/emulated/0/Music/My Band/My Song.flac: open failed: ENOENT (No such file or directory)"
+        )
+        assertFalse(out, out.contains("My Band"))
+        assertFalse(out, out.contains("Song.flac"))
+        assertTrue(out, out.contains("/storage/emulated/0/<redacted>: open failed: ENOENT (No such file or directory)"))
+
+        val sd = LogRedaction.redact("open /storage/1A2B-3C4D/Music/song.flac failed\nnext line")
+        assertFalse(sd, sd.contains("song.flac"))
+        assertTrue(sd, sd.contains("/storage/1A2B-3C4D/<redacted>"))
+        assertTrue("swallowed the next line: $sd", sd.endsWith("\nnext line"))
+
+        val sdcard = LogRedaction.redact("read /sdcard/Download/mixtape.mp3")
+        assertEquals("read /sdcard/<redacted>", sdcard)
+    }
+
+    @Test
+    fun fileUrisAreRedacted() {
+        val storage = LogRedaction.redact("Source error for file:///storage/emulated/0/Music/song.flac")
+        assertEquals("Source error for file:///storage/emulated/0/<redacted>", storage)
+        val other = LogRedaction.redact("Source error for file:///data/user/0/pkg/files/My Song.flac")
+        assertEquals("Source error for file:///data/<redacted>", other)
+    }
+
+    @Test
+    fun pathRulesAreIdempotent() {
+        val once = LogRedaction.redact(
+            "a /storage/emulated/0/Music/x.flac: b file:///storage/emulated/0/y.flac c\n" +
+                "file:///data/user/0/z.flac /sdcard/w.mp3 /storage/1A2B-3C4D/v.flac"
+        )
+        assertFalse(once, once.contains(".flac"))
+        assertFalse(once, once.contains(".mp3"))
+        assertEquals(once, LogRedaction.redact(once))
+    }
+
+    @Test
+    fun forLogKeepsMediaStoreUrisLikeRedactDoes() {
+        val uri = "content://media/external/audio/media/1234"
+        assertEquals(uri, LogRedaction.forLog(uri))
+        assertEquals(LogRedaction.redact(uri), LogRedaction.forLog(uri))
+        assertTrue(LogRedaction.forLog("content://media/external/audio/media/1234/albumart/x").startsWith("content#"))
+    }
+
+    @Test
     fun newRulesAreIdempotent() {
         val once = LogRedaction.redact(
             "https://bob:pw@host.example/x content://com.android.providers.downloads.documents/document/msf%3A12?key=abc"
