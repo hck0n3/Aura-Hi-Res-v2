@@ -139,28 +139,28 @@ internal object PlaybackOfflineSession {
 
     private fun now() = android.os.SystemClock.elapsedRealtime()
 
-    private inline fun <T> locked(block: OfflineSessionMachine.() -> T): T = synchronized(machine) {
-        val result = machine.block()
+    private inline fun <T> locked(block: (OfflineSessionMachine) -> T): T = synchronized(machine) {
+        val result = block(machine)
         _active.value = machine.active
         result
     }
 
     fun onNetworkFailure(systemHasNetwork: Boolean, validated: Boolean, epoch: Long): OfflineSessionReason? =
-        locked { onNetworkFailure(systemHasNetwork, validated, epoch, now()) }
+        locked { it.onNetworkFailure(systemHasNetwork, validated, epoch, now()) }
 
-    fun onNoNetwork(epoch: Long): OfflineSessionReason? = locked { onNoNetwork(epoch, now()) }
+    fun onNoNetwork(epoch: Long): OfflineSessionReason? = locked { it.onNoNetwork(epoch, now()) }
 
-    fun onStall(epoch: Long): OfflineSessionReason? = locked { onStall(epoch, now()) }
+    fun onStall(epoch: Long): OfflineSessionReason? = locked { it.onStall(epoch, now()) }
 
     fun stallHasEvidence(systemHasNetwork: Boolean, validationLost: Boolean): Boolean =
-        locked { stallHasEvidence(systemHasNetwork, validationLost, now()) }
+        locked { it.stallHasEvidence(systemHasNetwork, validationLost, now()) }
 
     fun shouldRejectResolve(systemHasNetwork: Boolean, epoch: Long): Boolean =
-        locked { shouldRejectResolve(systemHasNetwork, epoch, now()) }
+        locked { it.shouldRejectResolve(systemHasNetwork, epoch, now()) }
 
-    fun onResolveSucceeded(): Boolean = locked { onResolveSucceeded() }
+    fun onResolveSucceeded(): Boolean = locked { it.onResolveSucceeded() }
 
-    fun onValidated(): Boolean = locked { onValidated() }
+    fun onValidated(): Boolean = locked { it.onValidated() }
 
-    fun onNetworkAvailable(): Boolean = locked { onNetworkAvailable() }
+    fun onNetworkAvailable(): Boolean = locked { it.onNetworkAvailable() }
 }
