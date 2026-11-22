@@ -77,8 +77,8 @@ widget · Cast (Gms).
 - [x] L33 ui/newui/AuraQueue.kt L1201-L1995 — sin hallazgos P0-P2
 - [x] L34 devicesync/RemotePlayback.kt L1-L306 — sin hallazgos propios (su `shouldPauseOther` depende del listener de F-007)
 - [x] L35 ui/newui/AuraPalette.kt L1-L1192 — sin hallazgos confirmados; S-005
-- [ ] L36 utils/SyncUtils.kt L1-L1200
-- [ ] L37 utils/SyncUtils.kt L1201-L2156
+- [x] L36 utils/SyncUtils.kt L1-L1200
+- [x] L37 utils/SyncUtils.kt L1201-L2156 — sin hallazgos P0-P2 confirmados; S-006
 - [ ] L38 playback/queues/Queue.kt L1-L194
 - [ ] L39 constants/PreferenceKeys.kt L1-L1354
 - [ ] L40 db/DatabaseDao.kt L1-L1200
@@ -143,6 +143,9 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - Obs (P3, i18n) `RemotePlayback.kt:189` el aviso «… no responde: puede tener la pantalla bloqueada…» está escrito en español en el código, no en `strings.xml`; la app trae más de 40 idiomas (`res/values-*`). Mismo patrón en otros `DeviceSyncHub.notice("…")` del módulo.
 
 - S-005 `AuraPalette.kt:854-999` `AuraPaletteSync` se compone en varios sitios a la vez (puertas de pantalla, barra, minirreproductor) y cada instancia guarda su propio `heldEntry` (L911). `apply` escribe estado global DURANTE la composición y lee ese mismo estado (`accent != next`, L198), así que cada instancia queda suscrita a lo que escriben las demás. Si una instancia nueva se compone mientras la portada nueva aún no está en caché (su `heldEntry` es null y la vieja conserva la anterior), las dos escriben valores distintos y se invalidan mutuamente, reiniciando la transición (`transition = 0f`) en cada escritura, hasta que llega la entrada de caché o vence `AURA_COVER_HOLD_MS`. La ventana es corta (la portada siguiente se resuelve por adelantado, L899-907); sin reproducir [NO VERIFICADO].
+
+- S-006 `SyncUtils.kt:1991-2036` (fila #511) en la reconstrucción de una lista, toda fila local SIN `setVideoId` que no esté en la copia remota se trata como «añadida por el usuario y pendiente»: se conserva al final y se reenvía con `YouTube.addToPlaylist` en CADA sincronización. No mira `isEditable`. Si en una lista guardada de OTRO usuario las entradas llegan sin `playlistSetVideoId` (`PlaylistPage.kt:68`), una canción que su dueño quitó se quedaría para siempre en la copia local y cada sincronización mandaría una petición de añadir que YouTube rechaza. Depende de si YouTube Music envía ese id en listas ajenas [NO VERIFICADO]; un `playlistEntity.isEditable` en el filtro lo cerraría.
+- Obs (P3) `SyncUtils.kt:301-313` `singleFlightOp` comprueba «hay una sincronización completa en curso» y luego añade su clave: entre las dos cosas puede arrancar una completa y solaparse. La ventana es de microsegundos y las pasadas internas de la completa también tienen su propia clave.
 
 ## [DECISIÓN REQUERIDA] abiertas
 
