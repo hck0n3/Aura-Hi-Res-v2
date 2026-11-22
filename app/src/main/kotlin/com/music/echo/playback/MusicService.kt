@@ -1243,6 +1243,32 @@ class MusicService :
         val md = metadata ?: return null
         return NoRepeatKey.of(md.title, md.artists.firstOrNull()?.name)
     }
+    @Volatile private var persistedNoRepeatIds: Set<String> = emptySet()
+    @Volatile private var persistedNoRepeatKeys: Set<String> = emptySet()
+    @Volatile private var persistedNoRepeatReady = false
+    private fun noRepeatSnapshot(stored: Set<String>, session: MutableSet<String>): ArrayList<String> {
+        val merged = LinkedHashSet<String>(stored)
+        merged.addAll(synchronized(session) { ArrayList(session) })
+        val all = ArrayList(merged)
+        return if (all.size > PERSISTED_NO_REPEAT_LIMIT) ArrayList(all.subList(all.size - PERSISTED_NO_REPEAT_LIMIT, all.size)) else all
+    }
+    private fun loadPersistedNoRepeat() {
+        val file = filesDir.resolve(PERSISTENT_NO_REPEAT_FILE)
+        if (!file.exists()) {
+            persistedNoRepeatReady = true
+            return
+        }
+        runCatching {
+            file.inputStream().use { fis -> ObjectInputStream(fis).use { it.readObject() as List<*> } }
+        }.onSuccess { stored ->
+            persistedNoRepeatIds = (stored.getOrNull(0) as? List<*>)?.filterIsInstance<String>()?.toCollection(LinkedHashSet()) ?: emptySet()
+            persistedNoRepeatKeys = (stored.getOrNull(1) as? List<*>)?.filterIsInstance<String>()?.toCollection(LinkedHashSet()) ?: emptySet()
+        }.onFailure {
+            Timber.tag(TAG).w("NO_REPEAT memory unreadable, starting empty: %s", privacySafeSummary(it))
+            runCatching { file.delete() }
+        }
+        persistedNoRepeatReady = true
+    }
     private fun rememberQueuedItems(items: List<MediaItem>) {
         sessionPlayedIds.addAll(items.mapNotNull { it.mediaId.takeIf(String::isNotEmpty) })
         sessionPlayedDedupKeys.addAll(items.mapNotNull { it.dedupKeyOrNull() })
@@ -3009,6 +3035,7 @@ class MusicService :
             }
 
 
+        scope.launch(Dispatchers.IO) { loadPersistedNoRepeat() }
         if (dataStore.get(PersistentQueueKey, true)) {
             val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
             if (queueFile.exists()) {
@@ -4988,6 +5015,7 @@ class MusicService :
             val heard = m != null && (
                 m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory ||
                     dedupKey in sessionPlayedDedupKeys ||
+                    (strictNoRepeat && (m.id in persistedNoRepeatIds || dedupKey in persistedNoRepeatKeys)) ||
                     (queued != null && (m.id in queued.ids || dedupKey in queued.keys))
             )
             Triple(mi, key, heard)
@@ -5210,12 +5238,12 @@ class MusicService :
     internal fun MediaItem.isHeardForSmartQueue(queued: LiveQueueSnapshot?): Boolean {
         val id = mediaId
         if (id.isNotEmpty() && (
-                id in sessionPlayedIds || cachedPlayedIds?.contains(id) == true ||
+                id in sessionPlayedIds || id in persistedNoRepeatIds || cachedPlayedIds?.contains(id) == true ||
                     cachedEverPlayedIds?.contains(id) == true || queued?.ids?.contains(id) == true
                 )
         ) return true
         val key = dedupKeyOrNull() ?: return false
-        return key in sessionPlayedDedupKeys || queued?.keys?.contains(key) == true
+        return key in sessionPlayedDedupKeys || key in persistedNoRepeatKeys || queued?.keys?.contains(key) == true
     }
 
     fun playNextAutomix(
@@ -10229,6 +10257,11 @@ class MusicService :
                 playbackState = player.playbackState
             )
 
+            val persistNoRepeat = if (!persistedNoRepeatReady) null else arrayListOf(
+                noRepeatSnapshot(persistedNoRepeatIds, sessionPlayedIds),
+                noRepeatSnapshot(persistedNoRepeatKeys, sessionPlayedDedupKeys),
+            )
+
             // Snapshot is built above on the calling (player) thread; only the file IO runs off it.
             val writeAll: () -> Unit = {
                 runCatching {
@@ -10245,6 +10278,12 @@ class MusicService :
                 }.onFailure {
                     Timber.tag(TAG).e(it, "Failed to save automix")
                     reportException(it)
+                }
+
+                if (persistNoRepeat != null) runCatching {
+                    writePersistedFileAtomically(PERSISTENT_NO_REPEAT_FILE, persistNoRepeat)
+                }.onFailure {
+                    Timber.tag(TAG).w("NO_REPEAT memory save failed: %s", privacySafeSummary(it))
                 }
 
                 runCatching {
@@ -10831,6 +10870,8 @@ class MusicService :
         const val PERSISTENT_QUEUE_FILE = "persistent_queue.data"
         const val PERSISTENT_AUTOMIX_FILE = "persistent_automix.data"
         const val PERSISTENT_PLAYER_STATE_FILE = "persistent_player_state.data"
+        const val PERSISTENT_NO_REPEAT_FILE = "persistent_no_repeat.data"
+        const val PERSISTED_NO_REPEAT_LIMIT = 4000
         const val MAX_CONSECUTIVE_ERR = 5
         const val MAX_RETRY_COUNT = 10
         // Auto-resume after a network dead-end only if reconnection happens within this window, so a
