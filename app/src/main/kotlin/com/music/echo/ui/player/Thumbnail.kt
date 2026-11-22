@@ -1176,10 +1176,7 @@ private fun ThumbnailItem(
             if (canvasThumbnailAnimation && item.mediaId == currentMediaId) {
                 var canvasArtwork by remember(item.mediaId) { mutableStateOf<CanvasArtwork?>(null) }
                 var canvasFetchInFlight by remember(item.mediaId) { mutableStateOf(false) }
-                val storefront = remember {
-                    val country = Locale.getDefault().country
-                    if (country.length == 2) country.lowercase(Locale.ROOT) else "us"
-                }
+                val storefront = remember { canvasStorefront() }
                 // "Canvas de Spotify" (EnableSpotifyCanvasKey, Ajustes ▸ Apariencia). Read HERE and not
                 // only in the classic player: this resolver is the one the NEW appearance runs, because
                 // AuraPlayer draws its artwork through this very [Thumbnail]. Without it the switch was
@@ -1201,226 +1198,20 @@ private fun ThumbnailItem(
                         return@LaunchedEffect
                     }
 
-                    // Row 523: one answer per ALBUM, shared by every song of it and kept across restarts.
-                    val memoKey = CanvasAlbumMemo.key(
-                        artist = item.mediaMetadata.artist?.toString(),
-                        album = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString(),
-                        song = item.mediaMetadata.title?.toString(),
-                    )
-                    val memo = memoKey?.let { CanvasAlbumMemo.lookup(memoContext, it) }
-                    if (memo is CanvasAlbumMemo.Answer.Hit) {
-                        timber.log.Timber.tag("CANVAS").i("CANVAS_MEMO hit (no lookup)")
-                        canvasArtwork = memo.artwork
-                        CanvasArtworkPlaybackCache.put(item.mediaId, memo.artwork)
+                    // F-012 (owner 2026-11-22): the lookup moved, unchanged, to [canvasLookupWithoutNetwork] /
+                    // [canvasLookupOverNetwork] so the Aura player's full-screen canvas runs the same one while this
+                    // composable is off screen. The foreground gate stays here, in front of the network.
+                    val cheap = canvasLookupWithoutNetwork(item, memoContext)
+                    if (cheap.artwork != null) {
+                        canvasArtwork = cheap.artwork
                         return@LaunchedEffect
-                    }
-
-                    // Function 3 of the Worker plan: before searching, ask the shared cache (1.5 s at most; no answer = the chain as before).
-                    if (memoKey != null && memo == null) {
-                        iad1tya.echo.music.edge.EdgeClient.canvasLookup(memoContext, memoKey)?.let { shared ->
-                            timber.log.Timber.tag("CANVAS").i("CANVAS_SHARED hit (no lookup)")
-                            CanvasAlbumMemo.remember(memoContext, memoKey, shared)
-                            canvasArtwork = shared
-                            CanvasArtworkPlaybackCache.put(item.mediaId, shared)
-                            return@LaunchedEffect
-                        }
                     }
 
                     if (!canvasInForeground) return@LaunchedEffect
                     // (No «already in flight» guard here: an effect never overlaps itself, and a run cancelled mid-fetch because the app left the
                     // screen would have left the flag set and blocked the retry on return.)
                     canvasFetchInFlight = true
-
-                    // Overall cap: a slow/hanging canvas provider used to leave canvasFetchInFlight stuck
-                    // true forever (had to leave/re-enter to retry). The timeout guarantees it resets.
-                    var lookupAnswered = false
-                    val fetched = if (memo is CanvasAlbumMemo.Answer.None) {
-                        timber.log.Timber.tag("CANVAS").i("CANVAS_MEMO none (no lookup)")
-                        null
-                    } else withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
-                        val metadata = item.metadata
-                        val albumName = (metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString()
-                        val duration = metadata?.duration
-                        
-                        val songTitleRaw = item.mediaMetadata.title?.toString() ?: ""
-                        val artistNameRaw = item.mediaMetadata.artist?.toString() ?: ""
-                        
-                        val songTitle = normalizeCanvasSongTitle(songTitleRaw)
-                        val artistName = normalizeCanvasArtistName(artistNameRaw)
-                        
-                        timber.log.Timber.d("CanvasFetch: Song='$songTitle' (raw='$songTitleRaw'), Artist='$artistName' (raw='$artistNameRaw'), Album='$albumName'")
-                        
-                        // SPOTIFY CANVAS FIRST — the same order and the same reason as the classic
-                        // player (Player.kt:726): with the toggle on and a session present, the official
-                        // Canvas is the richest source. It only ever ADDS a source; on no session, no
-                        // match or no video the resolver returns null and the Tidal/Apple chain below
-                        // runs exactly as it did before.
-                        val spotifyCanvas = if (enableSpotifyCanvas) {
-                            runCatching {
-                                resolveSpotifyCanvas(songTitle, artistName, duration ?: 0)
-                            }.getOrNull()
-                        } else {
-                            null
-                        }
-
-                        // Row 562: the FIRST credited artist too (the album page searches by the album's artist; a song with guests
-                        // carries a longer credit line that the providers do not match).
-                        val firstArtist = normalizeCanvasArtistName(CanvasAlbumMemo.firstArtist(artistNameRaw))
-                        (spotifyCanvas ?: linkedSetOf(
-                            songTitle to artistName,
-                            songTitleRaw to artistName,
-                            songTitle to artistNameRaw,
-                            songTitleRaw to artistNameRaw,
-                            songTitle to firstArtist,
-                        ).filter { (s, a) -> s.isNotBlank() && a.isNotBlank() }
-                            .firstNotNullOfOrNull { (s, a) ->
-                                
-                                
-                                if (!albumName.isNullOrBlank()) {
-                                    AppleMusicCanvasProvider.getByAlbumArtist(
-                                        album = albumName,
-                                        artist = a,
-                                        storefront = storefront
-                                    )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }?.let { return@firstNotNullOfOrNull it }
-                                }
-
-                                TidalCanvasProvider.getBySongArtist(
-                                    song = s,
-                                    artist = a,
-                                    album = albumName
-                                )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-                                    ?: AppleMusicCanvasProvider.getBySongArtist(
-                                        song = s,
-                                        artist = a,
-                                        album = albumName,
-                                        storefront = storefront
-                                    )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-                            }).also { lookupAnswered = true }
-                    } }
-
-
-                    val requestedArtist = item.mediaMetadata.artist?.toString() ?: ""
-                    val requestedTitle = item.mediaMetadata.title?.toString() ?: ""
-                    
-                    val validatedBySong = fetched?.let { artwork ->
-                        val resultArtist = artwork.artist
-                        val resultName = artwork.name
-                        
-                        
-                        val artistMatches = if (resultArtist != null && requestedArtist.isNotBlank()) {
-                            val normalizedResult = normalizeCanvasArtistName(resultArtist)
-                            val normalizedRequested = normalizeCanvasArtistName(requestedArtist)
-                            resultArtist.contains(requestedArtist, ignoreCase = true) || 
-                            requestedArtist.contains(resultArtist, ignoreCase = true) ||
-                            normalizedResult.contains(normalizedRequested, ignoreCase = true) ||
-                            normalizedRequested.contains(normalizedResult, ignoreCase = true)
-                        } else true
-
-                        
-                        
-                        
-                        
-                        // Row 578: the SAME album the lookup searched with. The lookup falls back to the song entity's album when the
-                        // media item carries none; validating against the item's field alone left this blank for those songs, the check
-                        // then compared the ALBUM-level cover's name with the SONG title, rejected it, and the player stayed still on an
-                        // album whose page animates (the page validates by artist only).
-                        val requestedAlbum = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString() ?: ""
-                        val canvasAlbumName = artwork.albumName
-                        val canvasSongName = artwork.name
-
-                        val titleMatches = when {
-                            
-                            canvasAlbumName != null && requestedAlbum.isNotBlank() -> {
-                                val normalizedCanvasAlbum = normalizeCanvasSongTitle(canvasAlbumName)
-                                val normalizedRequestedAlbum = normalizeCanvasSongTitle(requestedAlbum)
-                                canvasAlbumName.contains(requestedAlbum, ignoreCase = true) ||
-                                requestedAlbum.contains(canvasAlbumName, ignoreCase = true) ||
-                                normalizedCanvasAlbum.contains(normalizedRequestedAlbum, ignoreCase = true) ||
-                                normalizedRequestedAlbum.contains(normalizedCanvasAlbum, ignoreCase = true)
-                            }
-                            
-                            canvasSongName != null && requestedTitle.isNotBlank() -> {
-                                val normalizedCanvasSong = normalizeCanvasSongTitle(canvasSongName)
-                                val normalizedRequestedTitle = normalizeCanvasSongTitle(requestedTitle)
-                                val normalizedRequestedAlbum = if (requestedAlbum.isNotBlank()) normalizeCanvasSongTitle(requestedAlbum) else ""
-                                canvasSongName.contains(requestedTitle, ignoreCase = true) ||
-                                requestedTitle.contains(canvasSongName, ignoreCase = true) ||
-                                normalizedCanvasSong.contains(normalizedRequestedTitle, ignoreCase = true) ||
-                                normalizedRequestedTitle.contains(normalizedCanvasSong, ignoreCase = true) ||
-                                (requestedAlbum.isNotBlank() && (
-                                    canvasSongName.contains(requestedAlbum, ignoreCase = true) ||
-                                    requestedAlbum.contains(canvasSongName, ignoreCase = true) ||
-                                    normalizedCanvasSong.contains(normalizedRequestedAlbum, ignoreCase = true) ||
-                                    normalizedRequestedAlbum.contains(normalizedCanvasSong, ignoreCase = true)
-                                ))
-                            }
-                            
-                            else -> true
-                        }
-
-                        if (artistMatches && titleMatches) {
-                            artwork
-                        } else {
-                            timber.log.Timber.d("CanvasFetch: Validation failed artistMatch=$artistMatches, titleMatches=$titleMatches for '${artwork.name}' by '${artwork.artist}'")
-                            null
-                        }
-                    }
-                    
-                    // Row 598 — the album page's own search, as a second chance. The song-level chain above found nothing (or its check rejected
-                    // it), but the page of this album may well find it: it searches by ALBUM, over four spellings, with TIDAL as a fallback. Both call the
-                    // same function, so from here on «the page animates and the player does not» cannot happen for the same album and first artist.
-                    var albumRetryRan = false
-                    val validated = validatedBySong ?: run {
-                        val albumForPage = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString().orEmpty()
-                        val artistForPage = CanvasAlbumMemo.firstArtist(item.mediaMetadata.artist?.toString())
-                        // Not while the album is already remembered as «none» (that answer is kept 20 minutes): one retry per album, not one per song.
-                        if (albumForPage.isBlank() || artistForPage.isBlank() || !canvasInForeground || memo is CanvasAlbumMemo.Answer.None) {
-                            null
-                        } else {
-                            albumRetryRan = true
-                            val viaAlbum = withTimeoutOrNull(14_000L) {
-                                iad1tya.echo.music.ui.screens.resolveAlbumCanvas(
-                                    albumTitle = albumForPage,
-                                    artistName = artistForPage,
-                                    firstSongTitle = item.mediaMetadata.title?.toString(),
-                                    storefront = storefront,
-                                )
-                            }
-                            timber.log.Timber.tag("CANVAS").i("CANVAS_ALBUM_RETRY found=%b", viaAlbum != null)
-                            viaAlbum
-                        }
-                    }
-
-                    // The chain ANSWERED (it did not time out): keep the album's answer for its other songs.
-                    // A cover the providers DID return but this check rejected is not «there is none» (row 578): remembering it as none
-                    // froze the player for 20 minutes while the album page, which accepts it, kept animating.
-                    if (memoKey != null && memo == null && lookupAnswered && (validated != null || fetched == null || albumRetryRan)) {
-                        CanvasAlbumMemo.remember(memoContext, memoKey, validated)
-                        // Function 3: what this search found helps everyone else (the cache refuses anything off-key or off-host).
-                        if (validated != null) iad1tya.echo.music.edge.EdgeClient.canvasShare(memoContext, memoKey, validated)
-                    }
-
-                    // Fallback: when no per-song/album canvas passed validation, use the artist's
-                    // motion backdrop (same logic as Player.kt ~747-755) so the player still shows
-                    // a moving background. Cached inside AppleMusicArtistBackgroundProvider (24 h).
-                    val finalArtwork = validated ?: run {
-                        val a = requestedArtist
-                        if (a.isNotBlank()) {
-                            val artistUrl = runCatching {
-                                withContext(Dispatchers.IO) {
-                                    AppleMusicArtistBackgroundProvider.getByArtistName(a, storefront)
-                                }
-                            }.getOrNull()
-                            if (!artistUrl.isNullOrBlank()) {
-                                CanvasArtwork(artist = a, animated = artistUrl, videoUrl = artistUrl)
-                            } else null
-                        } else null
-                    }
-
-                    canvasArtwork = finalArtwork
-                    if (finalArtwork != null) {
-                        CanvasArtworkPlaybackCache.put(item.mediaId, finalArtwork)
-                    }
+                    canvasArtwork = canvasLookupOverNetwork(item, memoContext, storefront, enableSpotifyCanvas, canvasInForeground, cheap)
                     canvasFetchInFlight = false
                 }
 
@@ -1437,6 +1228,253 @@ private fun ThumbnailItem(
     }
 }
 
+
+/**
+ * F-012 (owner 2026-11-22): what [ThumbnailItem]'s canvas effect knew WITHOUT the network — the album memo (row 523)
+ * and the shared cache (Worker function 3). Moved here unchanged so the Aura player's full-screen canvas can ask too.
+ * [CanvasCheapLookup.artwork] non-null = found (already put in [CanvasArtworkPlaybackCache]).
+ */
+internal class CanvasCheapLookup(
+    val artwork: CanvasArtwork?,
+    val memoKey: String?,
+    val memo: CanvasAlbumMemo.Answer?,
+)
+
+internal suspend fun canvasLookupWithoutNetwork(item: MediaItem, memoContext: android.content.Context): CanvasCheapLookup {
+    // Row 523: one answer per ALBUM, shared by every song of it and kept across restarts.
+    val memoKey = CanvasAlbumMemo.key(
+        artist = item.mediaMetadata.artist?.toString(),
+        album = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString(),
+        song = item.mediaMetadata.title?.toString(),
+    )
+    val memo = memoKey?.let { CanvasAlbumMemo.lookup(memoContext, it) }
+    if (memo is CanvasAlbumMemo.Answer.Hit) {
+        timber.log.Timber.tag("CANVAS").i("CANVAS_MEMO hit (no lookup)")
+        CanvasArtworkPlaybackCache.put(item.mediaId, memo.artwork)
+        return CanvasCheapLookup(memo.artwork, memoKey, memo)
+    }
+
+    // Function 3 of the Worker plan: before searching, ask the shared cache (1.5 s at most; no answer = the chain as before).
+    if (memoKey != null && memo == null) {
+        iad1tya.echo.music.edge.EdgeClient.canvasLookup(memoContext, memoKey)?.let { shared ->
+            timber.log.Timber.tag("CANVAS").i("CANVAS_SHARED hit (no lookup)")
+            CanvasAlbumMemo.remember(memoContext, memoKey, shared)
+            CanvasArtworkPlaybackCache.put(item.mediaId, shared)
+            return CanvasCheapLookup(shared, memoKey, memo)
+        }
+    }
+    return CanvasCheapLookup(null, memoKey, memo)
+}
+
+/** F-012: the provider chain of [ThumbnailItem]'s canvas effect, moved here unchanged. Returns (and caches) what it found. */
+internal suspend fun canvasLookupOverNetwork(
+    item: MediaItem,
+    memoContext: android.content.Context,
+    storefront: String,
+    enableSpotifyCanvas: Boolean,
+    canvasInForeground: Boolean,
+    cheap: CanvasCheapLookup,
+): CanvasArtwork? {
+    val memoKey = cheap.memoKey
+    val memo = cheap.memo
+
+    // Overall cap: a slow/hanging canvas provider used to leave canvasFetchInFlight stuck
+    // true forever (had to leave/re-enter to retry). The timeout guarantees it resets.
+    var lookupAnswered = false
+    val fetched = if (memo is CanvasAlbumMemo.Answer.None) {
+        timber.log.Timber.tag("CANVAS").i("CANVAS_MEMO none (no lookup)")
+        null
+    } else withTimeoutOrNull(8000L) { withContext(Dispatchers.IO) {
+        val metadata = item.metadata
+        val albumName = (metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString()
+        val duration = metadata?.duration
+        
+        val songTitleRaw = item.mediaMetadata.title?.toString() ?: ""
+        val artistNameRaw = item.mediaMetadata.artist?.toString() ?: ""
+        
+        val songTitle = normalizeCanvasSongTitle(songTitleRaw)
+        val artistName = normalizeCanvasArtistName(artistNameRaw)
+        
+        timber.log.Timber.d("CanvasFetch: Song='$songTitle' (raw='$songTitleRaw'), Artist='$artistName' (raw='$artistNameRaw'), Album='$albumName'")
+        
+        // SPOTIFY CANVAS FIRST — the same order and the same reason as the classic
+        // player (Player.kt:726): with the toggle on and a session present, the official
+        // Canvas is the richest source. It only ever ADDS a source; on no session, no
+        // match or no video the resolver returns null and the Tidal/Apple chain below
+        // runs exactly as it did before.
+        val spotifyCanvas = if (enableSpotifyCanvas) {
+            runCatching {
+                resolveSpotifyCanvas(songTitle, artistName, duration ?: 0)
+            }.getOrNull()
+        } else {
+            null
+        }
+
+        // Row 562: the FIRST credited artist too (the album page searches by the album's artist; a song with guests
+        // carries a longer credit line that the providers do not match).
+        val firstArtist = normalizeCanvasArtistName(CanvasAlbumMemo.firstArtist(artistNameRaw))
+        (spotifyCanvas ?: linkedSetOf(
+            songTitle to artistName,
+            songTitleRaw to artistName,
+            songTitle to artistNameRaw,
+            songTitleRaw to artistNameRaw,
+            songTitle to firstArtist,
+        ).filter { (s, a) -> s.isNotBlank() && a.isNotBlank() }
+            .firstNotNullOfOrNull { (s, a) ->
+                
+                
+                if (!albumName.isNullOrBlank()) {
+                    AppleMusicCanvasProvider.getByAlbumArtist(
+                        album = albumName,
+                        artist = a,
+                        storefront = storefront
+                    )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }?.let { return@firstNotNullOfOrNull it }
+                }
+
+                TidalCanvasProvider.getBySongArtist(
+                    song = s,
+                    artist = a,
+                    album = albumName
+                )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
+                    ?: AppleMusicCanvasProvider.getBySongArtist(
+                        song = s,
+                        artist = a,
+                        album = albumName,
+                        storefront = storefront
+                    )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
+            }).also { lookupAnswered = true }
+    } }
+
+
+    val requestedArtist = item.mediaMetadata.artist?.toString() ?: ""
+    val requestedTitle = item.mediaMetadata.title?.toString() ?: ""
+    
+    val validatedBySong = fetched?.let { artwork ->
+        val resultArtist = artwork.artist
+        val resultName = artwork.name
+        
+        
+        val artistMatches = if (resultArtist != null && requestedArtist.isNotBlank()) {
+            val normalizedResult = normalizeCanvasArtistName(resultArtist)
+            val normalizedRequested = normalizeCanvasArtistName(requestedArtist)
+            resultArtist.contains(requestedArtist, ignoreCase = true) || 
+            requestedArtist.contains(resultArtist, ignoreCase = true) ||
+            normalizedResult.contains(normalizedRequested, ignoreCase = true) ||
+            normalizedRequested.contains(normalizedResult, ignoreCase = true)
+        } else true
+
+        
+        
+        
+        
+        // Row 578: the SAME album the lookup searched with. The lookup falls back to the song entity's album when the
+        // media item carries none; validating against the item's field alone left this blank for those songs, the check
+        // then compared the ALBUM-level cover's name with the SONG title, rejected it, and the player stayed still on an
+        // album whose page animates (the page validates by artist only).
+        val requestedAlbum = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString() ?: ""
+        val canvasAlbumName = artwork.albumName
+        val canvasSongName = artwork.name
+
+        val titleMatches = when {
+            
+            canvasAlbumName != null && requestedAlbum.isNotBlank() -> {
+                val normalizedCanvasAlbum = normalizeCanvasSongTitle(canvasAlbumName)
+                val normalizedRequestedAlbum = normalizeCanvasSongTitle(requestedAlbum)
+                canvasAlbumName.contains(requestedAlbum, ignoreCase = true) ||
+                requestedAlbum.contains(canvasAlbumName, ignoreCase = true) ||
+                normalizedCanvasAlbum.contains(normalizedRequestedAlbum, ignoreCase = true) ||
+                normalizedRequestedAlbum.contains(normalizedCanvasAlbum, ignoreCase = true)
+            }
+            
+            canvasSongName != null && requestedTitle.isNotBlank() -> {
+                val normalizedCanvasSong = normalizeCanvasSongTitle(canvasSongName)
+                val normalizedRequestedTitle = normalizeCanvasSongTitle(requestedTitle)
+                val normalizedRequestedAlbum = if (requestedAlbum.isNotBlank()) normalizeCanvasSongTitle(requestedAlbum) else ""
+                canvasSongName.contains(requestedTitle, ignoreCase = true) ||
+                requestedTitle.contains(canvasSongName, ignoreCase = true) ||
+                normalizedCanvasSong.contains(normalizedRequestedTitle, ignoreCase = true) ||
+                normalizedRequestedTitle.contains(normalizedCanvasSong, ignoreCase = true) ||
+                (requestedAlbum.isNotBlank() && (
+                    canvasSongName.contains(requestedAlbum, ignoreCase = true) ||
+                    requestedAlbum.contains(canvasSongName, ignoreCase = true) ||
+                    normalizedCanvasSong.contains(normalizedRequestedAlbum, ignoreCase = true) ||
+                    normalizedRequestedAlbum.contains(normalizedCanvasSong, ignoreCase = true)
+                ))
+            }
+            
+            else -> true
+        }
+
+        if (artistMatches && titleMatches) {
+            artwork
+        } else {
+            timber.log.Timber.d("CanvasFetch: Validation failed artistMatch=$artistMatches, titleMatches=$titleMatches for '${artwork.name}' by '${artwork.artist}'")
+            null
+        }
+    }
+    
+    // Row 598 — the album page's own search, as a second chance. The song-level chain above found nothing (or its check rejected
+    // it), but the page of this album may well find it: it searches by ALBUM, over four spellings, with TIDAL as a fallback. Both call the
+    // same function, so from here on «the page animates and the player does not» cannot happen for the same album and first artist.
+    var albumRetryRan = false
+    val validated = validatedBySong ?: run {
+        val albumForPage = (item.metadata?.album?.title ?: item.mediaMetadata.albumTitle)?.toString().orEmpty()
+        val artistForPage = CanvasAlbumMemo.firstArtist(item.mediaMetadata.artist?.toString())
+        // Not while the album is already remembered as «none» (that answer is kept 20 minutes): one retry per album, not one per song.
+        if (albumForPage.isBlank() || artistForPage.isBlank() || !canvasInForeground || memo is CanvasAlbumMemo.Answer.None) {
+            null
+        } else {
+            albumRetryRan = true
+            val viaAlbum = withTimeoutOrNull(14_000L) {
+                iad1tya.echo.music.ui.screens.resolveAlbumCanvas(
+                    albumTitle = albumForPage,
+                    artistName = artistForPage,
+                    firstSongTitle = item.mediaMetadata.title?.toString(),
+                    storefront = storefront,
+                )
+            }
+            timber.log.Timber.tag("CANVAS").i("CANVAS_ALBUM_RETRY found=%b", viaAlbum != null)
+            viaAlbum
+        }
+    }
+
+    // The chain ANSWERED (it did not time out): keep the album's answer for its other songs.
+    // A cover the providers DID return but this check rejected is not «there is none» (row 578): remembering it as none
+    // froze the player for 20 minutes while the album page, which accepts it, kept animating.
+    if (memoKey != null && memo == null && lookupAnswered && (validated != null || fetched == null || albumRetryRan)) {
+        CanvasAlbumMemo.remember(memoContext, memoKey, validated)
+        // Function 3: what this search found helps everyone else (the cache refuses anything off-key or off-host).
+        if (validated != null) iad1tya.echo.music.edge.EdgeClient.canvasShare(memoContext, memoKey, validated)
+    }
+
+    // Fallback: when no per-song/album canvas passed validation, use the artist's
+    // motion backdrop (same logic as Player.kt ~747-755) so the player still shows
+    // a moving background. Cached inside AppleMusicArtistBackgroundProvider (24 h).
+    val finalArtwork = validated ?: run {
+        val a = requestedArtist
+        if (a.isNotBlank()) {
+            val artistUrl = runCatching {
+                withContext(Dispatchers.IO) {
+                    AppleMusicArtistBackgroundProvider.getByArtistName(a, storefront)
+                }
+            }.getOrNull()
+            if (!artistUrl.isNullOrBlank()) {
+                CanvasArtwork(artist = a, animated = artistUrl, videoUrl = artistUrl)
+            } else null
+        } else null
+    }
+
+    if (finalArtwork != null) {
+        CanvasArtworkPlaybackCache.put(item.mediaId, finalArtwork)
+    }
+    return finalArtwork
+}
+
+/** The storefront the canvas providers are asked in: the device country, else «us» (the rule [ThumbnailItem] always used). */
+internal fun canvasStorefront(): String {
+    val country = Locale.getDefault().country
+    return if (country.length == 2) country.lowercase(Locale.ROOT) else "us"
+}
 
 @Composable
 private fun HiddenThumbnailPlaceholder(
