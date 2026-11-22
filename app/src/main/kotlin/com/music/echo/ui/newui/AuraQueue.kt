@@ -1842,6 +1842,7 @@ private fun auraJumpToQueueWindow(
             playerConnection.player.seekToDefaultPosition(window.firstPeriodIndex)
         }
     } else {
+        if (!playerConnection.player.playWhenReady) iad1tya.echo.music.devicesync.RemotePlayback.noteUserStart("queue_row")
         playerConnection.player.seekToDefaultPosition(window.firstPeriodIndex)
         playerConnection.player.playWhenReady = true
     }

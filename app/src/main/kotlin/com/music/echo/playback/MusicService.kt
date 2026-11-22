@@ -10703,6 +10703,7 @@ class MusicService :
      */
     internal fun onControllerSelectedItem() {
         awaitingFirstUserPlay = false
+        iad1tya.echo.music.devicesync.RemotePlayback.noteUserStart("controller_select")
     }
 
     private fun updateWidgetUI(isPlaying: Boolean) {

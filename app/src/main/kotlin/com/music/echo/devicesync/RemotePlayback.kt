@@ -312,10 +312,39 @@ object RemotePlayback {
         connected: Boolean,
         msSinceOrderHere: Long,
         serverNowMs: Long,
+        /**
+         * Owner 2026-11-22 («la música del dispositivo 2 se pasó sola al 1»): only a start the user asked for IN THIS APP moves the
+         * music here. A start nobody asked for (Bluetooth resume, focus or network coming back, an error skip, an external PLAY) no
+         * longer pauses the other device. Time since that in-app request ([noteUserStart]); out of [USER_START_WINDOW_MS] it does not count.
+         */
+        msSinceUserStart: Long,
     ): Boolean =
         localStartedNow && handoffEnabled && connected && remote != null &&
             remote.deviceId.isNotBlank() && remote.deviceId != thisDeviceId && remote.playing &&
-            serverNowMs - remote.atMs <= FRESH_MS && msSinceOrderHere > COMMAND_GRACE_MS
+            serverNowMs - remote.atMs <= FRESH_MS && msSinceOrderHere > COMMAND_GRACE_MS &&
+            msSinceUserStart in 0..USER_START_WINDOW_MS
+
+    /**
+     * How long an in-app request to play still explains the start that follows it: a list or a search result can take a few seconds
+     * to load before the player starts. Chosen for this fix, not measured (to be confirmed by the owner).
+     */
+    const val USER_START_WINDOW_MS = 30_000L
+
+    @Volatile
+    private var userStartAt = 0L
+
+    /** An in-app tap that asks THIS device to play ([entry] names it in the shared log; no title, artist or id). */
+    fun noteUserStart(entry: String, nowMs: Long = System.currentTimeMillis()) {
+        userStartAt = nowMs
+        timber.log.Timber.tag("DeviceSync").i("START_CAUSE=tap entry=%s", entry)
+    }
+
+    /** Time since the last in-app request to play, used up by the start it explains (so a later automatic start does not reuse it). */
+    fun consumeUserStart(nowMs: Long = System.currentTimeMillis()): Long {
+        val at = userStartAt
+        userStartAt = 0L
+        return if (at <= 0L) Long.MAX_VALUE else nowMs - at
+    }
 
     /**
      * Pure: should THIS device show and control [remote]? Another device, that is playing and recently heard — or paused but just

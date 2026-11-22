@@ -274,6 +274,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         // Row 594: only ONE device sounds. The one the user just started playing on wins; the other is asked to pause.
         val startedNow = localPlaying && !wasLocalPlaying
         wasLocalPlaying = localPlaying
+        val sinceUserStart = if (startedNow) RemotePlayback.consumeUserStart(nowMs) else Long.MAX_VALUE
         if (RemotePlayback.shouldPauseOther(
                 localStartedNow = startedNow,
                 remote = remote,
@@ -282,10 +283,13 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 connected = DeviceSyncHub.connection.value is DeviceSyncHub.Connection.Connected,
                 msSinceOrderHere = nowMs - lastOrderHereAt,
                 serverNowMs = serverNow(),
+                msSinceUserStart = sinceUserStart,
             )
         ) {
             Timber.tag(TAG).i("DEVICE_SYNC started playing here while another device was playing: asked it to pause")
             remote?.let { control(it.deviceId, "pause") }
+        } else if (startedNow && remote?.playing == true && sinceUserStart !in 0..RemotePlayback.USER_START_WINDOW_MS) {
+            Timber.tag(TAG).i("DEVICE_SYNC started playing here without an in-app tap: the other device is left playing")
         }
         // Owner 2026-10-31: «cuando le puse pausa, de la nada me cambió la canción y me puso lo que se escuchaba en la Galaxy Tab, yo no
         // le dije que hiciera eso». Pausing HERE made this device look «silent», so it switched to showing the other device and replaced
