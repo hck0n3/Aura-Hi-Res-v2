@@ -442,4 +442,23 @@ class LibrarySyncSimulationTest {
         assertTrue(s.known >= 1)
         eventually("nothing left to send") { (DeviceSyncHub.libraryStatus.value as? DeviceSyncHub.LibraryStatus.Synced)?.pending == 0 }
     }
+
+    @Test
+    fun `a register of a family this build does not understand is never removed by it`() {
+        val phone = Device("phone")
+        phone.backend.like("s1")
+        phone.connect()
+        eventually("the phone's like is in the room") { room.value("lk:s1") == "1" }
+        // A newer app version wrote a kind of register this build cannot read.
+        room.receive("newer", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive("zz:future")); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive("1")) }) })
+        })
+        val tablet = Device("tablet")
+        tablet.connect()
+        eventually("the tablet caught up") { "s1" in tablet.backend.likes }
+        tablet.changed(); phone.changed()
+        settle(); settle()
+        assertEquals("the unknown register is still on in the room", "1", room.value("zz:future"))
+    }
 }

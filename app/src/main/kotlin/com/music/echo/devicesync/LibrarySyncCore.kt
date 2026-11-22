@@ -135,7 +135,7 @@ object LibrarySyncCore {
             if (known == null || known.value != value) ops += Reg(key, maxOf(now, (known?.ts ?: 0L) + 1), value, pending = true)
         }
         for ((key, known) in ledger) {
-            if (isMeta(key) || known.value == OFF || key in current) continue
+            if (isMeta(key) || known.value == OFF || key in current || parse(key) == null) continue
             ops += Reg(key, maxOf(now, known.ts + 1), OFF, pending = true)
         }
         return ops
