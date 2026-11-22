@@ -343,9 +343,11 @@ class BackupRestoreViewModel @Inject constructor(
             runCatching { java.io.File(context.filesDir, POST_RESTORE_REINIT_FLAG).createNewFile() }
 
             if (dbClosedForRestore) {
-                context.dataStore.edit { settings ->
-                    settings[iad1tya.echo.music.constants.YtmUploadSyncKey] =
-                        iad1tya.echo.music.utils.LibraryUploadOptIn.onAccountDetached()
+                withContext(kotlinx.coroutines.NonCancellable) {
+                    context.dataStore.edit { settings ->
+                        settings[iad1tya.echo.music.constants.YtmUploadSyncKey] =
+                            iad1tya.echo.music.utils.LibraryUploadOptIn.onAccountDetached()
+                    }
                 }
             }
 
