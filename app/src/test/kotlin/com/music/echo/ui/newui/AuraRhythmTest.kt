@@ -98,4 +98,22 @@ class AuraRhythmTest {
     fun zeroStepsIsRejected() {
         quantizeAuraRhythmIntensity(0.5f, steps = 0)
     }
+
+    @Test
+    fun elapsedFramesFollowThePanelAndStayAtLeastOne() {
+        assertEquals(2f, auraRhythmElapsedFrames(gapNanos = 16_666_667L, panelHz = 120f), 0.001f)
+        assertEquals(1f, auraRhythmElapsedFrames(gapNanos = 1_000_000L, panelHz = 120f), 0.0001f)
+    }
+
+    @Test
+    fun aLongGapIsClampedSoTheFirstFrameAfterResumeDoesNotJumpToTarget() {
+        val clamped = AURA_RHYTHM_MAX_GAP_NANOS * 120f / 1_000_000_000f
+        assertEquals(clamped, auraRhythmElapsedFrames(gapNanos = 30_000_000_000L, panelHz = 120f), 0.0001f)
+        assertEquals(12f, clamped, 0.0001f)
+    }
+
+    @Test
+    fun theLoopCapIsAtLeastSixtyFps() {
+        assertTrue(AURA_RHYTHM_MAX_FPS >= 60)
+    }
 }

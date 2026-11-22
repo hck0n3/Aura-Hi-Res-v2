@@ -17,9 +17,9 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
- * Low-rate waveform energy for the full-player ground. The Compose side only samples once per
- * frame via [withFrameNanos] — never a busy loop and never while Performance Mode is on (callers
- * pass [captureEnabled] = false).
+ * Low-rate waveform energy for the full-player ground. The Compose side samples via [withFrameNanos]
+ * at most [AURA_RHYTHM_MAX_FPS] times a second — never a busy loop and never while Performance Mode
+ * is on (callers pass [captureEnabled] = false).
  *
  * Does not touch the audio path / Superpowered / EQ. The capture is observation-only.
  *
@@ -87,7 +87,7 @@ fun rememberAuraRhythmLevel(
         var lastFrameNanos = 0L
         while (isActive && !settled) {
             withFrameNanos { frameNanos ->
-                val frames = if (lastFrameNanos == 0L) 1f else ((frameNanos - lastFrameNanos) * panelHz / 1_000_000_000f).coerceAtLeast(1f)
+                val frames = if (lastFrameNanos == 0L) 1f else auraRhythmElapsedFrames(frameNanos - lastFrameNanos, panelHz)
                 lastFrameNanos = frameNanos
                 val target = if (playing) hubLevel else 0f
                 // Fast attack, slower release — reads as rhythm without jitter.
@@ -111,8 +111,18 @@ fun rememberAuraRhythmLevel(
  */
 const val AURA_RHYTHM_SETTLED_EPSILON = 0.005f
 
-/** Update cap of the rhythm smoothing loop: above the ~20 hub updates a second, far below a 120 Hz panel. */
-const val AURA_RHYTHM_MAX_FPS = 30
+/**
+ * Update cap of the rhythm smoothing loop: above the ~20 hub updates a second, half a 120 Hz panel. 30 read as a stepped
+ * pulse on 90/120 Hz panels (HALLAZGO-062).
+ */
+const val AURA_RHYTHM_MAX_FPS = 60
+
+/** Longest gap the smoothing catches up on in one frame, so the first frame after a resume from background eases in. */
+const val AURA_RHYTHM_MAX_GAP_NANOS = 100_000_000L
+
+/** Panel frames elapsed in [gapNanos], at least 1 and clamped to [AURA_RHYTHM_MAX_GAP_NANOS]. Pure and JVM-testable. */
+fun auraRhythmElapsedFrames(gapNanos: Long, panelHz: Float): Float =
+    (gapNanos.coerceAtMost(AURA_RHYTHM_MAX_GAP_NANOS) * panelHz / 1_000_000_000f).coerceAtLeast(1f)
 
 /** Paused AND decayed to nothing: the per-frame smoothing loop has nothing left to animate and must stop asking for frames. */
 fun auraRhythmSettled(playing: Boolean, smoothed: Float): Boolean = !playing && smoothed < AURA_RHYTHM_SETTLED_EPSILON
