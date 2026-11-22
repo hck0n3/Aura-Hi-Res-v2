@@ -411,6 +411,28 @@ class LibrarySyncSimulationTest {
     }
 
     @Test
+    fun `a device new to the room keeps what a braked mass removal took away, and never sends it back as new`() {
+        val tablet = Device("tablet")
+        repeat(40) { tablet.backend.like("w$it") }
+        tablet.connect()
+        eventually("the room has the 40 likes") { (0 until 40).all { room.value("lk:w$it") == "1" } }
+        // The user clears all 40 at once on the tablet: more than the brake lets another device apply.
+        tablet.backend.likes.clear(); tablet.changed()
+        eventually("the room has the 40 removals") { (0 until 40).all { room.value("lk:w$it") == "0" } }
+
+        // A phone joins this room with an empty ledger (a room switch, a new pairing) and still has those 40 in its library.
+        val phone = Device("phone")
+        repeat(40) { phone.backend.like("w$it") }
+        phone.connect()
+        eventually("the phone caught up") { phone.ledger.stored.keys.count { it.startsWith("lk:") } == 40 }
+        phone.changed()
+        settle(); settle()
+        assertEquals("the phone's copies were not deleted on a hunch", 40, phone.backend.likes.size)
+        assertTrue("and not sent back to the room as new likes", (0 until 40).all { room.value("lk:w$it") == "0" })
+        assertTrue("so nothing the user removed came back on the tablet", tablet.backend.likes.isEmpty())
+    }
+
+    @Test
     fun `an old server is reported, not waited for in silence`() {
         val phone = Device("phone")
         phone.online = true

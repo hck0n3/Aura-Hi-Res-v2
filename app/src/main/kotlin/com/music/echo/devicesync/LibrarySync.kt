@@ -210,7 +210,7 @@ class LibrarySync(
         if ((msg["reset"] as? JsonPrimitive)?.booleanOrNull == true) {
             // The room was emptied or recreated: it has nothing of ours any more. Everything we know is pending again.
             since = 0L
-            ledger.replaceAll { _, r -> r.copy(pending = true) }
+            ledger.replaceAll { _, r -> if (LibrarySyncCore.isHeld(r)) r else r.copy(pending = true) }
             store.rewrite(ledger)
             sentKeys.clear()
             inFlight.clear()
@@ -226,17 +226,18 @@ class LibrarySync(
         var accepted = LibrarySyncCore.acceptedFrom(ledger, incoming)
         var plan = LibrarySyncCore.plan(accepted)
         val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
+        var held = emptyList<Reg>()
         if (!freshStart && LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
             // A pile of removals at once is not a person tidying up. Keep every addition, hold every removal, and say so.
-            val held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
+            held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
             accepted = accepted - held.toSet()
             plan = LibrarySyncCore.plan(accepted)
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
             DeviceSyncHub.notice("Otro dispositivo quitó ${held.size} elementos de golpe; no los quité aquí por seguridad.")
         }
-        val parkedBefore = ledger.values.filter { it.parked }
+        val parkedBefore = ledger.values.filter { it.parked && !LibrarySyncCore.isHeld(it) }
         val result = adapter.apply(plan)
-        val stored = accepted.map { it.copy(pending = false, parked = it.key in result.unplaced) }
+        val stored = accepted.map { it.copy(pending = false, parked = it.key in result.unplaced) } + held.map { it.copy(pending = false, parked = true) }
         stored.forEach { ledger[it.key] = it }
         store.append(stored)
         val retry = parkedBefore.filter { ledger[it.key] == it }
@@ -307,6 +308,9 @@ class LibrarySync(
         }
         val ledger = ledger()
         val current = adapter.readLocal { key -> ledger.containsKey(key) }
+        val released = ledger.values.filter { LibrarySyncCore.isHeld(it) && it.key !in current }.map { it.copy(parked = false) }
+        released.forEach { ledger[it.key] = it }
+        store.append(released)
         val fresh = LibrarySyncCore.localOps(current, ledger, clock())
         fresh.forEach { ledger[it.key] = it }
         store.append(fresh)

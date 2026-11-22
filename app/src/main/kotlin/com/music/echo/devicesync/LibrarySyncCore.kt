@@ -31,6 +31,9 @@ object LibrarySyncCore {
      */
     data class Reg(val key: String, val ts: Long, val value: String, val pending: Boolean = false, val parked: Boolean = false)
 
+    /** A removal the mass-deletion brake kept from this device: the room's "0", parked, so the copy here is neither deleted nor sent back as new. */
+    fun isHeld(reg: Reg) = reg.parked && reg.value == OFF
+
     enum class Kind { LIKE, DISLIKE, PLAYLIST, MEMBER, SONG, ALBUM, ALBUM_META, PLAY, PIN }
 
     sealed interface Key {
@@ -135,6 +138,7 @@ object LibrarySyncCore {
                 if (known == null) ops += Reg(key, now, value, pending = true)
                 continue
             }
+            if (known != null && isHeld(known)) continue
             if (known == null || known.value != value) ops += Reg(key, maxOf(now, (known?.ts ?: 0L) + 1), value, pending = true)
         }
         for ((key, known) in ledger) {
