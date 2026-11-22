@@ -124,7 +124,7 @@ fun BottomSheet(
                     .coerceAtLeast(0f)
                 translationY = y
             }
-            .pointerInput(state, isExpandable, dragCollapsedContent, state.isCollapsed) {
+            .pointerInput(state, isExpandable, dragCollapsedContent, !dragCollapsedContent && state.isCollapsed) {
                 if (!isExpandable) return@pointerInput
                 // Ver [dragCollapsedContent]: sobre una barra de botones el arrastre le roba el clic.
                 if (!dragCollapsedContent && state.isCollapsed) return@pointerInput
