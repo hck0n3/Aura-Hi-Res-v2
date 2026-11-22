@@ -191,6 +191,9 @@ object AiPlaylistGenerator {
          * not bring more karaoke of other songs.
          */
         val karaoke: MusicRequestKaraoke.Kind? = null,
+        /** Row 649: the ONE artist the request named (and their channel, when known), for the queue that continues it. */
+        val lockedArtist: String? = null,
+        val lockedArtistId: String? = null,
     )
 
     /**
@@ -237,6 +240,8 @@ object AiPlaylistGenerator {
          * no per-song check, exactly as before.
          */
         context: android.content.Context? = null,
+        /** Row 649: the artist an earlier pass of THIS request confirmed (top-up, second option) — held even if the search fails. */
+        lockedArtist: String? = null,
     ): Produced? {
         // Fila 361: what was really asked (styles, faith, language, year, count, "sin…", "parecido a…").
         val intent = MusicRequestIntent.parse(prompt)
@@ -266,7 +271,7 @@ object AiPlaylistGenerator {
             )
             return karaoke
         }
-        val soloArtist = AiPlaylistConstraints.extractSoloArtist(intent.cleanPrompt)
+        val soloArtist = AiPlaylistConstraints.extractSoloArtist(intent.cleanPrompt) ?: lockedArtist
         val startedAt = System.currentTimeMillis()
         val racedRaw = produceRacing(
             database, prompt, count, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress, taste,
@@ -472,6 +477,16 @@ object AiPlaylistGenerator {
         }
         val search = searchOutcome?.songs.orEmpty()
         if (searchOutcome == null) timber.log.Timber.w("MUSIC_REQUEST search gave no result (timeout or failure)")
+        // Row 649: the artist the request named (confirmed by the search, or named by the phrase) holds whichever route
+        // answers, and travels with the result so the queue that continues it stays on that artist.
+        val lock = searchOutcome?.let { o -> o.lockedArtist?.let { RequestArtistTargets.Lock(it, o.lockedArtistId) } }
+            ?: soloArtist?.let { RequestArtistTargets.Lock(it, null) }
+        // The search already kept only that artist; the AI's titles are checked here.
+        fun lockedAi(p: Produced?): Produced? = if (p == null || lock == null) p else p.copy(
+            songs = p.songs.filter { mm -> RequestArtistTargets.admits(lock, mm.artists.map { it.name to it.id }) },
+            lockedArtist = lock.name,
+            lockedArtistId = lock.id,
+        )
 
         // QUE NO IMPROVISE (dueño, 2026-09-17), y aquí está la regla que lo decide entre las dos
         // rutas: cuando la petición trae algo **comprobable** — una década o un idioma — gana la ruta
@@ -500,11 +515,13 @@ object AiPlaylistGenerator {
                 name = prompt.trim().take(MAX_NAME_LENGTH),
                 songs = search,
                 fromAi = false,
+                lockedArtist = lock?.name,
+                lockedArtistId = lock?.id,
             )
         }
 
         // Desempate a favor de la IA: solo si YA terminó. Esperarla aquí sería volver a la fila.
-        val aiEarly = if (aiJob != null && aiJob.isCompleted) runCatching { aiJob.await() }.getOrNull() else null
+        val aiEarly = lockedAi(if (aiJob != null && aiJob.isCompleted) runCatching { aiJob.await() }.getOrNull() else null)
         if (aiEarly != null && aiEarly.songs.isNotEmpty()) {
             return@coroutineScope aiEarly
         }
@@ -514,18 +531,20 @@ object AiPlaylistGenerator {
                 name = prompt.trim().take(MAX_NAME_LENGTH),
                 songs = search,
                 fromAi = false,
+                lockedArtist = lock?.name,
+                lockedArtistId = lock?.id,
             )
         }
         // La búsqueda no dio nada: ahora sí merece la pena esperar a la IA hasta su correa.
-        val aiLate = if (aiJob != null) {
+        val aiLate = lockedAi(if (aiJob != null) {
             runCatching { aiJob.await() }.getOrNull()
         } else {
             runCatching {
                 withTimeoutOrNull(MUSIC_REQUEST_AI_LEASH_MS) {
-                    aiFlow(database, prompt, target, soloArtist, provider, apiKey, baseUrl, model, onResolveProgress)
+                    aiFlow(database, prompt, target, lock?.name, provider, apiKey, baseUrl, model, onResolveProgress)
                 }
             }.getOrNull()
-        }
+        })
         if (aiLate != null && aiLate.songs.isNotEmpty()) aiLate else null
     }
 
@@ -1480,6 +1499,8 @@ object AiPlaylistGenerator {
             songs.map { it.toMediaMetadata() },
             pinnedSpecific = head != null,
             artistLocked = artistLocked,
+            lockedArtist = effectiveSolo.takeIf { artistLocked || soloArtist != null },
+            lockedArtistId = effectiveSoloId.takeIf { artistLocked || soloArtist != null },
         )
     }
 
@@ -1491,6 +1512,9 @@ object AiPlaylistGenerator {
         val songs: List<MediaMetadata>,
         val pinnedSpecific: Boolean,
         val artistLocked: Boolean = false,
+        /** Row 649: the artist everything was filtered to, and their channel when it was resolved. */
+        val lockedArtist: String? = null,
+        val lockedArtistId: String? = null,
     )
 
     /**
