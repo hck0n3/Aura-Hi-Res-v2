@@ -62,6 +62,7 @@ class LibrarySync(
 
     private var ledgerMap: HashMap<String, Reg>? = null
     private var since = sinceStore.get()
+    private var freshStart = sinceStore.freshStart()
     private val inFlight = ArrayDeque<List<Reg>>()
     private val sentKeys = HashSet<String>()
     private var kickJob: Job? = null
@@ -88,6 +89,7 @@ class LibrarySync(
         pulledOnce = false
         DeviceSyncHub.libraryOwnedByDevices = false
         kickJob?.cancel()
+        pullWatchdog?.cancel()
     }
 
     /**
@@ -224,7 +226,7 @@ class LibrarySync(
         var accepted = LibrarySyncCore.acceptedFrom(ledger, incoming)
         var plan = LibrarySyncCore.plan(accepted)
         val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
-        if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
+        if (!freshStart && LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
             // A pile of removals at once is not a person tidying up. Keep every addition, hold every removal, and say so.
             val held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
             accepted = accepted - held.toSet()
@@ -232,10 +234,18 @@ class LibrarySync(
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
             DeviceSyncHub.notice("Otro dispositivo quitó ${held.size} elementos de golpe; no los quité aquí por seguridad.")
         }
+        val parkedBefore = ledger.values.filter { it.parked }
         val result = adapter.apply(plan)
-        val stored = accepted.map { it.copy(pending = false) }
+        val stored = accepted.map { it.copy(pending = false, parked = it.key in result.unplaced) }
         stored.forEach { ledger[it.key] = it }
         store.append(stored)
+        val retry = parkedBefore.filter { ledger[it.key] == it }
+        if (retry.isNotEmpty()) {
+            val again = adapter.apply(LibrarySyncCore.plan(retry))
+            val placed = retry.filter { it.key !in again.unplaced }.map { it.copy(parked = false) }
+            placed.forEach { ledger[it.key] = it }
+            store.append(placed)
+        }
         store.compactIfBloated(ledger)
         since = maxOf(since, (msg["seq"] as? JsonPrimitive)?.longOrNull ?: since)
         sinceStore.put(since)
@@ -249,6 +259,10 @@ class LibrarySync(
         }
         // Caught up: from here the room is the source of truth between the devices, and what is different HERE goes out.
         pulledOnce = true
+        if (freshStart) {
+            freshStart = false
+            sinceStore.endFreshStart()
+        }
         pullWatchdog?.cancel()
         Timber.tag(TAG).i("LIB_SYNC caught up since=%d known=%d", since, ledger.size)
         DeviceSyncHub.libraryOwnedByDevices = connected && isEnabled()
@@ -342,7 +356,7 @@ class LibrarySync(
 }
 
 /** What an [LibraryBackend.apply] did: changes made, and registers it could not apply (a playlist or a song this device does not have). */
-data class ApplyResult(val applied: Int, val unresolved: Int)
+data class ApplyResult(val applied: Int, val unresolved: Int, val unplaced: Set<String> = emptySet())
 
 /** What [LibrarySync] needs from the app: the present facts, and a way to write what other devices changed. */
 interface LibraryBackend {
@@ -362,4 +376,8 @@ interface LedgerPersistence {
 interface SinceStore {
     fun get(): Long
     fun put(value: Long)
+
+    /** True after a backup was restored, until the first pull catches up: the room wins over the restored library, brake included. */
+    fun freshStart(): Boolean = false
+    fun endFreshStart() {}
 }

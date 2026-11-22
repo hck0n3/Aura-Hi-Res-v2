@@ -170,17 +170,18 @@ class LibrarySyncSimulationTest {
 
         override suspend fun apply(plan: Plan): ApplyResult = synchronized(lock) {
             var unresolved = 0
+            val unplaced = HashSet<String>()
             for ((id, meta) in plan.songs) if (id !in songs) songs[id] = meta
             for ((k, n) in plan.playlistUpserts) playlists[k] = n
-            for ((p, s) in plan.memberAdds) if (p in playlists && s in songs) members += p to s else unresolved++
-            for ((id, on) in plan.likes) if (on) { if (id in songs) likes += id else unresolved++ } else likes -= id
+            for ((p, s) in plan.memberAdds) if (p in playlists && s in songs) members += p to s else { unresolved++; unplaced += LibrarySyncCore.memberKey(p, s) }
+            for ((id, on) in plan.likes) if (on) { if (id in songs) likes += id else { unresolved++; unplaced += LibrarySyncCore.likeKey(id) } } else likes -= id
             for ((set, id, on) in plan.dislikes) if (on) dislikes += set to id else dislikes -= set to id
             for ((id, meta) in plan.albums) albums.putIfAbsent(id, meta)
-            for ((id, on) in plan.albumSaves) if (on) { if (id in albums) savedAlbums += id else unresolved++ } else savedAlbums -= id
+            for ((id, on) in plan.albumSaves) if (on) { if (id in albums) savedAlbums += id else { unresolved++; unplaced += LibrarySyncCore.albumKey(id) } } else savedAlbums -= id
             for ((p, s) in plan.memberRemovals) members -= p to s
             for (p in plan.playlistRemovals) { playlists -= p; members.removeAll { it.first == p } }
             applied++
-            ApplyResult(applied, unresolved)
+            ApplyResult(applied, unresolved, unplaced)
         }
     }
 
@@ -192,7 +193,7 @@ class LibrarySyncSimulationTest {
         override fun rewrite(map: Map<String, Reg>) { stored = HashMap(map) }
     }
 
-    inner class Device(val id: String, clockSkewMs: Long = 0L, val enabled: () -> Boolean = { true }) {
+    inner class Device(val id: String, clockSkewMs: Long = 0L, val enabled: () -> Boolean = { true }, private var fresh: Boolean = false) {
         val backend = FakeBackend()
         val ledger = FakeLedger()
         private var since = 0L
@@ -205,6 +206,8 @@ class LibrarySyncSimulationTest {
             sinceStore = object : SinceStore {
                 override fun get() = since
                 override fun put(value: Long) { since = value }
+                override fun freshStart() = fresh
+                override fun endFreshStart() { fresh = false }
             },
             scope = scope,
             sendMessage = { msg -> if (online) { room.receive(id, msg); true } else false },
@@ -441,5 +444,81 @@ class LibrarySyncSimulationTest {
         val s = DeviceSyncHub.libraryStatus.value as DeviceSyncHub.LibraryStatus.Synced
         assertTrue(s.known >= 1)
         eventually("nothing left to send") { (DeviceSyncHub.libraryStatus.value as? DeviceSyncHub.LibraryStatus.Synced)?.pending == 0 }
+    }
+
+    @Test
+    fun `a register of a family this build does not understand is never removed by it`() {
+        val phone = Device("phone")
+        phone.backend.like("s1")
+        phone.connect()
+        eventually("the phone's like is in the room") { room.value("lk:s1") == "1" }
+        // A newer app version wrote a kind of register this build cannot read.
+        room.receive("newer", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive("zz:future")); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive("1")) }) })
+        })
+        val tablet = Device("tablet")
+        tablet.connect()
+        eventually("the tablet caught up") { "s1" in tablet.backend.likes }
+        tablet.changed(); phone.changed()
+        settle(); settle()
+        assertEquals("the unknown register is still on in the room", "1", room.value("zz:future"))
+    }
+
+    @Test
+    fun `a playlist song that arrives a page before its playlist is placed later, never sent back as a removal`() {
+        val phone = Device("phone")
+        phone.backend.addSong("m1")
+        phone.backend.playlists["LPbig"] = "Antes"
+        phone.backend.members += "LPbig" to "m1"
+        for (i in 1..450) phone.backend.like("many$i")
+        phone.connect()
+        eventually("the phone sent its library", ms = 10_000) { room.head == 903L }
+        // A rename gives the playlist a newer place in the room's log: after its song, two pages later.
+        phone.backend.playlists["LPbig"] = "Después"; phone.changed()
+        eventually("the rename is in the room") { room.value("pl:LPbig") == LibrarySyncCore.encodePlaylistName("Después") }
+        // A like of a song no device ever described: it can never be placed here.
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive("lk:ghost")); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive("1")) }) })
+        })
+
+        val tablet = Device("tablet")
+        tablet.connect()
+        eventually("the tablet placed the song once its playlist arrived", ms = 10_000) {
+            tablet.backend.playlists["LPbig"] == "Después" && ("LPbig" to "m1") in tablet.backend.members
+        }
+        tablet.changed(); phone.changed()
+        settle(); settle()
+        assertEquals("the song is still in the playlist in the room", "1", room.value("pm:LPbig:m1"))
+        assertTrue("and on the phone", ("LPbig" to "m1") in phone.backend.members)
+        assertEquals("what cannot be placed is not removed either", "1", room.value("lk:ghost"))
+    }
+
+    @Test
+    fun `after a backup is restored the room wins over the old library, and what only the backup had is added`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        repeat(40) { phone.backend.like("r$it") }
+        phone.connect(); tablet.connect()
+        eventually("the tablet has all 40") { tablet.backend.likes.size == 40 }
+        // The user removes 30 on the tablet, ten at a time: each step is a normal tidy-up, under the brake.
+        for (step in 0 until 3) {
+            for (i in step * 10 until step * 10 + 10) tablet.backend.likes -= "r$i"
+            tablet.changed()
+            eventually("step $step reaches the phone") { phone.backend.likes.size == 40 - (step + 1) * 10 }
+        }
+        phone.disconnect()
+
+        // The phone restores an old backup (all 40 likes, plus one only the backup had); its sync memory starts empty and fresh.
+        val restored = Device("phone", fresh = true)
+        repeat(40) { restored.backend.like("r$it") }
+        restored.backend.like("onlyInBackup")
+        restored.connect()
+        val kept = (30 until 40).map { "r$it" }.toSet()
+        eventually("the room's removals win on the restored phone") { restored.backend.likes == kept + "onlyInBackup" }
+        eventually("what only the backup had reaches the tablet") { "onlyInBackup" in tablet.backend.likes }
+        settle(); settle()
+        assertEquals("nothing the user removed came back", kept + "onlyInBackup", tablet.backend.likes)
+        assertTrue((0 until 30).all { room.value("lk:r$it") == "0" })
     }
 }
