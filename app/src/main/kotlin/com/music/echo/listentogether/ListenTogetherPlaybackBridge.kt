@@ -208,6 +208,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             if (!state.inRoom || state.isHost || applyingRemote) return
             Timber.tag(TAG).i("Guest resumed — asking the server where the room is")
             session.requestSync()
+            if (state.isPlaying || state.currentTrack == null) return
+            val player = listeningTo ?: return
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                val now = session.state.value
+                if (player !== listeningTo || !player.playWhenReady) return@post
+                if (!now.inRoom || now.isHost || now.isPlaying || now.currentTrack == null) return@post
+                remoteDepth.incrementAndGet()
+                try {
+                    player.pause()
+                } finally {
+                    remoteDepth.decrementAndGet()
+                }
+            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
