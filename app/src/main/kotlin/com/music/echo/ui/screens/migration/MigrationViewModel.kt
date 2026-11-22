@@ -822,7 +822,10 @@ class MigrationViewModel @Inject constructor(
             ?: return false
         val match = results.items
             .filterIsInstance<ArtistItem>()
-            .firstOrNull { ArtistNameMatching.isLikelyMatch(artist.name, it.title) }
+            .firstOrNull {
+                val name = ArtistNameMatching.normalize(artist.name)
+                name.isNotEmpty() && name == ArtistNameMatching.normalize(it.title)
+            }
             ?: return false
 
         // Resolve the real channel id the same way SyncUtils / the Spotify import do: search-result
@@ -832,6 +835,7 @@ class MigrationViewModel @Inject constructor(
             else runCatching { YouTube.getChannelId(match.id) }.getOrNull()?.takeIf { it.isNotEmpty() }
 
         val existing = database.getArtistById(match.id)
+        if (existing?.unfollowedByUserAt != null) return true
         database.withTransaction {
             val now = LocalDateTime.now()
             if (existing == null) {
@@ -858,8 +862,6 @@ class MigrationViewModel @Inject constructor(
                         // Never re-stamp: keep the date the user originally followed them.
                         bookmarkedAt = existing.bookmarkedAt ?: now,
                         followedByUserAt = existing.followedByUserAt ?: now,
-                        // A fresh follow supersedes any queued unsubscribe for this artist.
-                        unfollowedByUserAt = null,
                         lastUpdateTime = now,
                     ),
                 )
