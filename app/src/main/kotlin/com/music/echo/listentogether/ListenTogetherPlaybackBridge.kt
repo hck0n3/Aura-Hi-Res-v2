@@ -233,7 +233,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             newPosition: Player.PositionInfo,
             reason: Int,
         ) {
-            if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+            val sameIdLoop = reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION && oldPosition.mediaItem?.mediaId != null
+            if (reason != Player.DISCONTINUITY_REASON_SEEK && !sameIdLoop) return
             if (oldPosition.mediaItem?.mediaId != newPosition.mediaItem?.mediaId) return
             val state = session.state.value
             if (!state.inRoom || !state.isHost || applyingRemote) return
