@@ -70,7 +70,12 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     private var library: LibrarySync? = null
     @Volatile private var helloLib = 0
     private var remoteTick: Job? = null
-    private var playerListenerAttached = false
+    @Volatile private var listenedPlayer: androidx.media3.exoplayer.ExoPlayer? = null
+    private val playWhenReadyListener = object : Player.Listener {
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            scope.launch { runCatching { evaluateRemote() } }
+        }
+    }
     @Volatile private var everPlayed = false
     private var lastSignature = ""
     private var lastPublishedAt = 0L
@@ -375,15 +380,13 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     /** Re-evaluate the instant THIS device starts or stops playing, not at the next 4 s tick. */
     private suspend fun attachPlayerListener() {
-        if (playerListenerAttached) return
+        if (playerOrNull().let { it == null || it === listenedPlayer }) return
         onMain {
             val p = playerOrNull() ?: return@onMain
-            p.addListener(object : Player.Listener {
-                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                    scope.launch { runCatching { evaluateRemote() } }
-                }
-            })
-            playerListenerAttached = true
+            if (p === listenedPlayer) return@onMain
+            listenedPlayer?.removeListener(playWhenReadyListener)
+            p.addListener(playWhenReadyListener)
+            listenedPlayer = p
         }
     }
 
