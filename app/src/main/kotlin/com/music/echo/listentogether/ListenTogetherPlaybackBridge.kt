@@ -912,7 +912,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         }.getOrDefault(0)
 
     private fun capToTrack(position: Long, track: TrackInfo?, localDurationMs: Long = 0L): Long {
-        val duration = track?.duration?.takeIf { it > 0L } ?: localDurationMs
+        val duration = localDurationMs.takeIf { it > 0L } ?: track?.duration ?: 0L
         return if (duration > TRACK_END_MARGIN_MS) position.coerceAtMost(duration - TRACK_END_MARGIN_MS) else position
     }
 
