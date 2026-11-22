@@ -1271,6 +1271,10 @@
     </plurals>
     <string name="ytm_upload_import_subscribe">Subscribe</string>
     <string name="ytm_upload_import_local_only">Only in Aura</string>
+    <plurals name="ytm_upload_import_local_only_count">
+        <item quantity="one">%d artist only in Aura — ask again</item>
+        <item quantity="other">%d artists only in Aura — ask again</item>
+    </plurals>
     <!-- "Interfaz nueva": full-screen lyrics + downloads containers -->
     <string name="aura_no_song_playing">No song is playing</string>
     <string name="aura_lyrics_appearance">Lyrics appearance</string>

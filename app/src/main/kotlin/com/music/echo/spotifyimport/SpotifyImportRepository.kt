@@ -400,8 +400,9 @@ class SpotifyImportRepository @Inject constructor(
 
             // NOTE: the removed bulk follow (`followArtistsWithContent`) used to run here and also
             // subscribe every SONG artist from imported playlists/albums — not user intent. The real
-            // Spotify "followed artists" list is stamped with `followedByUserAt` below (~line 999);
-            // that path is unchanged (registry #154).
+            // Spotify "followed artists" list is stamped with `followedByUserAt` in
+            // matchAndFollowArtistDetailed, which also holds each newly followed artist in
+            // ImportFollowsAwaitingConfirmKey until the user confirms it on the sync screen (registry #154).
 
             // Mirror the freshly-imported likes + library to YouTube Music (when signed in), so the
             // Spotify import also lands in the user's YT Music library. Fire-and-forget (sync queue).
@@ -1119,7 +1120,8 @@ class SpotifyImportRepository @Inject constructor(
                         // DELIBERATE follow: this artist came from Spotify's "followed artists" list,
                         // which the user explicitly selected as an import source. Only rows carrying
                         // followedByUserAt are ever subscribed on the real YouTube account —
-                        // followArtistsWithContent's blanket bookmarks never are.
+                        // followArtistsWithContent's blanket bookmarks never are — and this one only
+                        // after the user confirms it (ImportFollowsAwaitingConfirmKey above).
                         followedByUserAt = now,
                     ),
                 )
