@@ -226,6 +226,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             reason: Int,
         ) {
             if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+            if (oldPosition.mediaItem?.mediaId != newPosition.mediaItem?.mediaId) return
             val state = session.state.value
             if (!state.inRoom || !state.isHost || applyingRemote) return
             // Mismo criterio que [safePosition]: se publica lo que se OYE. Este sitio no pasa por
