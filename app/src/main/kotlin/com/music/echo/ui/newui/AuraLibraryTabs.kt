@@ -931,14 +931,10 @@ fun AuraLibrarySongsTab(
     val songs by viewModel.allSongs.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
+    // Audit F-011 (owner 2026-11-22): entering a tab follows the sync cadence the user chose, like the app start does.
+    val syncUtils = iad1tya.echo.music.LocalSyncUtils.current
     LaunchedEffect(Unit) {
-        if (ytmSync) {
-            when (filter) {
-                SongFilter.LIKED -> viewModel.syncLikedSongs()
-                SongFilter.LIBRARY -> viewModel.syncLibrarySongs()
-                else -> return@LaunchedEffect
-            }
-        }
+        if (ytmSync) syncUtils.tryAutoSync()
     }
 
     // `remember`ed (registry 395): this filtered the WHOLE library on every recomposition and every keystroke of the search
@@ -1253,8 +1249,9 @@ fun AuraLibraryAlbumsTab(
     val pins by rememberLibraryPins()
     val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
 
+    val syncUtils = iad1tya.echo.music.LocalSyncUtils.current
     LaunchedEffect(Unit) {
-        if (ytmSync) withContext(Dispatchers.IO) { viewModel.sync() }
+        if (ytmSync) syncUtils.tryAutoSync()
     }
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
@@ -1389,8 +1386,9 @@ fun AuraLibraryArtistsTab(
     val pins by rememberLibraryPins()
     val pinnedKeys = remember(pins) { pins.mapTo(HashSet()) { it.key } }
 
+    val syncUtils = iad1tya.echo.music.LocalSyncUtils.current
     LaunchedEffect(Unit) {
-        if (ytmSync) withContext(Dispatchers.IO) { viewModel.sync() }
+        if (ytmSync) syncUtils.tryAutoSync()
     }
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
@@ -1540,8 +1538,9 @@ fun AuraLibraryPlaylistsTab(
         }
     }
 
+    val syncUtils = iad1tya.echo.music.LocalSyncUtils.current
     LaunchedEffect(Unit) {
-        if (ytmSync) withContext(Dispatchers.IO) { viewModel.sync() }
+        if (ytmSync) syncUtils.tryAutoSync()
     }
 
     // "Tamaño de la celda de la cuadrícula" (Grande / Pequeño). This grid used to be a bare `150.dp`
