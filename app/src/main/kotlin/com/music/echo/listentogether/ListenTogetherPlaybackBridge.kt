@@ -390,6 +390,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // to the raw value whenever it is not calibrated yet.
         val corrected = session.positionAt(position, isPlaying)
         val player = runCatching { service.player }.getOrNull() ?: return@withContext
+        val roomTrack = session.state.value.currentTrack
+        if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
+            playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
+            return@withContext
+        }
         // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
         //
         // 🔴 PETICIÓN DEL DUEÑO (2026-09-17): *"hazlo entonces como lo hace Sonos o AirPlay"*, tras
