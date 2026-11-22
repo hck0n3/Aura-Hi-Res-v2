@@ -347,7 +347,8 @@ class ListenTogetherSession(
     fun positionAt(
         position: Long,
         isPlaying: Boolean,
-    ): Long = client.positionAt(position, _state.value.lastActionServerTime, isPlaying)
+        lastActionServerTime: Long = _state.value.lastActionServerTime,
+    ): Long = client.positionAt(position, lastActionServerTime, isPlaying)
 
     /**
      * Asks the server for the room's current state.

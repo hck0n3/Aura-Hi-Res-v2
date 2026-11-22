@@ -98,8 +98,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     private var syncUserTempo: Float? = null
 
     /** True while the guest is executing the host's last command; guards the publish loops. */
-    @Volatile
-    private var applyingRemote = false
+    private val remoteDepth = java.util.concurrent.atomic.AtomicInteger(0)
+
+    private val applyingRemote: Boolean get() = remoteDepth.get() > 0
 
     @Volatile
     private var pausedLocally = false
@@ -284,7 +285,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 val service = serviceFlow.value ?: return@collect
                 val (track, isPlaying, position, queueIds) = snapshot
                 Timber.tag(TAG).i("Room says: playing=%b pos=%d queue=%d", isPlaying, position, queueIds.size)
-                applyingRemote = true
+                remoteDepth.incrementAndGet()
                 try {
                     // Rebuild when the track changes OR when the queue behind it does — the queue
                     // can legitimately arrive while the same track keeps playing.
@@ -323,11 +324,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally) }
                         if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing && !pausedLocally)
                     }
-                    applyTransport(service, playing && !pausedLocally, position)
+                    applyTransport(service, playing && !pausedLocally, position, track, session.state.value.lastActionServerTime)
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Failed to apply remote state")
                 } finally {
-                    applyingRemote = false
+                    remoteDepth.decrementAndGet()
                 }
             }
     }
@@ -361,13 +362,13 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             if (!state.inRoom || state.isHost) continue
             val service = serviceFlow.value ?: continue
             if (!state.isPlaying || pausedLocally) continue
-            applyingRemote = true
+            remoteDepth.incrementAndGet()
             try {
-                applyTransport(service, state.isPlaying, state.position)
+                applyTransport(service, state.isPlaying, state.position, state.currentTrack, state.lastActionServerTime)
             } catch (e: Exception) {
                 Timber.tag(TAG).e(e, "Heartbeat failed to re-apply room position")
             } finally {
-                applyingRemote = false
+                remoteDepth.decrementAndGet()
             }
         }
     }
@@ -393,18 +394,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         service: MusicService,
         isPlaying: Boolean,
         position: Long,
+        roomTrack: TrackInfo?,
+        anchorServerTime: Long,
     ) = withContext(Dispatchers.Main.immediate) {
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
-        val roomTrack = session.state.value.currentTrack
         val player = runCatching { service.player }.getOrNull() ?: return@withContext
         val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
-        val corrected = capToTrack(session.positionAt(position, isPlaying), roomTrack, localDuration)
+        val corrected = capToTrack(session.positionAt(position, isPlaying, anchorServerTime), roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
             val previous = player.previousMediaItemIndex
             val cameFromRoomTrack = previous != androidx.media3.common.C.INDEX_UNSET && player.getMediaItemAt(previous).mediaId == roomTrack.id
             if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@withContext
-            val attempt = roomTrack.id to session.state.value.lastActionServerTime
+            val attempt = roomTrack.id to anchorServerTime
             if (mismatchReload == attempt) return@withContext
             mismatchReload = attempt
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
