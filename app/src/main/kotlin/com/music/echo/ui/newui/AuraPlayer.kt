@@ -764,9 +764,9 @@ private fun AuraPlayerShape(
     val immersiveCanvasOnRotate by rememberPreference(iad1tya.echo.music.constants.ImmersiveCanvasOnRotateKey, false)
     val immersiveCanvasWanted = isLandscape && immersiveCanvasOnRotate && canvasEnabled && !showVideoSurface && !inPipMode &&
         !(isFullScreen && showInlineLyrics)
-    // The player looks the canvas up itself — [Thumbnail], which normally does it, is not on screen in this view — with the
-    // same lookup (Thumbnail.kt `canvasLookupWithoutNetwork` / `canvasLookupOverNetwork`). While the NEXT song's lookup runs,
-    // the previous canvas holds, so a track change does not drop back to the wide shape.
+    // Entering the view, [Thumbnail] (in the wide shape) finds the canvas as always. While the view is up Thumbnail is off
+    // screen, so the player looks the NEXT song's canvas up itself — the same lookup (Thumbnail.kt `canvasLookupWithoutNetwork`
+    // / `canvasLookupOverNetwork`), never both at once — and the previous canvas holds until it answers.
     val immersiveCanvasStorefront = remember { iad1tya.echo.music.ui.player.canvasStorefront() }
     val immersiveSpotifyCanvas by rememberPreference(iad1tya.echo.music.constants.EnableSpotifyCanvasKey, false)
     var immersiveCanvasFound by remember(mediaMetadata?.id) { mutableStateOf<iad1tya.echo.music.canvas.CanvasArtwork?>(null) }
@@ -774,6 +774,7 @@ private fun AuraPlayerShape(
     val immersiveCanvasHeld = remember { arrayOfNulls<iad1tya.echo.music.canvas.CanvasArtwork>(1) }
     LaunchedEffect(mediaMetadata?.id, immersiveCanvasWanted, appInForeground) {
         if (!immersiveCanvasWanted) return@LaunchedEffect
+        if (immersiveCanvasHeld[0] == null) return@LaunchedEffect
         val id = mediaMetadata?.id ?: return@LaunchedEffect
         val item = playerConnection.player.currentMediaItem?.takeIf { it.mediaId == id } ?: return@LaunchedEffect
         val cached = CanvasArtworkPlaybackCache.get(id)
@@ -794,8 +795,14 @@ private fun AuraPlayerShape(
             null
         }
         immersiveCanvasFound != null -> immersiveCanvasFound.also { immersiveCanvasHeld[0] = it }
+        immersiveCanvasHeld[0] == null ->
+            (if (canvasAvailable) mediaMetadata?.id?.let { CanvasArtworkPlaybackCache.get(it) } else null)
+                ?.also { immersiveCanvasHeld[0] = it }
         !immersiveCanvasLookupDone -> immersiveCanvasHeld[0]
-        else -> null
+        else -> {
+            immersiveCanvasHeld[0] = null
+            null
+        }
     }
 
     // Published by the fullscreen video so the pinned Cast button follows its tap-to-hide controls,
