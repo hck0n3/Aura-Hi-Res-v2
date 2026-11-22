@@ -238,7 +238,7 @@ import kotlin.math.roundToInt
  * already write, and toggling the beta flag off restores classic behaviour with no migration.
  *
  * ## NOTHING DELEGATES ANY MORE — the wide shape is here
- * This file used to hand `isLandscape || isWideLayout` straight to [BottomSheetPlayer]. That is the
+ * This file used to hand `isLandscape || isWideLayout` straight to `BottomSheetPlayer` (the classic player, deleted in audit D-002). That is the
  * complaint this round answers: *"al girar el móvil, el diseño nuevo desaparece"*. Rotating a phone
  * tore down this entire subtree and put the classic sheet — with the classic `MiniPlayer` and its
  * Liquid-Glass pill — on screen mid-song, and TV / car / tablet never saw the redesign at all.

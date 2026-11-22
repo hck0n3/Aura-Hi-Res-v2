@@ -87,7 +87,7 @@ import kotlin.math.roundToInt
  * # Letra a pantalla completa — "Interfaz nueva"
  *
  * The redesigned container for the FULL-SCREEN lyrics (the surface the classic player reaches with
- * `isFullScreen = true`, `ui/player/Player.kt:1646/1776` — **not** the queue's inline lyrics tab).
+ * `isFullScreen = true`; that player was deleted in audit D-002 — **not** the queue's inline lyrics tab).
  *
  * ## What this file is, and what it deliberately is not
  * It is a CONTAINER. Not one line of lyrics is laid out, timed, romanised, translated, selected or

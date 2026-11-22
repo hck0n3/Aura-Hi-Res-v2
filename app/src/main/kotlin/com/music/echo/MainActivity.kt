@@ -2183,8 +2183,8 @@ class MainActivity : ComponentActivity() {
                                 // and `align(BottomEnd)` / `align(BottomCenter)` aligned inside THAT, not inside the window
                                 // (beta4: the player showed in the left half, the capsule never centred). Wide = fill the window.
                                 Box(modifier = if (auraWideBottom) Modifier.fillMaxSize() else Modifier) {
-                                    // "Interfaz nueva" beta: falls back to the classic BottomSheetPlayer
-                                    // whenever the flag is OFF or the new player is not built yet.
+                                    // Always the Aura player: the classic BottomSheetPlayer this used to fall
+                                    // back to was deleted (audit D-002, 2026-11-22).
                                     // The player-sheet haze source is created and provided at SHELL
                                     // level (see LocalOverlayHazeState above) — the player content
                                     // marks itself as that source inside AuraPlayer.

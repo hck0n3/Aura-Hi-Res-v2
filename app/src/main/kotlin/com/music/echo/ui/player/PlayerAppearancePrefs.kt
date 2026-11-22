@@ -68,7 +68,7 @@ data class PlayerButtonColors(
 
 /**
  * THE derivation of `PlayerButtonsStyleKey`, as a PURE function. Lifted verbatim out of
- * [BottomSheetPlayer] (it was the only copy) so the new player can reuse it instead of growing a
+ * `BottomSheetPlayer` (the classic player, deleted in audit D-002; it was the only copy) so the new player can reuse it instead of growing a
  * second, drifting one, and kept free of `@Composable` so it can be pinned by a unit test — the five
  * controls this file rescued from placebo status shipped with no test at all.
  *
@@ -213,7 +213,7 @@ fun playerHoldsScreenOn(
  * Holds `FLAG_KEEP_SCREEN_ON` while the player sheet is EXPANDED and playback is actually running.
  *
  * The row is in Ajustes ▸ Reproductor (`R.string.keep_screen_on_when_player_is_expanded`) and is
- * reachable with either UI, but its only consumer used to be [BottomSheetPlayer]. With "Interfaz
+ * reachable with either UI, but its only consumer used to be `BottomSheetPlayer` (the classic player, since deleted). With "Interfaz
  * nueva" on, PORTRAIT is `AuraPortraitPlayer` and landscape / wide falls through to the classic sheet
  * (AuraPlayer.kt), so the switch did nothing until the phone was rotated — a control that appears to
  * work and does not, which the owner rates worse than one that never works.

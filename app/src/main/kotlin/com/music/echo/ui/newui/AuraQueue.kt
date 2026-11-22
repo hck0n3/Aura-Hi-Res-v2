@@ -1792,8 +1792,8 @@ private fun buildAuraQueueEntries(
  * "Tocar una fila de la cola": jump to that song, or play/pause when it is already the current one.
  *
  * ONE implementation, called by the queue sheet's rows above AND by [AuraWideQueuePane], the wide
- * player's live queue column. The classic wide player keeps its own copy of this
- * (`LandscapeQueuePane`'s onClick, `ui/player/Player.kt:3575`) and that copy does **not** know about
+ * player's live queue column. The classic wide player (deleted in audit D-002) kept its own copy of this
+ * (`LandscapeQueuePane`'s onClick) and that copy did **not** know about
  * Cast — tapping a row there while casting seeks the local player. Sharing one function inside the new
  * UI means the wide column and the sheet cannot drift, and the column inherits the Cast branch.
  *
