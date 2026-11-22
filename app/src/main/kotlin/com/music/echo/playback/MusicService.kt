@@ -697,6 +697,14 @@ class MusicService :
     /** True while the device-sync engine itself starts a queue here (a hand-over): it must not be sent on to a controlled device. */
     @Volatile
     internal var remoteRedirectBypass = false
+
+    /**
+     * The player holds another device's queue only to SHOW it (device-sync mirror) and was left IDLE on purpose: nothing is
+     * downloaded, and with no READY state no automatic path (Bluetooth resume, error skip) can start it. The first real request
+     * to play it here prepares it (onPlayWhenReadyChanged); cleared as soon as the player leaves IDLE.
+     */
+    @Volatile
+    internal var mirrorUnprepared = false
     internal var fadingPlayer: ExoPlayer? = null
     internal var isCrossfading = false
     // Read-only OBSERVATION flag only. Mirrors the plain [isCrossfading] boolean so the UI can observe a
@@ -1872,9 +1880,16 @@ class MusicService :
                     else -> false
                 }
             } == true
+            // A Bluetooth LE Audio headset / speaker or a hearing aid replays PLAY on reconnect just like A2DP does, so it
+            // opens the same echo window (registry 422) — without changing what the resume-on-connect setting reacts to.
+            val echoRoute = hasPlaybackRoute || addedDevices?.any {
+                it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                    it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+                    it.type == AudioDeviceInfo.TYPE_HEARING_AID
+            } == true
+            if (echoRoute) lastRouteConnectedAtMs = System.currentTimeMillis()
 
             if (hasPlaybackRoute) {
-                lastRouteConnectedAtMs = System.currentTimeMillis()
                 val settingResume = dataStore.get(ResumeOnBluetoothConnectKey, false)
                 val autoNoisyResume = autoSession && pausedByNoisy &&
                     System.currentTimeMillis() - pausedByNoisyAtMs <= 45_000L
@@ -1903,6 +1918,7 @@ class MusicService :
                         },
                     )
                     pausedByNoisy = false
+                    Timber.tag(TAG).i("START_CAUSE=route_resume setting=%b", settingResume)
                     player.play()
                 }
             }
@@ -3485,6 +3501,7 @@ class MusicService :
         hasAudioFocus = decision.hasAudioFocus
         wasPlayingBeforeAudioFocusLoss = decision.wasPlayingBeforeLoss
         if (decision.pause) {
+            Timber.tag(TAG).i("START_CAUSE=focus_loss_pause change=%d", focusChange)
             expectingOwnFocusPause = true
             player.pause()
         }
@@ -3497,6 +3514,7 @@ class MusicService :
                 if (hasAudioFocus && wasPlayingBeforeAudioFocusLoss && !player.isPlaying) {
 
                     if (castConnectionHandler?.isCasting?.value != true) {
+                        Timber.tag(TAG).i("START_CAUSE=focus_resume")
                         player.play()
                     }
                     wasPlayingBeforeAudioFocusLoss = false
@@ -3616,6 +3634,7 @@ class MusicService :
                 if (fresh && castConnectionHandler?.isCasting?.value != true) {
                     // Reclaim audio focus first so we don't resume over whatever took over during the outage.
                     requestAudioFocus()
+                    Timber.tag(TAG).i("START_CAUSE=network_resume")
                     player.play()
                 }
             }
@@ -3637,6 +3656,7 @@ class MusicService :
             player.prepare()
             
             if (castConnectionHandler?.isCasting?.value != true) {
+                Timber.tag(TAG).i("START_CAUSE=error_skip")
                 player.play()
             }
             return
@@ -3647,6 +3667,7 @@ class MusicService :
         if (SongModePlanning.skipChainExhausted(consecutivePlaybackErr, MAX_CONSECUTIVE_ERR)) {
             runCatching { Toast.makeText(this, R.string.skip_chain_stopped, Toast.LENGTH_LONG).show() }
         }
+        Timber.tag(TAG).i("START_CAUSE=error_skip_chain_pause")
         player.pause()
         consecutivePlaybackErr = 0
     }
@@ -3714,6 +3735,7 @@ class MusicService :
         player.seekTo(index, C.TIME_UNSET)
         player.prepare()
         if (castConnectionHandler?.isCasting?.value != true) {
+            Timber.tag(TAG).i("START_CAUSE=offline_skip")
             player.play()
         }
         runCatching {
@@ -3725,6 +3747,7 @@ class MusicService :
         // Mark that the imminent pause is OURS, so onPlayWhenReadyChanged keeps pausedByNetwork (whereas a
         // genuine user/external pause clears it and is therefore never auto-resumed).
         expectingOwnStopPause = true
+        Timber.tag(TAG).i("START_CAUSE=error_stop")
         player.pause()
     }
 
@@ -3859,6 +3882,9 @@ class MusicService :
         // media-button PLAY at boot can't cold-start it. Any normal caller keeps the default (false) and
         // prepares+plays exactly as before.
         isRestore: Boolean = false,
+        // Read only with isRestore = true: false leaves the queue IDLE (not prepared, nothing downloaded) — the device-sync mirror of
+        // another device's playback, which this player only shows.
+        prepareRestore: Boolean = true,
     ) {
         // Row 556 (owner 2026-10-31, as Spotify does it): while this device is only CONTROLLING another one, a queue the user starts
         // here plays THERE. Before, searching and playing a song on the phone while it controlled the tablet made the phone play it
@@ -3915,7 +3941,7 @@ class MusicService :
             Timber.tag(TAG).w("playQueue called before player initialization, queuing request")
             scope.launch {
                 playerInitialized.first { it }
-                playQueue(queue, playWhenReady, isRestore)
+                playQueue(queue, playWhenReady, isRestore, prepareRestore)
             }
             return
         }
@@ -4271,12 +4297,17 @@ class MusicService :
                 // The other site that genuinely ends the in-flight stream — see the note at the preloadItem
                 // branch above.
                 dropQualityPin()
+                if (isRestore && !prepareRestore) player.stop()
                 player.setMediaItems(
                     initialStatus.items,
                     safeIndex,
                     initialStatus.position,
                 )
-                if (isRestore) {
+                if (isRestore && !prepareRestore) {
+                    player.playWhenReady = false
+                    mirrorUnprepared = true
+                    if (!userHasForegroundedThisProcess) awaitingFirstUserPlay = true
+                } else if (isRestore) {
                     // FIX A (#27): RESTORE — prepare the queue (so the mini-player / notification / Android Auto
                     // show the song + the widget/UI resume works) but leave it PAUSED, and arm
                     // awaitingFirstUserPlay. The real anti-phantom guard is the onPlayerCommandRequest veto in
@@ -7156,6 +7187,7 @@ class MusicService :
         // so clearing on any non-IDLE state would drop the veto during the restore itself. It is cleared only
         // on genuine engagement (real playback via EVENT_IS_PLAYING_CHANGED, a genuine playQueue/widget play,
         // or the app coming to the foreground).
+        if (playbackState != Player.STATE_IDLE) mirrorUnprepared = false
 
         if (playbackState == Player.STATE_ENDED) {
             val repeatMode = player.repeatMode  // live value; avoids a blocking disk read on the player thread
@@ -7260,6 +7292,14 @@ class MusicService :
             player.pause()
             return
         }
+        // While another of the user's devices is controlled from here, this player only holds its mirror: like the cast guard
+        // above, nothing may start it locally unless the device-sync engine granted it (take-over, an order from that device).
+        if (playWhenReady && !remoteRedirectBypass && iad1tya.echo.music.devicesync.RemotePlayback.blocksLocalStartNow()) {
+            Timber.tag(TAG).i("START_CAUSE=blocked_remote_mode reason=%d", reason)
+            player.pause()
+            return
+        }
+        if (playWhenReady && mirrorUnprepared && player.playbackState == Player.STATE_IDLE) player.prepare()
         scheduleSoftVideoRestoreOnPause(playWhenReady)
 
         // Tell OUR error-pause (stopOnError set expectingOwnStopPause right before pausing) apart from a real
@@ -8392,6 +8432,7 @@ class MusicService :
             if (wasPlayingBeforeVolumeMute && !player.isPlaying && castConnectionHandler?.isCasting?.value != true) {
                 wasPlayingBeforeVolumeMute = false
                 isPausedByVolumeMute = false
+                Timber.tag(TAG).i("START_CAUSE=volume_resume")
                 player.play()
             }
         }
@@ -10565,6 +10606,9 @@ class MusicService :
             MusicWidgetReceiver.ACTION_PLAY_PAUSE -> {
                 if (player.isPlaying) {
                     player.pause()
+                } else if (iad1tya.echo.music.devicesync.RemotePlayback.play()) {
+                    // Another device is controlled from here: its play button is the widget's.
+                    Timber.tag(TAG).i("START_CAUSE=widget_remote")
                 } else {
                     // #27: a home-screen widget tap is a GENUINE user action → allow it to start a restored
                     // queue (prepare() is a no-op if already prepared) AND drop the veto so external controls
@@ -10572,6 +10616,7 @@ class MusicService :
                     // veto never applies to it.
                     if (player.playbackState == Player.STATE_IDLE) player.prepare()
                     awaitingFirstUserPlay = false
+                    Timber.tag(TAG).i("START_CAUSE=widget")
                     player.play()
                 }
                 updateWidgetUI(player.isPlaying)
@@ -10699,6 +10744,7 @@ class MusicService :
     fun onAppForegrounded() {
         userHasForegroundedThisProcess = true
         awaitingFirstUserPlay = false
+        deviceSync?.onAppForegrounded()
     }
 
     /**
@@ -10708,6 +10754,9 @@ class MusicService :
      */
     internal fun onControllerSelectedItem() {
         awaitingFirstUserPlay = false
+        iad1tya.echo.music.devicesync.RemotePlayback.noteUserStart("controller_select")
+        // A song picked on the car screen plays HERE even while another device is controlled from this one.
+        iad1tya.echo.music.devicesync.RemotePlayback.grantLocalStart()
     }
 
     private fun updateWidgetUI(isPlaying: Boolean) {

@@ -27,6 +27,12 @@ object RemotePlayback {
     /** A playing remote must have spoken within this long (it heartbeats every 20 s); three missed beats and it is gone. */
     const val FRESH_MS = 70_000L
 
+    /**
+     * How long the remote stays shown while the link to the room is down. Covers the client's first reconnect (a 4 s backoff plus the
+     * handshake; on coming back to the app there is no backoff). Chosen for this fix, not measured (to be confirmed by the owner).
+     */
+    const val LINK_DROP_HOLD_MS = 10_000L
+
     /** The device being shown and controlled, with its last published state; null = this device plays for itself. */
     val target = MutableStateFlow<NowState?>(null)
     val position = MutableStateFlow(0L)
@@ -259,6 +265,44 @@ object RemotePlayback {
     /** An order from another device that arrived this recently explains why this device just started playing: it is not a user's tap here. */
     const val COMMAND_GRACE_MS = 5_000L
 
+    @Volatile
+    private var localStartGrantedAt = 0L
+
+    /**
+     * This device has been told to play HERE (an order from another device, a take-over, a queue that could not be sent away): for
+     * [COMMAND_GRACE_MS] a local start is allowed even while another device is still shown.
+     */
+    fun grantLocalStart(nowMs: Long = System.currentTimeMillis()) {
+        localStartGrantedAt = nowMs
+    }
+
+    /**
+     * Pure (owner 2026-11-22: «la música que sonaba en el dispositivo 2 se pasó sola al 1, y Aura se abrió sola»): while another device is
+     * shown and controlled from here, this player only holds its mirror. Anything that starts it locally without a grant — Bluetooth
+     * resume, audio focus coming back, the network coming back, an error skip — is not a reason for the music to move here, the same
+     * way a cast session keeps the local player silent.
+     */
+    fun blocksLocalStart(remoteActive: Boolean, msSinceGrant: Long): Boolean =
+        remoteActive && msSinceGrant !in 0..COMMAND_GRACE_MS
+
+    fun blocksLocalStartNow(nowMs: Long = System.currentTimeMillis()): Boolean =
+        blocksLocalStart(active, nowMs - localStartGrantedAt)
+
+    /** What an external PLAY (notification, lock screen, Bluetooth, watch, Android Auto) does. */
+    enum class ExternalPlay { LOCAL, REMOTE, IGNORE }
+
+    /**
+     * Pure. Without a remote it plays here as always. With one, the button the controller shows is THIS player's (paused), so a press
+     * is a play, and it goes to the device that really plays — except a PLAY from another app within [shieldMs] of an audio route
+     * connecting, which is the Bluetooth stack's reconnect echo (registry 422), not a person: it is dropped instead of starting
+     * the other device.
+     */
+    fun externalPlay(remoteActive: Boolean, fromOwnPackage: Boolean, sinceRouteConnectedMs: Long, shieldMs: Long): ExternalPlay = when {
+        !remoteActive -> ExternalPlay.LOCAL
+        !fromOwnPackage && sinceRouteConnectedMs in 0..shieldMs -> ExternalPlay.IGNORE
+        else -> ExternalPlay.REMOTE
+    }
+
     /**
      * Row 594 (owner 2026-10-31: «si está en remoto solo uno de los dos dispositivos debe mandar audio y obedecer al otro»): the device the
      * user just started playing on is the one that sounds. True when THIS device has just started playing by its own user's action while
@@ -274,10 +318,39 @@ object RemotePlayback {
         connected: Boolean,
         msSinceOrderHere: Long,
         serverNowMs: Long,
+        /**
+         * Owner 2026-11-22 («la música del dispositivo 2 se pasó sola al 1»): only a start the user asked for IN THIS APP moves the
+         * music here. A start nobody asked for (Bluetooth resume, focus or network coming back, an error skip, an external PLAY) no
+         * longer pauses the other device. Time since that in-app request ([noteUserStart]); out of [USER_START_WINDOW_MS] it does not count.
+         */
+        msSinceUserStart: Long,
     ): Boolean =
         localStartedNow && handoffEnabled && connected && remote != null &&
             remote.deviceId.isNotBlank() && remote.deviceId != thisDeviceId && remote.playing &&
-            serverNowMs - remote.atMs <= FRESH_MS && msSinceOrderHere > COMMAND_GRACE_MS
+            serverNowMs - remote.atMs <= FRESH_MS && msSinceOrderHere > COMMAND_GRACE_MS &&
+            msSinceUserStart in 0..USER_START_WINDOW_MS
+
+    /**
+     * How long an in-app request to play still explains the start that follows it: a list or a search result can take a few seconds
+     * to load before the player starts. Chosen for this fix, not measured (to be confirmed by the owner).
+     */
+    const val USER_START_WINDOW_MS = 30_000L
+
+    @Volatile
+    private var userStartAt = 0L
+
+    /** An in-app tap that asks THIS device to play ([entry] names it in the shared log; no title, artist or id). */
+    fun noteUserStart(entry: String, nowMs: Long = System.currentTimeMillis()) {
+        userStartAt = nowMs
+        timber.log.Timber.tag("DeviceSync").i("START_CAUSE=tap entry=%s", entry)
+    }
+
+    /** Time since the last in-app request to play, used up by the start it explains (so a later automatic start does not reuse it). */
+    fun consumeUserStart(nowMs: Long = System.currentTimeMillis()): Long {
+        val at = userStartAt
+        userStartAt = 0L
+        return if (at <= 0L) Long.MAX_VALUE else nowMs - at
+    }
 
     /**
      * Pure: should THIS device show and control [remote]? Another device, that is playing and recently heard — or paused but just

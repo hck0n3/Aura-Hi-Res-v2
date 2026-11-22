@@ -144,7 +144,8 @@ class SingleAudioOutputTest {
         handoff: Boolean = true,
         connected: Boolean = true,
         now: Long = 1_010_000L,
-    ) = RemotePlayback.shouldPauseOther(started, remote, "phone", handoff, connected, sinceOrder, now)
+        sinceUserStart: Long = 1_000L,
+    ) = RemotePlayback.shouldPauseOther(started, remote, "phone", handoff, connected, sinceOrder, now, sinceUserStart)
 
     @org.junit.Test
     fun `starting here while the other plays pauses the other`() {

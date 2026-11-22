@@ -78,6 +78,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
     }
     @Volatile private var everPlayed = false
+    /** The local player holds the other device's queue only as a mirror, and has not played it here since. */
+    @Volatile private var mirrorHeld = false
     private var lastSignature = ""
     private var lastPublishedAt = 0L
     private var lastPublishedPosition = 0L
@@ -93,15 +95,56 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         scope.launch {
             client.state.collect {
                 DeviceSyncHub.connection.value = it
-                if (it !is DeviceSyncHub.Connection.Connected) {
-                    library?.onDisconnected()
-                    RemotePlayback.update(null, 0L)
+                if (it !is DeviceSyncHub.Connection.Connected) library?.onDisconnected()
+                when (it) {
+                    DeviceSyncHub.Connection.Connected -> {
+                        dropHold?.cancel()
+                        dropHold = null
+                    }
+                    // Switched off or re-configured: nothing is controlled any more.
+                    DeviceSyncHub.Connection.Off -> {
+                        dropHold?.cancel()
+                        dropHold = null
+                        RemotePlayback.update(null, 0L)
+                    }
+                    else -> holdRemoteThroughDrop()
                 }
             }
         }
         scope.launch { client.messages.collect { runCatching { handle(it) }.onFailure { e -> Timber.tag(TAG).w("handle failed: %s", e.javaClass.simpleName) } } }
         scope.launch { configLoop() }
         scope.launch { tickLoop() }
+    }
+
+    /**
+     * The app came back to the foreground (MusicService.onAppForegrounded). Owner 2026-11-22: «controlo el dispositivo 2 desde el 1, vuelvo
+     * a la app y el 1 pierde el control; el mini reproductor muestra lo de aquí». A link that dropped in the background waited out its
+     * backoff (up to 60 s) with the remote cleared: reconnect now, and decide again at once what the player shows.
+     */
+    fun onAppForegrounded() {
+        client.reconnectNow()
+        scope.launch {
+            runCatching { if (DeviceSyncHub.connection.value is DeviceSyncHub.Connection.Connected) evaluateRemote() }
+        }
+    }
+
+    private var dropHold: Job? = null
+
+    /**
+     * Owner 2026-11-22 («vuelvo a la app y el 1 pierde el control; el mini reproductor muestra lo de aquí»): a link that drops for a moment
+     * (the app going to the background, a network switch) cleared the remote at once, so the player fell back to showing the local mirror
+     * as if it were this device's own. The remote now stays shown for [RemotePlayback.LINK_DROP_HOLD_MS]; a reconnect in that time keeps
+     * it (and the next report decides), a link that stays down clears it.
+     */
+    private fun holdRemoteThroughDrop() {
+        if (!RemotePlayback.active || dropHold?.isActive == true) return
+        dropHold = scope.launch {
+            delay(RemotePlayback.LINK_DROP_HOLD_MS)
+            if (DeviceSyncHub.connection.value !is DeviceSyncHub.Connection.Connected && RemotePlayback.active) {
+                RemotePlayback.update(null, 0L)
+                Timber.tag(TAG).i("DEVICE_SYNC remote control off: the link stayed down")
+            }
+        }
     }
 
     fun stop() {
@@ -270,10 +313,14 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             p != null && p.playWhenReady && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED
         }
         val nowMs = System.currentTimeMillis()
-        if (localPlaying) lastLocalPlayingAt = nowMs
+        if (localPlaying) {
+            lastLocalPlayingAt = nowMs
+            mirrorHeld = false
+        }
         // Row 594: only ONE device sounds. The one the user just started playing on wins; the other is asked to pause.
         val startedNow = localPlaying && !wasLocalPlaying
         wasLocalPlaying = localPlaying
+        val sinceUserStart = if (startedNow) RemotePlayback.consumeUserStart(nowMs) else Long.MAX_VALUE
         if (RemotePlayback.shouldPauseOther(
                 localStartedNow = startedNow,
                 remote = remote,
@@ -282,10 +329,13 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 connected = DeviceSyncHub.connection.value is DeviceSyncHub.Connection.Connected,
                 msSinceOrderHere = nowMs - lastOrderHereAt,
                 serverNowMs = serverNow(),
+                msSinceUserStart = sinceUserStart,
             )
         ) {
             Timber.tag(TAG).i("DEVICE_SYNC started playing here while another device was playing: asked it to pause")
             remote?.let { control(it.deviceId, "pause") }
+        } else if (startedNow && remote?.playing == true && sinceUserStart !in 0..RemotePlayback.USER_START_WINDOW_MS) {
+            Timber.tag(TAG).i("DEVICE_SYNC started playing here without an in-app tap: the other device is left playing")
         }
         // Owner 2026-10-31: «cuando le puse pausa, de la nada me cambió la canción y me puso lo que se escuchaba en la Galaxy Tab, yo no
         // le dije que hiciera eso». Pausing HERE made this device look «silent», so it switched to showing the other device and replaced
@@ -349,9 +399,21 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         val current = state.current ?: return
         onMain {
             val p = playerOrNull() ?: return@onMain
-            if (p.currentMediaItem?.mediaId == current.id) return@onMain
+            mirrorHeld = true
+            // A mirror is never left prepared: a READY player lets Bluetooth resume (or an error skip) start it here, and
+            // every song change on the other device would download it again. The first request to play here prepares it.
+            fun keepIdle() {
+                if (p.playWhenReady) return
+                if (p.playbackState != Player.STATE_IDLE) p.stop()
+                service.mirrorUnprepared = true
+            }
+            if (p.currentMediaItem?.mediaId == current.id) {
+                keepIdle()
+                return@onMain
+            }
             for (i in 0 until p.mediaItemCount) {
                 if (p.getMediaItemAt(i).mediaId == current.id) {
+                    keepIdle()
                     p.seekTo(i, 0L)
                     return@onMain
                 }
@@ -369,6 +431,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 ListQueue(title = state.deviceName.ifBlank { null }, items = items, startIndex = state.index, position = 0L),
                 playWhenReady = false,
                 isRestore = true,
+                prepareRestore = false,
             )
         }
     }
@@ -428,6 +491,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)
         lastOrderHereAt = System.currentTimeMillis()
+        // The other device is addressing THIS one as the player: what it orders may start playback here.
+        RemotePlayback.grantLocalStart()
         if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like" || cmd == "playitem" || cmd == "volume" || cmd == "shuffle") {
             // The device that sent the order is showing OUR timeline: tell it the new state as soon as the player has settled,
             // not at the next heartbeat (row 534).
@@ -436,6 +501,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 runCatching { publishNow(force = true) }
             }
         }
+        if (cmd == "play" || cmd == "pause" || cmd == "playitem") Timber.tag(TAG).i("START_CAUSE=remote_command cmd=%s", cmd)
         when (cmd) {
             // Row 596: a paused player may be IDLE (a restored/mirrored queue is never prepared) or ENDED, and play() alone does nothing then.
             "play" -> onMain { resumePlayback(service.player) }
@@ -495,8 +561,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                     // Row 569 (owner 2026-10-31: «la tablet me dijo sin conexión y paró la canción y no la volvió a reproducir»): this device paused
                     // itself even when the hand-over never left (the sync link was down), so the song stopped on BOTH devices. It only gives way
                     // when the other one has really been told to take over; otherwise it keeps playing.
-                    if (sent) onMain { service.player.pause() }
-                    else Timber.tag(TAG).w("DEVICE_SYNC hand-over not sent (no link) — keeps playing here")
+                    if (sent) {
+                        Timber.tag(TAG).i("START_CAUSE=handoff_pause")
+                        onMain { service.player.pause() }
+                    } else Timber.tag(TAG).w("DEVICE_SYNC hand-over not sent (no link) — keeps playing here")
                 }
             }
             "take" -> if (handoffEnabled) {
@@ -567,6 +635,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
         val position = state.estimatedPositionMs(serverNow()).coerceAtLeast(0L)
         Timber.tag(TAG).i("DEVICE_SYNC taking over items=%d index=%d", items.size, state.index)
+        Timber.tag(TAG).i("START_CAUSE=take")
+        RemotePlayback.grantLocalStart()
         onMain {
             service.remoteRedirectBypass = true
             try {
@@ -651,6 +721,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             Timber.tag(TAG).i("DEVICE_SYNC queue sent to the controlled device items=%d", window.size)
             RemotePlayback.playing.value = true
         } else {
+            // It will play here instead (MusicService.playQueue): the other device is no longer the one being controlled.
+            RemotePlayback.update(null, serverNow())
+            RemotePlayback.grantLocalStart()
+            Timber.tag(TAG).i("DEVICE_SYNC remote control off: the queue could not be sent, it plays here")
             DeviceSyncHub.notice("Sin conexión con la sincronización.")
         }
         return sent
@@ -666,7 +740,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             val sent = client.send(buildJsonObject {
                 put("t", "cmd"); put("to", deviceId); put("cmd", "take"); put("args", buildJsonObject { put("state", state) })
             })
-            if (sent) onMain { service.player.pause() } else DeviceSyncHub.notice("Sin conexión con la sincronización.")
+            if (sent) {
+                Timber.tag(TAG).i("START_CAUSE=sent_away_pause")
+                onMain { service.player.pause() }
+            } else DeviceSyncHub.notice("Sin conexión con la sincronización.")
         }
     }
 
@@ -764,7 +841,14 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         if (RemotePlayback.active) return
         val state = buildNow() ?: return
         val playing = (state["playing"] as? JsonPrimitive)?.booleanOrNull == true
-        if (playing) everPlayed = true
+        if (playing) {
+            everPlayed = true
+            mirrorHeld = false
+        }
+        // Owner 2026-11-22 (back in the app, the mini player showed the local queue): after a reconnect this device announced the
+        // other one's mirrored queue, paused, as ITS own - the room keeps one «now», so the device that really plays was hidden until
+        // its next heartbeat (up to 20 s). A mirror that never played here is not this device's playback.
+        if (mirrorHeld) return
         if (!everPlayed && !force) return
         val currentId = ((state["items"] as? JsonArray)?.getOrNull(state.int("index") ?: 0) as? JsonObject)?.str("id").orEmpty()
         val signature = "$currentId|$playing"

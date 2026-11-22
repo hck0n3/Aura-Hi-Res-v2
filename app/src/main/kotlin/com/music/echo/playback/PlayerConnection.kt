@@ -376,6 +376,7 @@ class PlayerConnection(
             Timber.tag(TAG).w("playQueue called before player ready; delegating to service")
         }
         try {
+            if (!player.playWhenReady) iad1tya.echo.music.devicesync.RemotePlayback.noteUserStart("queue")
             service.playQueue(queue)
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Error in playQueue")
@@ -577,6 +578,7 @@ class PlayerConnection(
                     castHandler.play()
                 }
             } else {
+                if (!player.playWhenReady) iad1tya.echo.music.devicesync.RemotePlayback.noteUserStart("toggle")
                 player.togglePlayPause()
             }
         } catch (e: Exception) {
@@ -592,6 +594,7 @@ class PlayerConnection(
             if (castHandler?.isCasting?.value == true) {
                 castHandler.play()
             } else {
+                if (!player.playWhenReady) iad1tya.echo.music.devicesync.RemotePlayback.noteUserStart("play")
                 if (player.playbackState == Player.STATE_IDLE) {
                     player.prepare()
                 }
@@ -641,6 +644,7 @@ class PlayerConnection(
                 return
             }
             if (player.hasNextMediaItem()) {
+                if (!player.playWhenReady) iad1tya.echo.music.devicesync.RemotePlayback.noteUserStart("next")
                 player.seekToNext()
                 if (player.playbackState == Player.STATE_IDLE || player.playbackState == Player.STATE_ENDED) {
                     player.prepare()
@@ -702,6 +706,7 @@ class PlayerConnection(
 
             
             
+            if (!player.playWhenReady) iad1tya.echo.music.devicesync.RemotePlayback.noteUserStart("previous")
             if (player.currentPosition > 3000 || !player.hasPreviousMediaItem()) {
                 player.seekTo(0)
                 if (player.playbackState == Player.STATE_IDLE || player.playbackState == Player.STATE_ENDED) {

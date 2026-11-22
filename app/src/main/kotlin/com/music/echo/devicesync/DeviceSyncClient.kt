@@ -4,11 +4,12 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import okhttp3.OkHttpClient
@@ -33,6 +34,7 @@ class DeviceSyncClient(private val scope: CoroutineScope) {
 
     @Volatile private var socket: WebSocket? = null
     private var loop: Job? = null
+    private val wake = Channel<Unit>(Channel.CONFLATED)
 
     fun start(url: String, hello: () -> JsonObject) {
         stop()
@@ -78,12 +80,18 @@ class DeviceSyncClient(private val scope: CoroutineScope) {
                 socket = null
                 attempt++
                 val wait = (2 shl attempt.coerceAtMost(5)).coerceAtMost(60)
+                wake.tryReceive() // a wake-up sent while connected is not for this wait
                 for (left in wait downTo 1) {
                     state.value = DeviceSyncHub.Connection.Retrying(left)
-                    delay(1_000)
+                    if (withTimeoutOrNull(1_000) { wake.receive() } != null) break
                 }
             }
         }
+    }
+
+    /** The user is back in the app: a reconnection waiting out its backoff (up to 60 s) tries again now. */
+    fun reconnectNow() {
+        wake.trySend(Unit)
     }
 
     fun send(message: JsonObject): Boolean = socket?.send(message.toString()) == true

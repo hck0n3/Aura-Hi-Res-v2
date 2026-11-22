@@ -140,9 +140,34 @@ constructor(
                 "External PLAY rejected (deliberate pause, route just connected)",
                 "from=${controller.packageName}",
             )
+            timber.log.Timber.tag("PLAYBACK").i("START_CAUSE=external_play_rejected_echo from=%s", controller.packageName)
             return SessionResult.RESULT_ERROR_PERMISSION_DENIED
         }
+        // Owner 2026-11-22 (registry 556: «two local External PLAY with remote control on»): while another device is controlled from
+        // here, this player only holds its mirror. An external PLAY goes to the device that plays; the reconnect echo goes nowhere.
+        if (playerCommand == androidx.media3.common.Player.COMMAND_PLAY_PAUSE && this::service.isInitialized &&
+            !service.player.playWhenReady
+        ) {
+            val action = iad1tya.echo.music.devicesync.RemotePlayback.externalPlay(
+                remoteActive = iad1tya.echo.music.devicesync.RemotePlayback.active,
+                fromOwnPackage = controller.packageName == service.packageName,
+                sinceRouteConnectedMs = System.currentTimeMillis() - service.lastRouteConnectedAtMs,
+                shieldMs = DeliberatePausePolicy.EXTERNAL_PLAY_SHIELD_MS,
+            )
+            if (action != iad1tya.echo.music.devicesync.RemotePlayback.ExternalPlay.LOCAL) {
+                timber.log.Timber.tag("PLAYBACK").i("START_CAUSE=external_play_%s from=%s", action.name.lowercase(), controller.packageName)
+                if (action == iad1tya.echo.music.devicesync.RemotePlayback.ExternalPlay.REMOTE) iad1tya.echo.music.devicesync.RemotePlayback.play()
+                return SessionResult.RESULT_ERROR_PERMISSION_DENIED
+            }
+        }
         recordExternalPlayAttempt(controller, vetoed = false)
+        if (playerCommand == androidx.media3.common.Player.COMMAND_PLAY_PAUSE && this::service.isInitialized) {
+            timber.log.Timber.tag("PLAYBACK").i(
+                "START_CAUSE=external_%s from=%s",
+                if (service.player.playWhenReady) "pause" else "play",
+                controller.packageName,
+            )
+        }
         return super.onPlayerCommandRequest(session, controller, playerCommand)
     }
 
