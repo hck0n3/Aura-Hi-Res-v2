@@ -51,7 +51,27 @@ class SmartQueueNoRepeatGuardTest {
     /** (a) The top-up runs on the player thread and only reads the history caches: they are loaded at service start. */
     @Test
     fun `the play history caches and the saved memory load when the service starts`() {
-        assertTrue(service.contains("scope.launch(Dispatchers.IO) {\n            loadPersistedNoRepeat()\n            recentlyPlayedIds()\n            everPlayedIds()\n        }"))
+        assertTrue(service.contains("scope.launch(Dispatchers.IO) {\n            loadPersistedNoRepeat()\n            recentlyPlayedIds()\n            everPlayedIds()\n            everPlayedKeys()\n        }"))
+    }
+
+    /** Row 650: the whole play history counts, by id AND by title+artist, in the strict path and in the gate's fill. */
+    @Test
+    fun `the smart queue never brings back anything in the whole play history`() {
+        assertTrue(service.contains("private const val NO_REPEAT_HISTORY_LIMIT = Int.MAX_VALUE"))
+        val keys = body(service, "private suspend fun everPlayedKeys(): Set<String> {")
+        assertTrue(keys.contains("database.recentPlayedTitleArtists(NO_REPEAT_HISTORY_LIMIT)"))
+        assertTrue(keys.contains("NoRepeatKey.of(it.title, it.artist)"))
+        assertTrue("cached like everPlayedIds", keys.contains("now - cachedEverPlayedKeysAt < 5 * 60_000L"))
+
+        assertTrue(service.contains("val playedKeyHistory = if (strictNoRepeat) everPlayedKeys() else emptySet()"))
+        assertTrue(service.contains("(strictNoRepeat && dedupKey in playedKeyHistory) ||"))
+        val heard = body(service, "internal fun MediaItem.isHeardForSmartQueue(queued: LiveQueueSnapshot?): Boolean {")
+        assertTrue(heard.contains("cachedEverPlayedKeys?.contains(key) == true"))
+
+        val gate = main("playback/ExactStyleGate.kt")
+        assertTrue("the fill drops what the strict no-repeat would drop", gate.contains("!mi.isHeardForSmartQueue(null) &&"))
+        assertTrue(gate.contains("all[i].mediaId !in heardInBatch && ContextLane.tier(lane, judged[i].candidate) == 0"))
+        assertTrue("only the searching (smart-queue) callers", gate.contains("if (allowSearch) items.filter { it.isHeardForSmartQueue(null) }"))
     }
 
     /** (b) Songs queued by hand, by Listen Together / an empty-player playNext, or by Android Auto enter the memory. */

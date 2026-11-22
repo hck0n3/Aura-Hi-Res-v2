@@ -992,6 +992,8 @@ class MusicService :
     @Volatile private var cachedPlayedIdsAt: Long = 0L
     @Volatile private var cachedEverPlayedIds: Set<String>? = null
     @Volatile private var cachedEverPlayedIdsAt: Long = 0L
+    @Volatile private var cachedEverPlayedKeys: Set<String>? = null
+    @Volatile private var cachedEverPlayedKeysAt: Long = 0L
 
     // Active "mood" (a Home mood chip the user tapped). When set, the infinite radio SEEDS from the mood
     // (YouTube.home(params = moodParams) sections' songs) instead of the last song — still passed through
@@ -3072,6 +3074,7 @@ class MusicService :
             loadPersistedNoRepeat()
             recentlyPlayedIds()
             everPlayedIds()
+            everPlayedKeys()
         }
         if (dataStore.get(PersistentQueueKey, true)) {
             val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
@@ -4177,7 +4180,7 @@ class MusicService :
             ) {
                 recentlyPlayedIds()
                 everPlayedIds()
-                val split = laneStatus.mediaItemIndex.coerceIn(0, laneStatus.items.size - 1) + 1
+                val split =laneStatus.mediaItemIndex.coerceIn(0, laneStatus.items.size - 1) + 1
                 val tail = laneStatus.items.subList(split, laneStatus.items.size)
                 val kept = tail.filterNot { it.isHeardForSmartQueue(null) }
                 if (kept.isEmpty() && tail.isNotEmpty()) heardFilterEmptiedGeneration = myGeneration
@@ -4861,6 +4864,22 @@ class MusicService :
     }
 
     /**
+     * Row 650: [NoRepeatKey]s (title + first artist) of every distinct song in the play history, cached like
+     * [everPlayedIds] — another upload of a song heard on another day has another id but the same key.
+     */
+    private suspend fun everPlayedKeys(): Set<String> {
+        val now = System.currentTimeMillis()
+        cachedEverPlayedKeys?.let { if (now - cachedEverPlayedKeysAt < 5 * 60_000L) return it }
+        val keys = runCatching {
+            withContext(Dispatchers.IO) { database.recentPlayedTitleArtists(NO_REPEAT_HISTORY_LIMIT) }
+                .mapTo(HashSet<String>()) { NoRepeatKey.of(it.title, it.artist) }
+        }.getOrDefault(emptySet())
+        cachedEverPlayedKeys = keys
+        cachedEverPlayedKeysAt = now
+        return keys
+    }
+
+    /**
      * Ids and [NoRepeatKey]s of everything sitting in the live queue right now (played, current and
      * upcoming — including what the user queued by hand). PLAYER THREAD ONLY: callers capture it before
      * hopping to IO and hand the result to [orderedByTaste].
@@ -4938,6 +4957,7 @@ class MusicService :
         // bucket: the per-item sort key keeps `index` (relatedness rank) as its dominant term.
         val recentSnapshot = synchronized(recentRadioIds) { HashSet(recentRadioIds) }
         val playedHistory = if (strictNoRepeat) recentlyPlayedIds() + everPlayedIds() else recentlyPlayedIds()
+        val playedKeyHistory = if (strictNoRepeat) everPlayedKeys() else emptySet()
         // Phase B #5 — read the cached co-relatedness counts ONCE here (NEVER per item): candidateId -> how many
         // liked-song anchors YouTube says it's related to. Empty on cold start / until the WiFi-gated graph fills.
         val coRelCounts = coRelMap()
@@ -5055,6 +5075,7 @@ class MusicService :
                 m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory ||
                     dedupKey in sessionPlayedDedupKeys ||
                     (strictNoRepeat && (m.id in persistedNoRepeatIds || dedupKey in persistedNoRepeatKeys)) ||
+                    (strictNoRepeat && dedupKey in playedKeyHistory) ||
                     (queued != null && (m.id in queued.ids || dedupKey in queued.keys))
             )
             Triple(mi, key, heard)
@@ -5282,7 +5303,8 @@ class MusicService :
                 )
         ) return true
         val key = dedupKeyOrNull() ?: return false
-        return key in sessionPlayedDedupKeys || key in persistedNoRepeatKeys || queued?.keys?.contains(key) == true
+        return key in sessionPlayedDedupKeys || key in persistedNoRepeatKeys || queued?.keys?.contains(key) == true ||
+            cachedEverPlayedKeys?.contains(key) == true
     }
 
     fun playNextAutomix(
@@ -10852,8 +10874,11 @@ class MusicService :
          */
         internal const val ENRICH_BEFORE_SCORE_MS = 1500L
 
-        /** How many distinct played songs the smart queue's no-repeat rule remembers (see everPlayedIds). */
-        private const val NO_REPEAT_HISTORY_LIMIT = 5000
+        /**
+         * How many distinct played songs the smart queue's no-repeat rule remembers (see everPlayedIds). Row 650: the
+         * whole play history (owner: never bring back anything ever played); the query scans every event either way.
+         */
+        private const val NO_REPEAT_HISTORY_LIMIT = Int.MAX_VALUE
 
         const val ROOT = "root"
         const val SONG = "song"

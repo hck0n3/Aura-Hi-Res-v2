@@ -540,7 +540,10 @@ internal suspend fun MusicService.exactStyleFilter(
     var fetched = 0
     // Step 0 = the style (or family) AND the language proven. A candidate whose language is merely unproven (step 1)
     // is eligible but does not stop the lane fill: it is what an English song with a bare title looks like too.
-    fun exactCount(): Int = judged.count { j -> ContextLane.tier(lane, j.candidate) == 0 }
+    // Row 650: a song the smart queue's no-repeat drops afterwards (orderedByTaste strict) must not stop the fill.
+    val heardInBatch: Set<String> =
+        if (allowSearch) items.filter { it.isHeardForSmartQueue(null) }.mapTo(HashSet<String>()) { it.mediaId } else emptySet()
+    fun exactCount(): Int = judged.indices.count { i -> all[i].mediaId !in heardInBatch && ContextLane.tier(lane, judged[i].candidate) == 0 }
     // Row 503: a Christian context may still SEARCH at the relaxed levels (it asks for Christian songs, never for
     // anything else), so the faith gate never starves the queue.
     if (allowSearch && (!languageOnly || lane.christian) && exactCount() < minMatches) {
@@ -577,6 +580,7 @@ internal suspend fun MusicService.exactStyleFilter(
                 seen.add(mi.mediaId) &&
                     mi.mediaId !in sessionPlayedIds && mi.dedupKeyOrNull() !in sessionPlayedDedupKeys &&
                     mi.mediaId !in playedBefore &&
+                    !mi.isHeardForSmartQueue(null) &&
                     !iad1tya.echo.music.utils.UnavailableSongs.isUnavailable(mi.mediaId)
             }
             fresh.forEach { mi ->
