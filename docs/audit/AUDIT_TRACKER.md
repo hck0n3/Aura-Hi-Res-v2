@@ -79,8 +79,8 @@ widget · Cast (Gms).
 - [x] L35 ui/newui/AuraPalette.kt L1-L1192 — sin hallazgos confirmados; S-005
 - [x] L36 utils/SyncUtils.kt L1-L1200
 - [x] L37 utils/SyncUtils.kt L1201-L2156 — sin hallazgos P0-P2 confirmados; S-006
-- [ ] L38 playback/queues/Queue.kt L1-L194
-- [ ] L39 constants/PreferenceKeys.kt L1-L1354
+- [x] L38 playback/queues/Queue.kt L1-L194 — sin hallazgos P0-P2
+- [x] L39 constants/PreferenceKeys.kt L1-L1354 — revisado con script (no lectura línea a línea: son 393 declaraciones): ningún nombre de clave repetido en todo `app/src`; 5 claves con valores por defecto distintos entre lectores, 1 con efecto (obs. abajo)
 - [ ] L40 db/DatabaseDao.kt L1-L1200
 - [ ] L41 db/DatabaseDao.kt L1201-L2618
 - [ ] L42 ui/newui/AuraContent.kt L1-L1200
@@ -146,6 +146,9 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 
 - S-006 `SyncUtils.kt:1991-2036` (fila #511) en la reconstrucción de una lista, toda fila local SIN `setVideoId` que no esté en la copia remota se trata como «añadida por el usuario y pendiente»: se conserva al final y se reenvía con `YouTube.addToPlaylist` en CADA sincronización. No mira `isEditable`. Si en una lista guardada de OTRO usuario las entradas llegan sin `playlistSetVideoId` (`PlaylistPage.kt:68`), una canción que su dueño quitó se quedaría para siempre en la copia local y cada sincronización mandaría una petición de añadir que YouTube rechaza. Depende de si YouTube Music envía ese id en listas ajenas [NO VERIFICADO]; un `playlistEntity.isEditable` en el filtro lo cerraría.
 - Obs (P3) `SyncUtils.kt:301-313` `singleFlightOp` comprueba «hay una sincronización completa en curso» y luego añade su clave: entre las dos cosas puede arrancar una completa y solaparse. La ventana es de microsegundos y las pasadas internas de la completa también tienen su propia clave.
+
+- Obs (P3) `Queue.kt:85-87` si el elemento ancla se filtra, el respaldo busca el siguiente superviviente con `indexOfFirst` por id: si esa canción aparece repetida ANTES en la cola, se cae en la copia anterior (rebobina). Solo con canciones duplicadas en la cola.
+- Obs (P3) `reco/AutoRecoPlaylistWorker.kt:195-196` lee `OpenRouterModelKey ?: ""` mientras las pantallas usan `"google/gemini-2.5-flash-lite"` (`Lyrics.kt:348`, `AiPlaylistDialog.kt:66`…). Con clave de API propia y el modelo nunca tocado, `AiPlaylistService` no manda `model` (`AiPlaylistService.kt:304`) y la fase de IA de la lista automática falla en silencio; queda el relleno local. Sin clave propia (Worker) no afecta.
 
 ## [DECISIÓN REQUERIDA] abiertas
 
