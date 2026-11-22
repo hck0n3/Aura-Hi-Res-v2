@@ -763,9 +763,10 @@ private fun AuraPlayerShape(
     val immersiveVideo = useWideShape && showVideoSurface
     // F-012 (owner 2026-11-22): «Fondo animado a pantalla completa en horizontal», off by default (registry #48).
     val immersiveCanvasOnRotate by rememberPreference(iad1tya.echo.music.constants.ImmersiveCanvasOnRotateKey, false)
-    // Only with the sheet open (the body stays composed while it is collapsed); lyrics (inline or full screen) win.
+    // Not with the sheet collapsed (the body stays composed then) — but kept through the open/close animation, so the view
+    // does not swap with the wide shape mid-gesture; lyrics (inline or full screen) win.
     val immersiveCanvasWanted = isLandscape && immersiveCanvasOnRotate && canvasEnabled && !showVideoSurface && !inPipMode &&
-        !showInlineLyrics && state.isExpanded
+        !showInlineLyrics && !state.isCollapsed
     // Entering the view, [Thumbnail] (in the wide shape) finds the canvas as always; the player notices it in the cache
     // (not snapshot state) with a map read every 600 ms for the rest of THIS song — no network — so a slow lookup still
     // brings the view. While the view is up Thumbnail is off screen, so the player looks the NEXT song's canvas up itself
@@ -778,7 +779,8 @@ private fun AuraPlayerShape(
     var immersiveCanvasLookupDone by remember(mediaMetadata?.id) { mutableStateOf(false) }
     val immersiveCanvasHeld = remember { arrayOfNulls<iad1tya.echo.music.canvas.CanvasArtwork>(1) }
     // The composition does not see the app leaving the screen (its frame clock pauses first), so these read the
-    // process-wide flag: nothing is held across a screen-off, and nothing below reads or fetches while it is off.
+    // process-wide flag: nothing is held across a screen-off, and nothing below starts a read or the provider chain while
+    // it is off.
     LaunchedEffect(Unit) {
         iad1tya.echo.music.utils.AppForeground.visible.collect { visible -> if (!visible) immersiveCanvasHeld[0] = null }
     }
@@ -811,6 +813,9 @@ private fun AuraPlayerShape(
                 ?: iad1tya.echo.music.ui.player.canvasLookupWithoutNetwork(item, context.applicationContext).let { cheap ->
                     cheap.artwork ?: run {
                         iad1tya.echo.music.utils.AppForeground.visible.first { it }
+                        // The screen went off meanwhile and the hold was dropped: the wide shape (and Thumbnail's own
+                        // lookup) takes over, so this one must not run as well.
+                        if (immersiveCanvasHeld[0] == null) return@LaunchedEffect
                         iad1tya.echo.music.ui.player.canvasLookupOverNetwork(
                             item, context.applicationContext, immersiveCanvasStorefront, immersiveSpotifyCanvas, true, cheap,
                         )
