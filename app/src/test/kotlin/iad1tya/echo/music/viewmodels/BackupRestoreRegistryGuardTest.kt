@@ -75,4 +75,16 @@ class BackupRestoreRegistryGuardTest {
         val crash = File(root, "app/src/main/kotlin/com/music/echo/utils/CrashHandler.kt").readText()
         assertTrue("el CrashHandler solo perdona el cierre durante una restauración", crash.contains("isRestoring && throwable.isConnectionClosed()"))
     }
+
+    /** Row 19 (2026-11-22): a cloud restore on 2.0.68 still crashed — the closed DB came in shapes the guard missed. */
+    @Test
+    fun `row 19 - both closed-DB predicates recognise every shape of the restore race`() {
+        for (path in listOf("app/src/main/kotlin/com/music/echo/utils/CrashHandler.kt", "app/src/main/kotlin/com/music/echo/db/MusicDatabase.kt")) {
+            val src = File(root, path).readText()
+            assertTrue("$path: code 21 in the cause chain", src.contains("m.contains(\"connection is closed\") || m.contains(\"error code: 21\")"))
+            assertTrue("$path: SQLite's re-open of a closed database", src.contains("re-open an already-closed object: sqlitedatabase"))
+            assertTrue("$path: Room's throwIfClosed", src.contains("m.contains(\"database is closed\")"))
+            assertTrue("$path: code 21 attached as a suppressed exception", src.contains("t.suppressed.any"))
+        }
+    }
 }
