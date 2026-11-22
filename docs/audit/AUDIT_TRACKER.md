@@ -85,7 +85,7 @@ widget · Cast (Gms).
 - [x] L41 db/DatabaseDao.kt L1201-L2618 — lectura dirigida, no línea a línea (son ~600 consultas): todas las sentencias UPDATE/DELETE, todos los `IN (:lista)` y quién los llama sin trocear, y los caminos de escritura L1900-L2260. F-009, F-010
 - [x] L42 ui/newui/AuraContent.kt L1-L1200
 - [x] L43 ui/newui/AuraContent.kt L1201-L1859 — leído L90-L730 y L1040-L1100; el resto (componentes de presentación) por búsqueda dirigida: escrituras, colas, gestos de deslizar (L1612-L1690 leído). Sin hallazgos P0-P2
-- [ ] L44 ui/newui/AuraBloom.kt L1-L692 + utils/DataStore.kt L1-L182 (DataStore.kt L1-L183 ya leído)
+- [x] L44 ui/newui/AuraBloom.kt L1-L692 + utils/DataStore.kt (ya leído) — sin hallazgos (caché acotada a 32, extracción deduplicada con `claim`/`release`, deriva ambiental con puerta térmica en `AuraAmbientMotion.kt:72-77`)
 - [ ] L45 ui/newui/AuraLibraryTabs.kt L1-L1200
 - [ ] L46 ui/newui/AuraLibraryTabs.kt L1201-L1767
 - [ ] L47 ui/newui/AuraHomeScreen.kt L1-L1200
