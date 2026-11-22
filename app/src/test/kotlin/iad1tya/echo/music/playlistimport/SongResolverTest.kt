@@ -16,13 +16,37 @@ class SongResolverTest {
     @Test fun localMatchTakesPrecedenceAndSkipsSearch() = runBlocking {
         var searched = false
         val result = SongResolver.resolveOrdered(
-            title = "t", artist = "a", videoId = "vid",
+            title = "t", artist = "a", videoId = null,
             localMatch = { _, _ -> "local" },
             fromVideoId = { "video" },
             search = { _, _ -> searched = true; "search" },
         )
         assertEquals("local", result)
         assertFalse(searched)
+    }
+
+    @Test fun embeddedVideoIdWinsOverALibraryMatch() = runBlocking {
+        var localLooked = false
+        val result = SongResolver.resolveOrdered(
+            title = "t", artist = "a", videoId = "vid",
+            localMatch = { _, _ -> localLooked = true; "content://media/external/audio/media/1" },
+            fromVideoId = { id -> if (id == "vid") "video" else null },
+            search = { _, _ -> "search" },
+        )
+        assertEquals("video", result)
+        assertFalse(localLooked)
+    }
+
+    @Test fun unresolvedVideoIdSkipsTheLibraryMatchAndSearches() = runBlocking {
+        var localLooked = false
+        val result = SongResolver.resolveOrdered(
+            title = "Song", artist = "Artist", videoId = "missing",
+            localMatch = { _, _ -> localLooked = true; "content://media/external/audio/media/1" },
+            fromVideoId = { null },
+            search = { _, _ -> "search" },
+        )
+        assertEquals("search", result)
+        assertFalse(localLooked)
     }
 
     @Test fun videoIdUsedWhenNoLocalMatch() = runBlocking {

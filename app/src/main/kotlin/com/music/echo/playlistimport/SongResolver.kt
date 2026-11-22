@@ -11,8 +11,9 @@ import java.text.Normalizer
 /**
  * Resolves a `(title, artist[, videoId])` into a library [MediaMetadata]. Shared by the JR playlist
  * importer and the AI playlist generator (DRY). Resolution order:
- *  1. an existing local library song matching title + artist (no network),
- *  2. an embedded YouTube video id (via [byVideoId]),
+ *  1. an embedded YouTube video id (via [byVideoId]) — when present, the library match is skipped so
+ *     a known video id never ends up pointing to a file on this phone,
+ *  2. only without a video id: an existing local library song matching title + artist (no network),
  *  3. a YouTube search by "title artist", preferring a result whose artists match.
  */
 object SongResolver {
@@ -44,8 +45,11 @@ object SongResolver {
         fromVideoId: (videoId: String) -> T?,
         search: suspend (query: String, expectedArtist: String) -> T?,
     ): T? {
-        localMatch(title, artist)?.let { return it }
-        if (videoId != null) fromVideoId(videoId)?.let { return it }
+        if (videoId != null) {
+            fromVideoId(videoId)?.let { return it }
+        } else {
+            localMatch(title, artist)?.let { return it }
+        }
         val query = listOf(title, artist).filter { it.isNotBlank() }.joinToString(" ")
         if (query.isBlank()) return null
         return search(query, artist)
