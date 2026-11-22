@@ -307,7 +307,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                                 // running it through the clock correction turns it into however
                                 // long ago the last command was, which can seek past the end.
                                 position <= 0L -> 0L
-                                else -> session.positionAt(position, playing)
+                                else -> capToTrack(session.positionAt(position, playing), track)
                             }
                         // Row 616: when the room moved to a track this device ALREADY has loaded further down its own list (the host
                         // pressed next, or the song ended), jump to it in place: ExoPlayer has been pre-buffering it, so it starts at
@@ -388,9 +388,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     ) = withContext(Dispatchers.Main.immediate) {
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
-        val corrected = session.positionAt(position, isPlaying)
-        val player = runCatching { service.player }.getOrNull() ?: return@withContext
         val roomTrack = session.state.value.currentTrack
+        val corrected = capToTrack(session.positionAt(position, isPlaying), roomTrack)
+        val player = runCatching { service.player }.getOrNull() ?: return@withContext
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
             return@withContext
@@ -878,6 +878,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             )
         }.getOrDefault(0)
 
+    private fun capToTrack(position: Long, track: TrackInfo?): Long {
+        val duration = track?.duration ?: 0L
+        return if (duration > TRACK_END_MARGIN_MS) position.coerceAtMost(duration - TRACK_END_MARGIN_MS) else position
+    }
+
     private fun safeDuration(service: MusicService): Long =
         runCatching { service.player.duration }.getOrDefault(0L).coerceAtLeast(0L)
 
@@ -896,6 +901,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         const val HOST_QUEUE_WINDOW = 25
 
         const val READY_BUFFER_PERCENT = 5
+
+        const val TRACK_END_MARGIN_MS = 500L
 
         /** One re-check before giving the room our ready anyway (the server has its own timeout). */
         const val BARRIER_RECHECK_MS = 2_000L
