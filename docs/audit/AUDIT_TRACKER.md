@@ -75,7 +75,7 @@ widget · Cast (Gms).
 - [x] L31 ui/newui/AuraShell.kt L1201-L1518 — sin hallazgos (descartado: el `pointerInput(Unit)` del deslizar lee `canSkipNext` por su delegado `by`, no queda congelado)
 - [x] L32 ui/newui/AuraQueue.kt L1-L1200
 - [x] L33 ui/newui/AuraQueue.kt L1201-L1995 — sin hallazgos P0-P2
-- [ ] L34 devicesync/RemotePlayback.kt L1-L306
+- [x] L34 devicesync/RemotePlayback.kt L1-L306 — sin hallazgos propios (su `shouldPauseOther` depende del listener de F-007)
 - [ ] L35 ui/newui/AuraPalette.kt L1-L1192
 - [ ] L36 utils/SyncUtils.kt L1-L1200
 - [ ] L37 utils/SyncUtils.kt L1201-L2156
@@ -139,6 +139,8 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - Obs (P3, cosmético) `AuraShell.kt:459-464` el rango del motor «líquido» de la barra es `0..items.size-1`, pero la celda Ajustes tiene índice `items.size`: `animateToValue` lo recorta (`DampedDragAnimation.kt:145`), así que ir a Ajustes desde la última pestaña no deforma la pastilla. Solo con cristal interactivo.
 
 - Obs (P3) `AuraQueue.kt:1605` la clave de cada fila es `window.uid.hashCode()`: dos uids distintos con el mismo hash darían una clave repetida en la `LazyColumn`, que en Compose es un cierre. Con hashes de identidad la probabilidad es del orden de n²/2³² (≈0,02 % con 1.000 canciones en cola). Usar el `uid` mismo (o `firstPeriodIndex`+uid) lo evitaría; sin caso observado.
+
+- Obs (P3, i18n) `RemotePlayback.kt:189` el aviso «… no responde: puede tener la pantalla bloqueada…» está escrito en español en el código, no en `strings.xml`; la app trae más de 40 idiomas (`res/values-*`). Mismo patrón en otros `DeviceSyncHub.notice("…")` del módulo.
 
 ## [DECISIÓN REQUERIDA] abiertas
 
