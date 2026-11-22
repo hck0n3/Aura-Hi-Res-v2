@@ -143,6 +143,53 @@ class LogRedactionTest {
         assertScrubbed(blob, "poToken generated $blob")
     }
 
+    @Test
+    fun contentDocumentPathsAreRedactedButTheAuthorityStays() {
+        val out = LogRedaction.redact(
+            "open failed: content://com.android.externalstorage.documents/document/primary%3AMusic%2FMyBand%2Fsong.flac (EACCES)"
+        )
+        assertFalse(out, out.contains("MyBand"))
+        assertFalse(out, out.contains("song.flac"))
+        assertTrue(out, out.contains("content://com.android.externalstorage.documents/<redacted>"))
+        assertTrue(out, out.contains("(EACCES)"))
+    }
+
+    @Test
+    fun mediaStoreContentUrisCarryOnlyANumberAndStay() {
+        val line = "Source error for content://media/external/audio/media/1234"
+        assertEquals(line, LogRedaction.redact(line))
+    }
+
+    @Test
+    fun credentialsInsideAUrlAreRedactedButTheHostStays() {
+        val out = LogRedaction.redact("GET https://alice:s3cretPass@music.example.org/rest/stream failed")
+        assertFalse(out, out.contains("alice"))
+        assertFalse(out, out.contains("s3cretPass"))
+        assertTrue(out, out.contains("https://<redacted>@music.example.org/rest/stream"))
+        val port = "connect to http://music.example.org:4533/rest failed"
+        assertEquals(port, LogRedaction.redact(port))
+    }
+
+    @Test
+    fun forLogKeepsYouTubeIdsAndHashesEverythingElse() {
+        assertEquals("_KZEkEb_dvA", LogRedaction.forLog("_KZEkEb_dvA"))
+        assertEquals("null", LogRedaction.forLog(null))
+        val local = "content://com.android.externalstorage.documents/document/primary%3AMusic%2FMyBand%2Fsong.flac"
+        val out = LogRedaction.forLog(local)
+        assertFalse(out, out.contains("MyBand"))
+        assertTrue(out, out.startsWith("content#"))
+        assertEquals(out, LogRedaction.forLog(local))
+        assertTrue(LogRedaction.forLog("/storage/emulated/0/Music/song.flac").startsWith("id#"))
+    }
+
+    @Test
+    fun newRulesAreIdempotent() {
+        val once = LogRedaction.redact(
+            "https://bob:pw@host.example/x content://com.android.providers.downloads.documents/document/msf%3A12?key=abc"
+        )
+        assertEquals(once, LogRedaction.redact(once))
+    }
+
     // ── Over-redaction guards: the log must stay diagnosable ────────────────────────────────────
 
     @Test

@@ -81,6 +81,37 @@ data class LocalSongScanConfig(
     }
 }
 
+internal fun splitArtistNames(rawArtist: String): List<String> {
+    return rawArtist
+        .split(';')
+        .flatMap { it.split(FeaturingSeparator) }
+        .flatMap { it.split(CollabSeparator) }
+        .flatMap(::splitCommaList)
+        .map(::trimDanglingBracket)
+        .filter(String::isNotBlank)
+        .ifEmpty { listOf(rawArtist) }
+}
+
+private val FeaturingSeparator = Regex("""(?:\s+|\s*[(\[]\s*)(?:feat\.?|ft\.|featuring)\s+""", RegexOption.IGNORE_CASE)
+private val CollabSeparator = Regex("""\s+x\s+""")
+private val BandJoiner = Regex("""&|\band\b""", RegexOption.IGNORE_CASE)
+
+private fun splitCommaList(part: String): List<String> {
+    val pieces = part.split(", ").map(String::trim)
+    if (pieces.size < 2 || BandJoiner.containsMatchIn(part)) return listOf(part)
+    if (pieces.any { it.startsWith("the ", ignoreCase = true) }) return listOf(part)
+    return pieces
+}
+
+private fun trimDanglingBracket(part: String): String {
+    val trimmed = part.trim()
+    return when {
+        trimmed.endsWith(")") && !trimmed.contains("(") -> trimmed.dropLast(1).trim()
+        trimmed.endsWith("]") && !trimmed.contains("[") -> trimmed.dropLast(1).trim()
+        else -> trimmed
+    }
+}
+
 data class LocalSongScanSummary(
     val scannedSongs: Int,
     val removedSongs: Int,
@@ -113,7 +144,9 @@ constructor(
 
             snapshot.artists.forEach { artist ->
                 val existingArtist = existingArtists[artist.id]
-                insert(
+                if (existingArtist != null && existingArtist.isLocal) {
+                    update(existingArtist.copy(name = artist.name))
+                } else insert(
                     ArtistEntity(
                         id = artist.id,
                         name = artist.name,
@@ -128,7 +161,17 @@ constructor(
 
             snapshot.albums.forEach { album ->
                 val existingAlbum = existingAlbums[album.id]
-                insert(
+                if (existingAlbum != null && existingAlbum.isLocal) {
+                    update(
+                        existingAlbum.copy(
+                            title = album.title,
+                            year = album.year ?: existingAlbum.year,
+                            thumbnailUrl = album.thumbnailUrl ?: existingAlbum.thumbnailUrl,
+                            songCount = album.songCount,
+                            duration = album.duration,
+                        ),
+                    )
+                } else insert(
                     AlbumEntity(
                         id = album.id,
                         playlistId = null,
@@ -163,7 +206,20 @@ constructor(
 
             snapshot.tracks.forEach { track ->
                 val existingSong = existingSongs[track.id]?.song
-                insert(
+                if (existingSong != null && existingSong.isLocal) {
+                    update(
+                        existingSong.copy(
+                            title = track.title,
+                            duration = track.durationSeconds,
+                            thumbnailUrl = track.thumbnailUrl ?: existingSong.thumbnailUrl,
+                            albumId = track.albumId,
+                            albumName = track.albumName,
+                            year = track.year ?: existingSong.year,
+                            dateModified = track.dateModified ?: existingSong.dateModified,
+                            isVideo = track.isVideo,
+                        ),
+                    )
+                } else insert(
                     SongEntity(
                         id = track.id,
                         title = track.title,
@@ -552,14 +608,6 @@ constructor(
         return rawAlbum?.trim()?.takeIf { it.isNotBlank() && !it.equals("<unknown>", ignoreCase = true) }
     }
 
-    private fun splitArtistNames(rawArtist: String): List<String> {
-        return rawArtist
-            .split(ArtistSeparators)
-            .map(String::trim)
-            .filter(String::isNotBlank)
-            .ifEmpty { listOf(rawArtist) }
-    }
-
     private fun buildArtistId(
         mediaStoreArtistId: Long?,
         artistName: String,
@@ -749,7 +797,6 @@ constructor(
 
     private companion object {
         val AlbumArtUri: Uri = Uri.parse("content://media/external/audio/albumart")
-        val ArtistSeparators = Regex("[,;/&]")
         const val SqlBatchSize = 900
     }
 }

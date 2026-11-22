@@ -1425,7 +1425,9 @@ interface DatabaseDao {
     }.map { it.reversed(descending) }
 
     @Transaction
-    @Query("SELECT * FROM song WHERE title LIKE '%' || :query || '%' AND (inLibrary IS NOT NULL OR liked = 1) LIMIT :previewSize")
+    @Query(
+        "SELECT * FROM song WHERE (title LIKE '%' || :query || '%' OR EXISTS(SELECT 1 FROM song_artist_map JOIN artist ON artist.id = song_artist_map.artistId WHERE song_artist_map.songId = song.id AND artist.name LIKE '%' || :query || '%')) AND (inLibrary IS NOT NULL OR liked = 1 OR isLocal = 1) ORDER BY (title LIKE '%' || :query || '%') DESC, song.rowid LIMIT :previewSize",
+    )
     fun searchSongs(
         query: String,
         previewSize: Int = Int.MAX_VALUE,
@@ -1434,7 +1436,7 @@ interface DatabaseDao {
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
     @Query(
-        "SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1)) AS songCount FROM artist WHERE name LIKE '%' || :query || '%' AND songCount > 0 LIMIT :previewSize",
+        "SELECT *, (SELECT COUNT(1) FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = artist.id AND (song.inLibrary IS NOT NULL OR song.liked = 1 OR song.isLocal = 1)) AS songCount FROM artist WHERE name LIKE '%' || :query || '%' AND songCount > 0 LIMIT :previewSize",
     )
     fun searchArtists(
         query: String,
@@ -1444,7 +1446,7 @@ interface DatabaseDao {
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
     @Query(
-        "SELECT * FROM album WHERE title LIKE '%' || :query || '%' AND EXISTS(SELECT * FROM song WHERE song.albumId = album.id AND song.inLibrary IS NOT NULL) LIMIT :previewSize",
+        "SELECT * FROM album WHERE title LIKE '%' || :query || '%' AND EXISTS(SELECT * FROM song WHERE song.albumId = album.id AND (song.inLibrary IS NOT NULL OR song.isLocal = 1)) LIMIT :previewSize",
     )
     fun searchAlbums(
         query: String,

@@ -8055,7 +8055,7 @@ class MusicService :
         }
 
         val mediaId = player.currentMediaItem?.mediaId
-        Timber.tag(TAG).w(error, "Player error occurred for $mediaId: errorCode=${error.errorCode}, message=${error.message}")
+        Timber.tag(TAG).w(error, "Player error occurred for ${iad1tya.echo.music.utils.LogRedaction.forLog(mediaId)}: errorCode=${error.errorCode}, message=${error.message}")
         reportException(error)
 
         // A soft video item (Song mode over a still-merged source) failing is an AUDIO failure: leave the soft state
