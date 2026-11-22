@@ -442,6 +442,7 @@ internal suspend fun MusicService.exactStyleFilter(
         mixed = laneMixed && requested == null,
         christian = gateTarget.christian,
         families = families,
+        stylesKnown = !gateTarget.styles.isNullOrEmpty(),
     )
     if (!gateTarget.active && lane.families.isEmpty() && !lane.christian) {
         Timber.tag(TAG).i("STYLE_GATE %s: style and language unknown, no filter applied", site)

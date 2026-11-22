@@ -265,6 +265,61 @@ class ContextLaneTest {
         assertTrue(MusicStyle.neighbourFamilies(null).isEmpty())
     }
 
+    // ── Row 649 (owner 2026-11-22): a vallenato/bolero queue ended in salsa, a rap cristiano one in reggaetón cristiano ─────
+    @Test
+    fun `with the styles known a salsa filed only as salsa y tropical is unproven under vallenato and bolero`() {
+        val target = StyleContinuity.Target(setOf("vallenato", "bolero"), TitleLanguage.ES, christian = false)
+        val lane = ContextLane.Lane(
+            TitleLanguage.ES, mixed = false, christian = false, families = target.neighbourFamilies, stylesKnown = true,
+        )
+        val salsa = candidate("Mi Testimonio", genre = "Salsa y Tropical", target = target)
+        assertEquals(Verdict.UNKNOWN, salsa.verdict)
+        assertEquals(MusicStyle.FAMILY_TROPICAL, salsa.family)
+        val salsaTier = tierOf(salsa, lane)
+        assertTrue("family only is not a match: $salsaTier", salsaTier != null && salsaTier >= 2)
+        // Still eligible (#39/#41/#116), and a real vallenato keeps the best step.
+        val vallenato = candidate("Mi Testimonio", learned = "vallenato", target = target)
+        assertEquals(0, tierOf(vallenato, lane))
+        // The filler rule (row 588) now caps the salsas at what is missing up to `enough`.
+        val items = listOf("vallenato", "salsa-1", "salsa-2", "salsa-3")
+        val tiers = listOf(tierOf(vallenato, lane), salsaTier, salsaTier, salsaTier)
+        val tierBy = items.zip(tiers).toMap()
+        val kept = ContextLane.capUnproven(
+            ContextLane.choose(items, tiers, listOf(false, false, false, false), enough = 2),
+            { tierBy[it] },
+            enough = 2,
+        )
+        assertEquals(listOf("vallenato", "salsa-1"), kept)
+    }
+
+    @Test
+    fun `with the styles known a reggaeton filed only as urbano is unproven under rap`() {
+        val target = StyleContinuity.Target(setOf("rap"), TitleLanguage.ES, christian = true)
+        val lane = ContextLane.Lane(
+            TitleLanguage.ES, mixed = false, christian = true, families = target.neighbourFamilies, stylesKnown = true,
+        )
+        val reggaeton = candidate("Mi Testimonio", genre = "Latin Urban", christian = true, target = target)
+        assertEquals(Verdict.UNKNOWN, reggaeton.verdict)
+        assertEquals(MusicStyle.FAMILY_URBAN, reggaeton.family)
+        val step = tierOf(reggaeton, lane)
+        assertTrue("family only is not a match: $step", step != null && step >= 2)
+        assertEquals(0, tierOf(candidate("Mi Testimonio", learned = "rap", christian = true, target = target), lane))
+    }
+
+    @Test
+    fun `with the style unknown the family still proves the step - relaxed lanes are unchanged`() {
+        // Relaxation level 2: the gate drops the styles (gateTarget.styles = null) and keeps the neighbour families.
+        val target = StyleContinuity.Target(null, TitleLanguage.ES, christian = false)
+        val lane = ContextLane.Lane(TitleLanguage.ES, mixed = false, christian = false, families = setOf(MusicStyle.FAMILY_TROPICAL))
+        assertFalse(lane.stylesKnown)
+        val salsa = candidate("Jordan", genre = "Salsa y Tropical", target = target)
+        assertEquals(Verdict.UNKNOWN, salsa.verdict)
+        assertEquals(1, tierOf(salsa, lane)) // family matches, language unproven: as before row 649
+        val noLanguageLane = ContextLane.Lane(null, mixed = false, christian = false, families = setOf(MusicStyle.FAMILY_TROPICAL))
+        val familyOnly = ContextLane.Candidate(Verdict.UNKNOWN, ContextLane.LangEvidence.NONE, MusicStyle.FAMILY_TROPICAL, false)
+        assertEquals(0, ContextLane.tier(noLanguageLane, familyOnly))
+    }
+
     @Test
     fun `a christian context with a language always has a christian search to fall back on`() {
         assertEquals("música cristiana", StyleContinuity.christianQuery(TitleLanguage.ES))
@@ -326,6 +381,8 @@ class ContextLaneTest {
         assertTrue("acotado: presupuesto de páginas de artista por cola", gate.contains("LANE_FILL_REQUEST_BUDGET"))
         // Only STRONG evidence may call a candidate «another language».
         assertTrue(gate.contains("language = evidence.code.takeIf { evidence.strong }"))
+        // Row 649: the lane knows when the styles are known, so a family-only candidate is not counted as a match.
+        assertTrue(gate.contains("stylesKnown = !gateTarget.styles.isNullOrEmpty()"))
     }
 
     @Test

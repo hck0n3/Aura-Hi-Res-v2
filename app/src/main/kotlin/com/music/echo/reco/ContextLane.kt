@@ -245,6 +245,8 @@ object ContextLane {
         val mixed: Boolean,
         val christian: Boolean,
         val families: Set<String>,
+        /** Row 649: the context's concrete styles are known, so [families] is only a fence, never proof of the style. */
+        val stylesKnown: Boolean = false,
     ) {
         /** True when the lane asks anything of a candidate that [StyleContinuity.Target] does not already. */
         val extra: Boolean get() = language != null || families.isNotEmpty()
@@ -306,7 +308,8 @@ object ContextLane {
         val code = c.language.code
         if (wanted != null && code != null && code != wanted && c.language.strong) return null
         if (lane.families.isNotEmpty() && c.family != null && c.family !in lane.families) return null
-        val familySame = lane.families.isNotEmpty() && c.family != null
+        // Row 649: with the styles known, a family-only candidate (iTunes «Salsa y Tropical» under vallenato) is unproven, not a match.
+        val familySame = lane.families.isNotEmpty() && c.family != null && !lane.stylesKnown
         val exact = c.verdict == StyleContinuity.Verdict.MATCH || familySame
         // «Proven» = the lane asks no language, or the candidate's evidence says it. A hint of ANOTHER language
         // proves nothing either way (it never excludes), so it only keeps the candidate out of the best steps.
