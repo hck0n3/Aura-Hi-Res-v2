@@ -298,7 +298,9 @@ class PlayerConnection(
     val waitingForNetworkConnection = service.waitingForNetworkConnection
     
     
-    var shouldBlockPlaybackChanges: (() -> Boolean)? = null
+    var shouldBlockPlaybackChanges: (() -> Boolean)? = {
+        runCatching { service.listenTogetherManager.shouldBlockPlaybackChanges() }.getOrDefault(false)
+    }
 
     // `allowInternalSync` used to sit here as an escape hatch for the Listen Together bridge, which
     // reached the player THROUGH this class. The bridge now talks to MusicService's player directly
