@@ -308,7 +308,9 @@ class LibrarySync(
         }
         val ledger = ledger()
         val current = adapter.readLocal { key -> ledger.containsKey(key) }
-        val released = ledger.values.filter { LibrarySyncCore.isHeld(it) && it.key !in current }.map { it.copy(parked = false) }
+        val released = ledger.values.filter {
+            it.parked && (if (LibrarySyncCore.isHeld(it)) it.key !in current else current[it.key] == it.value)
+        }.map { it.copy(parked = false) }
         released.forEach { ledger[it.key] = it }
         store.append(released)
         val fresh = LibrarySyncCore.localOps(current, ledger, clock())

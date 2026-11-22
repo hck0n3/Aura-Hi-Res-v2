@@ -518,6 +518,33 @@ class LibrarySyncSimulationTest {
     }
 
     @Test
+    fun `a parked like that becomes real here is no longer parked - the user's unlike goes out and the old like does not come back`() {
+        val tablet = Device("tablet")
+        tablet.connect()
+        settle()
+        // A like of a song this device has never seen: it cannot be placed, so it is parked.
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive("lk:ghost")); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive("1")) }) })
+        })
+        eventually("the tablet parked the like") { tablet.ledger.stored["lk:ghost"]?.parked == true }
+        // The song reaches the tablet another way and the user likes it here; then changes their mind.
+        tablet.backend.like("ghost"); tablet.changed()
+        settle()
+        tablet.backend.likes -= "ghost"; tablet.changed()
+        eventually("the unlike reaches the room") { room.value("lk:ghost") == "0" }
+        // Something else arrives and the tablet pulls again: the old like must not be applied again.
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive("dk:song:other")); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive("1")) }) })
+        })
+        eventually("the tablet pulled again") { ("song" to "other") in tablet.backend.dislikes }
+        settle()
+        assertFalse("the unlike stands", "ghost" in tablet.backend.likes)
+        assertEquals("0", room.value("lk:ghost"))
+    }
+
+    @Test
     fun `after a backup is restored the room wins over the old library, and what only the backup had is added`() {
         val phone = Device("phone"); val tablet = Device("tablet")
         repeat(40) { phone.backend.like("r$it") }
