@@ -1937,25 +1937,32 @@ private fun AuraHeroCarouselCard(
             )
         }
         // "Los tres puntos": the song's menu one tap away, not only behind a long press.
+        // 48 dp touch target around the same 32 dp disc (the disc stays 8 dp from the corner).
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(8.dp)
-                .size(32.dp)
+                .size(48.dp)
                 .clip(CircleShape)
-                .background(AuraPalette.Ground.copy(alpha = 0.55f))
                 .combinedClickable(
                     onClick = { onLongClick(current) },
                     onClickLabel = stringResource(R.string.more_options),
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            AuraIconGlyph(
-                icon = AuraIcons.More,
-                contentDescription = stringResource(R.string.more_options),
-                size = 18.dp,
-                tint = AuraPalette.OnGround,
-            )
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(AuraPalette.Ground.copy(alpha = 0.55f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                AuraIconGlyph(
+                    icon = AuraIcons.More,
+                    contentDescription = stringResource(R.string.more_options),
+                    size = 18.dp,
+                    tint = AuraPalette.OnGround,
+                )
+            }
         }
         Column(
             modifier = Modifier

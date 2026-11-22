@@ -785,25 +785,33 @@ fun AuraCoverCard(
                 }
             }
             if (onPlay != null && !isActive) {
+                // 48 dp touch target centred on the same 30 dp disc (the disc stays 7 dp from the corner).
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(7.dp)
-                        .size(30.dp)
+                        .offset(x = 2.dp, y = 2.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
-                        .background(AuraPalette.Ground.copy(alpha = 0.72f))
                         .combinedClickable(
                             onClick = onPlay,
                             onClickLabel = stringResource(R.string.play),
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    AuraIconGlyph(
-                        icon = AuraIcons.Play,
-                        contentDescription = stringResource(R.string.play),
-                        size = 16.dp,
-                        tint = AuraPalette.OnGround,
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(AuraPalette.Ground.copy(alpha = 0.72f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        AuraIconGlyph(
+                            icon = AuraIcons.Play,
+                            contentDescription = stringResource(R.string.play),
+                            size = 16.dp,
+                            tint = AuraPalette.OnGround,
+                        )
+                    }
                 }
             }
             badge?.invoke(this)
