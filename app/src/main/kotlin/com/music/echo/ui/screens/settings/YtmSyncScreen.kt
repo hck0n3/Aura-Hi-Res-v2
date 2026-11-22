@@ -339,6 +339,13 @@ private fun LibraryUploadSection(
         }
     }
     val awaitingImportCount = awaitingImportCounted.size
+    val localOnlyImportCounted by androidx.compose.runtime.produceState(emptySet<String>(), localOnlyImportIds) {
+        value = if (localOnlyImportIds.isEmpty()) emptySet() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                localOnlyImportIds.filterTo(HashSet()) { database.getArtistById(it)?.followedByUserAt != null }
+            }.getOrDefault(emptySet())
+        }
+    }
     val showImportFollowsConfirm = remember { androidx.compose.runtime.mutableStateOf(false) }
 
     fun requestUploadEnabled(enabled: Boolean) {
@@ -466,20 +473,20 @@ private fun LibraryUploadSection(
                     Text(pluralStringResource(R.plurals.ytm_upload_import_awaiting, awaitingImportCount, awaitingImportCount))
                 },
                 onClick = { showImportFollowsConfirm.value = true },
-            ).takeIf { uploadEnabled && awaitingImportCount > 0 },
+            ).takeIf { awaitingImportCount > 0 },
             Material3SettingsItem(
                 icon = painterResource(R.drawable.replay),
                 title = {
                     Text(
                         pluralStringResource(
                             R.plurals.ytm_upload_import_local_only_count,
-                            localOnlyImportIds.size,
-                            localOnlyImportIds.size,
+                            localOnlyImportCounted.size,
+                            localOnlyImportCounted.size,
                         ),
                     )
                 },
                 onClick = {
-                    val askAgain = localOnlyImportIds
+                    val askAgain = localOnlyImportCounted
                     coroutineScope.launch {
                         runCatching {
                             context.dataStore.edit {
@@ -490,7 +497,7 @@ private fun LibraryUploadSection(
                         }
                     }
                 },
-            ).takeIf { localOnlyImportIds.isNotEmpty() },
+            ).takeIf { localOnlyImportCounted.isNotEmpty() },
         ) + listOf(
             Material3SettingsItem(
                 icon = painterResource(R.drawable.sync),
