@@ -78,6 +78,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
     }
     @Volatile private var everPlayed = false
+    /** The local player holds the other device's queue only as a mirror, and has not played it here since. */
+    @Volatile private var mirrorHeld = false
     private var lastSignature = ""
     private var lastPublishedAt = 0L
     private var lastPublishedPosition = 0L
@@ -282,7 +284,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             p != null && p.playWhenReady && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED
         }
         val nowMs = System.currentTimeMillis()
-        if (localPlaying) lastLocalPlayingAt = nowMs
+        if (localPlaying) {
+            lastLocalPlayingAt = nowMs
+            mirrorHeld = false
+        }
         // Row 594: only ONE device sounds. The one the user just started playing on wins; the other is asked to pause.
         val startedNow = localPlaying && !wasLocalPlaying
         wasLocalPlaying = localPlaying
@@ -365,6 +370,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         val current = state.current ?: return
         onMain {
             val p = playerOrNull() ?: return@onMain
+            mirrorHeld = true
             // A mirror is never left prepared: a READY player lets Bluetooth resume (or an error skip) start it here, and
             // every song change on the other device would download it again. The first request to play here prepares it.
             fun keepIdle() {
@@ -799,7 +805,14 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         if (RemotePlayback.active) return
         val state = buildNow() ?: return
         val playing = (state["playing"] as? JsonPrimitive)?.booleanOrNull == true
-        if (playing) everPlayed = true
+        if (playing) {
+            everPlayed = true
+            mirrorHeld = false
+        }
+        // Owner 2026-11-22 (back in the app, the mini player showed the local queue): after a reconnect this device announced the
+        // other one's mirrored queue, paused, as ITS own - the room keeps one «now», so the device that really plays was hidden until
+        // its next heartbeat (up to 20 s). A mirror that never played here is not this device's playback.
+        if (mirrorHeld) return
         if (!everPlayed && !force) return
         val currentId = ((state["items"] as? JsonArray)?.getOrNull(state.int("index") ?: 0) as? JsonObject)?.str("id").orEmpty()
         val signature = "$currentId|$playing"
