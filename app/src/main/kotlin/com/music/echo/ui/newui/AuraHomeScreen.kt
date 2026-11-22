@@ -374,8 +374,8 @@ fun AuraHomeScreen(
                 YouTubeQueue(item.endpoint ?: WatchEndpoint(videoId = item.id), item.toMediaMetadata()),
             )
 
-            is AlbumItem -> navController.navigate("album/${item.id}")
-            is ArtistItem -> navController.navigate("artist/${item.id}")
+            is AlbumItem -> navController.navigateOnce("album/${item.id}")
+            is ArtistItem -> navController.navigateOnce("artist/${item.id}")
             is PlaylistItem -> {
                 // Pinned Home playlists may be local (UUID) or YouTube browse ids.
                 scope.launch {
@@ -384,9 +384,9 @@ fun AuraHomeScreen(
                             ?: database.playlistByBrowseId(item.id).first()
                     }
                     if (local != null) {
-                        navController.navigate("local_playlist/${local.id}")
+                        navController.navigateOnce("local_playlist/${local.id}")
                     } else {
-                        navController.navigate("online_playlist/${item.id}")
+                        navController.navigateOnce("online_playlist/${item.id}")
                     }
                 }
             }
@@ -1087,8 +1087,8 @@ fun AuraHomeScreen(
                                                             onClick = {
                                                                 when (item) {
                                                                     is Song -> playSong(item)
-                                                                    is Album -> navController.navigate("album/${item.id}")
-                                                                    is Artist -> navController.navigate("artist/${item.id}")
+                                                                    is Album -> navController.navigateOnce("album/${item.id}")
+                                                                    is Artist -> navController.navigateOnce("artist/${item.id}")
                                                                     else -> Unit
                                                                 }
                                                             },

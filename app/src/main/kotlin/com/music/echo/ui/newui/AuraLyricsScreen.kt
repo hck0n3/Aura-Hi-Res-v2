@@ -346,7 +346,7 @@ fun AuraLyricsScreen(
                                 role = Role.Button,
                                 onClick = {
                                     resolvedAlbum?.let { album ->
-                                        navController.navigate("album/${album.id}")
+                                        navController.navigateOnce("album/${album.id}")
                                         onClose()
                                     }
                                 },
@@ -383,7 +383,7 @@ fun AuraLyricsScreen(
                                     onClick = {
                                         meta.artists.firstOrNull { !it.id.isNullOrBlank() }?.id
                                             ?.let { artistId ->
-                                                navController.navigate("artist/$artistId")
+                                                navController.navigateOnce("artist/$artistId")
                                                 onClose()
                                             }
                                     },

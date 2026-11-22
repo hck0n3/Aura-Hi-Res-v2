@@ -614,13 +614,13 @@ fun AuraOnlinePlaylistScreen(
                                     onClick = {
                                         when (item) {
                                             is PlaylistItem ->
-                                                navController.navigate("online_playlist/${item.id}")
+                                                navController.navigateOnce("online_playlist/${item.id}")
 
                                             is AlbumItem ->
-                                                navController.navigate("album/${item.browseId}")
+                                                navController.navigateOnce("album/${item.browseId}")
 
                                             is ArtistItem ->
-                                                navController.navigate("artist/${item.id}")
+                                                navController.navigateOnce("artist/${item.id}")
 
                                             is SongItem -> playerConnection.playQueue(
                                                 YouTubeQueue(WatchEndpoint(videoId = item.id)),

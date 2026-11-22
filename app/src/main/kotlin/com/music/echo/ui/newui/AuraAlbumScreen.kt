@@ -333,7 +333,7 @@ fun AuraAlbumScreen(
                         description = description,
                         descriptionRuns = descriptionRuns,
                         isTvOrCar = isTvOrCar,
-                        onOpenArtist = { artistId -> navController.navigate("artist/$artistId") },
+                        onOpenArtist = { artistId -> navController.navigateOnce("artist/$artistId") },
                         onToggleSave = {
                             val willLike = album.album.bookmarkedAt == null
                             database.query { update(album.album.toggleLike()) }
@@ -524,7 +524,7 @@ fun AuraAlbumScreen(
                                     cardScale = 1f,
                                     isActive = mediaMetadata?.album?.id == item.id,
                                     isPlaying = isPlaying,
-                                    onClick = { navController.navigate("album/${item.id}") },
+                                    onClick = { navController.navigateOnce("album/${item.id}") },
                                     onLongClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         menuState.show {
@@ -1321,9 +1321,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraAlbumRelatedShelf
                     isPlaying = isPlaying,
                     onClick = {
                         when (item) {
-                            is AlbumItem -> navController.navigate("album/${item.id}")
-                            is ArtistItem -> navController.navigate("artist/${item.id}")
-                            is PlaylistItem -> navController.navigate("online_playlist/${item.id}")
+                            is AlbumItem -> navController.navigateOnce("album/${item.id}")
+                            is ArtistItem -> navController.navigateOnce("artist/${item.id}")
+                            is PlaylistItem -> navController.navigateOnce("online_playlist/${item.id}")
                             // AUDIT FIX (2026-09-04): was `Unit` — a SONG card in the related
                             // shelves ("Más para escuchar" / "Aparece en") did nothing on tap
                             // (only long-press worked). Play it immediately, the same pattern

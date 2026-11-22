@@ -262,7 +262,7 @@ fun AuraMigrationScreen(
                             state = state,
                             onReview = { showReview = true },
                             onOpenLibrary = {
-                                state.localPlaylistId?.let { navController.navigate("local_playlist/$it") }
+                                state.localPlaylistId?.let { navController.navigateOnce("local_playlist/$it") }
                             },
                             onMigrateAnother = { viewModel.reset() },
                             onSaveFailuresCsv = {

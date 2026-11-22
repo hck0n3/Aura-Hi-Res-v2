@@ -59,9 +59,9 @@ internal fun AuraRelatedShelf(
                 cardScale = 1f,
                 onClick = {
                     when (item) {
-                        is PlaylistItem -> navController.navigate("online_playlist/${item.id}")
-                        is AlbumItem -> navController.navigate("album/${item.browseId}")
-                        is ArtistItem -> navController.navigate("artist/${item.id}")
+                        is PlaylistItem -> navController.navigateOnce("online_playlist/${item.id}")
+                        is AlbumItem -> navController.navigateOnce("album/${item.browseId}")
+                        is ArtistItem -> navController.navigateOnce("artist/${item.id}")
                         is SongItem -> playerConnection.playQueue(YouTubeQueue(WatchEndpoint(videoId = item.id)))
                         else -> Unit
                     }

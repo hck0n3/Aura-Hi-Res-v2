@@ -282,17 +282,17 @@ fun AuraOnlineSearchSuggestions(
                         }
 
                         is AlbumItem -> {
-                            navController.navigate("album/${item.id}")
+                            navController.navigateOnce("album/${item.id}")
                             onDismiss()
                         }
 
                         is ArtistItem -> {
-                            navController.navigate("artist/${item.id}")
+                            navController.navigateOnce("artist/${item.id}")
                             onDismiss()
                         }
 
                         is PlaylistItem -> {
-                            navController.navigate("online_playlist/${item.id}")
+                            navController.navigateOnce("online_playlist/${item.id}")
                             onDismiss()
                         }
                     }
@@ -695,7 +695,7 @@ fun AuraLocalSearchResults(
                         typeChip = visual.label,
                         onClick = {
                             onDismiss()
-                            navController.navigate("album/${item.id}")
+                            navController.navigateOnce("album/${item.id}")
                         },
                         modifier = Modifier
                             
@@ -719,7 +719,7 @@ fun AuraLocalSearchResults(
                         typeChip = visual.label,
                         onClick = {
                             onDismiss()
-                            navController.navigate("artist/${item.id}")
+                            navController.navigateOnce("artist/${item.id}")
                         },
                         modifier = Modifier
                             
@@ -743,7 +743,7 @@ fun AuraLocalSearchResults(
                         typeChip = visual.label,
                         onClick = {
                             onDismiss()
-                            navController.navigate("local_playlist/${item.id}")
+                            navController.navigateOnce("local_playlist/${item.id}")
                         },
                         modifier = Modifier
                             

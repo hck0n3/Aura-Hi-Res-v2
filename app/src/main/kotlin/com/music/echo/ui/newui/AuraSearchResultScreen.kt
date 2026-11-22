@@ -275,9 +275,9 @@ fun AuraSearchResultScreen(
                 )
             }
 
-            is AlbumItem -> navController.navigate("album/${item.id}")
-            is ArtistItem -> navController.navigate("artist/${item.id}")
-            is PlaylistItem -> navController.navigate("online_playlist/${item.id}")
+            is AlbumItem -> navController.navigateOnce("album/${item.id}")
+            is ArtistItem -> navController.navigateOnce("artist/${item.id}")
+            is PlaylistItem -> navController.navigateOnce("online_playlist/${item.id}")
         }
     }
 

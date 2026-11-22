@@ -453,8 +453,8 @@ fun AuraLibraryHub(
     // ── Opening and menus: the SAME routes and the SAME menus the full lists use ──────────────────
     val openPin: (AuraResolvedPin) -> Unit = { r ->
         when (r.pin.kind) {
-            LibraryPinKind.ARTIST -> navController.navigate("artist/${r.pin.id}")
-            LibraryPinKind.ALBUM -> navController.navigate("album/${r.pin.id}")
+            LibraryPinKind.ARTIST -> navController.navigateOnce("artist/${r.pin.id}")
+            LibraryPinKind.ALBUM -> navController.navigateOnce("album/${r.pin.id}")
             LibraryPinKind.PLAYLIST -> {
                 val inLibrary = r.playlist
                 if (inLibrary != null) {
@@ -472,7 +472,7 @@ fun AuraLibraryHub(
                                 Toast.makeText(context, context.getString(R.string.library_pins_missing), Toast.LENGTH_SHORT).show()
                                 LibraryPinsStore.update(context) { LibraryPins.without(it, r.key) }
                             }
-                            else -> navController.navigate("online_playlist/${r.pin.id}")
+                            else -> navController.navigateOnce("online_playlist/${r.pin.id}")
                         }
                     }
                 }
@@ -1335,7 +1335,7 @@ fun AuraLibraryAlbumsTab(
                     null
                 },
                 modifier = Modifier.animateItem(),
-                onClick = { navController.navigate("album/${album.id}") },
+                onClick = { navController.navigateOnce("album/${album.id}") },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     menuState.show { AlbumMenu(album, navController, menuState::dismiss) }
@@ -1477,7 +1477,7 @@ fun AuraLibraryArtistsTab(
                     null
                 },
                 modifier = Modifier.animateItem(),
-                onClick = { navController.navigate("artist/${artist.id}") },
+                onClick = { navController.navigateOnce("artist/${artist.id}") },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     menuState.show { ArtistMenu(artist, coroutineScope, menuState::dismiss) }
@@ -1689,9 +1689,9 @@ fun AuraLibraryPlaylistsTab(
                         playlist.songCount == 0 &&
                         playlist.playlist.remoteSongCount != 0
                     ) {
-                        navController.navigate("online_playlist/${playlist.playlist.browseId}")
+                        navController.navigateOnce("online_playlist/${playlist.playlist.browseId}")
                     } else {
-                        navController.navigate("local_playlist/${playlist.id}")
+                        navController.navigateOnce("local_playlist/${playlist.id}")
                     }
                 },
                 onLongClick = {

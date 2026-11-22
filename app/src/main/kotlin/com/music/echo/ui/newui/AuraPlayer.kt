@@ -1514,8 +1514,7 @@ private fun AuraPlayerShape(
                                                 album.id
                                             }
                                             if (!browseId.isNullOrBlank()) {
-                                                navController.navigate("album/$browseId")
-                                                state.collapseAfterNavigate()
+                                                navigateFromPlayer("album/$browseId")
                                             } else if (album.title.isNotBlank()) {
                                                 navController.navigate(
                                                     "search/${URLEncoder.encode(album.title, "UTF-8")}"

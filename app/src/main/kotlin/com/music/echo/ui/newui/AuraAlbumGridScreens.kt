@@ -137,7 +137,7 @@ fun AuraFavoriteAlbumsScreen(
                         isPlaying = isPlaying,
                         typeIcon = AuraIcons.Album,
                         explicit = album.album.explicit,
-                        onClick = { navController.navigate("album/${album.id}") },
+                        onClick = { navController.navigateOnce("album/${album.id}") },
                         onLongClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
@@ -276,9 +276,9 @@ fun AuraArtistSectionGridScreen(
                                                 item.toMediaMetadata(),
                                             ),
                                         )
-                                        is AlbumItem -> navController.navigate("album/${item.id}")
-                                        is ArtistItem -> navController.navigate("artist/${item.id}")
-                                        is PlaylistItem -> navController.navigate("online_playlist/${item.id}")
+                                        is AlbumItem -> navController.navigateOnce("album/${item.id}")
+                                        is ArtistItem -> navController.navigateOnce("artist/${item.id}")
+                                        is PlaylistItem -> navController.navigateOnce("online_playlist/${item.id}")
                                     }
                                 },
                                 onLongClick = {
