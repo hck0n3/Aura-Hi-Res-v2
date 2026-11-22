@@ -101,6 +101,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     @Volatile
     private var applyingRemote = false
 
+    @Volatile
+    private var pausedLocally = false
+
     private var started = false
     private var lastPublishedTrackId: String? = null
     private var lastAppliedTrackId: String? = null
@@ -179,6 +182,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         player.addListener(playerListener)
         // Seed, or the first publish after a player swap compares against a stale intent.
         playIntent.value = player.playWhenReady
+        if (player.playWhenReady) pausedLocally = false
         isPlayingNow.value = player.isPlaying
         timelineRevision.value++
         Timber.tag(TAG).i("Listening to the service player")
@@ -190,12 +194,13 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             reason: Int,
         ) {
             playIntent.value = playWhenReady
+            val state = session.state.value
+            if (!applyingRemote) pausedLocally = !playWhenReady && state.inRoom && !state.isHost
             if (!playWhenReady) return
             // Guest-side resume: the local player started playing while we are a guest and the apply
             // loop did NOT cause it — ask the server where the room is. This is what Metrolist's and
             // SimpMusic's managers do (`requestSync` on guest play), and what makes "guests may
             // pause, and stay paused" possible at all.
-            val state = session.state.value
             if (!state.inRoom || state.isHost || applyingRemote) return
             Timber.tag(TAG).i("Guest resumed — asking the server where the room is")
             session.requestSync()
@@ -265,6 +270,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // dejaría así para siempre: el ajuste solo se toca desde aquí, y aquí ya no se
                     // entra. Devolverla es parte de apagar la corrección, no un detalle.
                     onMain { restoreUserTempo() }
+                    pausedLocally = false
                     return@collect
                 }
                 val service = serviceFlow.value ?: return@collect
@@ -306,10 +312,10 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         // Row 616: when the room moved to a track this device ALREADY has loaded further down its own list (the host
                         // pressed next, or the song ended), jump to it in place: ExoPlayer has been pre-buffering it, so it starts at
                         // once instead of being torn down and resolved again (1-3 s later than the host, then a visible catch-up jump).
-                        val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing) }
-                        if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing)
+                        val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally) }
+                        if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing && !pausedLocally)
                     }
-                    applyTransport(service, playing, position)
+                    applyTransport(service, playing && !pausedLocally, position)
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Failed to apply remote state")
                 } finally {
@@ -346,7 +352,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             val state = session.state.value
             if (!state.inRoom || state.isHost) continue
             val service = serviceFlow.value ?: continue
-            if (!state.isPlaying) continue
+            if (!state.isPlaying || pausedLocally) continue
             applyingRemote = true
             try {
                 applyTransport(service, state.isPlaying, state.position)
