@@ -53,11 +53,117 @@ class OfflineFallbackGuardTest {
         assertTrue(branchStart > 0)
         assertTrue("the offline branch must come before the generic I/O handler", branchStart < generic)
         val branch = onPlayerError.substring(branchStart, onPlayerError.indexOf("!isNetworkConnected.value -> {", branchStart))
-        assertTrue(branch.contains("findNextOfflinePlayableIndex()"))
-        assertTrue(branch.contains("skipToOfflinePlayableSong(offlineTargetIndex)"))
+        assertTrue(branch.contains("continueWithOfflineQueue("))
         assertFalse(branch.contains("performAggressiveCacheClear"))
         assertFalse(branch.contains("incrementRetryCount"))
         assertFalse(branch.contains("handleGenericIOError"))
+
+        val helper = service.substring(service.indexOf("private fun continueWithOfflineQueue(stopIfNothing: Boolean) {"))
+            .substringBefore("\n    }\n")
+        assertTrue(helper.contains("findNextOfflinePlayableIndex()"))
+        assertTrue(helper.contains("skipToOfflinePlayableSong(offlineTargetIndex)"))
+        assertTrue(helper.contains("if (stopIfNothing) stopOnError() else waitOnNetworkError()"))
+        assertFalse(helper.contains("performAggressiveCacheClear"))
+    }
+
+    // ---- the player's offline session ------------------------------------------------------------------
+
+    @Test
+    fun `the resolver refuses at once while the session is on and ends it on a fresh resolve`() {
+        assertTrue(resolver.contains("-> OfflineRejectionException.Kind.SESSION"))
+        assertTrue(resolver.contains("PlaybackOfflineSession.shouldRejectResolve("))
+        val success = resolver.indexOf("StreamHealth.freshResolveCompleted(")
+        assertTrue(success > 0)
+        assertTrue(resolver.indexOf("noteNetworkResolveSucceeded()", success) in success until success + 300)
+    }
+
+    /** Order: the evidence-backed session branches run before the bounded retry and before the "unavailable song" verdict. */
+    @Test
+    fun `network failures with evidence continue with the offline queue`() {
+        val noStreamSession = onPlayerError.indexOf("!PlaybackErrorClassifier.isContentLevelNoStream(error) &&")
+        val noStreamVerdict = onPlayerError.indexOf("PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value -> {")
+        assertTrue(noStreamSession in 1 until noStreamVerdict)
+
+        val networkSession = onPlayerError.indexOf("PlaybackErrorClassifier.isNetworkRelatedError(error) && noteOfflineNetworkFailure() -> {")
+        val boundedRetry = onPlayerError.indexOf("PlaybackErrorClassifier.isNetworkRelatedError(error) -> {")
+        val offline = onPlayerError.indexOf("!isNetworkConnected.value -> {")
+        assertTrue(networkSession in 1 until offline)
+        assertTrue(offline < boundedRetry)
+        assertTrue(onPlayerError.substring(networkSession, offline).contains("continueWithOfflineQueue(stopIfNothing = false)"))
+
+        val rejection = onPlayerError.substring(onPlayerError.indexOf("PlaybackErrorClassifier.isOfflineRejection(error) -> {"), networkSession)
+        assertTrue(rejection.contains("if (kind == OfflineRejectionException.Kind.NO_NETWORK) noteOfflineNoNetwork()"))
+        assertTrue(rejection.contains("continueWithOfflineQueue(stopIfNothing = kind == OfflineRejectionException.Kind.MANUAL)"))
+    }
+
+    @Test
+    fun `entering and leaving are event-driven and say so once`() {
+        assertTrue(service.contains("if (!isConnected && !hasLiveInternetConnection()) noteOfflineNoNetwork()"))
+        assertTrue(service.contains("if (validated && PlaybackOfflineSession.onValidated()) onOfflineSessionExited(\"validated\")"))
+        assertTrue(service.contains("Timber.tag(TAG).i(\"OFFLINE_SESSION enter reason=%s\", reason.log)"))
+        assertTrue(service.contains("Timber.tag(TAG).i(\"OFFLINE_SESSION exit reason=%s\", how)"))
+        assertTrue(service.contains("R.string.offline_session_started") && service.contains("R.string.offline_session_ended"))
+        // Leaving re-prepares a waiting queue with the reconnection semantics: only a NETWORK pause is resumed.
+        assertTrue(service.contains("if (waitingForNetworkConnection.value) triggerRetry()"))
+        for (values in listOf("values", "values-es")) {
+            val strings = File(root, "app/src/main/res/$values/strings.xml").readText()
+            assertTrue("$values", strings.contains("name=\"offline_session_started\"") && strings.contains("name=\"offline_session_ended\""))
+        }
+    }
+
+    /** Row 284: the automatic mode never writes the owner's switch, and the session is memory only. */
+    @Test
+    fun `the session never writes the manual offline switch`() {
+        val session = main("playback/PlaybackOfflineSession.kt")
+        assertFalse(session.contains("OfflineModeKey"))
+        assertFalse(session.contains("dataStore"))
+        assertFalse(service.contains("[OfflineModeKey] = true"))
+        assertFalse(service.contains("[OfflineModeKey] = !"))
+    }
+
+    /** Ronda 9 / row 284: being online never requires VALIDATED; VALIDATED is only evidence for the session. */
+    @Test
+    fun `network state still reads online without requiring validation`() {
+        val state = main("utils/NetworkState.kt")
+        val readNow = state.substring(state.indexOf("private fun readNow("))
+        assertFalse(readNow.substringBefore("\n    }\n").contains("VALIDATED"))
+    }
+
+    @Test
+    fun `one stall timer per buffering episode, from both player callbacks`() {
+        val state = service.substring(service.indexOf("override fun onPlaybackStateChanged(\n        @Player.State playbackState: Int,"))
+        assertTrue(state.substringBefore("\n    }\n").contains("updateOfflineStallWatchdog()"))
+        val pwr = service.substring(service.indexOf("override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {"))
+        assertTrue(pwr.substringBefore("\n    }\n").contains("updateOfflineStallWatchdog()"))
+        val watchdog = service.substring(service.indexOf("private fun updateOfflineStallWatchdog() {"))
+            .substringBefore("\n    }\n")
+        assertTrue(watchdog.contains("if (offlineStallJob?.isActive == true) return"))
+        assertTrue(watchdog.contains("delay(PlaybackOfflineSession.STALL_TIMEOUT_MS)"))
+        assertTrue(watchdog.contains("PlaybackOfflineSession.stallHasEvidence("))
+        assertFalse("no polling loop", watchdog.contains("while (") || watchdog.contains("while(true"))
+    }
+
+    @Test
+    fun `radio, pagination and the URL preload stay off the network during the session`() {
+        val radio = main("playback/RadioContinuationEngine.kt")
+        assertTrue(radio.contains("if (dataStore.get(OfflineModeKey, false) || PlaybackOfflineSession.isActive) {"))
+        assertTrue(service.contains("!isRepeatTransition &&\n            !PlaybackOfflineSession.isActive &&"))
+        assertTrue(service.contains("if (PlaybackOfflineSession.isActive) return@launch"))
+    }
+
+    @Test
+    fun `the screens read the session through the one offline state`() {
+        val ui = main("utils/AutoOfflineMode.kt")
+        assertTrue(ui.contains("PlaybackOfflineSession.active.collectAsState()"))
+        assertTrue(ui.contains("playbackOffline = playbackOffline"))
+    }
+
+    /** A refusal that lands while the user has paused moves on but never resumes the pause. */
+    @Test
+    fun `the offline skip never resumes a user pause`() {
+        val skip = service.substring(service.indexOf("private fun skipToOfflinePlayableSong(index: Int) {")).substringBefore("\n    }\n")
+        assertTrue(skip.contains("val resume = player.playWhenReady"))
+        assertTrue(skip.contains("if (resume && castConnectionHandler?.isCasting?.value != true) {"))
     }
 
     /** The bounded network retry keeps the bytes (a dead link says nothing about audio already on disk). */

@@ -2493,7 +2493,10 @@ class MusicService :
                 if (isConnected && waitingForNetworkConnection.value) {
                     triggerRetry()
                 }
-                
+                // The system reports no network: confirmed live (this flow's first read requires VALIDATED, which a
+                // VPN never reports), the player's offline session starts.
+                if (!isConnected && !hasLiveInternetConnection()) noteOfflineNoNetwork()
+
                 if (isConnected && discordRpc != null && player.isPlaying) {
                     val mediaId = player.currentMetadata?.id
                     if (mediaId != null) {
@@ -2502,6 +2505,13 @@ class MusicService :
                         }
                     }
                 }
+            }
+        }
+
+        // The default network validated: the player's offline session ends (event-driven, no polling).
+        scope.launch {
+            iad1tya.echo.music.utils.NetworkState.validated.collect { validated ->
+                if (validated && PlaybackOfflineSession.onValidated()) onOfflineSessionExited("validated")
             }
         }
 
@@ -3738,14 +3748,127 @@ class MusicService :
         waitingForNetworkConnection.value = false
         retryJob?.cancel()
         deadEndRecheckJob?.cancel()
+        // A player error keeps playWhenReady, so a song that failed while playing keeps playing; a refusal that lands
+        // while the user has it paused (a tap on "next", a restored queue) moves on but never resumes the pause.
+        val resume = player.playWhenReady
         player.seekTo(index, C.TIME_UNSET)
         player.prepare()
-        if (castConnectionHandler?.isCasting?.value != true) {
+        if (resume && castConnectionHandler?.isCasting?.value != true) {
             Timber.tag(TAG).i("START_CAUSE=offline_skip")
             player.play()
         }
-        runCatching {
-            Toast.makeText(this, getString(R.string.offline_skipped_to_cached_song), Toast.LENGTH_SHORT).show()
+        // While the offline session is on, its own notice already said it; one toast per skip would be noise.
+        if (!PlaybackOfflineSession.isActive) {
+            runCatching {
+                Toast.makeText(this, getString(R.string.offline_skipped_to_cached_song), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * The queue goes on with what plays offline: the next offline-playable song, or — with nothing ahead — wait for the
+     * network ([waitOnNetworkError], bounded), or stop when the manual switch is what refuses ([stopIfNothing]).
+     */
+    private fun continueWithOfflineQueue(stopIfNothing: Boolean) {
+        val offlineTargetIndex = findNextOfflinePlayableIndex()
+        if (offlineTargetIndex != null) {
+            skipToOfflinePlayableSong(offlineTargetIndex)
+            return
+        }
+        if (stopIfNothing) stopOnError() else waitOnNetworkError()
+    }
+
+    // ── Playback offline session (owner 2026-11-22) — see PlaybackOfflineSession ─────────────────────────────────────
+    private var offlineSessionNoticeShown = false
+    private var offlineStallJob: Job? = null
+
+    /** The same "que se ponga solo" switch as the UI's automatic offline mode (AutoOfflineModeKey, ON by default). */
+    private fun offlineSessionAllowed(): Boolean =
+        dataStore.get(iad1tya.echo.music.constants.AutoOfflineModeKey, true)
+
+    private fun onOfflineSessionEntered(reason: OfflineSessionReason?) {
+        if (reason == null) return
+        Timber.tag(TAG).i("OFFLINE_SESSION enter reason=%s", reason.log)
+        // Said once, and only when there is music it affects (not on an idle or paused player).
+        if (player.mediaItemCount > 0 && player.playWhenReady) {
+            offlineSessionNoticeShown = true
+            runCatching { Toast.makeText(this, R.string.offline_session_started, Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    private fun onOfflineSessionExited(how: String) {
+        Timber.tag(TAG).i("OFFLINE_SESSION exit reason=%s", how)
+        if (offlineSessionNoticeShown) {
+            offlineSessionNoticeShown = false
+            runCatching { Toast.makeText(this, R.string.offline_session_ended, Toast.LENGTH_SHORT).show() }
+        }
+        // Same semantics as a reconnection: re-prepares a queue that was waiting, resumes only a NETWORK pause.
+        if (waitingForNetworkConnection.value) triggerRetry()
+    }
+
+    /** Main thread. A playback error that really tried the network and failed. True when the session is now on. */
+    private fun noteOfflineNetworkFailure(): Boolean {
+        if (!offlineSessionAllowed()) return false
+        onOfflineSessionEntered(
+            PlaybackOfflineSession.onNetworkFailure(
+                systemHasNetwork = hasLiveInternetConnection(),
+                validated = iad1tya.echo.music.utils.NetworkState.validated.value,
+                epoch = iad1tya.echo.music.utils.NetworkState.epoch.value,
+            ),
+        )
+        return PlaybackOfflineSession.isActive
+    }
+
+    /** Main thread. The system says, checked live, that there is no network at all. */
+    private fun noteOfflineNoNetwork() {
+        if (!offlineSessionAllowed()) return
+        onOfflineSessionEntered(PlaybackOfflineSession.onNoNetwork(iad1tya.echo.music.utils.NetworkState.epoch.value))
+    }
+
+    /** Any thread: the resolver calls it after every fresh network resolve. */
+    internal fun noteNetworkResolveSucceeded() {
+        if (PlaybackOfflineSession.onResolveSucceeded()) scope.launch { onOfflineSessionExited("resolved") }
+    }
+
+    /**
+     * ONE timer per BUFFERING episode with playWhenReady (no polling). When it fires still buffering on a song that needs
+     * the network, and something says the network is the problem, the queue goes on with the next offline song.
+     */
+    private fun updateOfflineStallWatchdog() {
+        if (player.playbackState != Player.STATE_BUFFERING || !player.playWhenReady) {
+            offlineStallJob?.cancel()
+            offlineStallJob = null
+            return
+        }
+        if (offlineStallJob?.isActive == true) return
+        val armedIndex = player.currentMediaItemIndex
+        offlineStallJob = scope.launch {
+            delay(PlaybackOfflineSession.STALL_TIMEOUT_MS)
+            if (player.playbackState != Player.STATE_BUFFERING || !player.playWhenReady) return@launch
+            if (player.currentMediaItemIndex != armedIndex) {
+                // Another song started buffering meanwhile: give it its own full window.
+                offlineStallJob = null
+                updateOfflineStallWatchdog()
+                return@launch
+            }
+            if (_videoMode.value || castConnectionHandler?.isCasting?.value == true || !offlineSessionAllowed()) return@launch
+            val mediaId = player.currentMediaItem?.mediaId ?: return@launch
+            val exportedUris = runCatching {
+                withContext(Dispatchers.IO) {
+                    parseExportedFileUriMap(dataStore.data.first()[ExportedFileUrisKey].orEmpty())
+                }
+            }.getOrDefault(emptyMap())
+            if (isPlayableOffline(mediaId, exportedUris)) return@launch
+            val evidence = PlaybackOfflineSession.stallHasEvidence(
+                systemHasNetwork = hasLiveInternetConnection(),
+                validationLost = iad1tya.echo.music.utils.NetworkState.validationLost.value,
+            )
+            Timber.tag(TAG).i("OFFLINE_STALL id=%s evidence=%b", iad1tya.echo.music.utils.LogRedaction.forLog(mediaId), evidence)
+            if (!evidence) return@launch
+            onOfflineSessionEntered(PlaybackOfflineSession.onStall(iad1tya.echo.music.utils.NetworkState.epoch.value))
+            // Nothing offline ahead: keep buffering — the load error, when it comes, takes the normal error path.
+            val offlineTargetIndex = findNextOfflinePlayableIndex() ?: return@launch
+            skipToOfflinePlayableSong(offlineTargetIndex)
         }
     }
 
@@ -6653,6 +6776,7 @@ class MusicService :
         }
         if (autoLoadMoreHint &&
             !isRepeatTransition &&
+            !PlaybackOfflineSession.isActive &&
             remainingInPlaybackOrder <= 5 &&
             currentQueue.hasNextPage() &&
             !(disableLoadMoreWhenRepeatAllHint && player.repeatMode == REPEAT_MODE_ALL)
@@ -7195,6 +7319,8 @@ class MusicService :
         // or the app coming to the foreground).
         if (playbackState != Player.STATE_IDLE) mirrorUnprepared = false
 
+        updateOfflineStallWatchdog()
+
         if (playbackState == Player.STATE_ENDED) {
             val repeatMode = player.repeatMode  // live value; avoids a blocking disk read on the player thread
             if (repeatMode == REPEAT_MODE_ALL && player.mediaItemCount > 0) {
@@ -7355,6 +7481,7 @@ class MusicService :
         if (playWhenReady) {
             setupLoudnessEnhancer()
         }
+        updateOfflineStallWatchdog()
     }
 
     override fun onEvents(
@@ -8249,6 +8376,16 @@ class MusicService :
 
 
         when {
+            // "No client could serve it" without a verdict on the SONG, while the network is already known to be the
+            // problem (offline session on, or Android's own probe lost this network's internet): with no internet every
+            // client fails, so this is not an unavailable song — never marked, never "Canción no disponible".
+            PlaybackErrorClassifier.isNoStreamError(error) &&
+                !PlaybackErrorClassifier.isContentLevelNoStream(error) &&
+                (PlaybackOfflineSession.isActive || iad1tya.echo.music.utils.NetworkState.validationLost.value) &&
+                noteOfflineNetworkFailure() -> {
+                continueWithOfflineQueue(stopIfNothing = false)
+                return
+            }
             PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value -> {
                 // UNRESOLVABLE SONG dead-end (fix #3): the song genuinely can't be served by any client
                 // AND we ARE online (so it's not just the network being down). Surface the reason and SKIP
@@ -8341,17 +8478,17 @@ class MusicService :
                 // The resolver REFUSED an item that needs the network (manual offline mode, no network, offline
                 // session). Nothing is wrong with the song or its bytes: never retried, never purged (this used to
                 // fall through to handleGenericIOError → performAggressiveCacheClear while "connected").
-                val offlineTargetIndex = findNextOfflinePlayableIndex()
-                if (offlineTargetIndex != null) {
-                    skipToOfflinePlayableSong(offlineTargetIndex)
-                    return
-                }
-                if (PlaybackErrorClassifier.offlineRejectionKind(error) == OfflineRejectionException.Kind.MANUAL) {
-                    // The manual switch refuses it whatever the network does: waiting would never end.
-                    stopOnError()
-                    return
-                }
-                waitOnNetworkError()
+                val kind = PlaybackErrorClassifier.offlineRejectionKind(error)
+                if (kind == OfflineRejectionException.Kind.NO_NETWORK) noteOfflineNoNetwork()
+                // The manual switch refuses it whatever the network does: with nothing ahead, waiting would never end.
+                continueWithOfflineQueue(stopIfNothing = kind == OfflineRejectionException.Kind.MANUAL)
+                return
+            }
+
+            // A network failure that, with the evidence so far, puts the player in its offline session (or one while it
+            // already is): the queue goes on with what plays offline instead of retrying the network song.
+            PlaybackErrorClassifier.isNetworkRelatedError(error) && noteOfflineNetworkFailure() -> {
+                continueWithOfflineQueue(stopIfNothing = false)
                 return
             }
 
@@ -11110,6 +11247,8 @@ class MusicService :
         preloadJob?.cancel()
         preloadJob = scope.launch(kotlinx.coroutines.Dispatchers.IO) {
             if (!dataStore.get(iad1tya.echo.music.constants.PreloadNextSongEnabledKey, true)) return@launch
+            // Offline session: a URL preload is network by definition (and its failure would only cost a timeout).
+            if (PlaybackOfflineSession.isActive) return@launch
             // DATA SAVER: skip the speculative upcoming-track preload entirely — the next track
             // resolves on demand instead of ahead of time (same shape as the battery-saver skip below).
             if (dataStore.get(iad1tya.echo.music.constants.DataSaverEnabledKey, false)) {

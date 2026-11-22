@@ -47,6 +47,16 @@ class AutoOfflinePolicyTest {
         assertFalse(AutoOfflinePolicy.automatic(manual = false, auto = false, online = false))
     }
 
+    /** Dueño 2026-11-22: con transporte pero sin internet de verdad, la sesión del reproductor también lleva Inicio a lo local. */
+    @Test
+    fun `the player offline session takes the screens offline only with auto on`() {
+        assertTrue(AutoOfflinePolicy.offline(manual = false, auto = true, online = true, playbackOffline = true))
+        assertTrue(AutoOfflinePolicy.automatic(manual = false, auto = true, online = true, playbackOffline = true))
+        assertFalse(AutoOfflinePolicy.offline(manual = false, auto = false, online = true, playbackOffline = true))
+        assertFalse("el manual sigue siendo el cartel de siempre", AutoOfflinePolicy.automatic(manual = true, auto = true, online = true, playbackOffline = true))
+        assertFalse(AutoOfflinePolicy.offline(manual = false, auto = true, online = true, playbackOffline = false))
+    }
+
     @Test
     fun `offline is only declared after the debounce`() {
         assertFalse(AutoOfflinePolicy.shouldDeclareOffline(0))

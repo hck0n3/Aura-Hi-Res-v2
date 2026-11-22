@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -46,6 +47,25 @@ object NetworkState {
     /** true = hay red. Arranca en true: sin haber mirado todavía, lo seguro es NO esconderle nada. */
     val online: StateFlow<Boolean> = _online.asStateFlow()
 
+    // Evidence for the playback offline session (PlaybackOfflineSession) ONLY — never a gate for [online] (row 284 /
+    // ronda 9: VPN, IPv6-only and signed-in captive portals carry traffic and never report VALIDATED).
+    private val _validated = MutableStateFlow(false)
+
+    /** The default network currently reports `NET_CAPABILITY_VALIDATED`. */
+    val validated: StateFlow<Boolean> = _validated.asStateFlow()
+
+    private val _validationLost = MutableStateFlow(false)
+
+    /** This default network HAD validated and no longer does: Android's own probe says its internet is gone. */
+    val validationLost: StateFlow<Boolean> = _validationLost.asStateFlow()
+
+    private val _epoch = MutableStateFlow(0L)
+
+    /** Bumped on every `onAvailable` of a default network: lets a caller ask "did the network change since?". */
+    val epoch: StateFlow<Long> = _epoch.asStateFlow()
+
+    @Volatile private var validatedOnThisNetwork = false
+
     private var connectivityManager: ConnectivityManager? = null
     private var pendingOffline: Job? = null
     private var started = false
@@ -57,12 +77,17 @@ object NetworkState {
         val cm = context.getSystemService<ConnectivityManager>() ?: return
         connectivityManager = cm
         _online.value = readNow(cm)
+        updateValidation(cm)
         val callback = object : ConnectivityManager.NetworkCallback() {
             // Los tres hacen lo mismo — releer y decidir — porque el callback dice "algo cambió" y la
             // verdad está en `readNow`, no en cuál de los tres llegó. Un `onAvailable` de una red sin
             // transporte útil no debe encender nada, y un `onLost` de la wifi mientras quedan datos
             // no debe apagar nada.
-            override fun onAvailable(network: Network) = refresh()
+            override fun onAvailable(network: Network) {
+                validatedOnThisNetwork = false
+                _epoch.update { it + 1 }
+                refresh()
+            }
             override fun onLost(network: Network) = refresh()
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = refresh()
         }
@@ -74,8 +99,17 @@ object NetworkState {
             }
     }
 
+    private fun updateValidation(cm: ConnectivityManager) {
+        val validated = runCatching { cm.getNetworkCapabilities(cm.activeNetwork) }.getOrNull()
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        if (validated) validatedOnThisNetwork = true
+        _validated.value = validated
+        _validationLost.value = !validated && validatedOnThisNetwork
+    }
+
     private fun refresh() {
         val cm = connectivityManager ?: return
+        updateValidation(cm)
         if (readNow(cm)) {
             pendingOffline?.cancel()
             pendingOffline = null

@@ -31,9 +31,10 @@ fun rememberOfflineState(): OfflineState {
     val manual by rememberPreference(OfflineModeKey, false)
     val auto by rememberPreference(AutoOfflineModeKey, true)
     val online by NetworkState.online.collectAsState()
+    val playbackOffline by iad1tya.echo.music.playback.PlaybackOfflineSession.active.collectAsState()
     return OfflineState(
-        offline = AutoOfflinePolicy.offline(manual = manual, auto = auto, online = online),
+        offline = AutoOfflinePolicy.offline(manual = manual, auto = auto, online = online, playbackOffline = playbackOffline),
         manual = manual,
-        automatic = AutoOfflinePolicy.automatic(manual = manual, auto = auto, online = online),
+        automatic = AutoOfflinePolicy.automatic(manual = manual, auto = auto, online = online, playbackOffline = playbackOffline),
     )
 }

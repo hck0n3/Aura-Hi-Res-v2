@@ -268,8 +268,9 @@ fun MusicService.startRadioSeamlessly(
      */
     earlyPrime: Boolean = false,
 ) {
-    // Offline mode: never seed radio / related / YouTube next — that is network by definition.
-    if (dataStore.get(OfflineModeKey, false)) {
+    // Offline mode (manual switch or the player's offline session): never seed radio / related / YouTube next — that
+    // is network by definition.
+    if (dataStore.get(OfflineModeKey, false) || PlaybackOfflineSession.isActive) {
         resumeAfterSeed = false
         advanceIntoRadioRequested = false
         return

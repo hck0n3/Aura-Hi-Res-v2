@@ -482,6 +482,10 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
             val directRejection = when {
                 dataStore.get(OfflineModeKey, false) -> OfflineRejectionException.Kind.MANUAL
                 !hasLiveInternetConnection() -> OfflineRejectionException.Kind.NO_NETWORK
+                PlaybackOfflineSession.shouldRejectResolve(
+                    systemHasNetwork = true,
+                    epoch = iad1tya.echo.music.utils.NetworkState.epoch.value,
+                ) -> OfflineRejectionException.Kind.SESSION
                 else -> null
             }
             if (directRejection != null) {
@@ -549,6 +553,12 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         val offlineRejection = when {
             dataStore.get(OfflineModeKey, false) -> OfflineRejectionException.Kind.MANUAL
             !hasLiveInternetConnection() -> OfflineRejectionException.Kind.NO_NETWORK
+            // The player's offline session (owner 2026-11-22): refused at once instead of after a 15/30 s timeout,
+            // unless a probe is due (the network changed, or PROBE_AFTER_MS passed since the last evidence).
+            PlaybackOfflineSession.shouldRejectResolve(
+                systemHasNetwork = true,
+                epoch = iad1tya.echo.music.utils.NetworkState.epoch.value,
+            ) -> OfflineRejectionException.Kind.SESSION
             else -> null
         }
         val offlineModeOn = offlineRejection != null
@@ -827,6 +837,8 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         // Reaching here means the resolve succeeded (every getOrElse branch throws), so close the
         // StreamHealth timing window started above.
         StreamHealth.freshResolveCompleted(android.os.SystemClock.elapsedRealtime() - resolveStartMs)
+        // The network served a fresh resolve: an offline session, if any, ends here.
+        noteNetworkResolveSucceeded()
         // Owner 2026-10-06 — a song resolved: the session and the network work, so earlier CONTENT
         // failures of other songs are real (UnavailableRegistry), and this one is playable again.
         iad1tya.echo.music.utils.UnavailableSongs.recordSuccess(mediaId)

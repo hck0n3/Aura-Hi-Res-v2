@@ -34,17 +34,21 @@ object AutoOfflinePolicy {
      */
     const val OFFLINE_DEBOUNCE_MS = 2_500L
 
-    /** Lo que las pantallas preguntan: ¿toca mostrar solo lo local? */
-    fun offline(manual: Boolean, auto: Boolean, online: Boolean): Boolean =
-        manual || (auto && !online)
+    /**
+     * Lo que las pantallas preguntan: ¿toca mostrar solo lo local? [playbackOffline] es la sesión sin conexión del
+     * reproductor (`PlaybackOfflineSession`, dueño 2026-11-22): solo se enciende con un fallo REAL de red, así que con
+     * transporte pero sin internet Inicio también pasa a lo local. Tampoco se guarda.
+     */
+    fun offline(manual: Boolean, auto: Boolean, online: Boolean, playbackOffline: Boolean = false): Boolean =
+        manual || (auto && (!online || playbackOffline))
 
     /**
      * ¿Es el automático — y no él — quien nos ha puesto sin conexión? Gobierna el cartel: con el
      * manual hay un "Desactivar" que sirve; con el automático no hay nada que desactivar (vuelve
      * solo), así que ese botón sería un placebo y el cartel dice otra cosa.
      */
-    fun automatic(manual: Boolean, auto: Boolean, online: Boolean): Boolean =
-        !manual && auto && !online
+    fun automatic(manual: Boolean, auto: Boolean, online: Boolean, playbackOffline: Boolean = false): Boolean =
+        !manual && auto && (!online || playbackOffline)
 
     /** El retardo de arriba, como decisión y no como comparación suelta repartida por ahí. */
     fun shouldDeclareOffline(msWithoutNetwork: Long): Boolean =
