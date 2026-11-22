@@ -4856,7 +4856,7 @@ class MusicService :
         val now = System.currentTimeMillis()
         cachedEverPlayedIds?.let { if (now - cachedEverPlayedIdsAt < 5 * 60_000L) return it }
         val ids = runCatching {
-            withContext(Dispatchers.IO) { database.recentPlayedSongIds(NO_REPEAT_HISTORY_LIMIT) }.toHashSet()
+            withContext(Dispatchers.IO) { database.recentPlayedSongIds(NO_REPEAT_HISTORY_LIMIT).toHashSet() }
         }.getOrDefault(emptySet())
         cachedEverPlayedIds = ids
         cachedEverPlayedIdsAt = now
@@ -4871,8 +4871,9 @@ class MusicService :
         val now = System.currentTimeMillis()
         cachedEverPlayedKeys?.let { if (now - cachedEverPlayedKeysAt < 5 * 60_000L) return it }
         val keys = runCatching {
-            withContext(Dispatchers.IO) { database.recentPlayedTitleArtists(NO_REPEAT_HISTORY_LIMIT) }
-                .mapTo(HashSet<String>()) { NoRepeatKey.of(it.title, it.artist) }
+            withContext(Dispatchers.IO) {
+                database.recentPlayedTitleArtists(NO_REPEAT_HISTORY_LIMIT).mapTo(HashSet<String>()) { NoRepeatKey.of(it.title, it.artist) }
+            }
         }.getOrDefault(emptySet())
         cachedEverPlayedKeys = keys
         cachedEverPlayedKeysAt = now
@@ -4966,7 +4967,9 @@ class MusicService :
         // safety philosophy as the old +1000 soft penalty). YouTube relatedness ORDER is preserved WITHIN each
         // bucket: the per-item sort key keeps `index` (relatedness rank) as its dominant term.
         val recentSnapshot = synchronized(recentRadioIds) { HashSet(recentRadioIds) }
-        val playedHistory = if (strictNoRepeat) recentlyPlayedIds() + everPlayedIds() else recentlyPlayedIds()
+        // Row 655: two lookups, never a copy of the (unbounded) history on the caller's thread.
+        val playedHistory = recentlyPlayedIds()
+        val everPlayed = if (strictNoRepeat) everPlayedIds() else emptySet()
         val playedKeyHistory = if (strictNoRepeat) everPlayedKeys() else emptySet()
         // Phase B #5 — read the cached co-relatedness counts ONCE here (NEVER per item): candidateId -> how many
         // liked-song anchors YouTube says it's related to. Empty on cold start / until the WiFi-gated graph fills.
@@ -5082,7 +5085,7 @@ class MusicService :
             // song already heard (same name, different mediaId) counts as heard too.
             val dedupKey = m?.let { NoRepeatKey.of(it.title, it.artists.firstOrNull()?.name) }
             val heard = m != null && (
-                m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory ||
+                m.id in sessionPlayedIds || m.id in recentSnapshot || m.id in playedHistory || m.id in everPlayed ||
                     dedupKey in sessionPlayedDedupKeys ||
                     (strictNoRepeat && (m.id in persistedNoRepeatIds || dedupKey in persistedNoRepeatKeys)) ||
                     (strictNoRepeat && dedupKey in playedKeyHistory) ||
