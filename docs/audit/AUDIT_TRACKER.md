@@ -83,8 +83,8 @@ widget · Cast (Gms).
 - [x] L39 constants/PreferenceKeys.kt L1-L1354 — revisado con script (no lectura línea a línea: son 393 declaraciones): ningún nombre de clave repetido en todo `app/src`; 5 claves con valores por defecto distintos entre lectores, 1 con efecto (obs. abajo)
 - [x] L40 db/DatabaseDao.kt L1-L1200
 - [x] L41 db/DatabaseDao.kt L1201-L2618 — lectura dirigida, no línea a línea (son ~600 consultas): todas las sentencias UPDATE/DELETE, todos los `IN (:lista)` y quién los llama sin trocear, y los caminos de escritura L1900-L2260. F-009, F-010
-- [ ] L42 ui/newui/AuraContent.kt L1-L1200
-- [ ] L43 ui/newui/AuraContent.kt L1201-L1859
+- [x] L42 ui/newui/AuraContent.kt L1-L1200
+- [x] L43 ui/newui/AuraContent.kt L1201-L1859 — leído L90-L730 y L1040-L1100; el resto (componentes de presentación) por búsqueda dirigida: escrituras, colas, gestos de deslizar (L1612-L1690 leído). Sin hallazgos P0-P2
 - [ ] L44 ui/newui/AuraBloom.kt L1-L692 + utils/DataStore.kt L1-L182 (DataStore.kt L1-L183 ya leído)
 - [ ] L45 ui/newui/AuraLibraryTabs.kt L1-L1200
 - [ ] L46 ui/newui/AuraLibraryTabs.kt L1201-L1767
@@ -151,6 +151,9 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 
 - Obs (P3) `Queue.kt:85-87` si el elemento ancla se filtra, el respaldo busca el siguiente superviviente con `indexOfFirst` por id: si esa canción aparece repetida ANTES en la cola, se cae en la copia anterior (rebobina). Solo con canciones duplicadas en la cola.
 - Obs (P3) `reco/AutoRecoPlaylistWorker.kt:195-196` lee `OpenRouterModelKey ?: ""` mientras las pantallas usan `"google/gemini-2.5-flash-lite"` (`Lyrics.kt:348`, `AiPlaylistDialog.kt:66`…). Con clave de API propia y el modelo nunca tocado, `AiPlaylistService` no manda `model` (`AiPlaylistService.kt:304`) y la fase de IA de la lista automática falla en silencio; queda el relleno local. Sin clave propia (Worker) no afecta.
+
+- Obs (P3, red/batería) `AuraContent.kt:405-417`, `:424`, `:435` sin miniatura, `AuraCover` fabrica `https://i.ytimg.com/vi/<seed>/hqdefault.jpg` con el `seed`, y el `seed` por defecto es `thumbnailUrl ?: "aura-cover"`: una tarjeta sin portada pide `…/vi/aura-cover/hqdefault.jpg`, y una con id de álbum o lista (`MPREb…`, `PL…`) pide un vídeo que no existe. Cada 404 baja la cadena hq→mq→default (`:547-553`): hasta 3 peticiones inútiles por tarjeta.
+- Obs (P3, rendimiento) `AuraContent.kt:655` `downloadUtil.getDownload(songId)` devuelve un `Flow` nuevo en cada llamada (`DownloadUtil.kt:559` `downloads.map { … }`), así que `collectAsState` reinicia la suscripción en cada recomposición de la fila; mientras hay una descarga, `liveProgress` recompone todas las filas visibles en cada tic. Un `remember(songId)` lo evita.
 
 ## [DECISIÓN REQUERIDA] abiertas
 
