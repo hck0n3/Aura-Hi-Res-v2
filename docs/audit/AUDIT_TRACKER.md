@@ -61,10 +61,10 @@ widget · Cast (Gms).
 - [x] L17 App.kt L1201-L2559
 - [x] L18 ui/player/Thumbnail.kt L1-L1200
 - [x] L19 ui/player/Thumbnail.kt L1201-L1661
-- [ ] L20 devicesync/DeviceSyncEngine.kt L1-L900
-- [ ] L21 ui/player/Player.kt L1-L1200
-- [ ] L22 ui/player/Player.kt L1201-L2400
-- [ ] L23 ui/player/Player.kt L2401-L3785
+- [x] L20 devicesync/DeviceSyncEngine.kt L1-L900
+- [x] L21 ui/player/Player.kt L1-L1200 — INALCANZABLE (ver D-002); no se audita a fondo código que no se ejecuta
+- [x] L22 ui/player/Player.kt L1201-L2400
+- [x] L23 ui/player/Player.kt L2401-L3785 — parte viva `InlineLyricsView` L3499-L3580 leída línea a línea (sin fallos); L3583-L3785 leída (código muerto)
 - [ ] L24 ui/component/Lyrics.kt L1-L1200
 - [ ] L25 ui/component/Lyrics.kt L1201-L2400
 - [ ] L26 ui/component/Lyrics.kt L2401-L2746
@@ -101,6 +101,7 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 | ID | Lente | Sev. | Marca | Archivo:Línea | Resumen | Estado | Commit |
 |---|---|---|---|---|---|---|---|
 | F-001 | PERF | P2 | NUEVO (fila #180 parcial) | `utils/DataStore.kt:85`, `:156` | `getNonBlocking`/`rememberEnumPreference` caen a `runBlocking` para TODA clave ausente del snapshot = todo ajuste nunca modificado (defaults). El snapshot es reemplazo completo, así que una clave en disco siempre está en él: el fallback solo bloquea los defaults. El test guardián `PrefsBridgeTest` caso 5 fija el comportamiento actual | [DECISIÓN REQUERIDA] | — |
+| F-007 | BUG | P2 | NUEVO | `devicesync/DeviceSyncEngine.kt:377-388` | `attachPlayerListener` engancha `onPlayWhenReadyChanged` UNA vez al `ExoPlayer` de ese momento (`playerListenerAttached = true`). El crossfade (activo por defecto) sustituye la instancia en cada canción (`CrossfadeEngine.kt:1085` `player = nextPlayer`; también el cambio instantáneo a vídeo, `MusicService.kt:8978`). Desde el primer crossfade el listener queda en un reproductor liberado: la reacción «empecé a sonar aquí → pausa el otro» (fila #594) pasa de inmediata a esperar el tick de 4 s, así que los dos dispositivos pueden sonar a la vez hasta 4 s; y el listener viejo nunca se quita | Plan pendiente (callbacks del reproductor = cambio de riesgo) | — |
 | F-006 | BUG | P1 | REGRESIÓN de la fila #345(c) | `ui/newui/AuraPlayer.kt:629-633` | El arreglo #345(c) («en una colección el automix crudo de YouTube no se añade») vive solo en el reproductor clásico (`Player.kt:559`, guarda `!automixDefersToContinuation()`). La interfaz nueva es hoy la única (`NewUiGate.kt:27`, `SINGLE_UI`), y su efecto equivalente no tiene la guarda: al acabar un álbum o playlist sigue entrando el automix antes que el motor de continuación. Patrón «copiar a medias» (registro, regla 3) | Para Fase 2 (1 línea, no es cambio de riesgo) | — |
 | F-005 | BUG/SEC | P1 | NUEVO (HALLAZGO-014 aplicado a medias) | `MainActivity.kt:3211`, `:3214` (y `navigateBrowseId` L3133-3146) | La actividad está exportada y acepta `music.youtube.com/browse/*` y `/channel/*` (manifiesto L110, L118). `lastPathSegment` llega DECODIFICADO, así que `/browse/MPREb%2Fx` da `navigate("album/MPREb/x")` → `IllegalArgumentException` (ninguna ruta casa) sin `runCatching` → cierre de la app desde un enlace. El validador `isRouteSafeId` (L3175) solo se aplica a la rama `playlist` (L3194). Arreglo mínimo: `?.takeIf(::isRouteSafeId)` en las dos ramas | Para Fase 2 (no es cambio de riesgo) | — |
 | F-002 | SEC | P1 | NUEVO (choca con AGENTS regla 4) | `MusicService.kt:1906, 6129, 6912, 7525, 7949, 8025, 8066, 8113, 8126, 8170, 10481, 10528, 10532, 10537, 11033` | Logs INFO/WARN con el videoId (`mediaId`), el contexto `PL:<id>` o el id de playlist del widget. AppLogger persiste ≥INFO en `app.log`, que el usuario comparte; `LogRedaction` no los quita (sus comentarios los consideran «identificadores de diagnóstico»), pero AGENTS regla 4 y otros logs del mismo archivo («no title, artist or id», L1829/L5003) los prohíben. El dueño ya diagnosticó con estos ids (fila #305) | [DECISIÓN REQUERIDA] | — |
@@ -114,6 +115,7 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - S-001 `MusicService.kt:2499-2527` colector de versión de IP: su 1ª emisión no se salta si el colector de calidad emitió antes (`isFirstQualityEmit` compartido). Si la cola restaurada ya tuviera items, haría `stop()+prepare()` sobre la cola restaurada sin preparar (#27). Improbable por tiempos (la restauración pasa por IO); sin escenario reproducible.
 - S-002 `MusicService.kt:589,1566,3795,3837` el scope revivido es `Job()` y no `SupervisorJob()` como el original (L354). Solo se cancela en `onDestroy` (L10406): revivir ocurre sobre un servicio ya destruido. Impacto real no demostrado.
 - S-003 `MusicService.kt:3527-3531` `triggerRetry` dice «refresh stream URL» con `seekTo` a la misma posición; no se ve que invalide `songUrlCache`. Posible placebo; pendiente leer StreamResolution.
+- Obs (P2 batería, sin medir) `DeviceSyncEngine.kt:695-706` mientras el dispositivo está emparejado, cada 4 s: dos saltos a Main, un JSON de hasta 66 elementos y `pushShuffle()` con dos consultas a Room (`enhancedPlayedSince` + `allEnhancedContexts` completa), también en pausa o con la pantalla apagada. Diseño de la fila #528; medirlo antes de tocarlo.
 - Obs (P3) `App.kt:2136-2141` el encabezado de diagnóstico lee `crossfadeEnabled ?: true` y `safeVolume ?: false`, al revés que los valores por defecto reales (`MusicService.kt:2981` `?: false`, `:2736` `?: true`). Misma clase que la fila #585; hoy las migraciones escriben ambas claves, así que casi nunca se nota.
 - Obs (P3) `AuraPlayer.kt:1437` el toque en el título navega con `navigate` y no con `navigateOnce` como el resto de navegaciones del reproductor (L1343-1346): puede apilar dos veces la misma ficha de álbum.
 - Obs (diseño) `MainActivity.kt:3148-3156` un enlace `echomusic://listen/<código>` o `https://…onrender.com/listen/<código>` une a una sala de Escuchar juntos sin confirmación. Es la función de invitación; se anota por si el dueño quiere un diálogo de confirmación.
@@ -124,5 +126,7 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - Obs (P3) `MusicService.kt:3197`, `:3217` `dataStore.get(PersistentQueueKey)` bloqueante cada 10/30 s en Main aunque existe el espejo `persistentQueueHint` (L959).
 
 ## [DECISIÓN REQUERIDA] abiertas
+
+- D-002: `ui/player/Player.kt` — `BottomSheetPlayer` (L282-~L3236, ~2.950 líneas) y `MoreActionsButton` (L3584, 0 referencias) son inalcanzables: `SINGLE_UI = true` es constante (`NewUiAvailability.kt:44`) y `NewUiGate` siempre elige `AuraPlayer` (`NewUiHosts.kt:79-95`). Solo `InlineLyricsView` (L3499-L3580) sigue vivo. `UI_INVENTORY.md` aún lista elementos de ese reproductor (§ L418-L422) y el registro lo cita 48 veces. ¿Se conserva como respaldo (por si algún día `SINGLE_UI` vuelve a `false`) o se borra en su propio commit, moviendo `InlineLyricsView` a otro archivo?
 
 - F-001: ¿cambiar `getNonBlocking` a `if (PrefsBridge.isReady) peek(key) ?: default else get(key, default)` (y la semilla de `rememberEnumPreference`) y actualizar el caso 5 de `PrefsBridgeTest`? Riesgo: una clave recién escrita por primera vez puede leerse como default durante los ms que tarda el colector en publicar (el mismo desfase que ya tienen hoy las claves presentes).
