@@ -271,6 +271,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // entra. Devolverla es parte de apagar la corrección, no un detalle.
                     onMain { restoreUserTempo() }
                     pausedLocally = false
+                    lastAppliedTrackId = null
+                    lastAppliedQueueIds = emptyList()
+                    lastRoomPlaying = false
                     return@collect
                 }
                 val service = serviceFlow.value ?: return@collect

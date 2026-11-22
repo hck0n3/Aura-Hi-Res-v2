@@ -251,6 +251,9 @@ class ListenTogetherSession(
                     joinRequests = emptyList(),
                     suggestions = emptyList(),
                     currentTrack = null,
+                    queue = emptyList(),
+                    position = 0L,
+                    lastActionServerTime = 0L,
                     waitingFor = emptyList(),
                     connection = if (client.isAuraRooms) ConnectionState.Connected(AURA_ROOMS_VERSION) else it.connection,
                 )
