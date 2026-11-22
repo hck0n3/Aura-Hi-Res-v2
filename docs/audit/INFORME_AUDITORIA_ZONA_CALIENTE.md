@@ -123,6 +123,9 @@ Documentación:
   - Lleva los APK universal y arm64, y `changelog.json`.
   - Firma comprobada sobre el APK publicado: `CN=Aura Hi-Res v2`, SHA-256
     `BA:82:C1:1D:…:CB:F0:61:42`. Es idéntica a la de la 2.0.68, así que se instala encima sin perder datos.
+- **Probada por el dueño en su dispositivo** (Samsung SM-F966B, Android 17), 2026-11-22: *«ya hice todas las pruebas de
+  la beta y todas funcionaron correctamente»*. Eso cubre las 10 pruebas manuales de abajo y confirma que la firma
+  vigente resuelve streams (regla HALLAZGO-008).
 - Pruebas unitarias sobre `5745157`: **success**
   ([run 45039338308](https://github.com/hck0n3/Aura-Hi-Res-v2/actions/runs/45039338308)).
 
