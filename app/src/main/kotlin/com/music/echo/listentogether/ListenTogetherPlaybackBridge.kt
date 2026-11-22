@@ -98,11 +98,15 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     private var syncUserTempo: Float? = null
 
     /** True while the guest is executing the host's last command; guards the publish loops. */
-    @Volatile
-    private var applyingRemote = false
+    private val remoteDepth = java.util.concurrent.atomic.AtomicInteger(0)
+
+    private val applyingRemote: Boolean get() = remoteDepth.get() > 0
 
     @Volatile
     private var pausedLocally = false
+
+    @Volatile
+    private var mismatchReload: Pair<String, Long>? = null
 
     private var started = false
     private var lastPublishedTrackId: String? = null
@@ -204,6 +208,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             if (!state.inRoom || state.isHost || applyingRemote) return
             Timber.tag(TAG).i("Guest resumed — asking the server where the room is")
             session.requestSync()
+            if (state.isPlaying || state.currentTrack == null) return
+            val player = listeningTo ?: return
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                val now = session.state.value
+                if (player !== listeningTo || !player.playWhenReady) return@post
+                if (!now.inRoom || now.isHost || now.isPlaying || now.currentTrack == null) return@post
+                remoteDepth.incrementAndGet()
+                try {
+                    player.pause()
+                } finally {
+                    remoteDepth.decrementAndGet()
+                }
+            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -230,7 +247,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             newPosition: Player.PositionInfo,
             reason: Int,
         ) {
-            if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+            val sameIdLoop = reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION && oldPosition.mediaItem?.mediaId != null
+            if (reason != Player.DISCONTINUITY_REASON_SEEK && !sameIdLoop) return
             if (oldPosition.mediaItem?.mediaId != newPosition.mediaItem?.mediaId) return
             val state = session.state.value
             if (!state.inRoom || !state.isHost || applyingRemote) return
@@ -271,6 +289,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // entra. Devolverla es parte de apagar la corrección, no un detalle.
                     onMain { restoreUserTempo() }
                     pausedLocally = false
+                    mismatchReload = null
                     lastAppliedTrackId = null
                     lastAppliedQueueIds = emptyList()
                     lastRoomPlaying = false
@@ -279,7 +298,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 val service = serviceFlow.value ?: return@collect
                 val (track, isPlaying, position, queueIds) = snapshot
                 Timber.tag(TAG).i("Room says: playing=%b pos=%d queue=%d", isPlaying, position, queueIds.size)
-                applyingRemote = true
+                remoteDepth.incrementAndGet()
                 try {
                     // Rebuild when the track changes OR when the queue behind it does — the queue
                     // can legitimately arrive while the same track keeps playing.
@@ -318,11 +337,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally) }
                         if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing && !pausedLocally)
                     }
-                    applyTransport(service, playing && !pausedLocally, position)
+                    applyTransport(service, playing && !pausedLocally, position, track, session.state.value.lastActionServerTime)
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Failed to apply remote state")
                 } finally {
-                    applyingRemote = false
+                    remoteDepth.decrementAndGet()
                 }
             }
     }
@@ -356,13 +375,13 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             if (!state.inRoom || state.isHost) continue
             val service = serviceFlow.value ?: continue
             if (!state.isPlaying || pausedLocally) continue
-            applyingRemote = true
+            remoteDepth.incrementAndGet()
             try {
-                applyTransport(service, state.isPlaying, state.position)
+                applyTransport(service, state.isPlaying, state.position, state.currentTrack, state.lastActionServerTime)
             } catch (e: Exception) {
                 Timber.tag(TAG).e(e, "Heartbeat failed to re-apply room position")
             } finally {
-                applyingRemote = false
+                remoteDepth.decrementAndGet()
             }
         }
     }
@@ -388,13 +407,21 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         service: MusicService,
         isPlaying: Boolean,
         position: Long,
+        roomTrack: TrackInfo?,
+        anchorServerTime: Long,
     ) = withContext(Dispatchers.Main.immediate) {
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
-        val roomTrack = session.state.value.currentTrack
-        val corrected = capToTrack(session.positionAt(position, isPlaying), roomTrack)
         val player = runCatching { service.player }.getOrNull() ?: return@withContext
+        val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
+        val corrected = capToTrack(session.positionAt(position, isPlaying, anchorServerTime), roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
+            val previous = player.previousMediaItemIndex
+            val cameFromRoomTrack = previous != androidx.media3.common.C.INDEX_UNSET && player.getMediaItemAt(previous).mediaId == roomTrack.id
+            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@withContext
+            val attempt = roomTrack.id to anchorServerTime
+            if (mismatchReload == attempt) return@withContext
+            mismatchReload = attempt
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
             return@withContext
         }
@@ -538,7 +565,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         name = artist.ifBlank { "" },
                     ),
                 ),
-            duration = if (duration > Int.MAX_VALUE) Int.MAX_VALUE else duration.coerceAtLeast(0L).toInt(),
+            duration = (duration / 1000L).let { if (it > Int.MAX_VALUE) Int.MAX_VALUE else it.coerceAtLeast(0L).toInt() },
             thumbnailUrl = thumbnail.ifBlank { null },
             album =
                 album.takeIf { it.isNotBlank() }?.let {
@@ -679,7 +706,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             title = title,
             artist = artists.joinToString(", ") { it.name },
             album = album?.title.orEmpty(),
-            duration = safeDuration(service),
+            duration = safeDuration(service).takeIf { it > 0L } ?: (duration.toLong().coerceAtLeast(0L) * 1000L),
             thumbnail = thumbnailUrl.orEmpty(),
         )
 
@@ -881,8 +908,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             )
         }.getOrDefault(0)
 
-    private fun capToTrack(position: Long, track: TrackInfo?): Long {
-        val duration = track?.duration ?: 0L
+    private fun capToTrack(position: Long, track: TrackInfo?, localDurationMs: Long = 0L): Long {
+        val duration = track?.duration?.takeIf { it > 0L } ?: localDurationMs
         return if (duration > TRACK_END_MARGIN_MS) position.coerceAtMost(duration - TRACK_END_MARGIN_MS) else position
     }
 
@@ -906,6 +933,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         const val READY_BUFFER_PERCENT = 5
 
         const val TRACK_END_MARGIN_MS = 500L
+
+        const val TRACK_END_HANDOFF_MS = 2_000L
 
         /** One re-check before giving the room our ready anyway (the server has its own timeout). */
         const val BARRIER_RECHECK_MS = 2_000L

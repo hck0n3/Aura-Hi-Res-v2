@@ -486,6 +486,7 @@
     <string name="listen_together_leave_room">Salir de la sala</string>
     <string name="listen_together_you_are_host">Eres el anfitrión</string>
     <string name="listen_together_you_are_guest">Eres un invitado</string>
+    <string name="listen_together_guest_queue_locked">Solo el anfitrión puede cambiar la cola</string>
     <string name="listen_together_users">%d usuarios en la sala</string>
     <string name="listen_together_join_requests">Solicitudes de conexión</string>
     <string name="listen_together_view_logs">Ver registros</string>
