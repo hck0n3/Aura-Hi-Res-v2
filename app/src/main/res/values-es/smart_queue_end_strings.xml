@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="smart_queue_no_new_songs">La cola inteligente no encontró canciones nuevas para seguir (nunca repite lo que ya escuchaste), así que la cola terminó.</string>
+</resources>

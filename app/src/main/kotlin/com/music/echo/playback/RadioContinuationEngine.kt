@@ -1287,6 +1287,11 @@ fun MusicService.startRadioSeamlessly(
                 "Radio seed yielded nothing after relaxed retries (hasSeed=${seedVideoId != null}, " +
                     "poolSize=${radioSeedPool.size}, mood=${activeMoodParams != null}); not repeating the list"
             )
+            // Row 655: never a silent stop. Online, once per queue: the strict no-repeat (row 650) left nothing new.
+            if (isNetworkConnected.value && queueGeneration == seedGeneration && smartQueueEndNoticeGeneration != seedGeneration) {
+                smartQueueEndNoticeGeneration = seedGeneration
+                runCatching { Toast.makeText(this@startRadioSeamlessly, R.string.smart_queue_no_new_songs, Toast.LENGTH_LONG).show() }
+            }
             resumeAfterSeed = false
             advanceIntoRadioRequested = false
         }

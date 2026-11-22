@@ -1362,6 +1362,8 @@ class MusicService :
     // one — decided by [seedAfterInitialLoad] once the load settles.
     @Volatile internal var initialLoadPendingGeneration = -1
     @Volatile private var heardFilterEmptiedGeneration = -1
+    // Row 655: the queue generation that already told the user the smart queue found nothing new (one notice per queue).
+    @Volatile internal var smartQueueEndNoticeGeneration = -1
     // True when a radio seed was started from the STATE_ENDED safety net (the queue truly ended): once the
     // seed appends items, advance+play into them so predictive infinite playback resumes with no manual action.
     @Volatile internal var resumeAfterSeed = false

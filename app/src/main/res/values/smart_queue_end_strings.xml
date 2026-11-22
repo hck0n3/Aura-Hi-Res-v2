@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="smart_queue_no_new_songs">The smart queue found no new songs to continue (it never repeats what you have already played), so the queue has ended.</string>
+</resources>
