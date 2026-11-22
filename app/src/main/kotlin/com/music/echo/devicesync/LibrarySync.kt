@@ -72,6 +72,7 @@ class LibrarySync(
 
     @Volatile private var connected = false
     @Volatile private var pulledOnce = false
+    @Volatile private var stopped = false
 
     /** One `lib_pull` at a time: a big push makes the room send one `lib_ops` per batch, and a pull per signal is a storm (beta 4: 1656 pages in 5 s). */
     private val pullLock = Any()
@@ -83,6 +84,7 @@ class LibrarySync(
     }
 
     fun stop() {
+        stopped = true
         runCatching { stopWatching?.invoke() }
         stopWatching = null
         connected = false
@@ -150,7 +152,7 @@ class LibrarySync(
     /** Handles the library messages of the room. True when [msg] was one of them. */
     suspend fun handle(msg: JsonObject): Boolean {
         when ((msg["t"] as? JsonPrimitive)?.contentOrNull) {
-            "lib_state" -> if (isEnabled()) mutex.withLock {
+            "lib_state" -> if (isEnabled() && connected && !stopped) mutex.withLock {
                 runCatching { onStateLocked(msg) }.onFailure {
                     Timber.tag(TAG).w("LIB_SYNC state failed: %s", it.javaClass.simpleName)
                     DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed(it.javaClass.simpleName)
@@ -176,6 +178,7 @@ class LibrarySync(
     }
 
     private fun sendPull() {
+        if (stopped) return
         DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Syncing
         if (!sendMessage(buildJsonObject { put("t", "lib_pull"); put("since", since) })) {
             synchronized(pullLock) { pullInFlight = false; pullAgain = false }
@@ -187,6 +190,7 @@ class LibrarySync(
         pullWatchdog?.cancel()
         pullWatchdog = scope.launch {
             delay(timing.pullTimeoutMs)
+            if (stopped) return@launch
             synchronized(pullLock) { pullInFlight = false } // a lost answer must not block every later pull
             if (DeviceSyncHub.libraryStatus.value == DeviceSyncHub.LibraryStatus.Syncing && !pulledOnce) {
                 DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Failed("el servidor no responde")
@@ -210,7 +214,7 @@ class LibrarySync(
         if ((msg["reset"] as? JsonPrimitive)?.booleanOrNull == true) {
             // The room was emptied or recreated: it has nothing of ours any more. Everything we know is pending again.
             since = 0L
-            ledger.replaceAll { _, r -> r.copy(pending = true) }
+            ledger.replaceAll { _, r -> if (LibrarySyncCore.isHeld(r)) r else r.copy(pending = true) }
             store.rewrite(ledger)
             sentKeys.clear()
             inFlight.clear()
@@ -226,23 +230,26 @@ class LibrarySync(
         var accepted = LibrarySyncCore.acceptedFrom(ledger, incoming)
         var plan = LibrarySyncCore.plan(accepted)
         val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
-        if (!freshStart && LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
+        var held = emptyList<Reg>()
+        if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
             // A pile of removals at once is not a person tidying up. Keep every addition, hold every removal, and say so.
-            val held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
+            held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
             accepted = accepted - held.toSet()
             plan = LibrarySyncCore.plan(accepted)
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
             DeviceSyncHub.notice("Otro dispositivo quitó ${held.size} elementos de golpe; no los quité aquí por seguridad.")
         }
-        val parkedBefore = ledger.values.filter { it.parked }
+        val parkedBefore = ledger.values.filter { it.parked && !LibrarySyncCore.isHeld(it) }
         val result = adapter.apply(plan)
-        val stored = accepted.map { it.copy(pending = false, parked = it.key in result.unplaced) }
+        val stored = accepted.map { it.copy(pending = false, parked = it.key in result.unplaced || it.key in plan.undecoded) } +
+            held.map { it.copy(pending = false, parked = true) }
         stored.forEach { ledger[it.key] = it }
         store.append(stored)
         val retry = parkedBefore.filter { ledger[it.key] == it }
         if (retry.isNotEmpty()) {
-            val again = adapter.apply(LibrarySyncCore.plan(retry))
-            val placed = retry.filter { it.key !in again.unplaced }.map { it.copy(parked = false) }
+            val retryPlan = LibrarySyncCore.plan(retry)
+            val again = adapter.apply(retryPlan)
+            val placed = retry.filter { it.key !in again.unplaced && it.key !in retryPlan.undecoded }.map { it.copy(parked = false) }
             placed.forEach { ledger[it.key] = it }
             store.append(placed)
         }
@@ -307,6 +314,11 @@ class LibrarySync(
         }
         val ledger = ledger()
         val current = adapter.readLocal { key -> ledger.containsKey(key) }
+        val released = ledger.values.filter {
+            it.parked && (if (LibrarySyncCore.isHeld(it)) it.key !in current else current[it.key] == it.value)
+        }.map { it.copy(parked = false) }
+        released.forEach { ledger[it.key] = it }
+        store.append(released)
         val fresh = LibrarySyncCore.localOps(current, ledger, clock())
         fresh.forEach { ledger[it.key] = it }
         store.append(fresh)
@@ -377,7 +389,7 @@ interface SinceStore {
     fun get(): Long
     fun put(value: Long)
 
-    /** True after a backup was restored, until the first pull catches up: the room wins over the restored library, brake included. */
+    /** True after a backup was restored, until the first pull catches up: the room wins over the restored library, except what the brake holds. */
     fun freshStart(): Boolean = false
     fun endFreshStart() {}
 }

@@ -31,6 +31,9 @@ object LibrarySyncCore {
      */
     data class Reg(val key: String, val ts: Long, val value: String, val pending: Boolean = false, val parked: Boolean = false)
 
+    /** A removal the mass-deletion brake kept from this device: the room's "0", parked, so the copy here is neither deleted nor sent back as new. */
+    fun isHeld(reg: Reg) = reg.parked && reg.value == OFF
+
     enum class Kind { LIKE, DISLIKE, PLAYLIST, MEMBER, SONG, ALBUM, ALBUM_META, PLAY, PIN }
 
     sealed interface Key {
@@ -135,6 +138,7 @@ object LibrarySyncCore {
                 if (known == null) ops += Reg(key, now, value, pending = true)
                 continue
             }
+            if (known != null && isHeld(known)) continue
             if (known == null || known.value != value) ops += Reg(key, maxOf(now, (known?.ts ?: 0L) + 1), value, pending = true)
         }
         for ((key, known) in ledger) {
@@ -168,6 +172,7 @@ object LibrarySyncCore {
         val plays: List<Pair<String, Long>> = emptyList(),
         val pinUpserts: List<Pair<PinRef, PinMeta>> = emptyList(),
         val pinRemovals: List<PinRef> = emptyList(),
+        val undecoded: Set<String> = emptySet(),
     ) {
         val removalCount: Int
             get() = playlistRemovals.size + memberRemovals.size + likes.count { !it.second } + dislikes.count { !it.third } +
@@ -192,22 +197,26 @@ object LibrarySyncCore {
         val plays = ArrayList<Pair<String, Long>>()
         val pinUpserts = ArrayList<Pair<PinRef, PinMeta>>()
         val pinRemovals = ArrayList<PinRef>()
+        val undecoded = HashSet<String>()
         for (reg in accepted) {
             when (val k = parse(reg.key)) {
                 is Key.Song -> decodeSong(reg.value)?.let { songs += k.songId to it }
                 is Key.AlbumMeta -> decodeAlbum(reg.value)?.let { albums += k.albumId to it }
-                is Key.Album -> if (reg.value == ON || reg.value == OFF) albumSaves += k.albumId to (reg.value == ON)
+                is Key.Album -> if (reg.value == ON || reg.value == OFF) albumSaves += k.albumId to (reg.value == ON) else undecoded += reg.key
                 is Key.Play -> if (reg.value == ON) plays += k.songId to k.second
-                is Key.Pin -> if (reg.value == OFF) pinRemovals += k.ref else decodePin(reg.value)?.let { pinUpserts += k.ref to it }
+                is Key.Pin -> if (reg.value == OFF) pinRemovals += k.ref else decodePin(reg.value)?.let { pinUpserts += k.ref to it } ?: run { undecoded += reg.key }
                 is Key.Playlist ->
-                    if (reg.value == OFF) plRemovals += k.playlistKey else decodePlaylistName(reg.value)?.let { upserts += k.playlistKey to it }
-                is Key.Member -> if (reg.value == ON) adds += k.playlistKey to k.songId else if (reg.value == OFF) memberRemovals += k.playlistKey to k.songId
-                is Key.Like -> if (reg.value == ON || reg.value == OFF) likes += k.songId to (reg.value == ON)
-                is Key.Dislike -> if (reg.value == ON || reg.value == OFF) dislikes += Triple(k.set, k.id, reg.value == ON)
+                    if (reg.value == OFF) plRemovals += k.playlistKey
+                    else decodePlaylistName(reg.value)?.let { upserts += k.playlistKey to it } ?: run { undecoded += reg.key }
+                is Key.Member ->
+                    if (reg.value == ON) adds += k.playlistKey to k.songId
+                    else if (reg.value == OFF) memberRemovals += k.playlistKey to k.songId else undecoded += reg.key
+                is Key.Like -> if (reg.value == ON || reg.value == OFF) likes += k.songId to (reg.value == ON) else undecoded += reg.key
+                is Key.Dislike -> if (reg.value == ON || reg.value == OFF) dislikes += Triple(k.set, k.id, reg.value == ON) else undecoded += reg.key
                 null -> Unit
             }
         }
-        return Plan(songs, upserts, plRemovals, adds, memberRemovals, likes, dislikes, albums, albumSaves, plays, pinUpserts, pinRemovals)
+        return Plan(songs, upserts, plRemovals, adds, memberRemovals, likes, dislikes, albums, albumSaves, plays, pinUpserts, pinRemovals, undecoded)
     }
 
     // ── values ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────

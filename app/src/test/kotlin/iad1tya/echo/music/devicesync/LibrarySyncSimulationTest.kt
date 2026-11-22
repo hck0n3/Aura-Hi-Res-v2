@@ -411,6 +411,56 @@ class LibrarySyncSimulationTest {
     }
 
     @Test
+    fun `a device new to the room keeps what a braked mass removal took away, and never sends it back as new`() {
+        val tablet = Device("tablet")
+        repeat(40) { tablet.backend.like("w$it") }
+        tablet.connect()
+        eventually("the room has the 40 likes") { (0 until 40).all { room.value("lk:w$it") == "1" } }
+        // The user clears all 40 at once on the tablet: more than the brake lets another device apply.
+        tablet.backend.likes.clear(); tablet.changed()
+        eventually("the room has the 40 removals") { (0 until 40).all { room.value("lk:w$it") == "0" } }
+
+        // A phone joins this room with an empty ledger (a room switch, a new pairing) and still has those 40 in its library.
+        val phone = Device("phone")
+        repeat(40) { phone.backend.like("w$it") }
+        phone.connect()
+        eventually("the phone caught up") { phone.ledger.stored.keys.count { it.startsWith("lk:") } == 40 }
+        phone.changed()
+        settle(); settle()
+        assertEquals("the phone's copies were not deleted on a hunch", 40, phone.backend.likes.size)
+        assertTrue("and not sent back to the room as new likes", (0 until 40).all { room.value("lk:w$it") == "0" })
+        assertTrue("so nothing the user removed came back on the tablet", tablet.backend.likes.isEmpty())
+    }
+
+    @Test
+    fun `a stopped sync sends no pull on the socket, and a sync that is not connected applies no state`() {
+        val phone = Device("phone")
+        phone.connect()
+        eventually("the phone caught up") { DeviceSyncHub.libraryStatus.value is DeviceSyncHub.LibraryStatus.Synced }
+        settle()
+        // The room changes (a room switch stops this instance): a late signal must not make it pull on the new socket.
+        phone.sync.stop()
+        val pulls = room.pulls
+        runBlocking { phone.sync.handle(buildJsonObject { put("t", "lib_ops"); put("seq", 1) }) }
+        settle()
+        assertEquals("the stopped instance sent no lib_pull", pulls, room.pulls)
+
+        // A state that arrives before this instance is connected (a stale answer from the previous room) is not applied.
+        val tablet = Device("tablet")
+        runBlocking {
+            tablet.sync.handle(buildJsonObject {
+                put("t", "lib_state"); put("seq", 7); put("more", false)
+                put("items", buildJsonArray {
+                    add(buildJsonArray { add(JsonPrimitive("sg:stale")); add(JsonPrimitive(1L)); add(JsonPrimitive(LibrarySyncCore.encodeSong(LibrarySyncCore.SongMeta("t", "a", "c")))) })
+                    add(buildJsonArray { add(JsonPrimitive("lk:stale")); add(JsonPrimitive(1L)); add(JsonPrimitive("1")) })
+                })
+            })
+        }
+        assertTrue("nothing was applied", tablet.backend.likes.isEmpty() && tablet.backend.songs.isEmpty())
+        assertTrue("and nothing was written to its ledger", tablet.ledger.stored.isEmpty())
+    }
+
+    @Test
     fun `an old server is reported, not waited for in silence`() {
         val phone = Device("phone")
         phone.online = true
@@ -496,13 +546,64 @@ class LibrarySyncSimulationTest {
     }
 
     @Test
+    fun `a register this device cannot decode is parked, never sent back as a removal that deletes it on the device that made it`() {
+        val phone = Device("phone")
+        phone.backend.playlists["LPblankname"] = " " // the create dialog only rejects an EMPTY name
+        phone.connect()
+        eventually("the playlist is in the room") { room.value("pl:LPblankname") == LibrarySyncCore.encodePlaylistName(" ") }
+        // A pin with a blank title (or from a newer version) that this build cannot draw.
+        val pin = LibrarySyncCore.pinKey(LibrarySyncCore.PinRef("l", "P", "PLblank"))
+        val pinValue = LibrarySyncCore.encodePin(LibrarySyncCore.PinMeta(" "))
+        room.receive("newer", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive(pin)); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive(pinValue)) }) })
+        })
+
+        val tablet = Device("tablet")
+        tablet.connect()
+        eventually("the tablet caught up") { tablet.ledger.stored.containsKey("pl:LPblankname") && tablet.ledger.stored.containsKey(pin) }
+        tablet.changed(); phone.changed()
+        settle(); settle()
+        assertEquals("the playlist is still in the room", LibrarySyncCore.encodePlaylistName(" "), room.value("pl:LPblankname"))
+        assertEquals("and on the phone that made it", " ", phone.backend.playlists["LPblankname"])
+        assertEquals("the pin is still in the room", pinValue, room.value(pin))
+    }
+
+    @Test
+    fun `a parked like that becomes real here is no longer parked - the user's unlike goes out and the old like does not come back`() {
+        val tablet = Device("tablet")
+        tablet.connect()
+        settle()
+        // A like of a song this device has never seen: it cannot be placed, so it is parked.
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive("lk:ghost")); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive("1")) }) })
+        })
+        eventually("the tablet parked the like") { tablet.ledger.stored["lk:ghost"]?.parked == true }
+        // The song reaches the tablet another way and the user likes it here; then changes their mind.
+        tablet.backend.like("ghost"); tablet.changed()
+        settle()
+        tablet.backend.likes -= "ghost"; tablet.changed()
+        eventually("the unlike reaches the room") { room.value("lk:ghost") == "0" }
+        // Something else arrives and the tablet pulls again: the old like must not be applied again.
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive("dk:song:other")); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive("1")) }) })
+        })
+        eventually("the tablet pulled again") { ("song" to "other") in tablet.backend.dislikes }
+        settle()
+        assertFalse("the unlike stands", "ghost" in tablet.backend.likes)
+        assertEquals("0", room.value("lk:ghost"))
+    }
+
+    @Test
     fun `after a backup is restored the room wins over the old library, and what only the backup had is added`() {
         val phone = Device("phone"); val tablet = Device("tablet")
         repeat(40) { phone.backend.like("r$it") }
         phone.connect(); tablet.connect()
         eventually("the tablet has all 40") { tablet.backend.likes.size == 40 }
-        // The user removes 30 on the tablet, ten at a time: each step is a normal tidy-up, under the brake.
-        for (step in 0 until 3) {
+        // The user removes 20 on the tablet, ten at a time: each step is a normal tidy-up, under the brake (also on the restored phone).
+        for (step in 0 until 2) {
             for (i in step * 10 until step * 10 + 10) tablet.backend.likes -= "r$i"
             tablet.changed()
             eventually("step $step reaches the phone") { phone.backend.likes.size == 40 - (step + 1) * 10 }
@@ -514,11 +615,40 @@ class LibrarySyncSimulationTest {
         repeat(40) { restored.backend.like("r$it") }
         restored.backend.like("onlyInBackup")
         restored.connect()
-        val kept = (30 until 40).map { "r$it" }.toSet()
+        val kept = (20 until 40).map { "r$it" }.toSet()
         eventually("the room's removals win on the restored phone") { restored.backend.likes == kept + "onlyInBackup" }
         eventually("what only the backup had reaches the tablet") { "onlyInBackup" in tablet.backend.likes }
         settle(); settle()
         assertEquals("nothing the user removed came back", kept + "onlyInBackup", tablet.backend.likes)
-        assertTrue((0 until 30).all { room.value("lk:r$it") == "0" })
+        assertTrue((0 until 20).all { room.value("lk:r$it") == "0" })
+    }
+
+    @Test
+    fun `a backup restored while the room holds a mass removal the other devices braked is not wiped, and brings nothing back`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        repeat(40) { phone.backend.like("b$it") }
+        phone.connect(); tablet.connect()
+        eventually("the tablet has all 40") { tablet.backend.likes.size == 40 }
+        settle()
+        // A faulty device pushes 40 removals at once: the tablet brakes them and keeps its likes.
+        val now = System.currentTimeMillis()
+        room.receive("faulty", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { repeat(40) { add(buildJsonArray { add(JsonPrimitive("lk:b$it")); add(JsonPrimitive(now)); add(JsonPrimitive("0")) }) } })
+        })
+        settle(); settle()
+        assertEquals("the tablet braked the removals", 40, tablet.backend.likes.size)
+        phone.disconnect()
+
+        // The phone restores its backup (the same 40 likes); its sync memory starts empty and fresh.
+        val restored = Device("phone", fresh = true)
+        repeat(40) { restored.backend.like("b$it") }
+        restored.connect()
+        eventually("the restored phone caught up") { restored.ledger.stored.keys.count { it.startsWith("lk:") } == 40 }
+        restored.changed()
+        settle(); settle()
+        assertEquals("the restored library was not wiped by the room's removals", 40, restored.backend.likes.size)
+        assertTrue("and the held removals were not sent back as new likes", (0 until 40).all { room.value("lk:b$it") == "0" })
+        assertEquals(40, tablet.backend.likes.size)
     }
 }

@@ -297,6 +297,7 @@ class BackupRestoreViewModel @Inject constructor(
                     }
                     bakFile.delete() // success — drop the rollback copy
                     Timber.tag("RESTORE").i("DB overwrite complete")
+                    runCatching { iad1tya.echo.music.devicesync.LibrarySyncAndroid.forgetAfterRestore(context) }
                 } catch (copyError: Exception) {
                     // ROLLBACK: restore the original db so we never leave a half-written/corrupt DB.
                     reportException(copyError)
@@ -350,7 +351,6 @@ class BackupRestoreViewModel @Inject constructor(
                         settings.remove(iad1tya.echo.music.constants.ImportFollowsPendingHeldV1Key)
                     }
                 }
-                runCatching { iad1tya.echo.music.devicesync.LibrarySyncAndroid.forgetAfterRestore(context) }
             }
 
             Timber.tag("RESTORE").i("Restore complete — restarting (dbReplaced=$dbClosedForRestore)")

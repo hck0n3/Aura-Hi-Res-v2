@@ -58,12 +58,12 @@ class LibrarySyncGuardTest {
     @Test
     fun `a restored backup forgets every room's ledger and starts the next pull fresh`() {
         val v = read("app/src/main/kotlin/com/music/echo/viewmodels/BackupRestoreViewModel.kt")
-        val replaced = v.substringAfter("YtmUploadSyncKey] =").substringBefore("restartApp(context)")
-        assertTrue("tras reemplazar la base de datos y antes de reiniciar", replaced.contains("LibrarySyncAndroid.forgetAfterRestore(context)"))
+        val replaced = v.substringAfter("bakFile.delete() // success").substringBefore("} catch (copyError: Exception) {")
+        assertTrue("en cuanto la copia de la base de datos sale bien, antes de cualquier otra escritura", replaced.contains("LibrarySyncAndroid.forgetAfterRestore(context)"))
         val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAndroid.kt")
         assertTrue(a.contains("override fun freshStart() = fresh.isFile"))
         val l = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
-        assertTrue("el freno no retiene lo que la sala ya sabe tras restaurar", l.contains("if (!freshStart && LibrarySyncCore.brakeTrips("))
+        assertTrue("el freno sigue activo tras restaurar", l.contains("if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {") && !l.contains("!freshStart && LibrarySyncCore.brakeTrips("))
     }
 
     @Test
