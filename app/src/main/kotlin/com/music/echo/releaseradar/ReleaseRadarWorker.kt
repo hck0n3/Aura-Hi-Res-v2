@@ -216,6 +216,7 @@ class ReleaseRadarWorker(
                                 artworkUri = hit.album.images.firstOrNull()?.url ?: it.thumbnail,
                                 playId = it.id,
                                 followed = hit.followed,
+                                type = ReleaseRadarMatching.releaseType(hit.album.albumType, hit.album.totalTracks, hit.album.name),
                             )
                         }
                     }
@@ -387,6 +388,8 @@ class ReleaseRadarWorker(
                     artworkUri = album.thumbnail,
                     playId = album.browseId,
                     followed = true,
+                    // The artist-page AlbumItem carries no type (ArtistPage parses only the year): title only.
+                    type = ReleaseRadarMatching.releaseType(null, 0, album.title),
                 )
             }
         }
@@ -423,7 +426,7 @@ class ReleaseRadarWorker(
         artistId = artistId,
         title = title,
         artist = artist,
-        type = "Release",
+        type = type,
         // Exact Spotify date lands in the EXISTING releaseDate column (year-only for the YT fallback).
         releaseDate = date.atStartOfDay(),
         artworkUri = artworkUri,

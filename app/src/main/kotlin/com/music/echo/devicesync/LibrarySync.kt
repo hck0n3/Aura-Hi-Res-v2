@@ -136,7 +136,7 @@ class LibrarySync(
 
     /** Called by the user's own actions (a like, a playlist edit): look for differences very soon. */
     fun kick(fast: Boolean) {
-        if (!connected || !isEnabled()) return
+        if (stopped || !isEnabled()) return
         if (!fast && kickJob?.isActive == true) return // an observer storm collapses into one pass
         if (fast) kickJob?.cancel()
         kickJob = scope.launch {
@@ -144,9 +144,28 @@ class LibrarySync(
             delay(wait)
             mutex.withLock {
                 lastDiffAt = System.currentTimeMillis()
-                runCatching { pushDiffLocked() }.onFailure { Timber.tag(TAG).w("LIB_SYNC diff failed: %s", it.javaClass.simpleName) }
+                runCatching { if (connected) pushDiffLocked() else stampOfflineLocked() }
+                    .onFailure { Timber.tag(TAG).w("LIB_SYNC diff failed: %s", it.javaClass.simpleName) }
             }
         }
+    }
+
+    /**
+     * Owner 2026-11-22: a change made while this device is away from the room keeps the time it was MADE. It used to get its
+     * time when it was sent, after the room's state had been applied over it, so an older change from another device undid it
+     * (a like made offline lost to an unlike from the day before). Recorded now as pending, it competes newest-wins with what the
+     * room sends ([LibrarySyncCore.accepts]) and goes out when the device is back. Only once this room was caught up with: before
+     * that, what is here is the library this device brought, not a change, and the room decides as it always did.
+     */
+    private suspend fun stampOfflineLocked() {
+        if (!sinceStore.caughtUpOnce()) return
+        val ledger = ledger()
+        val current = adapter.readLocal { key -> ledger.containsKey(key) }
+        val fresh = LibrarySyncCore.localOps(current, ledger, clock())
+        if (fresh.isEmpty()) return
+        fresh.forEach { ledger[it.key] = it }
+        store.append(fresh)
+        Timber.tag(TAG).i("LIB_SYNC offline changes recorded=%d", fresh.size)
     }
 
     /** Handles the library messages of the room. True when [msg] was one of them. */
@@ -274,6 +293,8 @@ class LibrarySync(
         Timber.tag(TAG).i("LIB_SYNC caught up since=%d known=%d", since, ledger.size)
         DeviceSyncHub.libraryOwnedByDevices = connected && isEnabled()
         pushDiffLocked()
+        // The library this device brought is in the ledger now: from here a difference is a change made here.
+        if (!sinceStore.caughtUpOnce()) sinceStore.markCaughtUp()
         publishStatusLocked()
     }
 
@@ -392,4 +413,8 @@ interface SinceStore {
     /** True after a backup was restored, until the first pull catches up: the room wins over the restored library, except what the brake holds. */
     fun freshStart(): Boolean = false
     fun endFreshStart() {}
+
+    /** True once this device has caught up with this room and written its own library to the ledger ([LibrarySync.stampOfflineLocked]). */
+    fun caughtUpOnce(): Boolean = false
+    fun markCaughtUp() {}
 }

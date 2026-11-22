@@ -108,6 +108,31 @@ class NovedadesShelvesTest {
     }
 
     /**
+     * Dueño 2026-11-22: cada estreno dice si es Single, EP o Álbum. El tipo real que guardó el radar llega a
+     * [auraContentKind] aunque el título no lo diga, y cada tarjeta lo escribe (no solo el héroe).
+     */
+    @Test
+    fun `el tipo guardado por el radar decide Single, EP o Album`() {
+        fun album(title: String, stored: String) = com.music.innertube.models.AlbumItem(
+            browseId = "b", playlistId = "", title = title, artists = null, thumbnail = "",
+            description = NovedadesShelves.typeHint(stored),
+        )
+        assertEquals(AuraContentKind.Single, auraContentKind(album("Quiet Night", "single")))
+        assertEquals(AuraContentKind.Ep, auraContentKind(album("Quiet Night", "ep")))
+        assertEquals(AuraContentKind.Album, auraContentKind(album("Quiet Night", "album")))
+        assertEquals(AuraContentKind.Album, auraContentKind(album("Quiet Night", "compilation")))
+        // Filas antiguas («Release»): decide el título, como antes.
+        assertEquals(AuraContentKind.Single, auraContentKind(album("Quiet Night - Single", "Release")))
+
+        val root = generateSequence(File("").absoluteFile) { it.parentFile }
+            .firstOrNull { File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")
+        val src = File(root, "app/src/main/kotlin/com/music/echo/ui/newui/AuraNovedadesScreen.kt").readText()
+        assertTrue(src.contains("description = NovedadesShelves.typeHint(r.type)"))
+        assertTrue(src.contains("typeLabel = novedadesTypeLabel(visual.kind)"))
+        assertTrue(src.contains("novedadesTypeLabel(auraContentKind(album))"))
+    }
+
+    /**
      * El rediseño no puede perder lo que Novedades ya hacía (UI_INVENTORY / filas 141, 348, 366, 431): se
      * comprueba en el código fuente que sigue cableado, no solo que compila.
      */

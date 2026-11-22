@@ -101,6 +101,17 @@ object NovedadesShelves {
         return if (all.size < 3) listOf(NovedadesFilter.All) else all
     }
 
+    /**
+     * El tipo real que guardó el radar (`release_radar.type`, ver `ReleaseRadarMatching.releaseType`) como el
+     * texto de tipo que [auraContentKind] ya lee en `AlbumItem.description`. Así el héroe, los filtros y cada
+     * tarjeta dicen lo mismo. `null` (álbum, recopilación, filas viejas «Release»): decide el título, como antes.
+     */
+    fun typeHint(storedType: String): String? = when (storedType) {
+        "single" -> "Single"
+        "ep" -> "EP"
+        else -> null
+    }
+
     /** Filas necesarias para [count] tarjetas en [columns] columnas. */
     fun rowCount(count: Int, columns: Int): Int =
         if (count <= 0 || columns <= 0) 0 else (count + columns - 1) / columns

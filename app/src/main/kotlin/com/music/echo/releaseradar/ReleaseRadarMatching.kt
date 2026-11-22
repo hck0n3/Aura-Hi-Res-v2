@@ -11,6 +11,7 @@ data class ReleaseCandidate(
     val artworkUri: String?,
     val playId: String,      // videoId/browseId for playback
     val followed: Boolean = false, // artist the user FOLLOWS (priority) vs just listens to
+    val type: String = ReleaseRadarMatching.TYPE_UNKNOWN, // stored in release_radar.type, see releaseType
 )
 
 object ReleaseRadarMatching {
@@ -42,6 +43,36 @@ object ReleaseRadarMatching {
         items.sortedWith(
             compareByDescending<ReleaseCandidate> { it.followed }.thenByDescending { it.date },
         ).take(cap)
+
+    /** Values of `release_radar.type`. Rows written before 2026-11-22 hold [TYPE_UNKNOWN] ("Release"). */
+    const val TYPE_SINGLE = "single"
+    const val TYPE_EP = "ep"
+    const val TYPE_ALBUM = "album"
+    const val TYPE_COMPILATION = "compilation"
+    const val TYPE_UNKNOWN = "Release"
+
+    private val EP_IN_TITLE = Regex("""(?i)(^|[^\w])EP([^\w]|$)""")
+    private val SINGLE_IN_TITLE = Regex("""(?i)(^|[^\w])Single([^\w]|$)""")
+
+    /**
+     * Owner (2026-11-22): Novedades must say whether a release is a Single, an EP or an album. Spotify's
+     * [albumType] wins; Spotify files EPs as "single", so a single with 4-6 tracks or "EP" in its title is an
+     * EP. Without a type (YouTube-only path) only the title can tell; otherwise [TYPE_UNKNOWN].
+     */
+    fun releaseType(albumType: String?, totalTracks: Int, title: String): String {
+        val epTitle = EP_IN_TITLE.containsMatchIn(title)
+        return when (albumType?.lowercase()) {
+            "ep" -> TYPE_EP
+            "single" -> if (epTitle || totalTracks in 4..6) TYPE_EP else TYPE_SINGLE
+            "album" -> if (epTitle) TYPE_EP else TYPE_ALBUM
+            "compilation" -> TYPE_COMPILATION
+            else -> when {
+                epTitle -> TYPE_EP
+                SINGLE_IN_TITLE.containsMatchIn(title) -> TYPE_SINGLE
+                else -> TYPE_UNKNOWN
+            }
+        }
+    }
 
     fun isWithinWindow(date: LocalDate, ref: LocalDate, days: Long): Boolean {
         val diff = abs(date.toEpochDay() - ref.toEpochDay())
