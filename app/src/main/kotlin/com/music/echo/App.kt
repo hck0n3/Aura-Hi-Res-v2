@@ -2281,8 +2281,10 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // Weak (LOW-tier) device: much smaller in-RAM image cache (15% vs 40%) so a low-RAM box doesn't thrash
         // decoding artwork (+ RGB_565 / no fade below). Uses the CACHED device tier (cheap, non-blocking) instead
         // of a main-thread DataStore read, so newImageLoader never blocks the main thread (P46/H4). The loader is
-        // built once at process start.
-        val perfMode = iad1tya.echo.music.utils.DeviceCapabilities.tier(this) == iad1tya.echo.music.utils.DeviceTier.LOW
+        // built once at process start. The lean switch (row 395) takes the same path; LeanMode.isOn() is the
+        // non-blocking snapshot read (false before its first emission, i.e. the normal path).
+        val perfMode = iad1tya.echo.music.utils.DeviceCapabilities.tier(this) == iad1tya.echo.music.utils.DeviceTier.LOW ||
+            iad1tya.echo.music.utils.LeanMode.isOn()
         val memCachePercent = if (perfMode) 0.15 else 0.40
         return ImageLoader.Builder(this).apply {
             // Perf mode: no fade animation on image load + RGB_565 (16-bit) bitmaps = HALF the memory per image
