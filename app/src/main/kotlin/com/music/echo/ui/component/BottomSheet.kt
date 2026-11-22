@@ -39,6 +39,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
@@ -175,12 +176,18 @@ fun BottomSheet(
         // mini-player tree in one synchronous chunk the instant expansion ended (1dp from the top),
         // right in the middle of the collapse animation — a visible hitch on every back gesture.
         // Keeping it composed costs one small subtree; its fade is the draw-phase alpha below, and
-        // the clickable is disabled while expanded so the invisible strip at the top of the
-        // expanded sheet neither draws nor steals taps.
+        // it is not PLACED while expanded so the invisible strip at the top of the expanded sheet
+        // neither draws nor steals taps (a disabled clickable still hit-tests and blocks what is under it).
         if (onDismiss == null || !state.isDismissed) {
             Box(
                 modifier =
                 Modifier
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+                        layout(placeable.width, placeable.height) {
+                            if (!state.isExpanded) placeable.place(0, 0)
+                        }
+                    }
                     .graphicsLayer {
                         alpha = BottomSheetVisuals.miniAlpha(state.progress)
                     }.clickable(
