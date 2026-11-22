@@ -299,7 +299,19 @@ class PlayerConnection(
     
     
     var shouldBlockPlaybackChanges: (() -> Boolean)? = {
-        runCatching { service.listenTogetherManager.shouldBlockPlaybackChanges() }.getOrDefault(false)
+        runCatching { service.listenTogetherManager.shouldBlockPlaybackChanges() }.getOrDefault(false).also { blocked ->
+            if (blocked) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    runCatching {
+                        android.widget.Toast.makeText(
+                            service,
+                            iad1tya.echo.music.R.string.listen_together_guest_queue_locked,
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            }
+        }
     }
 
     // `allowInternalSync` used to sit here as an escape hatch for the Listen Together bridge, which
