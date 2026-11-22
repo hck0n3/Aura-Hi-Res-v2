@@ -109,6 +109,20 @@ object LogRedaction {
      */
     private val OPAQUE_BLOB = Regex("[A-Za-z0-9_%=+-]{100,}")
 
+    private val URL_USERINFO = Regex("(\\b[A-Za-z][A-Za-z0-9+.-]{0,15}://)[^/\\s:@\"']+:[^/\\s@\"']+@")
+
+    private val CONTENT_URI = Regex("(content://([^/\\s\"']+)/)[^\\s\"'<>]+")
+
+    private val YOUTUBE_ID = Regex("[A-Za-z0-9_-]{11}")
+    private val SCHEME = Regex("^([A-Za-z][A-Za-z0-9+.-]{0,15})://")
+
+    fun forLog(id: String?): String {
+        if (id == null) return "null"
+        if (YOUTUBE_ID.matches(id)) return id
+        val scheme = SCHEME.find(id)?.groupValues?.get(1) ?: "id"
+        return "$scheme#${Integer.toHexString(id.hashCode())}"
+    }
+
     /**
      * Scrubs [text]. Returns the input unchanged when it holds nothing secret, so the common case
      * costs only the pattern scans and allocates nothing.
@@ -120,6 +134,10 @@ object LogRedaction {
         // on the same line BEFORE it only where they'd otherwise be swallowed silently — in practice
         // each pattern is independent and idempotent, and a value masked twice stays masked once.
         out = QUERY_PARAM.replace(out, "$1$MASK")
+        out = URL_USERINFO.replace(out, "$1$MASK@")
+        out = CONTENT_URI.replace(out) {
+            if (it.groupValues[2] == "media") it.value else "${it.groupValues[1]}$MASK"
+        }
         out = HEADER_VALUE.replace(out, "$1$MASK")
         out = SECRET_FIELD.replace(out, "$1$MASK")
         out = COOKIE_PAIR.replace(out) { "${it.groupValues[1]}=$MASK" }
