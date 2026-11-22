@@ -81,6 +81,37 @@ data class LocalSongScanConfig(
     }
 }
 
+internal fun splitArtistNames(rawArtist: String): List<String> {
+    return rawArtist
+        .split(';')
+        .flatMap { it.split(FeaturingSeparator) }
+        .flatMap { it.split(CollabSeparator) }
+        .flatMap(::splitCommaList)
+        .map(::trimDanglingBracket)
+        .filter(String::isNotBlank)
+        .ifEmpty { listOf(rawArtist) }
+}
+
+private val FeaturingSeparator = Regex("""(?:\s+|\s*[(\[]\s*)(?:feat\.?|ft\.|featuring)\s+""", RegexOption.IGNORE_CASE)
+private val CollabSeparator = Regex("""\s+x\s+""")
+private val BandJoiner = Regex("""&|\band\b""", RegexOption.IGNORE_CASE)
+
+private fun splitCommaList(part: String): List<String> {
+    val pieces = part.split(", ").map(String::trim)
+    if (pieces.size < 2 || BandJoiner.containsMatchIn(part)) return listOf(part)
+    if (pieces.any { it.startsWith("the ", ignoreCase = true) }) return listOf(part)
+    return pieces
+}
+
+private fun trimDanglingBracket(part: String): String {
+    val trimmed = part.trim()
+    return when {
+        trimmed.endsWith(")") && !trimmed.contains("(") -> trimmed.dropLast(1).trim()
+        trimmed.endsWith("]") && !trimmed.contains("[") -> trimmed.dropLast(1).trim()
+        else -> trimmed
+    }
+}
+
 data class LocalSongScanSummary(
     val scannedSongs: Int,
     val removedSongs: Int,
@@ -552,14 +583,6 @@ constructor(
         return rawAlbum?.trim()?.takeIf { it.isNotBlank() && !it.equals("<unknown>", ignoreCase = true) }
     }
 
-    private fun splitArtistNames(rawArtist: String): List<String> {
-        return rawArtist
-            .split(ArtistSeparators)
-            .map(String::trim)
-            .filter(String::isNotBlank)
-            .ifEmpty { listOf(rawArtist) }
-    }
-
     private fun buildArtistId(
         mediaStoreArtistId: Long?,
         artistName: String,
@@ -749,7 +772,6 @@ constructor(
 
     private companion object {
         val AlbumArtUri: Uri = Uri.parse("content://media/external/audio/albumart")
-        val ArtistSeparators = Regex("[,;/&]")
         const val SqlBatchSize = 900
     }
 }
