@@ -547,7 +547,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         name = artist.ifBlank { "" },
                     ),
                 ),
-            duration = if (duration > Int.MAX_VALUE) Int.MAX_VALUE else duration.coerceAtLeast(0L).toInt(),
+            duration = (duration / 1000L).let { if (it > Int.MAX_VALUE) Int.MAX_VALUE else it.coerceAtLeast(0L).toInt() },
             thumbnailUrl = thumbnail.ifBlank { null },
             album =
                 album.takeIf { it.isNotBlank() }?.let {
