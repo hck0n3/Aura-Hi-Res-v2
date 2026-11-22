@@ -76,7 +76,7 @@ widget · Cast (Gms).
 - [x] L32 ui/newui/AuraQueue.kt L1-L1200
 - [x] L33 ui/newui/AuraQueue.kt L1201-L1995 — sin hallazgos P0-P2
 - [x] L34 devicesync/RemotePlayback.kt L1-L306 — sin hallazgos propios (su `shouldPauseOther` depende del listener de F-007)
-- [ ] L35 ui/newui/AuraPalette.kt L1-L1192
+- [x] L35 ui/newui/AuraPalette.kt L1-L1192 — sin hallazgos confirmados; S-005
 - [ ] L36 utils/SyncUtils.kt L1-L1200
 - [ ] L37 utils/SyncUtils.kt L1201-L2156
 - [ ] L38 playback/queues/Queue.kt L1-L194
@@ -141,6 +141,8 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - Obs (P3) `AuraQueue.kt:1605` la clave de cada fila es `window.uid.hashCode()`: dos uids distintos con el mismo hash darían una clave repetida en la `LazyColumn`, que en Compose es un cierre. Con hashes de identidad la probabilidad es del orden de n²/2³² (≈0,02 % con 1.000 canciones en cola). Usar el `uid` mismo (o `firstPeriodIndex`+uid) lo evitaría; sin caso observado.
 
 - Obs (P3, i18n) `RemotePlayback.kt:189` el aviso «… no responde: puede tener la pantalla bloqueada…» está escrito en español en el código, no en `strings.xml`; la app trae más de 40 idiomas (`res/values-*`). Mismo patrón en otros `DeviceSyncHub.notice("…")` del módulo.
+
+- S-005 `AuraPalette.kt:854-999` `AuraPaletteSync` se compone en varios sitios a la vez (puertas de pantalla, barra, minirreproductor) y cada instancia guarda su propio `heldEntry` (L911). `apply` escribe estado global DURANTE la composición y lee ese mismo estado (`accent != next`, L198), así que cada instancia queda suscrita a lo que escriben las demás. Si una instancia nueva se compone mientras la portada nueva aún no está en caché (su `heldEntry` es null y la vieja conserva la anterior), las dos escriben valores distintos y se invalidan mutuamente, reiniciando la transición (`transition = 0f`) en cada escritura, hasta que llega la entrada de caché o vence `AURA_COVER_HOLD_MS`. La ventana es corta (la portada siguiente se resuelve por adelantado, L899-907); sin reproducir [NO VERIFICADO].
 
 ## [DECISIÓN REQUERIDA] abiertas
 
