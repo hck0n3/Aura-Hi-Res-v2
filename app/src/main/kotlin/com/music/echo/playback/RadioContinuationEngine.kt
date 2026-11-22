@@ -276,6 +276,15 @@ fun MusicService.startRadioSeamlessly(
         return
     }
 
+    // A Listen Together GUEST plays the host's queue: seeding its own radio at the end of that list (the transition handoff, the
+    // STATE_ENDED net, the early prime) would append songs the host never put, and a late seed could cut the room's upcoming songs.
+    // Same check PlayerConnection.startRadioSeamlessly makes for the user's own button.
+    if (runCatching { listenTogetherManager.shouldBlockPlaybackChanges() }.getOrDefault(false)) {
+        resumeAfterSeed = false
+        advanceIntoRadioRequested = false
+        return
+    }
+
     if (!playerInitialized.value) {
         Timber.tag(TAG).w("startRadioSeamlessly called before player initialization")
         resumeAfterSeed = false // never reach the finally on this early return; don't leave it armed

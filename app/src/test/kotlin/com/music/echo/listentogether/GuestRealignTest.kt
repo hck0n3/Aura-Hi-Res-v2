@@ -25,6 +25,52 @@ class GuestRealignTest {
     }
 
     @Test
+    fun aJumpMadeByTheClockCalibrationRealignMarksItsOwnReady() {
+        val gate = GuestRealignGate()
+        assertTrue(gate.shouldRealign(afterBuffering = false, nowMs = 0L, roomPlaying = true, pausedLocally = false))
+        gate.onRealigned(seeked = true)
+        // the READY that jump causes is skipped, even long after (spacing is not what stops it)
+        assertFalse(gate.shouldRealign(afterBuffering = true, nowMs = 60_000L, roomPlaying = true, pausedLocally = false))
+        // and only that one
+        assertTrue(gate.shouldRealign(afterBuffering = true, nowMs = 120_000L, roomPlaying = true, pausedLocally = false))
+    }
+
+    @Test
+    fun aReadyRealignThatJumpsSkipsTheReadyItCauses() {
+        val gate = GuestRealignGate()
+        assertTrue(gate.shouldRealign(afterBuffering = true, nowMs = 0L, roomPlaying = true, pausedLocally = false))
+        gate.onRealigned(seeked = true)
+        assertFalse(gate.shouldRealign(afterBuffering = true, nowMs = 60_000L, roomPlaying = true, pausedLocally = false))
+    }
+
+    @Test
+    fun readyEdgesAreSpacedButTheClockCalibrationIsNot() {
+        val gate = GuestRealignGate()
+        assertTrue(gate.shouldRealign(afterBuffering = true, nowMs = 10_000L, roomPlaying = true, pausedLocally = false))
+        gate.onRealigned(seeked = false)
+        assertFalse(gate.shouldRealign(afterBuffering = true, nowMs = 10_000L + REALIGN_MIN_SPACING_MS - 1, roomPlaying = true, pausedLocally = false))
+        assertTrue(gate.shouldRealign(afterBuffering = false, nowMs = 10_000L + 1, roomPlaying = true, pausedLocally = false))
+        gate.onRealigned(seeked = false)
+        assertTrue(gate.shouldRealign(afterBuffering = true, nowMs = 10_001L + REALIGN_MIN_SPACING_MS, roomPlaying = true, pausedLocally = false))
+    }
+
+    @Test
+    fun leavingTheRoomForgetsThePendingSkipAndTheSpacing() {
+        val gate = GuestRealignGate()
+        assertTrue(gate.shouldRealign(afterBuffering = true, nowMs = 0L, roomPlaying = true, pausedLocally = false))
+        gate.onRealigned(seeked = true)
+        gate.reset()
+        assertTrue(gate.shouldRealign(afterBuffering = true, nowMs = 1L, roomPlaying = true, pausedLocally = false))
+    }
+
+    @Test
+    fun theGateNeverUndoesALocalPause() {
+        val gate = GuestRealignGate()
+        assertFalse(gate.shouldRealign(afterBuffering = false, nowMs = 0L, roomPlaying = true, pausedLocally = true))
+        assertFalse(gate.shouldRealign(afterBuffering = true, nowMs = 0L, roomPlaying = false, pausedLocally = false))
+    }
+
+    @Test
     fun theClockBecomingReadyIsSignalledToTheBridge() {
         val session =
             ListenTogetherSession(
