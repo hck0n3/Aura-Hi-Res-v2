@@ -42,6 +42,11 @@ object LibrarySyncAndroid {
             }
             prefs.edit().putLong(sinceKey, prefs.getLong("libSince", 0L)).remove("libSince").commit()
         }
+        val fresh = File(context.filesDir, FRESH_START)
+        if (fresh.isFile) {
+            ledgerFile.delete()
+            prefs.edit().remove(sinceKey).commit()
+        }
         return LibrarySync(
             adapter = LibrarySyncAdapter(database, dislikes, LibraryPinsBackend(context, database)),
             store = LibraryLedgerStore(ledgerFile),
@@ -49,6 +54,10 @@ object LibrarySyncAndroid {
                 override fun get() = prefs.getLong(sinceKey, 0L)
                 override fun put(value: Long) {
                     prefs.edit().putLong(sinceKey, value).apply()
+                }
+                override fun freshStart() = fresh.isFile
+                override fun endFreshStart() {
+                    fresh.delete()
                 }
             },
             scope = scope,
@@ -77,4 +86,16 @@ object LibrarySyncAndroid {
             },
         )
     }
+
+    /** A restored backup replaced the library under every room's ledger: forget them all, and let the next pull start fresh. */
+    fun forgetAfterRestore(context: Context) {
+        File(context.filesDir, "device_sync").walkBottomUp().filter { it.isFile }.forEach { it.delete() }
+        File(context.filesDir, FRESH_START).apply { parentFile?.mkdirs() }.createNewFile()
+        val prefs = context.getSharedPreferences("device_sync_state", Context.MODE_PRIVATE)
+        val edit = prefs.edit()
+        prefs.all.keys.filter { it.startsWith("libSince") }.forEach { edit.remove(it) }
+        edit.commit()
+    }
+
+    private const val FRESH_START = "device_sync/fresh_start"
 }

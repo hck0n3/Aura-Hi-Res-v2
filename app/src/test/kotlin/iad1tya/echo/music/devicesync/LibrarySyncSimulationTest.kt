@@ -193,7 +193,7 @@ class LibrarySyncSimulationTest {
         override fun rewrite(map: Map<String, Reg>) { stored = HashMap(map) }
     }
 
-    inner class Device(val id: String, clockSkewMs: Long = 0L, val enabled: () -> Boolean = { true }) {
+    inner class Device(val id: String, clockSkewMs: Long = 0L, val enabled: () -> Boolean = { true }, private var fresh: Boolean = false) {
         val backend = FakeBackend()
         val ledger = FakeLedger()
         private var since = 0L
@@ -206,6 +206,8 @@ class LibrarySyncSimulationTest {
             sinceStore = object : SinceStore {
                 override fun get() = since
                 override fun put(value: Long) { since = value }
+                override fun freshStart() = fresh
+                override fun endFreshStart() { fresh = false }
             },
             scope = scope,
             sendMessage = { msg -> if (online) { room.receive(id, msg); true } else false },
@@ -491,5 +493,32 @@ class LibrarySyncSimulationTest {
         assertEquals("the song is still in the playlist in the room", "1", room.value("pm:LPbig:m1"))
         assertTrue("and on the phone", ("LPbig" to "m1") in phone.backend.members)
         assertEquals("what cannot be placed is not removed either", "1", room.value("lk:ghost"))
+    }
+
+    @Test
+    fun `after a backup is restored the room wins over the old library, and what only the backup had is added`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        repeat(40) { phone.backend.like("r$it") }
+        phone.connect(); tablet.connect()
+        eventually("the tablet has all 40") { tablet.backend.likes.size == 40 }
+        // The user removes 30 on the tablet, ten at a time: each step is a normal tidy-up, under the brake.
+        for (step in 0 until 3) {
+            for (i in step * 10 until step * 10 + 10) tablet.backend.likes -= "r$i"
+            tablet.changed()
+            eventually("step $step reaches the phone") { phone.backend.likes.size == 40 - (step + 1) * 10 }
+        }
+        phone.disconnect()
+
+        // The phone restores an old backup (all 40 likes, plus one only the backup had); its sync memory starts empty and fresh.
+        val restored = Device("phone", fresh = true)
+        repeat(40) { restored.backend.like("r$it") }
+        restored.backend.like("onlyInBackup")
+        restored.connect()
+        val kept = (30 until 40).map { "r$it" }.toSet()
+        eventually("the room's removals win on the restored phone") { restored.backend.likes == kept + "onlyInBackup" }
+        eventually("what only the backup had reaches the tablet") { "onlyInBackup" in tablet.backend.likes }
+        settle(); settle()
+        assertEquals("nothing the user removed came back", kept + "onlyInBackup", tablet.backend.likes)
+        assertTrue((0 until 30).all { room.value("lk:r$it") == "0" })
     }
 }

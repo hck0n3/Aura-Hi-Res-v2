@@ -347,6 +347,7 @@ class BackupRestoreViewModel @Inject constructor(
                     settings[iad1tya.echo.music.constants.YtmUploadSyncKey] =
                         iad1tya.echo.music.utils.LibraryUploadOptIn.onAccountDetached()
                 }
+                runCatching { iad1tya.echo.music.devicesync.LibrarySyncAndroid.forgetAfterRestore(context) }
             }
 
             Timber.tag("RESTORE").i("Restore complete — restarting (dbReplaced=$dbClosedForRestore)")

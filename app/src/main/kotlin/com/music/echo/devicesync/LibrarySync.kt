@@ -62,6 +62,7 @@ class LibrarySync(
 
     private var ledgerMap: HashMap<String, Reg>? = null
     private var since = sinceStore.get()
+    private var freshStart = sinceStore.freshStart()
     private val inFlight = ArrayDeque<List<Reg>>()
     private val sentKeys = HashSet<String>()
     private var kickJob: Job? = null
@@ -225,7 +226,7 @@ class LibrarySync(
         var accepted = LibrarySyncCore.acceptedFrom(ledger, incoming)
         var plan = LibrarySyncCore.plan(accepted)
         val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
-        if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
+        if (!freshStart && LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
             // A pile of removals at once is not a person tidying up. Keep every addition, hold every removal, and say so.
             val held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
             accepted = accepted - held.toSet()
@@ -258,6 +259,10 @@ class LibrarySync(
         }
         // Caught up: from here the room is the source of truth between the devices, and what is different HERE goes out.
         pulledOnce = true
+        if (freshStart) {
+            freshStart = false
+            sinceStore.endFreshStart()
+        }
         pullWatchdog?.cancel()
         Timber.tag(TAG).i("LIB_SYNC caught up since=%d known=%d", since, ledger.size)
         DeviceSyncHub.libraryOwnedByDevices = connected && isEnabled()
@@ -371,4 +376,8 @@ interface LedgerPersistence {
 interface SinceStore {
     fun get(): Long
     fun put(value: Long)
+
+    /** True after a backup was restored, until the first pull catches up: the room wins over the restored library, brake included. */
+    fun freshStart(): Boolean = false
+    fun endFreshStart() {}
 }
