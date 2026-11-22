@@ -762,31 +762,50 @@ private fun AuraPlayerShape(
     val immersiveVideo = useWideShape && showVideoSurface
     // F-012 (owner 2026-11-22): «Fondo animado a pantalla completa en horizontal», off by default (registry #48).
     val immersiveCanvasOnRotate by rememberPreference(iad1tya.echo.music.constants.ImmersiveCanvasOnRotateKey, false)
+    // Lyrics (inline or full screen) win over the canvas view, and nothing is held while the app is off screen.
     val immersiveCanvasWanted = isLandscape && immersiveCanvasOnRotate && canvasEnabled && !showVideoSurface && !inPipMode &&
-        !(isFullScreen && showInlineLyrics)
-    // Entering the view, [Thumbnail] (in the wide shape) finds the canvas as always. While the view is up Thumbnail is off
-    // screen, so the player looks the NEXT song's canvas up itself — the same lookup (Thumbnail.kt `canvasLookupWithoutNetwork`
-    // / `canvasLookupOverNetwork`), never both at once — and the previous canvas holds until it answers.
+        !showInlineLyrics && appInForeground
+    // Entering the view, [Thumbnail] (in the wide shape) finds the canvas as always; the player notices it in the cache
+    // (not snapshot state) with a map read every 600 ms for the rest of THIS song — no network — so a slow lookup still
+    // brings the view. While the view is up Thumbnail is off screen, so the player looks the NEXT song's canvas up itself
+    // (Thumbnail.kt `canvasLookupWithoutNetwork` / `canvasLookupOverNetwork`), never both at once, and the previous canvas
+    // holds until it answers.
     val immersiveCanvasStorefront = remember { iad1tya.echo.music.ui.player.canvasStorefront() }
     val immersiveSpotifyCanvas by rememberPreference(iad1tya.echo.music.constants.EnableSpotifyCanvasKey, false)
+    var immersiveCanvasCached by remember(mediaMetadata?.id) { mutableStateOf<iad1tya.echo.music.canvas.CanvasArtwork?>(null) }
     var immersiveCanvasFound by remember(mediaMetadata?.id) { mutableStateOf<iad1tya.echo.music.canvas.CanvasArtwork?>(null) }
     var immersiveCanvasLookupDone by remember(mediaMetadata?.id) { mutableStateOf(false) }
     val immersiveCanvasHeld = remember { arrayOfNulls<iad1tya.echo.music.canvas.CanvasArtwork>(1) }
-    LaunchedEffect(mediaMetadata?.id, immersiveCanvasWanted, appInForeground) {
+    LaunchedEffect(mediaMetadata?.id, immersiveCanvasWanted) {
+        if (!immersiveCanvasWanted) return@LaunchedEffect
+        val id = mediaMetadata?.id ?: return@LaunchedEffect
+        while (true) {
+            CanvasArtworkPlaybackCache.get(id)?.let {
+                immersiveCanvasCached = it
+                return@LaunchedEffect
+            }
+            delay(600)
+        }
+    }
+    LaunchedEffect(mediaMetadata?.id, immersiveCanvasWanted) {
         if (!immersiveCanvasWanted) return@LaunchedEffect
         if (immersiveCanvasHeld[0] == null) return@LaunchedEffect
         val id = mediaMetadata?.id ?: return@LaunchedEffect
-        val item = playerConnection.player.currentMediaItem?.takeIf { it.mediaId == id } ?: return@LaunchedEffect
-        val cached = CanvasArtworkPlaybackCache.get(id)
-            ?: iad1tya.echo.music.ui.player.canvasLookupWithoutNetwork(item, context.applicationContext).let { cheap ->
-                cheap.artwork ?: run {
-                    if (!appInForeground) return@LaunchedEffect
-                    iad1tya.echo.music.ui.player.canvasLookupOverNetwork(
-                        item, context.applicationContext, immersiveCanvasStorefront, immersiveSpotifyCanvas, appInForeground, cheap,
+        // By id in the queue, not «the current item»: during a crossfade hand-over the two can disagree for a moment.
+        val player = playerConnection.player
+        val item = (0 until player.mediaItemCount).firstNotNullOfOrNull { i ->
+            player.getMediaItemAt(i).takeIf { it.mediaId == id }
+        }
+        immersiveCanvasFound = if (item == null) {
+            null
+        } else {
+            CanvasArtworkPlaybackCache.get(id)
+                ?: iad1tya.echo.music.ui.player.canvasLookupWithoutNetwork(item, context.applicationContext).let { cheap ->
+                    cheap.artwork ?: iad1tya.echo.music.ui.player.canvasLookupOverNetwork(
+                        item, context.applicationContext, immersiveCanvasStorefront, immersiveSpotifyCanvas, true, cheap,
                     )
                 }
-            }
-        immersiveCanvasFound = cached
+        }
         immersiveCanvasLookupDone = true
     }
     val immersiveCanvasArtwork = when {
@@ -795,9 +814,8 @@ private fun AuraPlayerShape(
             null
         }
         immersiveCanvasFound != null -> immersiveCanvasFound.also { immersiveCanvasHeld[0] = it }
-        immersiveCanvasHeld[0] == null ->
-            (if (canvasAvailable) mediaMetadata?.id?.let { CanvasArtworkPlaybackCache.get(it) } else null)
-                ?.also { immersiveCanvasHeld[0] = it }
+        immersiveCanvasCached != null -> immersiveCanvasCached.also { immersiveCanvasHeld[0] = it }
+        immersiveCanvasHeld[0] == null -> null
         !immersiveCanvasLookupDone -> immersiveCanvasHeld[0]
         else -> {
             immersiveCanvasHeld[0] = null
