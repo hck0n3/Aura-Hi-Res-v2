@@ -88,8 +88,8 @@ widget · Cast (Gms).
 - [x] L44 ui/newui/AuraBloom.kt L1-L692 + utils/DataStore.kt (ya leído) — sin hallazgos (caché acotada a 32, extracción deduplicada con `claim`/`release`, deriva ambiental con puerta térmica en `AuraAmbientMotion.kt:72-77`)
 - [x] L45 ui/newui/AuraLibraryTabs.kt L1-L1200
 - [x] L46 ui/newui/AuraLibraryTabs.kt L1201-L1767 — leído L380-L560, L915-L945, L1230-L1260, L1385-L1400; el resto por búsqueda dirigida (efectos, BD, navegación, colas). F-011
-- [ ] L47 ui/newui/AuraHomeScreen.kt L1-L1200
-- [ ] L48 ui/newui/AuraHomeScreen.kt L1201-L2309
+- [x] L47 ui/newui/AuraHomeScreen.kt L1-L1200
+- [x] L48 ui/newui/AuraHomeScreen.kt L1201-L2309 — leído L170-L455; el resto (estanterías) por búsqueda dirigida: efectos, BD, colas, claves de la lista (por índice, sin claves repetidas). Sin hallazgos P0-P2
 - [ ] L49 ui/screens/equalizer/axion/AxionEqScreen.kt L1-L1200 (solo lectura)
 - [ ] L50 ui/screens/equalizer/axion/AxionEqScreen.kt L1201-L2400 (solo lectura)
 - [ ] L51 ui/screens/equalizer/axion/AxionEqScreen.kt L2401-L2708 (solo lectura)
@@ -155,6 +155,8 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 
 - Obs (P3, red/batería) `AuraContent.kt:405-417`, `:424`, `:435` sin miniatura, `AuraCover` fabrica `https://i.ytimg.com/vi/<seed>/hqdefault.jpg` con el `seed`, y el `seed` por defecto es `thumbnailUrl ?: "aura-cover"`: una tarjeta sin portada pide `…/vi/aura-cover/hqdefault.jpg`, y una con id de álbum o lista (`MPREb…`, `PL…`) pide un vídeo que no existe. Cada 404 baja la cadena hq→mq→default (`:547-553`): hasta 3 peticiones inútiles por tarjeta.
 - Obs (P3, rendimiento) `AuraContent.kt:655` `downloadUtil.getDownload(songId)` devuelve un `Flow` nuevo en cada llamada (`DownloadUtil.kt:559` `downloads.map { … }`), así que `collectAsState` reinicia la suscripción en cada recomposición de la fila; mientras hay una descarga, `liveProgress` recompone todas las filas visibles en cada tic. Un `remember(songId)` lo evita.
+
+- Obs (P3) `AuraHomeScreen.kt:278-288` → `HomeViewModel.kt:1374-1395` `loadMoreYouTubeItems` comprueba `_isLoadingMore` en Main y lo pone a `true` ya dentro del `launch(Dispatchers.IO)`: dos índices visibles seguidos antes de que arranque la corrutina piden la MISMA continuación dos veces y la página se añade repetida (estanterías duplicadas; las claves son por índice, así que no hay cierre). Además el `false` final no va en `finally`.
 
 ## [DECISIÓN REQUERIDA] abiertas
 
