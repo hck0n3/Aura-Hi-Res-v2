@@ -328,6 +328,7 @@ private fun LibraryUploadSection(
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val pendingFollowsToConfirm = remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
     val (awaitingImportIds, _) = rememberPreference(ImportFollowsAwaitingConfirmKey, emptySet())
+    val (localOnlyImportIds, _) = rememberPreference(ImportFollowsLocalOnlyKey, emptySet())
     val awaitingImportCounted by androidx.compose.runtime.produceState(emptySet<String>(), awaitingImportIds) {
         value = if (awaitingImportIds.isEmpty()) emptySet() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
@@ -466,6 +467,30 @@ private fun LibraryUploadSection(
                 },
                 onClick = { showImportFollowsConfirm.value = true },
             ).takeIf { uploadEnabled && awaitingImportCount > 0 },
+            Material3SettingsItem(
+                icon = painterResource(R.drawable.replay),
+                title = {
+                    Text(
+                        pluralStringResource(
+                            R.plurals.ytm_upload_import_local_only_count,
+                            localOnlyImportIds.size,
+                            localOnlyImportIds.size,
+                        ),
+                    )
+                },
+                onClick = {
+                    val askAgain = localOnlyImportIds
+                    coroutineScope.launch {
+                        runCatching {
+                            context.dataStore.edit {
+                                it[ImportFollowsLocalOnlyKey] = it[ImportFollowsLocalOnlyKey].orEmpty() - askAgain
+                                it[ImportFollowsAwaitingConfirmKey] =
+                                    it[ImportFollowsAwaitingConfirmKey].orEmpty() + askAgain
+                            }
+                        }
+                    }
+                },
+            ).takeIf { localOnlyImportIds.isNotEmpty() },
         ) + listOf(
             Material3SettingsItem(
                 icon = painterResource(R.drawable.sync),

@@ -1165,6 +1165,11 @@
     </plurals>
     <string name="ytm_upload_import_subscribe">Suscribir</string>
     <string name="ytm_upload_import_local_only">Solo en Aura</string>
+    <plurals name="ytm_upload_import_local_only_count">
+        <item quantity="one">%d artista solo en Aura — volver a preguntar</item>
+        <item quantity="many">%d artistas solo en Aura — volver a preguntar</item>
+        <item quantity="other">%d artistas solo en Aura — volver a preguntar</item>
+    </plurals>
     <!-- "Interfaz nueva": contenedores de la letra a pantalla completa y de las descargas -->
     <string name="aura_no_song_playing">No hay ninguna canción sonando</string>
     <string name="aura_lyrics_appearance">Aspecto de la letra</string>

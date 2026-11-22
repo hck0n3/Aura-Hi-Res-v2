@@ -734,6 +734,11 @@
     </plurals>
     <string name="ytm_upload_import_subscribe">Suscribir</string>
     <string name="ytm_upload_import_local_only">Solo en Aura</string>
+    <plurals name="ytm_upload_import_local_only_count">
+        <item quantity="one">%d artista solo en Aura — volver a preguntar</item>
+        <item quantity="many">%d artistas solo en Aura — volver a preguntar</item>
+        <item quantity="other">%d artistas solo en Aura — volver a preguntar</item>
+    </plurals>
     <string name="listen_together_waiting_everyone">Esperando a todos</string>
     <string name="listen_together_waiting_for">Esperando a %1$s</string>
     <string name="listen_together_buffer_resumes">La reproducción continúa cuando todos estén listos</string>

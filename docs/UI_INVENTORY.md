@@ -3037,6 +3037,7 @@ Se llega desde Ajustes > Cuentas (fila YouTube), Ajustes > Copias de seguridad >
 | Cada día (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
 | Cada semana (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
 | Sincronizar mi biblioteca con mi cuenta — desc. «Tus playlists, artistas seguidos, me gusta y álbumes se guardan en tu cuenta de YouTube Music…» (sección «Copia de seguridad en YouTube Music») | Sincronizar desde YouTube Music | YtmSyncScreen.kt:318 | conmutador | rara | siempre |
+| «%d artistas solo en Aura — volver a preguntar» (sección «Copia de seguridad en YouTube Music») | Sincronizar desde YouTube Music | YtmSyncScreen.kt:470 | acción secundaria | rara | solo si hay artistas importados que el usuario dejó «Solo en Aura»; los devuelve a la espera de confirmación |
 | Sincronizar toda mi biblioteca ahora — desc. «Sube todo lo que falte. Corre en segundo plano, por tandas, y continúa donde se quedó.» | Sincronizar desde YouTube Music | YtmSyncScreen.kt:335 | acción primaria | rara | siempre; muestra «Activa "Sincronizar mi biblioteca…"» si el conmutador está apagado y «Primero inicia sesión en YouTube Music» sin sesión |
 
 ---
