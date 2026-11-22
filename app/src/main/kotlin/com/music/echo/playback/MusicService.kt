@@ -10715,6 +10715,8 @@ class MusicService :
     internal fun onControllerSelectedItem() {
         awaitingFirstUserPlay = false
         iad1tya.echo.music.devicesync.RemotePlayback.noteUserStart("controller_select")
+        // A song picked on the car screen plays HERE even while another device is controlled from this one.
+        iad1tya.echo.music.devicesync.RemotePlayback.grantLocalStart()
     }
 
     private fun updateWidgetUI(isPlaying: Boolean) {

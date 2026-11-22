@@ -69,5 +69,7 @@ class RemoteLocalStartGuardTest {
         assertTrue("take-over / continuar aquí", e.substringAfter("private suspend fun play(state: NowState) {").substringBefore("service.playQueue(").contains("RemotePlayback.grantLocalStart()"))
         val failed = e.substringAfter("suspend fun sendQueueToRemote(").substringBefore("return sent")
         assertTrue("a queue that could not be sent plays here", failed.contains("RemotePlayback.update(null, serverNow())") && failed.contains("RemotePlayback.grantLocalStart()"))
+        val service = read("app/src/main/kotlin/com/music/echo/playback/MusicService.kt")
+        assertTrue("a song picked on Android Auto", service.substringAfter("internal fun onControllerSelectedItem() {").substringBefore("\n    }").contains("RemotePlayback.grantLocalStart()"))
     }
 }
