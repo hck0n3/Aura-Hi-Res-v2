@@ -10289,9 +10289,6 @@ class MusicService :
         }
     }
 
-    private fun isPowerSaveModeActive(): Boolean =
-        (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
-
     /**
      * True when Android Auto (phone projection) or a car head-unit MediaSession controller is connected.
      * Crossfade + binder broadcasts to Auto are a known micro-cut source (registry #104/#114); force hard cuts.
