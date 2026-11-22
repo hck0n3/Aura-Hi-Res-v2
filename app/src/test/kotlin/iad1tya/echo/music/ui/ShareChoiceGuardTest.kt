@@ -18,7 +18,7 @@ class ShareChoiceGuardTest {
 
     @Test
     fun `every song share opens the choice window instead of sending the link at once`() {
-        for (menu in listOf("ui/menu/SongMenu.kt", "ui/menu/YouTubeSongMenu.kt", "ui/menu/QueueMenu.kt", "ui/menu/PlayerMenu.kt", "ui/menu/OldPlayerMenu.kt", "ui/player/Player.kt")) {
+        for (menu in listOf("ui/menu/SongMenu.kt", "ui/menu/YouTubeSongMenu.kt", "ui/menu/QueueMenu.kt", "ui/menu/PlayerMenu.kt", "ui/menu/OldPlayerMenu.kt")) { // D-002 (owner 2026-11-22): the classic Player.kt was deleted (unreachable under SINGLE_UI); only the Aura side is pinned.
             assertTrue("$menu abre la ventana de elección", main(menu).contains("ShareChoiceState.open("))
         }
         // The two new-interface entry points go through shareSong(), which opens it too.

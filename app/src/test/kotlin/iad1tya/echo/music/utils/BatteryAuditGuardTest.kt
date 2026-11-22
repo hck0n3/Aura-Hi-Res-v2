@@ -106,10 +106,7 @@ class BatteryAuditGuardTest {
         assertTrue(auraTicker.contains("LaunchedEffect(isPlaying, isCasting, highPerfMode, appInForeground)"))
         assertTrue(auraTicker.contains("isPlaying && appInForeground"))
 
-        val classic = src("ui/player/Player.kt")
-        val classicTicker = classic.substringAfter("val positionTickerInForeground = rememberIsAppInForeground()").substringBefore("Mirror the player sheet's expanded")
-        assertTrue(classicTicker.contains("positionTickerInForeground)"))
-        assertTrue(classicTicker.contains("isPlaying && positionTickerInForeground"))
+        // D-002 (owner 2026-11-22): the classic Player.kt was deleted (unreachable under SINGLE_UI); only the Aura side is pinned.
 
         val panel = src("ui/player/NowPlayingSidePanel.kt")
         assertTrue(panel.contains("LaunchedEffect(playerConnection, meta.id, panelInForeground)"))
@@ -124,7 +121,7 @@ class BatteryAuditGuardTest {
 
     @Test
     fun `animated cover lookups wait for the app to be on screen and never wedge their in-flight flag`() {
-        for (path in listOf("ui/player/Thumbnail.kt", "ui/player/Player.kt")) {
+        for (path in listOf("ui/player/Thumbnail.kt")) { // D-002 (owner 2026-11-22): the classic Player.kt was deleted (unreachable under SINGLE_UI); only the Aura side is pinned.
             val text = src(path)
             val effect = text.substringAfter("CanvasArtworkPlaybackCache.get(").substringBefore("withContext(Dispatchers.IO)")
             assertTrue("$path: lookup gated on the foreground", effect.contains("InForeground) return@LaunchedEffect") || effect.contains("InForeground)) return@LaunchedEffect"))

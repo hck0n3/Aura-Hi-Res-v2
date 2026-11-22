@@ -24,7 +24,8 @@ class CastTouchTargetTest {
         val foss = src("app/src/foss/kotlin/com/music/echo/ui/component/CastButton.kt")
         assertTrue(gms.contains("val CAST_TOUCH_TARGET = 64.dp") && foss.contains("val CAST_TOUCH_TARGET = 64.dp"))
         assertTrue("el botón usa la constante", gms.contains(".size(CAST_TOUCH_TARGET)"))
-        for (p in listOf("app/src/main/kotlin/com/music/echo/ui/newui/AuraPlayer.kt", "app/src/main/kotlin/com/music/echo/ui/player/Player.kt")) {
+        // D-002 (owner 2026-11-22): the classic Player.kt was deleted (unreachable under SINGLE_UI); only the Aura side is pinned.
+        for (p in listOf("app/src/main/kotlin/com/music/echo/ui/newui/AuraPlayer.kt")) {
             val s = src(p)
             val at = s.indexOf("CastButton(\n")
             assertTrue("$p: no encuentro el uso", at > 0)

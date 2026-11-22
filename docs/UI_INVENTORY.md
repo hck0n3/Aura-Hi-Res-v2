@@ -6,6 +6,11 @@
 > en el diseño nuevo y esté en esta lista, se habrá perdido en silencio.
 >
 > Este documento **no propone ningún diseño** y **no sugiere quitar nada**. Sólo enumera.
+>
+> **Nota (2026-11-22, D-002, decisión del dueño):** el reproductor CLÁSICO (`ui/player/Player.kt`,
+> `BottomSheetPlayer`) se borró: con `SINGLE_UI = true` ya no se podía abrir desde ningún sitio. Las filas de
+> este inventario que citan `ui/player/Player.kt` describen ese reproductor; su equivalente vivo es
+> `ui/newui/AuraPlayer.kt`. `InlineLyricsView` sigue existiendo, ahora en `ui/player/InlineLyricsView.kt`.
 
 ---
 

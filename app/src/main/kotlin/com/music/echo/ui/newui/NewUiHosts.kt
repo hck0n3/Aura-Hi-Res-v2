@@ -11,7 +11,6 @@ import iad1tya.echo.music.constants.PlayerBackgroundStyle
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.ui.component.BottomSheetState
 import iad1tya.echo.music.ui.menu.OldPlayerMenu
-import iad1tya.echo.music.ui.player.BottomSheetPlayer
 import iad1tya.echo.music.ui.player.Queue
 import iad1tya.echo.music.ui.screens.AlbumScreen
 import iad1tya.echo.music.ui.screens.HomeScreen
@@ -75,24 +74,17 @@ fun BottomSheetPlayerHost(
     pureBlack: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    NewUiGate(
-        classic = {
-            BottomSheetPlayer(
-                state = state,
-                navController = navController,
-                modifier = modifier,
-                pureBlack = pureBlack,
-            )
-        },
-        new = {
-            AuraPlayer(
-                state = state,
-                navController = navController,
-                pureBlack = pureBlack,
-                modifier = modifier,
-            )
-        },
-    )
+    // D-002 (owner 2026-11-22): the classic BottomSheetPlayer is gone (SINGLE_UI made it unreachable). Both
+    // sides of the gate draw the Aura player; the gate stays so AuraPaletteSync keeps running ahead of it.
+    val player: @Composable () -> Unit = {
+        AuraPlayer(
+            state = state,
+            navController = navController,
+            pureBlack = pureBlack,
+            modifier = modifier,
+        )
+    }
+    NewUiGate(classic = player, new = player)
 }
 
 // ── 2. Menú del reproductor ───────────────────────────────────────────────────────────────────────

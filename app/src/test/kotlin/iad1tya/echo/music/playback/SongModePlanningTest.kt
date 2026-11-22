@@ -126,9 +126,7 @@ class SongModePlanningTest {
                 it.contains("exitId !in songBlockedIds")
         })
         assertTrue(src("ui/newui/AuraPlayerMenu.kt").contains("SongModePlanning.offerSongOption(videoMode, mediaMetadata.isVideoSong"))
-        val classic = src("ui/player/Player.kt")
-        assertTrue(classic.contains("SongModePlanning.offerSongOption(videoMode, it.isVideoSong"))
-        assertTrue(classic.contains("lsSongBlockedIds"))
+        // D-002 (owner 2026-11-22): the classic Player.kt was deleted (unreachable under SINGLE_UI); only the Aura side is pinned.
     }
 
     @Test
