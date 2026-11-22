@@ -28,6 +28,15 @@ class LibraryLedgerStoreTest {
     }
 
     @Test
+    fun `a parked register stays parked after a restart, with or without pending`() {
+        val s = store()
+        s.append(listOf(Reg("pm:LP1:s1", 3, "1", parked = true), Reg("lk:b", 4, "1", pending = true, parked = true)))
+        val back = store().load()
+        assertEquals(Reg("pm:LP1:s1", 3, "1", parked = true), back["pm:LP1:s1"])
+        assertEquals(Reg("lk:b", 4, "1", pending = true, parked = true), back["lk:b"])
+    }
+
+    @Test
     fun `a missing or damaged file is an empty ledger, never a crash`() {
         assertTrue(store().load().isEmpty())
         val f = File(tmp.root, "device_sync/library_ledger.tsv")

@@ -6,7 +6,7 @@ import java.io.File
 /**
  * Row 536 — what this device last knew of every synced register, kept on disk so a restart (or a day offline) resumes where it
  * stopped. An append-only text log, one register per line, the last line for a key winning; it is rewritten whole only when it has
- * grown to more than twice what it needs ([compactIfBloated]). Line: `key TAB ts TAB pending(0|1) TAB value`. Keys have no tab or
+ * grown to more than twice what it needs ([compactIfBloated]). Line: `key TAB ts TAB flags(pending 1 + parked 2) TAB value`. Keys have no tab or
  * newline, and a value never has either (the sync escapes them), so no quoting is needed.
  */
 class LibraryLedgerStore(private val file: File) : LedgerPersistence {
@@ -21,7 +21,7 @@ class LibraryLedgerStore(private val file: File) : LedgerPersistence {
             val parts = line.split('\t', limit = 4)
             if (parts.size < 4) return@forEachLine
             val ts = parts[1].toLongOrNull() ?: return@forEachLine
-            map[parts[0]] = Reg(parts[0], ts, parts[3], pending = parts[2] == "1")
+            map[parts[0]] = Reg(parts[0], ts, parts[3], pending = parts[2] == "1" || parts[2] == "3", parked = parts[2] == "2" || parts[2] == "3")
         }
         return map
     }
@@ -51,5 +51,5 @@ class LibraryLedgerStore(private val file: File) : LedgerPersistence {
         lines = map.size
     }
 
-    private fun line(r: Reg) = "${r.key}\t${r.ts}\t${if (r.pending) 1 else 0}\t${r.value}\n"
+    private fun line(r: Reg) = "${r.key}\t${r.ts}\t${(if (r.pending) 1 else 0) + (if (r.parked) 2 else 0)}\t${r.value}\n"
 }

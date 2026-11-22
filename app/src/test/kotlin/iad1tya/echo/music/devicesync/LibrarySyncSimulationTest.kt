@@ -170,17 +170,18 @@ class LibrarySyncSimulationTest {
 
         override suspend fun apply(plan: Plan): ApplyResult = synchronized(lock) {
             var unresolved = 0
+            val unplaced = HashSet<String>()
             for ((id, meta) in plan.songs) if (id !in songs) songs[id] = meta
             for ((k, n) in plan.playlistUpserts) playlists[k] = n
-            for ((p, s) in plan.memberAdds) if (p in playlists && s in songs) members += p to s else unresolved++
-            for ((id, on) in plan.likes) if (on) { if (id in songs) likes += id else unresolved++ } else likes -= id
+            for ((p, s) in plan.memberAdds) if (p in playlists && s in songs) members += p to s else { unresolved++; unplaced += LibrarySyncCore.memberKey(p, s) }
+            for ((id, on) in plan.likes) if (on) { if (id in songs) likes += id else { unresolved++; unplaced += LibrarySyncCore.likeKey(id) } } else likes -= id
             for ((set, id, on) in plan.dislikes) if (on) dislikes += set to id else dislikes -= set to id
             for ((id, meta) in plan.albums) albums.putIfAbsent(id, meta)
-            for ((id, on) in plan.albumSaves) if (on) { if (id in albums) savedAlbums += id else unresolved++ } else savedAlbums -= id
+            for ((id, on) in plan.albumSaves) if (on) { if (id in albums) savedAlbums += id else { unresolved++; unplaced += LibrarySyncCore.albumKey(id) } } else savedAlbums -= id
             for ((p, s) in plan.memberRemovals) members -= p to s
             for (p in plan.playlistRemovals) { playlists -= p; members.removeAll { it.first == p } }
             applied++
-            ApplyResult(applied, unresolved)
+            ApplyResult(applied, unresolved, unplaced)
         }
     }
 
@@ -460,5 +461,35 @@ class LibrarySyncSimulationTest {
         tablet.changed(); phone.changed()
         settle(); settle()
         assertEquals("the unknown register is still on in the room", "1", room.value("zz:future"))
+    }
+
+    @Test
+    fun `a playlist song that arrives a page before its playlist is placed later, never sent back as a removal`() {
+        val phone = Device("phone")
+        phone.backend.addSong("m1")
+        phone.backend.playlists["LPbig"] = "Antes"
+        phone.backend.members += "LPbig" to "m1"
+        for (i in 1..450) phone.backend.like("many$i")
+        phone.connect()
+        eventually("the phone sent its library", ms = 10_000) { room.head == 903L }
+        // A rename gives the playlist a newer place in the room's log: after its song, two pages later.
+        phone.backend.playlists["LPbig"] = "Después"; phone.changed()
+        eventually("the rename is in the room") { room.value("pl:LPbig") == LibrarySyncCore.encodePlaylistName("Después") }
+        // A like of a song no device ever described: it can never be placed here.
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive("lk:ghost")); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive("1")) }) })
+        })
+
+        val tablet = Device("tablet")
+        tablet.connect()
+        eventually("the tablet placed the song once its playlist arrived", ms = 10_000) {
+            tablet.backend.playlists["LPbig"] == "Después" && ("LPbig" to "m1") in tablet.backend.members
+        }
+        tablet.changed(); phone.changed()
+        settle(); settle()
+        assertEquals("the song is still in the playlist in the room", "1", room.value("pm:LPbig:m1"))
+        assertTrue("and on the phone", ("LPbig" to "m1") in phone.backend.members)
+        assertEquals("what cannot be placed is not removed either", "1", room.value("lk:ghost"))
     }
 }

@@ -232,10 +232,18 @@ class LibrarySync(
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
             DeviceSyncHub.notice("Otro dispositivo quitó ${held.size} elementos de golpe; no los quité aquí por seguridad.")
         }
+        val parkedBefore = ledger.values.filter { it.parked }
         val result = adapter.apply(plan)
-        val stored = accepted.map { it.copy(pending = false) }
+        val stored = accepted.map { it.copy(pending = false, parked = it.key in result.unplaced) }
         stored.forEach { ledger[it.key] = it }
         store.append(stored)
+        val retry = parkedBefore.filter { ledger[it.key] == it }
+        if (retry.isNotEmpty()) {
+            val again = adapter.apply(LibrarySyncCore.plan(retry))
+            val placed = retry.filter { it.key !in again.unplaced }.map { it.copy(parked = false) }
+            placed.forEach { ledger[it.key] = it }
+            store.append(placed)
+        }
         store.compactIfBloated(ledger)
         since = maxOf(since, (msg["seq"] as? JsonPrimitive)?.longOrNull ?: since)
         sinceStore.put(since)
@@ -342,7 +350,7 @@ class LibrarySync(
 }
 
 /** What an [LibraryBackend.apply] did: changes made, and registers it could not apply (a playlist or a song this device does not have). */
-data class ApplyResult(val applied: Int, val unresolved: Int)
+data class ApplyResult(val applied: Int, val unresolved: Int, val unplaced: Set<String> = emptySet())
 
 /** What [LibrarySync] needs from the app: the present facts, and a way to write what other devices changed. */
 interface LibraryBackend {

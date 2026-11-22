@@ -95,6 +95,7 @@ class LibrarySyncAdapter(
     override suspend fun apply(plan: Plan): ApplyResult {
         var applied = 0
         var unresolved = 0
+        val unplaced = HashSet<String>()
 
         // 1. Songs another device told us about and we do not have: create them, so a like or a playlist entry has something to show.
         for ((id, meta) in plan.songs) {
@@ -128,6 +129,7 @@ class LibrarySyncAdapter(
         for ((songId, second) in plan.plays) {
             if (database.syncSongExists(songId) == 0) {
                 unresolved++
+                unplaced += LibrarySyncCore.playKey(songId, second)
                 continue
             }
             val at = LocalDateTime.ofEpochSecond(second, 0, ZoneOffset.UTC)
@@ -161,6 +163,7 @@ class LibrarySyncAdapter(
             val playlist = database.syncPlaylistIdFor(key)
             if (playlist == null || database.syncSongExists(songId) == 0) {
                 unresolved++
+                unplaced += LibrarySyncCore.memberKey(key, songId)
                 continue
             }
             if (database.syncMemberCount(playlist, songId) == 0) {
@@ -175,6 +178,7 @@ class LibrarySyncAdapter(
         for ((id, liked) in plan.likes) {
             if (liked && database.syncSongExists(id) == 0) {
                 unresolved++
+                unplaced += LibrarySyncCore.likeKey(id)
                 continue
             }
             if (database.syncIsLiked(id) != liked) changedLikes += id to liked
@@ -188,6 +192,7 @@ class LibrarySyncAdapter(
         for ((id, saved) in plan.albumSaves) {
             if (saved && database.syncAlbumExists(id) == 0) {
                 unresolved++
+                unplaced += LibrarySyncCore.albumKey(id)
                 continue
             }
             if (database.syncIsAlbumSaved(id) != saved) changedAlbums += id to saved
@@ -229,11 +234,14 @@ class LibrarySyncAdapter(
             if (result != null) {
                 applied += result.applied
                 unresolved += result.unresolved
+                unplaced += result.unplaced
+            } else {
+                unplaced += plan.pinUpserts.map { LibrarySyncCore.pinKey(it.first) }
             }
         }
 
         if (unresolved > 0) Timber.tag("DeviceSync").w("LIB_SYNC apply unresolved=%d", unresolved)
-        return ApplyResult(applied, unresolved)
+        return ApplyResult(applied, unresolved, unplaced)
     }
 
     /**

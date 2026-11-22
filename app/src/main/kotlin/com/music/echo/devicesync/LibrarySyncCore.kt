@@ -25,8 +25,11 @@ object LibrarySyncCore {
     const val ON = "1"
     const val OFF = "0"
 
-    /** One register as it travels and as the local ledger remembers it. [pending] = not yet acknowledged by the room. */
-    data class Reg(val key: String, val ts: Long, val value: String, val pending: Boolean = false)
+    /**
+     * One register as it travels and as the local ledger remembers it. [pending] = not yet acknowledged by the room. [parked] = taken
+     * from the room but not placed here yet (its playlist or song has not arrived): retried later, never sent back as a removal.
+     */
+    data class Reg(val key: String, val ts: Long, val value: String, val pending: Boolean = false, val parked: Boolean = false)
 
     enum class Kind { LIKE, DISLIKE, PLAYLIST, MEMBER, SONG, ALBUM, ALBUM_META, PLAY, PIN }
 
@@ -135,7 +138,7 @@ object LibrarySyncCore {
             if (known == null || known.value != value) ops += Reg(key, maxOf(now, (known?.ts ?: 0L) + 1), value, pending = true)
         }
         for ((key, known) in ledger) {
-            if (isMeta(key) || known.value == OFF || key in current || parse(key) == null) continue
+            if (isMeta(key) || known.value == OFF || key in current || parse(key) == null || known.parked) continue
             ops += Reg(key, maxOf(now, known.ts + 1), OFF, pending = true)
         }
         return ops

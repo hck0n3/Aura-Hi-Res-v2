@@ -54,6 +54,7 @@ class LibraryPinsBackend(
     override suspend fun applyPins(upserts: List<Pair<PinRef, PinMeta>>, removals: List<PinRef>): ApplyResult {
         var applied = 0
         var unresolved = 0
+        val unplaced = HashSet<String>()
 
         // The row id here of every playlist a pin names (suspend lookups first: the preference edit below is not a suspend lambda).
         val rowFor = HashMap<String, String?>()
@@ -65,7 +66,7 @@ class LibraryPinsBackend(
         for ((ref, meta) in upserts) {
             if (ref.scope != SCOPE_LIBRARY) continue
             val kind = LibraryPinKind.fromCode(ref.code) ?: continue
-            val id = if (kind == LibraryPinKind.PLAYLIST && meta.local) rowFor[ref.id] ?: run { unresolved++; null } ?: continue else ref.id
+            val id = if (kind == LibraryPinKind.PLAYLIST && meta.local) rowFor[ref.id] ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue else ref.id
             libraryUps += LibraryPin(
                 kind, id, meta.title, meta.subtitle.ifBlank { null }, meta.cover.ifBlank { null }, meta.local,
                 meta.extra.ifBlank { null }, meta.at,
@@ -89,7 +90,7 @@ class LibraryPinsBackend(
         for ((ref, meta) in upserts) {
             if (ref.scope != SCOPE_HOME) continue
             val type = homeType(ref.code) ?: continue
-            val id = if (ref.code == "P" && meta.local) rowFor[ref.id] ?: run { unresolved++; null } ?: continue else ref.id
+            val id = if (ref.code == "P" && meta.local) rowFor[ref.id] ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue else ref.id
             database.speedDialDao.insert(
                 SpeedDialItem(
                     id = id,
@@ -109,7 +110,7 @@ class LibraryPinsBackend(
             rowFor[ref.id]?.let { database.speedDialDao.delete(it) }
             applied++
         }
-        return ApplyResult(applied, unresolved)
+        return ApplyResult(applied, unresolved, unplaced)
     }
 
     private fun homeCode(type: String): String? = when (type) {
