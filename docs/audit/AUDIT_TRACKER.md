@@ -57,8 +57,8 @@ widget · Cast (Gms).
 - [x] L13 ui/newui/AuraPlayer.kt L1-L1200
 - [x] L14 ui/newui/AuraPlayer.kt L1201-L2400
 - [x] L15 ui/newui/AuraPlayer.kt L2401-L3324
-- [ ] L16 App.kt L1-L1200
-- [ ] L17 App.kt L1201-L2559
+- [x] L16 App.kt L1-L1200
+- [x] L17 App.kt L1201-L2559
 - [ ] L18 ui/player/Thumbnail.kt L1-L1200
 - [ ] L19 ui/player/Thumbnail.kt L1201-L1661
 - [ ] L20 devicesync/DeviceSyncEngine.kt L1-L900
@@ -114,6 +114,7 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - S-001 `MusicService.kt:2499-2527` colector de versión de IP: su 1ª emisión no se salta si el colector de calidad emitió antes (`isFirstQualityEmit` compartido). Si la cola restaurada ya tuviera items, haría `stop()+prepare()` sobre la cola restaurada sin preparar (#27). Improbable por tiempos (la restauración pasa por IO); sin escenario reproducible.
 - S-002 `MusicService.kt:589,1566,3795,3837` el scope revivido es `Job()` y no `SupervisorJob()` como el original (L354). Solo se cancela en `onDestroy` (L10406): revivir ocurre sobre un servicio ya destruido. Impacto real no demostrado.
 - S-003 `MusicService.kt:3527-3531` `triggerRetry` dice «refresh stream URL» con `seekTo` a la misma posición; no se ve que invalide `songUrlCache`. Posible placebo; pendiente leer StreamResolution.
+- Obs (P3) `App.kt:2136-2141` el encabezado de diagnóstico lee `crossfadeEnabled ?: true` y `safeVolume ?: false`, al revés que los valores por defecto reales (`MusicService.kt:2981` `?: false`, `:2736` `?: true`). Misma clase que la fila #585; hoy las migraciones escriben ambas claves, así que casi nunca se nota.
 - Obs (P3) `AuraPlayer.kt:1437` el toque en el título navega con `navigate` y no con `navigateOnce` como el resto de navegaciones del reproductor (L1343-1346): puede apilar dos veces la misma ficha de álbum.
 - Obs (diseño) `MainActivity.kt:3148-3156` un enlace `echomusic://listen/<código>` o `https://…onrender.com/listen/<código>` une a una sala de Escuchar juntos sin confirmación. Es la función de invitación; se anota por si el dueño quiere un diálogo de confirmación.
 - Obs (P3) `MainActivity.kt:1616-1625` `deferred.await()` sin tope: si `checkForUpdate` nunca llama a ningún callback, el efecto queda suspendido (sin impacto visible).
