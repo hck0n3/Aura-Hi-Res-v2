@@ -49,6 +49,8 @@ class LibrarySync(
     private val watchChanges: (kick: (fast: Boolean) -> Unit) -> () -> Unit = { {} },
     private val clock: () -> Long = { DeviceSyncHub.serverNow() },
     private val timing: Timing = Timing(),
+    /** True once [clock] has the server's offset in this process (a `hello_ok` with its time); before that it is the raw phone clock. */
+    private val clockKnown: () -> Boolean = { DeviceSyncHub.serverClockKnown },
 ) {
     /** Delays, in one place so a test can make them tiny. */
     data class Timing(
@@ -74,6 +76,9 @@ class LibrarySync(
     @Volatile private var pulledOnce = false
     @Volatile private var stopped = false
 
+    /** Caught up with the room in THIS instance and watching, enabled, ever since: see [stampOfflineLocked]. Never persisted. */
+    @Volatile private var watchingSinceCaughtUp = false
+
     /** One `lib_pull` at a time: a big push makes the room send one `lib_ops` per batch, and a pull per signal is a storm (beta 4: 1656 pages in 5 s). */
     private val pullLock = Any()
     private var pullInFlight = false
@@ -85,6 +90,7 @@ class LibrarySync(
 
     fun stop() {
         stopped = true
+        watchingSinceCaughtUp = false
         runCatching { stopWatching?.invoke() }
         stopWatching = null
         connected = false
@@ -105,6 +111,7 @@ class LibrarySync(
         inFlight.clear()
         sentKeys.clear()
         if (!isEnabled()) {
+            watchingSinceCaughtUp = false
             DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Off
             return
         }
@@ -136,7 +143,12 @@ class LibrarySync(
 
     /** Called by the user's own actions (a like, a playlist edit): look for differences very soon. */
     fun kick(fast: Boolean) {
-        if (stopped || !isEnabled()) return
+        if (stopped) return
+        if (!isEnabled()) {
+            // A change made while «Biblioteca» is off is not watched: once it is back on, the room decides first again.
+            watchingSinceCaughtUp = false
+            return
+        }
         if (!fast && kickJob?.isActive == true) return // an observer storm collapses into one pass
         if (fast) kickJob?.cancel()
         kickJob = scope.launch {
@@ -154,11 +166,15 @@ class LibrarySync(
      * Owner 2026-11-22: a change made while this device is away from the room keeps the time it was MADE. It used to get its
      * time when it was sent, after the room's state had been applied over it, so an older change from another device undid it
      * (a like made offline lost to an unlike from the day before). Recorded now as pending, it competes newest-wins with what the
-     * room sends ([LibrarySyncCore.accepts]) and goes out when the device is back. Only once this room was caught up with: before
-     * that, what is here is the library this device brought, not a change, and the room decides as it always did.
+     * room sends ([LibrarySyncCore.accepts]) and goes out when the device is back.
+     *
+     * Only when THIS instance caught up with the room and has been watching, enabled, ever since ([watchingSinceCaughtUp]), and the
+     * server's clock is known in this process ([clockKnown]). Anything else (the app or its service restarted, «Biblioteca» was
+     * off, another room was in use, a backup was restored) may hide an OLD change nobody saw being made: stamped now it would beat
+     * newer changes of the other devices. Then the room decides first and the diff follows, as before.
      */
     private suspend fun stampOfflineLocked() {
-        if (!sinceStore.caughtUpOnce()) return
+        if (!watchingSinceCaughtUp || !clockKnown() || sinceStore.freshStart()) return
         val ledger = ledger()
         val current = adapter.readLocal { key -> ledger.containsKey(key) }
         val fresh = LibrarySyncCore.localOps(current, ledger, clock())
@@ -293,8 +309,8 @@ class LibrarySync(
         Timber.tag(TAG).i("LIB_SYNC caught up since=%d known=%d", since, ledger.size)
         DeviceSyncHub.libraryOwnedByDevices = connected && isEnabled()
         pushDiffLocked()
-        // The library this device brought is in the ledger now: from here a difference is a change made here.
-        if (!sinceStore.caughtUpOnce()) sinceStore.markCaughtUp()
+        // Ledger and database agree now and the watchers are running: from here a difference is a change seen being made here.
+        watchingSinceCaughtUp = isEnabled()
         publishStatusLocked()
     }
 
@@ -413,8 +429,4 @@ interface SinceStore {
     /** True after a backup was restored, until the first pull catches up: the room wins over the restored library, except what the brake holds. */
     fun freshStart(): Boolean = false
     fun endFreshStart() {}
-
-    /** True once this device has caught up with this room and written its own library to the ledger ([LibrarySync.stampOfflineLocked]). */
-    fun caughtUpOnce(): Boolean = false
-    fun markCaughtUp() {}
 }

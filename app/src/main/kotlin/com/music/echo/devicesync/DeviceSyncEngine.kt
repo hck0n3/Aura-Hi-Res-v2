@@ -252,7 +252,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         when (msg.str("t")) {
             "hello_ok" -> {
                 helloLib = msg.int("lib") ?: 0
-                msg.long("serverTime")?.let { serverOffsetMs = it - System.currentTimeMillis(); DeviceSyncHub.serverOffsetMs = serverOffsetMs }
+                msg.long("serverTime")?.let { serverOffsetMs = it - System.currentTimeMillis(); DeviceSyncHub.serverOffsetMs = serverOffsetMs; DeviceSyncHub.serverClockKnown = true }
                 DeviceSyncHub.devices.value = parseDevices(msg["devices"])
                 (msg["now"] as? JsonObject)?.let { setRemoteNow(it) }
                 Timber.tag(TAG).i("DEVICE_SYNC connected devices=%d", DeviceSyncHub.devices.value.size)

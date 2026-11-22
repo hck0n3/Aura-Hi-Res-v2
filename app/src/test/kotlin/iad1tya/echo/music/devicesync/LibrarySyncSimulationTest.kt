@@ -193,11 +193,17 @@ class LibrarySyncSimulationTest {
         override fun rewrite(map: Map<String, Reg>) { stored = HashMap(map) }
     }
 
-    inner class Device(val id: String, clockSkewMs: Long = 0L, val enabled: () -> Boolean = { true }, private var fresh: Boolean = false) {
-        val backend = FakeBackend()
-        val ledger = FakeLedger()
-        private var since = 0L
-        private var caughtUp = false
+    inner class Device(
+        val id: String,
+        clockSkewMs: Long = 0L,
+        val enabled: () -> Boolean = { true },
+        private var fresh: Boolean = false,
+        /** A restarted app: the same library, ledger and since as an earlier instance, with nothing of its memory. */
+        val backend: FakeBackend = FakeBackend(),
+        val ledger: FakeLedger = FakeLedger(),
+        var since: Long = 0L,
+        clockKnown: () -> Boolean = { true },
+    ) {
         private val inbox = Channel<JsonObject>(Channel.UNLIMITED)
         @Volatile var online = false
         private var consumer: Job? = null
@@ -209,14 +215,13 @@ class LibrarySyncSimulationTest {
                 override fun put(value: Long) { since = value }
                 override fun freshStart() = fresh
                 override fun endFreshStart() { fresh = false }
-                override fun caughtUpOnce() = caughtUp
-                override fun markCaughtUp() { caughtUp = true }
             },
             scope = scope,
             sendMessage = { msg -> if (online) { room.receive(id, msg); true } else false },
             isEnabled = enabled,
             clock = { System.currentTimeMillis() + clockSkewMs },
             timing = LibrarySync.Timing(fastDelayMs = 20, slowDelayMs = 20, minIntervalMs = 20, pullTimeoutMs = 2_000),
+            clockKnown = clockKnown,
         )
 
         fun connect() {
@@ -464,6 +469,80 @@ class LibrarySyncSimulationTest {
         settle()
         assertTrue("the room's removals stand", (0 until 3).all { room.value("lk:w$it") == "0" })
         assertTrue("nothing the user removed came back on the tablet", tablet.backend.likes.isEmpty())
+    }
+
+    // Review of the offline stamp: a change nobody watched being made must not be dated when it is FOUND, or an old change of a
+    // stale device beats newer changes of the others. In these cases the room's newer change wins, as before the stamp existed.
+
+    private fun twoDevicesWithPlaylist(tablet: Device): Device {
+        val phone = Device("phone")
+        phone.backend.playlists["LPgymgymgy"] = "Gym"
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the playlist") { tablet.backend.playlists["LPgymgymgy"] == "Gym" }
+        settle()
+        return phone
+    }
+
+    @Test
+    fun `a rename made while Biblioteca was off does not beat a newer rename once it is back on offline`() {
+        var on = true
+        val tablet = Device("tablet", enabled = { on })
+        val phone = twoDevicesWithPlaylist(tablet)
+        // Monday: Biblioteca off on the tablet, the playlist renamed there.
+        on = false
+        tablet.backend.playlists["LPgymgymgy"] = "Correr"; tablet.changed()
+        settle()
+        // Tuesday: renamed on the phone.
+        phone.backend.playlists["LPgymgymgy"] = "Gym 2"; phone.changed()
+        eventually("the phone's rename is in the room") { room.value("pl:LPgymgymgy") == LibrarySyncCore.encodePlaylistName("Gym 2") }
+        // Friday: the tablet, offline, turns Biblioteca back on and something changes in its database.
+        tablet.disconnect()
+        on = true
+        tablet.changed()
+        settle()
+        tablet.connect()
+        eventually("the newer rename reaches the tablet") { tablet.backend.playlists["LPgymgymgy"] == "Gym 2" }
+        settle()
+        assertEquals(LibrarySyncCore.encodePlaylistName("Gym 2"), room.value("pl:LPgymgymgy"))
+        assertEquals("Gym 2", phone.backend.playlists["LPgymgymgy"])
+    }
+
+    @Test
+    fun `a change made while the app was not running does not beat a newer one after a restart offline`() {
+        val tablet = Device("tablet")
+        val phone = twoDevicesWithPlaylist(tablet)
+        // Monday: the tablet's sync is gone (app or service not running) and something renames the playlist there.
+        tablet.disconnect(); tablet.sync.stop()
+        tablet.backend.playlists["LPgymgymgy"] = "Correr"
+        settle()
+        // Tuesday: renamed on the phone.
+        phone.backend.playlists["LPgymgymgy"] = "Gym 2"; phone.changed()
+        eventually("the phone's rename is in the room") { room.value("pl:LPgymgymgy") == LibrarySyncCore.encodePlaylistName("Gym 2") }
+        // Friday: the app starts again, still offline, with the same library, ledger and since.
+        val restarted = Device("tablet", backend = tablet.backend, ledger = tablet.ledger, since = tablet.since)
+        restarted.changed()
+        settle()
+        assertTrue("nothing recorded by an instance that never caught up", restarted.ledger.stored["pl:LPgymgymgy"]?.pending != true)
+        restarted.connect()
+        eventually("the newer rename reaches the tablet") { restarted.backend.playlists["LPgymgymgy"] == "Gym 2" }
+        settle()
+        assertEquals(LibrarySyncCore.encodePlaylistName("Gym 2"), room.value("pl:LPgymgymgy"))
+    }
+
+    @Test
+    fun `without the server's time in this process a fast clock never dates an offline change`() {
+        // Two hours fast, and no hello_ok ever gave this process the server's offset.
+        val tablet = Device("tablet", clockSkewMs = 2 * 3_600_000L, clockKnown = { false })
+        val phone = twoDevicesWithPlaylist(tablet)
+        tablet.disconnect()
+        tablet.backend.playlists["LPgymgymgy"] = "Correr"; tablet.changed()
+        settle()
+        phone.backend.playlists["LPgymgymgy"] = "Gym 2"; phone.changed()
+        eventually("the phone's rename is in the room") { room.value("pl:LPgymgymgy") == LibrarySyncCore.encodePlaylistName("Gym 2") }
+        tablet.connect()
+        eventually("the newer rename reaches the tablet") { tablet.backend.playlists["LPgymgymgy"] == "Gym 2" }
+        settle()
+        assertEquals(LibrarySyncCore.encodePlaylistName("Gym 2"), room.value("pl:LPgymgymgy"))
     }
 
     @Test

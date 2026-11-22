@@ -59,6 +59,10 @@ object DeviceSyncHub {
 
     fun serverNow(): Long = System.currentTimeMillis() + serverOffsetMs
 
+    /** True once a `hello_ok` in THIS process carried the server's time: before that [serverNow] is the raw phone clock. */
+    @Volatile
+    var serverClockKnown: Boolean = false
+
     /**
      * True while the library (likes, dislikes, playlists) is kept equal between the user's devices through the Worker and the room
      * has answered once: YouTube's PULL syncs of likes and playlists stay out of the way then (row 536). Pushes of the user's own

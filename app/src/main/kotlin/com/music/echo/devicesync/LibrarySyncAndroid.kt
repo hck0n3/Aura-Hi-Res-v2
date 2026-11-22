@@ -59,11 +59,6 @@ object LibrarySyncAndroid {
                 override fun endFreshStart() {
                     fresh.delete()
                 }
-                // Starts with "libSince", so forgetAfterRestore clears it with the rest.
-                override fun caughtUpOnce() = prefs.getBoolean("${sinceKey}_caughtUp", false)
-                override fun markCaughtUp() {
-                    prefs.edit().putBoolean("${sinceKey}_caughtUp", true).apply()
-                }
             },
             scope = scope,
             sendMessage = sendMessage,
