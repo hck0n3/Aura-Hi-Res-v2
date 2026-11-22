@@ -25,7 +25,7 @@
 |---|---|
 | P1 `songUrlCache`/bypass | YA ARREGLADO — `ConcurrentHashMap` / `synchronizedSet` (`MusicService.kt:1359`, `:1414`) |
 | P2 listener secundario sin release | YA ARREGLADO — release + remove EQ (`MusicService.kt:341-347`) |
-| P12 clave duplicada en grid | por verificar al leer `Thumbnail.kt` |
+| P12 clave duplicada en grid | YA ARREGLADO — `thumbnailItemKey(index, item)` (`Thumbnail.kt:333`) |
 | P24 doble unbind | YA ARREGLADO — `runCatching { unbindService }` + comentario (`MainActivity.kt:397`, `:480`, `:496`) |
 | P32 `videoUrlCache` | YA ARREGLADO — `ConcurrentHashMap` (`MusicService.kt:10698`) |
 | P33 `dataStore.get` runBlocking | PARCIAL — existe espejo no bloqueante (`DataStore.kt:45`, `getNonBlocking`); se revisa al leer |
@@ -59,8 +59,8 @@ widget · Cast (Gms).
 - [x] L15 ui/newui/AuraPlayer.kt L2401-L3324
 - [x] L16 App.kt L1-L1200
 - [x] L17 App.kt L1201-L2559
-- [ ] L18 ui/player/Thumbnail.kt L1-L1200
-- [ ] L19 ui/player/Thumbnail.kt L1201-L1661
+- [x] L18 ui/player/Thumbnail.kt L1-L1200
+- [x] L19 ui/player/Thumbnail.kt L1201-L1661
 - [ ] L20 devicesync/DeviceSyncEngine.kt L1-L900
 - [ ] L21 ui/player/Player.kt L1-L1200
 - [ ] L22 ui/player/Player.kt L1201-L2400
