@@ -1,6 +1,8 @@
 package iad1tya.echo.music.localmedia
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -49,5 +51,22 @@ class LocalArtistSplitTest {
             listOf("Bad Bunny", "Jhay Cortez", "Simon & Garfunkel"),
             splitArtistNames("Bad Bunny, Jhay Cortez feat. Simon & Garfunkel"),
         )
+    }
+
+    @Test
+    fun `the same artist gets the same id alone or as a featured artist`() {
+        val alone = splitArtistNames("Drake").map(::localArtistId)
+        val withFeature = splitArtistNames("Drake (feat. Rihanna)").map(::localArtistId)
+        val featured = splitArtistNames("Calvin Harris feat. Rihanna").map(::localArtistId)
+        assertEquals(alone[0], withFeature[0])
+        assertEquals(withFeature[1], featured[1])
+        assertNotEquals(withFeature[0], withFeature[1])
+    }
+
+    @Test
+    fun `artist ids ignore surrounding spaces and letter case`() {
+        assertEquals(localArtistId("Drake"), localArtistId("  drake "))
+        assertTrue(localArtistId("Drake").startsWith("LOCAL_ARTIST_"))
+        assertNotEquals(localArtistId("Drake"), localArtistId("Drake Bell"))
     }
 }

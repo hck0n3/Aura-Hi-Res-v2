@@ -92,6 +92,13 @@ internal fun splitArtistNames(rawArtist: String): List<String> {
         .ifEmpty { listOf(rawArtist) }
 }
 
+/** The same artist name always maps to the same id, whatever its position in the tag or the number of artists. */
+internal fun localArtistId(artistName: String): String {
+    val normalized = artistName.trim().lowercase(Locale.ROOT)
+    val hash = UUID.nameUUIDFromBytes(normalized.toByteArray(StandardCharsets.UTF_8)).toString().replace("-", "")
+    return "LOCAL_ARTIST_$hash"
+}
+
 private val FeaturingSeparator = Regex("""(?:\s+|\s*[(\[]\s*)(?:feat\.?|ft\.|featuring)\s+""", RegexOption.IGNORE_CASE)
 private val CollabSeparator = Regex("""\s+x\s+""")
 private val BandJoiner = Regex("""&|\band\b""", RegexOption.IGNORE_CASE)
@@ -340,7 +347,6 @@ constructor(
             add(MediaStore.Audio.Media.TITLE)
             add(MediaStore.Audio.Media.DISPLAY_NAME)
             add(MediaStore.Audio.Media.ARTIST)
-            add(MediaStore.Audio.Media.ARTIST_ID)
             add(MediaStore.Audio.Media.ALBUM)
             add(MediaStore.Audio.Media.ALBUM_ID)
             add(MediaStore.Audio.Media.DURATION)
@@ -383,7 +389,6 @@ constructor(
             val titleIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val displayNameIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
             val artistIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val artistIdIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST_ID)
             val albumIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val albumIdIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID)
             val durationIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
@@ -439,10 +444,9 @@ constructor(
 
                 val artistValue = normalizeArtistName(effectiveArtist, unknownArtist)
                 val splitArtists = splitArtistNames(artistValue).ifEmpty { listOf(unknownArtist) }
-                val mediaStoreArtistId = cursor.getLongOrNull(artistIdIndex)
-                val artists = splitArtists.mapIndexed { index, name ->
+                val artists = splitArtists.map { name ->
                     LocalArtistRecord(
-                        id = buildArtistId(mediaStoreArtistId, name, index, splitArtists.size),
+                        id = localArtistId(name),
                         name = name,
                     )
                 }
@@ -534,9 +538,9 @@ constructor(
 
                 val artistValue = normalizeArtistName(rawArtist, unknownArtist)
                 val splitArtists = splitArtistNames(artistValue).ifEmpty { listOf(unknownArtist) }
-                val artists = splitArtists.mapIndexed { index, name ->
+                val artists = splitArtists.map { name ->
                     LocalArtistRecord(
-                        id = buildArtistId(null, name, index, splitArtists.size),
+                        id = localArtistId(name),
                         name = name,
                     )
                 }
@@ -606,20 +610,6 @@ constructor(
 
     private fun normalizeAlbumName(rawAlbum: String?): String? {
         return rawAlbum?.trim()?.takeIf { it.isNotBlank() && !it.equals("<unknown>", ignoreCase = true) }
-    }
-
-    private fun buildArtistId(
-        mediaStoreArtistId: Long?,
-        artistName: String,
-        index: Int,
-        totalArtists: Int,
-    ): String {
-        val stableId = mediaStoreArtistId?.takeIf { it > 0L }
-        return if (stableId != null && totalArtists == 1) {
-            "LOCAL_ARTIST_$stableId"
-        } else {
-            "LOCAL_ARTIST_${stableHash("$artistName|$index")}"
-        }
     }
 
     private fun buildAlbumId(
