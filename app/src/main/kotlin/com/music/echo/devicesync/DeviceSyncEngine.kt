@@ -67,7 +67,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     @Volatile private var shuffleEnabled = true
     @Volatile private var handoffEnabled = true
     @Volatile private var libraryEnabled = true
-    private var library: LibrarySync? = null
+    @Volatile private var library: LibrarySync? = null
+    private var libraryGroup: String? = null
     @Volatile private var helloLib = 0
     private var remoteTick: Job? = null
     @Volatile private var listenedPlayer: androidx.media3.exoplayer.ExoPlayer? = null
@@ -89,9 +90,6 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     fun start() {
         DeviceSyncHub.controller = this
         loadPushedEpochs()
-        val dislikeStore = iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(appContext)
-        library = LibrarySyncAndroid.create(appContext, service.database, dislikeStore, dislikeStore.disliked, scope, { client.send(it) }, { libraryEnabled })
-            .also { it.start() }
         scope.launch {
             client.state.collect {
                 DeviceSyncHub.connection.value = it
@@ -159,6 +157,13 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 DeviceSyncHub.pairedBy.value = by
                 val url = groupId?.let { SyncCode.socketUrl(server.ifBlank { DEVICE_SYNC_DEFAULT_SERVER }, it) }
                 if (url == null) return@collectLatest
+                if (groupId != null && groupId != libraryGroup) {
+                    library?.stop()
+                    val dislikeStore = iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(appContext)
+                    library = LibrarySyncAndroid.create(appContext, service.database, dislikeStore, dislikeStore.disliked, scope, { client.send(it) }, { libraryEnabled }, groupId)
+                        .also { it.start() }
+                    libraryGroup = groupId
+                }
                 deviceId = ensureDeviceId()
                 DeviceSyncHub.thisDeviceId.value = deviceId
                 client.start(url) { hello() }

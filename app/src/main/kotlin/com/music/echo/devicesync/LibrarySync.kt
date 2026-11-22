@@ -88,6 +88,7 @@ class LibrarySync(
         pulledOnce = false
         DeviceSyncHub.libraryOwnedByDevices = false
         kickJob?.cancel()
+        pullWatchdog?.cancel()
     }
 
     /**

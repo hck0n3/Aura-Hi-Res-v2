@@ -44,6 +44,18 @@ class LibrarySyncGuardTest {
     }
 
     @Test
+    fun `each room keeps its own ledger and since, and the library sync follows the room`() {
+        val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAndroid.kt")
+        assertTrue(a.contains("File(context.filesDir, \"device_sync/\$room/ledger.tsv\")"))
+        assertTrue(a.contains("val sinceKey = \"libSince_\$room\""))
+        assertTrue("los archivos de antes pasan a la sala actual", a.contains("legacy.renameTo(ledgerFile)"))
+        val e = read("app/src/main/kotlin/com/music/echo/devicesync/DeviceSyncEngine.kt")
+        val swap = e.substringAfter("if (groupId != null && groupId != libraryGroup) {").substringBefore("deviceId = ensureDeviceId()")
+        assertTrue("al cambiar de sala se para la sincronización anterior", swap.contains("library?.stop()"))
+        assertTrue("y se crea una nueva para la sala nueva", swap.contains("LibrarySyncAndroid.create(") && swap.contains("groupId)"))
+    }
+
+    @Test
     fun `likes that arrive through the room are also sent to the YouTube account, a few at a time`() {
         val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAdapter.kt")
         assertTrue(a.contains("mirrorLikesToAccount(changedLikes)"))

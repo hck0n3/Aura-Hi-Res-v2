@@ -5,6 +5,7 @@ import androidx.room.InvalidationTracker
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.dislike.DislikeStore
 import java.io.File
+import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.debounce
@@ -27,15 +28,27 @@ object LibrarySyncAndroid {
         scope: CoroutineScope,
         sendMessage: (JsonObject) -> Boolean,
         isEnabled: () -> Boolean,
+        groupId: String,
     ): LibrarySync {
         val prefs = context.getSharedPreferences("device_sync_state", Context.MODE_PRIVATE)
+        val room = MessageDigest.getInstance("SHA-256").digest(groupId.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
+        val ledgerFile = File(context.filesDir, "device_sync/$room/ledger.tsv")
+        val sinceKey = "libSince_$room"
+        val legacy = File(context.filesDir, "device_sync/library_ledger.tsv")
+        if (!prefs.contains(sinceKey) && (legacy.isFile || prefs.contains("libSince"))) {
+            if (legacy.isFile && !ledgerFile.exists()) {
+                ledgerFile.parentFile?.mkdirs()
+                legacy.renameTo(ledgerFile)
+            }
+            prefs.edit().putLong(sinceKey, prefs.getLong("libSince", 0L)).remove("libSince").commit()
+        }
         return LibrarySync(
             adapter = LibrarySyncAdapter(database, dislikes, LibraryPinsBackend(context, database)),
-            store = LibraryLedgerStore(File(context.filesDir, "device_sync/library_ledger.tsv")),
+            store = LibraryLedgerStore(ledgerFile),
             sinceStore = object : SinceStore {
-                override fun get() = prefs.getLong("libSince", 0L)
+                override fun get() = prefs.getLong(sinceKey, 0L)
                 override fun put(value: Long) {
-                    prefs.edit().putLong("libSince", value).apply()
+                    prefs.edit().putLong(sinceKey, value).apply()
                 }
             },
             scope = scope,
