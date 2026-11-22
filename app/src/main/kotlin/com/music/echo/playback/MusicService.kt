@@ -4135,7 +4135,7 @@ class MusicService :
                 dedupedStatus
             }
             val initialStatus = if (
-                queue is YouTubeQueue && laneStatus.items.size > 1 &&
+                queue is YouTubeQueue && queue.preloadItem != null && laneStatus.items.size > 1 &&
                 queue.metricsPlaylistId?.let { !it.startsWith("RD") } != true
             ) {
                 recentlyPlayedIds()
