@@ -24,7 +24,7 @@
  *
  * The DECISIONS are SimpMusic's verbatim (play intent decided before loading, playWhenReady not
  * isPlaying, guests may pause and stay paused, queue carried on the same message as the track, the
- * queue republished on its own, buffer barrier answered from bufferedPercentage); only the calls
+ * queue republished on its own, buffer barrier answered once the room's track is READY); only the calls
  * into the player differ.
  *
  * The direction of travel is decided entirely by who hosts:
@@ -49,11 +49,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -63,6 +66,22 @@ private const val TAG = "ListenTogetherBridge"
 
 /** Same cadence as [ServerClock]'s own ping — see [ListenTogetherPlaybackBridge.guestPositionHeartbeat]. */
 private const val HEARTBEAT_INTERVAL_MS = 15_000L
+
+/**
+ * How far the host may drift from its last published anchor before it re-anchors the room. Just above the guests' own dead band
+ * ([SyncCorrection.IN_SYNC_MS], 60 ms): a smaller drift would make no guest correct anything, so publishing it is noise.
+ */
+internal const val HOST_DRIFT_REPUBLISH_MS = 80L
+
+/**
+ * Whether a guest realigns to the room on a READY edge or a clock calibration: only while the room plays and the user has not paused
+ * this device (its pause stays, row 647), and not for the READY that the previous realign's own jump caused.
+ */
+internal fun shouldRealignGuest(roomPlaying: Boolean, pausedLocally: Boolean, causedByOwnJump: Boolean): Boolean =
+    roomPlaying && !pausedLocally && !causedByOwnJump
+
+/** Whether the host, hearing [heardMs] while its last anchor puts the room at [roomMs], should republish its position. */
+internal fun hostDriftNeedsRepublish(heardMs: Long, roomMs: Long): Boolean = kotlin.math.abs(heardMs - roomMs) > HOST_DRIFT_REPUBLISH_MS
 
 /** What the guest reacts to. A data class so `distinctUntilChanged` compares every field. */
 private data class RoomSnapshot(
@@ -132,6 +151,16 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** Bumped whenever the host's timeline changes, so the queue can be republished on its own. */
     private val timelineRevision = MutableStateFlow(0)
 
+    /** The loaded item's media id and the player's playback state, as the listener last saw them: what the buffer barrier answers from. */
+    private val playerReadiness = MutableStateFlow<Pair<String?, Int>>(null to Player.STATE_IDLE)
+
+    /** Bumped each time the player goes from BUFFERING to READY: the moment a guest's audio can actually start. */
+    private val readyAfterBuffering = MutableStateFlow(0)
+
+    /** Set when the realign after a READY jumped the playhead, so the READY that jump causes does not realign again. */
+    @Volatile
+    private var skipNextReadyRealign = false
+
     /** The player the listener is currently installed on. Main thread only. */
     private var listeningTo: ExoPlayer? = null
 
@@ -155,6 +184,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { followPlayer() }
         scope.launch { watchRoomForGuests() }
         scope.launch { guestPositionHeartbeat() }
+        scope.launch { hostDriftHeartbeat() }
+        scope.launch { realignGuestWhenAudioIsReady() }
         scope.launch { publishCurrentStateOnJoin() }
         scope.launch { publishStateWhenSomeoneArrives() }
         scope.launch { publishTrackChangesAsHost() }
@@ -183,6 +214,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         if (previous === player) return
         previous?.removeListener(playerListener)
         listeningTo = player
+        playerReadiness.value = player?.currentMediaItem?.mediaId to (player?.playbackState ?: Player.STATE_IDLE)
         if (player == null) return
         player.addListener(playerListener)
         // Seed, or the first publish after a player swap compares against a stale intent.
@@ -226,6 +258,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             isPlayingNow.value = isPlaying
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            val previous = playerReadiness.value.second
+            playerReadiness.value = listeningTo?.currentMediaItem?.mediaId to playbackState
+            if (previous == Player.STATE_BUFFERING && playbackState == Player.STATE_READY) readyAfterBuffering.value++
+        }
+
+        override fun onMediaItemTransition(
+            mediaItem: androidx.media3.common.MediaItem?,
+            reason: Int,
+        ) {
+            playerReadiness.value = mediaItem?.mediaId to (listeningTo?.playbackState ?: Player.STATE_IDLE)
         }
 
         override fun onTimelineChanged(
@@ -389,6 +434,76 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     }
 
     /**
+     * A late guest lands where the room IS once its audio can start, not 15 s later on the heartbeat.
+     *
+     * A guest loads the room's track at the room's position as computed when the command arrived, and then spends the resolve and
+     * the start buffer (one to three seconds) getting there: when it starts playing it is that far behind, and the same after a
+     * mid-song stall. Likewise a guest that joined before its clock was calibrated used the room's position uncorrected. So on the
+     * player's BUFFERING→READY edge, and once when the clock calibrates, the room's last known state goes through [applyTransport]
+     * again — the heartbeat's own path, with its own guards (pausedLocally, the wrong track reloaded once, capToTrack, main thread).
+     * A READY caused by the jump this makes is not realigned again, so a slow network cannot turn it into a seek loop.
+     */
+    private suspend fun realignGuestWhenAudioIsReady() {
+        merge(
+            readyAfterBuffering.drop(1).map { true },
+            session.clockReadyCount.drop(1).map { false },
+        ).collect { afterBuffering ->
+            val causedByOwnJump = afterBuffering && skipNextReadyRealign
+            if (afterBuffering) skipNextReadyRealign = false
+            val state = session.state.value
+            if (!state.inRoom || state.isHost) return@collect
+            if (!shouldRealignGuest(state.isPlaying, pausedLocally, causedByOwnJump)) return@collect
+            val service = serviceFlow.value ?: return@collect
+            remoteDepth.incrementAndGet()
+            try {
+                val seeked = applyTransport(service, state.isPlaying, state.position, state.currentTrack, state.lastActionServerTime)
+                if (afterBuffering && seeked) skipNextReadyRealign = true
+                Timber.tag(TAG).i("Guest realigned to the room after %s (jumped=%b)", if (afterBuffering) "buffering" else "clock calibration", seeked)
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Failed to realign to the room")
+            } finally {
+                remoteDepth.decrementAndGet()
+            }
+        }
+    }
+
+    /**
+     * The host's side of the heartbeat: re-anchors the room when the host has drifted from what it last told it.
+     *
+     * The host publishes its position only on events. When its audio starts later than the change_track it published at 0 (a slow
+     * resolve), [publishPlayPauseAsHost] already republishes PLAY with the real position on the buffering-to-playing edge; this catches
+     * whatever that edge missed (a dip too short for the StateFlow to deliver, a lost send, a tempo other than 1.0×, a send made
+     * before the clock was calibrated). It compares what the host HEARS with where its last published anchor says the room is, and
+     * only past [HOST_DRIFT_REPUBLISH_MS] sends a PLAY, the same message every resume already sends (Aura's server opens a buffer
+     * barrier only on change_track/seek, never on play). Same cadence as the guest's heartbeat; does nothing unless hosting with
+     * music playing.
+     */
+    private suspend fun hostDriftHeartbeat() {
+        while (true) {
+            delay(HEARTBEAT_INTERVAL_MS)
+            val state = session.state.value
+            if (!state.inRoom || !state.isHost || applyingRemote) continue
+            if (!playIntent.value || !isPlayingNow.value) continue
+            val service = serviceFlow.value ?: continue
+            // Drift is measured on the server's clock: without it there is nothing to compare against.
+            if (session.serverNow() == null) continue
+            val anchor = session.lastSentAnchor ?: continue
+            val (currentId, heard) = onMain { runCatching { service.player.currentMediaItem?.mediaId }.getOrNull() to safePosition(service) }
+            // Only for the track the room knows the host is on; a track change publishes its own anchor.
+            if (currentId == null || currentId != lastPublishedTrackId) continue
+            val room = session.positionAt(anchor.position, anchor.playing, anchor.serverTime)
+            if (!hostDriftNeedsRepublish(heard, room)) continue
+            Timber.tag(TAG).i("Host drifted %d ms from the room — republishing PLAY", heard - room)
+            session.sendPlaybackAction(
+                action = PlaybackActions.PLAY,
+                trackId = "",
+                position = heard,
+                trackInfo = null,
+            )
+        }
+    }
+
+    /**
      * Devuelve la velocidad que el usuario tenía antes de que la sala empezara a corregir.
      *
      * Exactamente su valor, no "más o menos 1.0": `Player.setOffloadEnabled` decide si pedir soporte
@@ -411,21 +526,23 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         position: Long,
         roomTrack: TrackInfo?,
         anchorServerTime: Long,
-    ) = withContext(Dispatchers.Main.immediate) {
+    ): Boolean = withContext(Dispatchers.Main.immediate) {
+        // True only when this call jumped the playhead (SyncAction.Resync): see [realignGuestWhenAudioIsReady].
+        var seeked = false
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
-        val player = runCatching { service.player }.getOrNull() ?: return@withContext
+        val player = runCatching { service.player }.getOrNull() ?: return@withContext false
         val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
         val corrected = capToTrack(session.positionAt(position, isPlaying, anchorServerTime), roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
             val previous = player.previousMediaItemIndex
             val cameFromRoomTrack = previous != androidx.media3.common.C.INDEX_UNSET && player.getMediaItemAt(previous).mediaId == roomTrack.id
-            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@withContext
+            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@withContext false
             val attempt = roomTrack.id to anchorServerTime
-            if (mismatchReload == attempt) return@withContext
+            if (mismatchReload == attempt) return@withContext false
             mismatchReload = attempt
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
-            return@withContext
+            return@withContext false
         }
         if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) mismatchReload = null
         // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
@@ -456,7 +573,10 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 ),
                 targetMs = corrected,
             )
-            if (action is SyncAction.Resync) player.seekTo(action.positionMs)
+            if (action is SyncAction.Resync) {
+                player.seekTo(action.positionMs)
+                seeked = true
+            }
 
             val target = SyncCorrection.playerSpeed(userTempo, action)
             // Recordar el tempo del usuario SOLO mientras se corrige; en cuanto deja de corregirse
@@ -482,6 +602,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         } else if (!isPlaying && player.playWhenReady) {
             player.pause()
         }
+        seeked
     }
 
     /**
@@ -498,13 +619,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         keepPosition: Long = 0L,
         playWhenReady: Boolean,
     ) {
-        val roomQueue = session.state.value.queue
-        // Metrolist's canonicalPlaybackQueue: the current track leads, upcoming follows, no dupes.
-        val ordered =
-            (listOf(info) + roomQueue.filter { it.id != info.id })
-                .filter { it.id.isNotBlank() }
-                .distinctBy { it.id }
-        Timber.tag(TAG).i("Guest loading %s + %d upcoming", info.id.asLogToken(), ordered.size - 1)
+        val (ordered, startIndex) = roomPlaybackOrder(info, session.state.value.queue)
+        Timber.tag(TAG).i("Guest loading %s at %d of %d", info.id.asLogToken(), startIndex, ordered.size)
 
         // Dispatchers.Main is mandatory, not tidiness: Media3 throws if the player is touched off
         // the main thread, and this collector runs on the bridge scope (Default).
@@ -516,8 +632,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // anterior del invitado DENTRO de la sala — canciones que el anfitrión nunca puso. Es el mismo
             // agujero que el dueño reportó en Android Auto (2026-09-17); ver `adoptDirectQueue`, que
             // además fija el título en el mismo sitio.
-            service.adoptDirectQueue(items = items, title = "Listen Together")
-            player.setMediaItems(items, 0, keepPosition.coerceAtLeast(0L))
+            service.adoptDirectQueue(items = items, title = "Listen Together", startIndex = startIndex)
+            player.setMediaItems(items, startIndex, keepPosition.coerceAtLeast(0L))
             // prepare() + the intent decided by the caller, in that order and BEFORE anything can
             // observe the player: `setMediaItems` alone leaves an idle player idle (nothing ever
             // loads), and leaving playWhenReady to be corrected afterwards is the race upstream
@@ -832,34 +948,34 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
     /**
      * Answers the barrier for OURSELVES: when the room says it is waiting on this device, report
-     * readiness once the current track has enough buffered.
+     * readiness once the ROOM's track is the loaded item and the player is READY with it.
      *
      * Nobody in the room hears anything until every member answers, so a client that never sends
-     * this silently freezes playback for everyone — including the host.
+     * this silently freezes playback for everyone — including the host. The opposite is just as
+     * wrong: this used to answer after 2 s whatever the player was doing, and from
+     * `bufferedPercentage` (a share of the whole song, of whatever item was loaded — the previous
+     * song still counted), so the room started without the slow device. A device that never gets
+     * ready is the server's timeout to release, which is the safety valve upstream relies on too.
+     * Driven by the listener's events: nothing is polled while the room waits.
      */
     private suspend fun answerBufferBarrier() {
-        session.state
-            .map { it.waitingFor to it.currentTrack?.id }
-            .distinctUntilChanged()
-            .collect { (waitingFor, trackId) ->
-                val state = session.state.value
-                if (trackId.isNullOrBlank() || !state.inRoom) return@collect
-                if (state.selfUserId !in waitingFor) return@collect
-                val service = serviceFlow.value ?: return@collect
-                // bufferedPercentage, not isPlaying: the barrier asks whether the track is loaded,
-                // and playback is exactly what it is holding back.
-                val buffered = onMain { runCatching { service.player.bufferedPercentage }.getOrDefault(0) }
-                if (buffered >= READY_BUFFER_PERCENT) {
-                    session.reportBufferReady(trackId)
-                } else {
-                    // Not ready yet — one re-check after a short wait, then answer anyway: a
-                    // stalled local resolve must not freeze everyone forever, and the server keeps
-                    // its own timeout (the SimpMusic bridge answers the moment it is ready; the
-                    // fallback here is the safety valve that upstream leaves to the server).
-                    delay(BARRIER_RECHECK_MS)
-                    session.reportBufferReady(trackId)
-                }
-            }
+        var answered = -1
+        combine(
+            session.state
+                .map { s ->
+                    Triple(s.bufferWaitRevision, s.inRoom && s.selfUserId.isNotBlank() && s.selfUserId in s.waitingFor, s.currentTrack?.id)
+                }.distinctUntilChanged(),
+            playerReadiness,
+        ) { (revision, waitingOnMe, trackId), (loadedId, playbackState) ->
+            Triple(waitingOnMe, revision, trackId?.takeIf { bufferBarrierReady(it, loadedId, playbackState) })
+        }.collect { (waitingOnMe, revision, readyTrackId) ->
+            // The barrier is over (or the room state was reset): the next one is answered whatever its revision.
+            if (!waitingOnMe) answered = -1
+            if (!waitingOnMe || readyTrackId == null || revision == answered) return@collect
+            answered = revision
+            Timber.tag(TAG).i("Buffer barrier: ready on %s", readyTrackId.asLogToken())
+            session.reportBufferReady(readyTrackId)
+        }
     }
 
     /**
@@ -933,17 +1049,34 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         /** How much of the host's timeline rides along with a track change. */
         const val HOST_QUEUE_WINDOW = 25
 
-        const val READY_BUFFER_PERCENT = 5
-
         const val TRACK_END_MARGIN_MS = 500L
 
         const val TRACK_END_HANDOFF_MS = 2_000L
-
-        /** One re-check before giving the room our ready anyway (the server has its own timeout). */
-        const val BARRIER_RECHECK_MS = 2_000L
     }
 }
 
+
+/**
+ * Has this device the room's track ready for the buffer barrier? Only when [loadedId] (the player's current item) IS [roomTrackId] and
+ * the player is READY with it (media3 reaches READY once the load control's start buffer is in, see MusicService's DefaultLoadControl).
+ */
+internal fun bufferBarrierReady(roomTrackId: String?, loadedId: String?, playbackState: Int): Boolean =
+    !roomTrackId.isNullOrBlank() && loadedId == roomTrackId && playbackState == Player.STATE_READY
+
+/**
+ * The list the guest loads and where it starts in it: the room's queue AS THE HOST HAS IT, starting at [current].
+ *
+ * The host publishes a window around its cursor, so the room's queue carries songs it already played BEFORE the current one. Moving the
+ * current track to the front put those played songs right after it, and ExoPlayer's buffer and the service's next-songs preload (both
+ * read the items after the current index) prepared a song the room had already left. If [current] is not in the room's queue, it leads
+ * and the queue follows, as before.
+ */
+internal fun roomPlaybackOrder(current: TrackInfo, roomQueue: List<TrackInfo>): Pair<List<TrackInfo>, Int> {
+    val queue = roomQueue.filter { it.id.isNotBlank() }.distinctBy { it.id }
+    val index = queue.indexOfFirst { it.id == current.id }
+    if (index >= 0) return queue to index
+    return (listOf(current) + queue).filter { it.id.isNotBlank() }.distinctBy { it.id } to 0
+}
 
 /**
  * Row 616: may the guest jump to [trackId] inside the list it holds ([have], media ids in order)? Only when [trackId] is in it and what the
