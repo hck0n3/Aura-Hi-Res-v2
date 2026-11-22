@@ -1281,14 +1281,18 @@ class MusicService :
         if (version == noRepeatSavedVersion) return
         val write: () -> Unit = {
             runCatching {
-                writePersistedFileAtomically(
-                    PERSISTENT_NO_REPEAT_FILE,
-                    arrayListOf(
-                        noRepeatSnapshot(persistedNoRepeatIds, sessionPlayedIds),
-                        noRepeatSnapshot(persistedNoRepeatKeys, sessionPlayedDedupKeys),
-                    ),
-                )
-                noRepeatSavedVersion = version
+                synchronized(persistFileWriteLock) {
+                    val current = noRepeatVersion.get()
+                    if (current == noRepeatSavedVersion) return@synchronized
+                    writePersistedFileAtomically(
+                        PERSISTENT_NO_REPEAT_FILE,
+                        arrayListOf(
+                            noRepeatSnapshot(persistedNoRepeatIds, sessionPlayedIds),
+                            noRepeatSnapshot(persistedNoRepeatKeys, sessionPlayedDedupKeys),
+                        ),
+                    )
+                    noRepeatSavedVersion = current
+                }
             }.onFailure {
                 Timber.tag(TAG).w("NO_REPEAT memory save failed: %s", privacySafeSummary(it))
             }
