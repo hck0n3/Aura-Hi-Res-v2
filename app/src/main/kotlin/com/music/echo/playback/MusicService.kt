@@ -8331,6 +8331,24 @@ class MusicService :
                 return
             }
 
+            PlaybackErrorClassifier.isOfflineRejection(error) -> {
+                // The resolver REFUSED an item that needs the network (manual offline mode, no network, offline
+                // session). Nothing is wrong with the song or its bytes: never retried, never purged (this used to
+                // fall through to handleGenericIOError → performAggressiveCacheClear while "connected").
+                val offlineTargetIndex = findNextOfflinePlayableIndex()
+                if (offlineTargetIndex != null) {
+                    skipToOfflinePlayableSong(offlineTargetIndex)
+                    return
+                }
+                if (PlaybackErrorClassifier.offlineRejectionKind(error) == OfflineRejectionException.Kind.MANUAL) {
+                    // The manual switch refuses it whatever the network does: waiting would never end.
+                    stopOnError()
+                    return
+                }
+                waitOnNetworkError()
+                return
+            }
+
             !isNetworkConnected.value -> {
                 // GENUINELY OFFLINE. Owner report (ronda 4): before jumping straight to "wait for the
                 // network", check whether a LATER song in this same queue is already playable with zero

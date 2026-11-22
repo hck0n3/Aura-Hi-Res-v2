@@ -479,10 +479,15 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
             // Offline mode: direct URLs still need the network — refuse them. Same ronda 9
             // reasoning as the offlineModeOn gate below: a genuine connectivity loss refuses
             // immediately instead of only after the network fetch times out.
-            if (dataStore.get(OfflineModeKey, false) || !hasLiveInternetConnection()) {
+            val directRejection = when {
+                dataStore.get(OfflineModeKey, false) -> OfflineRejectionException.Kind.MANUAL
+                !hasLiveInternetConnection() -> OfflineRejectionException.Kind.NO_NETWORK
+                else -> null
+            }
+            if (directRejection != null) {
                 throw PlaybackException(
                     getString(R.string.error_offline_not_downloaded),
-                    null,
+                    OfflineRejectionException(directRejection),
                     PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
                 )
             }
@@ -541,7 +546,12 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         // "false" while Wi-Fi was perfectly connected (HALLAZGO, ronda 9 follow-up) because
         // losing the phone's OTHER network (mobile data, torn down once Wi-Fi took over) doesn't
         // mean losing connectivity in general.
-        val offlineModeOn = dataStore.get(OfflineModeKey, false) || !hasLiveInternetConnection()
+        val offlineRejection = when {
+            dataStore.get(OfflineModeKey, false) -> OfflineRejectionException.Kind.MANUAL
+            !hasLiveInternetConnection() -> OfflineRejectionException.Kind.NO_NETWORK
+            else -> null
+        }
+        val offlineModeOn = offlineRejection != null
 
         // Read Room NOW — BEFORE serving any playerCache/songUrlCache hit — for the container-mismatch guard
         // below, which decides whether the CACHED BYTES may be served or must be bypassed+refetched.
@@ -579,10 +589,10 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         // Strict offline: ONLY a full downloadCache hit, a valid exported URI or a COMPLETE listen-cache
         // copy (served just above) may play. A partial cache / songUrlCache / YT resolve all need the
         // network — refuse them while OfflineModeKey is ON.
-        if (offlineModeOn) {
+        if (offlineRejection != null) {
             throw PlaybackException(
                 getString(R.string.error_offline_not_downloaded),
-                null,
+                OfflineRejectionException(offlineRejection),
                 PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
             )
         }

@@ -88,14 +88,53 @@ object PlaybackErrorClassifier {
         if (isExpiredUrlError(error) || isRangeNotSatisfiableError(error) || isPageReloadError(error)) {
             return false
         }
-        return error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+        if (isOfflineRejection(error)) return false
+        if (error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
             error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
-            error.cause is java.net.ConnectException ||
-            error.cause is java.net.UnknownHostException ||
-            (error.cause as? PlaybackException)?.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+            error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE
+        ) {
+            return true
+        }
+        // Walk the WHOLE chain, like isNoStreamError: the resolver's own PlaybackException(CONNECTION_FAILED /
+        // TIMEOUT) and the UnknownHost/Connect/SocketTimeout it wraps are thrown inside the ResolvingDataSource,
+        // so media3 hands them over as ExoPlaybackException(IO_UNSPECIFIED) → UnexpectedLoaderException → ours.
+        // A one-level check missed that shape and sent it to handleGenericIOError, which purges the song's bytes.
+        var cause: Throwable? = error.cause
+        while (cause != null) {
+            if (cause is java.net.ConnectException ||
+                cause is java.net.UnknownHostException ||
+                cause is java.net.NoRouteToHostException ||
+                cause is java.net.SocketTimeoutException
+            ) {
+                return true
+            }
+            if (cause is PlaybackException &&
+                (cause.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                    cause.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT)
+            ) {
+                return true
+            }
+            cause = cause.cause
+        }
+        return false
     }
+
+    /**
+     * The resolver REFUSED the item because nothing reachable without network can serve it (manual offline mode, no
+     * network at all, or the playback offline session). Not a failure of the song nor of its bytes: the only correct
+     * recoveries are "next song that plays offline" or "wait for the network" — never a retry or a cache purge.
+     */
+    fun offlineRejectionKind(error: PlaybackException): OfflineRejectionException.Kind? {
+        var cause: Throwable? = error
+        while (cause != null) {
+            if (cause is OfflineRejectionException) return cause.kind
+            cause = cause.cause
+        }
+        return null
+    }
+
+    fun isOfflineRejection(error: PlaybackException): Boolean = offlineRejectionKind(error) != null
 
     /**
      * Unresolvable-song dead-end. Walk the WHOLE cause chain: our PlaybackException(NO_STREAM) is
@@ -180,4 +219,13 @@ object PlaybackErrorClassifier {
         error.message?.contains("NoDeclaredBrand", ignoreCase = true) == true ||
             generateSequence(error as Throwable?) { it.cause }
                 .any { it.message?.contains("NoDeclaredBrand", ignoreCase = true) == true }
+}
+
+/**
+ * Cause attached by the stream resolver to the PlaybackException it throws when it refuses an item that does not
+ * play without network. [kind] says WHO refused it, so onPlayerError can tell the manual switch (nothing to wait
+ * for) from a real lack of network (wait or skip).
+ */
+class OfflineRejectionException(val kind: Kind) : java.io.IOException("offline rejection: ${kind.name}") {
+    enum class Kind { MANUAL, NO_NETWORK, SESSION }
 }

@@ -45,7 +45,7 @@ class PlaybackErrorClassifierTest {
     // DataSpec: every public DataSpec constructor needs an android.net.Uri (a stub on the plain JVM
     // unit-test source set), and the classifier only ever reads responseCode — the constructor chain
     // just stores the fields, so a null DataSpec is safe here.
-    private fun invalidResponseCode(code: Int): HttpDataSource.InvalidResponseCodeException {
+    private fun invalidResponseCode(code: Int, cause: java.io.IOException? = null): HttpDataSource.InvalidResponseCodeException {
         val ctor = HttpDataSource.InvalidResponseCodeException::class.java.getDeclaredConstructor(
             Int::class.javaPrimitiveType,
             String::class.java,
@@ -54,7 +54,7 @@ class PlaybackErrorClassifierTest {
             androidx.media3.datasource.DataSpec::class.java,
             ByteArray::class.java,
         )
-        return ctor.newInstance(code, "http $code", null, emptyMap<String, List<String>>(), null, ByteArray(0))
+        return ctor.newInstance(code, "http $code", cause, emptyMap<String, List<String>>(), null, ByteArray(0))
     }
 
     // ------------------------------------------------------- httpResponseCode
@@ -194,6 +194,85 @@ class PlaybackErrorClassifierTest {
                 playbackError(PlaybackException.ERROR_CODE_IO_UNSPECIFIED, cause = Exception("other")),
             ),
         )
+        // Deep, but still nothing network-shaped anywhere in the chain.
+        assertFalse(
+            PlaybackErrorClassifier.isNetworkRelatedError(
+                playbackError(
+                    PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                    cause = java.io.IOException("loader", Exception("decoder", Exception("other"))),
+                ),
+            ),
+        )
+    }
+
+    /**
+     * The real shape of a resolver-side network failure (media3 1.11.1 bytecode: a non-IOException thrown in the
+     * loader becomes Loader.UnexpectedLoaderException, surfaced as ExoPlaybackException IO_UNSPECIFIED = 2000).
+     * The one-level check missed it and routed it to handleGenericIOError, which purged the song's bytes.
+     */
+    @Test
+    fun networkRelatedFoundDeepInTheLoaderWrapping() {
+        val resolver = playbackError(
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            cause = java.net.UnknownHostException("host"),
+        )
+        val top = playbackError(PlaybackException.ERROR_CODE_IO_UNSPECIFIED, cause = java.io.IOException("Unexpected", resolver))
+        assertTrue(PlaybackErrorClassifier.isNetworkRelatedError(top))
+
+        val timeout = playbackError(
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            cause = java.io.IOException("Unexpected", playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT)),
+        )
+        assertTrue(PlaybackErrorClassifier.isNetworkRelatedError(timeout))
+
+        val socket = playbackError(
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            cause = java.io.IOException("Unexpected", Exception("wrap", java.net.SocketTimeoutException())),
+        )
+        assertTrue(PlaybackErrorClassifier.isNetworkRelatedError(socket))
+    }
+
+    @Test
+    fun deepNetworkCausesStillLoseToUrlShapedErrors() {
+        val top = playbackError(
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            cause = java.io.IOException("Unexpected", invalidResponseCode(403, cause = java.net.SocketTimeoutException())),
+        )
+        assertFalse(PlaybackErrorClassifier.isNetworkRelatedError(top))
+    }
+
+    // ------------------------------------------------------- offline rejection
+
+    private fun offlineRejection(kind: OfflineRejectionException.Kind): PlaybackException {
+        val resolver = playbackError(
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            message = "Offline mode: this track is not fully downloaded.",
+            cause = OfflineRejectionException(kind),
+        )
+        return playbackError(PlaybackException.ERROR_CODE_IO_UNSPECIFIED, cause = java.io.IOException("Unexpected", resolver))
+    }
+
+    @Test
+    fun offlineRejectionIsItsOwnClassWithItsKind() {
+        for (kind in OfflineRejectionException.Kind.entries) {
+            val error = offlineRejection(kind)
+            assertTrue(PlaybackErrorClassifier.isOfflineRejection(error))
+            assertEquals(kind, PlaybackErrorClassifier.offlineRejectionKind(error))
+            assertFalse("never the bounded network retry", PlaybackErrorClassifier.isNetworkRelatedError(error))
+            assertFalse("never a dead song", PlaybackErrorClassifier.isNoStreamError(error))
+            assertFalse("never corruption", PlaybackErrorClassifier.isCacheOrStreamCorruptionError(error))
+            assertFalse(PlaybackErrorClassifier.isPageReloadError(error))
+        }
+    }
+
+    @Test
+    fun ordinaryNetworkErrorsAreNotOfflineRejections() {
+        assertFalse(
+            PlaybackErrorClassifier.isOfflineRejection(
+                playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, cause = java.net.ConnectException()),
+            ),
+        )
+        assertNull(PlaybackErrorClassifier.offlineRejectionKind(playbackError(PlaybackException.ERROR_CODE_IO_UNSPECIFIED)))
     }
 
     // --------------------------------------------------------------- no stream
