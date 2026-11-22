@@ -583,6 +583,8 @@ fun AuraChip(
      * (`SurfaceFill` + hairline `SurfaceLine`) instead of the plain 8 % white pill. Off everywhere else; only Biblioteca turns it on.
      */
     glass: Boolean = false,
+    /** See [AuraIconButton.firstTap]. */
+    firstTap: Boolean = false,
 ) {
     val transition = updateTransition(targetState = selected, label = "auraChip")
     val fillColor by transition.animateColor(
@@ -603,7 +605,13 @@ fun AuraChip(
             .then(
                 if (glass && !selected) Modifier.border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill) else Modifier
             )
-            .auraClickable(onClick = onClick, role = Role.Tab, contentDescription = text)
+            .then(
+                if (firstTap) {
+                    Modifier.auraFirstTap(action = onClick, enabled = true, contentDescription = text)
+                } else {
+                    Modifier.auraClickable(onClick = onClick, role = Role.Tab, contentDescription = text)
+                },
+            )
             .padding(horizontal = 16.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center,
     ) {
