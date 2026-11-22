@@ -2164,9 +2164,13 @@ internal fun AuraTypedYtCoverCard(
     fillBleed: Boolean = true,
     /** Ver [AuraCoverCard.imageModifier]. */
     imageModifier: Modifier = Modifier,
+    /** Localized text for the type pill; when set it is shown for every kind (Novedades). Null = unchanged. */
+    typeLabel: String? = null,
 ) {
     // Premium identity from [auraTypeVisual]: Apple release sizes + YTM 16:9 videos / soft playlists.
     val visual = auraTypeVisual(item)
+    val showsLabel = visual.badgeShowsLabel || typeLabel != null
+    val label = typeLabel ?: visual.label
     val width = visual.shelfWidth * cardScale
     val density = androidx.compose.ui.platform.LocalDensity.current
     val decodeTo = with(density) { (width.toPx() * 1.5f).toInt().coerceIn(128, 512) }
@@ -2201,8 +2205,8 @@ internal fun AuraTypedYtCoverCard(
                     .clip(AuraShapes.Pill)
                     .background(AuraPalette.Ground.copy(alpha = 0.72f))
                     .padding(
-                        horizontal = if (visual.badgeShowsLabel) 7.dp else 6.dp,
-                        vertical = if (visual.badgeShowsLabel) 4.dp else 6.dp,
+                        horizontal = if (showsLabel) 7.dp else 6.dp,
+                        vertical = if (showsLabel) 4.dp else 6.dp,
                     ),
             ) {
                 Row(
@@ -2211,14 +2215,14 @@ internal fun AuraTypedYtCoverCard(
                 ) {
                     AuraIconGlyph(
                         icon = visual.icon,
-                        contentDescription = visual.label,
+                        contentDescription = label,
                         size = 11.dp,
                         tint = if (visual.kind == AuraContentKind.Video) AuraPalette.Teal
                         else AuraPalette.OnGround,
                     )
-                    if (visual.badgeShowsLabel) {
+                    if (showsLabel) {
                         Text(
-                            text = visual.label,
+                            text = label,
                             style = AuraType.QualityBadge,
                             color = if (visual.kind == AuraContentKind.Video) AuraPalette.Teal
                             else AuraPalette.OnGround,

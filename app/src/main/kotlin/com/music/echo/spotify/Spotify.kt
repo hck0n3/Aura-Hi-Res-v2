@@ -1378,6 +1378,7 @@ object Spotify {
                             } ?: emptyList(),
                         images = parseGqlImages(data.obj("coverArt")?.arr("sources")),
                         releaseDate = data.obj("date")?.str("isoString"),
+                        totalTracks = (data.obj("tracks") ?: data.obj("tracksV2"))?.int("totalCount") ?: 0,
                         uri = uri,
                     )
                 } ?: emptyList()
@@ -1802,6 +1803,7 @@ object Spotify {
             artists = artists,
             images = parseGqlImages(data.obj("coverArt")?.arr("sources")),
             releaseDate = isoDate,
+            totalTracks = (data.obj("tracks") ?: data.obj("tracksV2"))?.int("totalCount") ?: 0,
             uri = uri,
         )
     }
