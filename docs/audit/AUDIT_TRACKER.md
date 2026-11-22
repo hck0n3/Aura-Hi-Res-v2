@@ -68,8 +68,8 @@ widget · Cast (Gms).
 - [x] L24 ui/component/Lyrics.kt L1-L1200
 - [x] L25 ui/component/Lyrics.kt L1201-L2400
 - [x] L26 ui/component/Lyrics.kt L2401-L2746 — sin hallazgos P0-P2; ver obs. de Lyrics en Sospechas
-- [ ] L27 utils/YTPlayerUtils.kt L1-L1200
-- [ ] L28 utils/YTPlayerUtils.kt L1201-L1966
+- [x] L27 utils/YTPlayerUtils.kt L1-L1200
+- [x] L28 utils/YTPlayerUtils.kt L1201-L1966 — sin hallazgos P0-P2 confirmados; S-004 y obs. abajo
 - [ ] L29 playback/ExactStyleGate.kt L1-L886
 - [ ] L30 ui/newui/AuraShell.kt L1-L1200
 - [ ] L31 ui/newui/AuraShell.kt L1201-L1518
@@ -128,6 +128,12 @@ Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 - Obs (CON, registro desfasado) `Lyrics.kt:2041` APPLE_V2 sin timings por palabra pinta la línea entera (`!hasRealWordTimings -> wholeLineFill`); la fila #7 del registro dice lo contrario («fabricar timings char-weighted en el else»). El cambio es deliberado (comentario L2030-2040: el barrido fabricado iba «letra por letra desincronizado»), entró en `8b44a43` y ninguna fila lo recoge. No se toca el código: propuesta para Fase 4 = actualizar el guardián de la fila #7 (el dueño confirma qué comportamiento quiere).
 - Obs (P3) `Lyrics.kt:2121-2132` con «brillo» activo, la línea actual corre un bucle de pulso infinito (recomposición por fotograma) mientras la pantalla de letra está visible. Solo con la letra en pantalla; no con la pantalla apagada. Sin medir.
 - Obs (P3) `Lyrics.kt:2512` cada apertura del selector de colores crea un `ImageLoader(context)` nuevo (sin caché compartida) para sacar la paleta de la portada.
+
+- S-004 `YTPlayerUtils.kt:1929-1934` si NewPipe no trae el itag elegido, `findUrlOrNull` devuelve la URL de OTRO itag (`AUDIO_ITAG_PREFERENCE`) pero `PlaybackData.format` sigue siendo el elegido. Consumidores que leen `format`: el registro de formato en Room y la calidad entregada (`StreamResolution.kt:912-943`, `MusicService.kt:11014-11022`) y la exportación, que corta el audio con `&range=0-${format.contentLength}` (`AudioExportService.kt:430`, `:682`). Si el itag servido es más grande, la exportación saldría truncada y la ficha mostraría un códec que no suena. Requiere que NewPipe e InnerTube discrepen en los itags; no se ha visto en un log [NO VERIFICADO].
+- Obs (P3, placebo menor) `YTPlayerUtils.kt:1963` `forceRefreshForVideo` no hace nada (solo un log de depuración), pero `PlaybackErrorRecovery.kt:285-286` lo llama y loguea «Cleared decryption caches». La URL sí se invalida aparte (`PlaybackErrorRecovery.kt:443` `songUrlCache.remove`), así que no rompe la recuperación; el comentario engaña.
+- Obs (P3) `YTPlayerUtils.kt:136-137` `hasShownLosslessToast`/`hasShownSaavnToast` y `:493` `showFallbackToast` (lee el DataStore en cada resolución) sin ningún uso tras retirar Qobuz/Saavn.
+- Obs (privacidad, va con F-002/F-003) `YTPlayerUtils.kt:131` `RESOLVE_FAIL … ${error.message?.take(180)}` a WARN: con `expectSuccess = true` (`innertube/NetworkConfig.kt:34`) el mensaje de un `ClientRequestException` de Ktor es `Client request(POST <url>) invalid: 400 … Text: "<cuerpo>"`, así que entran la URL de `/player` y el principio del JSON de error de YouTube. No lleva datos del usuario, pero es «cuerpo de respuesta» según la regla 4. Además los logs INFO/WARN de este archivo llevan el videoId (L131, L434, L634, L639, L1026, L1264, L1283, L1311, L1498, L1875): misma decisión que F-002.
+- Obs (P3) `YTPlayerUtils.kt:1820` `reportException` en cada fallo de la validación HEAD, también por red caída (en `getSignatureTimestampOrNull` ya se excluyen los fallos de red, L1881). Solo afecta al sabor GMS (Crashlytics).
 
 ## [DECISIÓN REQUERIDA] abiertas
 
