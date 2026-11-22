@@ -2,9 +2,9 @@
 
   <h1>Aura Hi-Res Player</h1>
 
-  <p><strong>A high-fidelity Android music player — TIDAL-grade loudness without distortion, real-time EQ &amp; Auto-EQ, music videos &amp; animated canvases, synced lyrics, offline playback, podcasts, and an on-device recommendation AI.</strong></p>
+  <p><strong>A high-fidelity Android music player — TIDAL-grade loudness without distortion, real-time EQ &amp; Auto-EQ, music videos &amp; animated canvases, synced lyrics, offline playback, podcasts, and an on-device recommendation engine.</strong></p>
 
-  <p><em>Reproductor de música Hi-Res para Android — sonido potente sin distorsión, ecualizador en tiempo real, videos y lienzos animados, letras sincronizadas, modo sin conexión, podcasts e IA de recomendación en el dispositivo.</em></p>
+  <p><em>Reproductor de música Hi-Res para Android — sonido potente sin distorsión, ecualizador en tiempo real, videos y lienzos animados, letras sincronizadas, modo sin conexión, podcasts y motor de recomendación en el dispositivo.</em></p>
 
   [![GitHub Release](https://img.shields.io/github/v/release/hck0n3/Aura-Hi-Res-v2?style=for-the-badge&color=6f42c1)](https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest)
   [![License](https://img.shields.io/badge/License-GPL--3.0-28a745?style=for-the-badge)](LICENSE)
@@ -40,9 +40,9 @@
 
 ## Overview
 
-Aura Hi-Res Player delivers a premium, ad-free listening experience on top of a vast music catalog, then layers on a serious audiophile sound chain and a set of extras you won't find in a stock client: real-time equalization, headphone Auto-EQ, music-video and animated canvas playback, an independent podcast engine, Spotify import, and an on-device AI that learns your taste.
+Aura Hi-Res Player delivers a premium, ad-free listening experience on top of a vast music catalog, then layers on a serious audiophile sound chain and a set of extras you won't find in a stock client: real-time equalization, headphone Auto-EQ, music-video and animated canvas playback, an independent podcast engine, Spotify import, and an on-device recommendation engine that learns your taste.
 
-*Aura Hi-Res Player ofrece una experiencia premium y sin anuncios sobre un enorme catálogo musical, con una cadena de sonido de alta fidelidad y un conjunto de extras: ecualización en tiempo real, Auto-EQ por auriculares, reproducción de video y lienzos animados, motor propio de podcasts, importación desde Spotify y una IA que aprende tus gustos directamente en el dispositivo.*
+*Aura Hi-Res Player ofrece una experiencia premium y sin anuncios sobre un enorme catálogo musical, con una cadena de sonido de alta fidelidad y un conjunto de extras: ecualización en tiempo real, Auto-EQ por auriculares, reproducción de video y lienzos animados, motor propio de podcasts, importación desde Spotify y un motor de recomendación que aprende tus gustos directamente en el dispositivo.*
 
 ---
 
@@ -72,7 +72,7 @@ Aura Hi-Res Player delivers a premium, ad-free listening experience on top of a 
 ### Discovery & AI
 - **On-device recommendation engine** — learns from recency, skips, and time-of-day to rank your **Home**, autoplay, radio, and smart shuffle — all locally, no profile uploads.
 - **Smart Shuffle** — shuffle weighted by what you actually like.
-- **AI playlist from text** — describe a vibe and get a generated playlist.
+- **AI playlist from text** — describe a vibe and get a generated playlist (your text is sent to an AI server; see [PRIVACIDAD.md](PRIVACIDAD.md)).
 - **"Dislike" filtering** — disliked tracks are kept out of recommendations and autoplay.
 - **Genre coherence** — keeps autoplay/radio within a consistent lane instead of drifting.
 - **Release radar** — surfaces new releases from artists you follow.
@@ -85,13 +85,13 @@ Aura Hi-Res Player delivers a premium, ad-free listening experience on top of a 
 - **Migrate Spotify artists** — re-follow your Spotify artists inside the app.
 - **Save playlist to library** and **favorite albums**.
 - **Podcasts** — an independent engine (Apple/iTunes + RSS) with progress tracking, pinning, universal search, and direct-URL playback.
-- **Google Drive sync / backup** — back up and restore your library (GMS build).
+- **Encrypted cloud backup** — back up and restore your library; the copy is encrypted on the device.
 
 ### Lyrics
 - **Synced lyrics** with multiple animation styles.
 - **Word-by-word** synchronization.
 - **Enhanced lyrics provider** for better accuracy and coverage.
-- **AI translation** — translate lyrics into any language inline.
+- **Lyrics translation** — on by default; the lyrics text is sent to Google Translate, with an AI fallback.
 
 ### Visuals & Personalization
 - **Spanish by default** — full Spanish localization out of the box, plus other languages.
@@ -129,10 +129,10 @@ Aura Hi-Res Player delivers a premium, ad-free listening experience on top of a 
 **Biblioteca**
 - **Importar desde Spotify** (listas y "me gusta"), **migrar artistas de Spotify**, **guardar playlist en la biblioteca** y **álbumes favoritos**.
 - **Podcasts** con motor propio (Apple/iTunes + RSS): progreso, fijado, búsqueda universal.
-- **Copia de seguridad con Google Drive**.
+- **Copia de seguridad en la nube**, cifrada en el dispositivo.
 
 **Letras y personalización**
-- **Letras sincronizadas** (varios estilos, palabra por palabra y **traducción por IA**).
+- **Letras sincronizadas** (varios estilos, palabra por palabra y **traducción**, activada por defecto: el texto va a Google Translate, con la IA como respaldo).
 - **App en español por defecto**, **widget de vinilo**, tema Material You y opciones de densidad, alta tasa de refresco, ocultar miniatura/videos/Shorts.
 
 **Fiabilidad**
@@ -146,6 +146,11 @@ Download the latest signed APK from the **[Releases page](https://github.com/hck
 *Descarga el APK firmado más reciente desde la **[página de Releases](https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest)**.*
 
 - **`Aura-Hi-Res-v2-<version>.apk`** — universal build (all ABIs: arm64/armeabi-v7a/x86/x86_64). One download for every device: phones, Android TV, car head units and older 32-bit boxes.
+
+**Subscription / Suscripción:** after a free 3-day demo, the official build needs a paid monthly subscription (auto-renews until cancelled). The payment is not for listening to music: it sustains the project and gives access to the official build. See the [Terms](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) and the [Privacy policy](PRIVACIDAD.md).
+*Tras una demo gratuita de 3 días, la compilación oficial requiere una suscripción mensual de pago (se renueva sola hasta que la canceles). El pago no es para escuchar música: sostiene el proyecto y da acceso a la compilación oficial. Consulta los [Términos](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) y la [Política de privacidad](PRIVACIDAD.md).*
+
+The app is developed with the help of AI tools under the developer's direction. / *La app se desarrolla con ayuda de herramientas de IA bajo la dirección del desarrollador.*
 
 > If you see an "App not installed" error when updating, uninstall the previous version first.
 > Si al actualizar ves el error "Aplicación no instalada", desinstala primero la versión anterior.
