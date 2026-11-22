@@ -10,6 +10,16 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Recordatorio del proyecto: si esta peticion implica cambiar codigo, usa la skill cirujano y termina con su informe final.'"
+          }
+        ]
+      }
     ]
   }
 }

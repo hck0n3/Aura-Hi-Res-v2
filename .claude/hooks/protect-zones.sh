@@ -2,8 +2,9 @@
 # PreToolUse hook: AGENTS.md rule 6 made mechanical.
 # Protected zones: the equalizer (com/music/echo/eq/), the Superpowered engine (app/src/main/cpp/)
 # and the subscription gate (com/music/echo/license/).
-#  - Edit/Write/NotebookEdit on a protected file -> "ask": the owner must approve that exact edit.
-#  - Bash command that writes/deletes/moves inside a protected zone -> "deny" (use Edit so the owner is asked).
+#  - Edit/Write/NotebookEdit on a protected file -> "deny", always.
+#  - Bash command that writes/deletes/moves inside a protected zone -> "deny", always.
+# Only the owner can lift the block, by editing this hook or .claude/settings.json by hand.
 # Reading those files is always allowed. Pure bash + grep + sed so it also runs on Windows (Git Bash).
 
 input="$(cat)"
@@ -24,7 +25,7 @@ case "$tool_name" in
   Edit|Write|MultiEdit|NotebookEdit)
     path="$(printf '%s' "$tool_input" | grep -o '"\(file_path\|notebook_path\)"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')"
     if printf '%s' "$path" | grep -Eq "$zones"; then
-      emit deny "ZONA BLOQUEADA (AGENTS.md regla 6): $path pertenece al ecualizador, a Superpowered, a la licencia o al propio hook. No se edita. Si el dueño pidió este cambio explícitamente, dile que está bloqueado y que solo él puede desbloquearlo arrancando Claude con AURA_UNLOCK_ZONES=1."
+      emit deny "ZONA BLOQUEADA (AGENTS.md regla 6): $path pertenece al ecualizador, a Superpowered, a la licencia o al propio hook. Está bloqueado. Solo el dueño puede desactivar el hook a mano."
     fi
     ;;
   Bash)
@@ -32,11 +33,11 @@ case "$tool_name" in
     # command (e.g. "<noreply@...>" in a commit message) does not block `git add`/`git commit`.
     redirect_into_zone="$(printf '%s' "$tool_input" | grep -Eo ">>?[[:space:]]*[^[:space:]]*" | grep -E "$zones")"
     if [ -n "$redirect_into_zone" ]; then
-      emit deny "ZONA PROTEGIDA (AGENTS.md regla 6): este comando escribe en el ecualizador, Superpowered, la licencia o el propio hook. Si el dueño lo pidió explícitamente, usa la herramienta Edit para que él lo apruebe."
+      emit deny "ZONA PROTEGIDA (AGENTS.md regla 6): este comando escribe en el ecualizador, Superpowered, la licencia o el propio hook. Está bloqueado. Solo el dueño puede desactivar el hook a mano."
     fi
     if printf '%s' "$tool_input" | grep -Eq "$zones"; then
       if printf '%s' "$tool_input" | grep -Eq '(sed[^|;&]* -i|perl[^|;&]* -i|\btee\b|\brm\b|\bmv\b|\bcp\b|\btruncate\b|\bpatch\b|git (checkout|restore|apply|rm|mv|reset|stash)|Set-Content|Out-File|Remove-Item|Move-Item|Copy-Item)'; then
-        emit deny "ZONA PROTEGIDA (AGENTS.md regla 6): este comando modifica el ecualizador, Superpowered o la licencia. No se cambian desde la shell. Si el dueño pidió este cambio explícitamente, hazlo con la herramienta Edit para que él lo apruebe."
+        emit deny "ZONA PROTEGIDA (AGENTS.md regla 6): este comando modifica el ecualizador, Superpowered o la licencia. Está bloqueado. Solo el dueño puede desactivar el hook a mano."
       fi
     fi
     ;;
