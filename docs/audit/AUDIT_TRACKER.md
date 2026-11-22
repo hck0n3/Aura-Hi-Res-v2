@@ -96,6 +96,10 @@ widget · Cast (Gms).
 
 Rutas relativas a `app/src/main/kotlin/com/music/echo/`.
 
+## Fases 0-4 terminadas (2026-11-22)
+
+Fase 3: seis revisiones frescas de F-012 (la última SIN HALLAZGOS) y revisiones de las dos tandas; CI unitario y compilación Gms en verde. Lint no disponible (sin workflow). Fase 4: informe, registro 636-644, guardianes, `PROBLEMAS.md`.
+
 ## Fase 1 terminada (51/51 lotes)
 
 ## Fase 2 (2026-11-22)

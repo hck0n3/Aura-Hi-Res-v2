@@ -68,7 +68,7 @@ Documentación:
   a los 3,5 s y vuelven al tocar.
 - Fila 644 del registro y guardián en `HotZoneAuditGuardTest` (`dfd1b4f`).
 
-## Verificación (fase 3)
+## Verificación (fase 3) — CERRADA
 
 - Revisión con ojos frescos de la primera tanda (F-005, F-006, F-009, F-010): **SIN HALLAZGOS**.
 - Revisión fresca de la segunda tanda (F-001, F-003, F-004, F-007, F-008, F-011, D-002). Hallazgos y lo que
@@ -90,11 +90,29 @@ Documentación:
 - F-012, primera revisión fresca: 1 bloqueante y 5 defectos (la barra de la cola tapaba los controles, el
   lienzo se decodificaba sin sonar, faltaba el «primer toque», el lienzo se buscaba en `Thumbnail` y saltaba
   al diseño ancho en cada canción…). Todos arreglados con tu visto bueno (`7742d73`, `08184fc`, `1dc08f5`).
-  La segunda revisión y el CI de la versión arreglada se apuntan cuando terminen.
+- F-012, revisiones siguientes: hubo **seis revisiones frescas** en total. Sus hallazgos se arreglaron todos dentro
+  de F-012:
+  - búsqueda doble del lienzo;
+  - lienzo retenido de canciones anteriores;
+  - entrada que dependía de una ventana de 6 s;
+  - la letra abierta;
+  - trabajo con el reproductor recogido o la pantalla apagada;
+  - pantallazo negro al abrir.
+
+  Commits: `8035e77`, `8fd3bf7`, `25a7448`, `f93769c`. **La sexta revisión: SIN HALLAZGOS.** Ese revisor compiló y
+  ejecutó 613 tests de los archivos que leen el reproductor, con 0 fallos.
+- Queda un caso menor, aceptado: si la pantalla se apaga en mitad de la búsqueda por red y se vuelve a encender
+  antes de que termine, puede hacerse una búsqueda duplicada. Como mucho es una por vez, y el resultado final es
+  correcto.
 - **Lint: no ejecutado.** No hay un workflow de lint en el repositorio y aquí no se puede compilar.
 - **Registro por archivo:** revisé cada fila que cita un archivo tocado. Las 12 filas cuyo guardián vivía en
   el `Player.kt` borrado se comprobaron contra `AuraPlayer.kt`. La única función que solo existía en el
   clásico es F-012.
+
+## Cierre (fase 4) — CERRADO
+
+- Registro: filas 636-644. Guardián: `HotZoneAuditGuardTest`. `PROBLEMAS.md` reconciliado. Tracker al día.
+- Beta privada `2.0.69-beta1` preparada (`fa67b80`) para el canal de betas del actualizador, por orden del dueño.
 
 ## Pruebas manuales en tu móvil
 
