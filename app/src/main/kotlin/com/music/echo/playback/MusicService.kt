@@ -203,6 +203,7 @@ import iad1tya.echo.music.utils.SyncUtils
 import iad1tya.echo.music.utils.YTPlayerUtils
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.get
+import iad1tya.echo.music.utils.getNonBlocking
 import iad1tya.echo.music.utils.reportException
 import iad1tya.echo.music.utils.privacySafeSummary
 import iad1tya.echo.music.widget.EchoMusicWidgetManager
@@ -3262,7 +3263,7 @@ class MusicService :
             while (isActive) {
                 delay(30.seconds)
                 saveNoRepeatMemory()
-                if (dataStore.get(PersistentQueueKey, true) && queueDirty) {
+                if (dataStore.getNonBlocking(PersistentQueueKey, true) && queueDirty) {
                     queueDirty = false
                     saveQueueToDisk()
                 }
@@ -3282,7 +3283,7 @@ class MusicService :
                 // process kill in that window restored the wrong song (index applied to the old queue).
                 // So a dirty queue takes the full save here (clearing the flag); clean queues take the
                 // cheap position-only write. Net cost: one full save per real mutation, not six/minute.
-                if (dataStore.get(PersistentQueueKey, true) && player.isPlaying) {
+                if (dataStore.getNonBlocking(PersistentQueueKey, true) && player.isPlaying) {
                     if (queueDirty) {
                         queueDirty = false
                         saveQueueToDisk()
