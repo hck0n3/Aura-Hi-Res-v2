@@ -250,8 +250,14 @@ class BottomSheetState(
         value == animatable.lowerBound!!
     }
 
+    /**
+     * true while a collapsed sheet only slides to a new [collapsedBound] (the navigation bar hid or came back, ~0.6 s):
+     * it is still the mini player, so its buttons must keep answering instead of the strip's tap opening the player.
+     */
+    internal var followingCollapsedBound by mutableStateOf(false)
+
     val isCollapsed by derivedStateOf {
-        value <= collapsedBound + 1.dp
+        value <= collapsedBound + 1.dp || followingCollapsedBound
     }
 
     val isExpanded by derivedStateOf {
@@ -462,9 +468,6 @@ fun rememberBottomSheetState(
         }
 
         animatable.updateBounds(dismissedBound.coerceAtMost(expandedBound), expandedBound)
-        coroutineScope.launch {
-            animatable.animateTo(initialValue, NavigationBarAnimationSpec)
-        }
 
         BottomSheetState(
             draggableState = DraggableState { delta ->
@@ -477,6 +480,17 @@ fun rememberBottomSheetState(
             coroutineScope = coroutineScope,
             animatable = animatable,
             collapsedBound = collapsedBound
-        )
+        ).also { state ->
+            // Only a sheet that SITS collapsed: one still animating there (a collapse after «Ver álbum») keeps its content.
+            state.followingCollapsedBound = previousAnchor == collapsedAnchor && !animatable.isRunning
+            coroutineScope.launch {
+                try {
+                    animatable.animateTo(initialValue, NavigationBarAnimationSpec)
+                } finally {
+                    // Also when a drag or an expand takes the animatable over.
+                    state.followingCollapsedBound = false
+                }
+            }
+        }
     }
 }
