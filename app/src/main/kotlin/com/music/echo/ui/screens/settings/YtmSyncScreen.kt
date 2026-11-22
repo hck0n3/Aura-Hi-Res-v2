@@ -328,15 +328,16 @@ private fun LibraryUploadSection(
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val pendingFollowsToConfirm = remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
     val (awaitingImportIds, _) = rememberPreference(ImportFollowsAwaitingConfirmKey, emptySet())
-    val awaitingImportCount by androidx.compose.runtime.produceState(0, awaitingImportIds) {
-        value = if (awaitingImportIds.isEmpty()) 0 else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val awaitingImportCounted by androidx.compose.runtime.produceState(emptySet<String>(), awaitingImportIds) {
+        value = if (awaitingImportIds.isEmpty()) emptySet() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
-                database.artistsPendingSubscribe(Int.MAX_VALUE).count {
+                database.artistsPendingSubscribe(Int.MAX_VALUE).filter {
                     iad1tya.echo.music.utils.ArtistSyncPolicy.maySubscribe(it) && it.id in awaitingImportIds
-                }
-            }.getOrDefault(0)
+                }.mapTo(HashSet()) { it.id }
+            }.getOrDefault(emptySet())
         }
     }
+    val awaitingImportCount = awaitingImportCounted.size
     val showImportFollowsConfirm = remember { androidx.compose.runtime.mutableStateOf(false) }
 
     fun requestUploadEnabled(enabled: Boolean) {
@@ -390,7 +391,7 @@ private fun LibraryUploadSection(
                 androidx.compose.material3.TextButton(
                     onClick = {
                         showImportFollowsConfirm.value = false
-                        val confirmed = awaitingImportIds
+                        val confirmed = awaitingImportCounted
                         coroutineScope.launch {
                             runCatching {
                                 context.dataStore.edit {
@@ -412,7 +413,7 @@ private fun LibraryUploadSection(
                 androidx.compose.material3.TextButton(
                     onClick = {
                         showImportFollowsConfirm.value = false
-                        val keptLocal = awaitingImportIds
+                        val keptLocal = awaitingImportCounted
                         coroutineScope.launch {
                             runCatching {
                                 context.dataStore.edit {
