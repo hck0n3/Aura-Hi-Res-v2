@@ -200,11 +200,12 @@ fun AuraArtistScreen(
     // not self-pause off-screen, so leaving composition is what releases it.
     val deviceThrottle = rememberDeviceThrottle()
     val appInForeground = rememberIsAppInForeground()
+    val powerSave = iad1tya.echo.music.utils.rememberPowerSaveMode()
     val showArtistVideo = rememberPerfGatedBoolean(ShowArtistVideoKey, defaultValue = true).value &&
-        !deviceThrottle && appInForeground
+        !deviceThrottle && appInForeground && !powerSave
     val showArtistBackgroundVideo =
         rememberPerfGatedBoolean(ShowArtistBackgroundVideoKey, defaultValue = true).value &&
-            !deviceThrottle && appInForeground
+            !deviceThrottle && appInForeground && !powerSave
 
     var showLocal by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(libraryArtist, artistPage, hasFailed) {

@@ -194,8 +194,9 @@ fun ArtistScreen(
     // this is byte-identical to today.
     val deviceThrottle = iad1tya.echo.music.utils.rememberDeviceThrottle()
     val appInForeground = iad1tya.echo.music.ui.utils.rememberIsAppInForeground()
-    val showArtistVideo = iad1tya.echo.music.utils.rememberPerfGatedBoolean(key = ShowArtistVideoKey, defaultValue = true).value && !deviceThrottle && appInForeground
-    val showArtistBackgroundVideo = iad1tya.echo.music.utils.rememberPerfGatedBoolean(key = ShowArtistBackgroundVideoKey, defaultValue = true).value && !deviceThrottle && appInForeground
+    val powerSave = iad1tya.echo.music.utils.rememberPowerSaveMode()
+    val showArtistVideo = iad1tya.echo.music.utils.rememberPerfGatedBoolean(key = ShowArtistVideoKey, defaultValue = true).value && !deviceThrottle && appInForeground && !powerSave
+    val showArtistBackgroundVideo = iad1tya.echo.music.utils.rememberPerfGatedBoolean(key = ShowArtistBackgroundVideoKey, defaultValue = true).value && !deviceThrottle && appInForeground && !powerSave
 
     val lazyListState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
