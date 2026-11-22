@@ -260,6 +260,8 @@ graph.html
 !app/libs/discord_partner_sdk.aar
 .claude/*
 !.claude/skills/
+!.claude/hooks/
+!.claude/settings.json
 .qwen/
 .serena/
 .brand-mockup/
