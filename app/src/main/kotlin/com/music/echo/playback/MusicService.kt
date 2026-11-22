@@ -4042,7 +4042,7 @@ class MusicService :
             // appendSeed's first batch had (fila #300/#307). Only what comes AFTER the tapped song is
             // judged; the song itself and anything before it are untouched. Fail-neutral: any error or
             // an unknown anchor lane keeps the list exactly as YouTube returned it.
-            val initialStatus = if (
+            val laneStatus = if (
                 keepGenreLaneHint && tappedAnchor != null && queue is YouTubeQueue &&
                 dedupedStatus.items.size > 2
             ) {
@@ -4106,6 +4106,19 @@ class MusicService :
                 }.getOrDefault(dedupedStatus)
             } else {
                 dedupedStatus
+            }
+            val initialStatus = if (
+                queue is YouTubeQueue && laneStatus.items.size > 1 &&
+                queue.metricsPlaylistId?.let { !it.startsWith("RD") } != true
+            ) {
+                recentlyPlayedIds()
+                everPlayedIds()
+                val split = laneStatus.mediaItemIndex.coerceIn(0, laneStatus.items.size - 1) + 1
+                val tail = laneStatus.items.subList(split, laneStatus.items.size)
+                val kept = tail.filterNot { it.isHeardForSmartQueue(null) }
+                if (kept.size == tail.size) laneStatus else laneStatus.copy(items = laneStatus.items.subList(0, split) + kept)
+            } else {
+                laneStatus
             }
             // STALE CALL GUARD — see [myGeneration]'s doc comment at the top of this function: a NEWER
             // playQueue() already superseded this one while its fetch was in flight. Abandon here,
