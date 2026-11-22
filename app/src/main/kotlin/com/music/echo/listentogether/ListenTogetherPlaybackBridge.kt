@@ -101,6 +101,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     @Volatile
     private var applyingRemote = false
 
+    @Volatile
+    private var pausedLocally = false
+
     private var started = false
     private var lastPublishedTrackId: String? = null
     private var lastAppliedTrackId: String? = null
@@ -179,6 +182,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         player.addListener(playerListener)
         // Seed, or the first publish after a player swap compares against a stale intent.
         playIntent.value = player.playWhenReady
+        if (player.playWhenReady) pausedLocally = false
         isPlayingNow.value = player.isPlaying
         timelineRevision.value++
         Timber.tag(TAG).i("Listening to the service player")
@@ -190,12 +194,13 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             reason: Int,
         ) {
             playIntent.value = playWhenReady
+            val state = session.state.value
+            if (!applyingRemote) pausedLocally = !playWhenReady && state.inRoom && !state.isHost
             if (!playWhenReady) return
             // Guest-side resume: the local player started playing while we are a guest and the apply
             // loop did NOT cause it — ask the server where the room is. This is what Metrolist's and
             // SimpMusic's managers do (`requestSync` on guest play), and what makes "guests may
             // pause, and stay paused" possible at all.
-            val state = session.state.value
             if (!state.inRoom || state.isHost || applyingRemote) return
             Timber.tag(TAG).i("Guest resumed — asking the server where the room is")
             session.requestSync()
@@ -226,6 +231,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             reason: Int,
         ) {
             if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+            if (oldPosition.mediaItem?.mediaId != newPosition.mediaItem?.mediaId) return
             val state = session.state.value
             if (!state.inRoom || !state.isHost || applyingRemote) return
             // Mismo criterio que [safePosition]: se publica lo que se OYE. Este sitio no pasa por
@@ -263,7 +269,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // Salir de la sala (o pasar a ser anfitrión) con la velocidad recortada la
                     // dejaría así para siempre: el ajuste solo se toca desde aquí, y aquí ya no se
                     // entra. Devolverla es parte de apagar la corrección, no un detalle.
-                    restoreUserTempo()
+                    onMain { restoreUserTempo() }
+                    pausedLocally = false
+                    lastAppliedTrackId = null
+                    lastAppliedQueueIds = emptyList()
+                    lastRoomPlaying = false
                     return@collect
                 }
                 val service = serviceFlow.value ?: return@collect
@@ -300,15 +310,15 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                                 // running it through the clock correction turns it into however
                                 // long ago the last command was, which can seek past the end.
                                 position <= 0L -> 0L
-                                else -> session.positionAt(position, playing)
+                                else -> capToTrack(session.positionAt(position, playing), track)
                             }
                         // Row 616: when the room moved to a track this device ALREADY has loaded further down its own list (the host
                         // pressed next, or the song ended), jump to it in place: ExoPlayer has been pre-buffering it, so it starts at
                         // once instead of being torn down and resolved again (1-3 s later than the host, then a visible catch-up jump).
-                        val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing) }
-                        if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing)
+                        val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally) }
+                        if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing && !pausedLocally)
                     }
-                    applyTransport(service, playing, position)
+                    applyTransport(service, playing && !pausedLocally, position)
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Failed to apply remote state")
                 } finally {
@@ -345,7 +355,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             val state = session.state.value
             if (!state.inRoom || state.isHost) continue
             val service = serviceFlow.value ?: continue
-            if (!state.isPlaying) continue
+            if (!state.isPlaying || pausedLocally) continue
             applyingRemote = true
             try {
                 applyTransport(service, state.isPlaying, state.position)
@@ -381,8 +391,13 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     ) = withContext(Dispatchers.Main.immediate) {
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
-        val corrected = session.positionAt(position, isPlaying)
+        val roomTrack = session.state.value.currentTrack
+        val corrected = capToTrack(session.positionAt(position, isPlaying), roomTrack)
         val player = runCatching { service.player }.getOrNull() ?: return@withContext
+        if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
+            playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
+            return@withContext
+        }
         // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
         //
         // 🔴 PETICIÓN DEL DUEÑO (2026-09-17): *"hazlo entonces como lo hace Sonos o AirPlay"*, tras
@@ -866,6 +881,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             )
         }.getOrDefault(0)
 
+    private fun capToTrack(position: Long, track: TrackInfo?): Long {
+        val duration = track?.duration ?: 0L
+        return if (duration > TRACK_END_MARGIN_MS) position.coerceAtMost(duration - TRACK_END_MARGIN_MS) else position
+    }
+
     private fun safeDuration(service: MusicService): Long =
         runCatching { service.player.duration }.getOrDefault(0L).coerceAtLeast(0L)
 
@@ -884,6 +904,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         const val HOST_QUEUE_WINDOW = 25
 
         const val READY_BUFFER_PERCENT = 5
+
+        const val TRACK_END_MARGIN_MS = 500L
 
         /** One re-check before giving the room our ready anyway (the server has its own timeout). */
         const val BARRIER_RECHECK_MS = 2_000L

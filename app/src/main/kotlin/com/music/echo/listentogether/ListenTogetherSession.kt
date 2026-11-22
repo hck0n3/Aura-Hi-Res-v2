@@ -251,6 +251,9 @@ class ListenTogetherSession(
                     joinRequests = emptyList(),
                     suggestions = emptyList(),
                     currentTrack = null,
+                    queue = emptyList(),
+                    position = 0L,
+                    lastActionServerTime = 0L,
                     waitingFor = emptyList(),
                     connection = if (client.isAuraRooms) ConnectionState.Connected(AURA_ROOMS_VERSION) else it.connection,
                 )
@@ -433,6 +436,7 @@ class ListenTogetherSession(
                         currentTrack = p.state?.currentTrack,
                         isPlaying = p.state?.isPlaying ?: false,
                         position = p.state?.position ?: 0L,
+                        lastActionServerTime = p.state?.lastUpdate?.takeIf { t -> t > 0L } ?: it.lastActionServerTime,
                     )
                 }
             }
@@ -525,6 +529,7 @@ class ListenTogetherSession(
                         currentTrack = p.currentTrack,
                         isPlaying = p.isPlaying,
                         position = p.position,
+                        lastActionServerTime = if (p.lastUpdate > 0L) p.lastUpdate else it.lastActionServerTime,
                         // Only replace the queue when the server actually sent one — sync_state
                         // with an empty queue means "nothing to say", not "the queue is empty".
                         queue = p.queue.ifEmpty { it.queue },
@@ -545,7 +550,7 @@ class ListenTogetherSession(
                             },
                         position = if (p.action == PlaybackActions.SYNC_QUEUE) it.position else p.position,
                         queue = p.queue.ifEmpty { it.queue },
-                        lastActionServerTime = p.capturedAtServerTime,
+                        lastActionServerTime = if (p.action == PlaybackActions.SYNC_QUEUE) it.lastActionServerTime else p.capturedAtServerTime,
                     )
                 }
             }
