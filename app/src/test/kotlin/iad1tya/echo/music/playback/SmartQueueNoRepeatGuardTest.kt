@@ -72,6 +72,33 @@ class SmartQueueNoRepeatGuardTest {
         assertTrue("the fill drops what the strict no-repeat would drop", gate.contains("!mi.isHeardForSmartQueue(null) &&"))
         assertTrue(gate.contains("all[i].mediaId !in heardInBatch && ContextLane.tier(lane, judged[i].candidate) == 0"))
         assertTrue("only the searching (smart-queue) callers", gate.contains("if (allowSearch) items.filter { it.isHeardForSmartQueue(null) }"))
+        // Row 655: heard songs never count toward `enough` nor the widening cut (else the batch empties and the queue relaxes).
+        assertTrue(gate.contains("val tiers = judged.mapIndexed { i, j -> if (all[i].mediaId in heardInBatch) null else ContextLane.tier(lane, j.candidate) }"))
+    }
+
+    /** Row 655: the unbounded history is built off the main thread and never copied there. */
+    @Test
+    fun `the whole history is mapped on IO and not copied on the caller's thread`() {
+        val keys = body(service, "private suspend fun everPlayedKeys(): Set<String> {")
+        assertTrue(keys.contains("withContext(Dispatchers.IO) {\n                database.recentPlayedTitleArtists(NO_REPEAT_HISTORY_LIMIT).mapTo(HashSet<String>()) { NoRepeatKey.of(it.title, it.artist) }\n            }"))
+        val ids = body(service, "private suspend fun everPlayedIds(): Set<String> {")
+        assertTrue(ids.contains("withContext(Dispatchers.IO) { database.recentPlayedSongIds(NO_REPEAT_HISTORY_LIMIT).toHashSet() }"))
+        assertFalse(service.contains("recentlyPlayedIds() + everPlayedIds()"))
+        assertTrue(service.contains("val everPlayed = if (strictNoRepeat) everPlayedIds() else emptySet()"))
+        assertTrue(service.contains("m.id in playedHistory || m.id in everPlayed ||"))
+    }
+
+    /** Row 655: when every source is exhausted the user is told once per queue (online), never a silent stop. */
+    @Test
+    fun `an exhausted smart queue tells the user once instead of stopping silently`() {
+        val engine = main("playback/RadioContinuationEngine.kt")
+        assertTrue(engine.contains("isNetworkConnected.value && queueGeneration == seedGeneration && smartQueueEndNoticeGeneration != seedGeneration"))
+        assertTrue(engine.contains("smartQueueEndNoticeGeneration = seedGeneration"))
+        assertTrue(engine.contains("R.string.smart_queue_no_new_songs"))
+        for (dir in listOf("values", "values-es")) {
+            val f = File(root, "app/src/main/res/$dir/smart_queue_end_strings.xml")
+            assertTrue("$dir string missing", f.isFile && f.readText().contains("name=\"smart_queue_no_new_songs\""))
+        }
     }
 
     /** (b) Songs queued by hand, by Listen Together / an empty-player playNext, or by Android Auto enter the memory. */
