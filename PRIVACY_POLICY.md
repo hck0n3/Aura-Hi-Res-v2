@@ -29,7 +29,7 @@ We operate one server (a Cloudflare Worker). It receives:
 - **License and demo checks** (always, while the subscription gate is active): your **license key** and a **device identifier**. The device identifier is your Android `ANDROID_ID`, or a randomly generated ID if `ANDROID_ID` is unavailable. It is required to enforce one device per subscription and to prevent the free demo period from being reset by clearing app data. It is not used for advertising or profiling.
 - **AI playlist requests** (only if you use the AI playlist feature): the text prompt you type and, when modifying an existing playlist, the titles and artists of its tracks.
 - **Song recognition** (only if you use the recognition feature): an audio fingerprint derived from the microphone, captured only while that feature is actively running.
-- **Smart-queue AI check** (off by default; only if you turn on "Smart queue: AI second opinion" in Settings ▸ Aura services): when the smart queue cannot tell whether a candidate song fits what you are listening to, it sends the **title and artist** of the songs playing and of those doubtful candidates, nothing else (no account, no library), so the AI can say which ones fit.
+- **Smart-queue AI check** (off by default; only if you turn on "Smart queue: AI second opinion" in Settings ▸ Aura services): when the smart queue cannot tell whether a candidate song fits what you are listening to, it sends the **title and artist** of the songs playing and of those doubtful candidates, plus a short hint about the queue — up to four style names, its language and whether it is Christian music — and nothing else (no account, no library), so the AI can say which ones fit.
 
 Apart from that optional check, we do not receive your library, your listening history, your playlists or your search history.
 
@@ -92,7 +92,7 @@ These are inherent to the App working at all:
 - **Spotify import**: sends the playlist and library requests needed to import from your Spotify account.
 - **SponsorBlock**: off by default. Sends video IDs.
 - **Lyric translation**: the lyrics text is sent to Google Translate's public endpoint (no API key) to be translated, with a fallback to a third-party AI endpoint.
-- **Smart-queue AI check**: off by default. When you enable it, the titles and artists described in section 2 go to our relay.
+- **Smart-queue AI check**: off by default. When you enable it, the titles, artists and queue hint described in section 2 go to our relay.
 - **AI playlist generation**: your prompt (and track names when modifying a playlist) goes to our relay, falling back to a public third-party AI endpoint. If you supply your own API key for another AI provider, your prompt goes to that provider instead.
 - **Song recognition**: microphone audio fingerprints, only while you run the feature.
 - **Listen Together, AutoEQ, podcasts and similar optional features**: send only what that feature needs (for example, a room code and current track; a headphone model name; a podcast search term).
