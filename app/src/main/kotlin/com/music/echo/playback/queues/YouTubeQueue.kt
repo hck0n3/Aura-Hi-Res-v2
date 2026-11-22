@@ -25,6 +25,8 @@ class YouTubeQueue(
      * advances, so this is a snapshot of the CONTEXT the queue was started from, read fresh.
      */
     val metricsPlaylistId: String? get() = endpoint.playlistId?.takeIf { it.isNotBlank() }
+    val isSongRadio: Boolean = endpoint.videoId != null &&
+        endpoint.playlistId.let { it.isNullOrBlank() || it.startsWith("RDAMVM") }
     private var continuation: String? = null
     private val maxRetries = 3
 
