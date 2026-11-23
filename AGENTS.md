@@ -129,6 +129,21 @@ El actualizador de la app consulta `releases/latest` de GitHub, que **excluye la
 >
 > Pedir permiso no es una formalidad: si la respuesta no ha llegado, el trabajo se queda en la rama y se le
 > dice al dueño qué está listo y esperando.
+>
+> **DELEGACIÓN DEL DUEÑO (2026-11-23), literal:** *«todo esto lo puedes hacer por tu parte sin necesidad mía»*,
+> sobre «decidir cuándo sale cada beta», «subir los dos servidores a Cloudflare» y «las fases grandes del plan».
+> Desde entonces, y solo para eso:
+> - el agente puede lanzar **betas privadas** (`gradle.yml` con `beta_tag` que contenga `-beta`, que sale como
+>   prerelease y solo le llega al dueño) cuando `unit-tests.yml` esté en verde sobre ese commit y las revisiones con
+>   ojos frescos no tengan defectos confirmados abiertos; siempre subiendo `versionCode` y con `RELEASE_INFO.md` al día;
+> - el agente puede **desplegar los Workers** `docs/worker/rooms` y `docs/worker/sync` cuando sus tests pasen y la
+>   compatibilidad con apps antiguas esté comprobada, con un plan para volver atrás (`wrangler rollback`);
+> - el agente puede ejecutar las fases de `docs/plan/PLAN_TODO_EN_UNO.md` (incluida la dependencia de rclone de la
+>   fase 5) sin pedir permiso fase a fase.
+>
+> Siguen necesitando su orden en ese momento: las **versiones estables** (tag `vX.Y.Z` sin `-beta`), el push o merge
+> a `main`, `player_configs.json` en `main` y los pull requests. Y el candado de `.claude/hooks/protect-zones.sh`
+> solo lo abre él a mano: un agente nunca lo desactiva ni lo rodea (tampoco editando esas zonas por la API de GitHub).
 
 Antes de una versión estable, comprueba:
 

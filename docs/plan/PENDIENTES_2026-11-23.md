@@ -53,3 +53,12 @@ quién la desbloquea. Nada de esto llega a los usuarios sin la orden del dueño 
 ## F. Plan grande (fases 1-10 de `PLAN_TODO_EN_UNO.md`), sin empezar
 Pantallas grandes y plegables, nueva bienvenida, quitar menciones a YouTube, música local, nube (OneDrive y Dropbox),
 modo TV, rendimiento por gama, sincronización completa, extras, Wrapped.
+
+## G. Delegado por el dueño el 2026-11-23 («todo esto lo puedes hacer por tu parte sin necesidad mía»)
+- **Betas privadas:** las lanza el agente cuando el CI esté en verde y no haya defectos confirmados abiertos (AGENTS.md).
+- **Workers de Cloudflare (rooms y sync):** los despliega el agente con sus tests en verde y compatibilidad comprobada.
+  Necesita, una sola vez, un token de API de Cloudflare guardado en el entorno (formulario seguro, nunca en el chat).
+- **Fases grandes del plan:** el agente las ejecuta por orden (1 → 10) tras cerrar los pendientes actuales.
+- **Pruebas en el móvil:** el agente añade pruebas automáticas en un emulador de GitHub; solo lo que exige hardware real
+  (Bluetooth, dos aparatos, Fold, Doze) queda para el dueño, en una lista mínima.
+- **No delegable por diseño:** abrir el candado de `.claude/hooks/protect-zones.sh` (solo el dueño, a mano).
