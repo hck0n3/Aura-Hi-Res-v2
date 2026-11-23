@@ -38,6 +38,8 @@
     <string name="offline_skipped_to_cached_song">No internet connection — skipped to a song already available offline</string>
     <string name="offline_session_started">No internet: playing what is available offline</string>
     <string name="offline_session_ended">Connection restored</string>
+    <string name="offline_queue_switched">No internet: the queue switched to your offline music</string>
+    <string name="offline_queue_restored">Connection restored: back to your queue</string>
     <string name="offline_retry_online">Retry online</string>
     <string name="mood_and_genres">Mood and Genres</string>
     <string name="account">Account</string>
