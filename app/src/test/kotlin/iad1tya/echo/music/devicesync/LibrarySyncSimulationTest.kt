@@ -134,6 +134,8 @@ class LibrarySyncSimulationTest {
         val albums = HashMap<String, LibrarySyncCore.AlbumMeta>()
         val savedAlbums = HashSet<String>()
         var applied = 0
+        /** How many times [apply] was asked to set each like (song id → tries). */
+        val likeTries = HashMap<String, Int>()
 
         fun saveAlbum(id: String) = synchronized(lock) {
             albums.getOrPut(id) { LibrarySyncCore.AlbumMeta("Álbum $id", "http://c/$id", "OLAK$id", 2020, 10, 2400) }
@@ -174,6 +176,7 @@ class LibrarySyncSimulationTest {
             for ((id, meta) in plan.songs) if (id !in songs) songs[id] = meta
             for ((k, n) in plan.playlistUpserts) playlists[k] = n
             for ((p, s) in plan.memberAdds) if (p in playlists && s in songs) members += p to s else { unresolved++; unplaced += LibrarySyncCore.memberKey(p, s) }
+            for ((id, _) in plan.likes) likeTries[id] = (likeTries[id] ?: 0) + 1
             for ((id, on) in plan.likes) if (on) { if (id in songs) likes += id else { unresolved++; unplaced += LibrarySyncCore.likeKey(id) } } else likes -= id
             for ((set, id, on) in plan.dislikes) if (on) dislikes += set to id else dislikes -= set to id
             for ((id, meta) in plan.albums) albums.putIfAbsent(id, meta)
@@ -803,6 +806,41 @@ class LibrarySyncSimulationTest {
         settle()
         assertFalse("the unlike stands", "ghost" in tablet.backend.likes)
         assertEquals("0", room.value("lk:ghost"))
+    }
+
+    @Test
+    fun `a parked like is retried once after a 5-page download, not after every page, and is placed when its song arrived`() {
+        val tablet = Device("tablet")
+        tablet.connect()
+        settle()
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive("lk:ghost")); add(JsonPrimitive(System.currentTimeMillis())); add(JsonPrimitive("1")) }) })
+        })
+        eventually("the tablet parked the like") { tablet.ledger.stored["lk:ghost"]?.parked == true }
+        tablet.disconnect()
+        // While the tablet is away: 1 700 changes (five pages of 400), the song of the like last.
+        val now = System.currentTimeMillis()
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray {
+                repeat(1_700) { add(buildJsonArray { add(JsonPrimitive("dk:song:d$it")); add(JsonPrimitive(now)); add(JsonPrimitive("1")) }) }
+                add(buildJsonArray {
+                    add(JsonPrimitive(LibrarySyncCore.songKey("ghost")))
+                    add(JsonPrimitive(now))
+                    add(JsonPrimitive(LibrarySyncCore.encodeSong(LibrarySyncCore.SongMeta("Título ghost", "Artista", "http://c/ghost"))))
+                })
+            })
+        })
+        val triesBefore = tablet.backend.likeTries["ghost"] ?: 0
+        val pullsBefore = room.pulls
+        tablet.connect()
+        eventually("the tablet caught up and placed the like", ms = 10_000) { tablet.since == room.head && "ghost" in tablet.backend.likes }
+        settle()
+        assertTrue("it was a download of five pages (pulls=${room.pulls - pullsBefore})", room.pulls - pullsBefore >= 5)
+        val tries = (tablet.backend.likeTries["ghost"] ?: 0) - triesBefore
+        assertTrue("the parked like was tried $tries times during the download", tries in 1..2)
+        assertFalse("and it is no longer parked", tablet.ledger.stored["lk:ghost"]?.parked == true)
     }
 
     @Test

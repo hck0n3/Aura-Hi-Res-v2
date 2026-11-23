@@ -274,26 +274,19 @@ class LibrarySync(
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
             DeviceSyncHub.notice("Otro dispositivo quitó ${held.size} elementos de golpe; no los quité aquí por seguridad.")
         }
-        val parkedBefore = ledger.values.filter { it.parked && !LibrarySyncCore.isHeld(it) }
+        val more = (msg["more"] as? JsonPrimitive)?.booleanOrNull == true
+        // Row 746: what was parked is retried once, after the LAST page (a page in the middle cannot be the end of a download).
+        val parkedBefore = if (more) emptyList() else ledger.values.filter { it.parked && !LibrarySyncCore.isHeld(it) }
         val result = adapter.apply(plan)
         val stored = accepted.map { it.copy(pending = false, parked = it.key in result.unplaced || it.key in plan.undecoded) } +
             held.map { it.copy(pending = false, parked = true) }
         stored.forEach { ledger[it.key] = it }
         store.append(stored)
-        val retry = parkedBefore.filter { ledger[it.key] == it }
-        if (retry.isNotEmpty()) {
-            val retryPlan = LibrarySyncCore.plan(retry)
-            val again = adapter.apply(retryPlan)
-            val placed = retry.filter { it.key !in again.unplaced && it.key !in retryPlan.undecoded }.map { it.copy(parked = false) }
-            placed.forEach { ledger[it.key] = it }
-            store.append(placed)
-        }
         store.compactIfBloated(ledger)
         since = maxOf(since, (msg["seq"] as? JsonPrimitive)?.longOrNull ?: since)
         sinceStore.put(since)
         Timber.tag(TAG).i("LIB_SYNC pulled items=%d applied=%d unresolved=%d", incoming.size, result.applied, result.unresolved)
 
-        val more = (msg["more"] as? JsonPrimitive)?.booleanOrNull == true
         if (pullLanded(more)) {
             // More pages, or the room announced new changes while this one was on its way: the next pull goes out now.
             sendPull()
@@ -308,6 +301,14 @@ class LibrarySync(
         pullWatchdog?.cancel()
         Timber.tag(TAG).i("LIB_SYNC caught up since=%d known=%d", since, ledger.size)
         DeviceSyncHub.libraryOwnedByDevices = connected && isEnabled()
+        val retry = parkedBefore.filter { ledger[it.key] == it }
+        if (retry.isNotEmpty()) {
+            val retryPlan = LibrarySyncCore.plan(retry)
+            val again = adapter.apply(retryPlan)
+            val placed = retry.filter { it.key !in again.unplaced && it.key !in retryPlan.undecoded }.map { it.copy(parked = false) }
+            placed.forEach { ledger[it.key] = it }
+            store.append(placed)
+        }
         pushDiffLocked()
         // Ledger and database agree now and the watchers are running: from here a difference is a change seen being made here.
         watchingSinceCaughtUp = isEnabled()
