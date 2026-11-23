@@ -54,7 +54,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 
 /**
  * HALLAZGO-056: a resolution cancelled because its owner went away (user left the screen, skipped
@@ -176,9 +175,6 @@ object YTPlayerUtils {
         )
     }
     private const val TAG = "YTPlayerUtils"
-
-    private var hasShownLosslessToast = false
-    private var hasShownSaavnToast = false
 
 
     // OPUS-ONLY STREAMING (owner directive 2026-09-05, Echo-Music reference — EchoMusicApp/
@@ -534,10 +530,6 @@ object YTPlayerUtils {
         preferSmallestAudio: Boolean,
         timing: ResolveTiming,
     ): Result<PlaybackData> {
-        val showFallbackToast = context?.let {
-            it.dataStore.data.first()[iad1tya.echo.music.constants.ShowAudioFallbackToastKey]
-        } ?: true
-
         // 2026-08-23 owner directive: LOSSLESS (Qobuz) and SAAVN (JioSaavn) are non-SimpMusic providers
         // and are removed — resolve them through the YouTube cascade instead of failing.
         @Suppress("NAME_SHADOWING")
@@ -2013,9 +2005,5 @@ object YTPlayerUtils {
 
         Timber.tag(logTag).e("No stream URL available from any provider for itag=${format.itag}")
         return null
-    }
-
-    fun forceRefreshForVideo(videoId: String) {
-        Timber.tag(logTag).d("Force refreshing for videoId: $videoId")
     }
 }
