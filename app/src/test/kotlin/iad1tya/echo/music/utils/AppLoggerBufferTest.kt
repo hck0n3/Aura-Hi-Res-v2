@@ -60,6 +60,10 @@ class AppLoggerBufferTest {
         val restart = main("viewmodels/BackupRestoreViewModel.kt").substringAfter("private fun restartApp(")
         assertTrue(restart.indexOf("AppLogger.flushBlocking()") in 0 until restart.indexOf("exitProcess(0)"))
 
+        val densityRestart = main("ui/screens/settings/AppearanceSettings.kt").substringAfter("if (showRestartDialog) {")
+        assertTrue("the density «Reiniciar» writes the waiting lines before it exits",
+            densityRestart.indexOf("AppLogger.flushBlocking()") in 0 until densityRestart.indexOf("Runtime.getRuntime().exit(0)"))
+
         val onStop = main("MainActivity.kt").substringAfter("override fun onStop()").substringBefore("override fun onDestroy()")
         assertTrue("going to the background writes the waiting lines", onStop.contains("AppLogger.flush()"))
 
