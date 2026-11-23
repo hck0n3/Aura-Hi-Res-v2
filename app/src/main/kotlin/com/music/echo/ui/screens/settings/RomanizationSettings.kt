@@ -381,6 +381,12 @@ fun RomanizationSettings(
                 )
             )
         )
+
+        Spacer(modifier = Modifier.height(27.dp))
+
+        // P22D: links to the other three places lyrics settings live (nothing moved).
+        LyricsSettingsLinks(navController, LyricsSettingsPlace.ROMANIZATION)
+
         if (showDialog) {
             ActionPromptDialog(
                 title = stringResource(R.string.line_by_line_dialog_title),

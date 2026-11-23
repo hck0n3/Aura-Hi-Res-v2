@@ -1130,6 +1130,11 @@ fun ContentSettings(
             )
         )
 
+        Spacer(modifier = Modifier.height(27.dp))
+
+        // P22D: links to the other three places lyrics settings live (nothing moved).
+        LyricsSettingsLinks(navController, LyricsSettingsPlace.SOURCES)
+
 
 
 
