@@ -238,4 +238,22 @@ class LibrarySyncCoreTest {
         assertEquals(listOf("LPgymgymgy", "LPdownload"), targets.forRemoval("LPgymgymgy"))
         assertEquals("the unlinked row learns the link", listOf("LPgymgymgy" to "PLgym"), targets.unlinked())
     }
+
+    @Test
+    fun `after a restore emptied the ledger, a removal still reaches the linked row under its own id`() {
+        val row = LibrarySyncCore.PlaylistRow("LPgymgymgy", "PLgym")
+        val empty = LibrarySyncCore.PlaylistIds.EMPTY
+        assertTrue(empty.guessed(row))
+        // Deleted on another device: the list is off, its link stays.
+        val deleted = LibrarySyncCore.PlaylistTargets(listOf(row), empty, ids(reg("pl:LPgymgymgy", 30, "0"), reg("pb:LPgymgymgy", 21, "PLgym")))
+        assertEquals(listOf("LPgymgymgy"), deleted.forRemoval("LPgymgymgy"))
+        // A song removed from it: the list lives on under that same key.
+        val live = LibrarySyncCore.PlaylistTargets(listOf(row), empty, ids(reg("pl:LPgymgymgy", 30, "{\"n\":\"Gym\"}"), reg("pb:LPgymgymgy", 21, "PLgym")))
+        assertEquals(listOf("LPgymgymgy"), live.forRemoval("LPgymgymgy"))
+        assertTrue("its browseId is not the key the list lives under", live.forRemoval("PLgym").isEmpty())
+        // A row the ledger knew is not guessed: it is reached only under the key it travelled with.
+        val known = ids(reg("pl:LPgymgymgy", 10, "{\"n\":\"Gym\"}"))
+        assertFalse(known.guessed(row))
+        assertTrue(LibrarySyncCore.PlaylistTargets(listOf(row), known, known).forRemoval("PLgym").isEmpty())
+    }
 }

@@ -1085,4 +1085,38 @@ class LibrarySyncSimulationTest {
         assertEquals("0", room.value("pl:LPgymgymgy"))
         assertEquals("and does not come back under the browseId", null, room.value("pl:PLgymOnYouTube"))
     }
+
+    @Test
+    fun `a restored backup does not bring back a linked list another device deleted, nor a song removed from one`() {
+        val phone = Device("phone")
+        phone.listWithSongs("LPgymgymgy", "Gym", 5, "g")
+        phone.listWithSongs("LPrunrunru", "Run", 4, "r")
+        phone.connect()
+        settle()
+        phone.backend.browseIds["LPgymgymgy"] = "PLgymOnYouTube"; phone.backend.browseIds["LPrunrunru"] = "PLrunOnYouTube"; phone.changed()
+        eventually("the links are in the room") { room.value("pb:LPgymgymgy") == "PLgymOnYouTube" && room.value("pb:LPrunrunru") == "PLrunOnYouTube" }
+        settle()
+        // A backup taken now, on another device: both lists, linked, with their songs.
+        val tablet = Device("tablet", fresh = true)
+        tablet.listWithSongs("LPgymgymgy", "Gym", 5, "g"); tablet.backend.browseIds["LPgymgymgy"] = "PLgymOnYouTube"
+        tablet.listWithSongs("LPrunrunru", "Run", 4, "r"); tablet.backend.browseIds["LPrunrunru"] = "PLrunOnYouTube"
+        // Since then the phone deleted one list and took a song out of the other.
+        phone.backend.playlists -= "LPgymgymgy"; phone.backend.browseIds -= "LPgymgymgy"; phone.backend.members.removeAll { it.first == "LPgymgymgy" }
+        phone.backend.members -= "LPrunrunru" to "r1"
+        phone.changed()
+        eventually("the phone's changes are in the room") { room.value("pl:LPgymgymgy") == "0" && room.value("pm:LPrunrunru:r1") == "0" }
+        settle()
+
+        tablet.connect() // the restore emptied its ledger: it reads the room from the start
+        eventually("the room wins on the restored tablet") {
+            tablet.backend.playlists.keys == setOf("LPrunrunru") && tablet.songsOf("LPrunrunru") == setOf("r2", "r3", "r4")
+        }
+        settle(); settle()
+        assertTrue(tablet.songsOf("LPgymgymgy").isEmpty())
+        assertEquals("the deleted list did not come back", "0", room.value("pl:LPgymgymgy"))
+        assertEquals("nor under its browseId", null, room.value("pl:PLgymOnYouTube"))
+        assertEquals("the removed song did not come back", "0", room.value("pm:LPrunrunru:r1"))
+        assertEquals(setOf("LPrunrunru"), phone.backend.playlists.keys)
+        assertEquals(setOf("r2", "r3", "r4"), phone.songsOf("LPrunrunru"))
+    }
 }

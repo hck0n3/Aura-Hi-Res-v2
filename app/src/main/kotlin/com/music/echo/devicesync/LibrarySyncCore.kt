@@ -296,6 +296,9 @@ object LibrarySyncCore {
         fun keyOf(row: PlaylistRow): String =
             canonical(names(row)) ?: row.id.takeIf { lists[it]?.let(::isHeld) == true } ?: row.browseId ?: row.id
 
+        /** None of [row]'s names is live here and it is not held: [keyOf] is only the old guess (an emptied ledger after a restore). */
+        fun guessed(row: PlaylistRow): Boolean = canonical(names(row)) == null && lists[row.id]?.let(::isHeld) != true
+
         /** The list [key] named lives on under another of its names: a removal under [key] is a change of name, not a deletion. */
         fun renamed(key: String): Boolean = canonical(group(key)).let { it != null && it != key }
 
@@ -338,6 +341,7 @@ object LibrarySyncCore {
         private val afterKey = HashMap<String, String>()
         private val afterNames = HashMap<String, Set<String>>()
         private val afterCanonical = HashMap<String, String?>()
+        private val guessed = HashSet<String>()
 
         /** The ids of the rows, for a caller that must tell them from rows outside this set. */
         val ids = HashSet<String>()
@@ -351,6 +355,7 @@ object LibrarySyncCore {
             rows += row
             ids += row.id
             beforeKey[row.id] = before.keyOf(row)
+            if (before.guessed(row)) guessed += row.id
             afterKey[row.id] = after.keyOf(row)
             val names = after.names(row)
             afterNames[row.id] = names
@@ -363,9 +368,13 @@ object LibrarySyncCore {
         /** Where an addition under [key] goes; null when no list here has that name. */
         fun forAddition(key: String): String? = rowsOf(key).firstOrNull() ?: rows.firstOrNull { key in afterNames.getValue(it.id) }?.id
 
-        /** The rows a removal under [key] reaches. */
+        /**
+         * The rows a removal under [key] reaches. A row the ledger knew nothing of before the batch (a restored backup empties it)
+         * is also reached under its own id or its browseId, as before row 740, so the room still wins after a restore (row 536).
+         */
         fun forRemoval(key: String): List<String> = rows.filter { row ->
-            beforeKey[row.id] == key && afterCanonical[row.id].let { it == null || it == key }
+            (beforeKey[row.id] == key || (row.id in guessed && (row.id == key || row.browseId == key))) &&
+                afterCanonical[row.id].let { it == null || it == key }
         }.map { it.id }
 
         /** Rows with no YouTube link whose list was linked on another device: row id → browseId. */
