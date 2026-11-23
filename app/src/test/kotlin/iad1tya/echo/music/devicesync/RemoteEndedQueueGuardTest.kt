@@ -68,7 +68,7 @@ class RemoteEndedQueueGuardTest {
     @Test
     fun `the service also blocks a start it only sees as a state change`() {
         val service = read("app/src/main/kotlin/com/music/echo/playback/MusicService.kt")
-        val state = service.substringAfter("override fun onPlaybackStateChanged(").substringBefore("updateOfflineStallWatchdog()")
+        val state = service.substringAfter("override fun onPlaybackStateChanged(\n        @Player.State playbackState: Int,").substringBefore("updateOfflineStallWatchdog()")
         assertTrue(state.contains("RemotePlayback.blocksSoundingNow(player.playWhenReady, playbackState)"))
         assertTrue(state.contains("player.pause()"))
     }

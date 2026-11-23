@@ -313,6 +313,8 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.misc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_title), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_summary), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.open_links_youtube_title), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.open_links_songlink_title), "Contenido", "settings/content"),
             Triple(stringResource(R.string.logs_heading), "Contenido", "settings/content"),
             Triple(stringResource(R.string.playback_logs), "Contenido", "settings/content"),
             Triple(stringResource(R.string.playback_logs_desc), "Contenido", "settings/content"),
