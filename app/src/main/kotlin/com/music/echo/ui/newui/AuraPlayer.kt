@@ -1427,8 +1427,9 @@ private fun AuraPlayerShape(
                             modifier = Modifier
                                 .padding(AuraSpacing.Gutter)
                                 .clip(AuraShapes.Artwork)
-                                .pointerInput(Unit) {
-                                    detectTapGestures { playerConnection.togglePlayPause() }
+                                // A Listen Together guest cannot pause the room from the cover (keyed so a later role change restarts it).
+                                .pointerInput(isListenTogetherGuest) {
+                                    detectTapGestures { if (!isListenTogetherGuest) playerConnection.togglePlayPause() }
                                 },
                         ) {
                             AsyncImage(

@@ -59,6 +59,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -999,6 +1000,10 @@ private fun ThumbnailItem(
     val incrementalSeekSkipEnabled = true
     var skipMultiplier by remember { mutableIntStateOf(1) }
     var lastTapTime by remember { mutableLongStateOf(0L) }
+    // The double-tap detector below starts once (pointerInput(Unit)): it must read the CURRENT guest role and
+    // seek callback, or a user who joined a room as a guest later could still pause or seek from the cover.
+    val currentIsListenTogetherGuest by rememberUpdatedState(isListenTogetherGuest)
+    val currentOnSeek by rememberUpdatedState(onSeek)
 
     val canvasThumbnailAnimation = rememberCanvasAnimationEnabled()
 
@@ -1076,7 +1081,7 @@ private fun ThumbnailItem(
             .pointerInput(Unit) {
                 detectTapGestures(
                     onDoubleTap = { offset ->
-                        if (isListenTogetherGuest) return@detectTapGestures
+                        if (currentIsListenTogetherGuest) return@detectTapGestures
 
                         // Center band → play/pause; the left/right halves keep the incremental seek.
                         if (offset.x in (size.width * 0.35f)..(size.width * 0.65f)) {
@@ -1102,10 +1107,10 @@ private fun ThumbnailItem(
 
                         if (isLeftSide) {
                             playerConnection.player.seekTo((currentPosition - skipAmount).coerceAtLeast(0))
-                            onSeek(context.getString(R.string.seek_backward_dynamic, skipAmount / 1000), true)
+                            currentOnSeek(context.getString(R.string.seek_backward_dynamic, skipAmount / 1000), true)
                         } else {
                             playerConnection.player.seekTo((currentPosition + skipAmount).coerceAtMost(duration))
-                            onSeek(context.getString(R.string.seek_forward_dynamic, skipAmount / 1000), true)
+                            currentOnSeek(context.getString(R.string.seek_forward_dynamic, skipAmount / 1000), true)
                         }
                     }
                 )

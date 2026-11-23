@@ -280,8 +280,9 @@ fun AuraLyricsScreen(
                             placeholderSeed = meta.id,
                             modifier = Modifier
                                 .padding(AuraSpacing.Gutter)
-                                .pointerInput(Unit) {
-                                    detectTapGestures { playerConnection.togglePlayPause() }
+                                // A Listen Together guest cannot pause the room from the cover (keyed so a later role change restarts it).
+                                .pointerInput(isListenTogetherGuest) {
+                                    detectTapGestures { if (!isListenTogetherGuest) playerConnection.togglePlayPause() }
                                 },
                         ) {
                             AsyncImage(
