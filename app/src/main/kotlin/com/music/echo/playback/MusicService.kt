@@ -3054,24 +3054,26 @@ class MusicService :
                 eqProfileRepository.activeProfile,
                 eqProfileRepository.unsavedProfile,
             ) { active, unsaved -> (unsaved ?: active) != null }.distinctUntilChanged(),
-            // The mastering compressor and speaker protection process PCM too: while either is ON, offload
-            // must be refused or its switch would be a placebo on the offloaded (still encoded) stream.
+            // The mastering compressor, speaker protection and stereo width process PCM too: while any is ON,
+            // offload must be refused or its switch would be a placebo on the offloaded (still encoded)
+            // stream. Spatial and the Tidal signature are kept apart (row 714): EqBypass.toneStages bypasses
+            // them while the EQ is off, so they only count through AudioOffloadGate.eqToneStagesLive.
             combine(
                 dataStore.data.map { it[SpatialAudioEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: iad1tya.echo.music.constants.GlueCompressorDefault }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f }.distinctUntilChanged(),
-            ) { spatial, tidal, compressor, speaker, width -> spatial || tidal || compressor || speaker || width }
+            ) { spatial, tidal, compressor, speaker, width -> (spatial to tidal) to (compressor || speaker || width) }
                 // Emparejado con la sala en vez de como sexta fuente: `combine` se queda sin
                 // sobrecargas en cinco, y el par mantiene el bloque de arriba tal cual estaba.
                 .let { dsp ->
                     combine(
                         dsp,
                         listenTogetherManager.session.state.map { it.inRoom }.distinctUntilChanged(),
-                    ) { anyDsp, inRoom -> anyDsp to inRoom }
+                    ) { (tone, mastering), inRoom -> Triple(tone, mastering, inRoom) }
                 },
-        ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, (spatialOrTidal, inRoom) ->
+        ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, (tone, mastering, inRoom) ->
             AudioOffloadGate.allowOffload(
                 AudioOffloadGate.Inputs(
                     userWantsOffload = offloadPref,
@@ -3079,8 +3081,9 @@ class MusicService :
                     highPerformanceMode = perfMode,
                     safeVolumeEnabled = safeVolume,
                     equalizerActive = eqActive,
-                    spatialEnabled = spatialOrTidal,
+                    spatialEnabled = AudioOffloadGate.eqToneStagesLive(eqActive, tone.first, tone.second),
                     listenTogetherActive = inRoom,
+                    masteringActive = mastering,
                 ),
             )
         }.distinctUntilChanged()

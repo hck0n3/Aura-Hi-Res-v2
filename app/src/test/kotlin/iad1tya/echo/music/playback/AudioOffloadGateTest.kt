@@ -75,6 +75,48 @@ class AudioOffloadGateTest {
     }
 
     /**
+     * Row 714 — the glue compressor, phone-speaker protection and a stereo width other than 100 % live in
+     * Ajustes ▸ Sonido and process PCM whatever the equalizer switch says, so each vetoes on its own. Its
+     * reason is appended last: a configuration that already had a reason keeps it.
+     */
+    @Test
+    fun `an active mastering stage vetoes offload with its own reason`() {
+        val mastering = passthrough.copy(masteringActive = true)
+        assertFalse(AudioOffloadGate.allowOffload(mastering))
+        assertEquals(BlockReason.MASTERING, AudioOffloadGate.blockReason(mastering))
+        assertEquals(BlockReason.EQUALIZER, AudioOffloadGate.blockReason(mastering.copy(equalizerActive = true)))
+        assertEquals(
+            BlockReason.LISTEN_TOGETHER,
+            AudioOffloadGate.blockReason(mastering.copy(listenTogetherActive = true)),
+        )
+    }
+
+    /**
+     * Row 714 — spatial audio and the Tidal signature live inside the equalizer: with its switch off
+     * EqBypass.toneStages publishes both in bypass, so their stored switches must not cost offload. The
+     * Tidal signature defaults ON, so before this every user with the EQ off was vetoed for a stage that
+     * was not running.
+     */
+    @Test
+    fun `spatial and Tidal with the EQ off do not veto`() {
+        assertFalse(AudioOffloadGate.eqToneStagesLive(equalizerActive = false, spatialEnabled = true, tidalSignatureEnabled = true))
+        val eqOffToneOn = passthrough.copy(
+            spatialEnabled = AudioOffloadGate.eqToneStagesLive(
+                equalizerActive = false,
+                spatialEnabled = true,
+                tidalSignatureEnabled = true,
+            ),
+        )
+        assertNull(AudioOffloadGate.blockReason(eqOffToneOn))
+        assertTrue(AudioOffloadGate.allowOffload(eqOffToneOn))
+
+        // With the EQ on they are live (and the EQ itself already vetoes).
+        assertTrue(AudioOffloadGate.eqToneStagesLive(equalizerActive = true, spatialEnabled = true, tidalSignatureEnabled = false))
+        assertTrue(AudioOffloadGate.eqToneStagesLive(equalizerActive = true, spatialEnabled = false, tidalSignatureEnabled = true))
+        assertFalse(AudioOffloadGate.eqToneStagesLive(equalizerActive = true, spatialEnabled = false, tidalSignatureEnabled = false))
+    }
+
+    /**
      * The EQ term is "a profile is applied", not "the profile is audibly non-flat", because the preamp
      * and the de-esser both run inside the native runEq branch. A flat profile still processes.
      */
@@ -136,21 +178,23 @@ class AudioOffloadGateTest {
     fun `allowed implies nothing is live, over the whole input space`() {
         val flags = listOf(false, true)
         var allowedCount = 0
-        for (wants in flags) for (cf in flags) for (perf in flags) for (sv in flags) for (eq in flags) for (spatial in flags) {
-            val inputs = Inputs(wants, cf, perf, sv, eq, spatial)
+        for (wants in flags) for (cf in flags) for (perf in flags) for (sv in flags) for (eq in flags) for (spatial in flags) for (mastering in flags) {
+            val inputs = Inputs(wants, cf, perf, sv, eq, spatial, masteringActive = mastering)
             if (AudioOffloadGate.allowOffload(inputs)) {
                 allowedCount++
                 assertTrue("offload allowed without the user asking: $inputs", inputs.userWantsOffload)
                 assertFalse("offload allowed with Safe Volume live: $inputs", inputs.safeVolumeEnabled)
                 assertFalse("offload allowed with the EQ live: $inputs", inputs.equalizerActive)
                 assertFalse("offload allowed with spatial live: $inputs", inputs.spatialEnabled)
+                assertFalse("offload allowed with a mastering stage live: $inputs", inputs.masteringActive)
                 assertFalse(
                     "offload allowed with crossfade able to run: $inputs",
                     inputs.crossfadeEnabled && !inputs.highPerformanceMode,
                 )
             }
         }
-        // wants=true, sv=false, eq=false, spatial=false, and (cf=false with perf either way) or (cf=true with perf=true).
+        // wants=true, sv=false, eq=false, spatial=false, mastering=false, and (cf=false with perf either way) or
+        // (cf=true with perf=true).
         assertEquals(3, allowedCount)
     }
 }
