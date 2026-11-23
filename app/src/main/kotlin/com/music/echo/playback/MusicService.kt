@@ -8516,7 +8516,7 @@ class MusicService :
             PlaybackErrorClassifier.isOfflineRejection(error) -> {
                 // The resolver REFUSED an item that needs the network (manual offline mode, no network, offline
                 // session). Nothing is wrong with the song or its bytes: never retried, never purged (this used to
-                // fall through to handleGenericIOError → performAggressiveCacheClear while "connected").
+                // fall through to the generic I/O handler and its blanket cache purge while "connected").
                 val kind = PlaybackErrorClassifier.offlineRejectionKind(error)
                 logErrorBranch("offline_rejection_${kind?.name?.lowercase()}", mediaId, error)
                 if (kind == OfflineRejectionException.Kind.NO_NETWORK) noteOfflineNoNetwork()
