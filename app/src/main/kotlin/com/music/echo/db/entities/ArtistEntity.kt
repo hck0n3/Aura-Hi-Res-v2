@@ -188,7 +188,10 @@ data class ArtistEntity(
         val onLiveUnsubscribeConfirmed: suspend (artistId: String, unfollowedAt: LocalDateTime) -> Unit,
     )
 
-    /** Mark this artist as a deliberate follow without toggling anything (used by importers). */
+    /**
+     * Mark this artist as a deliberate follow without toggling anything. No production caller today; the
+     * follow-intent tests (ArtistSyncPolicyTest, ArtistUnfollowReachesAccountTest) pin its semantics.
+     */
     fun markFollowedByUser(now: LocalDateTime = LocalDateTime.now()) = copy(
         bookmarkedAt = bookmarkedAt ?: now,
         followedByUserAt = followedByUserAt ?: now,
