@@ -249,6 +249,7 @@ fun YouTubeSelectionSongMenu(
                         title = { Text(stringResource(R.string.play_next)) },
                         onClick = {
                             playerConnection.playNext(songSelection.map { it.toMediaItem() })
+                            confirmQueueEdit(context, playerConnection, R.string.play_next)
                             clearAction()
                             onDismiss()
                         },
@@ -258,6 +259,7 @@ fun YouTubeSelectionSongMenu(
                         title = { Text(stringResource(R.string.add_to_queue)) },
                         onClick = {
                             playerConnection.addToQueue(songSelection.map { it.toMediaItem() })
+                            confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
                             clearAction()
                             onDismiss()
                         },

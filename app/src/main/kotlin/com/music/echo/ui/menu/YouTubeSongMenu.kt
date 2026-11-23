@@ -388,6 +388,7 @@ fun YouTubeSongMenu(
                             onClick = {
                                 ActionLog.tap(ActionId.YTSONGMENU_PLAY_NEXT)
                                 playerConnection.playNext(song.copy(thumbnail = song.thumbnail.resize(1200, 1200)).toMediaItem())
+                                confirmQueueEdit(context, playerConnection, R.string.play_next)
                                 onDismiss()
                             }
                         )
@@ -404,6 +405,7 @@ fun YouTubeSongMenu(
                             onClick = {
                                 ActionLog.tap(ActionId.YTSONGMENU_ADD_TO_QUEUE)
                                 playerConnection.addToQueue(song.toMediaItem())
+                                confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
                                 onDismiss()
                             }
                         )

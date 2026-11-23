@@ -663,6 +663,7 @@ fun SongMenu(
                                 ActionLog.tap(ActionId.SONGMENU_PLAY_NEXT)
                                 onDismiss()
                                 playerConnection.playNext(song.toMediaItem())
+                                confirmQueueEdit(context, playerConnection, R.string.play_next)
                             }
                         )
                     } else null,
@@ -679,6 +680,7 @@ fun SongMenu(
                                 ActionLog.tap(ActionId.SONGMENU_ADD_TO_QUEUE)
                                 onDismiss()
                                 playerConnection.addToQueue(song.toMediaItem())
+                                confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
                             }
                         )
                     } else null

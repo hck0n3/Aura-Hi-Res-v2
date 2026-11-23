@@ -1181,6 +1181,9 @@ private fun AuraPlayerShape(
         // playback and wipes the queue + automix. Identical to the classic player (Player.kt:1550).
         onDismiss = {
             ActionLog.tap(ActionId.MINI_DISMISS)
+            // Row 733 (audit P22B): snapshot the queue BEFORE the wipe so «Cola cerrada · Deshacer» can put it back.
+            // Not offered in remote-control mirror mode nor to a Listen Together guest — see DismissedQueueUndoRule.canOffer.
+            iad1tya.echo.music.playback.DismissedQueueUndo.capture(playerConnection.service)
             // Audit R1: the queue ends here — a radio seed still in flight must not land in whatever is played next.
             playerConnection.service.queueGeneration++
             playerConnection.service.clearAutomix()

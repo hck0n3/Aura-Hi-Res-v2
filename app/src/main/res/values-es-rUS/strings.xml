@@ -187,7 +187,7 @@
         <item quantity="other">%d años</item>
     </plurals>
     <string name="playlist_imported">Lista de reproducción importada</string>
-    <string name="removed_song_from_playlist">Se ha eliminado «%s» de la lista de reproducción</string>
+    <string name="removed_song_from_playlist">Se ha eliminado «%s» de la cola</string>
     <string name="playlist_synced">Lista de reproducción sincronizada</string>
     <string name="undo">Deshacer</string>
     <string name="lyrics_not_found">No se han encontrado letras</string>
@@ -434,4 +434,6 @@
     <string name="genre_enrich_on_mobile_desc">Usa datos móviles para aprender los géneros de tus artistas — pequeñas consultas, solo cuando hace falta. Desactivado = solo con WiFi.</string>
     <string name="account_push_queued">No se pudo enviar el cambio a YouTube Music. Se reintentará solo.</string>
     <string name="account_push_gave_up">No se pudo enviar un cambio a YouTube Music tras varios intentos.</string>
+    <string name="added_to_playlist_toast">Añadido a «%s»</string>
+    <string name="queue_closed_undo">Cola cerrada</string>
 </resources>
