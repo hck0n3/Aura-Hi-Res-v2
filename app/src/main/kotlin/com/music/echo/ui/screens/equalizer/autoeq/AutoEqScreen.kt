@@ -181,7 +181,7 @@ fun AutoEqScreen(navController: NavController) {
         )
 
         // Toggle the Auto-EQ correction stage independently of the master EQ switch.
-        // OFF → clearAutoEq() removes the correction stage while keeping manual EQ untouched.
+        // OFF → disableAutoEq() switches the correction stage off but keeps its bands (manual EQ untouched).
         // ON  → reEnableAutoEq() restores the persisted profile (no-op if none stored yet).
         ListItem(
             headlineContent = { Text("Auto-EQ activado", fontWeight = FontWeight.Medium) },
@@ -198,7 +198,7 @@ fun AutoEqScreen(navController: NavController) {
                 Switch(
                     checked = autoEqActive,
                     onCheckedChange = { on ->
-                        if (on) eqViewModel.reEnableAutoEq() else eqViewModel.clearAutoEq()
+                        if (on) eqViewModel.reEnableAutoEq() else eqViewModel.disableAutoEq()
                     },
                 )
             },

@@ -179,6 +179,15 @@ class AxionEqViewModel @Inject constructor(
         if (_enabled.value) applyToService()
     }
 
+    /**
+     * Switch the Auto-EQ correction stage off WITHOUT forgetting its bands, so [reEnableAutoEq] brings the same
+     * profile back. Wired to the Auto-EQ screen's switch. Does NOT touch master [enabled] or the manual EQ.
+     */
+    fun disableAutoEq() {
+        setAutoEqActive(false)
+        if (_enabled.value) applyToService()
+    }
+
     /** Remove the Auto-EQ correction stage entirely (manual EQ is untouched). Wired to "Quitar Auto-EQ". */
     fun clearAutoEq() {
         _autoEqBands.value = emptyList()
