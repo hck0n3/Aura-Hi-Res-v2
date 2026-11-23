@@ -592,7 +592,11 @@ class ListenTogetherSession(
                         delay(SYNC_START_HOLD_MAX_MS)
                         _state.update { s ->
                             val hold = s.syncStart
-                            if (hold != null && hold.revision == next.bufferWaitRevision && hold.startAtServerTime == 0L) s.copy(syncStart = null) else s
+                            val released =
+                                if (hold != null && hold.revision == next.bufferWaitRevision && hold.startAtServerTime == 0L) s.copy(syncStart = null) else s
+                            // The server ends every barrier within 10 s; still showing it now means its end never reached this device
+                            // (it was cut off and came back), so «Esperando a X» goes too.
+                            released.expireBufferWaitIndicator(next.bufferWaitRevision)
                         }
                     } else {
                         delay(BUFFER_WAIT_INDICATOR_MAX_MS)

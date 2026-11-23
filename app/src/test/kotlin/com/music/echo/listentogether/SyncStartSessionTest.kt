@@ -57,6 +57,16 @@ class SyncStartSessionTest {
     }
 
     @Test
+    fun aSynchronizedWaitWhoseEndNeverArrivesStopsBeingAnnounced() {
+        // cut off during the barrier: the server drops this device from it and its buffer_complete goes only to the others
+        deliver(MessageTypes.BUFFER_WAIT, syncWait)
+        Thread.sleep(SYNC_START_HOLD_MAX_MS + 500)
+        assertNull(session.state.value.syncStart)
+        assertTrue(session.state.value.bufferWaitIndicatorExpired)
+        assertTrue(session.state.value.waitingForNames.isEmpty())
+    }
+
+    @Test
     fun aBarrierThatEndsWithoutAStartOrAPauseLetsGo() {
         deliver(MessageTypes.BUFFER_WAIT, syncWait)
         deliver(MessageTypes.BUFFER_COMPLETE, BufferCompletePayload(trackId = "next"))
