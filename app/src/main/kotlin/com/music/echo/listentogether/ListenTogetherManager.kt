@@ -3,6 +3,7 @@ package iad1tya.echo.music.listentogether
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import iad1tya.echo.music.constants.ListenTogetherBlockedUsersKey
+import iad1tya.echo.music.constants.ListenTogetherRoomCodeKey
 import iad1tya.echo.music.constants.ListenTogetherSessionTokenKey
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.get
@@ -145,7 +146,12 @@ class ListenTogetherManager @Inject constructor(
     fun connectIfResumable() {
         scope.launch {
             val token = context.dataStore.get(ListenTogetherSessionTokenKey, "")
-            if (token.isNotBlank()) session.connect()
+            if (token.isNotBlank()) {
+                // Row 744 (P1-12): the client keeps its token in memory only, so after process death it had none and this
+                // connect was a plain lobby socket — the room was never resumed. Hand it the persisted one first.
+                client.resumeWith(token, context.dataStore.get(ListenTogetherRoomCodeKey, ""))
+                session.connect()
+            }
         }
     }
 

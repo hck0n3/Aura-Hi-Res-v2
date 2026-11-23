@@ -255,6 +255,23 @@ class ListenTogetherClient(
     }
 
     /**
+     * Row 744 (P1-12): hands over the session token a previous process persisted, so the next socket resumes that room with
+     * `reconnect`. Nothing happens when this process already holds a token (its own is the newer one). Aura's rooms also need
+     * the room's own socket to go to; without its code the token is not used, since a resume sent on any other socket is refused.
+     */
+    fun resumeWith(
+        token: String,
+        roomCode: String,
+    ) {
+        if (sessionToken != null || token.isBlank()) return
+        if (auraRooms()) {
+            if (roomCode.isBlank()) return
+            if (roomTarget == null) roomTarget = RoomTarget.Join(roomCode.trim().uppercase())
+        }
+        sessionToken = token
+    }
+
+    /**
      * Forgets the session token and leaves the socket alone: the room it would resume is over — left, or the server refused the
      * resume. Without this a later drop would replay it, and keep retrying as if still in a room (row 744).
      */
