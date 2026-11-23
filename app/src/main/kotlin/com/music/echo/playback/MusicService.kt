@@ -6217,6 +6217,8 @@ class MusicService :
             // Con el reproductor vacío esto NO es un "poner a continuación": construye una cola nueva
             // entera, así que la cola anterior tiene que dejar de mandar. Sin esto, el servicio le
             // paginaba encima la colección que estuviera puesta antes — ver [adoptDirectQueue].
+            // Audit R1: a new queue, as playQueue counts it — a radio seed still in flight settles as a stale no-op.
+            queueGeneration++
             adoptDirectQueue(items = items, title = null)
             player.setMediaItems(items)
             player.prepare()
