@@ -1,13 +1,19 @@
 package iad1tya.echo.music.smoketest;
 
+import android.graphics.Rect;
 import android.os.SystemClock;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.uiautomator.By;
+import androidx.test.uiautomator.StaleObjectException;
 import androidx.test.uiautomator.UiObject2;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Scenario 5, in two halves the workflow runs around an `adb install -r`:
@@ -32,8 +38,7 @@ public class UpdateSurvivalTest {
         if (playlists != null) playlists.click();
 
         AuraDevice.UiLabel create = aura.appString("create_playlist", "Create playlist");
-        UiObject2 fab = aura.waitFor(
-                () -> aura.device.findObject(By.desc(AuraDevice.exactly(create))), 15_000, "the Library '+' button");
+        UiObject2 fab = aura.waitFor(() -> libraryPlusButton(aura, create), 15_000, "the Library '+' button");
         fab.click();
         UiObject2 item = aura.waitFor(
                 () -> aura.device.findObject(By.text(AuraDevice.exactly(create))), 10_000, "the '" + create + "' menu item");
@@ -53,6 +58,41 @@ public class UpdateSurvivalTest {
         aura.device.pressBack();
         // Let Room flush before the workflow copies the database and installs the update over it.
         SystemClock.sleep(3_000);
+    }
+
+    private static final Pattern ANY = Pattern.compile("(?s).*\\S.*");
+
+    /**
+     * The Library '+' (AuraLibraryScreen AuraFab): an icon-only round button whose name only reaches the click ACTION
+     * (auraClickableInternal → clickable(onClickLabel = …)), never contentDescription, so By.desc cannot see it on the
+     * previous build (third emulator run 45243030897). By its name where a build exposes one; else by shape: the lowest
+     * clickable, roughly square 40–64 dp node in the lower-right quarter with no text or description on it or below it.
+     */
+    private static UiObject2 libraryPlusButton(AuraDevice aura, AuraDevice.UiLabel create) {
+        UiObject2 named = aura.device.findObject(By.desc(AuraDevice.exactly(create)));
+        if (named != null) return named;
+        float density = aura.context.getResources().getDisplayMetrics().density;
+        int width = aura.device.getDisplayWidth();
+        int height = aura.device.getDisplayHeight();
+        List<UiObject2> shaped = new ArrayList<>();
+        for (UiObject2 o : aura.device.findObjects(By.clickable(true))) {
+            try {
+                Rect r = o.getVisibleBounds();
+                float w = r.width() / density;
+                float h = r.height() / density;
+                if (w < 40 || w > 64 || h < 40 || h > 64) continue;
+                if (r.centerX() < width * 3 / 4 || r.centerY() < height / 2) continue;
+                String desc = o.getContentDescription();
+                if (!AuraDevice.safeText(o).isEmpty() || (desc != null && !desc.isEmpty())) continue;
+                if (o.hasObject(By.text(ANY)) || o.hasObject(By.desc(ANY))) continue;
+                shaped.add(o);
+            } catch (StaleObjectException e) {
+                // Recomposed between the lookup and the read: waitFor polls again.
+            }
+        }
+        UiObject2 fab = AuraDevice.lowest(shaped);
+        if (fab != null) aura.log("Library '+' found by its shape (no accessible name on this build)");
+        return fab;
     }
 
     @Test

@@ -175,6 +175,24 @@ class AppLiteralsTest(unittest.TestCase):
         settle = device[device.index("void settleOnHome("):device.index("UiObject2 navCell(")]
         self.assertIn("catch (StaleObjectException e)", settle)
 
+    def test_library_plus_button_is_found_without_an_accessible_name(self):
+        # Third emulator run (45243030897): 5a timed out on By.desc("create_playlist") on v2.0.69-beta2. AuraFab hands
+        # its name only to the click ACTION (clickable(onClickLabel)), not to contentDescription, so the previous build
+        # can only be found by shape. A later build that names the button is found by its name first.
+        newui = ("app", "src", "main", "kotlin", "com", "music", "echo", "ui", "newui")
+        content = _read(*newui, "AuraContent.kt")
+        clickable = content[content.index("internal fun Modifier.auraClickableInternal("):]
+        self.assertIn("onClickLabel = contentDescription,", clickable[:clickable.index("\n)\n")])
+        library = _read(*newui, "AuraLibraryScreen.kt")
+        self.assertIn("contentDescription = stringResource(R.string.create_playlist),", library)
+        survival = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest",
+                         "UpdateSurvivalTest.java")
+        self.assertIn("aura.waitFor(() -> libraryPlusButton(aura, create), 15_000", survival)
+        finder = survival[survival.index("private static UiObject2 libraryPlusButton("):]
+        self.assertIn("By.desc(AuraDevice.exactly(create))", finder)
+        self.assertIn("By.clickable(true)", finder)
+        self.assertIn("catch (StaleObjectException e)", finder)
+
     def test_labels_are_looked_up_in_the_language_the_app_seeds(self):
         # A fresh install stores AppLanguageKey = es-419 and MainActivity applies it from the next cold start, so the
         # emulator (en-US) and the app disagree on every label: AuraDevice must look them up in that same language.
