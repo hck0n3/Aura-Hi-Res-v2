@@ -231,9 +231,12 @@
                 <data android:pathPrefix="/" />
             </intent-filter>
 
-            <!-- Music links from other platforms (Spotify, Apple Music, Deezer, Tidal, SoundCloud, Amazon Music,
-                 song.link): MainActivity resolves them to YouTube Music (utils/ExternalMusicLinks.kt).
-                 No autoVerify — these domains are not ours; the user enables them in "Open by default". -->
+            <!-- song.link / album.link / odesli: always on, like YouTube and YouTube Music (row 676). The other
+                 platforms (Spotify, Apple Music, Deezer, Tidal, SoundCloud, Amazon Music) live in their own
+                 activity-alias below, DISABLED by default and switched on per service in Ajustes ▸ Contenido ▸
+                 Abrir enlaces (utils/OpenLinkServices.kt). MainActivity resolves them all to YouTube Music
+                 (utils/ExternalMusicLinks.kt). No autoVerify — these domains are not ours; the user enables
+                 them in "Open by default". -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -242,32 +245,9 @@
 
                 <data android:scheme="http" />
                 <data android:scheme="https" />
-                <data android:host="open.spotify.com" />
-                <data android:host="spotify.link" />
-                <data android:host="spotify.app.link" />
-                <data android:host="music.apple.com" />
-                <data android:host="geo.music.apple.com" />
-                <data android:host="deezer.com" />
-                <data android:host="www.deezer.com" />
-                <data android:host="link.deezer.com" />
-                <data android:host="deezer.page.link" />
-                <data android:host="tidal.com" />
-                <data android:host="listen.tidal.com" />
-                <data android:host="soundcloud.com" />
-                <data android:host="m.soundcloud.com" />
-                <data android:host="on.soundcloud.com" />
-                <data android:host="music.amazon.com" />
                 <data android:host="song.link" />
                 <data android:host="album.link" />
                 <data android:host="odesli.co" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="spotify" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -322,6 +302,128 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Row 676: one alias per external music service, all DISABLED by default. Ajustes ▸ Contenido ▸
+             Abrir enlaces turns each one on with PackageManager.setComponentEnabledSetting. The names and
+             hosts must match utils/OpenLinkServices.kt (OpenLinkServicesTest pins both). -->
+        <activity-alias
+            android:name=".OpenLinksSpotifyAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="open.spotify.com" />
+                <data android:host="spotify.link" />
+                <data android:host="spotify.app.link" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="spotify" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".OpenLinksAppleMusicAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="music.apple.com" />
+                <data android:host="geo.music.apple.com" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".OpenLinksDeezerAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="deezer.com" />
+                <data android:host="www.deezer.com" />
+                <data android:host="link.deezer.com" />
+                <data android:host="deezer.page.link" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".OpenLinksTidalAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="tidal.com" />
+                <data android:host="listen.tidal.com" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".OpenLinksSoundCloudAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="soundcloud.com" />
+                <data android:host="m.soundcloud.com" />
+                <data android:host="on.soundcloud.com" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".OpenLinksAmazonMusicAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="music.amazon.com" />
             </intent-filter>
         </activity-alias>
 

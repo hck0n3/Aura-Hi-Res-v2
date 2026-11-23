@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="open_links_youtube_title">YouTube and YouTube Music</string>
+    <string name="open_links_songlink_title">song.link and album.link</string>
+    <string name="open_links_service_title">%1$s links</string>
+    <string name="open_links_service_off">Off: these links open in their own app or in the browser</string>
+    <string name="open_links_state_all">Aura opens these links</string>
+    <string name="open_links_state_some">Aura opens only some of these links: add the rest in \"Open by default\"</string>
+    <string name="open_links_state_none">Not allowed yet: add them in \"Open by default\"</string>
+    <string name="open_links_state_unknown">Android asks which app opens each link</string>
+</resources>

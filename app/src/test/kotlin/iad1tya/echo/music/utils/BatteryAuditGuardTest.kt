@@ -138,6 +138,29 @@ class BatteryAuditGuardTest {
         assertTrue(main.substringAfter("override fun onStop()").substringBefore("override fun onDestroy()").contains("AppForeground.set(false)"))
     }
 
+    // ── Battery-optimisation prompt: only on request (row 677) ────────────────────────────────────────────────
+
+    /**
+     * Owner 2026-11-23 reverses his 2026-09-04 order («que aparezca UNA VEZ»): no automatic prompt at all, neither
+     * the one-shot nor the weekly re-prompt after an OEM kill. The exemption stays one tap away in Ajustes ▸
+     * Contenido and Ajustes ▸ Sincronizar dispositivos, and the manifest keeps the permission those rows need.
+     */
+    @Test
+    fun `the battery exemption is never asked for on its own, only from the settings rows`() {
+        val main = src("MainActivity.kt")
+        assertFalse("automatic prompt is back", main.contains("BackgroundReliability"))
+        assertFalse("weekly OEM-kill re-prompt is back", main.contains("latestOemPlaybackThreatTimestamp"))
+        assertFalse(File(root, "app/src/main/kotlin/com/music/echo/ui/screens/BackgroundReliabilityDialog.kt").exists())
+        val content = src("ui/screens/settings/ContentSettings.kt")
+        assertTrue(content.contains("BackgroundReliability.requestIgnoreBatteryOptimizations(context)"))
+        assertTrue(content.contains("BackgroundReliability.openAppDetails(context)"))
+        assertTrue(src("ui/screens/settings/integrations/DeviceSyncSettings.kt").contains("BackgroundReliability.requestIgnoreBatteryOptimizations(context)"))
+        assertTrue(
+            File(root, "app/src/main/AndroidManifest.xml").readText()
+                .contains("android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"),
+        )
+    }
+
     // ── Battery timeline: the line the owner shares ────────────────────────────────────────────────────────────
 
     private fun sample(elapsed: Long, cpu: Long, batt: Int, screen: Boolean, playing: Boolean) = PowerTimeline.Sample(

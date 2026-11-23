@@ -1426,7 +1426,7 @@ fun ContentSettings(
                         }
                     }
                 )
-            )
+            ) + openLinkServiceItems()
         )
 
         Spacer(modifier = Modifier.height(27.dp))

@@ -24,8 +24,8 @@ import java.util.concurrent.TimeUnit
 /**
  * Scheduled YouTube Music sync — the YT-Music counterpart to [iad1tya.echo.music.spotifyimport.SpotifyAutoSyncWorker].
  * On a fixed cadence it re-runs a full sync (liked songs/albums, artists, subscriptions, playlists, library,
- * uploads) so the library stays current without manual action. Default is every 3 days
- * ([DEFAULT_FREQ_DAYS]); [scheduleFromPrefs] is called from [iad1tya.echo.music.App] on every start
+ * uploads) so the library stays current without manual action. Off on a fresh install since row 678
+ * (existing installs keep their cadence, every 3 days unless changed); [scheduleFromPrefs] is called from [iad1tya.echo.music.App] on every start
  * so the job exists even if the user never opened the YTM sync screen. The cadence can still be
  * changed (or turned off) there.
  *
@@ -46,6 +46,12 @@ class YtmAutoSyncWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             val ctx = applicationContext
+            // Row 678 / row 214: "off" (<= 0) means no automatic sync, even for a run WorkManager already had queued
+            // (App re-asserts the schedule at start concurrently with the one-time write of a fresh install's 0).
+            if (ctx.dataStore.get(YtmAutoSyncFreqDaysKey, DEFAULT_FREQ_DAYS) <= 0) {
+                Timber.tag(TAG).i("Scheduled YTM sync skipped: automatic sync is off")
+                return@withContext Result.success()
+            }
             val cookie = ctx.dataStore.get(InnerTubeCookieKey, "")
             if (cookie.isBlank() || "SAPISID" !in parseCookieString(cookie)) {
                 // Signed out → nothing to sync. Don't stamp last-sync, so the UI keeps showing the real last
@@ -74,10 +80,11 @@ class YtmAutoSyncWorker(
         const val WORK_NAME = "ytm_auto_sync"
 
         /**
-         * Owner default: the whole library (likes, playlists, subscriptions, and the upload pass)
-         * mirrors the YouTube account in the background every three days. Daily is optional; off is
-         * still one tap away. A missing DataStore key MUST resolve here, not to 0 — 0 was "never
-         * scheduled", which made the screen's cadence a placebo.
+         * The cadence every install ran on before row 678 (every three days). Since row 678 (owner
+         * 2026-11-23) a FRESH install has 0 (off) written explicitly once, and every other install has
+         * its value written explicitly too (`App.applyGoogleSyncDefaultsV1`), so this is only the
+         * fallback for a key that was never written. Do not change it to 0: that would silently switch
+         * off the automatic sync of an install whose one-time write has not run yet.
          */
         const val DEFAULT_FREQ_DAYS = 3
 

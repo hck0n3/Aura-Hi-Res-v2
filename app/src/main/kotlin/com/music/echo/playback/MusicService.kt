@@ -163,7 +163,6 @@ import iad1tya.echo.music.eq.audio.NormalizationGainAudioProcessor
 import iad1tya.echo.music.eq.audio.TruePeakLimiterAudioProcessor
 import iad1tya.echo.music.eq.audio.normalizationMultiplier
 import iad1tya.echo.music.eq.audio.loudnessMakeupDb
-import iad1tya.echo.music.eq.audio.safeVolumeGainWithEqPreamp
 import iad1tya.echo.music.eq.audio.dbToLinear
 import iad1tya.echo.music.eq.audio.effectiveLoudnessDb
 import iad1tya.echo.music.eq.audio.isPlayingLoudnessFrozen
@@ -9066,19 +9065,15 @@ class MusicService :
     fun enterVideoModeIfNeeded(forceFromUserTap: Boolean = false) =
         videoCoordinator.enterVideoModeIfNeeded(forceFromUserTap)
 
-    private fun currentEqPreampDb(): Double {
-        // Fallback 2.3f = the current default (HALLAZGO-046 shipped +3; the owner lowered it to +2
-        // on 2026-08-26, then raised it to +2.3 on 2026-09-05 with the Aura Hi-Res v2 directive).
-        // Migrations write the value explicitly; this only matters before they run.
-        val prefsPreamp = getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
-            .getFloat("preampDb", 2.2f).toDouble()
-        if (!::eqProfileRepository.isInitialized) return prefsPreamp
-        val profile = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value
-        return profile?.preamp ?: prefsPreamp
-    }
-
-    internal fun safeVolumeAppliedGain(baseGain: Float): Float =
-        safeVolumeGainWithEqPreamp(baseGain, currentEqPreampDb())
+    /**
+     * Row 679 (owner 2026-11-23): the EQ preamp no longer shrinks Safe Volume's gain. It used to go through
+     * `safeVolumeGainWithEqPreamp`, which took 75 % of a positive preamp off Safe Volume's boost, so raising the
+     * preamp barely raised the volume (and the trim was only refreshed on a track change). The two stages are now
+     * independent: the preamp is the native front gain, applied live from the EQ profile flow; Safe Volume is its
+     * own stage before the limiter (-3 dB threshold, -0.3 dBFS ceiling) and the 0.97 soft clip, which bound the
+     * output below full scale whatever the total gain.
+     */
+    internal fun safeVolumeAppliedGain(baseGain: Float): Float = baseGain
 
     /** FASE B: implementation moved verbatim to [VideoModeCoordinator.exitVideoMode]. */
     fun exitVideoMode() = videoCoordinator.exitVideoMode()

@@ -701,6 +701,13 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 }
             }.onFailure { reportException(it) }
         }
+        // Row 678: before tryAutoSync and the HALLAZGO-061 recovery below, which read these values.
+        if (settings[iad1tya.echo.music.constants.GoogleSyncDefaultsV1AppliedKey] != true) {
+            val freshInstall = installOrigin == iad1tya.echo.music.utils.InstallOrigin.FRESH
+            runCatching {
+                dataStore.edit { p -> applyGoogleSyncDefaultsV1(p, settings, freshInstall) }
+            }.onFailure { reportException(it) }
+        }
 
         // SEPARATE (PackageManager component toggling; only acts when the removed Legacy Icon was enabled).
         migrateLegacyIcon(settings)
@@ -772,7 +779,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // never written = the login completion got cancelled before it enqueued the library syncs
         // (the exact state the owner's v2.0.11 log showed). Heal it once at cold start; after the
         // first completed sync the stamp is > 0 and this is a no-op forever.
-        if (shouldRecoverLibrarySyncOnStart(isLoggedCookie(settings[InnerTubeCookieKey]), syncUtils.lastLikedSyncTimeMs())) {
+        // Row 678: an automatic pull, so it honours the download-sync switch (read live: the row-678 write above
+        // is not in the `settings` snapshot).
+        if ((dataStore.data.first()[YtmSyncKey] ?: true) &&
+            shouldRecoverLibrarySyncOnStart(isLoggedCookie(settings[InnerTubeCookieKey]), syncUtils.lastLikedSyncTimeMs())
+        ) {
             Timber.d("Cold start: logged-in account never synced its library, enqueueing recovery syncs (HALLAZGO-061)")
             syncUtils.syncLibraryAfterLogin()
         }
@@ -1725,6 +1736,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
      * new channel subscriptions) is invisible to them until they open YouTube. So:
      *
      *   fresh install  -> ON   (the owner's default, for people who are choosing Aura right now)
+     *                           — OFF since row 678 (owner 2026-11-23: Google sync off on new installs)
      *   updated install-> OFF  (nobody is enrolled into remote writes by the act of updating;
      *                           the same switch is one tap away in Ajustes ▸ Sincronización)
      *
@@ -1742,6 +1754,27 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         p[iad1tya.echo.music.constants.YtmUploadSyncKey] = iad1tya.echo.music.utils.LibraryUploadOptIn
             .decide(stored = settings[iad1tya.echo.music.constants.YtmUploadSyncKey], freshInstall = freshInstall)
         p[iad1tya.echo.music.constants.YtmUploadOptInV1AppliedKey] = true
+    }
+
+    /**
+     * Row 678 (owner 2026-11-23), one-time (FRESH key): Google account sync OFF by default on a NEW install.
+     * Writes an explicit download-sync switch and automatic-sync cadence once per install — fresh: off / 0;
+     * any other install: what it already ran on where nothing was stored (see [iad1tya.echo.music.utils.GoogleSyncDefaults]).
+     * A stored choice is never overwritten. The upload switch follows the same order through
+     * [iad1tya.echo.music.utils.LibraryUploadOptIn.decide].
+     */
+    private fun applyGoogleSyncDefaultsV1(
+        p: androidx.datastore.preferences.core.MutablePreferences,
+        settings: androidx.datastore.preferences.core.Preferences,
+        freshInstall: Boolean,
+    ) {
+        if (settings[iad1tya.echo.music.constants.GoogleSyncDefaultsV1AppliedKey] == true) return
+        // Stored values read from the live transaction `p`, so a switch flipped since the snapshot still wins.
+        p[YtmSyncKey] = iad1tya.echo.music.utils.GoogleSyncDefaults
+            .downloadSync(stored = p[YtmSyncKey], freshInstall = freshInstall)
+        p[iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey] = iad1tya.echo.music.utils.GoogleSyncDefaults
+            .autoSyncFreqDays(stored = p[iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey], freshInstall = freshInstall)
+        p[iad1tya.echo.music.constants.GoogleSyncDefaultsV1AppliedKey] = true
     }
 
     /**
@@ -2521,7 +2554,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 //
                 // An EXPLICIT false, not a `remove`: `applyLibraryUploadOptInV1` decides `stored ?:
                 // freshInstall`, so an absent key could be re-defaulted ON, and on a fresh install it
-                // IS ON without the user ever being asked. A stored false survives that unconditionally.
+                // WAS ON without the user ever being asked (OFF since row 678, but the explicit false must
+                // not depend on that default). A stored false survives that unconditionally.
                 // The new account's owner turns it on themselves in Ajustes ▸ Sincronización — which is
                 // exactly what ArtistSyncPolicy.afterAccountDetached claims, and now actually holds.
                 //

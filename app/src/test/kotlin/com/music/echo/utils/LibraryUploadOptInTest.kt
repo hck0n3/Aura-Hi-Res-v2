@@ -6,14 +6,16 @@ import org.junit.Test
 
 /**
  * The library upload writes to the user's REAL Google account. This pins the one rule that keeps that
- * honest: the owner's "sync my playlists without asking me" default applies to people setting Aura up
- * now, and nobody is enrolled into remote writes by the mere act of installing an update.
+ * honest: nobody is enrolled into remote writes by the mere act of installing an update — and, since
+ * row 678 (owner 2026-11-23, reversing his earlier "sync my playlists without asking me" default), not
+ * by setting Aura up from scratch either.
  */
 class LibraryUploadOptInTest {
 
     @Test
-    fun aFreshInstallGetsTheOwnersRequestedDefault() {
-        assertTrue(LibraryUploadOptIn.decide(stored = null, freshInstall = true))
+    fun aFreshInstallStartsWithTheUploadOff() {
+        // Row 678: «la sincronización con la cuenta de Google desactivada por defecto en instalaciones nuevas».
+        assertFalse(LibraryUploadOptIn.decide(stored = null, freshInstall = true))
     }
 
     @Test
@@ -37,8 +39,8 @@ class LibraryUploadOptInTest {
      * The owner's original complaint ("me aparecen muchas suscripciones de cantantes que no sigo"),
      * aimed at somebody else's account.
      *
-     * Reachable on all defaults, no dev tools: fresh install turns the upload switch ON without asking
-     * (`App.applyLibraryUploadOptInV1` + [decide]); signing into account A stamps `followedByUserAt` on
+     * Reachable on all defaults before row 678, and still for anyone whose upload switch is ON: fresh
+     * install turned the upload switch ON without asking (`App.applyLibraryUploadOptInV1` + [decide]); signing into account A stamps `followedByUserAt` on
      * every channel A is subscribed to (`DatabaseDao.markArtistsSubscribedOnYtm`); "cerrar sesión
      * (mantener datos)" deliberately KEEPS those markers; sign into account B and the next sync pushes
      * A's entire follow list onto B, 150 `subscribeChannel(id, true)` a pass.

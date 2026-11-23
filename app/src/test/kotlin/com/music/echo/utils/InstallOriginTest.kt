@@ -101,9 +101,9 @@ class InstallOriginTest {
      * chain — the one that was broken was the classification, not `decide`.
      */
     @Test
-    fun onlyAGenuinelyBlankSlateDefaultsTheAccountWriteSwitchOn() {
-        // The owner's requested default, for people choosing Aura right now.
-        assertTrue(
+    fun noInstallDefaultsTheAccountWriteSwitchOn() {
+        // Row 678 (owner 2026-11-23): OFF for a fresh install too (it used to be his "por default" ON).
+        assertFalse(
             LibraryUploadOptIn.decide(stored = null, freshInstall = freshFrom(BLANK_SLATE)),
         )
         assertFalse(
@@ -120,6 +120,17 @@ class InstallOriginTest {
             "A transfer from a build predating the install marker is still a transfer.",
             LibraryUploadOptIn.decide(stored = null, freshInstall = freshFrom(RESTORE_WITHOUT_MARKER)),
         )
+    }
+
+    /** Row 678: the same chain decides which installs start with Google sync off — only a genuinely blank slate. */
+    @Test
+    fun onlyAGenuinelyBlankSlateStartsWithGoogleSyncOff() {
+        assertFalse(GoogleSyncDefaults.downloadSync(stored = null, freshInstall = freshFrom(BLANK_SLATE)))
+        assertEquals(0, GoogleSyncDefaults.autoSyncFreqDays(stored = null, freshInstall = freshFrom(BLANK_SLATE)))
+        listOf(UPDATED_IN_PLACE, PLATFORM_RESTORE, RESTORE_WITHOUT_MARKER).forEach {
+            assertTrue("$it lost the sync it was running on", GoogleSyncDefaults.downloadSync(stored = null, freshInstall = freshFrom(it)))
+            assertEquals(3, GoogleSyncDefaults.autoSyncFreqDays(stored = null, freshInstall = freshFrom(it)))
+        }
     }
 
     @Test

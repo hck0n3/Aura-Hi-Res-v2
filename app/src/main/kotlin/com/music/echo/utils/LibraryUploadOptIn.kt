@@ -11,13 +11,18 @@ package iad1tya.echo.music.utils
 object LibraryUploadOptIn {
 
     /**
+     * Row 678 (owner 2026-11-23, reversing his earlier "por default"): OFF for every install that has no
+     * stored value — a fresh install included. Installs that already got ON from the old rule keep it,
+     * because by then the value is stored.
+     *
      * @param stored the value already on disk, or null if the user has never had one written.
-     * @param freshInstall true when the APK on the device is the one that was first installed — i.e.
-     *   somebody setting Aura up now, as opposed to somebody who just tapped "update".
+     * @param freshInstall true when the APK on the device is the one that was first installed. Kept for
+     *   the call site and the tests; since row 678 it no longer changes the answer.
      */
+    @Suppress("UNUSED_PARAMETER")
     fun decide(stored: Boolean?, freshInstall: Boolean): Boolean =
         // An explicit choice always wins: a migration must never overwrite a decision the user made.
-        stored ?: freshInstall
+        stored ?: false
 
     /**
      * The value `YtmUploadSyncKey` must hold the moment the YouTube account is DETACHED — both logout
@@ -49,7 +54,8 @@ object LibraryUploadOptIn {
      *
      * [onAccountDetached] is only a real revocation if this is false for every reachable combination,
      * and that is what forces `forgetAccount` to store an EXPLICIT false instead of removing the key:
-     * [decide] resolves an absent value to `freshInstall`, which is ON. A stored false survives the
+     * [decide] used to resolve an absent value to `freshInstall`, which was ON (row 678 made it OFF, but
+     * the explicit false stays: it must not depend on that default). A stored false survives the
      * migration whether or not its applied-flag is still set.
      *
      * @param optInV1Applied whether `YtmUploadOptInV1AppliedKey` is set (it is, by the time any
