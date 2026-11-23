@@ -565,7 +565,7 @@ fun AlbumScreen(
                                 if (isPlaying && mediaMetadata?.album?.id == albumWithSongs.album.id) {
                                     playerConnection.player.pause()
                                 } else if (mediaMetadata?.album?.id == albumWithSongs.album.id) {
-                                    playerConnection.player.play()
+                                    playerConnection.play()
                                 } else {
                                     playerConnection.service.getAutomix(playlistId)
                                     // Queue the RAW album in TRACK ORDER. An album is an ordered work, so

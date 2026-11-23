@@ -1111,7 +1111,8 @@ private fun AuraAlbumHeader(
                     if (isPlaying && isCurrentAlbum) {
                         playerConnection.player.pause()
                     } else if (isCurrentAlbum) {
-                        playerConnection.player.play()
+                        // Review C3: through PlayerConnection, so it reaches the controlled device like the mini player does.
+                        playerConnection.play()
                     } else {
                         playerConnection.service.getAutomix(playlistId)
                         // RAW album in disc order. MusicService.playQueue re-applies hide-explicit /

@@ -1517,7 +1517,8 @@ private fun AuraAutomixRow(
         // where playback belongs to the other device and `playNext` itself already declines to start it.
         onClick = {
             val at = if (isListenTogetherGuest) -1 else poolPosition()
-            if (at >= 0) {
+            // Review C3: with another device controlled from here, neither the pool nor the mirror is touched (the service says why).
+            if (at >= 0 && !playerConnection.service.refuseQueueEditInRemoteMode()) {
                 playerConnection.service.playNextAutomix(item, at)
                 playerConnection.player.seekToNext()
                 if (!isCasting) playerConnection.player.playWhenReady = true

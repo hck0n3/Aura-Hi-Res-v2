@@ -1532,7 +1532,7 @@ private fun AutomixSongRow(
                         onClick = {
                             if (!isListenTogetherGuest) {
                                 val at = poolPosition()
-                                if (at >= 0) {
+                                if (at >= 0 && !playerConnection.service.refuseQueueEditInRemoteMode()) {
                                     playerConnection.service.playNextAutomix(item, at)
                                     playerConnection.player.seekToNext()
                                     if (!isCasting) {
