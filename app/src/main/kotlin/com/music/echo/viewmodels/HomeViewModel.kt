@@ -1026,7 +1026,7 @@ class HomeViewModel @Inject constructor(
                 shownThisVisit = emptySet(),
                 today = LocalDate.now(),
             )
-        }.getOrDefault(emptyList())
+        }.getOrNull() ?: return // A failed read keeps the shelf as it was.
         val albums = releases
             .sortedByDescending { it.releaseDate }
             .distinctBy { it.playId.ifBlank { it.id } }
@@ -1042,8 +1042,9 @@ class HomeViewModel @Inject constructor(
                 )
             }
             .take(20)
-        // Same empty-guard as every other shelf: a transient empty read must not wipe a populated shelf.
-        if (albums.isNotEmpty() || newFromArtists.value == null) newFromArtists.value = albums
+        // Row 674: with the cumulative radar an empty list is the goal (everything seen and played), not a transient
+        // failure — a successful read that leaves nothing hides the shelf. Only the failed read above keeps it.
+        newFromArtists.value = albums
     }
 
     

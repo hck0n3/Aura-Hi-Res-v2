@@ -26,7 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -133,11 +133,12 @@ fun ReleaseRadarScreen(
                 items = releases,
                 key = { it.id },
             ) { item ->
-                LaunchedEffect(item.playId) { viewModel.markReleaseShown(item.playId) }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
+                        // Row 675: seen when the row is really on screen, not when the list precomposes it.
+                        .onVisibilityChanged { if (it) viewModel.markReleaseShown(item.playId) }
                         .clickable {
                             // Open EXACTLY this release by its OWN playId (the AlbumItem/browseId this row
                             // was built from) so the destination matches the cover shown on the row. Legacy

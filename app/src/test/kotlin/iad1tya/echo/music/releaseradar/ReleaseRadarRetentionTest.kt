@@ -100,11 +100,23 @@ class ReleaseRadarRetentionTest {
         // The only clearReleases left is the one-time replacement of the old weekly table.
         assertEquals(1, Regex("""clearReleases\(\)""").findAll(doWork).count())
         assertTrue(doWork.contains("if (!prefs.getBoolean(CUMULATIVE_MIGRATED_KEY, false))"))
-        assertTrue(doWork.contains("} else if (items.isNotEmpty()) {\n                database.insertNewReleasesIgnore(items)"))
+        assertTrue(doWork.contains("val toInsert = ReleaseRadarRetention.withoutDuplicateAlbums(known.values, items)"))
+        assertTrue(doWork.contains("if (toInsert.isNotEmpty()) insertNewReleasesIgnore(toInsert)"))
         assertTrue(doWork.contains("database.pruneExpiredReleases("))
         assertTrue(worker.contains("private const val WINDOW_DAYS = ReleaseRadarRetention.MAX_AGE_DAYS"))
+        // Review: the one-time replacement and the fallback-row upgrade run inside ONE transaction (no empty flash).
+        val tx = doWork.substringAfter("database.withTransaction {").substringBefore("if (migratedNow)")
+        assertTrue(tx.contains("clearReleases()") && tx.contains("deleteReleasesByIds(upgrade.deleteIds)") && tx.contains("upsertReleases(upgrade.upserts)"))
+        // Review: a transient token failure does not run the YouTube fallback over a table with Spotify rows.
+        assertTrue(doWork.contains("} else if (spotifySessionStored() && known.values.any { it.source != ReleaseRadarRetention.SOURCE_YT }) {"))
+        assertTrue(doWork.contains("val upgrade = ReleaseRadarRetention.upgradeYtRows(known.values, items)"))
         // Battery (rule 7): a release already stored is not searched on YouTube again; the 6 h gate stays (row 32).
-        assertTrue(worker.contains("known[ReleaseRadarMatching.dedupeKey(hit.artistName, hit.album.name)]"))
+        assertTrue(worker.contains("val key = ReleaseRadarMatching.dedupeKey(hit.artistName, hit.album.name)\n                    val stored = known[key]"))
+        // Review: only the newest per artist inside the cap is searched; an older one only once, and only once YouTube answered.
+        assertTrue(worker.contains("val allHits = ReleaseRadarMatching.newestPerArtistRanked("))
+        assertTrue(worker.contains("if (!ReleaseRadarRetention.needsLookup(hit.date, today, key in lookups)) return@async null"))
+        assertTrue(worker.contains("matchSpotifyToYoutubeAlbum(hit.album.name, hit.artistName) { lookups[key] = today.toEpochDay() }"))
+        assertTrue(worker.contains("YouTube.search(query, YouTube.SearchFilter.FILTER_ALBUM).getOrNull() ?: return null\n        onAnswered()"))
         assertTrue(worker.contains("const val AUTO_REFRESH_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000L"))
         // Row 653: the type still comes from Spotify, also for a release reused from the table.
         assertEquals(2, Regex("""ReleaseRadarMatching\.releaseType\(hit\.album\.albumType, hit\.album\.totalTracks, hit\.album\.name\)""").findAll(worker).count())
@@ -120,13 +132,16 @@ class ReleaseRadarRetentionTest {
             assertTrue(s.contains("ReleaseRadarFeed(context, database, viewModelScope)"))
         }
         val screen = kt("ui/newui/AuraNovedadesScreen.kt")
-        assertTrue(screen.contains("LaunchedEffect(hero.id) { markShown(hero.id) }"))
-        assertTrue(screen.contains("LaunchedEffect(heroRest[index].id) { markShown(heroRest[index].id) }"))
-        assertTrue(screen.contains("LaunchedEffect(shown.radarAlbums[index].id) { markShown(shown.radarAlbums[index].id) }"))
-        assertTrue(screen.contains("LaunchedEffect(album.id) { onShown(album.id) }"))
+        // Review: seen when the card is really on screen (a lazy list precomposes the next card ahead of time).
+        assertTrue(screen.contains("SeenWhenVisible(hero.id, markShown) {"))
+        assertTrue(screen.contains("SeenWhenVisible(heroRest[index].id, markShown) {"))
+        assertTrue(screen.contains("SeenWhenVisible(shown.radarAlbums[index].id, markShown) {"))
+        assertTrue(screen.contains(".onVisibilityChanged(minFractionVisible = SEEN_MIN_FRACTION_VISIBLE) { if (it) onShown(album.id) }"))
+        assertTrue(screen.contains("Box(Modifier.onVisibilityChanged(minFractionVisible = SEEN_MIN_FRACTION_VISIBLE) { if (it) onShown(id) }) {"))
+        assertFalse("vuelve a marcar al componer", Regex("""LaunchedEffect\([^)]*\)\s*\{\s*(markShown|onShown)""").containsMatchIn(screen))
         assertTrue(screen.contains("DisposableEffect(Unit) { onDispose { viewModel.endRadarVisit() } }"))
         val classic = kt("ui/screens/library/ReleaseRadarScreen.kt")
-        assertTrue(classic.contains("LaunchedEffect(item.playId) { viewModel.markReleaseShown(item.playId) }"))
+        assertTrue(classic.contains(".onVisibilityChanged { if (it) viewModel.markReleaseShown(item.playId) }"))
         assertTrue(classic.contains("DisposableEffect(Unit) { onDispose { viewModel.endRadarVisit() } }"))
         // Row 571: the user's pull still runs the radar worker; entry stays behind the 6 h gate.
         val vm = kt("viewmodels/NovedadesViewModel.kt")
@@ -143,6 +158,75 @@ class ReleaseRadarRetentionTest {
         val home = kt("viewmodels/HomeViewModel.kt").substringAfter("private suspend fun getNewFromArtists()").substringBefore("newFromArtists.value = albums")
         assertTrue(home.contains("ReleaseRadarRetention.visible("))
         assertTrue(home.contains("database.retiredReleaseIds().first()"))
+        // Review: an empty radar is the goal state — Home's shelf empties; only a failed read keeps it.
+        assertTrue(home.contains("}.getOrNull() ?: return"))
+        val homeAll = kt("viewmodels/HomeViewModel.kt").substringAfter("private suspend fun getNewFromArtists()").substringBefore("private suspend fun loadSimilarRecommendations()")
+        assertFalse(homeAll.contains("albums.isNotEmpty() || newFromArtists.value == null"))
+    }
+
+    // ---- review of row 674: bounded lookups and Spotify rows replacing fallback rows ----------------
+
+    @Test
+    fun `a new release is searched every pass only while it is young, an older one once`() {
+        assertEquals(7L, ReleaseRadarRetention.LOOKUP_RETRY_DAYS)
+        assertTrue(ReleaseRadarRetention.needsLookup(today.minusDays(30), today, alreadyLookedUp = false))
+        assertFalse(ReleaseRadarRetention.needsLookup(today.minusDays(30), today, alreadyLookedUp = true))
+        assertTrue(ReleaseRadarRetention.needsLookup(today.minusDays(7), today, alreadyLookedUp = true))
+        assertFalse(ReleaseRadarRetention.needsLookup(today.minusDays(8), today, alreadyLookedUp = true))
+    }
+
+    @Test
+    fun `stored lookups round-trip and drop what is older than the window`() {
+        val day = today.toEpochDay()
+        val stored = ReleaseRadarRetention.writeLookups(mapOf("adele|hello" to day, "old|x" to day - 61, "edge|y" to day - 60))
+        val read = ReleaseRadarRetention.readLookups(stored + "garbage", today)
+        assertEquals(mapOf("adele|hello" to day, "edge|y" to day - 60), read)
+    }
+
+    @Test
+    fun `only the newest release per artist inside the cap is worth a search`() {
+        data class H(val artist: String, val date: LocalDate, val followed: Boolean)
+        val hits = listOf(
+            H("A", today.minusDays(1), true), H("a", today.minusDays(20), true),
+            H("B", today.minusDays(3), false), H("C", today.minusDays(5), true),
+        )
+        val picked = ReleaseRadarMatching.newestPerArtistRanked(hits, { it.artist }, { it.date }, { it.followed }, cap = 2)
+        assertEquals(listOf(H("A", today.minusDays(1), true), H("C", today.minusDays(5), true)), picked)
+    }
+
+    @Test
+    fun `a Spotify row replaces the fallback row of the same release and keeps seen`() {
+        val jan1 = LocalDate.of(today.year, 1, 1)
+        val ytSame = row("k1", released = jan1, source = "yt", fetched = today.minusDays(10)).copy(seen = true, type = "Release")
+        val ytOtherSpelling = row("k2-yt", released = jan1, source = "yt", playId = "MPREb_k2")
+        val ytUnrelated = row("k3", released = jan1, source = "yt")
+        val known = listOf(ytSame, ytOtherSpelling, ytUnrelated)
+        val items = listOf(
+            row("k1", released = today.minusDays(2)).copy(type = "single"),
+            row("k2", released = today.minusDays(4), playId = "MPREb_k2"),
+        )
+        val up = ReleaseRadarRetention.upgradeYtRows(known, items)
+        assertEquals(listOf("k2-yt"), up.deleteIds)
+        val k1 = up.upserts.single { it.id == "k1" }
+        assertEquals("spotify", k1.source)
+        assertEquals("single", k1.type)
+        assertEquals(today.minusDays(2).atStartOfDay(), k1.releaseDate)
+        assertTrue("conserva visto", k1.seen)
+        assertEquals(ytSame.fetchedAt, k1.fetchedAt)
+        assertEquals("MPREb_k2", up.upserts.single { it.id == "k2" }.playId)
+        // No fallback rows → nothing to do.
+        assertTrue(ReleaseRadarRetention.upgradeYtRows(listOf(row("s")), items).upserts.isEmpty())
+    }
+
+    @Test
+    fun `a fallback row of an album already held under another id is not inserted`() {
+        val known = listOf(row("spotify-key", playId = "MPREb_x"))
+        val items = listOf(
+            row("yt-key", source = "yt", playId = "MPREb_x"),
+            row("yt-new", source = "yt", playId = "MPREb_y"),
+            row("spotify-key", source = "yt", playId = "MPREb_x"),
+        )
+        assertEquals(listOf("yt-new", "spotify-key"), ReleaseRadarRetention.withoutDuplicateAlbums(known, items).map { it.id })
     }
 
     @Test

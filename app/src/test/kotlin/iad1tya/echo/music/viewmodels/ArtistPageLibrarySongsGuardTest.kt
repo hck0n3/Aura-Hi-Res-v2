@@ -63,4 +63,19 @@ class ArtistPageLibrarySongsGuardTest {
         // Row 140/146: the section is still placed after albums and videos.
         assertTrue(screen.contains("artistLibraryInsertIndex(onlineArtistSections.map { it.title })"))
     }
+
+    @Test
+    fun `the section's full list is the same narrow list, every other way in keeps the wide one`() {
+        val screen = main("ui/newui/AuraArtistScreen.kt")
+        assertTrue(screen.contains("onClick = { navController.navigate(\"artist/\$artistId/songs?ownLibrary=true\") },"))
+        // The local / offline page's «Canciones» and the classic screen open the wide list.
+        assertTrue(screen.contains("navController.navigate(\"artist/\${viewModel.artistId}/songs\")"))
+        assertTrue(main("ui/screens/artist/ArtistScreen.kt").contains("navController.navigate(\"artist/\${viewModel.artistId}/songs\")"))
+        val nav = main("ui/screens/NavigationBuilder.kt")
+        assertTrue(nav.contains("route = \"artist/{artistId}/songs?ownLibrary={ownLibrary}\""))
+        assertTrue(nav.substringAfter("navArgument(\"ownLibrary\")").substringBefore("}").contains("defaultValue = false"))
+        val vm = main("viewmodels/LibraryViewModels.kt").substringAfter("class ArtistSongsViewModel").substringBefore("class LibraryMixViewModel")
+        assertTrue(vm.contains("private val ownLibrary = savedStateHandle.get<Boolean>(\"ownLibrary\") ?: false"))
+        assertTrue(vm.contains("(if (ownLibrary) database.artistPageLibrarySongs(artistId, name) else database.artistLibraryOrLikedSongs(artistId, name))"))
+    }
 }

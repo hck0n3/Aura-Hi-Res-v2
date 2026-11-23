@@ -1185,7 +1185,8 @@ private fun LazyListScope.auraArtistLibraryPreviewItems(
     item(key = "aura_artist_library_preview_label", contentType = "aura_artist_library_preview_label") {
         AuraSectionHeader(
             title = headerTitle,
-            onClick = { navController.navigate("artist/$artistId/songs") },
+            // Row 673: the full list behind this section is the same likes + own-playlists list.
+            onClick = { navController.navigate("artist/$artistId/songs?ownLibrary=true") },
             modifier = Modifier.animateItem(),
         )
     }

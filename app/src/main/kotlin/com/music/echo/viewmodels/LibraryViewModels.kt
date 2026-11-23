@@ -348,6 +348,10 @@ constructor(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val artistId = savedStateHandle.get<String>("artistId")!!
+
+    // Row 673: opened from the online artist page's «Tu biblioteca» → the same likes + own-playlists list; every other
+    // way in (local / offline artist page, classic screen) keeps the wide library list.
+    private val ownLibrary = savedStateHandle.get<Boolean>("ownLibrary") ?: false
     val artist =
         database
             .artist(artistId)
@@ -370,7 +374,7 @@ constructor(
                 val (sortDesc, hideExplicit, hideVideoSongs) = prefs
                 val (sortType, descending) = sortDesc
                 // Liked-only + same-name artist ids (YTM channel vs LA########).
-                database.artistLibraryOrLikedSongs(artistId, name).map { list ->
+                (if (ownLibrary) database.artistPageLibrarySongs(artistId, name) else database.artistLibraryOrLikedSongs(artistId, name)).map { list ->
                     val sorted = when (sortType) {
                         ArtistSongSortType.CREATE_DATE -> list
                         ArtistSongSortType.NAME -> list.sortedBy { it.song.title.lowercase() }

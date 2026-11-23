@@ -257,10 +257,15 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable(
-        route = "artist/{artistId}/songs",
+        route = "artist/{artistId}/songs?ownLibrary={ownLibrary}",
         arguments = listOf(
             navArgument("artistId") {
                 type = NavType.StringType
+            },
+            // Row 673: true = opened from the online artist page's «Tu biblioteca» (likes + own playlists only).
+            navArgument("ownLibrary") {
+                type = NavType.BoolType
+                defaultValue = false
             },
         ),
     ) {
