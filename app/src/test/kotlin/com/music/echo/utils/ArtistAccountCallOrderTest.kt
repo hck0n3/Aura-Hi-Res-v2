@@ -27,7 +27,7 @@ class ArtistAccountCallOrderTest {
         val queue = LatestIntentQueue<Tap>(
             scope = scope,
             effectOf = { it.subscribing },
-            send = { tap -> sent += tap.name; CompletableDeferred<Boolean>().also { answers.addLast(it) }.await() },
+            send = { tap, _ -> sent += tap.name; CompletableDeferred<Boolean>().also { answers.addLast(it) }.await() },
             settle = { tap -> settled += tap.name },
         )
 
@@ -102,13 +102,39 @@ class ArtistAccountCallOrderTest {
         val queue = LatestIntentQueue<Tap>(
             scope = this,
             effectOf = { it.subscribing },
-            send = { tap -> sent += tap.name; if (fail) error("network") else true },
+            send = { tap, _ -> sent += tap.name; if (fail) error("network") else true },
             settle = {},
         )
         queue.submit("UC1", Tap("a", true)); idle()
         fail = false
         queue.submit("UC1", Tap("b", false)); idle()
         assertEquals(listOf("a", "b"), sent)
+    }
+
+    @Test
+    fun `a sign-out during the channel lookup stops the write to the account`() = runBlocking {
+        val lookup = CompletableDeferred<Unit>()
+        val written = mutableListOf<String>()
+        val settled = mutableListOf<String>()
+        val queue = LatestIntentQueue<Tap>(
+            scope = this,
+            effectOf = { it.subscribing },
+            send = { tap, stillCurrent ->
+                lookup.await() // the getChannelId round trip
+                if (!stillCurrent()) {
+                    false
+                } else {
+                    written += tap.name
+                    true
+                }
+            },
+            settle = { settled += it.name },
+        )
+        queue.submit("UC1", Tap("a-follow", true)); idle()
+        queue.clear()
+        lookup.complete(Unit); idle()
+        assertTrue("A's intent went out after the account changed", written.isEmpty())
+        assertTrue(settled.isEmpty())
     }
 
     @Test
@@ -159,6 +185,11 @@ class ArtistAccountCallOrderTest {
         assertEquals("one door to the account", 1, Regex("""YouTube\.subscribeChannel\(""").findAll(entity).count())
         val send = entity.substringAfter("private suspend fun sendToAccount(").substringBefore("\n        }\n")
         assertTrue(send.contains("YouTube.subscribeChannel(targetChannelId, subscribing)"))
+        assertTrue(
+            "row 716: the account is re-checked after the channel lookup, before the write",
+            send.indexOf("if (!stillCurrent()) return false") in
+                send.indexOf("YouTube.getChannelId(call.artist.id)") until send.indexOf("YouTube.subscribeChannel("),
+        )
         val settle = entity.substringAfter("private suspend fun retireHonouredUnfollow(").substringBefore("\n        }\n")
         assertTrue("row 107 write-back kept", settle.contains("liveCallHonouredTheUnfollow(call.subscribing, confirmedByAccount = true)"))
         assertTrue(settle.contains("call.onLiveUnsubscribeConfirmed(call.artist.id, queuedAt)"))

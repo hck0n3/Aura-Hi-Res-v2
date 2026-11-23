@@ -215,10 +215,15 @@ data class ArtistEntity(
          */
         fun dropPendingAccountCalls() = accountCalls.clear()
 
-        /** The live call for one tap. True only when YouTube accepted it. */
-        private suspend fun sendToAccount(call: AccountCall): Boolean {
+        /**
+         * The live call for one tap. True only when YouTube accepted it. [stillCurrent] is false once the account
+         * was signed out or switched ([dropPendingAccountCalls]): asked again after the channel lookup, right
+         * before the account is written, so the intent never goes out with another account's cookie (row 716).
+         */
+        private suspend fun sendToAccount(call: AccountCall, stillCurrent: () -> Boolean): Boolean {
             val subscribing = call.subscribing
             val targetChannelId = call.artist.channelId ?: YouTube.getChannelId(call.artist.id)
+            if (!stillCurrent()) return false
             if (targetChannelId.isEmpty()) {
                 // The channel could not be resolved (typically offline): the unfollow is still queued on the
                 // row, but nothing would carry it out soon. Arm the network-constrained retry.

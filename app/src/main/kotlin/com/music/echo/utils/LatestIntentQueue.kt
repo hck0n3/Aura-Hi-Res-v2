@@ -19,13 +19,15 @@ import kotlinx.coroutines.launch
  * A failed call settles nothing, so whatever marker the caller keeps for a retry stays in place.
  *
  * @param effectOf what an intent does to the account (for a follow: subscribe or not).
- * @param send makes the call; true only when the account confirmed it.
+ * @param send makes the call; true only when the account confirmed it. Its second argument says whether the
+ *   intent still belongs to the current account (false after a [clear]): it is asked again right before the
+ *   account is written, after any lookup the call needed first (row 716).
  * @param settle runs for an intent the account is confirmed to hold.
  */
 class LatestIntentQueue<T>(
     private val scope: CoroutineScope,
     private val effectOf: (T) -> Any,
-    private val send: suspend (T) -> Boolean,
+    private val send: suspend (T, stillCurrent: () -> Boolean) -> Boolean,
     private val settle: suspend (T) -> Unit,
 ) {
     private val lock = Any()
@@ -81,7 +83,8 @@ class LatestIntentQueue<T>(
                 val (batch, taken) = takeOrFinish(key) ?: return
                 val effect = effectOf(batch.last())
                 val alreadyHeld = effect == confirmedEffect && confirmedIn == taken
-                val confirmed = alreadyHeld || (isCurrent(taken) && guarded { send(batch.last()) } == true)
+                val confirmed = alreadyHeld ||
+                    (isCurrent(taken) && guarded { send(batch.last()) { isCurrent(taken) } } == true)
                 if (confirmed) {
                     confirmedEffect = effect
                     confirmedIn = taken
