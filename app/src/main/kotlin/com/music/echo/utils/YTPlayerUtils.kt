@@ -1469,7 +1469,7 @@ object YTPlayerUtils {
         Timber.tag(logTag).d("Fetching metadata-only player response for videoId: $videoId using MAIN_CLIENT: ${MAIN_CLIENT.clientName}")
         return YouTube.player(videoId, playlistId, client = WEB_REMIX) 
             .onSuccess { Timber.tag(logTag).d("Successfully fetched metadata") }
-            .onFailure { Timber.tag(logTag).e(it, "Failed to fetch metadata") }
+            .onFailure { Timber.tag(logTag).e("Failed to fetch metadata for videoId=$videoId: ${resolveFailureSummary(it)}") }
     }
 
     /**

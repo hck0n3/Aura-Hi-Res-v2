@@ -51,6 +51,8 @@ class ResolveFailureSummaryTest {
         val source = f.readText()
         assertTrue(source.contains("\"client=\$clientName videoId=\$videoId \${resolveFailureSummary(error)}\""))
         assertTrue(source.contains("Proxy connection failed for host=\${uri?.host}: \${ioe?.let { resolveFailureSummary(it) }}"))
+        assertTrue(source.contains("Failed to fetch metadata for videoId=\$videoId: \${resolveFailureSummary(it)}"))
+        assertFalse(source.contains("e(it, \"Failed to fetch metadata\")"))
         assertFalse(source.contains("error.message?.take(180)"))
         assertFalse(source.contains("ioe?.message"))
     }
