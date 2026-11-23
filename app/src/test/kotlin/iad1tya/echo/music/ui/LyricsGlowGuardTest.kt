@@ -40,4 +40,11 @@ class LyricsGlowGuardTest {
         assertTrue(glowBranch.contains("LaunchedEffect(pulseRuns) {"))
         assertTrue(glowBranch.contains("if (!pulseRuns) {"))
     }
+
+    /** Row 769: the colour picker built a fresh ImageLoader (own caches and dispatchers) on every open. */
+    @Test
+    fun `the colour picker uses the app's shared image loader`() {
+        assertFalse(lyrics.contains("ImageLoader(context)"))
+        assertTrue(lyrics.contains("val loader = SingletonImageLoader.get(context)"))
+    }
 }
