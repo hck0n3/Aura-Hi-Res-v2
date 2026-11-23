@@ -89,6 +89,11 @@ fun LyricsMenu(
     mediaMetadataProvider: () -> MediaMetadata,
     onDismiss: () -> Unit,
     onShowOffsetDialog: () -> Unit = {},
+    /**
+     * Opens straight on the «Buscar letra» dialog (the «Letras no encontradas» empty state's next step, P22A).
+     * Cancelling that dialog then closes the whole menu: the user asked for the search, not for the menu.
+     */
+    startWithSearch: Boolean = false,
     viewModel: LyricsMenuViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -145,7 +150,7 @@ fun LyricsMenu(
     }
 
     var showSearchDialog by rememberSaveable {
-        mutableStateOf(false)
+        mutableStateOf(startWithSearch)
     }
     var showSearchResultDialog by rememberSaveable {
         mutableStateOf(false)
@@ -177,7 +182,10 @@ fun LyricsMenu(
     if (showSearchDialog) {
         DefaultDialog(
             modifier = Modifier.verticalScroll(rememberScrollState()),
-            onDismiss = { showSearchDialog = false },
+            onDismiss = {
+                showSearchDialog = false
+                if (startWithSearch) onDismiss()
+            },
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.search),
@@ -187,7 +195,10 @@ fun LyricsMenu(
             title = { Text(stringResource(R.string.search_lyrics)) },
             buttons = {
                 TextButton(
-                    onClick = { showSearchDialog = false },
+                    onClick = {
+                        showSearchDialog = false
+                        if (startWithSearch) onDismiss()
+                    },
                 ) {
                     Text(stringResource(android.R.string.cancel))
                 }

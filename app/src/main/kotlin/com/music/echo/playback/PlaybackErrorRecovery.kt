@@ -505,7 +505,7 @@ internal fun MusicService.handleFinalFailure() {
 // never silently pause forever or loop in a fake "no internet" state. Runs on the player callback
 // thread (main looper), so Toast is safe here.
 internal fun MusicService.handleUnresolvableSong(mediaId: String?, reason: String?) {
-    val base = "Canción no disponible"
+    val base = getString(R.string.song_unavailable_notice)
     val clean = reason?.trim()?.takeIf {
         it.isNotEmpty() &&
             it != getString(R.string.error_unknown) &&

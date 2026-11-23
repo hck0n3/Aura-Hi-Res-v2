@@ -1568,12 +1568,17 @@ fun AuraAlbumTrackRow(
 
 // ── Empty state ───────────────────────────────────────────────────────────────────────────────────
 
-/** The new UI's empty placeholder. Text only — the classic `EmptyPlaceholder` has no action either. */
+/**
+ * The new UI's empty placeholder. [actionLabel] + [onAction] (P22A, row 732) add ONE next step drawn as the same selected
+ * chip the Artistas tab uses for «Sincronizar»; callers pass only actions that already exist elsewhere in the app.
+ */
 @Composable
 fun AuraEmpty(
     text: String,
     modifier: Modifier = Modifier,
     secondary: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1598,6 +1603,14 @@ fun AuraEmpty(
                 textAlign = TextAlign.Center,
                 maxLines = 3,
                 overflow = AuraDefaultOverflow,
+            )
+        }
+        if (actionLabel != null && onAction != null) {
+            AuraChip(
+                text = actionLabel,
+                selected = true,
+                onClick = onAction,
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
     }

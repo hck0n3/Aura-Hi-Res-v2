@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Empty states' next step (AuraEmpty actionLabel, P22A): each one runs an action that already exists. -->
+    <string name="empty_action_search_music">Search for music</string>
+    <string name="empty_action_show_all_results">Show all results</string>
+</resources>

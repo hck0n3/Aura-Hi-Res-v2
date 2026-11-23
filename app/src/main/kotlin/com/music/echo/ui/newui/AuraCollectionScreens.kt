@@ -181,6 +181,9 @@ internal fun AuraSongCollectionScaffold(
     extraItems: (LazyListScope.(isSearching: Boolean) -> Unit)? = null,
     /** Overrides the default "playlist is empty" copy (e.g. Exported videos CTA). */
     emptyText: String? = null,
+    /** P22A: the empty state's ONE next step — an action that already exists elsewhere (see [AuraEmpty]). */
+    emptyActionLabel: String? = null,
+    onEmptyAction: (() -> Unit)? = null,
     /** Use [R.plurals.n_video] in the header count (exported videos). */
     useVideoCount: Boolean = false,
     /** 16:9 header cover + full-width [AuraPosterCard] rows (exported videos). */
@@ -316,6 +319,8 @@ internal fun AuraSongCollectionScaffold(
                     AuraEmpty(
                         text = emptyText ?: stringResource(R.string.playlist_is_empty),
                         modifier = Modifier.animateItem(),
+                        actionLabel = emptyActionLabel,
+                        onAction = onEmptyAction,
                     )
                 }
             }

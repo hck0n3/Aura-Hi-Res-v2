@@ -8849,7 +8849,7 @@ class MusicService :
             }
             logErrorBranch("video_to_audio", mediaId, error)
             exitVideoMode()
-            Toast.makeText(this, "Video no disponible — volviendo a audio", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.video_unavailable_back_to_audio), Toast.LENGTH_SHORT).show()
             return
         }
 

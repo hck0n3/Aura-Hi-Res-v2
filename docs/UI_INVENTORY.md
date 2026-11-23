@@ -495,6 +495,8 @@ La barra tiene **cuatro implementaciones distintas** según el ajuste de estilo.
 | Indicador de carga de vídeo | Reproductor > sobre la portada | `app/.../ui/player/Thumbnail.kt:437` | informativo | ocasional | `videoMode` ON y todavía sin URL |
 | Portada giratoria (forma trébol) | Reproductor > portada | `app/.../ui/player/Thumbnail.kt:774-780` | informativo | rara | `RotatingThumbnail` ON (limitado por rendimiento) |
 | **«Reproducción fallida»** + mensaje + código + **«Reintentar»** | Reproductor > sobre la portada | `app/.../ui/player/Thumbnail.kt:457` → `ui/player/PlaybackError.kt:121` | acción primaria | rara | solo si `playerConnection.error != null` |
+| Mensaje en lenguaje llano según la clase de fallo (P22A, fila 732): «Sin conexión…», «El modo sin conexión está activado…», «La conexión falló…», edad (cuenta / sin cuenta), «Tu sesión de YouTube caducó…», «YouTube no ofrece esta canción en tu país o para tu cuenta…» (+ el motivo de YouTube debajo), «YouTube rechazó esta canción…», «Aura no pudo cargar esta canción» (+ motivo), «No se pudo reproducir esta canción…» | Reproductor > tarjeta de error | `ui/player/PlaybackErrorAdvice.kt` (`kindOf`) → `ui/player/PlaybackError.kt` (`playbackErrorMessageRes`) | informativo | rara | según `PlaybackErrorClassifier`; la línea «Code: …» y el `ERR_BR` del registro no cambian |
+| **«Ver música sin conexión»** (abre Descargadas) / **«Iniciar sesión»** (abre Ajustes ▸ Cuentas) + «Reintentar» debajo como botón secundario | Reproductor > tarjeta de error | `ui/player/PlaybackError.kt` (botón principal + `TextButton`) ← `Thumbnail.kt` `onPlaybackErrorNavigate` ← `ui/newui/AuraPlayer.kt` (`navigateOnce` + `collapseAfterNavigate`) | navegación | rara | «Ver música sin conexión»: sin internet o modo sin conexión; «Iniciar sesión»: sesión rechazada o edad sin cuenta. En los demás casos el botón principal sigue siendo «Reintentar» |
 | Overlay **«−N segundos hacia atrás» / «+N segundos hacia adelante»** | Reproductor > centro de la portada | `app/.../ui/player/Thumbnail.kt:580` (impl. `:1036`) | informativo | ocasional | 1 s tras un doble toque lateral |
 
 ## 2.7 Reproductor > vídeo inmersivo (retrato)
@@ -853,7 +855,7 @@ Se abre con el botón `more_horiz` del reproductor **solo cuando las letras est�
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Buscar letra *(título)* | Letras > menú ⋯ > Buscar | `ui/menu/LyricsMenu.kt:177` | informativo | ocasional | siempre en el diálogo |
+| Buscar letra *(título)* | Letras > menú ⋯ > Buscar (y, desde P22A, el botón «Buscar letra» de «Letras no encontradas») | `ui/menu/LyricsMenu.kt:177` | informativo | ocasional | siempre en el diálogo |
 | Cancelar | Letras > menú ⋯ > Buscar | `ui/menu/LyricsMenu.kt:182` | navegación | ocasional | igual |
 | **Buscar en línea** *(abre el navegador con `ACTION_WEB_SEARCH`)* | Letras > menú ⋯ > Buscar | `ui/menu/LyricsMenu.kt:204` | navegación externa | rara | igual |
 | Aceptar | Letras > menú ⋯ > Buscar | `ui/menu/LyricsMenu.kt:228` | acción primaria | ocasional | igual; toast «No hay conexión a internet» si no hay red |
@@ -879,6 +881,7 @@ Alcanzable desde el Reproductor, desde Cola > pestaña LETRA y desde el Modo Amb
 | *(mensaje de error de traducción)* | Letras > banner | `ui/component/Lyrics.kt:954` | informativo | rara | si falla |
 | Letras traducidas | Letras > banner | `ui/component/Lyrics.kt:981` | informativo | ocasional | si tuvo éxito |
 | Letras no encontradas | Letras > cuerpo | `ui/component/Lyrics.kt:1000` | informativo | ocasional | si no hay letra |
+| Letras no encontradas + **«Buscar letra»** (P22A, fila 732) — abre el menú de la letra directamente en su diálogo «Buscar letra»; cancelar ese diálogo cierra también el menú | Letras > cuerpo (Reproductor, pantalla de Letra, Cola > Letra, Modo Ambiente) | `ui/player/InlineLyricsView.kt` (rama `LYRICS_NOT_FOUND`) → `ui/menu/LyricsMenu.kt` (`startWithSearch`) | acción primaria | ocasional | si no hay letra y hay canción sonando |
 | **«Lyrics from <proveedor>»** *(hardcoded, en inglés)* | Letras > primera fila | `ui/component/Lyrics.kt:1061` | informativo | constante | si hay proveedor y no estás en selección |
 | **«¿Traducir la letra?»** *(hardcoded)* | Letras > diálogo | `ui/component/Lyrics.kt:650-651` | informativo | rara | solo si `AskTranslateLyricsOnOpen` (por defecto OFF), la letra parece inglés, el idioma destino no es inglés y no se ha respondido antes esta sesión |
 | **Traducir** *(hardcoded)* | Letras > diálogo | `ui/component/Lyrics.kt:657` | acción primaria | rara | igual |
@@ -2329,6 +2332,19 @@ Comportamiento visible que el rediseño debe preservar:
 |---|---|---|---|---|---|
 | (icono + texto de estado vacío; SIN ningún botón) | Estados vacíos de 8 pantallas | app/src/main/kotlin/com/music/echo/ui/component/EmptyPlaceholder.kt:22-49 | informativo | rara | según pantalla |
 
+### 17.5.4b `AuraEmpty` (interfaz nueva) — siguiente paso de los estados vacíos (P22A, fila 732)
+
+`AuraEmpty` (`ui/newui/AuraContent.kt`) acepta `actionLabel` + `onAction`: una ficha seleccionada (la misma que «Sincronizar» de Artistas) que solo ejecuta acciones que ya existían. Los textos de los vacíos no cambian.
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| **«Buscar música»** (= la pestaña «Buscar» de la barra, `navigateToTab`) | Biblioteca > Álbumes > vacío | `ui/newui/AuraLibraryTabs.kt` (`aura_albums_empty`) | navegación | rara | solo si `albums.isEmpty()` |
+| **«Crear lista de reproducción»** (= el `CreatePlaylistDialog` del menú «+») | Biblioteca > Listas > vacío | `ui/newui/AuraLibraryTabs.kt` (`aura_playlists_empty`, `onCreatePlaylist`) ← `ui/newui/AuraLibraryScreen.kt` | acción primaria | rara | solo sin listas y sin texto en la búsqueda (buscando sin resultados: solo el texto, como antes) |
+| **«Ver todos los resultados»** (= la ficha «Todo») | Búsqueda > resultados con filtro > vacío (lista y cuadrícula) | `ui/newui/AuraSearchResultScreen.kt` (`aura_results_empty_filtered` ×2) | acción primaria | ocasional | solo con un filtro activo sin resultados; sin filtro sigue siendo solo «No se han encontrado resultados» |
+| **«Buscar música»** (= la pestaña «Buscar», `navigateToTab`) | Descargadas / Me gusta > vacío | `ui/newui/AuraDownloadsScreen.kt` (`emptyActionLabel`) → `ui/newui/AuraCollectionScreens.kt` (`aura_coll_empty`) | navegación | rara | solo en Descargadas y Me gusta (Exportadas, Vídeos exportados, Mi top y En caché, sin botón) |
+| «Letras no encontradas» + **«Buscar letra»** | ver §7.2 | `ui/player/InlineLyricsView.kt` | acción primaria | ocasional | ver §7.2 |
+| Novedades «Estás al día» | sin cambio (fila 674) | `ui/newui/AuraNovedadesScreen.kt` | informativo | ocasional | ya decía el siguiente paso |
+
 ### 17.5.5 `DraggableScrollBarOverlay.kt`
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
@@ -3487,7 +3503,7 @@ Ser **invitado** de una sala degrada el reproductor entero. Un mockup nunca ense
 | **La canción es explícita** | Insignia «E» |
 | **La canción es FLAC / AAC ≥320** | Insignias «LOSSLESS» / «320KBPS» |
 | **Ya sonó en esta ronda del Aleatorio Mejorado** | Check «Ya reproducida en aleatorio» + fila atenuada al 50 % |
-| **Hay error de reproducción** | Superposición «Reproducción fallida» + «Reintentar» sobre la portada, y aviso en el mini reproductor |
+| **Hay error de reproducción** | Superposición «Reproducción fallida» + mensaje llano + «Reintentar» sobre la portada (con «Ver música sin conexión» o «Iniciar sesión» como botón principal cuando esa es la salida, P22A), y aviso en el mini reproductor |
 | **Está sonando un fundido cruzado** | Chip parpadeante «Fundido cruzado» |
 
 ## 20.5 Por contexto de origen (el mismo menú cambia según de dónde se abra)
@@ -3899,7 +3915,7 @@ Kotlin, que no pasa por el sistema de traducción.
 | Dónde | Texto |
 |---|---|
 | Pantalla de actualizaciones ENTERA | `app/src/main/res/values/updater_strings.xml` (77 cadenas) **no tiene versión en español**: «Check for update», «Later», «Update», «Install», «Current version», «Released on», «Size», «Can't check for updates», «Download Failed» |
-| Reproductor | «Cast» / «Stop casting» (`gms/.../CastButton.kt:138`, `:206`), «Casting» (`MiniPlayer.kt:429`), «Hosting Listen Together» / «Listening Together» (`Thumbnail.kt:610`), mensajes de error de edad y de servidor (`PlaybackError.kt:61`, `:63`) |
+| Reproductor | «Cast» / «Stop casting» (`gms/.../CastButton.kt:138`, `:206`), «Casting» (`MiniPlayer.kt:429`), «Hosting Listen Together» / «Listening Together» (`Thumbnail.kt:610`). ~~Mensajes de error de edad y de servidor (`PlaybackError.kt:61`, `:63`)~~ — resuelto en P22A (fila 732): la tarjeta de error lee sus textos de `playback_error_strings.xml` (es/en) |
 | Letras | «Lyrics from <proveedor>» (`Lyrics.kt:1061`) |
 | Información de la canción | «<etiqueta> copied» (`ShowMediaInfo.kt:363`) |
 | Desfase de la letra | «Reset», «Decrease», «Increase» (`ShowOffsetDialog.kt:180`, `:200`, `:225`) |
