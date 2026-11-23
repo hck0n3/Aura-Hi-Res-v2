@@ -70,4 +70,19 @@ class PrivacyPolicyAssetTest {
         assertFalse(es.contains("| **Escuchar juntos** |"))
         assertFalse(en.contains("| **Listen Together** |"))
     }
+
+    @Test
+    fun `the MP4 export description says personal use, as terms clause 7_3 does`() {
+        val res = File(root, "app/src/main/res")
+        val overrides = res.listFiles().orEmpty().filter { it.name == "values" || it.name.startsWith("values-") }
+            .flatMap { dir -> dir.listFiles().orEmpty().filter { it.extension == "xml" } }
+            .filter { it.readText().contains("name=\"export_as_video_desc\"") }
+        assertTrue(overrides.isNotEmpty())
+        for (f in overrides) {
+            val text = f.readText()
+            assertFalse("${f.parentFile.name}/${f.name}", text.contains("redes sociales") || text.contains("social networks"))
+        }
+        assertTrue(file("app/src/main/res/values-es/echo_strings.xml").readText().contains("<string name=\"export_as_video_desc\">MP4 para uso personal (hasta 1080p) — aparece en Vídeos exportados</string>"))
+        assertTrue(file("app/src/main/res/values/echo_strings.xml").readText().contains("<string name=\"export_as_video_desc\">MP4 for personal use (up to 1080p) — appears under Exported videos</string>"))
+    }
 }
