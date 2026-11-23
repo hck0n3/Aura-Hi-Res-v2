@@ -103,7 +103,7 @@ fun UptimeScreen(
         }
     }
 
-    // ONE flag read for the whole screen, mirroring AboutScreen/QobuzSettingsScreen: this is a
+    // ONE flag read for the whole screen, mirroring AboutScreen: this is a
     // hand-rolled-card screen (no Material3SettingsGroup / Items.kt row to inherit the skin from),
     // so it goes through the AuraPanel seam directly. See ui/newui/AuraPanel.kt.
     val skin = rememberAuraPanelSkin()

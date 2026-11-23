@@ -77,7 +77,7 @@ fun LogsScreen(
         }
     }
 
-    // ONE flag read for the whole screen — same seam as AboutScreen/QobuzSettingsScreen (hand-rolled
+    // ONE flag read for the whole screen — same seam as AboutScreen (hand-rolled
     // Cards, no Material3SettingsGroup/Items.kt row to inherit the skin from automatically).
     val skin = rememberAuraPanelSkin()
     val ground = if (skin.enabled && skin.darkGround) AuraPalette.Ground else MaterialTheme.colorScheme.surface
