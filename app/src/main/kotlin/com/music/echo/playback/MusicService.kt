@@ -707,6 +707,13 @@ class MusicService :
     internal var mirrorUnprepared = false
 
     /**
+     * Review P5: inside a Listen Together room the local player belongs to the room (row 617) and remote mode stands down at the
+     * engine's next evaluation; until then the remote-mode guards must not block the room's own play (a guest's first sync).
+     */
+    private val inListenRoom: Boolean
+        get() = ::listenTogetherManager.isInitialized && listenTogetherManager.isInRoom
+
+    /**
      * Review C4: right now the player only SHOWS another device's playback — an unprepared mirror, remote mode on, and no take-over
      * or order to play here in flight. Its song changes are the other device's: nothing may be preloaded or recorded for them.
      */
@@ -7386,7 +7393,7 @@ class MusicService :
         if (playbackState != Player.STATE_IDLE) mirrorUnprepared = false
         // Review C1: the play-when-ready guard in onPlayWhenReadyChanged never sees a player that was ENDED (or IDLE) with
         // play-when-ready still true and is moved by a seek or a radio append: it starts to sound with no transition. Caught here.
-        if (!remoteRedirectBypass &&
+        if (!remoteRedirectBypass && !inListenRoom &&
             iad1tya.echo.music.devicesync.RemotePlayback.blocksSoundingNow(player.playWhenReady, playbackState)
         ) {
             Timber.tag(TAG).i("START_CAUSE=blocked_remote_mode_state state=%d", playbackState)
@@ -7500,7 +7507,7 @@ class MusicService :
         }
         // While another of the user's devices is controlled from here, this player only holds its mirror: like the cast guard
         // above, nothing may start it locally unless the device-sync engine granted it (take-over, an order from that device).
-        if (playWhenReady && !remoteRedirectBypass && iad1tya.echo.music.devicesync.RemotePlayback.blocksLocalStartNow()) {
+        if (playWhenReady && !remoteRedirectBypass && !inListenRoom && iad1tya.echo.music.devicesync.RemotePlayback.blocksLocalStartNow()) {
             Timber.tag(TAG).i("START_CAUSE=blocked_remote_mode reason=%d", reason)
             player.pause()
             return
