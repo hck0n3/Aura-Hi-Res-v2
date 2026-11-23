@@ -7,12 +7,16 @@
 
 package iad1tya.echo.music.localmedia
 
+import android.Manifest
 import android.content.ContentUris
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import iad1tya.echo.music.R
@@ -124,6 +128,25 @@ data class LocalSongScanSummary(
     val removedSongs: Int,
 )
 
+/**
+ * A scan that could not be trusted to say what is on the device. Thrown BEFORE anything is deleted, so the library keeps
+ * every local song together with its likes, playlist entries and history (a deleted song row takes them with it by
+ * cascade). [keptSongs] > 0: the scan ran but found no audio at all while the library lists that many local songs.
+ */
+class LocalScanFailedException(
+    message: String,
+    val keptSongs: Int = 0,
+    cause: Throwable? = null,
+) : IllegalStateException(message, cause)
+
+/**
+ * Row 694: a scan that finds NO audio while the library still lists local audio does not delete it. A volume that is not
+ * readable right now, or a folder filter that matches nothing, looks exactly like "every file is gone"; any scan that
+ * finds at least one audio file removes the missing ones as before.
+ */
+internal fun refusesEmptyScan(scannedAudio: Int, libraryLocalAudio: Int): Boolean =
+    scannedAudio == 0 && libraryLocalAudio > 0
+
 class LocalSongScanner
 @Inject
 constructor(
@@ -131,7 +154,17 @@ constructor(
     private val database: MusicDatabase,
 ) {
     suspend fun scanDevice(scanConfig: LocalSongScanConfig = LocalSongScanConfig()): LocalSongScanSummary = withContext(Dispatchers.IO) {
-        val snapshot = queryTracks(scanConfig)
+        // Row 694: no permission, a null cursor or a failing query is a FAILED scan, never "zero tracks".
+        if (!hasAudioReadPermission()) throw LocalScanFailedException("audio read permission not granted")
+        val snapshot = try {
+            queryTracks(scanConfig)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: LocalScanFailedException) {
+            throw e
+        } catch (e: Exception) {
+            throw LocalScanFailedException("MediaStore query failed", cause = e)
+        }
         var summary = LocalSongScanSummary(0, 0)
         database.withTransaction {
             val existingLocalIds = localSongIds()
@@ -139,11 +172,12 @@ constructor(
             val scannedIdSet = scannedIds.toSet()
             val removedIds = existingLocalIds.filterNot(scannedIdSet::contains)
 
-            if (scannedIds.isEmpty()) {
-                clearLocalSongs()
-            } else {
-                removedIds.chunked(SqlBatchSize).forEach(::deleteSongsByIds)
+            val videoIdPrefix = "${MediaStore.Video.Media.EXTERNAL_CONTENT_URI}/"
+            val libraryLocalAudio = existingLocalIds.count { !it.startsWith(videoIdPrefix) }
+            if (refusesEmptyScan(snapshot.tracks.count { !it.isVideo }, libraryLocalAudio)) {
+                throw LocalScanFailedException("scan found no audio", keptSongs = libraryLocalAudio)
             }
+            removedIds.chunked(SqlBatchSize).forEach(::deleteSongsByIds)
 
             val existingSongs = loadSongs(scannedIds)
             val existingArtists = loadArtists(snapshot.artists.map(LocalArtistRecord::id))
@@ -318,6 +352,16 @@ constructor(
         return@withContext summary
     }
 
+    /** The same permission LocalSongScreen asks for. Without it MediaStore answers with only this app's own files. */
+    private fun hasAudioReadPermission(): Boolean = ContextCompat.checkSelfPermission(
+        context,
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        },
+    ) == PackageManager.PERMISSION_GRANTED
+
         private suspend fun loadSongs(ids: List<String>): Map<String, Song> =
         ids.chunked(SqlBatchSize)
             .flatMap { chunk -> database.getSongsByIds(chunk) }
@@ -378,13 +422,13 @@ constructor(
         val unknownArtist = context.getString(R.string.unknown_artist)
         val unknownTitle = context.getString(R.string.unknown)
         val tracks = mutableListOf<LocalTrackRecord>()
-        context.contentResolver.query(
+        (context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
             selection,
             null,
             "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC, ${MediaStore.Audio.Media._ID} ASC",
-        )?.use { cursor ->
+        ) ?: throw LocalScanFailedException("MediaStore returned no audio cursor")).use { cursor ->
             val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val displayNameIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
@@ -500,13 +544,13 @@ constructor(
             }
         }.toTypedArray()
 
-        context.contentResolver.query(
+        (context.contentResolver.query(
             MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
             videoProjection,
             selection,
             null,
             "${MediaStore.Video.Media.TITLE} COLLATE NOCASE ASC, ${MediaStore.Video.Media._ID} ASC",
-        )?.use { cursor ->
+        ) ?: throw LocalScanFailedException("MediaStore returned no video cursor")).use { cursor ->
             val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
             val titleIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.TITLE)
             val displayNameIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)

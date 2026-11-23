@@ -1018,6 +1018,8 @@
     <string name="local_songs_permission_body">Permite el acceso al almacenamiento para escanear los archivos de audio de este dispositivo.</string>
     <string name="local_songs_scan_summary">Último escaneo: %1$d canciones encontradas, %2$d eliminadas</string>
     <string name="local_songs_ready_desc">Reproduce canciones locales de este dispositivo.</string>
+    <string name="local_songs_scan_nothing_removed">No se ha quitado nada de tu biblioteca.</string>
+    <string name="local_songs_scan_empty_kept">No se encontró ninguna canción en este dispositivo, así que se conservan tus %1$d canciones locales. Revisa el permiso de almacenamiento y las carpetas elegidas.</string>
     <string name="scan_device">Escanear dispositivo</string>
     <string name="local_songs_scan_title">Escanear canciones locales</string>
     <string name="local_songs_scan_subtitle">Actualiza las canciones de este dispositivo y los metadatos de la biblioteca local.</string>

@@ -21,6 +21,8 @@ import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.filterExplicit
 import iad1tya.echo.music.extensions.toEnum
+import iad1tya.echo.music.R
+import iad1tya.echo.music.localmedia.LocalScanFailedException
 import iad1tya.echo.music.localmedia.LocalSongScanConfig
 import iad1tya.echo.music.localmedia.LocalSongScanSummary
 import iad1tya.echo.music.localmedia.LocalSongScanner
@@ -44,7 +46,7 @@ import kotlinx.coroutines.launch
 class LocalSongsViewModel
 @Inject
 constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     database: MusicDatabase,
     private val localSongScanner: LocalSongScanner,
 ) : ViewModel() {
@@ -100,7 +102,15 @@ constructor(
                     reportException(error)
                     _scanState.value = _scanState.value.copy(
                         isScanning = false,
-                        errorMessage = error.message,
+                        // Row 694: a refused scan deleted nothing; say so instead of an untranslated exception message.
+                        errorMessage = when (error) {
+                            is LocalScanFailedException -> if (error.keptSongs > 0) {
+                                context.getString(R.string.local_songs_scan_empty_kept, error.keptSongs)
+                            } else {
+                                context.getString(R.string.local_songs_scan_nothing_removed)
+                            }
+                            else -> error.message
+                        },
                     )
                 }
         }
