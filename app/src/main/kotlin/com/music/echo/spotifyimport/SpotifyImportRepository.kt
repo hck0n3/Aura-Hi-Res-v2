@@ -399,10 +399,11 @@ class SpotifyImportRepository @Inject constructor(
             }
 
             // NOTE: the removed bulk follow (`followArtistsWithContent`) used to run here and also
-            // subscribe every SONG artist from imported playlists/albums — not user intent. The real
-            // Spotify "followed artists" list is stamped with `followedByUserAt` in
-            // matchAndFollowArtistDetailed, which also holds each newly followed artist in
-            // ImportFollowsAwaitingConfirmKey until the user confirms it on the sync screen (registry #154).
+            // subscribe every SONG artist from imported playlists/albums — not user intent (registry #154).
+            // The real Spotify "followed artists" list is followed in Aura only, in
+            // matchAndFollowArtistDetailed: the import never subscribes the account, and each newly
+            // followed artist waits in ImportFollowsAwaitingConfirmKey until the user picks «Suscribir»
+            // or «Solo en Aura» on the sync screen (registry #646).
 
             // Mirror the freshly-imported likes + library to YouTube Music (when signed in), so the
             // Spotify import also lands in the user's YT Music library. Fire-and-forget (sync queue).
@@ -934,9 +935,10 @@ class SpotifyImportRepository @Inject constructor(
     // ── Followed artists ────────────────────────────────────────────────
 
     /**
-     * Imports the user's followed Spotify artists: for each one, finds the best
-     * matching YouTube Music artist, bookmarks it locally and subscribes the
-     * channel on YouTube. Reports progress per artist and returns a summary where
+     * Imports the user's followed Spotify artists: for each one, finds the
+     * matching YouTube Music artist and follows it in Aura only (the account is
+     * subscribed later, and only once the user confirms it — registry #646).
+     * Reports progress per artist and returns a summary where
      * "imported" = successfully matched + bookmarked artists.
      */
     private suspend fun importFollowedArtists(
@@ -1118,10 +1120,10 @@ class SpotifyImportRepository @Inject constructor(
                         channelId = channelId,
                         bookmarkedAt = now,
                         // DELIBERATE follow: this artist came from Spotify's "followed artists" list,
-                        // which the user explicitly selected as an import source. Only rows carrying
-                        // followedByUserAt are ever subscribed on the real YouTube account —
-                        // followArtistsWithContent's blanket bookmarks never are — and this one only
-                        // after the user confirms it (ImportFollowsAwaitingConfirmKey above).
+                        // which the user explicitly selected as an import source. This writes the follow
+                        // in Aura only; the import never subscribes the account. The upload pass skips it
+                        // while it sits in ImportFollowsAwaitingConfirmKey (above) and subscribes it only
+                        // if the user picks «Suscribir» on the sync screen (registry #646).
                         followedByUserAt = now,
                     ),
                 )
@@ -1139,11 +1141,11 @@ class SpotifyImportRepository @Inject constructor(
             }
         }
 
-        // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a song
-        // appears to also subscribe its artist. This is the explicit Spotify-import follow path,
-        // not that flow — timestamp only (regla 4), for correlating against a like/dislike log
-        // line if the report reproduces during an import.
-        timber.log.Timber.i("ARTIST_SUBSCRIBE_IMPORT")
+        // A follow written in Aura only by the Spotify import — never an account subscribe (registry
+        // #646). heldForConfirm=true when this import followed the artist for the first time, so it
+        // waits for the user's choice on the sync screen. No name or id (AGENTS rule 4): the timestamp
+        // is what correlates it with an «I was subscribed to an artist I never followed» report.
+        timber.log.Timber.i("ARTIST_IMPORT_LOCAL_FOLLOW heldForConfirm=${existing?.followedByUserAt == null}")
 
         return ItemMatchOutcome.Success
     }
@@ -1538,8 +1540,8 @@ sealed interface SpotifyImportSource {
 
     /**
      * The artists the user follows on Spotify. Imported by matching each one to a
-     * YouTube Music artist channel, then bookmarking it locally and subscribing on
-     * YouTube. [trackCount] carries the number of followed artists (reused by the
+     * YouTube Music artist channel and following it in Aura only (the account is
+     * subscribed only once the user confirms it). [trackCount] carries the number of followed artists (reused by the
      * generic progress/summary UI as the item total). [localPlaylistId] is unused
      * for this source — followed artists are not mirrored into a playlist.
      */
