@@ -1492,11 +1492,22 @@ class MainActivity : ComponentActivity() {
                             return@collectLatest
                         }
                         val result = kotlinx.coroutines.withTimeoutOrNull(remaining) {
-                            snackbarHostState.showSnackbar(
-                                message = queueClosedMessage,
-                                actionLabel = queueClosedUndoLabel,
-                                duration = SnackbarDuration.Indefinite,
-                            )
+                            kotlinx.coroutines.coroutineScope {
+                                // The host shows one snackbar at a time and queues the rest, while this window is already
+                                // running: anything else up (the ~10 s previous-queue offer, an offline-mode notice) gives
+                                // way, or the undo would sit queued behind it until its 6 s ran out unseen.
+                                val clearWay = launch {
+                                    androidx.compose.runtime.snapshotFlow { snackbarHostState.currentSnackbarData }.first { data ->
+                                        if (data != null && data.visuals.message != queueClosedMessage) data.dismiss()
+                                        data?.visuals?.message == queueClosedMessage
+                                    }
+                                }
+                                snackbarHostState.showSnackbar(
+                                    message = queueClosedMessage,
+                                    actionLabel = queueClosedUndoLabel,
+                                    duration = SnackbarDuration.Indefinite,
+                                ).also { clearWay.cancel() }
+                            }
                         }
                         if (result == SnackbarResult.ActionPerformed) {
                             iad1tya.echo.music.playback.DismissedQueueUndo.restore(connection.service, offer.token)

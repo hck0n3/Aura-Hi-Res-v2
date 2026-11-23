@@ -140,6 +140,9 @@ class QueueUndoAndConfirmationGuardTest {
         assertTrue(shell.contains("iad1tya.echo.music.playback.DismissedQueueUndo.restore(connection.service, offer.token)"))
         assertTrue(shell.contains("iad1tya.echo.music.playback.DismissedQueueUndo.drop(offer.token)"))
         assertTrue(shell.contains("actionLabel = queueClosedUndoLabel,"))
+        // The shared host queues snackbars behind a mutex while the 6 s already run: whatever else is up gives way.
+        assertTrue(shell.contains("androidx.compose.runtime.snapshotFlow { snackbarHostState.currentSnackbarData }.first { data ->"))
+        assertTrue(shell.contains("if (data != null && data.visuals.message != queueClosedMessage) data.dismiss()"))
         assertTrue(stringValue(res("values/strings.xml"), "queue_closed_undo") == "Queue closed")
         assertTrue(stringValue(res("values-es/strings.xml"), "queue_closed_undo") == "Cola cerrada")
         assertTrue(stringValue(res("values-es-rUS/strings.xml"), "queue_closed_undo") == "Cola cerrada")
